@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getAllUsers, updateUserRole, getAllUserProgress } from "../db";
+import { getAllUsers, updateUserRole, getAllUserProgress, getDb } from "../db";
+import { users, userProgress, vocabulary, chatMessages, exerciseResults } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 // Middleware to check if user is admin or superadmin
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -64,6 +66,63 @@ export const adminRouter = router({
     }))
     .mutation(async ({ input }) => {
       await updateUserRole(input.userId, input.role);
+      return { success: true };
+    }),
+
+  // Toggle user active status
+  toggleUserStatus: superadminProcedure
+    .input(z.object({
+      userId: z.string(),
+      isActive: z.boolean()
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      
+      await db.update(users).set({ isActive: input.isActive }).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
+
+  // Delete user (and all associated data)
+  deleteUser: superadminProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot delete yourself' });
+      }
+      
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      
+      // Delete user progress, vocabulary, chat messages, exercise results
+      await db.delete(userProgress).where(eq(userProgress.userId, input.userId));
+      await db.delete(vocabulary).where(eq(vocabulary.userId, input.userId));
+      await db.delete(chatMessages).where(eq(chatMessages.userId, input.userId));
+      await db.delete(exerciseResults).where(eq(exerciseResults.userId, input.userId));
+      
+      // Finally delete the user
+      await db.delete(users).where(eq(users.id, input.userId));
+      
+      return { success: true };
+    }),
+
+  // Reset user progress
+  resetUserProgress: adminProcedure
+    .input(z.object({ userId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      
+      // Reset progress to week 1, unit 1
+      await db.update(userProgress)
+        .set({
+          currentWeek: 1,
+          currentUnit: 1,
+          completedUnits: JSON.stringify([]),
+          lastActivityAt: new Date()
+        })
+        .where(eq(userProgress.userId, input.userId));
+      
       return { success: true };
     }),
 

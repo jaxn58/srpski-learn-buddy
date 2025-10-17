@@ -36,6 +36,13 @@
       "when": 1760697524296,
       "tag": "0004_premium_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1760698406765,
+      "tag": "0005_red_boom_boom",
+      "breakpoints": true
     }
   ]
 }

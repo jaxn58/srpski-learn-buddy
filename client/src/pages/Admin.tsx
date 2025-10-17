@@ -3,17 +3,44 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc";
-import { Users, TrendingUp, BookOpen, Activity } from "lucide-react";
+import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw } from "lucide-react";
 import { Link } from "wouter";
+import { toast } from "sonner";
+import { useState } from "react";
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const { data: users, isLoading: usersLoading } = trpc.admin.getAllUsers.useQuery();
   const { data: progress, isLoading: progressLoading } = trpc.admin.getAllProgress.useQuery();
   const { data: stats, isLoading: statsLoading } = trpc.admin.getStatistics.useQuery();
+  
   const updateRole = trpc.admin.updateUserRole.useMutation();
+  const toggleStatus = trpc.admin.toggleUserStatus.useMutation();
+  const deleteUser = trpc.admin.deleteUser.useMutation();
+  const resetProgress = trpc.admin.resetUserProgress.useMutation();
+  
   const utils = trpc.useUtils();
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   if (authLoading || usersLoading || progressLoading || statsLoading) {
     return (
@@ -42,8 +69,45 @@ export default function Admin() {
   }
 
   const handleRoleChange = async (userId: string, newRole: 'superadmin' | 'admin' | 'student') => {
-    await updateRole.mutateAsync({ userId, role: newRole });
-    utils.admin.getAllUsers.invalidate();
+    try {
+      await updateRole.mutateAsync({ userId, role: newRole });
+      toast.success('Role updated successfully');
+      utils.admin.getAllUsers.invalidate();
+    } catch (error) {
+      toast.error('Failed to update role');
+    }
+  };
+
+  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      await toggleStatus.mutateAsync({ userId, isActive: !currentStatus });
+      toast.success(currentStatus ? 'User deactivated' : 'User activated');
+      utils.admin.getAllUsers.invalidate();
+    } catch (error) {
+      toast.error('Failed to update user status');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await deleteUser.mutateAsync({ userId });
+      toast.success('User deleted successfully');
+      utils.admin.getAllUsers.invalidate();
+      utils.admin.getAllProgress.invalidate();
+      setDeletingUserId(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete user');
+    }
+  };
+
+  const handleResetProgress = async (userId: string) => {
+    try {
+      await resetProgress.mutateAsync({ userId });
+      toast.success('Progress reset successfully');
+      utils.admin.getAllProgress.invalidate();
+    } catch (error) {
+      toast.error('Failed to reset progress');
+    }
   };
 
   return (
@@ -125,8 +189,9 @@ export default function Admin() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Last Signed In</TableHead>
-                  {user.role === 'superadmin' && <TableHead>Actions</TableHead>}
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -135,36 +200,112 @@ export default function Admin() {
                     <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
                     <TableCell>{u.email || 'N/A'}</TableCell>
                     <TableCell>
+                      {user.role === 'superadmin' && u.id !== user.id ? (
+                        <Select
+                          value={u.role}
+                          onValueChange={(value) => handleRoleChange(u.id, value as any)}
+                        >
+                          <SelectTrigger className="w-[130px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="student">Student</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="superadmin">Superadmin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          u.role === 'superadmin' ? 'bg-purple-100 text-purple-800' :
+                          u.role === 'admin' ? 'bg-blue-100 text-blue-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {u.role}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        u.role === 'superadmin' ? 'bg-purple-100 text-purple-800' :
-                        u.role === 'admin' ? 'bg-blue-100 text-blue-800' :
-                        'bg-green-100 text-green-800'
+                        u.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
-                        {u.role}
+                        {u.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </TableCell>
                     <TableCell>
                       {u.lastSignedIn ? new Date(u.lastSignedIn).toLocaleDateString() : 'Never'}
                     </TableCell>
-                    {user.role === 'superadmin' && (
-                      <TableCell>
-                        {u.id !== user.id && (
-                          <Select
-                            value={u.role}
-                            onValueChange={(value) => handleRoleChange(u.id, value as any)}
-                          >
-                            <SelectTrigger className="w-[130px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="student">Student</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="superadmin">Superadmin</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </TableCell>
-                    )}
+                    <TableCell className="text-right">
+                      {user.role === 'superadmin' && u.id !== user.id && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleToggleStatus(u.id, u.isActive)}>
+                              {u.isActive ? (
+                                <>
+                                  <Ban className="mr-2 h-4 w-4" />
+                                  Deactivate User
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                  Activate User
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            {u.role === 'student' && (
+                              <DropdownMenuItem onClick={() => handleResetProgress(u.id)}>
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Reset Progress
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    setDeletingUserId(u.id);
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete User
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              {deletingUserId === u.id && (
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This action cannot be undone. This will permanently delete the user
+                                      account and remove all associated data including progress, vocabulary,
+                                      and chat history.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setDeletingUserId(null)}>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteUser(u.id)}
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              )}
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
