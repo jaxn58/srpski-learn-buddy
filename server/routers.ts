@@ -62,7 +62,7 @@ export const appRouter = router({
           currentUnit: 1,
           completedUnits: JSON.stringify([]),
           learningDuration: 12,
-          uiLanguage: "de",
+          uiLanguage: "en",
           startedAt: new Date(),
           lastActivityAt: new Date(),
         };
@@ -181,8 +181,8 @@ export const appRouter = router({
         const history = await getChatHistory(ctx.user.id, 10);
         const progress = await getUserProgress(ctx.user.id);
 
-        // Get user's UI language
-        const userLanguage = progress?.uiLanguage || 'de';
+        // Always use English
+        const userLanguage = 'en';
         
         // Build context for AI
         const systemPrompts = {
@@ -194,7 +194,7 @@ Der Student ist aktuell in Woche ${progress?.currentWeek || 1}, Lektion ${progre
 The student is currently in week ${progress?.currentWeek || 1}, lesson ${progress?.currentUnit || 1}.`
         };
         
-        let systemPrompt = systemPrompts[userLanguage as 'de' | 'en'] || systemPrompts.de;
+        let systemPrompt = systemPrompts.en;
 
         if (input.unitContext) {
           const unit = COURSE_UNITS.find(u => u.number === input.unitContext);
@@ -223,7 +223,7 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
 - When the student writes in Serbian, correct mistakes and explain them`
         };
         
-        systemPrompt += taskDescriptions[userLanguage as 'de' | 'en'] || taskDescriptions.de;
+        systemPrompt += taskDescriptions.en;
 
         // Prepare messages for LLM
         const messages: any[] = [

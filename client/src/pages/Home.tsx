@@ -1,14 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getLoginUrl } from "@/const";
-import { BookOpen, Brain, MessageSquare, TrendingUp, Globe } from "lucide-react";
+import { BookOpen, Brain, MessageSquare, TrendingUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   if (loading) {
     return (
@@ -31,21 +30,9 @@ export default function Home() {
             <BookOpen className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold">{t('app.title')}</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <Select value={i18n.language} onValueChange={(lang) => i18n.changeLanguage(lang)}>
-              <SelectTrigger className="w-[120px]">
-                <Globe className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="de">Deutsch</SelectItem>
-                <SelectItem value="en">English</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button asChild>
-              <a href={getLoginUrl()}>{t('common.login')}</a>
-            </Button>
-          </div>
+          <Button asChild>
+            <a href={getLoginUrl()}>{t('common.login')}</a>
+          </Button>
         </div>
       </header>
 
@@ -126,10 +113,10 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• {i18n.language === 'de' ? 'Alphabet & Aussprache' : 'Alphabet & Pronunciation'}</li>
-                  <li>• {i18n.language === 'de' ? 'Erste Gespräche' : 'First Conversations'}</li>
-                  <li>• {i18n.language === 'de' ? 'Orientierung in der Stadt' : 'Getting Around the City'}</li>
-                  <li>• {i18n.language === 'de' ? 'Einkaufen & Restaurant' : 'Shopping & Restaurant'}</li>
+                  <li>• Alphabet & Pronunciation</li>
+                  <li>• First Conversations</li>
+                  <li>• Getting Around the City</li>
+                  <li>• Shopping & Restaurant</li>
                 </ul>
               </CardContent>
             </Card>
@@ -143,10 +130,10 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• {i18n.language === 'de' ? 'Tagesablauf & Familie' : 'Daily Routine & Family'}</li>
-                  <li>• {i18n.language === 'de' ? 'Vergangenheit sprechen' : 'Talking About the Past'}</li>
-                  <li>• {i18n.language === 'de' ? 'Genitiv & Akkusativ' : 'Genitive & Accusative'}</li>
-                  <li>• {i18n.language === 'de' ? 'Menschen beschreiben' : 'Describing People'}</li>
+                  <li>• Daily Routine & Family</li>
+                  <li>• Talking About the Past</li>
+                  <li>• Genitive & Accusative</li>
+                  <li>• Describing People</li>
                 </ul>
               </CardContent>
             </Card>
@@ -160,10 +147,10 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• {i18n.language === 'de' ? 'Reisen & Wetter' : 'Travel & Weather'}</li>
-                  <li>• {i18n.language === 'de' ? 'Zukunftspläne' : 'Future Plans'}</li>
-                  <li>• {i18n.language === 'de' ? 'Imperativ & Konditional' : 'Imperative & Conditional'}</li>
-                  <li>• {i18n.language === 'de' ? 'Kyrillisches Alphabet' : 'Cyrillic Alphabet'}</li>
+                  <li>• Travel & Weather</li>
+                  <li>• Future Plans</li>
+                  <li>• Imperative & Conditional</li>
+                  <li>• Cyrillic Alphabet</li>
                 </ul>
               </CardContent>
             </Card>
@@ -175,18 +162,16 @@ export default function Home() {
         <Card className="max-w-2xl mx-auto bg-primary text-primary-foreground">
           <CardHeader className="text-center">
             <CardTitle className="text-3xl">
-              {i18n.language === 'de' ? 'Bereit, Serbisch zu lernen?' : 'Ready to learn Serbian?'}
+              Ready to learn Serbian?
             </CardTitle>
             <CardDescription className="text-primary-foreground/80 text-lg">
-              {i18n.language === 'de' 
-                ? 'Starten Sie noch heute Ihre Reise zur serbischen Sprache' 
-                : 'Start your journey to the Serbian language today'}
+              Start your journey to the Serbian language today
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
             <Button size="lg" variant="secondary" asChild>
               <a href={getLoginUrl()}>
-                {i18n.language === 'de' ? 'Kostenlos beginnen' : 'Start for Free'}
+                Start for Free
               </a>
             </Button>
           </CardContent>
@@ -196,9 +181,7 @@ export default function Home() {
       <footer className="container py-8 border-t">
         <div className="text-center text-sm text-muted-foreground">
           <p>
-            {i18n.language === 'de' 
-              ? 'Basierend auf "Step by Step Serbian 1" von Mirjana Danilović' 
-              : 'Based on "Step by Step Serbian 1" by Mirjana Danilović'}
+            Based on "Step by Step Serbian 1" by Mirjana Danilović
           </p>
           <p className="mt-2">© 2024 Serbian AI Tutor. Powered by Manus AI.</p>
         </div>

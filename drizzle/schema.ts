@@ -20,7 +20,7 @@ export const userProgress = mysqlTable("userProgress", {
   currentUnit: int("currentUnit").default(1).notNull(),
   completedUnits: text("completedUnits"), // JSON array of completed unit numbers
   learningDuration: int("learningDuration").default(12).notNull(), // Duration in weeks: 12, 24, 36, 48
-  uiLanguage: varchar("uiLanguage", { length: 10 }).default("de").notNull(), // de or en
+  uiLanguage: varchar("uiLanguage", { length: 10 }).default("en").notNull(), // always en
   startedAt: timestamp("startedAt").defaultNow(),
   lastActivityAt: timestamp("lastActivityAt").defaultNow(),
 });

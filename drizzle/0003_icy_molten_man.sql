@@ -1,0 +1,1 @@
+ALTER TABLE `userProgress` MODIFY COLUMN `uiLanguage` varchar(10) NOT NULL DEFAULT 'en';

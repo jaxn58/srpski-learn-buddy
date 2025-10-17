@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Globe, Clock } from "lucide-react";
+import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -16,7 +16,7 @@ export default function Dashboard() {
   const { data: units } = trpc.course.getUnits.useQuery();
   const updateProgress = trpc.progress.update.useMutation();
   const utils = trpc.useUtils();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   if (authLoading || progressLoading) {
     return (
@@ -36,22 +36,10 @@ export default function Dashboard() {
   const totalUnits = units?.length || 27;
   const progressPercentage = (completedUnits.length / totalUnits) * 100;
   const learningDuration = progress?.learningDuration || 12;
-  const currentLanguage = progress?.uiLanguage || i18n.language || "de";
-
-  const handleLanguageChange = async (lang: string) => {
-    await updateProgress.mutateAsync({ uiLanguage: lang });
-    i18n.changeLanguage(lang);
-    utils.progress.get.invalidate();
-  };
 
   const handleDurationChange = async (duration: string) => {
     await updateProgress.mutateAsync({ learningDuration: parseInt(duration) });
     utils.progress.get.invalidate();
-  };
-
-  const getDurationLabel = (weeks: number) => {
-    const months = weeks / 4;
-    return `${months} ${months === 1 ? 'Monat' : 'Monate'}`;
   };
 
   return (
@@ -64,16 +52,6 @@ export default function Dashboard() {
               <h1 className="text-xl font-bold">{t('app.title')}</h1>
             </div>
             <div className="flex items-center gap-4">
-              <Select value={currentLanguage} onValueChange={handleLanguageChange}>
-                <SelectTrigger className="w-[120px]">
-                  <Globe className="h-4 w-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="de">Deutsch</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
-                </SelectContent>
-              </Select>
               <span className="text-sm text-muted-foreground">
                 {user.name || user.email}
               </span>
@@ -91,13 +69,13 @@ export default function Dashboard() {
           <BookOpen className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <div>
-              <strong>Kursbuch:</strong> "Step by Step Serbian 1" von Mirjana Danilović
-              <span className="text-muted-foreground ml-2">• Alle Lektionen basieren auf diesem Buch</span>
+              <strong>Course Book:</strong> "Step by Step Serbian 1" by Mirjana Danilović
+              <span className="text-muted-foreground ml-2">• All lessons are based on this book</span>
             </div>
             <Button variant="outline" size="sm" asChild>
               <a href="/step-by-step-serbian.pdf" target="_blank" rel="noopener noreferrer">
                 <Download className="h-4 w-4 mr-2" />
-                PDF herunterladen
+                Download PDF
               </a>
             </Button>
           </AlertDescription>
@@ -111,25 +89,25 @@ export default function Dashboard() {
               {t('settings.learningPlan')}
             </CardTitle>
             <CardDescription>
-              Passen Sie Ihre Lerngeschwindigkeit an Ihre verfügbare Zeit an
+              Adjust your learning pace to match your available time
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <label className="text-sm font-medium">Kursdauer:</label>
+              <label className="text-sm font-medium">Course Duration:</label>
               <Select value={learningDuration.toString()} onValueChange={handleDurationChange}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="12">3 Monate (Intensiv)</SelectItem>
-                  <SelectItem value="24">6 Monate (Standard)</SelectItem>
-                  <SelectItem value="36">9 Monate (Entspannt)</SelectItem>
-                  <SelectItem value="48">12 Monate (Gemütlich)</SelectItem>
+                  <SelectItem value="12">3 Months (Intensive)</SelectItem>
+                  <SelectItem value="24">6 Months (Standard)</SelectItem>
+                  <SelectItem value="36">9 Months (Relaxed)</SelectItem>
+                  <SelectItem value="48">12 Months (Leisurely)</SelectItem>
                 </SelectContent>
               </Select>
               <span className="text-sm text-muted-foreground">
-                = {learningDuration} Wochen
+                = {learningDuration} weeks
               </span>
             </div>
           </CardContent>
@@ -137,7 +115,7 @@ export default function Dashboard() {
 
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Lernender' })}
+            {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Learner' })}
           </h2>
           <p className="text-muted-foreground">
             {t('dashboard.weekProgress', { current: progress?.currentWeek, total: learningDuration })}
@@ -165,7 +143,7 @@ export default function Dashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Woche {progress?.currentWeek}</div>
+              <div className="text-2xl font-bold">Week {progress?.currentWeek}</div>
               <p className="text-xs text-muted-foreground mt-2">
                 {currentWeek?.title}
               </p>
@@ -197,7 +175,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <Link href={`/unit/${progress?.currentUnit}`}>
-                <Button className="w-full">Zur Lektion</Button>
+                <Button className="w-full">Go to Lesson</Button>
               </Link>
             </CardContent>
           </Card>
@@ -220,7 +198,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Woche {progress?.currentWeek}: {currentWeek?.title}</CardTitle>
+            <CardTitle>Week {progress?.currentWeek}: {currentWeek?.title}</CardTitle>
             <CardDescription>
               {currentWeek?.goals.join(" • ")}
             </CardDescription>
@@ -253,10 +231,10 @@ export default function Dashboard() {
                             </div>
                             <div>
                               {isCompleted && (
-                                <span className="text-green-600 text-sm">✓ Abgeschlossen</span>
+                                <span className="text-green-600 text-sm">✓ Completed</span>
                               )}
                               {isCurrent && !isCompleted && (
-                                <span className="text-primary text-sm">→ Aktuell</span>
+                                <span className="text-primary text-sm">→ Current</span>
                               )}
                             </div>
                           </div>
