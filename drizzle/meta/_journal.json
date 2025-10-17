@@ -15,6 +15,13 @@
       "when": 1760693292933,
       "tag": "0001_rainy_stark_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1760695454736,
+      "tag": "0002_far_fat_cobra",
+      "breakpoints": true
     }
   ]
 }

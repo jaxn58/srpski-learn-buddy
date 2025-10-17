@@ -2,15 +2,21 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp } from "lucide-react";
+import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Globe, Clock } from "lucide-react";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 
 export default function Dashboard() {
   const { user, loading: authLoading, logout } = useAuth();
   const { data: progress, isLoading: progressLoading } = trpc.progress.get.useQuery();
   const { data: weeks } = trpc.course.getWeeks.useQuery();
   const { data: units } = trpc.course.getUnits.useQuery();
+  const updateProgress = trpc.progress.update.useMutation();
+  const utils = trpc.useUtils();
+  const { t, i18n } = useTranslation();
 
   if (authLoading || progressLoading) {
     return (
@@ -29,6 +35,24 @@ export default function Dashboard() {
   const completedUnits = progress?.completedUnits || [];
   const totalUnits = units?.length || 27;
   const progressPercentage = (completedUnits.length / totalUnits) * 100;
+  const learningDuration = progress?.learningDuration || 12;
+  const currentLanguage = progress?.uiLanguage || i18n.language || "de";
+
+  const handleLanguageChange = async (lang: string) => {
+    await updateProgress.mutateAsync({ uiLanguage: lang });
+    i18n.changeLanguage(lang);
+    utils.progress.get.invalidate();
+  };
+
+  const handleDurationChange = async (duration: string) => {
+    await updateProgress.mutateAsync({ learningDuration: parseInt(duration) });
+    utils.progress.get.invalidate();
+  };
+
+  const getDurationLabel = (weeks: number) => {
+    const months = weeks / 4;
+    return `${months} ${months === 1 ? 'Monat' : 'Monate'}`;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -37,14 +61,24 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BookOpen className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">Serbian AI Tutor</h1>
+              <h1 className="text-xl font-bold">{t('app.title')}</h1>
             </div>
             <div className="flex items-center gap-4">
+              <Select value={currentLanguage} onValueChange={handleLanguageChange}>
+                <SelectTrigger className="w-[120px]">
+                  <Globe className="h-4 w-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="de">Deutsch</SelectItem>
+                  <SelectItem value="en">English</SelectItem>
+                </SelectContent>
+              </Select>
               <span className="text-sm text-muted-foreground">
                 {user.name || user.email}
               </span>
               <Button variant="outline" size="sm" onClick={() => logout()}>
-                Abmelden
+                {t('common.logout')}
               </Button>
             </div>
           </div>
@@ -52,33 +86,82 @@ export default function Dashboard() {
       </header>
 
       <main className="container py-8">
+        {/* Book Reference Alert */}
+        <Alert className="mb-6 border-primary/20 bg-primary/5">
+          <BookOpen className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <div>
+              <strong>Kursbuch:</strong> "Step by Step Serbian 1" von Mirjana Danilović
+              <span className="text-muted-foreground ml-2">• Alle Lektionen basieren auf diesem Buch</span>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/step-by-step-serbian.pdf" target="_blank" rel="noopener noreferrer">
+                <Download className="h-4 w-4 mr-2" />
+                PDF herunterladen
+              </a>
+            </Button>
+          </AlertDescription>
+        </Alert>
+
+        {/* Learning Plan Settings */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              {t('settings.learningPlan')}
+            </CardTitle>
+            <CardDescription>
+              Passen Sie Ihre Lerngeschwindigkeit an Ihre verfügbare Zeit an
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium">Kursdauer:</label>
+              <Select value={learningDuration.toString()} onValueChange={handleDurationChange}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="12">3 Monate (Intensiv)</SelectItem>
+                  <SelectItem value="24">6 Monate (Standard)</SelectItem>
+                  <SelectItem value="36">9 Monate (Entspannt)</SelectItem>
+                  <SelectItem value="48">12 Monate (Gemütlich)</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-muted-foreground">
+                = {learningDuration} Wochen
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            Willkommen zurück, {user.name?.split(' ')[0] || 'Lernender'}!
+            {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Lernender' })}
           </h2>
           <p className="text-muted-foreground">
-            Sie sind in Woche {progress?.currentWeek} von 12. Weiter so!
+            {t('dashboard.weekProgress', { current: progress?.currentWeek, total: learningDuration })}
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Gesamtfortschritt</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.totalProgress')}</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
               <Progress value={progressPercentage} className="mt-2" />
               <p className="text-xs text-muted-foreground mt-2">
-                {Math.round(progressPercentage)}% abgeschlossen
+                {Math.round(progressPercentage)}% {t('dashboard.completed')}
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Aktuelle Woche</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.currentWeek')}</CardTitle>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -91,7 +174,7 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Aktuelle Lektion</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('dashboard.currentLesson')}</CardTitle>
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -107,7 +190,7 @@ export default function Dashboard() {
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <BookOpen className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Aktuelle Lektion fortsetzen</CardTitle>
+              <CardTitle>{t('dashboard.continueLesson')}</CardTitle>
               <CardDescription>
                 {units?.find(u => u.number === progress?.currentUnit)?.titleEnglish}
               </CardDescription>
@@ -122,14 +205,14 @@ export default function Dashboard() {
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <MessageSquare className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Mit AI-Professor chatten</CardTitle>
+              <CardTitle>{t('dashboard.chatWithProfessor')}</CardTitle>
               <CardDescription>
-                Stellen Sie Fragen und üben Sie Konversation
+                {t('dashboard.chatDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/chat">
-                <Button className="w-full" variant="outline">Chat öffnen</Button>
+                <Button className="w-full" variant="outline">{t('dashboard.openChat')}</Button>
               </Link>
             </CardContent>
           </Card>
@@ -145,7 +228,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-4">
               <div>
-                <h4 className="font-semibold mb-2">Lektionen dieser Woche:</h4>
+                <h4 className="font-semibold mb-2">{t('dashboard.lessonsThisWeek')}</h4>
                 <div className="grid gap-2">
                   {currentWeek?.units.map(unitNum => {
                     const unit = units?.find(u => u.number === unitNum);
@@ -185,7 +268,7 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <h4 className="font-semibold mb-2">Praxis-Aktivitäten:</h4>
+                <h4 className="font-semibold mb-2">{t('dashboard.practiceActivities')}</h4>
                 <ul className="space-y-1 text-sm text-muted-foreground">
                   {currentWeek?.practiceActivities.map((activity, idx) => (
                     <li key={idx}>• {activity}</li>
@@ -200,13 +283,13 @@ export default function Dashboard() {
           <Link href="/vocabulary">
             <Button variant="outline">
               <Brain className="mr-2 h-4 w-4" />
-              Vokabeln üben
+              {t('dashboard.practiceVocab')}
             </Button>
           </Link>
           <Link href="/progress">
             <Button variant="outline">
               <TrendingUp className="mr-2 h-4 w-4" />
-              Fortschritt ansehen
+              {t('dashboard.viewProgress')}
             </Button>
           </Link>
         </div>

@@ -61,6 +61,8 @@ export const appRouter = router({
           currentWeek: 1,
           currentUnit: 1,
           completedUnits: JSON.stringify([]),
+          learningDuration: 12,
+          uiLanguage: "de",
           startedAt: new Date(),
           lastActivityAt: new Date(),
         };
@@ -70,7 +72,7 @@ export const appRouter = router({
 
       return {
         ...progress,
-        completedUnits: progress.completedUnits ? JSON.parse(progress.completedUnits) : [],
+        completedUnits: progress?.completedUnits ? JSON.parse(progress.completedUnits) : [],
       };
     }),
 
@@ -79,6 +81,8 @@ export const appRouter = router({
         currentWeek: z.number().optional(),
         currentUnit: z.number().optional(),
         completedUnits: z.array(z.number()).optional(),
+        learningDuration: z.number().optional(),
+        uiLanguage: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const updates: any = {};
@@ -87,6 +91,8 @@ export const appRouter = router({
         if (input.completedUnits !== undefined) {
           updates.completedUnits = JSON.stringify(input.completedUnits);
         }
+        if (input.learningDuration !== undefined) updates.learningDuration = input.learningDuration;
+        if (input.uiLanguage !== undefined) updates.uiLanguage = input.uiLanguage;
 
         await updateUserProgress(ctx.user.id, updates);
         return { success: true };
@@ -175,10 +181,20 @@ export const appRouter = router({
         const history = await getChatHistory(ctx.user.id, 10);
         const progress = await getUserProgress(ctx.user.id);
 
+        // Get user's UI language
+        const userLanguage = progress?.uiLanguage || 'de';
+        
         // Build context for AI
-        let systemPrompt = `Du bist ein freundlicher und geduldiger Serbisch-Professor. Du hilfst Studenten beim Lernen der serbischen Sprache mit dem Kursbuch "Step by Step Serbian 1".
+        const systemPrompts = {
+          de: `Du bist ein freundlicher und geduldiger Serbisch-Professor. Du hilfst Studenten beim Lernen der serbischen Sprache mit dem Kursbuch "Step by Step Serbian 1".
 
-Der Student ist aktuell in Woche ${progress?.currentWeek || 1}, Lektion ${progress?.currentUnit || 1}.`;
+Der Student ist aktuell in Woche ${progress?.currentWeek || 1}, Lektion ${progress?.currentUnit || 1}.`,
+          en: `You are a friendly and patient Serbian language professor. You help students learn Serbian using the course book "Step by Step Serbian 1".
+
+The student is currently in week ${progress?.currentWeek || 1}, lesson ${progress?.currentUnit || 1}.`
+        };
+        
+        let systemPrompt = systemPrompts[userLanguage as 'de' | 'en'] || systemPrompts.de;
 
         if (input.unitContext) {
           const unit = COURSE_UNITS.find(u => u.number === input.unitContext);
@@ -190,13 +206,24 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
           }
         }
 
-        systemPrompt += `\n\nDeine Aufgaben:
+        const taskDescriptions = {
+          de: `\n\nDeine Aufgaben:
 - Erkläre grammatikalische Konzepte klar und mit Beispielen
 - Korrigiere Fehler sanft und konstruktiv
 - Gib praktische Übungen und Beispiele
 - Antworte auf Deutsch, aber verwende serbische Beispiele
 - Sei ermutigend und motivierend
-- Wenn der Student auf Serbisch schreibt, korrigiere Fehler und erkläre sie`;
+- Wenn der Student auf Serbisch schreibt, korrigiere Fehler und erkläre sie`,
+          en: `\n\nYour tasks:
+- Explain grammatical concepts clearly with examples
+- Correct mistakes gently and constructively
+- Provide practical exercises and examples
+- Respond in English, but use Serbian examples
+- Be encouraging and motivating
+- When the student writes in Serbian, correct mistakes and explain them`
+        };
+        
+        systemPrompt += taskDescriptions[userLanguage as 'de' | 'en'] || taskDescriptions.de;
 
         // Prepare messages for LLM
         const messages: any[] = [

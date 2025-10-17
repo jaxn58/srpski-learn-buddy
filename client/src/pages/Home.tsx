@@ -1,12 +1,14 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getLoginUrl } from "@/const";
-import { BookOpen, Brain, MessageSquare, TrendingUp } from "lucide-react";
-import { Link } from "wouter";
+import { BookOpen, Brain, MessageSquare, TrendingUp, Globe } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
+  const { t, i18n } = useTranslation();
 
   if (loading) {
     return (
@@ -23,50 +25,58 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10">
-      {/* Header */}
       <header className="container py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">Serbian AI Tutor</h1>
+            <h1 className="text-2xl font-bold">{t('app.title')}</h1>
           </div>
-          <Button asChild>
-            <a href={getLoginUrl()}>Anmelden</a>
-          </Button>
+          <div className="flex items-center gap-4">
+            <Select value={i18n.language} onValueChange={(lang) => i18n.changeLanguage(lang)}>
+              <SelectTrigger className="w-[120px]">
+                <Globe className="h-4 w-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="de">Deutsch</SelectItem>
+                <SelectItem value="en">English</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button asChild>
+              <a href={getLoginUrl()}>{t('common.login')}</a>
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* Hero Section */}
       <section className="container py-20">
         <div className="max-w-3xl mx-auto text-center space-y-6">
           <h2 className="text-5xl font-bold tracking-tight">
-            Lernen Sie Serbisch mit Ihrem
-            <span className="text-primary"> persönlichen AI-Professor</span>
+            {t('home.hero.title')}
+            <span className="text-primary"> {t('home.hero.titleHighlight')}</span>
           </h2>
           <p className="text-xl text-muted-foreground">
-            Ein strukturierter 3-Monats-Kurs basierend auf "Step by Step Serbian 1" – 
-            mit interaktiven Übungen, Vokabeltraining und intelligenter Konversationspraxis.
+            {t('home.hero.subtitle')}
           </p>
           <div className="flex gap-4 justify-center pt-4">
             <Button size="lg" asChild>
-              <a href={getLoginUrl()}>Jetzt starten</a>
+              <a href={getLoginUrl()}>{t('home.cta.start')}</a>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <a href="#features">Mehr erfahren</a>
+              <a href="#features">{t('home.cta.learnMore')}</a>
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
       <section id="features" className="container py-20">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card>
             <CardHeader>
               <BookOpen className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>12-Wochen-Plan</CardTitle>
+              <CardTitle>{t('features.structuredPlan.title')}</CardTitle>
               <CardDescription>
-                Strukturierter Lernpfad durch alle 27 Lektionen des Kursbuchs
+                {t('features.structuredPlan.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -74,9 +84,9 @@ export default function Home() {
           <Card>
             <CardHeader>
               <Brain className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>AI-Professor</CardTitle>
+              <CardTitle>{t('features.aiProfessor.title')}</CardTitle>
               <CardDescription>
-                Ihr persönlicher Tutor erklärt Grammatik, korrigiert Fehler und motiviert Sie
+                {t('features.aiProfessor.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -84,9 +94,9 @@ export default function Home() {
           <Card>
             <CardHeader>
               <MessageSquare className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Konversationspraxis</CardTitle>
+              <CardTitle>{t('features.conversation.title')}</CardTitle>
               <CardDescription>
-                Üben Sie echte Gespräche auf Serbisch mit sofortigem Feedback
+                {t('features.conversation.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -94,67 +104,66 @@ export default function Home() {
           <Card>
             <CardHeader>
               <TrendingUp className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>Fortschrittsverfolgung</CardTitle>
+              <CardTitle>{t('features.progress.title')}</CardTitle>
               <CardDescription>
-                Sehen Sie Ihre Erfolge und bleiben Sie motiviert durch klare Meilensteine
+                {t('features.progress.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
         </div>
       </section>
 
-      {/* Course Structure */}
       <section className="container py-20">
         <div className="max-w-4xl mx-auto">
-          <h3 className="text-3xl font-bold text-center mb-12">Ihr Lernweg</h3>
+          <h3 className="text-3xl font-bold text-center mb-12">{t('course.structure.title')}</h3>
           <div className="grid md:grid-cols-3 gap-8">
             <Card>
               <CardHeader>
-                <CardTitle className="text-primary">Monat 1</CardTitle>
+                <CardTitle className="text-primary">{t('course.month1.title')}</CardTitle>
                 <CardDescription className="text-base">
-                  Die Grundlagen schaffen
+                  {t('course.month1.subtitle')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Alphabet & Aussprache</li>
-                  <li>• Erste Gespräche</li>
-                  <li>• Orientierung in der Stadt</li>
-                  <li>• Einkaufen & Restaurant</li>
+                  <li>• {i18n.language === 'de' ? 'Alphabet & Aussprache' : 'Alphabet & Pronunciation'}</li>
+                  <li>• {i18n.language === 'de' ? 'Erste Gespräche' : 'First Conversations'}</li>
+                  <li>• {i18n.language === 'de' ? 'Orientierung in der Stadt' : 'Getting Around the City'}</li>
+                  <li>• {i18n.language === 'de' ? 'Einkaufen & Restaurant' : 'Shopping & Restaurant'}</li>
                 </ul>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-primary">Monat 2</CardTitle>
+                <CardTitle className="text-primary">{t('course.month2.title')}</CardTitle>
                 <CardDescription className="text-base">
-                  Grammatik vertiefen
+                  {t('course.month2.subtitle')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Tagesablauf & Familie</li>
-                  <li>• Vergangenheit sprechen</li>
-                  <li>• Genitiv & Akkusativ</li>
-                  <li>• Menschen beschreiben</li>
+                  <li>• {i18n.language === 'de' ? 'Tagesablauf & Familie' : 'Daily Routine & Family'}</li>
+                  <li>• {i18n.language === 'de' ? 'Vergangenheit sprechen' : 'Talking About the Past'}</li>
+                  <li>• {i18n.language === 'de' ? 'Genitiv & Akkusativ' : 'Genitive & Accusative'}</li>
+                  <li>• {i18n.language === 'de' ? 'Menschen beschreiben' : 'Describing People'}</li>
                 </ul>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-primary">Monat 3</CardTitle>
+                <CardTitle className="text-primary">{t('course.month3.title')}</CardTitle>
                 <CardDescription className="text-base">
-                  Fortgeschrittene Strukturen
+                  {t('course.month3.subtitle')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Reisen & Wetter</li>
-                  <li>• Zukunftspläne</li>
-                  <li>• Imperativ & Konditional</li>
-                  <li>• Kyrillisches Alphabet</li>
+                  <li>• {i18n.language === 'de' ? 'Reisen & Wetter' : 'Travel & Weather'}</li>
+                  <li>• {i18n.language === 'de' ? 'Zukunftspläne' : 'Future Plans'}</li>
+                  <li>• {i18n.language === 'de' ? 'Imperativ & Konditional' : 'Imperative & Conditional'}</li>
+                  <li>• {i18n.language === 'de' ? 'Kyrillisches Alphabet' : 'Cyrillic Alphabet'}</li>
                 </ul>
               </CardContent>
             </Card>
@@ -162,31 +171,38 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="container py-20">
         <Card className="max-w-2xl mx-auto bg-primary text-primary-foreground">
           <CardHeader className="text-center">
-            <CardTitle className="text-3xl">Bereit, Serbisch zu lernen?</CardTitle>
+            <CardTitle className="text-3xl">
+              {i18n.language === 'de' ? 'Bereit, Serbisch zu lernen?' : 'Ready to learn Serbian?'}
+            </CardTitle>
             <CardDescription className="text-primary-foreground/80 text-lg">
-              Starten Sie noch heute Ihre Reise zur serbischen Sprache
+              {i18n.language === 'de' 
+                ? 'Starten Sie noch heute Ihre Reise zur serbischen Sprache' 
+                : 'Start your journey to the Serbian language today'}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
             <Button size="lg" variant="secondary" asChild>
-              <a href={getLoginUrl()}>Kostenlos beginnen</a>
+              <a href={getLoginUrl()}>
+                {i18n.language === 'de' ? 'Kostenlos beginnen' : 'Start for Free'}
+              </a>
             </Button>
           </CardContent>
         </Card>
       </section>
 
-      {/* Footer */}
       <footer className="container py-8 border-t">
         <div className="text-center text-sm text-muted-foreground">
-          <p>Basierend auf "Step by Step Serbian 1" von Mirjana Danilović</p>
+          <p>
+            {i18n.language === 'de' 
+              ? 'Basierend auf "Step by Step Serbian 1" von Mirjana Danilović' 
+              : 'Based on "Step by Step Serbian 1" by Mirjana Danilović'}
+          </p>
           <p className="mt-2">© 2024 Serbian AI Tutor. Powered by Manus AI.</p>
         </div>
       </footer>
     </div>
   );
 }
-
