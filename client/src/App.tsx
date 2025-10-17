@@ -11,12 +11,14 @@ import UnitView from "./pages/UnitView";
 import Chat from "./pages/Chat";
 import Vocabulary from "./pages/Vocabulary";
 import Progress from "./pages/Progress";
+import Admin from "./pages/Admin";
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/dashboard"} component={Dashboard} />
+      <Route path={"/admin"} component={Admin} />
       <Route path={"/week/:weekNumber"} component={WeekView} />
       <Route path={"/unit/:unitNumber"} component={UnitView} />
       <Route path={"/chat"} component={Chat} />

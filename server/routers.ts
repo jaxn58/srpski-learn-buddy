@@ -1,7 +1,8 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { adminRouter } from "./routers/admin";
 import { z } from "zod";
 import { 
   getUserProgress, 
@@ -21,6 +22,7 @@ import { nanoid } from "nanoid";
 
 export const appRouter = router({
   system: systemRouter,
+  admin: adminRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -120,7 +122,8 @@ export const appRouter = router({
     getByUnit: protectedProcedure
       .input(z.object({ unitNumber: z.number() }))
       .query(async ({ ctx, input }) => {
-        return await getUserVocabulary(ctx.user.id, input.unitNumber);
+        const allVocab = await getUserVocabulary(ctx.user.id);
+        return allVocab.filter(v => v.unitNumber === input.unitNumber);
       }),
 
     getAll: protectedProcedure.query(async ({ ctx }) => {
@@ -259,7 +262,11 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
     getResults: protectedProcedure
       .input(z.object({ unitNumber: z.number().optional() }))
       .query(async ({ ctx, input }) => {
-        return await getExerciseResults(ctx.user.id, input.unitNumber);
+        const allResults = await getExerciseResults(ctx.user.id);
+        if (input.unitNumber) {
+          return allResults.filter(r => r.unitNumber === input.unitNumber);
+        }
+        return allResults;
       }),
 
     submitResult: protectedProcedure

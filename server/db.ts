@@ -1,21 +1,11 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { 
-  InsertUser, 
-  users, 
-  userProgress, 
-  InsertUserProgress,
-  vocabulary,
-  InsertVocabulary,
-  chatMessages,
-  InsertChatMessage,
-  exerciseResults,
-  InsertExerciseResult
-} from "../drizzle/schema";
+import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -64,10 +54,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     }
     if (user.role === undefined) {
       if (user.id === ENV.ownerId) {
-        user.role = 'admin';
-        values.role = 'admin';
-        updateSet.role = 'admin';
+        user.role = 'superadmin';
+        values.role = 'superadmin';
+        updateSet.role = 'superadmin';
       }
+    } else {
+      values.role = user.role;
+      updateSet.role = user.role;
     }
 
     if (Object.keys(updateSet).length === 0) {
@@ -91,16 +84,47 @@ export async function getUser(id: string) {
   }
 
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+
   return result.length > 0 ? result[0] : undefined;
 }
 
-// User Progress functions
+export async function getAllUsers() {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get users: database not available");
+    return [];
+  }
+
+  return await db.select().from(users);
+}
+
+export async function updateUserRole(userId: string, role: 'superadmin' | 'admin' | 'student') {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot update user role: database not available");
+    return;
+  }
+
+  await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+// ============= USER PROGRESS =============
+
 export async function getUserProgress(userId: string) {
   const db = await getDb();
   if (!db) return undefined;
 
-  const result = await db.select().from(userProgress).where(eq(userProgress.userId, userId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  const result = await db.select().from(userProgress)
+    .where(eq(userProgress.userId, userId)).limit(1);
+  
+  if (result.length > 0) {
+    const progress = result[0];
+    return {
+      ...progress,
+      completedUnits: progress.completedUnits ? JSON.parse(progress.completedUnits) : []
+    };
+  }
+  return undefined;
 }
 
 export async function createUserProgress(progress: InsertUserProgress) {
@@ -114,21 +138,27 @@ export async function updateUserProgress(userId: string, updates: Partial<Insert
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.update(userProgress)
-    .set({ ...updates, lastActivityAt: new Date() })
-    .where(eq(userProgress.userId, userId));
+  await db.update(userProgress).set(updates).where(eq(userProgress.userId, userId));
 }
 
-// Vocabulary functions
-export async function getUserVocabulary(userId: string, unitNumber?: number) {
+export async function getAllUserProgress() {
   const db = await getDb();
   if (!db) return [];
 
-  const conditions = unitNumber 
-    ? and(eq(vocabulary.userId, userId), eq(vocabulary.unitNumber, unitNumber))
-    : eq(vocabulary.userId, userId);
+  const results = await db.select().from(userProgress);
+  return results.map(progress => ({
+    ...progress,
+    completedUnits: progress.completedUnits ? JSON.parse(progress.completedUnits) : []
+  }));
+}
 
-  return await db.select().from(vocabulary).where(conditions);
+// ============= VOCABULARY =============
+
+export async function getUserVocabulary(userId: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(vocabulary).where(eq(vocabulary.userId, userId));
 }
 
 export async function addVocabulary(vocab: InsertVocabulary) {
@@ -145,15 +175,15 @@ export async function updateVocabulary(id: string, updates: Partial<InsertVocabu
   await db.update(vocabulary).set(updates).where(eq(vocabulary.id, id));
 }
 
-// Chat functions
+// ============= CHAT MESSAGES =============
+
 export async function getChatHistory(userId: string, limit: number = 50) {
   const db = await getDb();
   if (!db) return [];
 
-  return await db.select()
-    .from(chatMessages)
+  return await db.select().from(chatMessages)
     .where(eq(chatMessages.userId, userId))
-    .orderBy(desc(chatMessages.createdAt))
+    .orderBy(chatMessages.createdAt)
     .limit(limit);
 }
 
@@ -164,19 +194,15 @@ export async function addChatMessage(message: InsertChatMessage) {
   await db.insert(chatMessages).values(message);
 }
 
-// Exercise results functions
-export async function getExerciseResults(userId: string, unitNumber?: number) {
+// ============= EXERCISE RESULTS =============
+
+export async function getExerciseResults(userId: string) {
   const db = await getDb();
   if (!db) return [];
 
-  const conditions = unitNumber
-    ? and(eq(exerciseResults.userId, userId), eq(exerciseResults.unitNumber, unitNumber))
-    : eq(exerciseResults.userId, userId);
-
-  return await db.select()
-    .from(exerciseResults)
-    .where(conditions)
-    .orderBy(desc(exerciseResults.completedAt));
+  return await db.select(). from(exerciseResults)
+    .where(eq(exerciseResults.userId, userId))
+    .orderBy(exerciseResults.completedAt);
 }
 
 export async function addExerciseResult(result: InsertExerciseResult) {
