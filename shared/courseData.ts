@@ -265,23 +265,23 @@ export const COURSE_UNITS: Unit[] = [
 export const COURSE_WEEKS: Week[] = [
   {
     weekNumber: 1,
-    title: "Aller Anfang ist Serbisch",
+    title: "Getting Started with Serbian",
     units: [1],
     goals: [
-      "Das serbische lateinische Alphabet meistern",
-      "Grundlegende Begrüßungen und Höflichkeitsfloskeln verwenden",
-      "Das Verb 'biti' (sein) konjugieren",
-      "Das Konzept des grammatikalischen Geschlechts verstehen"
+      "Master the Serbian Latin alphabet",
+      "Use basic greetings and polite phrases",
+      "Conjugate the verb 'biti' (to be)",
+      "Understand the concept of grammatical gender"
     ],
     practiceActivities: [
-      "Laut lesen und Aussprache üben",
-      "Selbstgespräche mit Begrüßungen führen",
-      "Einfache Vorstellungen üben"
+      "Read aloud and practice pronunciation",
+      "Practice self-conversations with greetings",
+      "Practice simple introductions"
     ]
   },
   {
     weekNumber: 2,
-    title: "Erste Gespräche",
+    title: "First Conversations",
     units: [2, 3],
     goals: [
       "Zahlen von 1-100 lernen",
@@ -307,7 +307,7 @@ export const COURSE_WEEKS: Week[] = [
     ],
     practiceActivities: [
       "Stadtplan erstellen und beschriften",
-      "Wegbeschreibungen üben",
+      "Practice giving directions",
       "Eigenes Zimmer auf Serbisch beschreiben"
     ]
   },
@@ -377,7 +377,7 @@ export const COURSE_WEEKS: Week[] = [
   },
   {
     weekNumber: 8,
-    title: "Nationalitäten und die Vergangenheit",
+    title: "Nationalities and the Past",
     units: [12, 13],
     goals: [
       "Über Herkunft und Sprachen sprechen",
@@ -409,7 +409,7 @@ export const COURSE_WEEKS: Week[] = [
   },
   {
     weekNumber: 10,
-    title: "Der Dativ, Pläne und Telefonate",
+    title: "The Dative, Plans and Phone Calls",
     units: [16, 17, 18],
     goals: [
       "Den Dativ verstehen und anwenden",
