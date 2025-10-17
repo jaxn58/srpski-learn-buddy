@@ -119,9 +119,20 @@ export async function getUserProgress(userId: string) {
   
   if (result.length > 0) {
     const progress = result[0];
+    let completedUnits = [];
+    
+    if (progress.completedUnits) {
+      try {
+        completedUnits = JSON.parse(progress.completedUnits);
+      } catch (error) {
+        console.error('[Database] Failed to parse completedUnits:', error);
+        completedUnits = [];
+      }
+    }
+    
     return {
       ...progress,
-      completedUnits: progress.completedUnits ? JSON.parse(progress.completedUnits) : []
+      completedUnits
     };
   }
   return undefined;
@@ -146,10 +157,23 @@ export async function getAllUserProgress() {
   if (!db) return [];
 
   const results = await db.select().from(userProgress);
-  return results.map(progress => ({
-    ...progress,
-    completedUnits: progress.completedUnits ? JSON.parse(progress.completedUnits) : []
-  }));
+  return results.map(progress => {
+    let completedUnits = [];
+    
+    if (progress.completedUnits) {
+      try {
+        completedUnits = JSON.parse(progress.completedUnits);
+      } catch (error) {
+        console.error('[Database] Failed to parse completedUnits:', error);
+        completedUnits = [];
+      }
+    }
+    
+    return {
+      ...progress,
+      completedUnits
+    };
+  });
 }
 
 // ============= VOCABULARY =============

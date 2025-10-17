@@ -69,13 +69,15 @@ export const appRouter = router({
           lastActivityAt: new Date(),
         };
         await createUserProgress(newProgress);
-        progress = newProgress;
+        // Return with parsed completedUnits
+        progress = {
+          ...newProgress,
+          completedUnits: []
+        };
       }
 
-      return {
-        ...progress,
-        completedUnits: progress?.completedUnits ? JSON.parse(progress.completedUnits) : [],
-      };
+      // getUserProgress already parses completedUnits
+      return progress;
     }),
 
     update: protectedProcedure
