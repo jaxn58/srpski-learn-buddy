@@ -1,11 +1,21 @@
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { 
+  InsertUser, 
+  users, 
+  userProgress, 
+  InsertUserProgress,
+  vocabulary,
+  InsertVocabulary,
+  chatMessages,
+  InsertChatMessage,
+  exerciseResults,
+  InsertExerciseResult
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -81,8 +91,98 @@ export async function getUser(id: string) {
   }
 
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// User Progress functions
+export async function getUserProgress(userId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(userProgress).where(eq(userProgress.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createUserProgress(progress: InsertUserProgress) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(userProgress).values(progress);
+}
+
+export async function updateUserProgress(userId: string, updates: Partial<InsertUserProgress>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(userProgress)
+    .set({ ...updates, lastActivityAt: new Date() })
+    .where(eq(userProgress.userId, userId));
+}
+
+// Vocabulary functions
+export async function getUserVocabulary(userId: string, unitNumber?: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = unitNumber 
+    ? and(eq(vocabulary.userId, userId), eq(vocabulary.unitNumber, unitNumber))
+    : eq(vocabulary.userId, userId);
+
+  return await db.select().from(vocabulary).where(conditions);
+}
+
+export async function addVocabulary(vocab: InsertVocabulary) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(vocabulary).values(vocab);
+}
+
+export async function updateVocabulary(id: string, updates: Partial<InsertVocabulary>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(vocabulary).set(updates).where(eq(vocabulary.id, id));
+}
+
+// Chat functions
+export async function getChatHistory(userId: string, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select()
+    .from(chatMessages)
+    .where(eq(chatMessages.userId, userId))
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(limit);
+}
+
+export async function addChatMessage(message: InsertChatMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(chatMessages).values(message);
+}
+
+// Exercise results functions
+export async function getExerciseResults(userId: string, unitNumber?: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions = unitNumber
+    ? and(eq(exerciseResults.userId, userId), eq(exerciseResults.unitNumber, unitNumber))
+    : eq(exerciseResults.userId, userId);
+
+  return await db.select()
+    .from(exerciseResults)
+    .where(conditions)
+    .orderBy(desc(exerciseResults.completedAt));
+}
+
+export async function addExerciseResult(result: InsertExerciseResult) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(exerciseResults).values(result);
+}
+
