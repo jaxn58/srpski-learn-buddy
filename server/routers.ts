@@ -108,7 +108,8 @@ export const appRouter = router({
         const progress = await getUserProgress(ctx.user.id);
         if (!progress) throw new Error("Progress not found");
 
-        const completed = progress.completedUnits ? JSON.parse(progress.completedUnits) : [];
+        // getUserProgress already returns parsed completedUnits array
+        const completed = progress.completedUnits || [];
         if (!completed.includes(input.unitNumber)) {
           completed.push(input.unitNumber);
           await updateUserProgress(ctx.user.id, {

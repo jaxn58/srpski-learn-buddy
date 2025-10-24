@@ -2,9 +2,11 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, CheckCircle2, MessageSquare } from "lucide-react";
+import { BookOpen, CheckCircle2, MessageSquare, Lightbulb, MessageCircle } from "lucide-react";
 import { Link, useParams } from "wouter";
+import { getUnitExplanation } from "@shared/unitExplanations";
 
 export default function UnitView() {
   const { user } = useAuth();
@@ -28,6 +30,7 @@ export default function UnitView() {
   }
 
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
+  const explanation = getUnitExplanation(unitNumber);
 
   const handleComplete = async () => {
     await completeUnitMutation.mutateAsync({ unitNumber });
@@ -40,7 +43,7 @@ export default function UnitView() {
         <div className="container py-4">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
-              <Button variant="ghost" size="sm">← Zurück zum Dashboard</Button>
+              <Button variant="ghost" size="sm">← Back to Dashboard</Button>
             </Link>
             <div className="flex items-center gap-2">
               <BookOpen className="h-6 w-6 text-primary" />
@@ -50,7 +53,7 @@ export default function UnitView() {
         </div>
       </header>
 
-      <main className="container py-8 max-w-4xl">
+      <main className="container py-8 max-w-5xl">
         <div className="space-y-6">
           {/* Unit Header */}
           <Card>
@@ -64,74 +67,196 @@ export default function UnitView() {
                     {unit.titleEnglish}
                   </CardDescription>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Seite {unit.page} im Kursbuch
+                    Page {unit.page} in coursebook
                   </p>
                 </div>
                 {isCompleted && (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                     <CheckCircle2 className="mr-1 h-4 w-4" />
-                    Abgeschlossen
+                    Completed
                   </Badge>
                 )}
               </div>
             </CardHeader>
           </Card>
 
-          {/* Topics */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Themen dieser Lektion</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {unit.topics.map((topic, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span>{topic}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          {/* Overview */}
+          {explanation && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-900">
+                  <Lightbulb className="h-5 w-5" />
+                  What You'll Learn
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-blue-900">{explanation.overview}</p>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Grammar Focus */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Grammatik-Schwerpunkte</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {unit.grammarFocus.map((grammar, idx) => (
-                  <Badge key={idx} variant="secondary">
-                    {grammar}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Main Content Tabs */}
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="grammar">Grammar Explained</TabsTrigger>
+              <TabsTrigger value="practice">Practice Examples</TabsTrigger>
+            </TabsList>
 
-          {/* Vocabulary Themes */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Vokabular-Bereiche</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {unit.vocabularyThemes.map((theme, idx) => (
-                  <Badge key={idx} variant="outline">
-                    {theme}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+            <TabsContent value="overview" className="space-y-4 mt-6">
+              {/* Topics */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Lesson Topics</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {unit.topics.map((topic, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-primary mt-1">•</span>
+                        <span>{topic}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+
+              {/* Grammar Focus */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Grammar Focus</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {unit.grammarFocus.map((grammar, idx) => (
+                      <Badge key={idx} variant="secondary">
+                        {grammar}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Vocabulary Themes */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vocabulary Areas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {unit.vocabularyThemes.map((theme, idx) => (
+                      <Badge key={idx} variant="outline">
+                        {theme}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="grammar" className="space-y-6 mt-6">
+              {explanation?.grammarExplanations.map((grammarItem, idx) => (
+                <Card key={idx}>
+                  <CardHeader>
+                    <CardTitle className="text-xl">{grammarItem.topic}</CardTitle>
+                    <CardDescription className="text-base pt-2">
+                      {grammarItem.simpleExplanation}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Examples */}
+                    <div>
+                      <h4 className="font-semibold mb-3">Examples:</h4>
+                      <div className="space-y-3">
+                        {grammarItem.examples.map((example, exIdx) => (
+                          <div key={exIdx} className="p-4 bg-gray-50 rounded-lg border">
+                            <div className="grid md:grid-cols-2 gap-2 mb-2">
+                              <div>
+                                <span className="text-xs text-muted-foreground">Serbian:</span>
+                                <p className="font-semibold text-lg">{example.serbian}</p>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted-foreground">English:</span>
+                                <p className="text-lg">{example.english}</p>
+                              </div>
+                            </div>
+                            <div className="pt-2 border-t mt-2">
+                              <span className="text-xs text-muted-foreground">💡 Explanation:</span>
+                              <p className="text-sm mt-1">{example.explanation}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Comparison to English */}
+                    {grammarItem.comparisonToEnglish && (
+                      <div className="p-4 bg-blue-50 border-blue-200 border rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <span className="text-xl">🔄</span>
+                          <div>
+                            <h4 className="font-semibold mb-1">How is this different from English?</h4>
+                            <p className="text-sm">{grammarItem.comparisonToEnglish}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+
+              {!explanation && (
+                <Card>
+                  <CardContent className="py-12 text-center text-muted-foreground">
+                    <p>Detailed grammar explanations for this unit are coming soon!</p>
+                    <p className="text-sm mt-2">In the meantime, check the coursebook or ask the AI Professor.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="practice" className="space-y-6 mt-6">
+              {explanation?.practicalExamples.map((example, idx) => (
+                <Card key={idx}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageCircle className="h-5 w-5" />
+                      {example.situation}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {example.dialogue.map((line, lineIdx) => (
+                        <div key={lineIdx} className="p-3 bg-gray-50 rounded-lg">
+                          <p className="font-semibold text-lg mb-1">{line.serbian}</p>
+                          <p className="text-muted-foreground">{line.english}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 p-3 bg-yellow-50 border-yellow-200 border rounded">
+                      <p className="text-sm">💡 <strong>Try it yourself:</strong> Practice this dialogue out loud, or use it as a template to create your own conversations!</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {!explanation && (
+                <Card>
+                  <CardContent className="py-12 text-center text-muted-foreground">
+                    <p>Practice dialogues for this unit are coming soon!</p>
+                    <p className="text-sm mt-2">Check the coursebook for exercises and dialogues.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
 
           {/* Actions */}
           <Card>
             <CardHeader>
-              <CardTitle>Lernaktivitäten</CardTitle>
+              <CardTitle>Learning Activities</CardTitle>
               <CardDescription>
-                Nutzen Sie diese Funktionen, um die Lektion zu meistern
+                Use these features to master the lesson
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -141,9 +266,9 @@ export default function UnitView() {
                     <div className="flex flex-col items-center gap-2">
                       <MessageSquare className="h-6 w-6" />
                       <div className="text-center">
-                        <div className="font-semibold">Mit AI-Professor chatten</div>
+                        <div className="font-semibold">Chat with AI Professor</div>
                         <div className="text-xs text-muted-foreground">
-                          Fragen Sie nach Erklärungen
+                          Ask for explanations
                         </div>
                       </div>
                     </div>
@@ -155,9 +280,9 @@ export default function UnitView() {
                     <div className="flex flex-col items-center gap-2">
                       <BookOpen className="h-6 w-6" />
                       <div className="text-center">
-                        <div className="font-semibold">Vokabeln üben</div>
+                        <div className="font-semibold">Practice Vocabulary</div>
                         <div className="text-xs text-muted-foreground">
-                          Lernen Sie neue Wörter
+                          Learn new words
                         </div>
                       </div>
                     </div>
@@ -173,7 +298,7 @@ export default function UnitView() {
                   disabled={completeUnitMutation.isPending}
                 >
                   <CheckCircle2 className="mr-2 h-5 w-5" />
-                  Lektion als abgeschlossen markieren
+                  Mark lesson as completed
                 </Button>
               )}
             </CardContent>
@@ -182,15 +307,15 @@ export default function UnitView() {
           {/* Study Tips */}
           <Card className="bg-primary/5 border-primary/20">
             <CardHeader>
-              <CardTitle className="text-primary">Lerntipps</CardTitle>
+              <CardTitle className="text-primary">Study Tips</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm">
-                <li>📖 Lesen Sie die Lektion im Kursbuch (Seite {unit.page})</li>
-                <li>✍️ Machen Sie die Übungen im Buch</li>
-                <li>🗣️ Üben Sie die Dialoge laut</li>
-                <li>💬 Chatten Sie mit dem AI-Professor bei Fragen</li>
-                <li>🔁 Wiederholen Sie die Vokabeln täglich</li>
+                <li>📖 Read the lesson in the coursebook (page {unit.page})</li>
+                <li>✍️ Complete the exercises in the book</li>
+                <li>🗣️ Practice the dialogues out loud</li>
+                <li>💬 Chat with the AI Professor if you have questions</li>
+                <li>🔁 Review vocabulary daily</li>
               </ul>
             </CardContent>
           </Card>

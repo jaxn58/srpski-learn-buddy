@@ -64,7 +64,7 @@ export default function Chat() {
         <div className="container py-4">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
-              <Button variant="ghost" size="sm">← Zurück</Button>
+              <Button variant="ghost" size="sm">← Back</Button>
             </Link>
             <div className="flex items-center gap-2">
               <BookOpen className="h-6 w-6 text-primary" />
@@ -77,9 +77,9 @@ export default function Chat() {
       <main className="container py-8 max-w-4xl">
         <Card className="h-[calc(100vh-200px)] flex flex-col">
           <CardHeader>
-            <CardTitle>Chatten Sie mit Ihrem Serbisch-Professor</CardTitle>
+            <CardTitle>Chat with your Serbian Professor</CardTitle>
             <CardDescription>
-              Stellen Sie Fragen zu Grammatik, Vokabeln oder üben Sie Konversation auf Serbisch
+              Ask questions about grammar, vocabulary or practice conversation in Serbian
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col p-0">
@@ -87,11 +87,11 @@ export default function Chat() {
               <div className="space-y-4 py-4">
                 {messages.length === 0 && (
                   <div className="text-center text-muted-foreground py-8">
-                    <p>Noch keine Nachrichten. Starten Sie ein Gespräch!</p>
-                    <p className="text-sm mt-2">Beispiele:</p>
+                    <p>No messages yet. Start a conversation!</p>
+                    <p className="text-sm mt-2">Examples:</p>
                     <ul className="text-sm mt-2 space-y-1">
-                      <li>• "Erkläre mir den Lokativ-Fall"</li>
-                      <li>• "Wie konjugiere ich das Verb 'biti'?"</li>
+                      <li>• "Explain the locative case to me"</li>
+                      <li>• "How do I conjugate the verb 'biti'?"</li>
                       <li>• "Dobar dan! Kako ste?"</li>
                     </ul>
                   </div>
@@ -127,7 +127,7 @@ export default function Chat() {
             <div className="border-t p-4">
               <div className="flex gap-2">
                 <Input
-                  placeholder="Schreiben Sie eine Nachricht..."
+                  placeholder="Type a message..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && handleSend()}
