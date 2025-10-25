@@ -120,14 +120,13 @@ export default function Progress() {
             <Card>
               <CardHeader>
                 <CardTitle>Week {currentWeek}: {currentWeekInfo.title}</CardTitle>
-                <CardDescription>{currentWeekInfo.description}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-semibold mb-2">Learning Objectives:</h4>
                     <ul className="space-y-1">
-                      {currentWeekInfo.objectives?.map((obj, idx) => (
+                      {currentWeekInfo.goals?.map((obj: string, idx: number) => (
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <span className="text-primary mt-1">•</span>
                           <span>{obj}</span>

@@ -112,9 +112,26 @@ export const appRouter = router({
         const completed = progress.completedUnits || [];
         if (!completed.includes(input.unitNumber)) {
           completed.push(input.unitNumber);
-          await updateUserProgress(ctx.user.id, {
+          
+          // Auto-advance to next unit
+          const nextUnit = input.unitNumber + 1;
+          const updates: any = {
             completedUnits: JSON.stringify(completed),
-          });
+          };
+          
+          // Only update currentUnit if completing the current unit
+          if (input.unitNumber === progress.currentUnit && nextUnit <= 27) {
+            updates.currentUnit = nextUnit;
+            
+            // Also update week if needed (every ~2-3 units per week depending on duration)
+            const unitsPerWeek = Math.ceil(27 / (progress.learningDuration || 12));
+            const newWeek = Math.ceil(nextUnit / unitsPerWeek);
+            if (newWeek !== progress.currentWeek) {
+              updates.currentWeek = newWeek;
+            }
+          }
+          
+          await updateUserProgress(ctx.user.id, updates);
         }
 
         return { success: true };
