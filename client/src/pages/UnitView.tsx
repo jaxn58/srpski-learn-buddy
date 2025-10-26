@@ -1,3 +1,4 @@
+import React from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,22 +33,42 @@ export default function UnitView() {
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
   const explanation = getUnitExplanation(unitNumber);
 
+  const [showSuccess, setShowSuccess] = React.useState(false);
+
   const handleComplete = async () => {
     await completeUnitMutation.mutateAsync({ unitNumber });
     utils.progress.get.invalidate();
+    setShowSuccess(true);
   };
+
+  const nextUnit = unitNumber < 27 ? unitNumber + 1 : null;
+  const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">← Back to Dashboard</Button>
-            </Link>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm">← Back to Dashboard</Button>
+              </Link>
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-6 w-6 text-primary" />
+                <h1 className="text-xl font-bold">Unit {unitNumber}</h1>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              <BookOpen className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">Unit {unitNumber}</h1>
+              {prevUnit && (
+                <Link href={`/unit/${prevUnit}`}>
+                  <Button variant="outline" size="sm">← Previous</Button>
+                </Link>
+              )}
+              {nextUnit && (
+                <Link href={`/unit/${nextUnit}`}>
+                  <Button variant="outline" size="sm">Next →</Button>
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -290,7 +311,7 @@ export default function UnitView() {
                 </Button>
               </div>
 
-              {!isCompleted && (
+              {!isCompleted ? (
                 <Button 
                   className="w-full" 
                   size="lg"
@@ -300,6 +321,39 @@ export default function UnitView() {
                   <CheckCircle2 className="mr-2 h-5 w-5" />
                   Mark lesson as completed
                 </Button>
+              ) : showSuccess ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                    <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-2" />
+                    <h3 className="font-semibold text-green-900 mb-1">Great job! Unit {unitNumber} completed!</h3>
+                    <p className="text-sm text-green-700">You're making excellent progress in your Serbian learning journey.</p>
+                  </div>
+                  {nextUnit ? (
+                    <Link href={`/unit/${nextUnit}`}>
+                      <Button className="w-full" size="lg">
+                        Continue to Unit {nextUnit} →
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Link href="/dashboard">
+                      <Button className="w-full" size="lg">
+                        Return to Dashboard
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                  <CheckCircle2 className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                  <p className="text-sm text-blue-900 font-medium">Unit already completed</p>
+                  {nextUnit && (
+                    <Link href={`/unit/${nextUnit}`}>
+                      <Button className="w-full mt-3" variant="outline">
+                        Continue to Unit {nextUnit} →
+                      </Button>
+                    </Link>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
