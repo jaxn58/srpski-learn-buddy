@@ -18,6 +18,9 @@ export default function UnitView() {
   const { data: progress } = trpc.progress.get.useQuery();
   const completeUnitMutation = trpc.progress.completeUnit.useMutation();
   const utils = trpc.useUtils();
+  
+  // All hooks must be called before any conditional returns
+  const [showSuccess, setShowSuccess] = React.useState(false);
 
   if (!user) {
     window.location.href = "/";
@@ -32,8 +35,6 @@ export default function UnitView() {
 
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
   const explanation = getUnitExplanation(unitNumber);
-
-  const [showSuccess, setShowSuccess] = React.useState(false);
 
   const handleComplete = async () => {
     await completeUnitMutation.mutateAsync({ unitNumber });
