@@ -7,6 +7,7 @@
 - [x] Add visual indicator showing which unit is next
 - [ ] Improve dashboard to show all available units in current week
 - [ ] Add breadcrumb navigation showing progress through course
+- [x] Expand vocabulary to include all words from all 27 units
 
 ## Features
 - [x] 27 units with detailed explanations

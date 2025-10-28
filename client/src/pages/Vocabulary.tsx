@@ -9,40 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useState } from "react";
 
-type VocabWord = {
-  serbian: string;
-  english: string;
-  unit: number;
-};
-
-// Sample vocabulary from the coursebook
-const VOCABULARY: VocabWord[] = [
-  // Unit 1 - Na aerodromu (At the airport)
-  { serbian: "aerodrom", english: "airport", unit: 1 },
-  { serbian: "pasoš", english: "passport", unit: 1 },
-  { serbian: "karta", english: "ticket", unit: 1 },
-  { serbian: "prtljag", english: "luggage", unit: 1 },
-  { serbian: "dobar dan", english: "good day", unit: 1 },
-  { serbian: "hvala", english: "thank you", unit: 1 },
-  { serbian: "molim", english: "please", unit: 1 },
-  { serbian: "da", english: "yes", unit: 1 },
-  { serbian: "ne", english: "no", unit: 1 },
-  { serbian: "izvините", english: "excuse me", unit: 1 },
-  
-  // Unit 2 - U hotelu (At the hotel)
-  { serbian: "hotel", english: "hotel", unit: 2 },
-  { serbian: "soba", english: "room", unit: 2 },
-  { serbian: "ključ", english: "key", unit: 2 },
-  { serbian: "rezervacija", english: "reservation", unit: 2 },
-  { serbian: "noć", english: "night", unit: 2 },
-  
-  // Unit 3 - U kafiću (At the café)
-  { serbian: "kafa", english: "coffee", unit: 3 },
-  { serbian: "čaj", english: "tea", unit: 3 },
-  { serbian: "voda", english: "water", unit: 3 },
-  { serbian: "sok", english: "juice", unit: 3 },
-  { serbian: "račun", english: "bill", unit: 3 },
-];
+import { VOCABULARY, type VocabWord } from "@shared/vocabularyData";
 
 export default function Vocabulary() {
   const { user } = useAuth();
