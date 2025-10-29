@@ -264,6 +264,12 @@ export default function Dashboard() {
               {t('dashboard.practiceVocab')}
             </Button>
           </Link>
+          <Link href="/vocabulary-list">
+            <Button variant="outline">
+              <BookOpen className="mr-2 h-4 w-4" />
+              View All Words
+            </Button>
+          </Link>
           <Link href="/progress">
             <Button variant="outline">
               <TrendingUp className="mr-2 h-4 w-4" />

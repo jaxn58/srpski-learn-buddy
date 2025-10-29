@@ -11,6 +11,7 @@ import UnitView from "./pages/UnitView";
 import Chat from "./pages/Chat";
 import Admin from "./pages/Admin";
 import Vocabulary from "./pages/Vocabulary";
+import VocabularyList from "./pages/VocabularyList";
 import Progress from "./pages/Progress";
 
 function Router() {
@@ -21,7 +22,8 @@ function Router() {
       <Route path={"/week/:weekNumber"} component={WeekView} />
       <Route path={"/unit/:unitNumber"} component={UnitView} />
       <Route path={"/chat"} component={Chat} />
-      <Route path={"/vocabulary"} component={Vocabulary} />
+      <Route path="/vocabulary" component={Vocabulary} />
+      <Route path="/vocabulary-list" component={VocabularyList} />
       <Route path={"/progress"} component={Progress} />
       <Route path={"/admin"} component={Admin} />
       <Route path={"/404"} component={NotFound} />
