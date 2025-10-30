@@ -70,8 +70,8 @@ export default function Dashboard() {
           <BookOpen className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <div>
-              <strong>Course Book:</strong> "Step by Step Serbian 1" by Mirjana Danilović
-              <span className="text-muted-foreground ml-2">• All lessons are based on this book</span>
+              <strong>Companion to:</strong> "Step by Step Serbian 1" by Mirjana Danilović
+              <span className="text-muted-foreground ml-2">• All content is original and independently created to complement the book</span>
             </div>
             <Button variant="outline" size="sm" asChild>
               <a href="/step-by-step-serbian.pdf" target="_blank" rel="noopener noreferrer">

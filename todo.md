@@ -54,3 +54,7 @@
 - [x] Implement green/red feedback for correct/incorrect answers
 - [x] Create comprehensive content for Units 2-5 with interactive exercises
 
+
+
+- [x] Update course book reference to clarify content is original and independent
+

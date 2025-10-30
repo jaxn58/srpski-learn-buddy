@@ -181,7 +181,10 @@ export default function Home() {
       <footer className="container py-8 border-t">
         <div className="text-center text-sm text-muted-foreground">
           <p>
-            Based on "Step by Step Serbian 1" by Mirjana Danilović
+            Companion to "Step by Step Serbian 1" by Mirjana Danilović
+          </p>
+          <p className="mt-1 text-xs">
+            All content is original and independently created to complement the book.
           </p>
           <p className="mt-2">© 2024 Serbian AI Tutor. Powered by Manus AI.</p>
         </div>
