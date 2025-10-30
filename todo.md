@@ -63,3 +63,9 @@
 ## Bugs
 - [x] Current Lesson should show next incomplete unit, not the first completed one (Fixed: completeUnit now finds next incomplete unit)
 
+
+
+## Montenegrin Language Support
+- [x] Add Montenegrin alphabet note (Ś/Ź) to Unit 1 Grammar Explained section
+- [x] Add Montenegrin variant hints for words with sj/zj combinations throughout Units 1-5 (No sj/zj words found in current content)
+
