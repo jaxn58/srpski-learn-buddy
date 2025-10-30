@@ -6,14 +6,15 @@ import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
 import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Link } from "wouter";
-import { useState } from "react";
+import { Link, useLocation } from "wouter";
+import { useState, useEffect } from "react";
 
 import { VOCABULARY, type VocabWord } from "@shared/vocabularyData";
 
 export default function Vocabulary() {
   const { user } = useAuth();
   const { data: progress } = trpc.progress.get.useQuery();
+  const [location] = useLocation();
   
   const [mode, setMode] = useState<'learn' | 'quiz'>('learn');
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -22,6 +23,19 @@ export default function Vocabulary() {
   const [selectedUnit, setSelectedUnit] = useState<number | 'all'>('all');
   const [userAnswer, setUserAnswer] = useState('');
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+
+  // Read unit parameter from URL and set it
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const unitParam = params.get('unit');
+    if (unitParam) {
+      const unitNum = parseInt(unitParam);
+      if (!isNaN(unitNum) && unitNum >= 1 && unitNum <= 27) {
+        setSelectedUnit(unitNum);
+        setCurrentIndex(0); // Reset to first word
+      }
+    }
+  }, [location]);
 
   if (!user) {
     window.location.href = "/";

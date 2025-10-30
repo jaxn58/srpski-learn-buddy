@@ -298,7 +298,7 @@ export default function UnitView() {
                 </Button>
 
                 <Button variant="outline" className="h-auto py-4" asChild>
-                  <Link href="/vocabulary">
+                  <Link href={`/vocabulary?unit=${unitNumber}`}>
                     <div className="flex flex-col items-center gap-2">
                       <BookOpen className="h-6 w-6" />
                       <div className="text-center">

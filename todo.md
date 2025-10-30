@@ -25,6 +25,7 @@
 - [x] Double JSON.parse in completeUnit (fixed)
 - [x] TypeScript errors in Progress page (fixed)
 - [x] React Hooks order error in UnitView (fixed)
+- [x] Vocabulary trainer always shows Unit 1 instead of current unit (fixed)
 
 ## Future Enhancements
 - [ ] Email notifications for progress milestones
