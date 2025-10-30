@@ -11,6 +11,10 @@
 - [x] Expand vocabulary to include all words from all 27 units
 
 ## Features
+- [ ] Create Units 1-5 with detailed original content (grammar, dialogues, exercises) as samples
+- [ ] Get user feedback on sample units
+- [ ] Create Units 6-27 based on feedback
+- [x] Extract actual content from PDF book (dialogues, grammar tables, exercises) for all 27 units - CHANGED TO: Create original content inspired by book topics
 - [x] 27 units with detailed explanations
 - [x] AI Professor chat
 - [x] Vocabulary practice with quiz mode

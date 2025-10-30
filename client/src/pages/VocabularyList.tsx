@@ -166,7 +166,7 @@ export default function VocabularyList() {
           <Card>
             <CardHeader>
               <CardTitle>
-                {selectedUnit !== 'all' ? `Unit ${selectedUnit}` : 'All Units'}
+                {typeof selectedUnit === 'number' ? `Unit ${selectedUnit}` : 'All Units'}
               </CardTitle>
             </CardHeader>
             <CardContent>
