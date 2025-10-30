@@ -14,7 +14,8 @@ import {
   getChatHistory,
   addChatMessage,
   getExerciseResults,
-  addExerciseResult
+  addExerciseResult,
+  getUnitExplanation as getUnitExplanationFromDb
 } from "./db";
 import { COURSE_UNITS, COURSE_WEEKS } from "../shared/courseData";
 import { invokeLLM } from "./_core/llm";
@@ -48,6 +49,12 @@ export const appRouter = router({
       .input(z.object({ unitNumber: z.number() }))
       .query(({ input }) => {
         return COURSE_UNITS.find(u => u.number === input.unitNumber);
+      }),
+
+    getUnitExplanation: publicProcedure
+      .input(z.object({ unitNumber: z.number() }))
+      .query(async ({ input }) => {
+        return await getUnitExplanationFromDb(input.unitNumber);
       }),
   }),
 

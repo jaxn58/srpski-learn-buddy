@@ -12,7 +12,9 @@
 - [x] Expand vocabulary to include all words from all 27 units
 
 ## Features
-- [ ] Create Units 1-5 with detailed original content (grammar, dialogues, exercises) as samples
+- [x] Create comprehensive, detailed content for Units 1-3 (matching book depth with original examples)
+- [ ] Create comprehensive, detailed content for Units 4-5 (after user feedback)
+- [x] Improve text formatting in unit Overview sections (better structure, clear sections, more whitespace)
 - [ ] Get user feedback on sample units
 - [ ] Create Units 6-27 based on feedback
 - [x] Extract actual content from PDF book (dialogues, grammar tables, exercises) for all 27 units - CHANGED TO: Create original content inspired by book topics
@@ -38,4 +40,17 @@
 - [ ] Audio pronunciation for Serbian words
 - [ ] Downloadable progress certificates
 - [ ] Mobile app version
+
+
+
+## Current Issues
+- [x] Unit pages showing old short content instead of new comprehensive Markdown content (Fixed: Data now in database)
+- [x] Fix CORS issue preventing unitExplanations.ts from loading in browser (Fixed: Using database instead)
+- [x] Store unit explanations in database instead of separate file (Completed)
+
+## In Progress
+- [x] Create interactive fill-in-the-blank exercises with input fields and answer checking
+- [x] Add "Check Answers" and "Show Solutions" buttons to exercises
+- [x] Implement green/red feedback for correct/incorrect answers
+- [x] Create comprehensive content for Units 2-5 with interactive exercises
 

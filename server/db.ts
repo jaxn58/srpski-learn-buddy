@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult } from "../drizzle/schema";
+import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult, unitExplanations } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -234,5 +234,32 @@ export async function addExerciseResult(result: InsertExerciseResult) {
   if (!db) throw new Error("Database not available");
 
   await db.insert(exerciseResults).values(result);
+}
+
+
+
+// ============= UNIT EXPLANATIONS =============
+
+export async function getUnitExplanation(unitNumber: number) {
+  console.log('[getUnitExplanation] Called with unitNumber:', unitNumber);
+  const db = await getDb();
+  if (!db) {
+    console.log('[getUnitExplanation] Database not available!');
+    return undefined;
+  }
+
+  const result = await db.select().from(unitExplanations)
+    .where(eq(unitExplanations.unitNumber, unitNumber))
+    .limit(1);
+  
+  console.log('[getUnitExplanation] Result:', result.length > 0 ? 'Found' : 'Not found', result.length > 0 ? `(${result[0].overview?.length} chars)` : '');
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getAllUnitExplanations() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(unitExplanations);
 }
 

@@ -74,3 +74,19 @@ export const exerciseResults = mysqlTable("exerciseResults", {
 export type ExerciseResult = typeof exerciseResults.$inferSelect;
 export type InsertExerciseResult = typeof exerciseResults.$inferInsert;
 
+
+
+export const unitExplanations = mysqlTable("unitExplanations", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  unitNumber: int("unitNumber").notNull().unique(),
+  overview: text("overview").notNull(),
+  grammarExplained: text("grammarExplained").notNull(),
+  practiceExamples: text("practiceExamples").notNull(),
+  bookReference: text("bookReference"),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
+
+export type UnitExplanation = typeof unitExplanations.$inferSelect;
+export type InsertUnitExplanation = typeof unitExplanations.$inferInsert;
+

@@ -43,6 +43,13 @@
       "when": 1760698406765,
       "tag": "0005_red_boom_boom",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1761814087960,
+      "tag": "0006_absurd_killmonger",
+      "breakpoints": true
     }
   ]
 }
