@@ -58,3 +58,8 @@
 
 - [x] Update course book reference to clarify content is original and independent
 
+
+
+## Bugs
+- [x] Current Lesson should show next incomplete unit, not the first completed one (Fixed: completeUnit now finds next incomplete unit)
+
