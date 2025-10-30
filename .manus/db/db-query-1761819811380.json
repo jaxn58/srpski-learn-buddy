@@ -1,0 +1,40 @@
+{
+  "query": "SELECT unitNumber, LENGTH(overview) as overview_len, LENGTH(grammarExplained) as grammar_len, LENGTH(practiceExamples) as practice_len FROM unitExplanations WHERE unitNumber BETWEEN 1 AND 5 ORDER BY unitNumber",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT unitNumber, LENGTH(overview) as overview_len, LENGTH(grammarExplained) as grammar_len, LENGTH(practiceExamples) as practice_len FROM unitExplanations WHERE unitNumber BETWEEN 1 AND 5 ORDER BY unitNumber",
+  "rows": [
+    {
+      "unitNumber": "1",
+      "overview_len": "834",
+      "grammar_len": "6703",
+      "practice_len": "2635"
+    },
+    {
+      "unitNumber": "2",
+      "overview_len": "702",
+      "grammar_len": "4684",
+      "practice_len": "2058"
+    },
+    {
+      "unitNumber": "3",
+      "overview_len": "751",
+      "grammar_len": "4376",
+      "practice_len": "2382"
+    },
+    {
+      "unitNumber": "4",
+      "overview_len": "498",
+      "grammar_len": "2045",
+      "practice_len": "980"
+    },
+    {
+      "unitNumber": "5",
+      "overview_len": "452",
+      "grammar_len": "1913",
+      "practice_len": "938"
+    }
+  ],
+  "messages": [],
+  "stdout": "unitNumber\toverview_len\tgrammar_len\tpractice_len\n1\t834\t6703\t2635\n2\t702\t4684\t2058\n3\t751\t4376\t2382\n4\t498\t2045\t980\n5\t452\t1913\t938\n",
+  "stderr": "",
+  "execution_time_ms": 695
+}

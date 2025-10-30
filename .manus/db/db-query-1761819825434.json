@@ -1,0 +1,45 @@
+{
+  "query": "SELECT unitNumber, CHAR_LENGTH(overview) as overview_chars, CHAR_LENGTH(grammarExplained) as grammar_chars, CHAR_LENGTH(practiceExamples) as practice_chars, (CHAR_LENGTH(overview) + CHAR_LENGTH(grammarExplained) + CHAR_LENGTH(practiceExamples)) as total_chars FROM unitExplanations WHERE unitNumber BETWEEN 1 AND 5 ORDER BY unitNumber",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT unitNumber, CHAR_LENGTH(overview) as overview_chars, CHAR_LENGTH(grammarExplained) as grammar_chars, CHAR_LENGTH(practiceExamples) as practice_chars, (CHAR_LENGTH(overview) + CHAR_LENGTH(grammarExplained) + CHAR_LENGTH(practiceExamples)) as total_chars FROM unitExplanations WHERE unitNumber BETWEEN 1 AND 5 ORDER BY unitNumber",
+  "rows": [
+    {
+      "unitNumber": "1",
+      "overview_chars": "830",
+      "grammar_chars": "6632",
+      "practice_chars": "2602",
+      "total_chars": "10064"
+    },
+    {
+      "unitNumber": "2",
+      "overview_chars": "692",
+      "grammar_chars": "4625",
+      "practice_chars": "2015",
+      "total_chars": "7332"
+    },
+    {
+      "unitNumber": "3",
+      "overview_chars": "747",
+      "grammar_chars": "4283",
+      "practice_chars": "2326",
+      "total_chars": "7356"
+    },
+    {
+      "unitNumber": "4",
+      "overview_chars": "493",
+      "grammar_chars": "2004",
+      "practice_chars": "958",
+      "total_chars": "3455"
+    },
+    {
+      "unitNumber": "5",
+      "overview_chars": "447",
+      "grammar_chars": "1871",
+      "practice_chars": "919",
+      "total_chars": "3237"
+    }
+  ],
+  "messages": [],
+  "stdout": "unitNumber\toverview_chars\tgrammar_chars\tpractice_chars\ttotal_chars\n1\t830\t6632\t2602\t10064\n2\t692\t4625\t2015\t7332\n3\t747\t4283\t2326\t7356\n4\t493\t2004\t958\t3455\n5\t447\t1871\t919\t3237\n",
+  "stderr": "",
+  "execution_time_ms": 49
+}

@@ -69,3 +69,17 @@
 - [x] Add Montenegrin alphabet note (Ś/Ź) to Unit 1 Grammar Explained section
 - [x] Add Montenegrin variant hints for words with sj/zj combinations throughout Units 1-5 (No sj/zj words found in current content)
 
+
+
+## Content Creation
+- [x] Create comprehensive content for Units 6-10 with interactive exercises (COMPLETED)
+- [ ] Create comprehensive content for Units 11-27 with interactive exercises
+
+## Future Gamification (After Units 6-27)
+- [ ] Achievement badges system (Airport Navigator, Café Regular, etc.)
+- [ ] Title display under username on dashboard
+- [ ] Level system (Level X/27)
+- [ ] XP points (100 XP per unit)
+- [ ] Streak counter with bonus badges
+- [ ] Badge gallery/collection page
+

@@ -4,11 +4,15 @@ import { FillInBlankExercise, type FillInBlankQuestion } from './exercises/FillI
 import { TranslationExercise, type TranslationQuestion } from './exercises/TranslationExercise';
 import { UNIT2_EXERCISES } from './exercises/unit2-exercises';
 import { UNITS_3_5_EXERCISES } from './exercises/units-3-5-exercises';
+import { UNIT6_EXERCISES } from './exercises/unit6-exercises';
+import { UNITS_6_10_EXERCISES } from './exercises/units-6-10-exercises';
 
 // Exercise data definitions
 const EXERCISES: Record<string, any> = {
   ...UNIT2_EXERCISES,
   ...UNITS_3_5_EXERCISES,
+  ...UNIT6_EXERCISES,
+  ...UNITS_6_10_EXERCISES,
   'unit1-biti-conjugation': {
     type: 'fillInBlank',
     title: 'Exercise 1: Fill in the Blanks (Verb "biti")',
