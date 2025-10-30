@@ -1,6 +1,7 @@
 # Serbian AI Tutor - TODO
 
 ## UI/UX Improvements
+- [x] Redesign AI Professor chat with modern chat bubbles and better UX
 - [x] Create vocabulary reference page with full word list
 - [x] Add "Next Unit" button on unit page after completing a lesson
 - [x] Add navigation between units (Previous/Next buttons)
