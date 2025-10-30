@@ -6,7 +6,7 @@
 - [x] Add navigation between units (Previous/Next buttons)
 - [x] Show success message after completing a unit
 - [x] Add visual indicator showing which unit is next
-- [ ] Improve dashboard to show all available units in current week
+- [x] Improve dashboard to show all available units in current week
 - [ ] Add breadcrumb navigation showing progress through course
 - [x] Expand vocabulary to include all words from all 27 units
 

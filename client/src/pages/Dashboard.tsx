@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock } from "lucide-react";
 import { Link } from "wouter";
@@ -206,8 +207,8 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-4">
               <div>
-                <h4 className="font-semibold mb-2">{t('dashboard.lessonsThisWeek')}</h4>
-                <div className="grid gap-2">
+                <h4 className="font-semibold mb-3 text-lg">{t('dashboard.lessonsThisWeek')}</h4>
+                <div className="grid gap-4">
                   {currentWeek?.units.map(unitNum => {
                     const unit = units?.find(u => u.number === unitNum);
                     const isCompleted = completedUnits.includes(unitNum);
@@ -215,30 +216,58 @@ export default function Dashboard() {
 
                     return (
                       <Link key={unitNum} href={`/unit/${unitNum}`}>
-                        <div className={`p-4 rounded-lg border transition-colors ${
-                          isCurrent ? 'border-primary bg-primary/5' : 
-                          isCompleted ? 'border-green-500 bg-green-50' : 
-                          'border-border hover:border-primary/50'
+                        <Card className={`transition-all hover:shadow-md ${
+                          isCurrent ? 'border-primary ring-2 ring-primary/20' : 
+                          isCompleted ? 'border-green-500 bg-green-50/50' : 
+                          'hover:border-primary/50'
                         }`}>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium">
-                                Unit {unitNum}: {unit?.title}
+                          <CardContent className="p-5">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant={isCurrent ? 'default' : isCompleted ? 'secondary' : 'outline'}>
+                                    Unit {unitNum}
+                                  </Badge>
+                                  {isCompleted && (
+                                    <span className="text-green-600 text-sm font-medium">✓ Completed</span>
+                                  )}
+                                  {isCurrent && !isCompleted && (
+                                    <span className="text-primary text-sm font-medium">→ Current Lesson</span>
+                                  )}
+                                </div>
+                                <div className="font-semibold text-lg mb-1">
+                                  {unit?.title}
+                                </div>
+                                <div className="text-sm text-muted-foreground mb-3">
+                                  {unit?.titleEnglish}
+                                </div>
+                                {unit?.topics && unit.topics.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {unit.topics.slice(0, 3).map((topic, idx) => (
+                                      <Badge key={idx} variant="outline" className="text-xs">
+                                        {topic}
+                                      </Badge>
+                                    ))}
+                                    {unit.topics.length > 3 && (
+                                      <Badge variant="outline" className="text-xs">
+                                        +{unit.topics.length - 3} more
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                              <div className="text-sm text-muted-foreground">
-                                {unit?.titleEnglish}
+                              <div className="text-right">
+                                <Button 
+                                  variant={isCurrent ? 'default' : 'outline'} 
+                                  size="sm"
+                                  className="whitespace-nowrap"
+                                >
+                                  {isCompleted ? 'Review' : isCurrent ? 'Continue' : 'Start'}
+                                </Button>
                               </div>
                             </div>
-                            <div>
-                              {isCompleted && (
-                                <span className="text-green-600 text-sm">✓ Completed</span>
-                              )}
-                              {isCurrent && !isCompleted && (
-                                <span className="text-primary text-sm">→ Current</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                          </CardContent>
+                        </Card>
                       </Link>
                     );
                   })}
