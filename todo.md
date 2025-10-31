@@ -73,7 +73,8 @@
 
 ## Content Creation
 - [x] Create comprehensive content for Units 6-10 with interactive exercises (COMPLETED)
-- [ ] Create comprehensive content for Units 11-27 with interactive exercises
+- [x] Create comprehensive content for Units 11-15 with interactive exercises (COMPLETED)
+- [ ] Create comprehensive content for Units 16-27 with interactive exercises
 
 ## Future Gamification (After Units 6-27)
 - [ ] Achievement badges system (Airport Navigator, Café Regular, etc.)
@@ -82,4 +83,15 @@
 - [ ] XP points (100 XP per unit)
 - [ ] Streak counter with bonus badges
 - [ ] Badge gallery/collection page
+
+
+
+## Admin Testing Features
+- [ ] Admin bypass: Allow superadmin/admin to access all units regardless of progress
+- [ ] Show all units on dashboard for admins (not just current week)
+- [ ] Allow direct URL access to any unit for admins
+
+
+
+- [x] Add "Admin Panel" button in header for superadmin/admin users
 
