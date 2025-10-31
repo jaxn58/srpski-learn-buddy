@@ -37,6 +37,10 @@ export default function Dashboard() {
   const totalUnits = units?.length || 27;
   const progressPercentage = (completedUnits.length / totalUnits) * 100;
   const learningDuration = progress?.learningDuration || 12;
+  
+  // Admin bypass: Show all units for admins
+  const isAdmin = user.role === 'superadmin' || user.role === 'admin';
+  const displayUnits = isAdmin ? units?.map(u => u.number) : currentWeek?.units;
 
   const handleDurationChange = async (duration: string) => {
     await updateProgress.mutateAsync({ learningDuration: parseInt(duration) });
@@ -56,6 +60,13 @@ export default function Dashboard() {
               <span className="text-sm text-muted-foreground">
                 {user.name || user.email}
               </span>
+              {isAdmin && (
+                <Link href="/admin">
+                  <Button variant="outline" size="sm">
+                    Admin Panel
+                  </Button>
+                </Link>
+              )}
               <Button variant="outline" size="sm" onClick={() => logout()}>
                 {t('common.logout')}
               </Button>
@@ -207,9 +218,11 @@ export default function Dashboard() {
           <CardContent>
             <div className="space-y-4">
               <div>
-                <h4 className="font-semibold mb-3 text-lg">{t('dashboard.lessonsThisWeek')}</h4>
+                <h4 className="font-semibold mb-3 text-lg">
+                  {isAdmin ? 'All Units (Admin View)' : t('dashboard.lessonsThisWeek')}
+                </h4>
                 <div className="grid gap-4">
-                  {currentWeek?.units.map(unitNum => {
+                  {displayUnits?.map(unitNum => {
                     const unit = units?.find(u => u.number === unitNum);
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
