@@ -62,9 +62,13 @@ export const appRouter = router({
         return COURSE_UNITS.find(u => u.number === input.unitNumber);
       }),
 
-    getUnitExplanation: publicProcedure
+    getUnitExplanation: protectedProcedure
       .input(z.object({ unitNumber: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
+        // Beta testers can only access Units 1-5
+        if (ctx.user.isBetaTester && input.unitNumber > 5) {
+          throw new Error("BETA_LOCKED");
+        }
         return await getUnitExplanationFromDb(input.unitNumber);
       }),
   }),
@@ -123,6 +127,11 @@ export const appRouter = router({
     completeUnit: protectedProcedure
       .input(z.object({ unitNumber: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        // Beta testers can only complete Units 1-5
+        if (ctx.user.isBetaTester && input.unitNumber > 5) {
+          throw new Error("BETA_LOCKED");
+        }
+        
         const progress = await getUserProgress(ctx.user.id);
         if (!progress) throw new Error("Progress not found");
 
@@ -341,6 +350,11 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
         correctAnswers: z.number(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // Beta testers can only submit exercises for Units 1-5
+        if (ctx.user.isBetaTester && input.unitNumber > 5) {
+          throw new Error("BETA_LOCKED");
+        }
+        
         const score = Math.round((input.correctAnswers / input.totalQuestions) * 100);
         
         // Award XP if 100% correct (16-17 XP per exercise)

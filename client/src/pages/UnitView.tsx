@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, CheckCircle2, MessageSquare, Lightbulb } from "lucide-react";
+import { BookOpen, CheckCircle2, MessageSquare, Lightbulb, Lock } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { InteractiveMarkdownContent } from "@/components/InteractiveMarkdownContent";
@@ -17,6 +17,10 @@ export default function UnitView() {
 
   const { data: unit } = trpc.course.getUnit.useQuery({ unitNumber });
   const { data: explanation, isLoading, error } = trpc.course.getUnitExplanation.useQuery({ unitNumber });
+  
+  // Check if unit is locked for beta testers
+  const isLocked = user?.isBetaTester && unitNumber > 5;
+  const isBetaLockError = error?.message?.includes('BETA_LOCKED');
   
   console.log('[UnitView] Debug:', { 
     unitNumber, 
@@ -42,6 +46,77 @@ export default function UnitView() {
     return <div className="min-h-screen flex items-center justify-center">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
     </div>;
+  }
+  
+  // Show locked message for beta testers trying to access Units 6-27
+  if (isLocked || isBetaLockError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-card">
+          <div className="container py-4">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm">← Back to Dashboard</Button>
+              </Link>
+              <div className="flex items-center gap-2">
+                <Lock className="h-6 w-6 text-gray-500" />
+                <h1 className="text-xl font-bold text-gray-600">Unit {unitNumber} - Locked</h1>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="container py-8 max-w-3xl">
+          <Card className="border-2 border-yellow-200 bg-yellow-50">
+            <CardHeader>
+              <div className="flex items-center gap-3 mb-2">
+                <Lock className="h-8 w-8 text-yellow-600" />
+                <CardTitle className="text-2xl">🔒 This Unit is Locked</CardTitle>
+              </div>
+              <CardDescription className="text-base">
+                As a beta tester, you have access to Units 1-5 for free.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-white rounded-lg p-4 border border-yellow-200">
+                <h3 className="font-semibold text-lg mb-2">🎁 Beta Tester Benefits</h3>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold">✓</span>
+                    <span><strong>Free access</strong> to Units 1-5 during beta testing</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold">✓</span>
+                    <span><strong>50% OFF discount</strong> when the full course launches</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold">✓</span>
+                    <span><strong>Early access</strong> to all features and improvements</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold">✓</span>
+                    <span><strong>Shape the future</strong> of the app with your feedback</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <p className="text-sm text-blue-900">
+                  <strong>💡 What's next?</strong> Complete Units 1-5, practice vocabulary, and send us your feedback! 
+                  Units 6-27 will be unlocked after the beta testing phase ends.
+                </p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Link href="/dashboard">
+                  <Button variant="default">← Back to Dashboard</Button>
+                </Link>
+                <Link href="/feedback">
+                  <Button variant="outline">Send Feedback</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
   }
 
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;

@@ -313,3 +313,14 @@
 - [x] Add "Gratis*" asterisk notation to landing page where "free" is mentioned
 - [x] Add footer disclaimer explaining Gratis* refers to first 5 units only
 
+
+
+## Beta Access Restrictions (Units 1-5 Only)
+- [x] Add backend validation to restrict beta testers to Units 1-5
+- [x] Update getUnitExplanation to check beta tester status
+- [x] Update completeUnit to prevent completing Units 6-27 for beta testers
+- [x] Add UI lock icons on Units 6-27 for beta testers
+- [x] Show "Upgrade to unlock" message when clicking locked units
+- [x] Update dashboard to visually distinguish locked units
+- [x] Test beta tester access restrictions
+

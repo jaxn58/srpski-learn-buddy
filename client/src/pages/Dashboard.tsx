@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock, Home } from "lucide-react";
+import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock, Home, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { GamificationStats } from "@/components/GamificationStats";
@@ -263,6 +263,47 @@ export default function Dashboard() {
                     const unit = units?.find(u => u.number === unitNum);
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
+                    const isLocked = user.isBetaTester && unitNum > 5;
+
+                    if (isLocked) {
+                      return (
+                        <Card key={unitNum} className="transition-all opacity-60 bg-gray-50 border-gray-300">
+                          <CardContent className="p-5">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant="outline" className="bg-gray-100">
+                                    Unit {unitNum}
+                                  </Badge>
+                                  <Lock className="h-4 w-4 text-gray-500" />
+                                  <span className="text-gray-500 text-sm font-medium">🔒 Locked</span>
+                                </div>
+                                <div className="font-semibold text-lg mb-1 text-gray-600">
+                                  {unit?.title}
+                                </div>
+                                <div className="text-sm text-gray-500 mb-3">
+                                  {unit?.titleEnglish}
+                                </div>
+                                <div className="text-xs text-gray-600 bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
+                                  🎁 <strong>Beta Tester:</strong> Units 6-27 will be unlocked after beta testing. You'll get <strong>50% OFF</strong> at launch!
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="whitespace-nowrap"
+                                  disabled
+                                >
+                                  <Lock className="mr-1 h-3 w-3" />
+                                  Locked
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    }
 
                     return (
                       <Link key={unitNum} href={`/unit/${unitNum}`}>
