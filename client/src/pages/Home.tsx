@@ -43,12 +43,17 @@ export default function Home() {
         motivation: betaForm.motivation,
       });
       
-      toast.success("Registration successful! Redirecting to login...");
+      toast.success("🎉 Registration successful! Check your email for confirmation.", {
+        description: "We've sent you a confirmation email. You'll receive another email once your account is activated.",
+        duration: 5000,
+      });
       
-      // Redirect to login after successful registration
-      setTimeout(() => {
-        window.location.href = getLoginUrl();
-      }, 1500);
+      // Reset form
+      setBetaForm({ name: "", email: "", motivation: "" });
+      setIsSubmitting(false);
+      
+      // Scroll to top of page
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       toast.error("Registration failed. Please try again.");
       setIsSubmitting(false);

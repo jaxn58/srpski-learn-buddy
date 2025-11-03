@@ -277,3 +277,23 @@
 - [x] Test email sending functionality
 
 
+
+
+## Email Delivery Debugging
+- [x] Check server logs for email sending errors (Found: Missing API key at initialization)
+- [x] Verify Resend domain verification status
+- [x] Test email sending with detailed error logging (Fixed lazy initialization)
+- [x] Check if emails are landing in spam folder (Fixed reply_to format)
+- [x] Fix identified email delivery issues (reply_to field corrected)
+
+
+
+
+## Beta Registration UX Improvements
+- [x] Change redirect from login page to homepage after registration
+- [x] Add success message with "Check your email!" notification
+- [x] Reset form after successful submission
+- [x] Scroll to top for better UX
+- [x] Test complete registration flow with new UX
+
+
