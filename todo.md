@@ -307,3 +307,9 @@
 - [x] Test updated email templates
 
 
+
+
+## Landing Page Transparency Updates
+- [x] Add "Gratis*" asterisk notation to landing page where "free" is mentioned
+- [x] Add footer disclaimer explaining Gratis* refers to first 5 units only
+

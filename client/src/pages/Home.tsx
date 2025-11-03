@@ -87,7 +87,7 @@ export default function Home() {
       <section className="container py-20">
         <div className="max-w-4xl mx-auto text-center space-y-6">
           <div className="inline-block px-4 py-2 bg-accent/20 rounded-full text-primary font-semibold mb-4 border border-accent/40">
-            🔥 Now in Beta Testing
+            🔥 Now in Beta Testing – Gratis*
           </div>
           <h2 className="text-6xl font-bold tracking-tight">
             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
@@ -101,7 +101,7 @@ export default function Home() {
           </p>
           <div className="flex gap-4 justify-center pt-4">
             <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-lg px-8">
-              <a href="#beta-register">Register for Beta</a>
+              <a href="#beta-register">Register for Beta – Gratis*</a>
             </Button>
             <Button size="lg" variant="outline" asChild className="text-lg px-8">
               <a href="#units">Explore Units</a>
@@ -259,10 +259,10 @@ export default function Home() {
               🎁 Get 50% OFF at Launch!
             </div>
             <CardTitle className="text-3xl">
-              Join the Beta Testing Program
+              Join the Beta Testing Program – Gratis*
             </CardTitle>
             <CardDescription className="text-lg">
-              Help shape the future of Serbian learning and get early access
+              Help shape the future of Serbian learning and get early access to the first 5 units
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
@@ -323,7 +323,10 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
-        <div className="text-center text-sm text-muted-foreground space-y-2">
+        <div className="text-center text-sm text-muted-foreground space-y-3">
+          <p className="text-xs italic">
+            * Gratis (Free) refers to the first 5 units of the course. Full access to all 27 units will be available with a paid subscription after the beta testing phase.
+          </p>
           <p>
             Course structure inspired by proven language learning methodologies
           </p>
