@@ -141,3 +141,11 @@
 - [x] Plan feature access control based on subscription tier
 
 
+
+
+## Navigation Improvements
+- [x] Add "View Landing Page" link to Dashboard header
+- [x] Remove auto-redirect from Home page for logged-in users
+- [x] Test navigation flow between Home and Dashboard
+
+

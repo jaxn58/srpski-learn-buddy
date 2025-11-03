@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getLoginUrl } from "@/const";
 import { BookOpen, Brain, MessageSquare, TrendingUp } from "lucide-react";
+import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
 export default function Home() {
@@ -17,11 +18,6 @@ export default function Home() {
     );
   }
 
-  if (isAuthenticated) {
-    window.location.href = "/dashboard";
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10">
       <header className="container py-6">
@@ -30,9 +26,15 @@ export default function Home() {
             <BookOpen className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold">{t('app.title')}</h1>
           </div>
-          <Button asChild>
-            <a href={getLoginUrl()}>{t('common.login')}</a>
-          </Button>
+          {isAuthenticated ? (
+            <Link href="/dashboard">
+              <Button>Go to Dashboard</Button>
+            </Link>
+          ) : (
+            <Button asChild>
+              <a href={getLoginUrl()}>{t('common.login')}</a>
+            </Button>
+          )}
         </div>
       </header>
 

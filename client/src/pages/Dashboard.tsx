@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock } from "lucide-react";
+import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock, Home } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { GamificationStats } from "@/components/GamificationStats";
@@ -102,6 +102,12 @@ export default function Dashboard() {
                   </span>
                 )}
               </div>
+              <Link href="/">
+                <Button variant="outline" size="sm">
+                  <Home className="h-4 w-4 mr-2" />
+                  Landing Page
+                </Button>
+              </Link>
               <FeedbackForm />
               {isAdmin && (
                 <Link href="/admin">
