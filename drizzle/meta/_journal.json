@@ -50,6 +50,13 @@
       "when": 1761814087960,
       "tag": "0006_absurd_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1762160887789,
+      "tag": "0007_glorious_zzzax",
+      "breakpoints": true
     }
   ]
 }

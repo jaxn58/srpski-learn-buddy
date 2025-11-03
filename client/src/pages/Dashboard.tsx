@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
+import { GamificationStats } from "@/components/GamificationStats";
 
 export default function Dashboard() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -65,6 +66,10 @@ export default function Dashboard() {
       </header>
 
       <main className="container py-8">
+        {/* Gamification Stats */}
+        <GamificationStats />
+
+        <div className="h-6"></div>
         {/* Book Reference Alert */}
         <Alert className="mb-6 border-primary/20 bg-primary/5">
           <BookOpen className="h-4 w-4" />

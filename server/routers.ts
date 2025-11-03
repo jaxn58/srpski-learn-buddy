@@ -20,6 +20,13 @@ import {
 import { COURSE_UNITS, COURSE_WEEKS } from "../shared/courseData";
 import { invokeLLM } from "./_core/llm";
 import { nanoid } from "nanoid";
+import {
+  awardUnitXP,
+  awardExerciseXP,
+  checkAndAwardBadges,
+  updateDailyActivity,
+  getUserGamificationStats,
+} from "./gamification";
 
 export const appRouter = router({
   system: systemRouter,
@@ -117,8 +124,20 @@ export const appRouter = router({
 
         // getUserProgress already returns parsed completedUnits array
         const completed = progress.completedUnits || [];
+        let xpEarned = 0;
+        let newBadges: string[] = [];
+
         if (!completed.includes(input.unitNumber)) {
           completed.push(input.unitNumber);
+          
+          // Award XP for unit completion (50 XP)
+          xpEarned = await awardUnitXP(ctx.user.id);
+          
+          // Check and award badges
+          newBadges = await checkAndAwardBadges(ctx.user.id, completed);
+          
+          // Update daily activity and streak
+          await updateDailyActivity(ctx.user.id);
           
           // Find next incomplete unit
           let nextUnit = 1;
@@ -144,7 +163,11 @@ export const appRouter = router({
           await updateUserProgress(ctx.user.id, updates);
         }
 
-        return { success: true };
+        return { 
+          success: true,
+          xpEarned,
+          newBadges,
+        };
       }),
   }),
 
@@ -288,6 +311,12 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
       }),
   }),
 
+  gamification: router({
+    getStats: protectedProcedure.query(async ({ ctx }) => {
+      return await getUserGamificationStats(ctx.user.id);
+    }),
+  }),
+
   exercises: router({
     getResults: protectedProcedure
       .input(z.object({ unitNumber: z.number().optional() }))
@@ -303,11 +332,21 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
       .input(z.object({
         unitNumber: z.number(),
         exerciseType: z.string(),
+        exerciseId: z.string(),
         totalQuestions: z.number(),
         correctAnswers: z.number(),
       }))
       .mutation(async ({ ctx, input }) => {
         const score = Math.round((input.correctAnswers / input.totalQuestions) * 100);
+        
+        // Award XP if 100% correct (16-17 XP per exercise)
+        const xpEarned = await awardExerciseXP(
+          ctx.user.id,
+          input.unitNumber,
+          input.exerciseId,
+          input.correctAnswers,
+          input.totalQuestions
+        );
         
         await addExerciseResult({
           id: nanoid(),
@@ -319,7 +358,12 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
           correctAnswers: input.correctAnswers,
         });
 
-        return { success: true, score };
+        return { 
+          success: true, 
+          score,
+          xpEarned,
+          perfectScore: input.correctAnswers === input.totalQuestions,
+        };
       }),
   }),
 });

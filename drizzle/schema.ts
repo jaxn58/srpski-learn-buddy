@@ -13,6 +13,12 @@ export const users = mysqlTable("users", {
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow(),
+  // Gamification fields
+  totalXP: int("totalXP").default(0).notNull(),
+  level: int("level").default(1).notNull(),
+  currentStreak: int("currentStreak").default(0).notNull(),
+  longestStreak: int("longestStreak").default(0).notNull(),
+  lastActiveDate: timestamp("lastActiveDate"),
 });
 
 export type User = typeof users.$inferSelect;
@@ -89,4 +95,44 @@ export const unitExplanations = mysqlTable("unitExplanations", {
 
 export type UnitExplanation = typeof unitExplanations.$inferSelect;
 export type InsertUnitExplanation = typeof unitExplanations.$inferInsert;
+
+// Gamification: Exercise Completions
+export const exerciseCompletions = mysqlTable("exerciseCompletions", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("userId", { length: 64 }).notNull(),
+  unitNumber: int("unitNumber").notNull(),
+  exerciseId: varchar("exerciseId", { length: 100 }).notNull(), // e.g., "unit1_biti_conjugation"
+  score: int("score").notNull(), // Number of correct answers
+  totalQuestions: int("totalQuestions").notNull(),
+  xpEarned: int("xpEarned").notNull(),
+  completedAt: timestamp("completedAt").defaultNow(),
+});
+
+export type ExerciseCompletion = typeof exerciseCompletions.$inferSelect;
+export type InsertExerciseCompletion = typeof exerciseCompletions.$inferInsert;
+
+// Gamification: Achievement Badges
+export const userBadges = mysqlTable("userBadges", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("userId", { length: 64 }).notNull(),
+  badgeId: varchar("badgeId", { length: 100 }).notNull(), // e.g., "first_steps", "cafe_regular"
+  earnedAt: timestamp("earnedAt").defaultNow(),
+});
+
+export type UserBadge = typeof userBadges.$inferSelect;
+export type InsertUserBadge = typeof userBadges.$inferInsert;
+
+// Gamification: Daily Activity Log
+export const dailyActivity = mysqlTable("dailyActivity", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("userId", { length: 64 }).notNull(),
+  activityDate: timestamp("activityDate").notNull(), // Date only (midnight)
+  unitsCompleted: int("unitsCompleted").default(0).notNull(),
+  exercisesCompleted: int("exercisesCompleted").default(0).notNull(),
+  xpEarned: int("xpEarned").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+});
+
+export type DailyActivity = typeof dailyActivity.$inferSelect;
+export type InsertDailyActivity = typeof dailyActivity.$inferInsert;
 
