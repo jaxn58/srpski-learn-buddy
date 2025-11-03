@@ -29,22 +29,22 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50">
       {/* Hero Section */}
-      <header className="container py-6 border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="container py-6 border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               Serbian AI Tutor
             </h1>
           </div>
           {isAuthenticated ? (
             <Link href="/dashboard">
-              <Button className="bg-gradient-to-r from-primary to-orange-600">Go to Dashboard</Button>
+              <Button className="bg-gradient-to-r from-primary via-accent to-secondary">Go to Dashboard</Button>
             </Link>
           ) : (
-            <Button asChild className="bg-gradient-to-r from-primary to-orange-600">
+            <Button asChild className="bg-gradient-to-r from-primary via-accent to-secondary">
               <a href={getLoginUrl()}>Login</a>
             </Button>
           )}
@@ -59,7 +59,7 @@ export default function Home() {
           </div>
           <h2 className="text-6xl font-bold tracking-tight">
             Learn Serbian with your{" "}
-            <span className="bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
               personal AI Professor
             </span>
           </h2>
@@ -67,7 +67,7 @@ export default function Home() {
             A structured course with <strong>27 units</strong> and <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong> – featuring interactive exercises, vocabulary training, and AI-powered learning support.
           </p>
           <div className="flex gap-4 justify-center pt-4">
-            <Button size="lg" asChild className="bg-gradient-to-r from-primary to-orange-600 text-lg px-8">
+            <Button size="lg" asChild className="bg-gradient-to-r from-primary via-accent to-secondary text-lg px-8">
               <a href="#beta-register">Register for Beta</a>
             </Button>
             <Button size="lg" variant="outline" asChild className="text-lg px-8">
@@ -80,7 +80,7 @@ export default function Home() {
       {/* Features Section */}
       <section className="container py-16 bg-white/50">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-2 hover:border-primary transition-all hover:shadow-lg">
+          <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <BookOpen className="h-12 w-12 text-primary mb-2" />
               <CardTitle>Structured Plan</CardTitle>
@@ -90,7 +90,7 @@ export default function Home() {
             </CardHeader>
           </Card>
 
-          <Card className="border-2 hover:border-primary transition-all hover:shadow-lg">
+          <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <Brain className="h-12 w-12 text-primary mb-2" />
               <CardTitle>AI Learning Assistant</CardTitle>
@@ -100,7 +100,7 @@ export default function Home() {
             </CardHeader>
           </Card>
 
-          <Card className="border-2 hover:border-primary transition-all hover:shadow-lg">
+          <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <Trophy className="h-12 w-12 text-primary mb-2" />
               <CardTitle>Gamification & Rewards</CardTitle>
@@ -110,7 +110,7 @@ export default function Home() {
             </CardHeader>
           </Card>
 
-          <Card className="border-2 hover:border-primary transition-all hover:shadow-lg">
+          <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <TrendingUp className="h-12 w-12 text-primary mb-2" />
               <CardTitle>Progress Tracking</CardTitle>
@@ -170,7 +170,7 @@ export default function Home() {
       </section>
 
       {/* All 27 Units Section */}
-      <section id="units" className="container py-20 bg-gradient-to-br from-primary/5 to-orange-50">
+      <section id="units" className="container py-20 bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center space-y-4 mb-12">
             <h3 className="text-4xl font-bold">Complete Course Overview</h3>
@@ -183,7 +183,7 @@ export default function Home() {
             {UNITS_DATA.map((unit) => (
               <Card 
                 key={unit.number} 
-                className="border-2 hover:border-primary transition-all hover:shadow-xl hover:scale-105 bg-white"
+                className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-xl hover:scale-105 bg-white"
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -192,7 +192,7 @@ export default function Home() {
                       <CardTitle className="text-lg">{unit.titleEnglish}</CardTitle>
                       <p className="text-sm text-muted-foreground italic mt-1">{unit.title}</p>
                     </div>
-                    <div className="bg-primary/10 px-3 py-1 rounded-full">
+                    <div className="bg-gradient-to-r from-accent/20 to-secondary/20 px-3 py-1 rounded-full border border-accent/30">
                       <span className="text-xs font-bold text-primary">{unit.vocabCount} words</span>
                     </div>
                   </div>
@@ -215,8 +215,8 @@ export default function Home() {
 
       {/* Beta Registration Form */}
       <section id="beta-register" className="container py-20">
-        <Card className="max-w-2xl mx-auto border-2 border-primary shadow-2xl">
-          <CardHeader className="text-center bg-gradient-to-r from-primary/10 to-orange-50">
+        <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
+          <CardHeader className="text-center bg-gradient-to-r from-red-50 via-white to-blue-50">
             <CardTitle className="text-3xl">
               Join the Beta Testing Program
             </CardTitle>
@@ -266,7 +266,7 @@ export default function Home() {
               <Button 
                 type="submit" 
                 size="lg" 
-                className="w-full bg-gradient-to-r from-primary to-orange-600 text-lg"
+                className="w-full bg-gradient-to-r from-primary via-accent to-secondary text-lg"
               >
                 Register for Beta Test
               </Button>
@@ -280,7 +280,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="container py-8 border-t bg-white/80">
+      <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
         <div className="text-center text-sm text-muted-foreground space-y-2">
           <p>
             Course structure inspired by proven language learning methodologies

@@ -175,3 +175,15 @@
 - [x] Test all new features and design
 
 
+
+
+## Serbian Flag Color Scheme
+- [x] Update CSS color variables to Serbian flag colors (red, blue, white, gold)
+- [x] Update primary color to Serbian red
+- [x] Add secondary color as royal blue
+- [x] Add accent/gold color from crown
+- [x] Update landing page gradients with flag colors
+- [x] Update card borders and hover effects with blue accents
+- [x] Test color harmony across all sections
+
+

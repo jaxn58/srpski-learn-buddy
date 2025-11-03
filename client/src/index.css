@@ -43,16 +43,20 @@
 }
 
 :root {
-  /* Balkan-inspired vibrant colors: warm red-orange primary */
-  --primary: oklch(0.55 0.22 25);
+  /* Serbian flag colors: Red, Blue, White, Gold */
+  --primary: oklch(0.50 0.24 15); /* Serbian red */
   --primary-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.55 0.22 25);
+  --secondary: oklch(0.45 0.18 250); /* Royal blue from flag */
+  --secondary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.75 0.15 85); /* Gold from crown */
+  --accent-foreground: oklch(0.15 0 0);
+  --sidebar-primary: oklch(0.50 0.24 15);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --chart-1: oklch(0.65 0.18 30);
-  --chart-2: oklch(0.60 0.20 25);
-  --chart-3: oklch(0.55 0.22 20);
-  --chart-4: oklch(0.50 0.20 15);
-  --chart-5: oklch(0.45 0.18 10);
+  --chart-1: oklch(0.50 0.24 15); /* Red */
+  --chart-2: oklch(0.45 0.18 250); /* Blue */
+  --chart-3: oklch(0.75 0.15 85); /* Gold */
+  --chart-4: oklch(0.95 0.01 0); /* White */
+  --chart-5: oklch(0.40 0.20 15); /* Dark red */
   --radius: 0.65rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.235 0.015 65);
@@ -60,12 +64,8 @@
   --card-foreground: oklch(0.235 0.015 65);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
   --muted: oklch(0.967 0.001 286.375);
   --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.92 0.004 286.32);
