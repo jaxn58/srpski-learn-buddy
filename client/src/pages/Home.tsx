@@ -1,14 +1,18 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { getLoginUrl } from "@/const";
-import { BookOpen, Brain, Trophy, TrendingUp } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles } from "lucide-react";
 import { Link } from "wouter";
-import { useTranslation } from "react-i18next";
+import { UNITS_DATA, TOTAL_VOCABULARY } from "@/data/unitsForLanding";
+import { useState } from "react";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
-  const { t } = useTranslation();
+  const [betaForm, setBetaForm] = useState({ name: "", email: "", motivation: "" });
 
   if (loading) {
     return (
@@ -18,61 +22,77 @@ export default function Home() {
     );
   }
 
+  const handleBetaSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Redirect to login after form submission
+    window.location.href = getLoginUrl();
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-primary/10">
-      <header className="container py-6">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
+      {/* Hero Section */}
+      <header className="container py-6 border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold">{t('app.title')}</h1>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+              Serbian AI Tutor
+            </h1>
           </div>
           {isAuthenticated ? (
             <Link href="/dashboard">
-              <Button>Go to Dashboard</Button>
+              <Button className="bg-gradient-to-r from-primary to-orange-600">Go to Dashboard</Button>
             </Link>
           ) : (
-            <Button asChild>
-              <a href={getLoginUrl()}>{t('common.login')}</a>
+            <Button asChild className="bg-gradient-to-r from-primary to-orange-600">
+              <a href={getLoginUrl()}>Login</a>
             </Button>
           )}
         </div>
       </header>
 
+      {/* Hero Section */}
       <section className="container py-20">
-        <div className="max-w-3xl mx-auto text-center space-y-6">
-          <h2 className="text-5xl font-bold tracking-tight">
-            {t('home.hero.title')}
-            <span className="text-primary"> {t('home.hero.titleHighlight')}</span>
+        <div className="max-w-4xl mx-auto text-center space-y-6">
+          <div className="inline-block px-4 py-2 bg-primary/10 rounded-full text-primary font-semibold mb-4">
+            🔥 Now in Beta Testing
+          </div>
+          <h2 className="text-6xl font-bold tracking-tight">
+            Learn Serbian with your{" "}
+            <span className="bg-gradient-to-r from-primary to-orange-600 bg-clip-text text-transparent">
+              personal AI Professor
+            </span>
           </h2>
-          <p className="text-xl text-muted-foreground">
-            A structured course with 27 units – featuring interactive exercises, vocabulary training, and AI-powered learning support.
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            A structured course with <strong>27 units</strong> and <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong> – featuring interactive exercises, vocabulary training, and AI-powered learning support.
           </p>
           <div className="flex gap-4 justify-center pt-4">
-            <Button size="lg" asChild>
-              <a href={getLoginUrl()}>{t('home.cta.start')}</a>
+            <Button size="lg" asChild className="bg-gradient-to-r from-primary to-orange-600 text-lg px-8">
+              <a href="#beta-register">Register for Beta</a>
             </Button>
-            <Button size="lg" variant="outline" asChild>
-              <a href="#features">{t('home.cta.learnMore')}</a>
+            <Button size="lg" variant="outline" asChild className="text-lg px-8">
+              <a href="#units">Explore Units</a>
             </Button>
           </div>
         </div>
       </section>
 
-      <section id="features" className="container py-20">
+      {/* Features Section */}
+      <section className="container py-16 bg-white/50">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
+          <Card className="border-2 hover:border-primary transition-all hover:shadow-lg">
             <CardHeader>
-              <BookOpen className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>{t('features.structuredPlan.title')}</CardTitle>
+              <BookOpen className="h-12 w-12 text-primary mb-2" />
+              <CardTitle>Structured Plan</CardTitle>
               <CardDescription>
-                {t('features.structuredPlan.desc')}
+                Structured learning path through all 27 lessons of the course
               </CardDescription>
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="border-2 hover:border-primary transition-all hover:shadow-lg">
             <CardHeader>
-              <Brain className="h-10 w-10 text-primary mb-2" />
+              <Brain className="h-12 w-12 text-primary mb-2" />
               <CardTitle>AI Learning Assistant</CardTitle>
               <CardDescription>
                 Ask questions about any unit to reinforce and review what you've learned
@@ -80,9 +100,9 @@ export default function Home() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="border-2 hover:border-primary transition-all hover:shadow-lg">
             <CardHeader>
-              <Trophy className="h-10 w-10 text-primary mb-2" />
+              <Trophy className="h-12 w-12 text-primary mb-2" />
               <CardTitle>Gamification & Rewards</CardTitle>
               <CardDescription>
                 Earn XP, unlock badges, and maintain streaks to stay motivated
@@ -90,105 +110,185 @@ export default function Home() {
             </CardHeader>
           </Card>
 
-          <Card>
+          <Card className="border-2 hover:border-primary transition-all hover:shadow-lg">
             <CardHeader>
-              <TrendingUp className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>{t('features.progress.title')}</CardTitle>
+              <TrendingUp className="h-12 w-12 text-primary mb-2" />
+              <CardTitle>Progress Tracking</CardTitle>
               <CardDescription>
-                {t('features.progress.desc')}
+                See your achievements and stay motivated with clear milestones
               </CardDescription>
             </CardHeader>
           </Card>
         </div>
       </section>
 
+      {/* Flexible Duration Section */}
       <section className="container py-20">
-        <div className="max-w-4xl mx-auto">
-          <h3 className="text-3xl font-bold text-center mb-4">Your Learning Path</h3>
-          <p className="text-center text-muted-foreground mb-12">Flexible 3-month course structure – learn at your own pace</p>
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card>
+        <div className="max-w-4xl mx-auto text-center space-y-8">
+          <div className="space-y-4">
+            <h3 className="text-4xl font-bold">Learn at Your Own Pace</h3>
+            <p className="text-xl text-muted-foreground">
+              Choose your learning speed – from <strong>3 months intensive</strong> to <strong>12 months relaxed</strong>
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-6 mt-12">
+            <Card className="border-2 hover:border-primary transition-all">
               <CardHeader>
-                <CardTitle className="text-primary">{t('course.month1.title')}</CardTitle>
-                <CardDescription className="text-base">
-                  {t('course.month1.subtitle')}
-                </CardDescription>
+                <Sparkles className="h-10 w-10 text-primary mb-2 mx-auto" />
+                <CardTitle className="text-2xl">Intensive</CardTitle>
+                <CardDescription className="text-lg">3 Months</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Alphabet & Pronunciation</li>
-                  <li>• First Conversations</li>
-                  <li>• Getting Around the City</li>
-                  <li>• Shopping & Restaurant</li>
-                </ul>
+                <p className="text-muted-foreground">2-3 units per week, daily practice, fast progress</p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-2 border-primary shadow-lg scale-105">
               <CardHeader>
-                <CardTitle className="text-primary">{t('course.month2.title')}</CardTitle>
-                <CardDescription className="text-base">
-                  {t('course.month2.subtitle')}
-                </CardDescription>
+                <Target className="h-10 w-10 text-primary mb-2 mx-auto" />
+                <CardTitle className="text-2xl">Balanced</CardTitle>
+                <CardDescription className="text-lg">6 Months</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Daily Routine & Family</li>
-                  <li>• Talking About the Past</li>
-                  <li>• Genitive & Accusative</li>
-                  <li>• Describing People</li>
-                </ul>
+                <p className="text-muted-foreground">1 unit per week, steady learning, recommended pace</p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-2 hover:border-primary transition-all">
               <CardHeader>
-                <CardTitle className="text-primary">{t('course.month3.title')}</CardTitle>
-                <CardDescription className="text-base">
-                  {t('course.month3.subtitle')}
-                </CardDescription>
+                <Clock className="h-10 w-10 text-primary mb-2 mx-auto" />
+                <CardTitle className="text-2xl">Relaxed</CardTitle>
+                <CardDescription className="text-lg">12 Months</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Travel & Weather</li>
-                  <li>• Future Plans</li>
-                  <li>• Imperative & Conditional</li>
-                  <li>• Cyrillic Alphabet</li>
-                </ul>
+                <p className="text-muted-foreground">Flexible schedule, learn when you can, no pressure</p>
               </CardContent>
             </Card>
           </div>
         </div>
       </section>
 
-      <section className="container py-20">
-        <Card className="max-w-2xl mx-auto bg-primary text-primary-foreground">
-          <CardHeader className="text-center">
+      {/* All 27 Units Section */}
+      <section id="units" className="container py-20 bg-gradient-to-br from-primary/5 to-orange-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center space-y-4 mb-12">
+            <h3 className="text-4xl font-bold">Complete Course Overview</h3>
+            <p className="text-xl text-muted-foreground">
+              All <strong>27 units</strong> with <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong>
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {UNITS_DATA.map((unit) => (
+              <Card 
+                key={unit.number} 
+                className="border-2 hover:border-primary transition-all hover:shadow-xl hover:scale-105 bg-white"
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-primary mb-1">Unit {unit.number}</div>
+                      <CardTitle className="text-lg">{unit.titleEnglish}</CardTitle>
+                      <p className="text-sm text-muted-foreground italic mt-1">{unit.title}</p>
+                    </div>
+                    <div className="bg-primary/10 px-3 py-1 rounded-full">
+                      <span className="text-xs font-bold text-primary">{unit.vocabCount} words</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    {unit.topics.map((topic, idx) => (
+                      <li key={idx} className="flex items-start">
+                        <span className="text-primary mr-2">•</span>
+                        {topic}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Beta Registration Form */}
+      <section id="beta-register" className="container py-20">
+        <Card className="max-w-2xl mx-auto border-2 border-primary shadow-2xl">
+          <CardHeader className="text-center bg-gradient-to-r from-primary/10 to-orange-50">
             <CardTitle className="text-3xl">
-              Ready to learn Serbian?
+              Join the Beta Testing Program
             </CardTitle>
-            <CardDescription className="text-primary-foreground/80 text-lg">
-              Join our beta testing program and help shape the future of Serbian learning
+            <CardDescription className="text-lg">
+              Help shape the future of Serbian learning and get early access
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex justify-center">
-            <Button size="lg" variant="secondary" asChild>
-              <a href={getLoginUrl()}>
+          <CardContent className="pt-6">
+            <form onSubmit={handleBetaSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="name">Your Name</Label>
+                <Input
+                  id="name"
+                  placeholder="Enter your full name"
+                  value={betaForm.name}
+                  onChange={(e) => setBetaForm({ ...betaForm, name: e.target.value })}
+
+
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your.email@example.com"
+                  value={betaForm.email}
+                  onChange={(e) => setBetaForm({ ...betaForm, email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="motivation">Why do you want to learn Serbian?</Label>
+                <Textarea
+                  id="motivation"
+                  placeholder="Tell us about your motivation..."
+                  value={betaForm.motivation}
+                  onChange={(e) => setBetaForm({ ...betaForm, motivation: e.target.value })}
+                  rows={4}
+                  required
+                />
+              </div>
+
+              <Button 
+                type="submit" 
+                size="lg" 
+                className="w-full bg-gradient-to-r from-primary to-orange-600 text-lg"
+              >
                 Register for Beta Test
-              </a>
-            </Button>
+              </Button>
+
+              <p className="text-sm text-center text-muted-foreground">
+                By registering, you'll be redirected to create your account. The admin will review and activate your access.
+              </p>
+            </form>
           </CardContent>
         </Card>
       </section>
 
-      <footer className="container py-8 border-t">
-        <div className="text-center text-sm text-muted-foreground">
+      {/* Footer */}
+      <footer className="container py-8 border-t bg-white/80">
+        <div className="text-center text-sm text-muted-foreground space-y-2">
           <p>
             Course structure inspired by proven language learning methodologies
           </p>
-          <p className="mt-2">© 2025 Serbian AI Tutor by jaXn.me. Powered by Manus AI.</p>
+          <p className="font-semibold">© 2025 Serbian AI Tutor by jaXn.me. Powered by Manus AI.</p>
         </div>
       </footer>
     </div>
   );
 }
+

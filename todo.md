@@ -161,3 +161,17 @@
 - [x] Update footer: remove book reference, add jaXn.me copyright
 
 
+
+
+## Landing Page Redesign (Balkan-Inspired)
+- [x] Fetch all 27 units data with vocabulary counts
+- [x] Create vibrant Balkan-inspired color scheme (warm colors, energy)
+- [x] Design 27-unit overview section with individual cards
+- [x] Add vocabulary count display for each unit
+- [x] Explain flexible course duration system (3-12 months)
+- [x] Create beta registration form component (name, email, motivation)
+- [x] Integrate registration form on landing page
+- [x] Update hero section with energetic design
+- [x] Test all new features and design
+
+
