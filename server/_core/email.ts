@@ -117,11 +117,14 @@ export async function sendBetaRegistrationEmail(name: string, email: string): Pr
                 <li>Flexible learning pace (3-12 months)</li>
               </ul>
               
-              <p style="color: #4a4a4a; line-height: 1.6; margin: 24px 0 0 0; font-size: 16px;">
-                If you have any questions, feel free to reply to this email.
-              </p>
+              <div style="background-color: #FEE2E2; border-left: 4px solid #DC2626; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="color: #991B1B; margin: 0; font-size: 14px; line-height: 1.5;">
+                  <strong>⚠️ Didn't register?</strong><br>
+                  If you didn't sign up for Serbian AI Tutor, you can safely ignore this email. Your email address will not be used without your consent.
+                </p>
+              </div>
               
-              <p style="color: #4a4a4a; line-height: 1.6; margin: 16px 0 0 0; font-size: 16px;">
+              <p style="color: #4a4a4a; line-height: 1.6; margin: 24px 0 0 0; font-size: 16px;">
                 Best regards,<br>
                 <strong>The Serbian AI Tutor Team</strong>
               </p>
@@ -151,6 +154,7 @@ export async function sendBetaRegistrationEmail(name: string, email: string): Pr
     to: email,
     subject: '🎉 Welcome to Serbian AI Tutor Beta Testing!',
     html,
+    replyTo: undefined, // No reply functionality for beta registration
   });
 }
 
@@ -212,9 +216,12 @@ export async function sendUserActivationEmail(name: string, email: string, login
                 <li>Start with Unit 1: At the Airport</li>
               </ol>
               
-              <p style="color: #4a4a4a; line-height: 1.6; margin: 24px 0 0 0; font-size: 16px;">
-                We'd love to hear your feedback as you progress through the course. Use the "Send Feedback" button in your dashboard to share your thoughts!
-              </p>
+              <div style="background-color: #EDE9FE; border-left: 4px solid #8B5CF6; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="color: #5B21B6; margin: 0; font-size: 14px; line-height: 1.5;">
+                  <strong>💬 Your Feedback Matters!</strong><br>
+                  As a beta tester, your input is invaluable. After logging in, you'll find a "Send Feedback" button in your dashboard. Please share your thoughts, report bugs, or suggest improvements anytime!
+                </p>
+              </div>
               
               <p style="color: #4a4a4a; line-height: 1.6; margin: 16px 0 0 0; font-size: 16px;">
                 Happy learning!<br>

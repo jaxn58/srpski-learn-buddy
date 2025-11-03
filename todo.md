@@ -297,3 +297,13 @@
 - [x] Test complete registration flow with new UX
 
 
+
+
+## Email Protection & Opt-out
+- [x] Remove reply_to address from beta registration email
+- [x] Remove "feel free to reply" text from email template
+- [x] Add "Didn't register?" warning message for user protection
+- [x] Add feedback form mention to activation email
+- [x] Test updated email templates
+
+
