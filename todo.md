@@ -244,3 +244,17 @@
 - [x] Test complete registration workflow
 
 
+
+
+## Beta Registration Admin Page
+- [x] Create tRPC queries to fetch all beta registrations
+- [x] Create tRPC mutations to approve/reject registrations
+- [x] Create BetaRegistrations.tsx admin page component
+- [x] Add table with registration data (name, email, motivation, status, date)
+- [x] Add approve/reject action buttons
+- [x] Add status filter (pending, approved, rejected)
+- [x] Add route to App.tsx
+- [x] Add navigation link from Admin panel
+- [x] Test approval/rejection workflow
+
+

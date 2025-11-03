@@ -11,6 +11,7 @@ import UnitView from "./pages/UnitView";
 import Chat from "./pages/Chat";
 import Admin from "./pages/Admin";
 import FeedbackManagement from "./pages/FeedbackManagement";
+import BetaRegistrations from "./pages/BetaRegistrations";
 import Vocabulary from "./pages/Vocabulary";
 import VocabularyList from "./pages/VocabularyList";
 import Progress from "./pages/Progress";
@@ -26,8 +27,9 @@ function Router() {
       <Route path="/vocabulary" component={Vocabulary} />
       <Route path="/vocabulary-list" component={VocabularyList} />
       <Route path={"/progress"} component={Progress} />
-      <Route path={"/admin"} component={Admin} />
+      <Route path={"admin"} component={Admin} />
       <Route path={"/admin/feedback"} component={FeedbackManagement} />
+      <Route path={"/admin/beta-registrations"} component={BetaRegistrations} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

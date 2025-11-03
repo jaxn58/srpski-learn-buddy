@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc";
-import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare } from "lucide-react";
+import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -141,11 +141,17 @@ export default function Admin() {
 
       <main className="container py-8">
         {/* Quick Actions */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap gap-4">
           <Link href="/admin/feedback">
             <Button variant="outline" className="w-full sm:w-auto">
               <MessageSquare className="mr-2 h-4 w-4" />
               View Feedback & Feature Requests
+            </Button>
+          </Link>
+          <Link href="/admin/beta-registrations">
+            <Button variant="outline" className="w-full sm:w-auto">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Beta Registrations
             </Button>
           </Link>
         </div>

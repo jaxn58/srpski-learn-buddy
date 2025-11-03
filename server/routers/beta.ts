@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
+import { publicProcedure, router, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { betaRegistrations } from "../../drizzle/schema";
 import { randomBytes } from "crypto";
 import { notifyOwner } from "../_core/notification";
+import { eq } from "drizzle-orm";
 
 export const betaRouter = router({
   register: publicProcedure
@@ -45,6 +46,68 @@ export const betaRouter = router({
       } catch (error) {
         console.error("[Beta Registration] Failed:", error);
         throw new Error("Failed to register for beta testing");
+      }
+    }),
+
+  // Admin procedures
+  getAll: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) {
+      throw new Error("Database not available");
+    }
+
+    try {
+      const registrations = await db.select().from(betaRegistrations);
+      return registrations;
+    } catch (error) {
+      console.error("[Beta Registrations] Failed to fetch:", error);
+      throw new Error("Failed to fetch beta registrations");
+    }
+  }),
+
+  updateStatus: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        status: z.enum(["pending", "approved", "rejected"]),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new Error("Database not available");
+      }
+
+      try {
+        await db
+          .update(betaRegistrations)
+          .set({
+            status: input.status,
+            reviewedAt: new Date(),
+          })
+          .where(eq(betaRegistrations.id, input.id));
+
+        return { success: true };
+      } catch (error) {
+        console.error("[Beta Registration] Failed to update status:", error);
+        throw new Error("Failed to update registration status");
+      }
+    }),
+
+  delete: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) {
+        throw new Error("Database not available");
+      }
+
+      try {
+        await db.delete(betaRegistrations).where(eq(betaRegistrations.id, input.id));
+        return { success: true };
+      } catch (error) {
+        console.error("[Beta Registration] Failed to delete:", error);
+        throw new Error("Failed to delete registration");
       }
     }),
 });
