@@ -149,3 +149,15 @@
 - [x] Test navigation flow between Home and Dashboard
 
 
+
+
+## Landing Page Content Updates
+- [x] Remove "Step by Step Serbian 1" book references from hero section
+- [x] Update AI Professor description (focus on review & reinforcement, not tutoring)
+- [x] Remove "Conversation Practice" feature card
+- [x] Add "Gamification" feature card
+- [x] Update Learning Path to 3 months (flexible)
+- [x] Change "Start for Free" to "Register for Beta Test"
+- [x] Update footer: remove book reference, add jaXn.me copyright
+
+

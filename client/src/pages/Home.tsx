@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getLoginUrl } from "@/const";
-import { BookOpen, Brain, MessageSquare, TrendingUp } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -45,7 +45,7 @@ export default function Home() {
             <span className="text-primary"> {t('home.hero.titleHighlight')}</span>
           </h2>
           <p className="text-xl text-muted-foreground">
-            {t('home.hero.subtitle')}
+            A structured course with 27 units – featuring interactive exercises, vocabulary training, and AI-powered learning support.
           </p>
           <div className="flex gap-4 justify-center pt-4">
             <Button size="lg" asChild>
@@ -73,19 +73,19 @@ export default function Home() {
           <Card>
             <CardHeader>
               <Brain className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>{t('features.aiProfessor.title')}</CardTitle>
+              <CardTitle>AI Learning Assistant</CardTitle>
               <CardDescription>
-                {t('features.aiProfessor.desc')}
+                Ask questions about any unit to reinforce and review what you've learned
               </CardDescription>
             </CardHeader>
           </Card>
 
           <Card>
             <CardHeader>
-              <MessageSquare className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>{t('features.conversation.title')}</CardTitle>
+              <Trophy className="h-10 w-10 text-primary mb-2" />
+              <CardTitle>Gamification & Rewards</CardTitle>
               <CardDescription>
-                {t('features.conversation.desc')}
+                Earn XP, unlock badges, and maintain streaks to stay motivated
               </CardDescription>
             </CardHeader>
           </Card>
@@ -104,7 +104,8 @@ export default function Home() {
 
       <section className="container py-20">
         <div className="max-w-4xl mx-auto">
-          <h3 className="text-3xl font-bold text-center mb-12">{t('course.structure.title')}</h3>
+          <h3 className="text-3xl font-bold text-center mb-4">Your Learning Path</h3>
+          <p className="text-center text-muted-foreground mb-12">Flexible 3-month course structure – learn at your own pace</p>
           <div className="grid md:grid-cols-3 gap-8">
             <Card>
               <CardHeader>
@@ -167,13 +168,13 @@ export default function Home() {
               Ready to learn Serbian?
             </CardTitle>
             <CardDescription className="text-primary-foreground/80 text-lg">
-              Start your journey to the Serbian language today
+              Join our beta testing program and help shape the future of Serbian learning
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
             <Button size="lg" variant="secondary" asChild>
               <a href={getLoginUrl()}>
-                Start for Free
+                Register for Beta Test
               </a>
             </Button>
           </CardContent>
@@ -183,12 +184,9 @@ export default function Home() {
       <footer className="container py-8 border-t">
         <div className="text-center text-sm text-muted-foreground">
           <p>
-            Companion to "Step by Step Serbian 1" by Mirjana Danilović
+            Course structure inspired by proven language learning methodologies
           </p>
-          <p className="mt-1 text-xs">
-            All content is original and independently created to complement the book.
-          </p>
-          <p className="mt-2">© 2024 Serbian AI Tutor. Powered by Manus AI.</p>
+          <p className="mt-2">© 2025 Serbian AI Tutor by jaXn.me. Powered by Manus AI.</p>
         </div>
       </footer>
     </div>
