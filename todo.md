@@ -233,3 +233,14 @@
 - [x] FeedbackManagement.tsx: Submitted At (lines 155, 178)
 
 
+
+
+## Beta Registration Bug
+- [x] Investigate why beta registration doesn't create user in database
+- [x] Create betaRegistrations table in database schema
+- [x] Create tRPC mutation for beta registration
+- [x] Add owner notification to beta registration
+- [x] Fix beta registration form submission flow
+- [x] Test complete registration workflow
+
+

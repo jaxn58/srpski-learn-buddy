@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { adminRouter } from "./routers/admin";
 import { feedbackRouter } from "./routers/feedback";
+import { betaRouter } from "./routers/beta";
 import { z } from "zod";
 import { 
   getUserProgress, 
@@ -33,6 +34,7 @@ export const appRouter = router({
   system: systemRouter,
   admin: adminRouter,
   feedback: feedbackRouter,
+  beta: betaRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

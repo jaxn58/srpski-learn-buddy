@@ -155,3 +155,19 @@ export const feedbackSubmissions = mysqlTable("feedbackSubmissions", {
 export type FeedbackSubmission = typeof feedbackSubmissions.$inferSelect;
 export type InsertFeedbackSubmission = typeof feedbackSubmissions.$inferInsert;
 
+
+
+// Beta Testing Registrations (before OAuth login)
+export const betaRegistrations = mysqlTable("betaRegistrations", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  motivation: text("motivation"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  registeredAt: timestamp("registeredAt").defaultNow(),
+  reviewedAt: timestamp("reviewedAt"),
+});
+
+export type BetaRegistration = typeof betaRegistrations.$inferSelect;
+export type InsertBetaRegistration = typeof betaRegistrations.$inferInsert;
+

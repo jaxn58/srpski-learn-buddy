@@ -1,4 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +15,8 @@ import { useState } from "react";
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
   const [betaForm, setBetaForm] = useState({ name: "", email: "", motivation: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const registerMutation = trpc.beta.register.useMutation();
 
   if (loading) {
     return (
@@ -22,10 +26,33 @@ export default function Home() {
     );
   }
 
-  const handleBetaSubmit = (e: React.FormEvent) => {
+  const handleBetaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Redirect to login after form submission
-    window.location.href = getLoginUrl();
+    
+    if (!betaForm.name || !betaForm.email) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      await registerMutation.mutateAsync({
+        name: betaForm.name,
+        email: betaForm.email,
+        motivation: betaForm.motivation,
+      });
+      
+      toast.success("Registration successful! Redirecting to login...");
+      
+      // Redirect to login after successful registration
+      setTimeout(() => {
+        window.location.href = getLoginUrl();
+      }, 1500);
+    } catch (error) {
+      toast.error("Registration failed. Please try again.");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -276,8 +303,9 @@ export default function Home() {
                 type="submit" 
                 size="lg" 
                 className="w-full bg-primary hover:bg-primary/90 text-lg"
+                disabled={isSubmitting}
               >
-                Register for Beta Test
+                {isSubmitting ? "Registering..." : "Register for Beta Test"}
               </Button>
 
               <p className="text-sm text-center text-muted-foreground">
