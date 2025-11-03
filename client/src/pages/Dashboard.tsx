@@ -70,22 +70,6 @@ export default function Dashboard() {
         <GamificationStats />
 
         <div className="h-6"></div>
-        {/* Book Reference Alert */}
-        <Alert className="mb-6 border-primary/20 bg-primary/5">
-          <BookOpen className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <div>
-              <strong>Companion to:</strong> "Step by Step Serbian 1" by Mirjana Danilović
-              <span className="text-muted-foreground ml-2">• All content is original and independently created to complement the book</span>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <a href="/step-by-step-serbian.pdf" target="_blank" rel="noopener noreferrer">
-                <Download className="h-4 w-4 mr-2" />
-                Download PDF
-              </a>
-            </Button>
-          </AlertDescription>
-        </Alert>
 
         {/* Learning Plan Settings */}
         <Card className="mb-6">
@@ -311,6 +295,25 @@ export default function Dashboard() {
             </Button>
           </Link>
         </div>
+
+        {/* Footer with Book Reference */}
+        <footer className="mt-16 pt-8 border-t">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <BookOpen className="h-4 w-4" />
+              <span>
+                <strong>Companion to:</strong> "Step by Step Serbian 1" by Mirjana Danilović
+                <span className="ml-2">• All content is original and independently created to complement the book</span>
+              </span>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/step-by-step-serbian.pdf" target="_blank" rel="noopener noreferrer">
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
+              </a>
+            </Button>
+          </div>
+        </footer>
       </main>
     </div>
   );

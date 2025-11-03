@@ -94,3 +94,8 @@
 - [x] Add exercise completion tracking
 - [x] Test gamification features
 
+
+
+## UI Improvements
+- [x] Move "Companion to" book reference from top banner to page footer
+
