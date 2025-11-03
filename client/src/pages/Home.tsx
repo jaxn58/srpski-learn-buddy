@@ -35,16 +35,16 @@ export default function Home() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               Serbian AI Tutor
             </h1>
           </div>
           {isAuthenticated ? (
             <Link href="/dashboard">
-              <Button className="bg-gradient-to-r from-primary via-accent to-secondary">Go to Dashboard</Button>
+              <Button className="bg-primary hover:bg-primary/90">Go to Dashboard</Button>
             </Link>
           ) : (
-            <Button asChild className="bg-gradient-to-r from-primary via-accent to-secondary">
+            <Button asChild className="bg-primary hover:bg-primary/90">
               <a href={getLoginUrl()}>Login</a>
             </Button>
           )}
@@ -54,20 +54,21 @@ export default function Home() {
       {/* Hero Section */}
       <section className="container py-20">
         <div className="max-w-4xl mx-auto text-center space-y-6">
-          <div className="inline-block px-4 py-2 bg-primary/10 rounded-full text-primary font-semibold mb-4">
+          <div className="inline-block px-4 py-2 bg-accent/20 rounded-full text-primary font-semibold mb-4 border border-accent/40">
             🔥 Now in Beta Testing
           </div>
           <h2 className="text-6xl font-bold tracking-tight">
-            Learn Serbian with your{" "}
-            <span className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-              personal AI Professor
+            <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              Serbisch für Anfänger.
             </span>
+            <br />
+            Nutze die Hilfe von AI.
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             A structured course with <strong>27 units</strong> and <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong> – featuring interactive exercises, vocabulary training, and AI-powered learning support.
           </p>
           <div className="flex gap-4 justify-center pt-4">
-            <Button size="lg" asChild className="bg-gradient-to-r from-primary via-accent to-secondary text-lg px-8">
+            <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-lg px-8">
               <a href="#beta-register">Register for Beta</a>
             </Button>
             <Button size="lg" variant="outline" asChild className="text-lg px-8">
@@ -192,7 +193,7 @@ export default function Home() {
                       <CardTitle className="text-lg">{unit.titleEnglish}</CardTitle>
                       <p className="text-sm text-muted-foreground italic mt-1">{unit.title}</p>
                     </div>
-                    <div className="bg-gradient-to-r from-accent/20 to-secondary/20 px-3 py-1 rounded-full border border-accent/30">
+                    <div className="bg-secondary/10 px-3 py-1 rounded-full border border-secondary/30">
                       <span className="text-xs font-bold text-primary">{unit.vocabCount} words</span>
                     </div>
                   </div>
@@ -266,7 +267,7 @@ export default function Home() {
               <Button 
                 type="submit" 
                 size="lg" 
-                className="w-full bg-gradient-to-r from-primary via-accent to-secondary text-lg"
+                className="w-full bg-primary hover:bg-primary/90 text-lg"
               >
                 Register for Beta Test
               </Button>

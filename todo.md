@@ -187,3 +187,20 @@
 - [x] Test color harmony across all sections
 
 
+
+
+## Simplify Color Scheme (Red-Blue-White Focus)
+- [x] Remove gold from button gradients (use solid red instead)
+- [x] Remove gold from title gradients (use red-to-blue only)
+- [x] Simplify backgrounds to clean white with subtle red/blue accents
+- [x] Keep gold only for small accent elements (badges)
+- [x] Update hover effects to blue (no gold)
+- [x] Test cleaner, less playful design
+
+
+
+
+## Content Updates
+- [x] Change hero headline to "Serbisch für Anfänger. Nutze die Hilfe von AI."
+
+
