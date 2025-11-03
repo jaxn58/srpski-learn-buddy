@@ -258,3 +258,10 @@
 - [x] Test approval/rejection workflow
 
 
+
+
+## Admin Procedure Permission Fix
+- [x] Update adminProcedure to allow both 'admin' and 'superadmin' roles
+- [x] Test beta registrations page access with superadmin account
+
+
