@@ -233,7 +233,7 @@ export default function UnitView() {
               {explanation ? (
                 <Card>
                   <CardContent className="pt-6">
-                    <InteractiveMarkdownContent content={explanation.practiceExamples} />
+                    <InteractiveMarkdownContent content={explanation.practiceExamples} unitNumber={unit.number} />
                   </CardContent>
                 </Card>
               ) : (

@@ -136,9 +136,10 @@ const EXERCISES: Record<string, any> = {
 
 interface InteractiveMarkdownContentProps {
   content: string;
+  unitNumber: number;
 }
 
-export function InteractiveMarkdownContent({ content }: InteractiveMarkdownContentProps) {
+export function InteractiveMarkdownContent({ content, unitNumber }: InteractiveMarkdownContentProps) {
   // Split content by exercise markers
   const parts = content.split(/(<InteractiveExercise[^>]*\/>)/g);
 
@@ -164,6 +165,8 @@ export function InteractiveMarkdownContent({ content }: InteractiveMarkdownConte
                 title={exerciseData.title}
                 instructions={exerciseData.instructions}
                 questions={exerciseData.questions}
+                exerciseId={id}
+                unitNumber={unitNumber}
               />
             );
           } else if (exerciseData.type === 'translation') {
@@ -173,6 +176,8 @@ export function InteractiveMarkdownContent({ content }: InteractiveMarkdownConte
                 title={exerciseData.title}
                 instructions={exerciseData.instructions}
                 questions={exerciseData.questions}
+                exerciseId={id}
+                unitNumber={unitNumber}
               />
             );
           }
