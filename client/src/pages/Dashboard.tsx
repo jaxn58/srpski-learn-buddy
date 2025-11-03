@@ -10,6 +10,9 @@ import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock }
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { GamificationStats } from "@/components/GamificationStats";
+import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
+import { FeedbackForm } from "@/components/FeedbackForm";
+import { useState, useEffect } from "react";
 
 export default function Dashboard() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -19,6 +22,29 @@ export default function Dashboard() {
   const updateProgress = trpc.progress.update.useMutation();
   const utils = trpc.useUtils();
   const { t } = useTranslation();
+  
+  // Onboarding tutorial state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  
+  // Show onboarding for new users (created within last 24 hours)
+  useEffect(() => {
+    if (user && user.createdAt) {
+      const createdDate = new Date(user.createdAt);
+      const daysSinceCreation = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+      const hasSeenOnboarding = localStorage.getItem(`onboarding_seen_${user.id}`);
+      
+      if (daysSinceCreation < 1 && !hasSeenOnboarding) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [user]);
+  
+  const handleCloseOnboarding = () => {
+    if (user) {
+      localStorage.setItem(`onboarding_seen_${user.id}`, 'true');
+    }
+    setShowOnboarding(false);
+  };
 
   if (authLoading || progressLoading) {
     return (
@@ -49,7 +75,15 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      {showOnboarding && user && (
+        <WelcomeOnboarding 
+          userName={user.name || user.email || 'there'} 
+          onClose={handleCloseOnboarding}
+        />
+      )}
+      
+      <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center justify-between">
@@ -58,9 +92,17 @@ export default function Dashboard() {
               <h1 className="text-xl font-bold">{t('app.title')}</h1>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                {user.name || user.email}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {user.name || user.email}
+                </span>
+                {user.isBetaTester && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    ✨ Beta Tester
+                  </span>
+                )}
+              </div>
+              <FeedbackForm />
               {isAdmin && (
                 <Link href="/admin">
                   <Button variant="outline" size="sm">
@@ -329,5 +371,6 @@ export default function Dashboard() {
         </footer>
       </main>
     </div>
+    </>
   );
 }

@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc";
-import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw } from "lucide-react";
+import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -36,6 +36,7 @@ export default function Admin() {
   
   const updateRole = trpc.admin.updateUserRole.useMutation();
   const toggleStatus = trpc.admin.toggleUserStatus.useMutation();
+  const toggleBetaTester = trpc.admin.toggleBetaTester.useMutation();
   const deleteUser = trpc.admin.deleteUser.useMutation();
   const resetProgress = trpc.admin.resetUserProgress.useMutation();
   
@@ -88,6 +89,16 @@ export default function Admin() {
     }
   };
 
+  const handleToggleBetaTester = async (userId: string, currentStatus: boolean) => {
+    try {
+      await toggleBetaTester.mutateAsync({ userId, isBetaTester: !currentStatus });
+      toast.success(currentStatus ? 'Beta tester badge removed' : 'Beta tester badge added');
+      utils.admin.getAllUsers.invalidate();
+    } catch (error) {
+      toast.error('Failed to update beta tester status');
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     try {
       await deleteUser.mutateAsync({ userId });
@@ -129,8 +140,18 @@ export default function Admin() {
       </header>
 
       <main className="container py-8">
+        {/* Quick Actions */}
+        <div className="mb-6">
+          <Link href="/admin/feedback">
+            <Button variant="outline" className="w-full sm:w-auto">
+              <MessageSquare className="mr-2 h-4 w-4" />
+              View Feedback & Feature Requests
+            </Button>
+          </Link>
+        </div>
+
         {/* Statistics Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+        <div className="grid gap-4 md:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -190,6 +211,7 @@ export default function Admin() {
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Beta Tester</TableHead>
                   <TableHead>Last Signed In</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -232,6 +254,15 @@ export default function Admin() {
                       </span>
                     </TableCell>
                     <TableCell>
+                      {u.isBetaTester ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          ✨ Beta
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       {u.lastSignedIn ? new Date(u.lastSignedIn).toLocaleDateString() : 'Never'}
                     </TableCell>
                     <TableCell className="text-right">
@@ -255,6 +286,17 @@ export default function Admin() {
                                 <>
                                   <CheckCircle className="mr-2 h-4 w-4" />
                                   Activate User
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleToggleBetaTester(u.id, u.isBetaTester)}>
+                              {u.isBetaTester ? (
+                                <>
+                                  ✨ Remove Beta Badge
+                                </>
+                              ) : (
+                                <>
+                                  ✨ Add Beta Badge
                                 </>
                               )}
                             </DropdownMenuItem>

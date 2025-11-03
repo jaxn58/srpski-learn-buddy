@@ -99,3 +99,30 @@
 ## UI Improvements
 - [x] Move "Companion to" book reference from top banner to page footer
 
+
+
+## User Management Audit (Beta Testing Readiness)
+- [ ] Review authentication and user registration flow
+- [ ] Test admin panel functionality
+- [ ] Check user roles and permissions
+- [ ] Verify user data privacy and security
+- [ ] Identify missing features for beta testing
+
+
+
+## Beta Testing Control Features
+- [x] Add isBetaTester field to users table
+- [x] Set new users to inactive by default (isActive = false)
+- [x] Implement registration approval system (Superadmin activates users)
+- [x] Add Beta Tester badge display in Admin Panel
+- [x] Add Beta Tester badge display on user Dashboard
+- [x] Create onboarding tutorial/welcome message for new users
+- [x] Build feedback/wish list form component
+- [x] Create feedback submissions table in database
+- [x] Add feedback review panel in Admin Dashboard
+- [ ] Test registration approval workflow
+- [ ] Test beta tester badge functionality
+- [ ] Test onboarding tutorial flow
+- [ ] Test feedback form submission and admin review
+
+

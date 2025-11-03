@@ -10,7 +10,8 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["superadmin", "admin", "student"]).default("student").notNull(),
-  isActive: boolean("isActive").default(true).notNull(),
+  isActive: boolean("isActive").default(false).notNull(), // New users start inactive, Superadmin must activate
+  isBetaTester: boolean("isBetaTester").default(false).notNull(), // Badge for beta testers
   createdAt: timestamp("createdAt").defaultNow(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow(),
   // Gamification fields
@@ -135,4 +136,22 @@ export const dailyActivity = mysqlTable("dailyActivity", {
 
 export type DailyActivity = typeof dailyActivity.$inferSelect;
 export type InsertDailyActivity = typeof dailyActivity.$inferInsert;
+
+
+
+// Feedback and Wish List Submissions
+export const feedbackSubmissions = mysqlTable("feedbackSubmissions", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("userId", { length: 64 }).notNull(),
+  type: mysqlEnum("type", ["bug", "feature", "improvement", "other"]).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description").notNull(),
+  status: mysqlEnum("status", ["new", "reviewed", "in_progress", "completed", "rejected"]).default("new").notNull(),
+  adminNotes: text("adminNotes"),
+  submittedAt: timestamp("submittedAt").defaultNow(),
+  reviewedAt: timestamp("reviewedAt"),
+});
+
+export type FeedbackSubmission = typeof feedbackSubmissions.$inferSelect;
+export type InsertFeedbackSubmission = typeof feedbackSubmissions.$inferInsert;
 

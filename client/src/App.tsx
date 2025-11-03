@@ -10,6 +10,7 @@ import WeekView from "./pages/WeekView";
 import UnitView from "./pages/UnitView";
 import Chat from "./pages/Chat";
 import Admin from "./pages/Admin";
+import FeedbackManagement from "./pages/FeedbackManagement";
 import Vocabulary from "./pages/Vocabulary";
 import VocabularyList from "./pages/VocabularyList";
 import Progress from "./pages/Progress";
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/vocabulary-list" component={VocabularyList} />
       <Route path={"/progress"} component={Progress} />
       <Route path={"/admin"} component={Admin} />
+      <Route path={"/admin/feedback"} component={FeedbackManagement} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

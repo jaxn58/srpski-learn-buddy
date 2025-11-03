@@ -17,6 +17,14 @@ const requireUser = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
+  // Check if user is active (unless they're superadmin)
+  if (!ctx.user.isActive && ctx.user.role !== 'superadmin') {
+    throw new TRPCError({ 
+      code: "FORBIDDEN", 
+      message: "Your account is pending approval. Please wait for an administrator to activate your account." 
+    });
+  }
+
   return next({
     ctx: {
       ...ctx,

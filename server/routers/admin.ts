@@ -83,6 +83,20 @@ export const adminRouter = router({
       return { success: true };
     }),
 
+  // Toggle beta tester status
+  toggleBetaTester: superadminProcedure
+    .input(z.object({
+      userId: z.string(),
+      isBetaTester: z.boolean()
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+      
+      await db.update(users).set({ isBetaTester: input.isBetaTester }).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
+
   // Delete user (and all associated data)
   deleteUser: superadminProcedure
     .input(z.object({ userId: z.string() }))
