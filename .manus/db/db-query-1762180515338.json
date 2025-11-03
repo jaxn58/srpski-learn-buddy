@@ -1,0 +1,19 @@
+{
+  "query": "SELECT * FROM betaRegistrations WHERE email = 'look@jacksenn.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT * FROM betaRegistrations WHERE email = 'look@jacksenn.com';",
+  "rows": [
+    {
+      "id": "c6fdc22b325d2171de21274f7d28c31a",
+      "name": "Jens Theuer",
+      "email": "look@jacksenn.com",
+      "motivation": "Testing",
+      "status": "pending",
+      "registeredAt": "2025-11-03 14:32:54",
+      "reviewedAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tmotivation\tstatus\tregisteredAt\treviewedAt\nc6fdc22b325d2171de21274f7d28c31a\tJens Theuer\tlook@jacksenn.com\tTesting\tpending\t2025-11-03 14:32:54\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 45
+}

@@ -1,0 +1,28 @@
+{
+  "query": "SELECT * FROM betaRegistrations LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT * FROM betaRegistrations LIMIT 5;",
+  "rows": [
+    {
+      "id": "0a86e800626796525861d6c3a3705106",
+      "name": "Test User",
+      "email": "test@example.com",
+      "motivation": "Testing email functionality",
+      "status": "pending",
+      "registeredAt": "2025-11-03 14:31:07",
+      "reviewedAt": "NULL"
+    },
+    {
+      "id": "4fa84c04a68f034914373f6978b9f0e0",
+      "name": "Jens Theuer",
+      "email": "look@jacksenn.com",
+      "motivation": "Testing",
+      "status": "pending",
+      "registeredAt": "2025-11-03 14:23:05",
+      "reviewedAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tmotivation\tstatus\tregisteredAt\treviewedAt\n0a86e800626796525861d6c3a3705106\tTest User\ttest@example.com\tTesting email functionality\tpending\t2025-11-03 14:31:07\tNULL\n4fa84c04a68f034914373f6978b9f0e0\tJens Theuer\tlook@jacksenn.com\tTesting\tpending\t2025-11-03 14:23:05\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

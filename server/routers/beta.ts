@@ -35,9 +35,13 @@ export const betaRouter = router({
         });
 
         // Send confirmation email to user
+        console.log(`[Beta Registration] Sending confirmation email to ${input.email}...`);
         const emailResult = await sendBetaRegistrationEmail(input.name, input.email);
         if (!emailResult.success) {
-          console.warn(`[Beta Registration] Failed to send confirmation email: ${emailResult.error}`);
+          console.error(`[Beta Registration] ❌ Failed to send confirmation email to ${input.email}`);
+          console.error(`[Beta Registration] Error: ${emailResult.error}`);
+        } else {
+          console.log(`[Beta Registration] ✅ Confirmation email sent successfully to ${input.email}`);
         }
 
         // Notify owner about new beta registration

@@ -324,3 +324,11 @@
 - [x] Update dashboard to visually distinguish locked units
 - [x] Test beta tester access restrictions
 
+
+
+## Beta Registration Email Template Update
+- [x] Update "What You'll Get" section to clarify 5 units for beta
+- [x] Add clear messaging about 50% discount at launch
+- [x] Remove misleading "all 27 units" text
+- [x] Test updated email template
+

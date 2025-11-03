@@ -29,11 +29,15 @@ export interface SendEmailOptions {
  */
 export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean, messageId?: string, error?: string }> {
   try {
+    console.log(`[Email] Attempting to send email to ${options.to}...`);
+    
     if (!process.env.RESEND_API_KEY) {
-      console.warn('[Email] RESEND_API_KEY not configured, skipping email send');
+      console.error('[Email] RESEND_API_KEY not configured!');
       return { success: false, error: 'Email service not configured' };
     }
 
+    console.log(`[Email] Using FROM: ${FROM_EMAIL}, REPLY_TO: ${options.replyTo || REPLY_TO_EMAIL}`);
+    
     const client = getResendClient();
     const { data, error } = await client.emails.send({
       from: `Serbian AI Tutor <${FROM_EMAIL}>`,
@@ -44,14 +48,16 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
     });
 
     if (error) {
-      console.error('[Email] Failed to send email:', error);
-      return { success: false, error: error.message };
+      console.error('[Email] ❌ Failed to send email to', options.to);
+      console.error('[Email] Error details:', JSON.stringify(error, null, 2));
+      return { success: false, error: error.message || JSON.stringify(error) };
     }
 
-    console.log(`[Email] Successfully sent email to ${options.to}, ID: ${data?.id}`);
+    console.log(`[Email] ✅ Successfully sent email to ${options.to}, ID: ${data?.id}`);
     return { success: true, messageId: data?.id };
   } catch (error) {
-    console.error('[Email] Exception while sending email:', error);
+    console.error('[Email] ❌ Exception while sending email to', options.to);
+    console.error('[Email] Exception details:', error);
     return { success: false, error: String(error) };
   }
 }
@@ -101,21 +107,29 @@ export async function sendBetaRegistrationEmail(name: string, email: string): Pr
                 </p>
               </div>
               
-              <div style="background-color: #DBEAFE; border-left: 4px solid #3B82F6; padding: 16px; margin: 24px 0; border-radius: 4px;">
-                <p style="color: #1E40AF; margin: 0; font-size: 14px; line-height: 1.5;">
-                  <strong>🎁 Beta Tester Reward</strong><br>
-                  As a beta tester, you'll receive <strong>50% OFF</strong> when we launch! This discount will be automatically applied to your account.
+              <div style="background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="color: #065F46; margin: 0; font-size: 14px; line-height: 1.5;">
+                  <strong>🎁 Beta Tester Benefits</strong><br>
+                  • <strong>Free access</strong> to Units 1-5 during beta testing<br>
+                  • <strong>50% OFF discount</strong> on the full course when we launch<br>
+                  • Early access to all features and improvements
                 </p>
               </div>
               
-              <h3 style="color: #1a1a1a; margin: 32px 0 16px 0; font-size: 18px; font-weight: 600;">What You'll Get:</h3>
-              <ul style="color: #4a4a4a; line-height: 1.8; margin: 0 0 24px 0; padding-left: 20px;">
-                <li>Access to all 27 units of structured Serbian lessons</li>
-                <li>737+ vocabulary words with interactive exercises</li>
-                <li>AI-powered learning assistant for review and reinforcement</li>
+              <h3 style="color: #1a1a1a; margin: 32px 0 16px 0; font-size: 18px; font-weight: 600;">What's Included in Beta:</h3>
+              <ul style="color: #4a4a4a; line-height: 1.8; margin: 0 0 16px 0; padding-left: 20px;">
+                <li><strong>5 Units</strong> of structured Serbian lessons (Units 1-5)</li>
+                <li>Interactive exercises and vocabulary training</li>
+                <li>AI-powered learning assistant</li>
                 <li>Gamification features: XP, badges, and streaks</li>
-                <li>Flexible learning pace (3-12 months)</li>
               </ul>
+              
+              <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="color: #92400E; margin: 0; font-size: 14px; line-height: 1.5;">
+                  <strong>📚 After Launch:</strong><br>
+                  Unlock all 27 units and 737+ vocabulary words with your exclusive <strong>50% discount</strong>!
+                </p>
+              </div>
               
               <div style="background-color: #FEE2E2; border-left: 4px solid #DC2626; padding: 16px; margin: 24px 0; border-radius: 4px;">
                 <p style="color: #991B1B; margin: 0; font-size: 14px; line-height: 1.5;">
