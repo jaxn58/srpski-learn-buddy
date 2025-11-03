@@ -216,3 +216,9 @@
 - [x] Add beta tester incentive: "50% off at launch" message
 
 
+
+
+## Footer Correction
+- [x] Fix copyright from "jaXn.me" to "jacksenn.me"
+
+

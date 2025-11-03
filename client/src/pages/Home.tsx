@@ -294,7 +294,7 @@ export default function Home() {
           <p>
             Course structure inspired by proven language learning methodologies
           </p>
-          <p className="font-semibold">© 2025 Serbian AI Tutor by jaXn.me. Powered by Manus AI.</p>
+          <p className="font-semibold">© 2025 Serbian AI Tutor by jacksenn.me. Powered by Manus AI.</p>
         </div>
       </footer>
     </div>
