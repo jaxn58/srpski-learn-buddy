@@ -3,6 +3,8 @@ import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import { notifyOwner } from "./notification";
+import { ENV } from "./env";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -28,6 +30,10 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
+      // Check if this is a new user
+      const existingUser = await db.getUser(userInfo.openId);
+      const isNewUser = !existingUser;
+
       await db.upsertUser({
         id: userInfo.openId,
         name: userInfo.name || null,
@@ -35,6 +41,19 @@ export function registerOAuthRoutes(app: Express) {
         loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
         lastSignedIn: new Date(),
       });
+
+      // Notify owner about new registration (but not for owner themselves)
+      if (isNewUser && userInfo.openId !== ENV.ownerId) {
+        try {
+          await notifyOwner({
+            title: "New User Registration",
+            content: `A new user has registered and is waiting for approval:\n\nName: ${userInfo.name || 'N/A'}\nEmail: ${userInfo.email || 'N/A'}\nLogin Method: ${userInfo.loginMethod || userInfo.platform || 'N/A'}\n\nPlease activate the user in the Admin Panel to grant access.`
+          });
+        } catch (notifyError) {
+          console.error("[OAuth] Failed to notify owner about new registration:", notifyError);
+          // Don't fail the registration if notification fails
+        }
+      }
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {
         name: userInfo.name || "",
