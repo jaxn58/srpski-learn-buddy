@@ -2,6 +2,8 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getAllUsers, updateUserRole, getAllUserProgress, getDb } from "../db";
+import { sendUserActivationEmail } from "../_core/email";
+import { ENV } from "../_core/env";
 import { users, userProgress, vocabulary, chatMessages, exerciseResults } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 
@@ -80,6 +82,22 @@ export const adminRouter = router({
       if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
       
       await db.update(users).set({ isActive: input.isActive }).where(eq(users.id, input.userId));
+      
+      // If activating user, send activation email
+      if (input.isActive) {
+        const userResult = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+        if (userResult.length > 0) {
+          const user = userResult[0];
+          if (user.email) {
+            const loginUrl = `${process.env.VITE_OAUTH_PORTAL_URL}?app_id=${ENV.appId}`;
+            const emailResult = await sendUserActivationEmail(user.name || 'User', user.email, loginUrl);
+            if (!emailResult.success) {
+              console.warn(`[Admin] Failed to send activation email: ${emailResult.error}`);
+            }
+          }
+        }
+      }
+      
       return { success: true };
     }),
 

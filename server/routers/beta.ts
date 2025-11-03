@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { betaRegistrations } from "../../drizzle/schema";
 import { randomBytes } from "crypto";
 import { notifyOwner } from "../_core/notification";
+import { sendBetaRegistrationEmail } from "../_core/email";
 import { eq } from "drizzle-orm";
 
 export const betaRouter = router({
@@ -32,6 +33,12 @@ export const betaRouter = router({
           motivation: input.motivation || null,
           status: "pending",
         });
+
+        // Send confirmation email to user
+        const emailResult = await sendBetaRegistrationEmail(input.name, input.email);
+        if (!emailResult.success) {
+          console.warn(`[Beta Registration] Failed to send confirmation email: ${emailResult.error}`);
+        }
 
         // Notify owner about new beta registration
         await notifyOwner({

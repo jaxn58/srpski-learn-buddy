@@ -265,3 +265,15 @@
 - [x] Test beta registrations page access with superadmin account
 
 
+
+
+## Resend Email Integration
+- [x] Request Resend API key and email configuration via secrets form
+- [x] Implement Resend email service helper
+- [x] Create beta registration confirmation email template
+- [x] Create user activation email template
+- [x] Update beta registration mutation to send confirmation email
+- [x] Add activation email to toggleUserStatus mutation
+- [x] Test email sending functionality
+
+
