@@ -263,7 +263,7 @@ export default function Admin() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {u.lastSignedIn ? new Date(u.lastSignedIn).toLocaleDateString() : 'Never'}
+                      {u.lastSignedIn ? new Date(u.lastSignedIn).toLocaleDateString('de-DE') : 'Never'}
                     </TableCell>
                     <TableCell className="text-right">
                       {user.role === 'superadmin' && u.id !== user.id && (
@@ -385,7 +385,7 @@ export default function Admin() {
                     <TableCell>{p.learningDuration} weeks</TableCell>
                     <TableCell>
                       {p.lastActivityAt 
-                        ? new Date(p.lastActivityAt).toLocaleDateString()
+                        ? new Date(p.lastActivityAt).toLocaleDateString('de-DE')
                         : 'Never'
                       }
                     </TableCell>

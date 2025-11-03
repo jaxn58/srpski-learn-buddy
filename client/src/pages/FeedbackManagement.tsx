@@ -152,7 +152,7 @@ export default function FeedbackManagement() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString() : 'N/A'}
+                        {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString('de-DE') : 'N/A'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -175,7 +175,7 @@ export default function FeedbackManagement() {
                                   {getTypeIcon(feedback.type)} {feedback.title}
                                 </DialogTitle>
                                 <DialogDescription>
-                                  Submitted on {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleString() : 'N/A'}
+                                  Submitted on {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleString('de-DE') : 'N/A'}
                                 </DialogDescription>
                               </DialogHeader>
                               

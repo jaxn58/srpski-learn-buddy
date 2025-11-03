@@ -222,3 +222,14 @@
 - [x] Fix copyright from "jaXn.me" to "jacksenn.me"
 
 
+
+
+## Date Format Correction
+- [x] Change date format from US (MM/DD/YYYY) to European (DD.MM.YYYY)
+- [x] Admin.tsx: Last Signed In field (line 266)
+- [x] Admin.tsx: Last Activity At field (line 388)
+- [x] Progress.tsx: Started date (line 154)
+- [x] Progress.tsx: Estimated Completion date (line 160)
+- [x] FeedbackManagement.tsx: Submitted At (lines 155, 178)
+
+

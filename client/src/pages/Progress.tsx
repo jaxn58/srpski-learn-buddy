@@ -151,13 +151,13 @@ export default function Progress() {
                   <div>
                     <div className="font-medium">Started</div>
                     <div className="text-muted-foreground">
-                      {startDate.toLocaleDateString()}
+                      {startDate.toLocaleDateString('de-DE')}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="font-medium">Estimated Completion</div>
                     <div className="text-muted-foreground">
-                      {estimatedEndDate.toLocaleDateString()}
+                      {estimatedEndDate.toLocaleDateString('de-DE')}
                     </div>
                   </div>
                 </div>
