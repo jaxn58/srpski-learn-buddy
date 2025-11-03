@@ -59,10 +59,10 @@ export default function Home() {
           </div>
           <h2 className="text-6xl font-bold tracking-tight">
             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Serbisch für Anfänger.
+              Serbian for Beginners.
             </span>
             <br />
-            Nutze die Hilfe von AI.
+            Use AI to help.
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             A structured course with <strong>27 units</strong> and <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong> – featuring interactive exercises, vocabulary training, and AI-powered learning support.
@@ -80,7 +80,7 @@ export default function Home() {
 
       {/* Features Section */}
       <section className="container py-16 bg-white/50">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <BookOpen className="h-12 w-12 text-primary mb-2" />
@@ -117,6 +117,16 @@ export default function Home() {
               <CardTitle>Progress Tracking</CardTitle>
               <CardDescription>
                 See your achievements and stay motivated with clear milestones
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
+            <CardHeader>
+              <BookOpen className="h-12 w-12 text-primary mb-2" />
+              <CardTitle>Vocabulary Trainer</CardTitle>
+              <CardDescription>
+                Master 737+ words with interactive flashcards and spaced repetition
               </CardDescription>
             </CardHeader>
           </Card>
@@ -187,15 +197,10 @@ export default function Home() {
                 className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-xl hover:scale-105 bg-white"
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-primary mb-1">Unit {unit.number}</div>
-                      <CardTitle className="text-lg">{unit.titleEnglish}</CardTitle>
-                      <p className="text-sm text-muted-foreground italic mt-1">{unit.title}</p>
-                    </div>
-                    <div className="bg-secondary/10 px-3 py-1 rounded-full border border-secondary/30">
-                      <span className="text-xs font-bold text-primary">{unit.vocabCount} words</span>
-                    </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-primary mb-1">Unit {unit.number}</div>
+                    <CardTitle className="text-lg">{unit.titleEnglish}</CardTitle>
+                    <p className="text-sm text-muted-foreground italic mt-1">{unit.title}</p>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -218,6 +223,9 @@ export default function Home() {
       <section id="beta-register" className="container py-20">
         <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
           <CardHeader className="text-center bg-gradient-to-r from-red-50 via-white to-blue-50">
+            <div className="inline-block px-4 py-2 bg-accent/30 rounded-full text-primary font-bold mb-4 border-2 border-accent">
+              🎁 Get 50% OFF at Launch!
+            </div>
             <CardTitle className="text-3xl">
               Join the Beta Testing Program
             </CardTitle>

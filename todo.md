@@ -204,3 +204,15 @@
 - [x] Change hero headline to "Serbisch für Anfänger. Nutze die Hilfe von AI."
 
 
+
+
+## English Text & Feature Updates
+- [x] Change hero text to English: "Serbian for Beginners. Use AI to help."
+- [x] Add 5th feature card: "Vocabulary Trainer"
+- [x] Remove vocabulary count badges from unit cards (top-right corner)
+
+
+
+- [x] Add beta tester incentive: "50% off at launch" message
+
+
