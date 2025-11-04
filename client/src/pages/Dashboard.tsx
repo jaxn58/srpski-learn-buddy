@@ -59,6 +59,53 @@ export default function Dashboard() {
     return null;
   }
 
+  // Show pending approval overlay for inactive users
+  if (!user.isActive) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-2xl w-full border-2 border-yellow-200 bg-yellow-50">
+          <CardHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <Clock className="h-8 w-8 text-yellow-600" />
+              <CardTitle className="text-2xl">Account Pending Approval</CardTitle>
+            </div>
+            <CardDescription className="text-base">
+              Your beta tester application is being reviewed
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-white rounded-lg p-4 border border-yellow-200">
+              <h3 className="font-semibold mb-2">What happens next?</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-yellow-600 mt-0.5">•</span>
+                  <span>Our team will review your application within 24-48 hours</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-yellow-600 mt-0.5">•</span>
+                  <span>You'll receive an email at <strong>{user.email}</strong> once approved</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-yellow-600 mt-0.5">•</span>
+                  <span>After approval, you'll have full access to Units 1-5</span>
+                </li>
+              </ul>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => window.location.href = '/'} variant="outline" className="flex-1">
+                <Home className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
+              <Button onClick={logout} variant="ghost" className="flex-1">
+                Logout
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const currentWeek = weeks?.find(w => w.weekNumber === progress?.currentWeek);
   const completedUnits = progress?.completedUnits || [];
   const totalUnits = units?.length || 27;

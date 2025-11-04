@@ -332,3 +332,23 @@
 - [x] Remove misleading "all 27 units" text
 - [x] Test updated email template
 
+
+
+## Dashboard Issues
+- [ ] Fix "Current Week" showing "Week" instead of actual week number
+- [ ] Fix "Current Lesson" showing "Unit" instead of actual unit number
+- [x] Fix "Go to Lesson" button navigation (currently goes nowhere)
+- [ ] Ensure user progress is properly initialized after onboarding
+- [ ] Test dashboard with fresh user account
+- [ ] Fix Unit page loading infinitely when clicking "Go to Lesson"
+
+
+
+## Pending Approval Overlay & Activation Email
+- [x] Add overlay to dashboard for inactive users (isActive: false)
+- [x] Show "Waiting for approval" message with instructions
+- [x] Create activation email template
+- [x] Send activation email when admin approves beta tester
+- [x] Add admin endpoint to activate users
+- [x] Test complete workflow (register → pending → activate → email)
+

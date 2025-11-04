@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, name, email, isBetaTester FROM users ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT id, name, email, isBetaTester FROM users ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "PKbRJckiHRmwWFRAr4uA6M",
+      "name": "JACK SENN",
+      "email": "look@jacksenn.com",
+      "isBetaTester": "0"
+    },
+    {
+      "id": "QyhpyXTqYAEPPy9XbYYPwR",
+      "name": "Jens Theuer",
+      "email": "Hello@jacksenn.me",
+      "isBetaTester": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tisBetaTester\nPKbRJckiHRmwWFRAr4uA6M\tJACK SENN\tlook@jacksenn.com\t0\nQyhpyXTqYAEPPy9XbYYPwR\tJens Theuer\tHello@jacksenn.me\t0\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

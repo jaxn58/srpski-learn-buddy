@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO userProgress (id, userId, currentWeek, currentUnit, completedUnits, learningDuration, uiLanguage, startedAt, lastActivityAt) \nSELECT CONCAT('progress_', u.id), u.id, 1, 1, '[]', 12, 'en', NOW(), NOW() \nFROM users u \nWHERE u.email = 'look@jacksenn.com' \nAND NOT EXISTS (SELECT 1 FROM userProgress p WHERE p.userId = u.id);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute INSERT INTO userProgress (id, userId, currentWeek, currentUnit, completedUnits, learningDuration, uiLanguage, startedAt, lastActivityAt) \nSELECT CONCAT('progress_', u.id), u.id, 1, 1, '[]', 12, 'en', NOW(), NOW() \nFROM users u \nWHERE u.email = 'look@jacksenn.com' \nAND NOT EXISTS (SELECT 1 FROM userProgress p WHERE p.userId = u.id);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 56
+}

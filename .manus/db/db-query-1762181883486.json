@@ -1,0 +1,36 @@
+{
+  "query": "SELECT u.id, u.name, u.email, p.* FROM users u LEFT JOIN userProgress p ON u.id = p.userId WHERE u.name LIKE '%JACK%' OR u.email LIKE '%jack%' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT u.id, u.name, u.email, p.* FROM users u LEFT JOIN userProgress p ON u.id = p.userId WHERE u.name LIKE '%JACK%' OR u.email LIKE '%jack%' LIMIT 5;",
+  "rows": [
+    {
+      "id": "NULL",
+      "name": "JACK SENN",
+      "email": "look@jacksenn.com",
+      "userId": "NULL",
+      "currentWeek": "NULL",
+      "currentUnit": "NULL",
+      "completedUnits": "NULL",
+      "startedAt": "NULL",
+      "lastActivityAt": "NULL",
+      "learningDuration": "NULL",
+      "uiLanguage": "NULL"
+    },
+    {
+      "id": "p9R_3RPetZ8m7TVHj1Dmv",
+      "name": "Jens Theuer",
+      "email": "Hello@jacksenn.me",
+      "userId": "QyhpyXTqYAEPPy9XbYYPwR",
+      "currentWeek": "1",
+      "currentUnit": "2",
+      "completedUnits": "[1]",
+      "startedAt": "2025-10-17 09:33:34",
+      "lastActivityAt": "2025-10-17 10:08:28",
+      "learningDuration": "48",
+      "uiLanguage": "de"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tid\tuserId\tcurrentWeek\tcurrentUnit\tcompletedUnits\tstartedAt\tlastActivityAt\tlearningDuration\tuiLanguage\nPKbRJckiHRmwWFRAr4uA6M\tJACK SENN\tlook@jacksenn.com\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\nQyhpyXTqYAEPPy9XbYYPwR\tJens Theuer\tHello@jacksenn.me\tp9R_3RPetZ8m7TVHj1Dmv\tQyhpyXTqYAEPPy9XbYYPwR\t1\t2\t[1]\t2025-10-17 09:33:34\t2025-10-17 10:08:28\t48\tde\n",
+  "stderr": "",
+  "execution_time_ms": 63
+}

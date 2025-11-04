@@ -1,0 +1,20 @@
+{
+  "query": "SELECT p.id, p.userId, p.currentWeek, p.currentUnit, p.learningDuration, p.completedUnits, u.name, u.email FROM userProgress p JOIN users u ON p.userId = u.id WHERE u.name LIKE '%JACK%' OR u.email LIKE '%jack%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT p.id, p.userId, p.currentWeek, p.currentUnit, p.learningDuration, p.completedUnits, u.name, u.email FROM userProgress p JOIN users u ON p.userId = u.id WHERE u.name LIKE '%JACK%' OR u.email LIKE '%jack%';",
+  "rows": [
+    {
+      "id": "p9R_3RPetZ8m7TVHj1Dmv",
+      "userId": "QyhpyXTqYAEPPy9XbYYPwR",
+      "currentWeek": "1",
+      "currentUnit": "2",
+      "learningDuration": "48",
+      "completedUnits": "[1]",
+      "name": "Jens Theuer",
+      "email": "Hello@jacksenn.me"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tcurrentWeek\tcurrentUnit\tlearningDuration\tcompletedUnits\tname\temail\np9R_3RPetZ8m7TVHj1Dmv\tQyhpyXTqYAEPPy9XbYYPwR\t1\t2\t48\t[1]\tJens Theuer\tHello@jacksenn.me\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

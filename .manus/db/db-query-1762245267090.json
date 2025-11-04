@@ -1,0 +1,19 @@
+{
+  "query": "SELECT u.id, u.name, u.email, u.isBetaTester, p.currentWeek, p.currentUnit, p.learningDuration FROM users u LEFT JOIN userProgress p ON u.id = p.userId WHERE u.email = 'look@jacksenn.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT u.id, u.name, u.email, u.isBetaTester, p.currentWeek, p.currentUnit, p.learningDuration FROM users u LEFT JOIN userProgress p ON u.id = p.userId WHERE u.email = 'look@jacksenn.com';",
+  "rows": [
+    {
+      "id": "PKbRJckiHRmwWFRAr4uA6M",
+      "name": "JACK SENN",
+      "email": "look@jacksenn.com",
+      "isBetaTester": "0",
+      "currentWeek": "NULL",
+      "currentUnit": "NULL",
+      "learningDuration": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tisBetaTester\tcurrentWeek\tcurrentUnit\tlearningDuration\nPKbRJckiHRmwWFRAr4uA6M\tJACK SENN\tlook@jacksenn.com\t0\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 129
+}
