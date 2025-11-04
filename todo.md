@@ -360,3 +360,10 @@
 - [ ] Add "Upgrade Plan" feature for users who need more time
 - [x] Add Beta-Tester benefits banner to Dashboard (Units 1-5 free, 50% off after launch)
 
+
+
+## Beta Banner Not Showing
+- [x] Check JACK SENN's isBetaTester flag in database
+- [x] Set isBetaTester to true for JACK SENN
+- [ ] Verify banner appears on dashboard
+
