@@ -177,6 +177,35 @@ export default function Dashboard() {
 
         <div className="h-6"></div>
 
+        {/* Beta Tester Benefits Banner */}
+        {user.isBetaTester && (
+          <Alert className="mb-6 border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50">
+            <div className="flex items-start gap-3">
+              <div className="bg-yellow-400 rounded-full p-2 mt-0.5">
+                <span className="text-lg">🎁</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg mb-1">Beta Tester Benefits</h3>
+                <AlertDescription className="text-sm space-y-2">
+                  <p>
+                    <strong>Thank you for being an early supporter!</strong> As a beta tester, you have:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li><strong>Free access</strong> to Units 1-5 during the beta phase</li>
+                    <li><strong>50% OFF discount</strong> on the full course (all 27 units) when we launch</li>
+                    <li>Priority support and early access to new features</li>
+                  </ul>
+                  <div className="bg-white/70 rounded-lg p-3 mt-3 border border-yellow-300">
+                    <p className="text-xs text-muted-foreground">
+                      <strong>📅 After Launch:</strong> You'll receive an email with your exclusive 50% discount code to unlock Units 6-27 and continue your Serbian learning journey!
+                    </p>
+                  </div>
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
         {/* Learning Plan Settings */}
         <Card className="mb-6">
           <CardHeader>

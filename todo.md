@@ -352,3 +352,11 @@
 - [x] Add admin endpoint to activate users
 - [x] Test complete workflow (register → pending → activate → email)
 
+
+
+## Learning Plan & Subscription Features
+- [ ] Add Learning Plan selection to Dashboard (Intensive/Balanced/Relaxed)
+- [ ] Link Learning Plan to subscription/payment (longer plans require upgrade)
+- [ ] Add "Upgrade Plan" feature for users who need more time
+- [x] Add Beta-Tester benefits banner to Dashboard (Units 1-5 free, 50% off after launch)
+
