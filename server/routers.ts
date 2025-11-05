@@ -17,7 +17,8 @@ import {
   addChatMessage,
   getExerciseResults,
   addExerciseResult,
-  getUnitExplanation as getUnitExplanationFromDb
+  getUnitExplanation as getUnitExplanationFromDb,
+  getUser
 } from "./db";
 import { COURSE_UNITS, COURSE_WEEKS } from "../shared/courseData";
 import { invokeLLM } from "./_core/llm";
@@ -37,7 +38,12 @@ export const appRouter = router({
   beta: betaRouter,
 
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(async ({ ctx }) => {
+      // Return full user data from database (includes isBetaTester, isActive, etc.)
+      if (!ctx.user) return null;
+      const fullUser = await getUser(ctx.user.id);
+      return fullUser || ctx.user;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

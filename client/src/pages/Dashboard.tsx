@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock, Home, Lock } from "lucide-react";
@@ -17,6 +17,14 @@ import { useState, useEffect } from "react";
 export default function Dashboard() {
   const { user, loading: authLoading, logout } = useAuth();
   const { data: progress, isLoading: progressLoading } = trpc.progress.get.useQuery();
+  
+  // Debug: Log user object to check isBetaTester
+  useEffect(() => {
+    if (user) {
+      console.log('[Dashboard] User object:', user);
+      console.log('[Dashboard] isBetaTester:', user.isBetaTester);
+    }
+  }, [user]);
   const { data: weeks } = trpc.course.getWeeks.useQuery();
   const { data: units } = trpc.course.getUnits.useQuery();
   const updateProgress = trpc.progress.update.useMutation();
@@ -179,31 +187,38 @@ export default function Dashboard() {
 
         {/* Beta Tester Benefits Banner */}
         {user.isBetaTester && (
-          <Alert className="mb-6 border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50">
-            <div className="flex items-start gap-3">
-              <div className="bg-yellow-400 rounded-full p-2 mt-0.5">
-                <span className="text-lg">🎁</span>
+          <div className="mb-6 border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-6">
+            <div className="flex items-start gap-4">
+              <div className="bg-yellow-400 rounded-full p-3 flex-shrink-0">
+                <span className="text-2xl">🎁</span>
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-lg mb-1">Beta Tester Benefits</h3>
-                <AlertDescription className="text-sm space-y-2">
-                  <p>
-                    <strong>Thank you for being an early supporter!</strong> As a beta tester, you have:
+                <h3 className="font-bold text-xl mb-3 text-gray-900">Beta Tester Benefits</h3>
+                <p className="text-sm text-gray-700 mb-3">
+                  <strong>Thank you for being an early supporter!</strong> As a beta tester, you have:
+                </p>
+                <ul className="text-sm text-gray-700 space-y-2 mb-4">
+                  <li className="flex items-start">
+                    <span className="mr-2">✓</span>
+                    <span><strong>Free access</strong> to Units 1-5 during the beta phase</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">✓</span>
+                    <span><strong>50% OFF discount</strong> on the full course (all 27 units) when we launch</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-2">✓</span>
+                    <span>Priority support and early access to new features</span>
+                  </li>
+                </ul>
+                <div className="bg-white/80 rounded-md p-3 border border-yellow-300">
+                  <p className="text-xs text-gray-600">
+                    <strong>📅 After Launch:</strong> You'll receive an email with your exclusive 50% discount code to unlock Units 6-27 and continue your Serbian learning journey!
                   </p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li><strong>Free access</strong> to Units 1-5 during the beta phase</li>
-                    <li><strong>50% OFF discount</strong> on the full course (all 27 units) when we launch</li>
-                    <li>Priority support and early access to new features</li>
-                  </ul>
-                  <div className="bg-white/70 rounded-lg p-3 mt-3 border border-yellow-300">
-                    <p className="text-xs text-muted-foreground">
-                      <strong>📅 After Launch:</strong> You'll receive an email with your exclusive 50% discount code to unlock Units 6-27 and continue your Serbian learning journey!
-                    </p>
-                  </div>
-                </AlertDescription>
+                </div>
               </div>
             </div>
-          </Alert>
+          </div>
         )}
 
         {/* Learning Plan Settings */}

@@ -365,5 +365,13 @@
 ## Beta Banner Not Showing
 - [x] Check JACK SENN's isBetaTester flag in database
 - [x] Set isBetaTester to true for JACK SENN
+- [ ] Debug why banner doesn't show despite isBetaTester=true
+- [ ] Fix banner visibility logic
 - [ ] Verify banner appears on dashboard
+
+
+
+# Bug Fixes
+- [x] Fix Beta Tester Benefits Banner layout (broken vertical stacking)
+- [x] Fix auth.me query to load full user data from database (isBetaTester field)
 
