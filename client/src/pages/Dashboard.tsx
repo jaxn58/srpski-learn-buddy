@@ -152,7 +152,7 @@ export default function Dashboard() {
                   {user.name || user.email}
                 </span>
                 {user.isBetaTester && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-sm">
                     ✨ Beta Tester
                   </span>
                 )}
@@ -206,10 +206,7 @@ export default function Dashboard() {
                     <span className="mr-2">✓</span>
                     <span><strong>50% OFF discount</strong> on the full course (all 27 units) when we launch</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="mr-2">✓</span>
-                    <span>Priority support and early access to new features</span>
-                  </li>
+
                 </ul>
                 <div className="bg-white/80 rounded-md p-3 border border-yellow-300">
                   <p className="text-xs text-gray-600">

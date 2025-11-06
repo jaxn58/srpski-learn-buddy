@@ -375,3 +375,26 @@
 - [x] Fix Beta Tester Benefits Banner layout (broken vertical stacking)
 - [x] Fix auth.me query to load full user data from database (isBetaTester field)
 
+
+
+# Banner Updates
+- [x] Remove "Priority support and early access to new features" from Beta Tester Benefits Banner
+- [x] Change Beta Tester badge color from blue to gold gradient
+- [x] Update badge text color for better contrast with gold background
+
+
+
+## Payment Integration - Paddle
+- [ ] Gather pricing requirements (subscription model, prices, currencies)
+- [ ] Create Paddle account and get API credentials
+- [ ] Implement Paddle SDK integration
+- [ ] Create subscription products in Paddle dashboard
+- [ ] Implement checkout flow for Units 6-27 access
+- [ ] Add paywall component for locked units
+- [ ] Implement 50% beta tester discount code
+- [ ] Add subscription status to user database
+- [ ] Create subscription management page in dashboard
+- [ ] Implement webhook handlers for subscription events (created, updated, cancelled)
+- [ ] Test complete payment flow end-to-end
+- [ ] Add subscription status display in admin panel
+
