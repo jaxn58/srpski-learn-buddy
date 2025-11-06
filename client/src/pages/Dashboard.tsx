@@ -142,7 +142,7 @@ export default function Dashboard() {
       
       <AdminHeader />
       
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background pt-16">
       <Sidebar />
 
       <main className="container py-8">

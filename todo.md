@@ -515,3 +515,11 @@
 - [x] Show "Read-Only Mode" indicator for Admin users
 - [ ] Backend: Restrict mutations to Superadmin only
 
+
+
+
+## AdminHeader Layout Fix
+- [x] Position AdminHeader navigation links to the right side
+- [x] Prevent AdminHeader from overlapping dashboard content
+- [x] Ensure admin role indicator stays visible
+
