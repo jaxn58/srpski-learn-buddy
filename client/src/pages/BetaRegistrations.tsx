@@ -109,9 +109,15 @@ export default function BetaRegistrations() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Beta Testing Applications</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  Beta Testing Applications
+                  {user.role === 'admin' && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
+                  )}
+                </CardTitle>
                 <CardDescription>
                   Review and manage beta tester registrations
+                  {user.role === 'admin' && ' (View only - no edit permissions)'}
                 </CardDescription>
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -198,56 +204,66 @@ export default function BetaRegistrations() {
                                   </Badge>
                                 </div>
 
-                                {registration.status === 'pending' && (
-                                  <div className="flex gap-2 pt-4">
-                                    <Button
-                                      className="flex-1 bg-green-600 hover:bg-green-700"
-                                      onClick={() => handleStatusChange(registration.id, 'approved')}
-                                    >
-                                      <CheckCircle className="h-4 w-4 mr-2" />
-                                      Approve
-                                    </Button>
-                                    <Button
-                                      className="flex-1 bg-red-600 hover:bg-red-700"
-                                      onClick={() => handleStatusChange(registration.id, 'rejected')}
-                                    >
-                                      <XCircle className="h-4 w-4 mr-2" />
-                                      Reject
-                                    </Button>
+                                {user.role === 'superadmin' ? (
+                                  registration.status === 'pending' && (
+                                    <div className="flex gap-2 pt-4">
+                                      <Button
+                                        className="flex-1 bg-green-600 hover:bg-green-700"
+                                        onClick={() => handleStatusChange(registration.id, 'approved')}
+                                      >
+                                        <CheckCircle className="h-4 w-4 mr-2" />
+                                        Approve
+                                      </Button>
+                                      <Button
+                                        className="flex-1 bg-red-600 hover:bg-red-700"
+                                        onClick={() => handleStatusChange(registration.id, 'rejected')}
+                                      >
+                                        <XCircle className="h-4 w-4 mr-2" />
+                                        Reject
+                                      </Button>
+                                    </div>
+                                  )
+                                ) : (
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <p className="text-sm text-blue-800">👁️ <strong>Read-Only Mode:</strong> You can view registrations but cannot approve or reject.</p>
                                   </div>
                                 )}
                               </div>
                             </DialogContent>
                           </Dialog>
 
-                          {registration.status === 'pending' && (
+                          {user.role === 'superadmin' && (
                             <>
+                              {registration.status === 'pending' && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-green-600 hover:text-green-700"
+                                    onClick={() => handleStatusChange(registration.id, 'approved')}
+                                  >
+                                    <CheckCircle className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-700"
+                                    onClick={() => handleStatusChange(registration.id, 'rejected')}
+                                  >
+                                    <XCircle className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="text-green-600 hover:text-green-700"
-                                onClick={() => handleStatusChange(registration.id, 'approved')}
+                                onClick={() => handleDelete(registration.id)}
                               >
-                                <CheckCircle className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-red-600 hover:text-red-700"
-                                onClick={() => handleStatusChange(registration.id, 'rejected')}
-                              >
-                                <XCircle className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4 text-red-600" />
                               </Button>
                             </>
                           )}
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(registration.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>

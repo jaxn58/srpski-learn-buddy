@@ -116,9 +116,15 @@ export default function FeedbackManagement() {
       <main className="container py-8">
         <Card>
           <CardHeader>
-            <CardTitle>User Feedback & Feature Requests</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              User Feedback & Feature Requests
+              {user.role === 'admin' && (
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
+              )}
+            </CardTitle>
             <CardDescription>
               Review and manage feedback submissions from users
+              {user.role === 'admin' && ' (View only - no edit permissions)'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -187,52 +193,62 @@ export default function FeedbackManagement() {
                                   </p>
                                 </div>
 
-                                <div>
-                                  <h3 className="font-semibold mb-2">Status</h3>
-                                  <Select
-                                    value={feedback.status}
-                                    onValueChange={(value) => handleStatusChange(feedback.id, value, adminNotes)}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="new">New</SelectItem>
-                                      <SelectItem value="reviewed">Reviewed</SelectItem>
-                                      <SelectItem value="in_progress">In Progress</SelectItem>
-                                      <SelectItem value="completed">Completed</SelectItem>
-                                      <SelectItem value="rejected">Rejected</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
+                                {user.role === 'superadmin' ? (
+                                  <>
+                                    <div>
+                                      <h3 className="font-semibold mb-2">Status</h3>
+                                      <Select
+                                        value={feedback.status}
+                                        onValueChange={(value) => handleStatusChange(feedback.id, value, adminNotes)}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="new">New</SelectItem>
+                                          <SelectItem value="reviewed">Reviewed</SelectItem>
+                                          <SelectItem value="in_progress">In Progress</SelectItem>
+                                          <SelectItem value="completed">Completed</SelectItem>
+                                          <SelectItem value="rejected">Rejected</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
 
-                                <div>
-                                  <h3 className="font-semibold mb-2">Admin Notes</h3>
-                                  <Textarea
-                                    value={adminNotes}
-                                    onChange={(e) => setAdminNotes(e.target.value)}
-                                    placeholder="Add notes about this feedback..."
-                                    rows={4}
-                                  />
-                                  <Button
-                                    className="mt-2"
-                                    size="sm"
-                                    onClick={() => handleStatusChange(feedback.id, feedback.status, adminNotes)}
-                                  >
-                                    Save Notes
-                                  </Button>
-                                </div>
+                                    <div>
+                                      <h3 className="font-semibold mb-2">Admin Notes</h3>
+                                      <Textarea
+                                        value={adminNotes}
+                                        onChange={(e) => setAdminNotes(e.target.value)}
+                                        placeholder="Add notes about this feedback..."
+                                        rows={4}
+                                      />
+                                      <Button
+                                        className="mt-2"
+                                        size="sm"
+                                        onClick={() => handleStatusChange(feedback.id, feedback.status, adminNotes)}
+                                      >
+                                        Save Notes
+                                      </Button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <p className="text-sm text-blue-800">👁️ <strong>Read-Only Mode:</strong> You can view feedback but cannot edit status or notes.</p>
+                                  </div>
+                                )}
                               </div>
                             </DialogContent>
                           </Dialog>
 
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(feedback.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
+                          {user.role === 'superadmin' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDelete(feedback.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

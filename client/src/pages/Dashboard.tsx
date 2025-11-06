@@ -13,6 +13,7 @@ import { GamificationStats } from "@/components/GamificationStats";
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { Sidebar } from "@/components/Sidebar";
+import { AdminHeader } from "@/components/AdminHeader";
 import { useState, useEffect } from "react";
 
 export default function Dashboard() {
@@ -138,6 +139,8 @@ export default function Dashboard() {
           onClose={handleCloseOnboarding}
         />
       )}
+      
+      <AdminHeader />
       
       <div className="flex min-h-screen bg-background">
       <Sidebar />

@@ -496,3 +496,22 @@
 - [x] Add feedback history section to Feedback page (show user's previous submissions)
 - [ ] Test email notifications for feedback submissions
 
+
+
+
+## Admin Header Navigation
+- [x] Create AdminHeader component with navigation links
+- [x] Add links: User Management, Feedback Management, Beta Registrations
+- [x] Display admin header only for Superadmin and Admin roles
+- [x] Style header to match dashboard design
+- [x] Add to Dashboard and other pages
+
+## Role-Based Access Control for Admin
+- [x] Superadmin: Full access (view, edit, delete, activate users)
+- [x] Admin: Read-only access (view only, no edit/delete buttons)
+- [x] Hide edit/delete buttons for Admin role on User Management page
+- [x] Hide status update buttons for Admin role on Feedback page
+- [x] Hide approve/reject buttons for Admin role on Beta Registrations page
+- [x] Show "Read-Only Mode" indicator for Admin users
+- [ ] Backend: Restrict mutations to Superadmin only
+

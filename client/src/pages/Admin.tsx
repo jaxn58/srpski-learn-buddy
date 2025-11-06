@@ -203,10 +203,15 @@ export default function Admin() {
         {/* User Management */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>User Management</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              User Management
+              {user.role === 'admin' && (
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
+              )}
+            </CardTitle>
             <CardDescription>
               Manage user roles and permissions
-              {user.role === 'admin' && " (Students only)"}
+              {user.role === 'admin' && " (View only - no edit permissions)"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -272,7 +277,7 @@ export default function Admin() {
                       {u.lastSignedIn ? new Date(u.lastSignedIn).toLocaleDateString('de-DE') : 'Never'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {user.role === 'superadmin' && u.id !== user.id && (
+                      {user.role === 'superadmin' && u.id !== user.id ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -352,6 +357,8 @@ export default function Admin() {
                             </AlertDialog>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
                   </TableRow>
