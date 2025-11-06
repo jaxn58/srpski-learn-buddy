@@ -8,6 +8,7 @@ import { BookOpen, Send, User, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
+import { Sidebar } from "@/components/Sidebar";
 
 export default function Chat() {
   const { user } = useAuth();
@@ -67,7 +68,9 @@ export default function Chat() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="flex min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <Sidebar />
+      <div className="flex-1">
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container py-4">
           <div className="flex items-center gap-4">
@@ -192,6 +195,7 @@ export default function Chat() {
           </div>
         </div>
       </main>
+      </div>
     </div>
   );
 }

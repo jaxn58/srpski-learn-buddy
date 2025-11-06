@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { getLoginUrl } from "@/const";
-import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check } from "lucide-react";
 import { Link } from "wouter";
 import { UNITS_DATA, TOTAL_VOCABULARY } from "@/data/unitsForLanding";
 import { useState } from "react";
@@ -175,40 +175,170 @@ export default function Home() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-6 mt-12">
-            <Card className="border-2 hover:border-primary transition-all">
-              <CardHeader>
-                <Sparkles className="h-10 w-10 text-primary mb-2 mx-auto" />
-                <CardTitle className="text-2xl">Intensive</CardTitle>
-                <CardDescription className="text-lg">3 Months</CardDescription>
+          {/* Pricing Cards */}
+          <div className="grid md:grid-cols-3 gap-8 mt-12">
+            {/* Intensive Plan */}
+            <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
+              <CardHeader className="text-center pb-4">
+                <Sparkles className="h-12 w-12 text-primary mb-3 mx-auto" />
+                <CardTitle className="text-3xl mb-2">Intensive</CardTitle>
+                <CardDescription className="text-lg font-semibold">3 Months</CardDescription>
+                <div className="mt-4">
+                  <div className="text-4xl font-bold text-primary">€39</div>
+                  <div className="text-sm text-muted-foreground">one-time payment</div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">2-3 units per week, daily practice, fast progress</p>
+              <CardContent className="space-y-4">
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>2-3 units per week</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>Daily practice recommended</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>Fast progress</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>All 27 units + vocabulary</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>AI Professor access</span>
+                  </li>
+                </ul>
+                <Button className="w-full" disabled>
+                  Choose Plan
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-primary shadow-lg scale-105">
-              <CardHeader>
-                <Target className="h-10 w-10 text-primary mb-2 mx-auto" />
-                <CardTitle className="text-2xl">Balanced</CardTitle>
-                <CardDescription className="text-lg">6 Months</CardDescription>
+            {/* Balanced Plan (Most Popular) */}
+            <Card className="border-4 border-primary shadow-2xl scale-105 relative">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <span className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-semibold">Most Popular</span>
+              </div>
+              <CardHeader className="text-center pb-4 pt-8">
+                <Target className="h-12 w-12 text-primary mb-3 mx-auto" />
+                <CardTitle className="text-3xl mb-2">Balanced</CardTitle>
+                <CardDescription className="text-lg font-semibold">6 Months</CardDescription>
+                <div className="mt-4">
+                  <div className="text-4xl font-bold text-primary">€69</div>
+                  <div className="text-sm text-muted-foreground">one-time payment</div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">1 unit per week, steady learning, recommended pace</p>
+              <CardContent className="space-y-4">
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>1 unit per week</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>Steady learning pace</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>Recommended by experts</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>All 27 units + vocabulary</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>AI Professor access</span>
+                  </li>
+                </ul>
+                <Button className="w-full bg-primary" disabled>
+                  Choose Plan
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
               </CardContent>
             </Card>
 
-            <Card className="border-2 hover:border-primary transition-all">
-              <CardHeader>
-                <Clock className="h-10 w-10 text-primary mb-2 mx-auto" />
-                <CardTitle className="text-2xl">Relaxed</CardTitle>
-                <CardDescription className="text-lg">12 Months</CardDescription>
+            {/* Relaxed Plan */}
+            <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
+              <CardHeader className="text-center pb-4">
+                <Clock className="h-12 w-12 text-primary mb-3 mx-auto" />
+                <CardTitle className="text-3xl mb-2">Relaxed</CardTitle>
+                <CardDescription className="text-lg font-semibold">12 Months</CardDescription>
+                <div className="mt-4">
+                  <div className="text-4xl font-bold text-primary">€119</div>
+                  <div className="text-sm text-muted-foreground">one-time payment</div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Flexible schedule, learn when you can, no pressure</p>
+              <CardContent className="space-y-4">
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>Flexible schedule</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>Learn when you can</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>No pressure, no stress</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>All 27 units + vocabulary</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>AI Professor access</span>
+                  </li>
+                </ul>
+                <Button className="w-full" disabled>
+                  Choose Plan
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
               </CardContent>
             </Card>
           </div>
+
+          {/* Beta Tester Banner */}
+          <Card className="mt-12 border-4 border-yellow-400 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 shadow-2xl">
+            <CardContent className="py-8">
+              <div className="text-center space-y-4">
+                <div className="inline-block">
+                  <span className="text-5xl">🎁</span>
+                </div>
+                <h4 className="text-3xl font-bold text-yellow-900">Get 50% OFF at Launch!</h4>
+                <p className="text-lg text-yellow-800 max-w-3xl mx-auto">
+                  Help shape the future of Serbian learning! Join our <strong>Beta Testing Program</strong> and get <strong>early access to Units 1-5</strong> for free, 
+                  plus <strong>50% discount</strong> on your chosen plan when we launch.
+                </p>
+                <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto mt-6">
+                  <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
+                    <div className="text-2xl mb-2">✓</div>
+                    <h5 className="font-semibold text-yellow-900 mb-1">Free Units 1-5</h5>
+                    <p className="text-sm text-yellow-800">Test the full course experience with no commitment</p>
+                  </div>
+                  <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
+                    <div className="text-2xl mb-2">💰</div>
+                    <h5 className="font-semibold text-yellow-900 mb-1">50% Launch Discount</h5>
+                    <p className="text-sm text-yellow-800">Lock in your discount when the full course launches</p>
+                  </div>
+                </div>
+                <div className="pt-4">
+                  <a href="#beta-registration">
+                    <Button size="lg" className="bg-yellow-600 hover:bg-yellow-700 text-white text-lg px-8">
+                      Register for Beta Test
+                    </Button>
+                  </a>
+                </div>
+                <p className="text-xs text-yellow-700">No registration, no credit card required. Just test and send us feedback!</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
@@ -252,7 +382,7 @@ export default function Home() {
       </section>
 
       {/* Beta Registration Form */}
-      <section id="beta-register" className="container py-20">
+      <section id="beta-registration" className="container py-20">
         <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
           <CardHeader className="text-center bg-gradient-to-r from-red-50 via-white to-blue-50">
             <div className="inline-block px-4 py-2 bg-accent/30 rounded-full text-primary font-bold mb-4 border-2 border-accent">

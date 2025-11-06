@@ -5,6 +5,7 @@ import { getDb } from "../db";
 import { feedbackSubmissions } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { sendFeedbackConfirmationEmail, sendFeedbackAdminNotificationEmail } from "../_core/email";
 
 // Middleware to check if user is admin or superadmin
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -22,7 +23,7 @@ export const feedbackRouter = router({
   submit: protectedProcedure
     .input(z.object({
       type: z.enum(['bug', 'feature', 'improvement', 'other']),
-      title: z.string().min(5).max(200),
+      title: z.string().min(3).max(200),
       description: z.string().min(10).max(5000)
     }))
     .mutation(async ({ ctx, input }) => {
@@ -39,6 +40,33 @@ export const feedbackRouter = router({
         status: 'new',
         submittedAt: new Date()
       });
+
+      // Send confirmation email to user
+      try {
+        await sendFeedbackConfirmationEmail(
+          ctx.user.name || 'User',
+          ctx.user.email || '',
+          input.type,
+          input.title
+        );
+      } catch (error) {
+        console.error('[Feedback] Failed to send confirmation email:', error);
+      }
+
+      // Send admin notification email
+      try {
+        const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.RESEND_FROM_EMAIL || 'noreply@mail.jacksenn.me';
+        await sendFeedbackAdminNotificationEmail(
+          ctx.user.name || 'User',
+          ctx.user.email || '',
+          input.type,
+          input.title,
+          input.description,
+          adminEmail
+        );
+      } catch (error) {
+        console.error('[Feedback] Failed to send admin notification email:', error);
+      }
 
       return { success: true, id };
     }),

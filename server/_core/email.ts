@@ -270,3 +270,187 @@ export async function sendUserActivationEmail(name: string, email: string, login
   });
 }
 
+
+
+/**
+ * Send feedback confirmation email to user
+ */
+export async function sendFeedbackConfirmationEmail(name: string, email: string, feedbackType: string, feedbackTitle: string): Promise<{ success: boolean, error?: string }> {
+  const typeLabels: Record<string, string> = {
+    bug: '🐛 Bug Report',
+    feature: '✨ Feature Request',
+    improvement: '💡 Improvement Suggestion',
+    other: '📝 Other'
+  };
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feedback Received</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #C41E3A 0%, #0C4076 100%); padding: 40px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Serbian AI Tutor</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Feedback Received</p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1a1a1a; margin: 0 0 20px 0; font-size: 24px; font-weight: 600;">Thank You for Your Feedback! 🙏</h2>
+              
+              <p style="color: #4a4a4a; line-height: 1.6; margin: 0 0 16px 0; font-size: 16px;">
+                Hi ${name},
+              </p>
+              
+              <p style="color: #4a4a4a; line-height: 1.6; margin: 0 0 16px 0; font-size: 16px;">
+                We've received your feedback and really appreciate you taking the time to help us improve Serbian AI Tutor!
+              </p>
+              
+              <div style="background-color: #F3F4F6; border-left: 4px solid #6B7280; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="color: #374151; margin: 0; font-size: 14px; line-height: 1.5;">
+                  <strong>Feedback Type:</strong> ${typeLabels[feedbackType] || feedbackType}<br>
+                  <strong>Title:</strong> ${feedbackTitle}
+                </p>
+              </div>
+              
+              <div style="background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="color: #065F46; margin: 0; font-size: 14px; line-height: 1.5;">
+                  <strong>✅ What Happens Next?</strong><br>
+                  Our team will review your feedback shortly. If it's a bug report, we'll investigate and fix it. For feature requests and improvements, we'll evaluate them for future updates. Thank you for helping us build a better learning experience!
+                </p>
+              </div>
+              
+              <p style="color: #4a4a4a; line-height: 1.6; margin: 24px 0 0 0; font-size: 16px;">
+                Best regards,<br>
+                <strong>The Serbian AI Tutor Team</strong>
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; margin: 0; font-size: 14px;">
+                © 2025 Serbian AI Tutor by jacksenn.me
+              </p>
+              <p style="color: #9ca3af; margin: 8px 0 0 0; font-size: 12px;">
+                This email was sent to ${email}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: '✅ We Received Your Feedback!',
+    html,
+    replyTo: undefined, // No reply functionality for feedback confirmation
+  });
+}
+
+/**
+ * Send feedback notification email to admin/owner
+ */
+export async function sendFeedbackAdminNotificationEmail(userName: string, userEmail: string, feedbackType: string, feedbackTitle: string, feedbackDescription: string, adminEmail: string): Promise<{ success: boolean, error?: string }> {
+  const typeLabels: Record<string, string> = {
+    bug: '🐛 Bug Report',
+    feature: '✨ Feature Request',
+    improvement: '💡 Improvement Suggestion',
+    other: '📝 Other'
+  };
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Feedback Submission</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #C41E3A 0%, #0C4076 100%); padding: 40px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Serbian AI Tutor</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">New Feedback Submission</p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1a1a1a; margin: 0 0 20px 0; font-size: 24px; font-weight: 600;">New Feedback Received 📬</h2>
+              
+              <div style="background-color: #F3F4F6; border-left: 4px solid #6B7280; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="color: #374151; margin: 0; font-size: 14px; line-height: 1.8;">
+                  <strong>From:</strong> ${userName} (${userEmail})<br>
+                  <strong>Type:</strong> ${typeLabels[feedbackType] || feedbackType}<br>
+                  <strong>Title:</strong> ${feedbackTitle}
+                </p>
+              </div>
+              
+              <h3 style="color: #1a1a1a; margin: 24px 0 12px 0; font-size: 16px; font-weight: 600;">Feedback Description:</h3>
+              <div style="background-color: #F9FAFB; border: 1px solid #E5E7EB; padding: 16px; margin: 16px 0; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word;">
+                <p style="color: #4a4a4a; margin: 0; font-size: 14px; line-height: 1.6;">${feedbackDescription}</p>
+              </div>
+              
+              <div style="background-color: #DBEAFE; border-left: 4px solid #3B82F6; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="color: #1E40AF; margin: 0; font-size: 14px; line-height: 1.5;">
+                  <strong>💡 Next Step:</strong> Review this feedback in your Admin Panel at /admin/feedback and update the status accordingly.
+                </p>
+              </div>
+              
+              <p style="color: #4a4a4a; line-height: 1.6; margin: 24px 0 0 0; font-size: 16px;">
+                Best regards,<br>
+                <strong>Serbian AI Tutor System</strong>
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 24px; text-align: center; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; margin: 0; font-size: 14px;">
+                © 2025 Serbian AI Tutor by jacksenn.me
+              </p>
+              <p style="color: #9ca3af; margin: 8px 0 0 0; font-size: 12px;">
+                This email was sent to ${adminEmail}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `[${typeLabels[feedbackType] || feedbackType}] New Feedback: ${feedbackTitle}`,
+    html,
+  });
+}
+

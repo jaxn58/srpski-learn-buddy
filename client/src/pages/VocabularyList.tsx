@@ -7,6 +7,7 @@ import { VOCABULARY } from "@shared/vocabularyData";
 import { Search, BookOpen, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo } from "react";
+import { Sidebar } from "@/components/Sidebar";
 
 export default function VocabularyList() {
   const { user } = useAuth();
@@ -54,7 +55,9 @@ export default function VocabularyList() {
   const units = Array.from({ length: 27 }, (_, i) => i + 1);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1">
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
@@ -204,6 +207,7 @@ export default function VocabularyList() {
             </Button>
           </Link>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -398,3 +398,101 @@
 - [ ] Test complete payment flow end-to-end
 - [ ] Add subscription status display in admin panel
 
+
+
+## Database Migration - TiDB to Supabase
+- [ ] Create Supabase account and project
+- [ ] Gather Supabase credentials (Project URL, API Keys, Database Password)
+- [ ] Backup current TiDB database
+- [ ] Convert TiDB schema to PostgreSQL schema
+- [ ] Export all data from TiDB
+- [ ] Create tables in Supabase
+- [ ] Import data to Supabase
+- [ ] Update drizzle/schema.ts to use PostgreSQL (pgTable instead of mysqlTable)
+- [ ] Update drizzle.config.ts to use PostgreSQL dialect
+- [ ] Update package.json (remove mysql2, add pg)
+- [ ] Update DATABASE_URL in environment variables
+- [ ] Test all features locally (login, dashboard, units, chat, admin)
+- [ ] Verify data integrity in Supabase
+- [ ] Performance testing
+- [ ] Create checkpoint with Supabase configuration
+- [ ] Deploy to production
+- [ ] Monitor Supabase dashboard for issues
+- [ ] Keep TiDB backup for rollback (if needed)
+
+
+
+## Badge Visual Enhancements
+- [x] Redesign badges with gold gradient (like medals/trophies) - REVERTED
+- [ ] Redesign badges to match Learning Progress Achievements style (simple, clean)
+- [ ] Use icon + name + description layout
+- [ ] Apply subtle colors instead of gold gradient
+- [ ] Make badges responsive on mobile
+- [ ] Test badge display on dashboard
+
+
+
+## Header Navigation Redesign
+- [x] Build professional header navigation with icons + text - CHANGED TO SIDEBAR
+- [ ] Build professional sidebar navigation (left side)
+- [ ] Add navigation items: Dashboard, Learning Progress, Practice Vocabulary, View All Words
+- [ ] Make sidebar responsive (collapsible on mobile)
+- [ ] Highlight active navigation links
+- [ ] Add user info at bottom of sidebar
+- [ ] Modern design with hover effects
+- [ ] Test sidebar on desktop and mobile
+
+
+
+## Apply Sidebar to All Pages
+- [ ] Add Sidebar to Progress.tsx
+- [ ] Add Sidebar to Vocabulary.tsx
+- [ ] Add Sidebar to VocabularyList.tsx
+- [ ] Add Sidebar to WeekView.tsx
+- [ ] Add Sidebar to UnitView.tsx
+- [ ] Add Sidebar to Chat.tsx
+- [ ] Test navigation consistency across all pages
+
+
+
+## Pricing Offer Cards on Landing Page
+- [x] Design 3 pricing cards (Intensive €39, Balanced €69, Relaxed €119)
+- [x] Add pricing details (duration, units per week, features)
+- [x] Style "Balanced" as "Most Popular" (highlighted)
+- [x] Add "Choose Plan" buttons (disabled during beta)
+- [x] Add "Available after launch" hint on disabled buttons
+- [x] Create full-width beta tester banner below pricing cards
+- [x] Beta banner: Gold/yellow background with 50% OFF message
+- [x] Beta banner: Free Units 1-5 + 50% discount at launch
+- [x] Test pricing cards on desktop and mobile
+
+
+
+## Beta Registration Form Scroll Fix
+- [x] Add id="beta-registration" to beta registration form section
+- [x] Test "Register for Beta Test" button scroll behavior
+
+
+
+## Feedback Page for Dashboard Users
+- [x] Create Feedback.tsx page with form component
+- [x] Add form fields: Type, Title, Description
+- [x] Add "Help us make our software better" message
+- [x] Add Sidebar to Feedback page
+- [x] Use existing tRPC feedback.submit mutation
+- [x] Add "Send Feedback" link to Sidebar navigation
+- [x] Add routing for /feedback in App.tsx
+- [x] Test feedback form submission
+- [x] Test navigation to feedback page
+
+## Feedback Form Validation Fix
+- [x] Reduce title minimum length from 5 to 3 characters
+
+## Feedback Email Notifications
+- [x] Send confirmation email to user when feedback is submitted
+- [x] Send admin notification email when new feedback is received
+- [x] Create feedback confirmation email template
+- [x] Create feedback admin notification email template
+- [x] Add feedback history section to Feedback page (show user's previous submissions)
+- [ ] Test email notifications for feedback submissions
+

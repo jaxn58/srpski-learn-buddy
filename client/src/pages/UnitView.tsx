@@ -9,6 +9,7 @@ import { BookOpen, CheckCircle2, MessageSquare, Lightbulb, Lock } from "lucide-r
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { InteractiveMarkdownContent } from "@/components/InteractiveMarkdownContent";
+import { Sidebar } from "@/components/Sidebar";
 
 export default function UnitView() {
   const { user } = useAuth();
@@ -51,7 +52,9 @@ export default function UnitView() {
   // Show locked message for beta testers trying to access Units 6-27
   if (isLocked || isBetaLockError) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen bg-background">
+        <Sidebar />
+        <div className="flex-1">
         <header className="border-b bg-card">
           <div className="container py-4">
             <div className="flex items-center gap-4">
@@ -115,6 +118,7 @@ export default function UnitView() {
             </CardContent>
           </Card>
         </main>
+        </div>
       </div>
     );
   }
@@ -131,7 +135,9 @@ export default function UnitView() {
   const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1">
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center justify-between">
@@ -377,6 +383,7 @@ export default function UnitView() {
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 }

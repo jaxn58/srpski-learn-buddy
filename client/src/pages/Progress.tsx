@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { BookOpen, CheckCircle2, Clock, TrendingUp, Calendar, Award } from "lucide-react";
 import { Link } from "wouter";
 import { COURSE_WEEKS } from "@shared/courseData";
+import { Sidebar } from "@/components/Sidebar";
 
 export default function Progress() {
   const { user } = useAuth();
@@ -49,7 +50,9 @@ export default function Progress() {
   const currentWeekInfo = COURSE_WEEKS.find(w => w.weekNumber === currentWeek);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1">
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center gap-4">
@@ -298,6 +301,7 @@ export default function Progress() {
           </Card>
         </div>
       </main>
+      </div>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 
 import { VOCABULARY, type VocabWord } from "@shared/vocabularyData";
+import { Sidebar } from "@/components/Sidebar";
 
 export default function Vocabulary() {
   const { user } = useAuth();
@@ -92,7 +93,9 @@ export default function Vocabulary() {
   const completedUnits = progress?.completedUnits || [];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1">
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center gap-4">
@@ -324,6 +327,7 @@ export default function Vocabulary() {
           </Card>
         </div>
       </main>
+      </div>
     </div>
   );
 }

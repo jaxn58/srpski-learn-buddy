@@ -1,7 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Trophy, Flame, Star, Award } from "lucide-react";
 
 export function GamificationStats() {
@@ -90,24 +89,35 @@ export function GamificationStats() {
         </Card>
       </div>
 
-      {/* Badges Display */}
+      {/* Badges Display - Achievement Style */}
       {stats.badges.length > 0 && (
-        <Card>
+        <Card className="border-pink-200 bg-pink-50">
           <CardHeader>
-            <CardTitle>Your Badges</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-pink-700">
+              <Award className="h-5 w-5" />
+              Achievements
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-3">
+            <div className="space-y-3">
               {stats.badges.map((badge) => (
-                <Badge
+                <div
                   key={badge.id}
-                  variant="secondary"
-                  className="px-3 py-2 text-sm"
+                  className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-pink-300 hover:shadow-sm transition-all"
                   title={badge.description}
                 >
-                  <span className="mr-2 text-lg">{badge.icon}</span>
-                  {badge.name}
-                </Badge>
+                  <div className="text-3xl flex-shrink-0 pt-0.5">
+                    {badge.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-gray-900 text-sm">
+                      {badge.name}
+                    </h4>
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      {badge.description}
+                    </p>
+                  </div>
+                </div>
               ))}
             </div>
           </CardContent>

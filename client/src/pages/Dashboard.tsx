@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { GamificationStats } from "@/components/GamificationStats";
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { FeedbackForm } from "@/components/FeedbackForm";
+import { Sidebar } from "@/components/Sidebar";
 import { useState, useEffect } from "react";
 
 export default function Dashboard() {
@@ -138,46 +139,8 @@ export default function Dashboard() {
         />
       )}
       
-      <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">{t('app.title')}</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {user.name || user.email}
-                </span>
-                {user.isBetaTester && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-sm">
-                    ✨ Beta Tester
-                  </span>
-                )}
-              </div>
-              <Link href="/">
-                <Button variant="outline" size="sm">
-                  <Home className="h-4 w-4 mr-2" />
-                  Landing Page
-                </Button>
-              </Link>
-              <FeedbackForm />
-              {isAdmin && (
-                <Link href="/admin">
-                  <Button variant="outline" size="sm">
-                    Admin Panel
-                  </Button>
-                </Link>
-              )}
-              <Button variant="outline" size="sm" onClick={() => logout()}>
-                {t('common.logout')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <div className="flex min-h-screen bg-background">
+      <Sidebar />
 
       <main className="container py-8">
         {/* Gamification Stats */}
