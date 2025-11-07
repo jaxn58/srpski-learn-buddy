@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult, unitExplanations } from "../drizzle/schema";
+import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult, unitExplanations, feedbackComments, InsertFeedbackComment, feedbackStatusHistory, InsertFeedbackStatusHistory } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -273,5 +273,50 @@ export async function getAllUnitExplanations() {
   if (!db) return [];
 
   return await db.select().from(unitExplanations);
+}
+
+
+
+// ============= FEEDBACK COMMENTS =============
+
+export async function getFeedbackComments(feedbackId: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(feedbackComments)
+    .where(eq(feedbackComments.feedbackId, feedbackId))
+    .orderBy(feedbackComments.createdAt);
+}
+
+export async function addFeedbackComment(comment: InsertFeedbackComment) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(feedbackComments).values(comment);
+}
+
+export async function deleteFeedbackComment(commentId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(feedbackComments).where(eq(feedbackComments.id, commentId));
+}
+
+// ============= FEEDBACK STATUS HISTORY =============
+
+export async function getFeedbackStatusHistory(feedbackId: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(feedbackStatusHistory)
+    .where(eq(feedbackStatusHistory.feedbackId, feedbackId))
+    .orderBy(feedbackStatusHistory.changedAt);
+}
+
+export async function addFeedbackStatusChange(statusChange: InsertFeedbackStatusHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(feedbackStatusHistory).values(statusChange);
 }
 

@@ -523,3 +523,37 @@
 - [x] Prevent AdminHeader from overlapping dashboard content
 - [x] Ensure admin role indicator stays visible
 
+
+
+
+## Sidebar on Admin Pages
+- [x] Add Sidebar to User Management page
+- [x] Add Sidebar to Feedback Management page
+- [x] Add Sidebar to Beta Registrations page
+- [x] Ensure consistent navigation across all admin pages
+
+## Feedback Ticketing System
+- [x] Create feedbackComments table in database schema
+- [x] Add comment_id, feedback_id, user_id, content, created_at fields
+- [x] Create feedback comment mutations (create, update, delete)
+- [x] Create feedback comment queries (get by feedback_id)
+- [x] Add comments section to feedback detail view (placeholder)
+- [x] Allow superadmin to add/edit/delete comments
+- [x] Allow users to see comments on their feedback
+- [ ] Display comment author (admin/superadmin name)
+- [ ] Show comment timestamps
+- [ ] Add comment count badge to feedback list
+- [ ] Implement comment rendering in dialog
+- [ ] Add comment input form for admins
+- [ ] Display status history timeline
+
+## Feedback History for Users
+- [ ] Display feedback status history (status changes with timestamps)
+- [ ] Show who changed the status (admin name)
+- [ ] Display admin notes/comments in feedback history
+- [ ] Create user-facing feedback detail page
+- [ ] Show full feedback with all comments and status history
+- [ ] Allow users to add replies/comments to their feedback
+- [ ] Show notification when feedback status changes
+- [ ] Display feedback history in user's feedback list
+

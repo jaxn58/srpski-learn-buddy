@@ -171,3 +171,32 @@ export const betaRegistrations = mysqlTable("betaRegistrations", {
 export type BetaRegistration = typeof betaRegistrations.$inferSelect;
 export type InsertBetaRegistration = typeof betaRegistrations.$inferInsert;
 
+
+
+// Feedback Comments - Ticketing System
+export const feedbackComments = mysqlTable("feedbackComments", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  feedbackId: varchar("feedbackId", { length: 64 }).notNull(),
+  userId: varchar("userId", { length: 64 }).notNull(),
+  content: text("content").notNull(),
+  isAdminNote: boolean("isAdminNote").default(false).notNull(), // true if comment is from admin/superadmin
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
+
+export type FeedbackComment = typeof feedbackComments.$inferSelect;
+export type InsertFeedbackComment = typeof feedbackComments.$inferInsert;
+
+// Feedback Status History - Track all status changes
+export const feedbackStatusHistory = mysqlTable("feedbackStatusHistory", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  feedbackId: varchar("feedbackId", { length: 64 }).notNull(),
+  previousStatus: mysqlEnum("previousStatus", ["new", "reviewed", "in_progress", "completed", "rejected"]).notNull(),
+  newStatus: mysqlEnum("newStatus", ["new", "reviewed", "in_progress", "completed", "rejected"]).notNull(),
+  changedBy: varchar("changedBy", { length: 64 }).notNull(), // User ID of admin who changed status
+  changedAt: timestamp("changedAt").defaultNow(),
+});
+
+export type FeedbackStatusHistory = typeof feedbackStatusHistory.$inferSelect;
+export type InsertFeedbackStatusHistory = typeof feedbackStatusHistory.$inferInsert;
+

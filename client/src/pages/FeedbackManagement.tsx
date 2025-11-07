@@ -11,6 +11,7 @@ import { MessageSquare, Eye, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
+import { Sidebar } from "@/components/Sidebar";
 
 export default function FeedbackManagement() {
   const { user, loading: authLoading } = useAuth();
@@ -96,24 +97,26 @@ export default function FeedbackManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">Feedback Management</h1>
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <header className="border-b bg-card">
+          <div className="container py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-6 w-6 text-primary" />
+                <h1 className="text-xl font-bold">Feedback Management</h1>
+              </div>
+              <Link href="/admin">
+                <Button variant="outline" size="sm">
+                  Back to Admin Panel
+                </Button>
+              </Link>
             </div>
-            <Link href="/admin">
-              <Button variant="outline" size="sm">
-                Back to Admin Panel
-              </Button>
-            </Link>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="container py-8">
+        <main className="container py-8">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -236,6 +239,13 @@ export default function FeedbackManagement() {
                                     <p className="text-sm text-blue-800">👁️ <strong>Read-Only Mode:</strong> You can view feedback but cannot edit status or notes.</p>
                                   </div>
                                 )}
+
+                                <div className="border-t pt-4">
+                                  <h3 className="font-semibold mb-3">Comments & History</h3>
+                                  <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto mb-4">
+                                    <p className="text-sm text-muted-foreground text-center py-4">Comments feature coming soon...</p>
+                                  </div>
+                                </div>
                               </div>
                             </DialogContent>
                           </Dialog>
@@ -258,7 +268,8 @@ export default function FeedbackManagement() {
             </Table>
           </CardContent>
         </Card>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

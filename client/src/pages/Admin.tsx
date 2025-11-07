@@ -27,6 +27,7 @@ import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, Check
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
+import { Sidebar } from "@/components/Sidebar";
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
@@ -122,32 +123,37 @@ export default function Admin() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                {user.name} ({user.role})
-              </span>
-              <Link href="/dashboard">
-                <Button variant="outline" size="sm">Back to Learning</Button>
-              </Link>
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <header className="border-b bg-card">
+          <div className="container py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-6 w-6 text-primary" />
+                <h1 className="text-xl font-bold">Admin Panel</h1>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  {user.name} ({user.role})
+                </span>
+                <Link href="/dashboard">
+                  <Button variant="outline" size="sm">Back to Learning</Button>
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="container py-8">
-        {/* Quick Actions */}
-        <div className="mb-6 flex flex-wrap gap-4">
-          <Link href="/admin/feedback">
-            <Button variant="outline" className="w-full sm:w-auto">
-              <MessageSquare className="mr-2 h-4 w-4" />
-              View Feedback & Feature Requests
-            </Button>
-          </Link>
+        <main className="container py-8">
+          {/* Quick Actions */}
+          <div className="mb-6 flex flex-wrap gap-4">
+            <Link href="/admin/feedback">
+              <Button variant="outline" className="w-full sm:w-auto">
+                <MessageSquare className="mr-2 h-4 w-4" />
+                View Feedback & Feature Requests
+              </Button>
+            </Link>
           <Link href="/admin/beta-registrations">
             <Button variant="outline" className="w-full sm:w-auto">
               <UserPlus className="mr-2 h-4 w-4" />
@@ -408,7 +414,8 @@ export default function Admin() {
             </Table>
           </CardContent>
         </Card>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

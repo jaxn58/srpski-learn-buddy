@@ -10,6 +10,7 @@ import { Users, Eye, Trash2, CheckCircle, XCircle } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
+import { Sidebar } from "@/components/Sidebar";
 
 export default function BetaRegistrations() {
   const { user, loading: authLoading } = useAuth();
@@ -87,24 +88,26 @@ export default function BetaRegistrations() {
   ) || [];
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">Beta Registrations</h1>
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <header className="border-b bg-card">
+          <div className="container py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-6 w-6 text-primary" />
+                <h1 className="text-xl font-bold">Beta Registrations</h1>
+              </div>
+              <Link href="/admin">
+                <Button variant="outline" size="sm">
+                  Back to Admin Panel
+                </Button>
+              </Link>
             </div>
-            <Link href="/admin">
-              <Button variant="outline" size="sm">
-                Back to Admin Panel
-              </Button>
-            </Link>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="container py-8">
+        <main className="container py-8">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -273,7 +276,8 @@ export default function BetaRegistrations() {
             </Table>
           </CardContent>
         </Card>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

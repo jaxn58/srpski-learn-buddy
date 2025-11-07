@@ -6,6 +6,7 @@ import { feedbackSubmissions } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { sendFeedbackConfirmationEmail, sendFeedbackAdminNotificationEmail } from "../_core/email";
+import { getFeedbackComments, addFeedbackComment, deleteFeedbackComment, getFeedbackStatusHistory, addFeedbackStatusChange } from "../db";
 
 // Middleware to check if user is admin or superadmin
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -131,6 +132,72 @@ export const feedbackRouter = router({
       await db.delete(feedbackSubmissions).where(eq(feedbackSubmissions.id, input.id));
 
       return { success: true };
+    }),
+
+  // Add comment to feedback (admin/superadmin and feedback owner)
+  addComment: protectedProcedure
+    .input(z.object({
+      feedbackId: z.string(),
+      content: z.string().min(1).max(2000),
+      isAdminNote: z.boolean().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
+
+      const feedback = await db.select().from(feedbackSubmissions)
+        .where(eq(feedbackSubmissions.id, input.feedbackId))
+        .limit(1);
+
+      if (feedback.length === 0) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Feedback not found' });
+      }
+
+      const isAdmin = ctx.user.role === 'admin' || ctx.user.role === 'superadmin';
+      const isOwner = feedback[0].userId === ctx.user.id;
+
+      if (!isAdmin && !isOwner) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'You cannot comment on this feedback' });
+      }
+
+      const commentId = randomUUID();
+      await addFeedbackComment({
+        id: commentId,
+        feedbackId: input.feedbackId,
+        userId: ctx.user.id,
+        content: input.content,
+        isAdminNote: isAdmin && input.isAdminNote ? true : false,
+        createdAt: new Date()
+      });
+
+      return { success: true, id: commentId };
+    }),
+
+  // Get comments for feedback
+  getComments: protectedProcedure
+    .input(z.object({ feedbackId: z.string() }))
+    .query(async ({ input }) => {
+      const comments = await getFeedbackComments(input.feedbackId);
+      return comments;
+    }),
+
+  // Delete comment (superadmin only)
+  deleteComment: protectedProcedure
+    .input(z.object({ commentId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== 'superadmin') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Only superadmin can delete comments' });
+      }
+
+      await deleteFeedbackComment(input.commentId);
+      return { success: true };
+    }),
+
+  // Get status history for feedback
+  getStatusHistory: protectedProcedure
+    .input(z.object({ feedbackId: z.string() }))
+    .query(async ({ input }) => {
+      const history = await getFeedbackStatusHistory(input.feedbackId);
+      return history;
     })
 });
-
