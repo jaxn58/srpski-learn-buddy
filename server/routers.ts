@@ -401,6 +401,12 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
       return { count };
     }),
     
+    getBadges: protectedProcedure.query(async ({ ctx }) => {
+      const { getUserBadges } = await import("./db");
+      const badges = await getUserBadges(ctx.user.id);
+      return badges;
+    }),
+    
     addXP: protectedProcedure
       .input(z.object({ xp: z.number().positive() }))
       .mutation(async ({ ctx, input }) => {

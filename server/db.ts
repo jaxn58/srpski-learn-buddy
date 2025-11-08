@@ -332,3 +332,12 @@ export async function getUserBadgeCount(userId: string): Promise<number> {
   return badges.length;
 }
 
+
+
+export async function getUserBadges(userId: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(userBadges).where(eq(userBadges.userId, userId));
+}
+
