@@ -655,3 +655,13 @@
 - [x] Properly export user router in routers.ts
 - [x] Verify all TypeScript errors are resolved
 
+
+
+
+## Pricing Tier Updates (4 Plans)
+- [x] Update landing page pricing cards from 3 to 4 tiers (3/6/9/12 months)
+- [x] Add 9-month "Standard" plan between Balanced and Relaxed
+- [x] Create pricing strategy document with psychological pricing principles
+- [ ] Implement upsell mechanics to encourage higher tier selection
+- [x] Test pricing page layout and responsiveness
+
