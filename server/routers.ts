@@ -239,6 +239,42 @@ export const appRouter = router({
   }),
 
   chat: router({
+    // Session management
+    getSessions: protectedProcedure
+      .query(async ({ ctx }) => {
+        const { getChatSessions } = await import("./chatSessions");
+        return await getChatSessions(ctx.user.id);
+      }),
+
+    createSession: protectedProcedure
+      .input(z.object({ title: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { createChatSession } = await import("./chatSessions");
+        const sessionId = nanoid();
+        await createChatSession({
+          id: sessionId,
+          userId: ctx.user.id,
+          title: input.title || "New Chat",
+        });
+        return { sessionId };
+      }),
+
+    deleteSession: protectedProcedure
+      .input(z.object({ sessionId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const { deleteChatSession } = await import("./chatSessions");
+        await deleteChatSession(input.sessionId);
+        return { success: true };
+      }),
+
+    getSessionMessages: protectedProcedure
+      .input(z.object({ sessionId: z.string(), limit: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        const { getChatMessagesBySession } = await import("./chatSessions");
+        return await getChatMessagesBySession(input.sessionId, input.limit || 50);
+      }),
+
+    // Legacy endpoints (deprecated, keep for backward compatibility)
     getHistory: protectedProcedure
       .input(z.object({ limit: z.number().optional() }))
       .query(async ({ ctx, input }) => {
@@ -253,21 +289,25 @@ export const appRouter = router({
 
     sendMessage: protectedProcedure
       .input(z.object({
+        sessionId: z.string(),
         message: z.string(),
         unitContext: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const { addChatMessageToSession, getChatMessagesBySession, updateChatSessionTitle } = await import("./chatSessions");
+        
         // Save user message
-        await addChatMessage({
+        await addChatMessageToSession({
           id: nanoid(),
+          sessionId: input.sessionId,
           userId: ctx.user.id,
           role: "user",
           content: input.message,
           unitContext: input.unitContext,
         });
 
-        // Get recent chat history for context
-        const history = await getChatHistory(ctx.user.id, 10);
+        // Get recent chat history for context (from this session only)
+        const history = await getChatMessagesBySession(input.sessionId, 10);
         const progress = await getUserProgress(ctx.user.id);
 
         // Always use English
@@ -366,13 +406,20 @@ Formatting rules:
         const assistantMessage = typeof content === 'string' ? content : "Entschuldigung, ich konnte keine Antwort generieren.";
 
         // Save assistant response
-        await addChatMessage({
+        await addChatMessageToSession({
           id: nanoid(),
+          sessionId: input.sessionId,
           userId: ctx.user.id,
           role: "assistant",
           content: assistantMessage,
           unitContext: input.unitContext,
         });
+        
+        // Auto-generate title from first user message if still "New Chat"
+        if (history.length === 0) {
+          const title = input.message.slice(0, 50) + (input.message.length > 50 ? "..." : "");
+          await updateChatSessionTitle(input.sessionId, title);
+        }
 
         return {
           message: assistantMessage,

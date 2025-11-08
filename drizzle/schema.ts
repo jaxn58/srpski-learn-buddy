@@ -55,8 +55,20 @@ export const vocabulary = mysqlTable("vocabulary", {
 export type Vocabulary = typeof vocabulary.$inferSelect;
 export type InsertVocabulary = typeof vocabulary.$inferInsert;
 
+export const chatSessions = mysqlTable("chatSessions", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("userId", { length: 64 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
+
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type InsertChatSession = typeof chatSessions.$inferInsert;
+
 export const chatMessages = mysqlTable("chatMessages", {
   id: varchar("id", { length: 64 }).primaryKey(),
+  sessionId: varchar("sessionId", { length: 64 }).notNull(), // Foreign key to chatSessions
   userId: varchar("userId", { length: 64 }).notNull(),
   role: varchar("role", { length: 20 }).notNull(), // user or assistant
   content: text("content").notNull(),

@@ -848,3 +848,29 @@
 - [x] Add clearChat API endpoint
 - [x] Test that new chats don't have Locative Case repetition issue
 
+
+
+
+## Multi-Chat System Redesign (ChatGPT-style)
+- [ ] Add chatSessions table to database schema
+- [ ] Link chatMessages to chatSessions (foreign key)
+- [ ] Create chat session management API (create, list, delete, rename)
+- [ ] Build chat list sidebar with session titles
+- [ ] Add "New Chat" button
+- [ ] Implement chat switching functionality
+- [ ] Auto-generate chat titles from first message
+- [ ] Test multi-chat system end-to-end
+
+
+
+
+## Multi-Chat System Redesign (ChatGPT-style)
+- [x] Add chatSessions database table
+- [x] Create chat session management API endpoints (getSessions, createSession, deleteSession, getSessionMessages)
+- [x] Build ChatSessionsSidebar component with chat list
+- [x] Add "New Chat" button functionality
+- [x] Update Chat.tsx to use session-based system
+- [x] Implement chat switching functionality
+- [x] Auto-generate chat titles from first message
+- [x] Test multi-chat system
+

@@ -4,13 +4,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { trpc } from "@/lib/trpc";
-import { Send, User, Sparkles, Trash2 } from "lucide-react";
+import { Send, User, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Sidebar } from "@/components/Sidebar";
+import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
 
 // Custom Markdown components for clean rendering
 const markdownComponents = {
@@ -46,33 +47,32 @@ export default function Chat() {
   const { user } = useAuth();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   
-  const { data: history } = trpc.chat.getHistory.useQuery({ limit: 50 });
   const { data: progress } = trpc.progress.get.useQuery();
+  const { data: sessionMessages } = trpc.chat.getSessionMessages.useQuery(
+    { sessionId: currentSessionId!, limit: 50 },
+    { enabled: !!currentSessionId }
+  );
   const sendMutation = trpc.chat.sendMessage.useMutation();
-  const clearMutation = trpc.chat.clearHistory.useMutation();
+  const createSessionMutation = trpc.chat.createSession.useMutation();
   const utils = trpc.useUtils();
 
-  const handleClearChat = async () => {
-    if (!confirm("Are you sure you want to clear the entire chat history? This cannot be undone.")) return;
-    
-    try {
-      await clearMutation.mutateAsync();
-      setMessages([]);
-      utils.chat.getHistory.invalidate();
-      toast.success("Chat history cleared!");
-    } catch (error) {
-      console.error("Failed to clear chat:", error);
-      toast.error("Failed to clear chat history");
+  // Create initial session on mount
+  useEffect(() => {
+    if (!currentSessionId) {
+      createSessionMutation.mutateAsync({ title: "New Chat" }).then(result => {
+        setCurrentSessionId(result.sessionId);
+      });
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (history) {
-      setMessages(history.reverse());
+    if (sessionMessages) {
+      setMessages(sessionMessages);
     }
-  }, [history]);
+  }, [sessionMessages]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -80,8 +80,26 @@ export default function Chat() {
     }
   }, [messages]);
 
+  const handleNewChat = async () => {
+    try {
+      const result = await createSessionMutation.mutateAsync({ title: "New Chat" });
+      setCurrentSessionId(result.sessionId);
+      setMessages([]);
+      utils.chat.getSessions.invalidate();
+      toast.success("New chat started!");
+    } catch (error) {
+      console.error("Failed to create new chat:", error);
+      toast.error("Failed to create new chat");
+    }
+  };
+
+  const handleSelectSession = async (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+    // Messages will be loaded automatically via useQuery
+  };
+
   const handleSend = async () => {
-    if (!message.trim() || sendMutation.isPending) return;
+    if (!message.trim() || sendMutation.isPending || !currentSessionId) return;
 
     const userMessage = { role: "user", content: message, createdAt: new Date() };
     setMessages(prev => [...prev, userMessage]);
@@ -89,6 +107,7 @@ export default function Chat() {
 
     try {
       const response = await sendMutation.mutateAsync({
+        sessionId: currentSessionId,
         message,
         unitContext: progress?.currentUnit,
       });
@@ -98,6 +117,9 @@ export default function Chat() {
         content: response.message,
         createdAt: new Date(),
       }]);
+      
+      // Refresh session list to update timestamps
+      utils.chat.getSessions.invalidate();
     } catch (error) {
       console.error("Failed to send message:", error);
     }
@@ -118,6 +140,11 @@ export default function Chat() {
   return (
     <div className="flex min-h-screen bg-gradient-to-b from-background to-muted/20">
       <Sidebar />
+      <ChatSessionsSidebar 
+        currentSessionId={currentSessionId}
+        onSelectSession={handleSelectSession}
+        onNewChat={handleNewChat}
+      />
       <div className="flex-1">
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container py-4">
@@ -134,15 +161,6 @@ export default function Chat() {
                 <p className="text-xs text-muted-foreground">Your Serbian language tutor</p>
               </div>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleClearChat}
-              disabled={clearMutation.isPending || messages.length === 0}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear Chat
-            </Button>
           </div>
         </div>
       </header>

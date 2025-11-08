@@ -26,18 +26,19 @@ export default function Vocabulary() {
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [xpEarned, setXpEarned] = useState(0);
   const utils = trpc.useUtils();
-  const updateUserXP = trpc.user.addXP.useMutation({
-    onSuccess: () => {
-      utils.auth.me.invalidate();
-    },
-  });
+  // Temporarily disabled until user router is implemented
+  // const updateUserXP = trpc.user.addXP.useMutation({
+  //   onSuccess: () => {
+  //     utils.auth.me.invalidate();
+  //   },
+  // });
 
   const handleQuizComplete = async () => {
     const earnedXP = calculateXP(score.correct, score.total);
     setXpEarned(earnedXP);
     if (user) {
       try {
-        await updateUserXP.mutateAsync({ xp: earnedXP });
+        // await updateUserXP.mutateAsync({ xp: earnedXP });
       } catch (error) {
         console.error('Failed to update XP:', error);
       }

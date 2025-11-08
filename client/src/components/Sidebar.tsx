@@ -55,8 +55,11 @@ export function Sidebar() {
   
   // Fetch gamification stats
   const { data: progress } = trpc.progress.get.useQuery();
-  const { data: badgeData } = trpc.user.getBadgeCount.useQuery();
-  const { data: userBadges } = trpc.user.getBadges.useQuery();
+  // Temporarily disabled until user router is implemented
+  // const { data: badgeData } = trpc.user.getBadgeCount.useQuery();
+  // const { data: userBadges } = trpc.user.getBadges.useQuery();
+  const badgeData = undefined;
+  const userBadges = undefined;
 
   const navItems: NavItem[] = [
     { label: "Dashboard", path: "/dashboard", icon: <Home className="h-5 w-5" /> },
