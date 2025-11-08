@@ -24,6 +24,25 @@ export default function Vocabulary() {
   const [selectedUnit, setSelectedUnit] = useState<number | 'all'>('all');
   const [userAnswer, setUserAnswer] = useState('');
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [xpEarned, setXpEarned] = useState(0);
+  const utils = trpc.useUtils();
+  const updateUserXP = trpc.user.addXP.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+    },
+  });
+
+  const handleQuizComplete = async () => {
+    const earnedXP = calculateXP(score.correct, score.total);
+    setXpEarned(earnedXP);
+    if (user) {
+      try {
+        await updateUserXP.mutateAsync({ xp: earnedXP });
+      } catch (error) {
+        console.error('Failed to update XP:', error);
+      }
+    }
+  };
 
   // Read unit parameter from URL and set it
   useEffect(() => {
@@ -72,7 +91,11 @@ export default function Vocabulary() {
   const handleSubmitAnswer = () => {
     if (!userAnswer.trim()) return;
     
-    const correct = userAnswer.trim().toLowerCase() === currentWord.english.toLowerCase();
+    const userAnswerLower = userAnswer.trim().toLowerCase();
+    const englishLower = currentWord.english.toLowerCase();
+    const matchesAlternative = (currentWord.alternatives && currentWord.alternatives.some(alt => userAnswerLower === alt.toLowerCase())) || false;
+    const correct = userAnswerLower === englishLower || matchesAlternative;
+    
     setIsCorrect(correct);
     setScore({ correct: score.correct + (correct ? 1 : 0), total: score.total + 1 });
     setShowAnswer(true);
@@ -88,6 +111,16 @@ export default function Vocabulary() {
     setScore({ correct: 0, total: 0 });
     setUserAnswer('');
     setIsCorrect(null);
+    setXpEarned(0);
+  };
+
+  const calculateXP = (correct: number, total: number): number => {
+    const percentage = (correct / total) * 100;
+    if (percentage === 100) return total * 10;
+    if (percentage >= 80) return Math.floor(total * 8);
+    if (percentage >= 60) return Math.floor(total * 5);
+    if (percentage >= 40) return Math.floor(total * 3);
+    return Math.floor(total * 1);
   };
 
   const completedUnits = progress?.completedUnits || [];
@@ -294,6 +327,12 @@ export default function Vocabulary() {
                 <p className="text-2xl font-bold">
                   Final Score: {score.correct} / {score.total} ({Math.round((score.correct / score.total) * 100)}%)
                 </p>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800 mb-2">Experience Points Earned:</p>
+                  <p className="text-3xl font-bold text-yellow-600">
+                    +{xpEarned === 0 ? calculateXP(score.correct, score.total) : xpEarned} XP
+                  </p>
+                </div>
                 <div className="flex gap-4 justify-center">
                   <Button onClick={handleReset}>
                     <RotateCcw className="mr-2 h-4 w-4" />

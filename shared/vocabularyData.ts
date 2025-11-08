@@ -2,6 +2,7 @@
 export type VocabWord = {
   serbian: string;
   english: string;
+  alternatives?: string[]; // Alternative correct answers
   unit: number;
 };
 
@@ -16,11 +17,11 @@ export const VOCABULARY: VocabWord[] = [
   { serbian: "dobro veče", english: "good evening", unit: 1 },
   { serbian: "laku noć", english: "good night", unit: 1 },
   { serbian: "hvala", english: "thank you", unit: 1 },
-  { serbian: "molim", english: "please / you're welcome", unit: 1 },
+  { serbian: "molim", english: "please", alternatives: ["you're welcome"], unit: 1 },
   { serbian: "da", english: "yes", unit: 1 },
   { serbian: "ne", english: "no", unit: 1 },
   { serbian: "izvините", english: "excuse me", unit: 1 },
-  { serbian: "zdravo", english: "hello / hi", unit: 1 },
+  { serbian: "zdravo", english: "hello", alternatives: ["hi"], unit: 1 },
   { serbian: "ćao", english: "bye", unit: 1 },
   { serbian: "doviđenja", english: "goodbye", unit: 1 },
   { serbian: "ja", english: "I", unit: 1 },
@@ -45,8 +46,8 @@ export const VOCABULARY: VocabWord[] = [
   { serbian: "lift", english: "elevator", unit: 2 },
   { serbian: "doručak", english: "breakfast", unit: 2 },
   { serbian: "cena", english: "price", unit: 2 },
-  { serbian: "slobodan", english: "free / available", unit: 2 },
-  { serbian: "zauzet", english: "occupied / busy", unit: 2 },
+  { serbian: "slobodan", english: "free", alternatives: ["available"], unit: 2 },
+  { serbian: "zauzet", english: "occupied", alternatives: ["busy"], unit: 2 },
 
   // Unit 3 - U kafiću (At the café)
   { serbian: "kafić", english: "café", unit: 3 },
@@ -61,7 +62,7 @@ export const VOCABULARY: VocabWord[] = [
   { serbian: "račun", english: "bill", unit: 3 },
   { serbian: "konobar", english: "waiter", unit: 3 },
   { serbian: "meni", english: "menu", unit: 3 },
-  { serbian: "želeti", english: "to want / wish", unit: 3 },
+  { serbian: "želeti", english: "to want", alternatives: ["wish"], unit: 3 },
   { serbian: "piti", english: "to drink", unit: 3 },
 
   // Unit 4 - Gde je...? (Where is...?)

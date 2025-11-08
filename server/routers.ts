@@ -1,4 +1,5 @@
 import { COOKIE_NAME } from "@shared/const";
+import { eq } from "drizzle-orm";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -18,8 +19,10 @@ import {
   getExerciseResults,
   addExerciseResult,
   getUnitExplanation as getUnitExplanationFromDb,
-  getUser
+  getUser,
+  getDb
 } from "./db";
+import { users } from "../drizzle/schema";
 import { COURSE_UNITS, COURSE_WEEKS } from "../shared/courseData";
 import { invokeLLM } from "./_core/llm";
 import { nanoid } from "nanoid";
@@ -388,6 +391,35 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
           xpEarned,
           perfectScore: input.correctAnswers === input.totalQuestions,
         };
+      }),
+  }),
+
+  user: router({
+    addXP: protectedProcedure
+      .input(z.object({ xp: z.number().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) {
+          return { success: false, message: "Database not available" };
+        }
+
+        try {
+          const user = await getUser(ctx.user.id);
+          if (!user) {
+            return { success: false, message: "User not found" };
+          }
+
+          const newTotalXP = (user.totalXP || 0) + input.xp;
+          
+          await db.update(users)
+            .set({ totalXP: newTotalXP })
+            .where(eq(users.id, ctx.user.id));
+
+          return { success: true, totalXP: newTotalXP, xpAdded: input.xp };
+        } catch (error) {
+          console.error("Failed to add XP:", error);
+          return { success: false, message: "Failed to update XP" };
+        }
       }),
   }),
 });
