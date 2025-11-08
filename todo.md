@@ -577,3 +577,15 @@
 - [x] Ensure AdminHeader only visible to Admin/Superadmin roles
 - [x] Test AdminHeader visibility on all admin pages
 
+
+
+
+## Sidebar UI Redesign
+- [x] Add User Cockpit section at top of Sidebar (display user name and role)
+- [x] Keep regular menu items below User Cockpit (Dashboard, Practice, etc.)
+- [x] Add separate Admin section box in Sidebar (only visible to Admin/Superadmin)
+- [x] Include all admin links in Admin section (User Management, Feedback, Beta Registrations)
+- [x] Remove AdminHeader component from all admin pages
+- [x] Improve spacing and visual hierarchy
+- [x] Test navigation with new Sidebar design
+

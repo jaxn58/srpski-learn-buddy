@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
+import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -25,7 +25,14 @@ export function Sidebar() {
     { label: "Send Feedback", path: "/feedback", icon: <MessageSquare className="h-5 w-5" /> },
   ];
 
+  const adminItems: NavItem[] = [
+    { label: "User Management", path: "/admin", icon: <Users className="h-4 w-4" /> },
+    { label: "Feedback", path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
+    { label: "Beta Registrations", path: "/admin/beta-registrations", icon: <UserPlus className="h-4 w-4" /> },
+  ];
+
   const isActive = (path: string) => location === path;
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   return (
     <>
@@ -83,6 +90,27 @@ export function Sidebar() {
           </button>
         </div>
 
+        {/* User Cockpit */}
+        {!collapsed && (
+          <div className="p-4 border-b bg-gradient-to-br from-primary/5 to-primary/10">
+            <div className="space-y-1">
+              <div className="text-sm font-semibold text-gray-900 truncate">
+                {user?.name || user?.email}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                  {user?.role === 'superadmin' ? 'Superadmin' : user?.role === 'admin' ? 'Admin' : 'Student'}
+                </span>
+                {user?.isBetaTester && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium">
+                    ✨ Beta
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
@@ -104,22 +132,41 @@ export function Sidebar() {
               </button>
             </Link>
           ))}
-        </nav>
 
-        {/* User Section */}
-        <div className="p-3 border-t space-y-2">
-          {!collapsed && (
-            <div className="px-3 py-2 space-y-1">
-              <div className="text-sm font-medium truncate">
-                {user?.name || user?.email}
+          {/* Admin Section */}
+          {isAdmin && !collapsed && (
+            <div className="pt-4 mt-4 border-t">
+              <div className="flex items-center gap-2 px-3 py-2 mb-2">
+                <Shield className="h-4 w-4 text-primary" />
+                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">
+                  Admin Panel
+                </span>
               </div>
-              {user?.isBetaTester && (
-                <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-sm">
-                  ✨ Beta Tester
-                </div>
-              )}
+              <div className="space-y-1">
+                {adminItems.map((item) => (
+                  <Link key={item.path} href={item.path}>
+                    <button
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all",
+                        "hover:bg-red-50 hover:shadow-sm",
+                        isActive(item.path)
+                          ? "bg-red-100 text-red-700 shadow-md"
+                          : "text-gray-600"
+                      )}
+                    >
+                      <span className="flex-shrink-0">{item.icon}</span>
+                      <span className="text-sm font-medium truncate">{item.label}</span>
+                    </button>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
+        </nav>
+
+        {/* Logout Section */}
+        <div className="p-3 border-t">
           <button
             onClick={() => {
               logout();

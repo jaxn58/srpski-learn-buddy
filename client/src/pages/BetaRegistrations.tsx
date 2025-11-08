@@ -11,7 +11,7 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
-import { AdminHeader } from "@/components/AdminHeader";
+
 
 export default function BetaRegistrations() {
   const { user, loading: authLoading } = useAuth();
@@ -91,8 +91,7 @@ export default function BetaRegistrations() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col pt-16">
-        <AdminHeader />
+      <div className="flex-1 flex flex-col">
         <header className="border-b bg-card">
           <div className="container py-4">
             <div className="flex items-center justify-between">
