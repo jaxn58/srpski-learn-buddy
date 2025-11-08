@@ -736,3 +736,21 @@
 - [x] Add memory of previous conversations for personalization
 - [x] Test personality in various scenarios (correct answers, mistakes, progress)
 
+
+
+
+## AI Learn Buddy Engagement Features
+- [ ] Add Progress Celebration Messages - Trigger special congratulatory messages when users complete milestones (Unit 5, 10, 15) with personalized feedback from AI Learn Buddy acknowledging their growth
+- [ ] Create "Daily Challenge" Feature - AI Learn Buddy sends one daily Serbian practice question (grammar, vocabulary, or translation) via dashboard notification to maintain engagement and build streaks
+- [ ] Implement Conversation Scenarios - Add role-play exercises where AI Learn Buddy simulates real-life situations (ordering coffee, asking directions) and provides immediate feedback on student responses
+
+
+
+
+## Pricing Cards Personalization
+- [x] Add time-based descriptions to all 4 pricing cards (12h/week, 6-8h/week, 4-5h/week, 3-4h/week)
+- [x] Move "Most Popular" badge from Balanced (6 months) to Standard (9 months)
+- [x] Highlight Standard plan as best value proposition
+- [x] Update card subtitles with lifestyle-focused messaging
+- [x] Test pricing page layout and verify changes
+

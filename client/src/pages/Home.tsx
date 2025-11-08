@@ -182,7 +182,8 @@ export default function Home() {
               <CardHeader className="text-center pb-4">
                 <Sparkles className="h-12 w-12 text-primary mb-3 mx-auto" />
                 <CardTitle className="text-2xl mb-2">Intensive</CardTitle>
-                <CardDescription className="text-base font-semibold">3 Months</CardDescription>
+                <CardDescription className="text-base font-semibold mb-2">3 Months</CardDescription>
+                <p className="text-xs text-muted-foreground italic">Vollzeit-Lerner mit 12+ Stunden/Woche</p>
                 <div className="mt-4">
                   <div className="text-3xl font-bold text-primary">€39</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
@@ -196,7 +197,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Daily practice</span>
+                    <span>Intensive immersion</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -218,15 +219,13 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            {/* Balanced Plan (Most Popular) */}
-            <Card className="border-4 border-primary shadow-2xl scale-105 relative">
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                <span className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">Most Popular</span>
-              </div>
-              <CardHeader className="text-center pb-4 pt-8">
+            {/* Balanced Plan */}
+            <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
+              <CardHeader className="text-center pb-4">
                 <Target className="h-12 w-12 text-primary mb-3 mx-auto" />
                 <CardTitle className="text-2xl mb-2">Balanced</CardTitle>
-                <CardDescription className="text-base font-semibold">6 Months</CardDescription>
+                <CardDescription className="text-base font-semibold mb-2">6 Months</CardDescription>
+                <p className="text-xs text-muted-foreground italic">Berufstätige mit 6-8 Stunden/Woche</p>
                 <div className="mt-4">
                   <div className="text-3xl font-bold text-primary">€69</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
@@ -240,52 +239,11 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Steady pace</span>
+                    <span>Perfect alongside job</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Expert recommended</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>All 27 units</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Learn Buddy</span>
-                  </li>
-                </ul>
-                <Button className="w-full bg-primary" disabled>
-                  Choose Plan
-                </Button>
-                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
-              </CardContent>
-            </Card>
-
-            {/* Standard Plan (New 9-Month) */}
-            <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
-              <CardHeader className="text-center pb-4">
-                <BookOpen className="h-12 w-12 text-primary mb-3 mx-auto" />
-                <CardTitle className="text-2xl mb-2">Standard</CardTitle>
-                <CardDescription className="text-base font-semibold">9 Months</CardDescription>
-                <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">€89</div>
-                  <div className="text-xs text-muted-foreground">one-time payment</div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2 text-xs">
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>2-3 units/month</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Comfortable pace</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Best value</span>
+                    <span>Structured progress</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -303,12 +261,58 @@ export default function Home() {
               </CardContent>
             </Card>
 
+            {/* Standard Plan (Most Popular - Best Value) */}
+            <Card className="border-4 border-primary shadow-2xl scale-105 relative">
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                <span className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">Most Popular</span>
+              </div>
+              <CardHeader className="text-center pb-4 pt-8">
+                <BookOpen className="h-12 w-12 text-primary mb-3 mx-auto" />
+                <CardTitle className="text-2xl mb-2">Standard</CardTitle>
+                <CardDescription className="text-base font-semibold mb-2">9 Months</CardDescription>
+                <p className="text-xs text-muted-foreground italic">Entspannt lernen mit 4-5 Stunden/Woche</p>
+                <div className="mt-4">
+                  <div className="text-3xl font-bold text-primary">€89</div>
+                  <div className="text-xs text-muted-foreground">one-time payment</div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="space-y-2 text-xs">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>2-3 units/month</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>Time to review & deepen</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>Best value for money</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>All 27 units</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span>AI Learn Buddy</span>
+                  </li>
+                </ul>
+                <Button className="w-full bg-primary" disabled>
+                  Choose Plan
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
+              </CardContent>
+            </Card>
+
             {/* Relaxed Plan */}
             <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
               <CardHeader className="text-center pb-4">
                 <Clock className="h-12 w-12 text-primary mb-3 mx-auto" />
                 <CardTitle className="text-2xl mb-2">Relaxed</CardTitle>
-                <CardDescription className="text-base font-semibold">12 Months</CardDescription>
+                <CardDescription className="text-base font-semibold mb-2">12 Months</CardDescription>
+                <p className="text-xs text-muted-foreground italic">Nebenbei lernen mit 3-4 Stunden/Woche</p>
                 <div className="mt-4">
                   <div className="text-3xl font-bold text-primary">€119</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
@@ -322,11 +326,11 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Learn when you can</span>
+                    <span>Learn & apply in real life</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>No pressure</span>
+                    <span>No stress, no pressure</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
