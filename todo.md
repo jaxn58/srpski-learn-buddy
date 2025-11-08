@@ -947,3 +947,11 @@
 ## Chat Title Generation
 - [x] Update chat title generation to use first 12 characters of user's first message
 
+
+
+## Bulk Delete Empty Chats
+- [x] Create backend mutation to delete all chat sessions with "New Chat" title
+- [x] Add UI button in Chat sidebar to trigger bulk delete
+- [x] Show confirmation dialog before deletion
+- [x] Test bulk delete functionality
+

@@ -267,6 +267,13 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    bulkDeleteNewChats: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const { bulkDeleteChatSessionsByTitle } = await import("./chatSessions");
+        const deletedCount = await bulkDeleteChatSessionsByTitle(ctx.user.id, "New Chat");
+        return { success: true, deletedCount };
+      }),
+
     getSessionMessages: protectedProcedure
       .input(z.object({ sessionId: z.string(), limit: z.number().optional() }))
       .query(async ({ ctx, input }) => {

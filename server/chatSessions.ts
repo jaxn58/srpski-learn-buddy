@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { getDb } from "./db";
 import { chatSessions, chatMessages, InsertChatSession, InsertChatMessage } from "../drizzle/schema";
 
@@ -59,6 +59,32 @@ export async function deleteChatSession(sessionId: string) {
   
   // Then delete the session
   await db.delete(chatSessions).where(eq(chatSessions.id, sessionId));
+}
+
+export async function bulkDeleteChatSessionsByTitle(userId: string, title: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Find all sessions with the specified title for this user
+  const sessionsToDelete = await db.select().from(chatSessions)
+    .where(and(
+      eq(chatSessions.userId, userId),
+      eq(chatSessions.title, title)
+    ));
+
+  // Delete messages for each session
+  for (const session of sessionsToDelete) {
+    await db.delete(chatMessages).where(eq(chatMessages.sessionId, session.id));
+  }
+
+  // Delete all sessions with the specified title
+  await db.delete(chatSessions)
+    .where(and(
+      eq(chatSessions.userId, userId),
+      eq(chatSessions.title, title)
+    ));
+
+  return sessionsToDelete.length;
 }
 
 // ============= CHAT MESSAGES (Session-aware) =============

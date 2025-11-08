@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
-import { MessageSquarePlus, Trash2, MessageSquare } from "lucide-react";
+import { MessageSquarePlus, Trash2, MessageSquare, Trash } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ChatSessionsSidebarProps {
   currentSessionId: string | null;
@@ -13,6 +14,7 @@ interface ChatSessionsSidebarProps {
 export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewChat }: ChatSessionsSidebarProps) {
   const { data: sessions, isLoading } = trpc.chat.getSessions.useQuery();
   const deleteMutation = trpc.chat.deleteSession.useMutation();
+  const bulkDeleteMutation = trpc.chat.bulkDeleteNewChats.useMutation();
   const utils = trpc.useUtils();
 
   const handleDelete = async (sessionId: string, e: React.MouseEvent) => {
@@ -32,9 +34,35 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
     }
   };
 
+  const handleBulkDeleteNewChats = async () => {
+    const newChatCount = sessions?.filter(s => s.title === "New Chat").length || 0;
+    if (newChatCount === 0) {
+      toast.info("No empty chats to delete.");
+      return;
+    }
+    
+    if (!confirm(`Delete all ${newChatCount} empty chat${newChatCount > 1 ? 's' : ''}? This cannot be undone.`)) return;
+    
+    try {
+      const result = await bulkDeleteMutation.mutateAsync();
+      utils.chat.getSessions.invalidate();
+      
+      // If current session was deleted, trigger new chat
+      const currentSession = sessions?.find(s => s.id === currentSessionId);
+      if (currentSession?.title === "New Chat") {
+        onNewChat();
+      }
+      
+      toast.success(`Successfully deleted ${result.deletedCount} empty chat${result.deletedCount > 1 ? 's' : ''}.`);
+    } catch (error) {
+      console.error("Failed to bulk delete:", error);
+      toast.error("Failed to delete empty chats. Please try again.");
+    }
+  };
+
   return (
     <div className="w-64 border-r bg-card/50 flex flex-col h-full">
-      <div className="p-4 border-b">
+      <div className="p-4 border-b space-y-2">
         <Button 
           onClick={onNewChat} 
           className="w-full"
@@ -43,6 +71,19 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           <MessageSquarePlus className="h-4 w-4 mr-2" />
           New Chat
         </Button>
+        
+        {sessions?.some(s => s.title === "New Chat") && (
+          <Button 
+            onClick={handleBulkDeleteNewChats}
+            variant="outline"
+            className="w-full text-xs"
+            size="sm"
+            disabled={bulkDeleteMutation.isPending}
+          >
+            <Trash className="h-3 w-3 mr-2" />
+            Clear Empty Chats ({sessions.filter(s => s.title === "New Chat").length})
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="flex-1">
