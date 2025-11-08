@@ -607,3 +607,12 @@
 - [x] Remove GamificationStats component from Dashboard main area
 - [x] Ensure stats are visible in collapsed sidebar state
 
+
+
+
+## Dynamic Badge Count
+- [x] Check achievements table structure in database schema
+- [x] Create tRPC query to count unlocked achievements per user
+- [x] Replace hardcoded "3" in Sidebar with dynamic count from database
+- [x] Test badge count display with real data
+

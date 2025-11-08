@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult, unitExplanations, feedbackComments, InsertFeedbackComment, feedbackStatusHistory, InsertFeedbackStatusHistory } from "../drizzle/schema";
+import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult, unitExplanations, feedbackComments, InsertFeedbackComment, feedbackStatusHistory, InsertFeedbackStatusHistory, userBadges } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -318,5 +318,17 @@ export async function addFeedbackStatusChange(statusChange: InsertFeedbackStatus
   if (!db) throw new Error("Database not available");
 
   await db.insert(feedbackStatusHistory).values(statusChange);
+}
+
+
+
+// ============= USER BADGES =============
+
+export async function getUserBadgeCount(userId: string): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const badges = await db.select().from(userBadges).where(eq(userBadges.userId, userId));
+  return badges.length;
 }
 

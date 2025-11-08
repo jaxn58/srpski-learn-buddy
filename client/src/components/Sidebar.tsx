@@ -20,6 +20,7 @@ export function Sidebar() {
   
   // Fetch gamification stats
   const { data: progress } = trpc.progress.get.useQuery();
+  const { data: badgeData } = trpc.user.getBadgeCount.useQuery();
 
   const navItems: NavItem[] = [
     { label: "Dashboard", path: "/dashboard", icon: <Home className="h-5 w-5" /> },
@@ -154,7 +155,7 @@ export function Sidebar() {
                       <Award className="h-3 w-3 text-purple-600" />
                       <span className="text-xs font-medium text-gray-600">Badges</span>
                     </div>
-                    <div className="text-lg font-bold text-gray-900">3</div>
+                    <div className="text-lg font-bold text-gray-900">{badgeData?.count || 0}</div>
                     <div className="text-xs text-gray-500">Achievements</div>
                   </div>
                 </div>

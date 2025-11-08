@@ -395,6 +395,12 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
   }),
 
   user: router({
+    getBadgeCount: protectedProcedure.query(async ({ ctx }) => {
+      const { getUserBadgeCount } = await import("./db");
+      const count = await getUserBadgeCount(ctx.user.id);
+      return { count };
+    }),
+    
     addXP: protectedProcedure
       .input(z.object({ xp: z.number().positive() }))
       .mutation(async ({ ctx, input }) => {
