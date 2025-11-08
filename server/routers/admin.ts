@@ -32,15 +32,45 @@ const superadminProcedure = protectedProcedure.use(({ ctx, next }) => {
 export const adminRouter = router({
   // Get all users (admin can see students, superadmin can see all)
   getAllUsers: adminProcedure.query(async ({ ctx }) => {
-    const users = await getAllUsers();
+    const db = await getDb();
+    if (!db) return [];
+    
+    const { users: usersTable, userSubscriptions } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    
+    // Get all users with their subscriptions
+    const allUsers = await db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        role: usersTable.role,
+        isActive: usersTable.isActive,
+        isBetaTester: usersTable.isBetaTester,
+        lastSignedIn: usersTable.lastSignedIn,
+        createdAt: usersTable.createdAt,
+      })
+      .from(usersTable);
+    
+    // Get all active subscriptions
+    const subscriptions = await db
+      .select()
+      .from(userSubscriptions)
+      .where(eq(userSubscriptions.status, 'active'));
+    
+    // Combine users with their subscriptions
+    const usersWithSubscriptions = allUsers.map(user => ({
+      ...user,
+      subscription: subscriptions.find(sub => sub.userId === user.id) || null,
+    }));
     
     // If admin (not superadmin), only show students
     if (ctx.user.role === 'admin') {
-      return users.filter(u => u.role === 'student');
+      return usersWithSubscriptions.filter(u => u.role === 'student');
     }
     
     // Superadmin sees everyone
-    return users;
+    return usersWithSubscriptions;
   }),
 
   // Get all user progress (for admin dashboard)

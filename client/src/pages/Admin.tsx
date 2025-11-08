@@ -214,6 +214,7 @@ export default function Admin() {
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Beta Tester</TableHead>
+                  <TableHead>Subscription</TableHead>
                   <TableHead>Last Signed In</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -262,6 +263,20 @@ export default function Admin() {
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {u.subscription ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          u.subscription.plan === 'intensive' ? 'bg-orange-100 text-orange-800' :
+                          u.subscription.plan === 'balanced' ? 'bg-blue-100 text-blue-800' :
+                          u.subscription.plan === 'standard' ? 'bg-purple-100 text-purple-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {u.subscription.plan.charAt(0).toUpperCase() + u.subscription.plan.slice(1)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">None</span>
                       )}
                     </TableCell>
                     <TableCell>

@@ -922,3 +922,13 @@
 - [x] Add scroll functionality to "Register for Beta" button
 - [x] Test smooth scroll behavior
 
+
+
+
+## User Management - Subscription Plan Column
+- [x] Locate Admin.tsx user management table
+- [x] Add "Subscription Plan" column header
+- [x] Fetch user subscriptions for all users
+- [x] Display plan name (Intensive/Balanced/Standard/Relaxed/None) in table
+- [x] Test subscription plan display in user management
+
