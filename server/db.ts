@@ -230,6 +230,13 @@ export async function addChatMessage(message: InsertChatMessage) {
   await db.insert(chatMessages).values(message);
 }
 
+export async function clearChatHistory(userId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(chatMessages).where(eq(chatMessages.userId, userId));
+}
+
 // ============= EXERCISE RESULTS =============
 
 export async function getExerciseResults(userId: string) {

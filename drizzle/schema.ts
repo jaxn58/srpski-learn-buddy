@@ -200,3 +200,39 @@ export const feedbackStatusHistory = mysqlTable("feedbackStatusHistory", {
 export type FeedbackStatusHistory = typeof feedbackStatusHistory.$inferSelect;
 export type InsertFeedbackStatusHistory = typeof feedbackStatusHistory.$inferInsert;
 
+// Subscription Management
+export const userSubscriptions = mysqlTable("userSubscriptions", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("userId", { length: 64 }).notNull().unique(),
+  planType: mysqlEnum("planType", ["intensive", "balanced", "standard", "relaxed"]).notNull(),
+  planDurationMonths: int("planDurationMonths").notNull(), // 3, 6, 9, or 12
+  planPrice: int("planPrice").notNull(), // in cents (e.g., 6900 = €69.00)
+  purchasedAt: timestamp("purchasedAt").defaultNow(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  status: mysqlEnum("status", ["active", "expired", "cancelled"]).default("active").notNull(),
+  autoRenew: boolean("autoRenew").default(false).notNull(),
+  cancelledAt: timestamp("cancelledAt"),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
+
+export type UserSubscription = typeof userSubscriptions.$inferSelect;
+export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;
+
+// Subscription History - Track all subscription changes
+export const subscriptionHistory = mysqlTable("subscriptionHistory", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("userId", { length: 64 }).notNull(),
+  action: mysqlEnum("action", ["purchased", "upgraded", "downgraded", "cancelled", "expired", "renewed"]).notNull(),
+  previousPlanType: varchar("previousPlanType", { length: 50 }),
+  newPlanType: varchar("newPlanType", { length: 50 }),
+  previousExpiresAt: timestamp("previousExpiresAt"),
+  newExpiresAt: timestamp("newExpiresAt"),
+  cost: int("cost"), // in cents (upgrade cost, etc.)
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow(),
+});
+
+export type SubscriptionHistory = typeof subscriptionHistory.$inferSelect;
+export type InsertSubscriptionHistory = typeof subscriptionHistory.$inferInsert;
+

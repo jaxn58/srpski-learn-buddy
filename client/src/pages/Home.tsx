@@ -127,9 +127,9 @@ export default function Home() {
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <Brain className="h-12 w-12 text-primary mb-2" />
-              <CardTitle>AI Learning Assistant</CardTitle>
+              <CardTitle>AI Learn Buddy</CardTitle>
               <CardDescription>
-                Ask questions about any unit to reinforce and review what you've learned
+                Your personal AI tutor answers questions, explains grammar, provides conversation practice, and adapts to your learning style
               </CardDescription>
             </CardHeader>
           </Card>
@@ -681,20 +681,6 @@ export default function Home() {
               </AccordionItem>
             </Accordion>
 
-            {/* CTA after FAQ */}
-            <div className="mt-12 text-center p-8 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-2xl">
-              <p className="text-lg text-gray-900 mb-4">
-                <strong>Still have questions?</strong>
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button variant="outline" asChild>
-                  <a href="mailto:support@jacksenn.me">Contact Us</a>
-                </Button>
-                <Button asChild>
-                  <a href="#beta-register">Register for Beta - Try Units 1-5 Free</a>
-                </Button>
-              </div>
-            </div>
           </div>
 
           {/* Beta Tester Banner */}

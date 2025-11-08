@@ -4,7 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { trpc } from "@/lib/trpc";
-import { Send, User, Sparkles } from "lucide-react";
+import { Send, User, Sparkles, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
@@ -50,6 +51,22 @@ export default function Chat() {
   const { data: history } = trpc.chat.getHistory.useQuery({ limit: 50 });
   const { data: progress } = trpc.progress.get.useQuery();
   const sendMutation = trpc.chat.sendMessage.useMutation();
+  const clearMutation = trpc.chat.clearHistory.useMutation();
+  const utils = trpc.useUtils();
+
+  const handleClearChat = async () => {
+    if (!confirm("Are you sure you want to clear the entire chat history? This cannot be undone.")) return;
+    
+    try {
+      await clearMutation.mutateAsync();
+      setMessages([]);
+      utils.chat.getHistory.invalidate();
+      toast.success("Chat history cleared!");
+    } catch (error) {
+      console.error("Failed to clear chat:", error);
+      toast.error("Failed to clear chat history");
+    }
+  };
 
   useEffect(() => {
     if (history) {
@@ -108,7 +125,7 @@ export default function Chat() {
             <Link href="/dashboard">
               <Button variant="ghost" size="sm">← Back</Button>
             </Link>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1">
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
@@ -117,6 +134,15 @@ export default function Chat() {
                 <p className="text-xs text-muted-foreground">Your Serbian language tutor</p>
               </div>
             </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleClearChat}
+              disabled={clearMutation.isPending || messages.length === 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear Chat
+            </Button>
           </div>
         </div>
       </header>

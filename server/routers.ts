@@ -7,6 +7,7 @@ import { adminRouter } from "./routers/admin";
 import { feedbackRouter } from "./routers/feedback";
 import { betaRouter } from "./routers/beta";
 import { userRouter } from "./routers/user";
+import { subscriptionRouter } from "./routers/subscription";
 import { z } from "zod";
 import { 
   getUserProgress, 
@@ -17,6 +18,7 @@ import {
   updateVocabulary,
   getChatHistory,
   addChatMessage,
+  clearChatHistory,
   getExerciseResults,
   addExerciseResult,
   getUnitExplanation as getUnitExplanationFromDb,
@@ -41,6 +43,7 @@ export const appRouter = router({
   feedback: feedbackRouter,
   beta: betaRouter,
   user: userRouter,
+  subscription: subscriptionRouter,
 
   auth: router({
     me: publicProcedure.query(async ({ ctx }) => {
@@ -242,6 +245,12 @@ export const appRouter = router({
         return await getChatHistory(ctx.user.id, input.limit);
       }),
 
+    clearHistory: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        await clearChatHistory(ctx.user.id);
+        return { success: true };
+      }),
+
     sendMessage: protectedProcedure
       .input(z.object({
         message: z.string(),
@@ -277,9 +286,11 @@ Your personality:
 - **Warm & Encouraging**: Celebrate every success, no matter how small ("Odlično!", "Bravo!", "Perfekt!")
 - **Interactive**: Ask follow-up questions to check understanding ("Can you give me an example?", "How would you say...?")
 - **Patient**: When students make mistakes, respond with empathy ("No worries, this is tricky! Let's work through it together.")
-- **Proactive**: Offer praise when you notice improvement ("I see you're getting much better with the locative case!")
+- **Proactive**: Offer praise when you notice improvement ("I see you're making great progress with this grammar concept!")
 - **Motivating**: Use positive reinforcement and Serbian expressions to build confidence
-- **Personal**: Remember context from the conversation and build on it`
+- **Personal**: Remember context from the conversation and build on it
+
+CRITICAL RULE: If you have already explained a grammar concept in this conversation, DO NOT explain it again unless the student specifically asks for clarification. Move the conversation forward instead.`
         };
         
         let systemPrompt = systemPrompts.en;
@@ -287,10 +298,12 @@ Your personality:
         if (input.unitContext) {
           const unit = COURSE_UNITS.find(u => u.number === input.unitContext);
           if (unit) {
-            systemPrompt += `\n\nDie aktuelle Lektion ist: "${unit.title}" (${unit.titleEnglish})
-Themen: ${unit.topics.join(", ")}
-Grammatik: ${unit.grammarFocus.join(", ")}
-Vokabular: ${unit.vocabularyThemes.join(", ")}`;
+            systemPrompt += `\n\nCurrent lesson context (for reference only - only mention if directly relevant to the student's question):
+- Title: "${unit.title}" (${unit.titleEnglish})
+- Topics: ${unit.topics.join(", ")}
+- Vocabulary themes: ${unit.vocabularyThemes.join(", ")}
+
+IMPORTANT: Only reference the grammar focus if the student asks about it directly. Do NOT force it into every response.`;
           }
         }
 
@@ -317,6 +330,15 @@ Interaction style:
 - End with encouragement or a follow-up question
 - When correcting, sandwich feedback: praise → correction → encouragement
 - Respond in English, but sprinkle in Serbian praise and examples
+
+🚨 CRITICAL INSTRUCTION 🚨
+The conversation history is provided for CONTEXT ONLY.
+Answer ONLY the student's CURRENT question.
+Do NOT continue explaining topics from previous messages.
+Do NOT assume the student wants to continue the previous topic.
+If the student asks "How are you?" → just answer how you are, nothing else.
+If the student asks a NEW question → answer THAT question only.
+Only continue a previous topic if the student explicitly references it.
 
 Formatting rules:
 - Use Unicode characters for symbols: → (not $\\rightarrow$), × (not $\\times$), ÷ (not $\\div$)

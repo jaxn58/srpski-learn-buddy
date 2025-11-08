@@ -809,3 +809,42 @@
 - [ ] Implement subscription management - Add a "My Subscription" page where users can view their plan and upgrade with one click
 - [x] Add pricing FAQ section on landing page addressing common questions like "Can I downgrade?" or "What happens if I don't finish in time?"
 
+
+
+## Email Automation Templates
+- [ ] Design and implement automated email templates for upgrade reminders and plan expiration warnings
+- [ ] Set up email trigger logic for different user journey stages
+- [ ] Test email delivery and rendering across email clients
+
+
+
+
+## Beta Launch - Critical Implementation
+- [ ] Phase 1: Subscription Management System
+  - [ ] Add userSubscriptions table to schema
+  - [ ] Add subscriptionHistory table to schema
+  - [ ] Create subscription database queries
+  - [ ] Create subscription router with API endpoints
+  - [ ] Implement subscription business logic
+  - [ ] Test subscription system end-to-end
+- [ ] Phase 2: User Plan Limits & Access Control
+  - [ ] Add plan access checking logic
+  - [ ] Update course endpoints to check subscription
+  - [ ] Implement graceful degradation for expired plans
+  - [ ] Add expiration warning logic
+  - [ ] Test access control thoroughly
+- [ ] Phase 3: Payment Processing (Payoneer/Paddle)
+  - [ ] Research Payoneer vs Paddle integration
+  - [ ] Choose payment provider
+  - [ ] Implement payment endpoints
+  - [ ] Create checkout flow
+  - [ ] Handle webhooks
+
+
+
+
+## Chat Functionality Fix
+- [x] Implement Clear Chat button to delete conversation history
+- [x] Add clearChat API endpoint
+- [x] Test that new chats don't have Locative Case repetition issue
+
