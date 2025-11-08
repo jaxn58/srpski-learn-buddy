@@ -718,3 +718,11 @@
 - [x] Change "AI Unterstützung" to "AI Learn Buddy" in all pricing cards
 - [x] Verify all 4 pricing tiers show correct text
 
+
+
+
+## Dashboard Chat Card Update
+- [x] Change "Unit Q&A Helper" to "AI Learn Buddy" on Dashboard chat card
+- [x] Update card description to match AI Learn Buddy branding
+- [x] Verify changes on Dashboard page
+

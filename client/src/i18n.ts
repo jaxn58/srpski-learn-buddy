@@ -47,7 +47,7 @@ const resources = {
       "dashboard.currentLesson": "Current Lesson",
       "dashboard.completed": "completed",
       "dashboard.continueLesson": "Continue Current Lesson",
-      "dashboard.chatWithProfessor": "Unit Q&A Helper",
+      "dashboard.chatWithProfessor": "AI Learn Buddy",
       "dashboard.chatDesc": "Get explanations and examples from course material",
       "dashboard.openChat": "Open Chat",
       "dashboard.lessonsThisWeek": "Lessons this week:",
@@ -63,7 +63,7 @@ const resources = {
       "unit.vocabulary": "Vocabulary Areas",
       "unit.activities": "Learning Activities",
       "unit.activitiesDesc": "Use these features to master the lesson",
-      "unit.chatWithProfessor": "Unit Q&A Helper",
+      "unit.chatWithProfessor": "AI Learn Buddy",
       "unit.askQuestions": "Ask about grammar, vocabulary, and examples",
       "unit.practiceVocab": "Practice Vocabulary",
       "unit.learnWords": "Learn new words",
@@ -71,7 +71,7 @@ const resources = {
       "unit.studyTips": "Study Tips",
       
       // Chat
-      "chat.title": "Unit Q&A Helper",
+      "chat.title": "AI Learn Buddy",
       "chat.subtitle": "Get help with course content",
       "chat.description": "Ask questions about grammar, vocabulary, and get examples from the units",
       "chat.noMessages": "No messages yet. Start a conversation!",

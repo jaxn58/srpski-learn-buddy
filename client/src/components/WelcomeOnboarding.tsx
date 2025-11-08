@@ -150,7 +150,7 @@ export function WelcomeOnboarding({ userName, onClose }: WelcomeOnboardingProps)
             <div className="space-y-4">
               <Alert>
                 <MessageSquare className="h-4 w-4" />
-                <AlertTitle>Unit Q&A Helper - Your AI Tutor</AlertTitle>
+                <AlertTitle>AI Learn Buddy - Your AI Tutor</AlertTitle>
                 <AlertDescription>
                   Get instant help with grammar questions, vocabulary, and practice conversations.
                 </AlertDescription>
