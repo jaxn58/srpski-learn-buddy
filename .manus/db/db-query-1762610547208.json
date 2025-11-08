@@ -1,0 +1,35 @@
+{
+  "query": "SELECT id, title, createdAt FROM chatSessions ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT id, title, createdAt FROM chatSessions ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "AJzIQH0EGEebWWVwMu8sk",
+      "title": "New Chat",
+      "createdAt": "2025-11-08 13:59:44"
+    },
+    {
+      "id": "tIA8gwb1NO9OvV2OkVJJW",
+      "title": "New Chat",
+      "createdAt": "2025-11-08 13:58:19"
+    },
+    {
+      "id": "YNUkErwDqmHGn651Pq-pU",
+      "title": "New Chat",
+      "createdAt": "2025-11-08 13:56:43"
+    },
+    {
+      "id": "qz9MaT6s1Vy64qwJYeHrg",
+      "title": "New Chat",
+      "createdAt": "2025-11-08 13:55:42"
+    },
+    {
+      "id": "sOIA9EbbmeQ_p_vCBc6Xm",
+      "title": "New Chat",
+      "createdAt": "2025-11-08 13:53:59"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcreatedAt\nAJzIQH0EGEebWWVwMu8sk\tNew Chat\t2025-11-08 13:59:44\ntIA8gwb1NO9OvV2OkVJJW\tNew Chat\t2025-11-08 13:58:19\nYNUkErwDqmHGn651Pq-pU\tNew Chat\t2025-11-08 13:56:43\nqz9MaT6s1Vy64qwJYeHrg\tNew Chat\t2025-11-08 13:55:42\nsOIA9EbbmeQ_p_vCBc6Xm\tNew Chat\t2025-11-08 13:53:59\n",
+  "stderr": "",
+  "execution_time_ms": 49
+}

@@ -932,3 +932,18 @@
 - [x] Display plan name (Intensive/Balanced/Standard/Relaxed/None) in table
 - [x] Test subscription plan display in user management
 
+
+
+
+## Chat Title Generation - Use First 12 Characters
+- [ ] Locate createSession endpoint in chat router
+- [ ] Modify title generation to use first 12 chars of user message
+- [ ] Handle edge cases (empty message, short messages)
+- [ ] Test chat title generation with various message lengths
+
+
+
+
+## Chat Title Generation
+- [x] Update chat title generation to use first 12 characters of user's first message
+

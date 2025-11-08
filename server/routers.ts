@@ -418,8 +418,9 @@ Formatting rules:
         });
         
         // Auto-generate title from first user message if still "New Chat"
-        if (history.length === 0) {
-          const title = input.message.slice(0, 50) + (input.message.length > 50 ? "..." : "");
+        // history.length === 1 means only the user message we just added (no assistant response yet)
+        if (history.length === 1) {
+          const title = input.message.slice(0, 12) + (input.message.length > 12 ? "..." : "");
           await updateChatSessionTitle(input.sessionId, title);
         }
 
