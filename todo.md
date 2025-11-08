@@ -589,3 +589,11 @@
 - [x] Improve spacing and visual hierarchy
 - [x] Test navigation with new Sidebar design
 
+
+
+
+## Remove Redundant Navigation Buttons
+- [x] Remove "View Feedback & Feature Requests" button from Admin page
+- [x] Remove "Beta Registrations" button from Admin page
+- [x] Keep navigation in Sidebar only
+

@@ -147,22 +147,6 @@ export default function Admin() {
         </header>
 
         <main className="container py-8">
-          {/* Quick Actions */}
-          <div className="mb-6 flex flex-wrap gap-4">
-            <Link href="/admin/feedback">
-              <Button variant="outline" className="w-full sm:w-auto">
-                <MessageSquare className="mr-2 h-4 w-4" />
-                View Feedback & Feature Requests
-              </Button>
-            </Link>
-          <Link href="/admin/beta-registrations">
-            <Button variant="outline" className="w-full sm:w-auto">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Beta Registrations
-            </Button>
-          </Link>
-        </div>
-
         {/* Statistics Cards */}
         <div className="grid gap-4 md:grid-cols-4 mb-8">
           <Card>
