@@ -703,3 +703,18 @@
 - [ ] Test chat responses to ensure proper symbol rendering
 - [ ] Verify no LaTeX syntax appears in new messages
 
+
+
+
+## Chat Enhancement Features
+- [ ] Add Chat Search & History Filter - Implement search functionality to find previous questions by topic (Grammar, Vocabulary, Conversation) so users can quickly reference past explanations
+- [ ] Create "Helpful Answers" Bookmark Feature - Allow users to bookmark and organize helpful AI responses into personal study collections for offline review
+- [ ] Add Message Export to PDF - Enable users to export chat conversations as formatted PDF documents for printing or sharing with study partners
+
+
+
+
+## Landing Page Pricing Cards Update
+- [x] Change "AI Unterstützung" to "AI Learn Buddy" in all pricing cards
+- [x] Verify all 4 pricing tiers show correct text
+

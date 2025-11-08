@@ -252,7 +252,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Unterstützung</span>
+                    <span>AI Learn Buddy</span>
                   </li>
                 </ul>
                 <Button className="w-full bg-primary" disabled>
@@ -293,7 +293,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Unterstützung</span>
+                    <span>AI Learn Buddy</span>
                   </li>
                 </ul>
                 <Button className="w-full" disabled>
@@ -334,7 +334,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Unterstützung</span>
+                    <span>AI Learn Buddy</span>
                   </li>
                 </ul>
                 <Button className="w-full" disabled>
