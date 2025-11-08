@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock, Home, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
-import { GamificationStats } from "@/components/GamificationStats";
+
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { Sidebar } from "@/components/Sidebar";
@@ -144,10 +144,7 @@ export default function Dashboard() {
       <Sidebar />
 
       <main className="container py-8">
-        {/* Gamification Stats */}
-        <GamificationStats />
 
-        <div className="h-6"></div>
 
         {/* Beta Tester Benefits Banner */}
         {user.isBetaTester && (

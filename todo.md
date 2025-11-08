@@ -597,3 +597,13 @@
 - [x] Remove "Beta Registrations" button from Admin page
 - [x] Keep navigation in Sidebar only
 
+
+
+
+## Move Gamification Stats to Sidebar
+- [x] Integrate Level, Total XP, Streak, Badges into Sidebar User Cockpit
+- [x] Display stats below user name and role badges
+- [x] Create compact, professional layout for stats
+- [x] Remove GamificationStats component from Dashboard main area
+- [x] Ensure stats are visible in collapsed sidebar state
+
