@@ -769,3 +769,35 @@
 - [x] Change "Use AI to help." to "With your AI Learn Buddy."
 - [x] Verify change on landing page
 
+
+
+
+## Pricing Optimization Strategy
+- [ ] Review and optimize pricing structure (Intensive plan too cheap)
+- [ ] Create upgrade/upsell mechanics (plan extension rules)
+- [ ] Define price difference payment strategy
+- [ ] Implement plan upgrade functionality in backend
+- [ ] Add upgrade UI in user dashboard
+
+
+
+
+## Pricing Update to Option B
+- [x] Update Intensive price from €39 to €69
+- [x] Update Balanced price from €69 to €79
+- [x] Update Standard price from €89 to €95
+- [x] Keep Relaxed price at €119
+- [x] Add "Pay Only the Difference" upgrade policy section
+- [ ] Test pricing page and verify all changes
+
+
+
+
+## Pricing Update to Option B
+- [x] Update Intensive price from €39 to €69
+- [x] Update Balanced price from €69 to €79
+- [x] Update Standard price from €89 to €95
+- [x] Keep Relaxed price at €119
+- [x] Add "Pay Only the Difference" upgrade policy section
+- [x] Test pricing page and verify all changes
+

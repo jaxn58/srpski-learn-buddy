@@ -185,7 +185,7 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">3 Months</CardDescription>
                 <p className="text-xs text-muted-foreground italic">Full-time learners with 12+ hours/week</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">€39</div>
+                  <div className="text-3xl font-bold text-primary">€69</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
                 </div>
               </CardHeader>
@@ -227,7 +227,7 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">6 Months</CardDescription>
                 <p className="text-xs text-muted-foreground italic">Working professionals with 6-8 hours/week</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">€69</div>
+                  <div className="text-3xl font-bold text-primary">€79</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
                 </div>
               </CardHeader>
@@ -272,7 +272,7 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">9 Months</CardDescription>
                 <p className="text-xs text-muted-foreground italic">Relaxed learning with 4-5 hours/week</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">€89</div>
+                  <div className="text-3xl font-bold text-primary">€95</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
                 </div>
               </CardHeader>
@@ -347,6 +347,48 @@ export default function Home() {
                 <p className="text-xs text-center text-muted-foreground">Available after launch</p>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Upgrade Policy Section */}
+          <div className="mt-12 p-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200">
+            <div className="text-center space-y-4">
+              <div className="inline-block p-3 bg-primary/10 rounded-full">
+                <TrendingUp className="h-8 w-8 text-primary" />
+              </div>
+              <h4 className="text-2xl font-bold text-gray-900">Need More Time? No Problem!</h4>
+              <p className="text-lg text-gray-700 max-w-2xl mx-auto">
+                Upgrade to a longer plan anytime - you only pay the difference. Fair, transparent, no surprises.
+              </p>
+              <div className="grid md:grid-cols-3 gap-6 mt-8 text-left">
+                <div className="bg-white p-6 rounded-xl shadow-md">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Check className="h-6 w-6 text-green-600" />
+                    <h5 className="font-bold text-gray-900">Pay Only the Difference</h5>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    If you bought Intensive (€69) and want to switch to Balanced (€79), you only pay €10 extra.
+                  </p>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-md">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Check className="h-6 w-6 text-green-600" />
+                    <h5 className="font-bold text-gray-900">Maximum Cost: €50</h5>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Even upgrading from Intensive to Relaxed on day 1 costs only €50 - never more than the price difference.
+                  </p>
+                </div>
+                <div className="bg-white p-6 rounded-xl shadow-md">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Check className="h-6 w-6 text-green-600" />
+                    <h5 className="font-bold text-gray-900">Instant Activation</h5>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Upgrade anytime, keep all your progress, and continue learning without interruption.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Beta Tester Banner */}
