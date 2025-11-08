@@ -762,3 +762,10 @@
 - [x] Fix text alignment issue in Standard plan bullet points
 - [x] Verify all pricing cards use consistent English
 
+
+
+
+## Hero Section Tagline Update
+- [x] Change "Use AI to help." to "With your AI Learn Buddy."
+- [x] Verify change on landing page
+

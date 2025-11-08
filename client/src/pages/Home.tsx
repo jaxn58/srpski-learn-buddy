@@ -94,7 +94,7 @@ export default function Home() {
               Serbian for Beginners.
             </span>
             <br />
-            Use AI to help.
+            With your AI Learn Buddy.
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             A structured course with <strong>27 units</strong> and <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong> – featuring interactive exercises, vocabulary training, and AI-powered learning support.
