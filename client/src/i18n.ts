@@ -15,7 +15,7 @@ const resources = {
       
       // Home Page
       "home.hero.title": "Learn Serbian with your",
-      "home.hero.titleHighlight": "personal AI Professor",
+      "home.hero.titleHighlight": "personal AI Learn Buddy",
       "home.hero.subtitle": "A structured course based on \"Step by Step Serbian 1\" – with interactive exercises, vocabulary training, and intelligent conversation practice.",
       "home.cta.start": "Start Now",
       "home.cta.learnMore": "Learn More",
@@ -23,7 +23,7 @@ const resources = {
       // Features
       "features.structuredPlan.title": "Structured Plan",
       "features.structuredPlan.desc": "Structured learning path through all 27 lessons of the course book",
-      "features.aiProfessor.title": "AI Professor",
+      "features.aiProfessor.title": "AI Learn Buddy",
       "features.aiProfessor.desc": "Your personal tutor explains grammar, corrects mistakes, and motivates you",
       "features.conversation.title": "Conversation Practice",
       "features.conversation.desc": "Practice real conversations in Serbian with instant feedback",

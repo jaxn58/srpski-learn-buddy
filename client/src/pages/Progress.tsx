@@ -293,7 +293,7 @@ export default function Progress() {
               <ul className="space-y-2 text-sm">
                 <li>📚 Consistency is key - try to study a little every day</li>
                 <li>🎯 Set weekly goals to stay on track</li>
-                <li>💬 Practice with the AI Professor regularly</li>
+                <li>💬 Practice with the AI Learn Buddy regularly</li>
                 <li>🔁 Review completed units to reinforce learning</li>
                 <li>✍️ Complete all exercises in the coursebook</li>
               </ul>

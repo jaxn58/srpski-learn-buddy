@@ -683,3 +683,15 @@
 - [x] Ensure proper Markdown rendering (code blocks, bold, italic, etc.)
 - [x] Test chat display with complex content (tables, code, formatting)
 
+
+
+
+## Chat Remaining Issues
+- [x] Fix Markdown table rendering (tables not displaying correctly)
+- [x] Install and configure remark-gfm for GitHub-flavored Markdown
+- [x] Rename "AI Professor" to "AI Learn Buddy" in Chat.tsx header
+- [x] Rename "AI Professor" to "AI Learn Buddy" in Dashboard card
+- [x] Rename "AI Professor" to "AI Learn Buddy" in Home.tsx pricing
+- [x] Search and replace all "AI Professor" references globally
+- [x] Test chat with complex Markdown content
+

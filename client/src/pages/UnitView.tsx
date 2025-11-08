@@ -303,7 +303,7 @@ export default function UnitView() {
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
                     <p>Detailed grammar explanations for this unit are coming soon!</p>
-                    <p className="text-sm mt-2">In the meantime, check the coursebook or ask the AI Professor.</p>
+                    <p className="text-sm mt-2">In the meantime, check the coursebook or ask the AI Learn Buddy.</p>
                   </CardContent>
                 </Card>
               )}
@@ -344,7 +344,7 @@ export default function UnitView() {
                 <Link href="/chat">
                   <Button variant="outline" className="w-full justify-start" size="lg">
                     <MessageSquare className="mr-2 h-5 w-5" />
-                    Ask AI Professor
+                    Ask AI Learn Buddy
                   </Button>
                 </Link>
               </div>

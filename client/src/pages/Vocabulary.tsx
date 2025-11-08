@@ -360,7 +360,7 @@ export default function Vocabulary() {
                 <li>🗣️ Say the words out loud to improve pronunciation</li>
                 <li>✍️ Write down words you find difficult</li>
                 <li>🔁 Use spaced repetition - review older units regularly</li>
-                <li>💬 Try using new words in the AI Professor chat</li>
+                <li>💬 Try using new words in the AI Learn Buddy chat</li>
               </ul>
             </CardContent>
           </Card>

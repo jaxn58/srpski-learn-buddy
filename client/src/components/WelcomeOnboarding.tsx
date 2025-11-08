@@ -160,7 +160,7 @@ export function WelcomeOnboarding({ userName, onClose }: WelcomeOnboardingProps)
                 <div className="p-3 border rounded-lg">
                   <h4 className="font-semibold text-sm mb-1">💬 Ask Questions</h4>
                   <p className="text-sm text-muted-foreground">
-                    Stuck on a grammar rule? Need clarification? Just ask the AI Professor!
+                    Stuck on a grammar rule? Need clarification? Just ask the AI Learn Buddy!
                   </p>
                 </div>
 

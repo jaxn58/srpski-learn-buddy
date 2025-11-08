@@ -8,31 +8,37 @@ import { Send, User, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Sidebar } from "@/components/Sidebar";
 
 // Custom Markdown components for clean rendering
 const markdownComponents = {
-  p: ({node, ...props}: any) => <p className="mb-2 leading-relaxed" {...props} />,
-  ul: ({node, ...props}: any) => <ul className="list-disc list-inside mb-2 space-y-1" {...props} />,
-  ol: ({node, ...props}: any) => <ol className="list-decimal list-inside mb-2 space-y-1" {...props} />,
-  li: ({node, ...props}: any) => <li className="mb-0" {...props} />,
+  p: ({node, ...props}: any) => <p className="mb-3 leading-relaxed" {...props} />,
+  ul: ({node, ...props}: any) => <ul className="list-disc list-outside ml-4 mb-3 space-y-1.5" {...props} />,
+  ol: ({node, ...props}: any) => <ol className="list-decimal list-outside ml-4 mb-3 space-y-1.5" {...props} />,
+  li: ({node, ...props}: any) => <li className="mb-0.5" {...props} />,
   code: ({node, inline, ...props}: any) => 
     inline ? 
-      <code className="bg-black/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props} /> :
-      <code className="block bg-black/20 p-2 rounded text-xs font-mono overflow-x-auto mb-2" {...props} />,
-  pre: ({node, ...props}: any) => <pre className="bg-black/20 p-2 rounded overflow-x-auto mb-2" {...props} />,
-  table: ({node, ...props}: any) => <table className="w-full text-xs border-collapse mb-2 border border-black/20" {...props} />,
-  thead: ({node, ...props}: any) => <thead className="border-b border-black/20 bg-black/10" {...props} />,
+      <code className="bg-accent/60 px-1.5 py-0.5 rounded text-xs font-mono border border-border/30" {...props} /> :
+      <code className="block bg-accent/60 p-3 rounded-md text-xs font-mono overflow-x-auto mb-3 border border-border/30" {...props} />,
+  pre: ({node, children, ...props}: any) => <pre className="mb-3" {...props}>{children}</pre>,
+  table: ({node, ...props}: any) => (
+    <div className="overflow-x-auto mb-3">
+      <table className="w-full text-sm border-collapse border border-border" {...props} />
+    </div>
+  ),
+  thead: ({node, ...props}: any) => <thead className="bg-accent/40" {...props} />,
   tbody: ({node, ...props}: any) => <tbody {...props} />,
-  tr: ({node, ...props}: any) => <tr className="border-b border-black/20" {...props} />,
-  th: ({node, ...props}: any) => <th className="text-left font-semibold p-2" {...props} />,
-  td: ({node, ...props}: any) => <td className="p-2" {...props} />,
-  blockquote: ({node, ...props}: any) => <blockquote className="border-l-2 border-black/30 pl-2 italic mb-2" {...props} />,
-  h1: ({node, ...props}: any) => <h1 className="text-lg font-bold mb-2" {...props} />,
-  h2: ({node, ...props}: any) => <h2 className="text-base font-bold mb-2" {...props} />,
-  h3: ({node, ...props}: any) => <h3 className="text-sm font-bold mb-2" {...props} />,
-  strong: ({node, ...props}: any) => <strong className="font-bold" {...props} />,
+  tr: ({node, ...props}: any) => <tr className="border-b border-border" {...props} />,
+  th: ({node, ...props}: any) => <th className="text-left font-semibold p-2 border-r border-border last:border-r-0" {...props} />,
+  td: ({node, ...props}: any) => <td className="p-2 border-r border-border last:border-r-0" {...props} />,
+  blockquote: ({node, ...props}: any) => <blockquote className="border-l-4 border-primary/50 pl-3 italic mb-3 text-muted-foreground" {...props} />,
+  h1: ({node, ...props}: any) => <h1 className="text-lg font-bold mb-2 mt-4 first:mt-0" {...props} />,
+  h2: ({node, ...props}: any) => <h2 className="text-base font-bold mb-2 mt-3 first:mt-0" {...props} />,
+  h3: ({node, ...props}: any) => <h3 className="text-sm font-bold mb-2 mt-2 first:mt-0" {...props} />,
+  strong: ({node, ...props}: any) => <strong className="font-bold text-foreground" {...props} />,
   em: ({node, ...props}: any) => <em className="italic" {...props} />,
+  hr: ({node, ...props}: any) => <hr className="my-4 border-border" {...props} />,
 };
 
 export default function Chat() {
@@ -107,7 +113,7 @@ export default function Chat() {
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold">AI Professor</h1>
+                <h1 className="text-lg font-bold">AI Learn Buddy</h1>
                 <p className="text-xs text-muted-foreground">Your Serbian language tutor</p>
               </div>
             </div>
@@ -156,22 +162,25 @@ export default function Chat() {
                   </AvatarFallback>
                 </Avatar>
                 
-                <div className={`flex flex-col max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div
-                    className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                    className={`rounded-2xl px-4 py-3 text-sm ${
                       msg.role === 'user'
                         ? 'bg-primary text-primary-foreground rounded-br-none'
                         : 'bg-muted text-foreground rounded-bl-none'
                     }`}
                   >
                     {msg.role === 'assistant' ? (
-                      <div className="space-y-0">
-                        <ReactMarkdown components={markdownComponents}>
+                      <div className="markdown-content">
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={markdownComponents}
+                        >
                           {msg.content}
                         </ReactMarkdown>
                       </div>
                     ) : (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-2">
