@@ -179,38 +179,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Learning Plan Settings */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              {t('settings.learningPlan')}
-            </CardTitle>
-            <CardDescription>
-              Adjust your learning pace to match your available time
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-medium">Course Duration:</label>
-              <Select value={learningDuration.toString()} onValueChange={handleDurationChange}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="12">3 Months (Intensive)</SelectItem>
-                  <SelectItem value="24">6 Months (Standard)</SelectItem>
-                  <SelectItem value="36">9 Months (Relaxed)</SelectItem>
-                  <SelectItem value="48">12 Months (Leisurely)</SelectItem>
-                </SelectContent>
-              </Select>
-              <span className="text-sm text-muted-foreground">
-                = {learningDuration} weeks
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">
             {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Learner' })}

@@ -628,3 +628,12 @@
 - [x] Test responsive layout on mobile and tablet devices
 - [x] Ensure compact design saves space for smaller screens
 
+
+
+
+## Remove Learning Plan Section
+- [x] Remove Learning Plan section from Dashboard
+- [x] Learning Plan will be replaced by subscription plan (customer's booked tariff)
+- [x] Tariff will determine course duration
+- [x] Test Dashboard layout without Learning Plan
+
