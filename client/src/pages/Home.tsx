@@ -220,8 +220,8 @@ export default function Home() {
 
             {/* Balanced Plan (Most Popular) */}
             <Card className="border-4 border-primary shadow-2xl scale-105 relative">
-              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-xs font-semibold">Most Popular</span>
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                <span className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">Most Popular</span>
               </div>
               <CardHeader className="text-center pb-4 pt-8">
                 <Target className="h-12 w-12 text-primary mb-3 mx-auto" />
@@ -252,7 +252,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Professor</span>
+                    <span>AI Unterstützung</span>
                   </li>
                 </ul>
                 <Button className="w-full bg-primary" disabled>
@@ -293,7 +293,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Professor</span>
+                    <span>AI Unterstützung</span>
                   </li>
                 </ul>
                 <Button className="w-full" disabled>
@@ -334,7 +334,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Professor</span>
+                    <span>AI Unterstützung</span>
                   </li>
                 </ul>
                 <Button className="w-full" disabled>

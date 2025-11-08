@@ -665,3 +665,11 @@
 - [ ] Implement upsell mechanics to encourage higher tier selection
 - [x] Test pricing page layout and responsiveness
 
+
+
+
+## Pricing Page Bug Fixes
+- [x] Fix "Most Popular" badge display (currently broken/overlapping)
+- [x] Change "AI Professor" to "AI Unterstützung" across all pricing tiers
+- [x] Test pricing page layout after fixes
+
