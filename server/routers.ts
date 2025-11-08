@@ -300,7 +300,14 @@ Vokabular: ${unit.vocabularyThemes.join(", ")}`;
 - Provide practical exercises and examples
 - Respond in English, but use Serbian examples
 - Be encouraging and motivating
-- When the student writes in Serbian, correct mistakes and explain them`
+- When the student writes in Serbian, correct mistakes and explain them
+
+Formatting rules:
+- Use Unicode characters for symbols: → (not $\\rightarrow$), × (not $\\times$), ÷ (not $\\div$)
+- Use Markdown tables for structured data
+- Use **bold** for emphasis, *italic* for Serbian words
+- Use \`code\` only for actual code or technical terms, not for highlighting
+- Never use LaTeX syntax`
         };
         
         systemPrompt += taskDescriptions.en;

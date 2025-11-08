@@ -19,15 +19,15 @@ const markdownComponents = {
   li: ({node, ...props}: any) => <li className="mb-0.5" {...props} />,
   code: ({node, inline, ...props}: any) => 
     inline ? 
-      <code className="bg-accent/60 px-1.5 py-0.5 rounded text-xs font-mono border border-border/30" {...props} /> :
-      <code className="block bg-accent/60 p-3 rounded-md text-xs font-mono overflow-x-auto mb-3 border border-border/30" {...props} />,
+      <code className="bg-muted/80 px-1.5 py-0.5 rounded text-xs font-mono" {...props} /> :
+      <code className="block bg-muted/80 p-3 rounded-md text-xs font-mono overflow-x-auto mb-3" {...props} />,
   pre: ({node, children, ...props}: any) => <pre className="mb-3" {...props}>{children}</pre>,
   table: ({node, ...props}: any) => (
     <div className="overflow-x-auto mb-3">
       <table className="w-full text-sm border-collapse border border-border" {...props} />
     </div>
   ),
-  thead: ({node, ...props}: any) => <thead className="bg-accent/40" {...props} />,
+  thead: ({node, ...props}: any) => <thead className="bg-muted/60" {...props} />,
   tbody: ({node, ...props}: any) => <tbody {...props} />,
   tr: ({node, ...props}: any) => <tr className="border-b border-border" {...props} />,
   th: ({node, ...props}: any) => <th className="text-left font-semibold p-2 border-r border-border last:border-r-0" {...props} />,

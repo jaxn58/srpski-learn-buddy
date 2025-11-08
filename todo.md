@@ -695,3 +695,11 @@
 - [x] Search and replace all "AI Professor" references globally
 - [x] Test chat with complex Markdown content
 
+
+
+
+## Chat LaTeX Syntax Issue
+- [x] Update LLM system prompt to use Unicode instead of LaTeX (→ instead of $\rightarrow$)
+- [ ] Test chat responses to ensure proper symbol rendering
+- [ ] Verify no LaTeX syntax appears in new messages
+
