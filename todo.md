@@ -673,3 +673,13 @@
 - [x] Change "AI Professor" to "AI Unterstützung" across all pricing tiers
 - [x] Test pricing page layout after fixes
 
+
+
+
+## AI Professor Chat Formatting Issues
+- [x] Fix green highlight boxes appearing in chat (Markdown rendering issue)
+- [x] Improve chat bubble styling to look like WhatsApp (professional appearance)
+- [x] Fix table formatting in chat messages (currently broken/unreadable)
+- [x] Ensure proper Markdown rendering (code blocks, bold, italic, etc.)
+- [x] Test chat display with complex content (tables, code, formatting)
+

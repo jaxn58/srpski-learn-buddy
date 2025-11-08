@@ -4,11 +4,36 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, Send, User, Sparkles } from "lucide-react";
+import { Send, User, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
 import { Sidebar } from "@/components/Sidebar";
+
+// Custom Markdown components for clean rendering
+const markdownComponents = {
+  p: ({node, ...props}: any) => <p className="mb-2 leading-relaxed" {...props} />,
+  ul: ({node, ...props}: any) => <ul className="list-disc list-inside mb-2 space-y-1" {...props} />,
+  ol: ({node, ...props}: any) => <ol className="list-decimal list-inside mb-2 space-y-1" {...props} />,
+  li: ({node, ...props}: any) => <li className="mb-0" {...props} />,
+  code: ({node, inline, ...props}: any) => 
+    inline ? 
+      <code className="bg-black/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props} /> :
+      <code className="block bg-black/20 p-2 rounded text-xs font-mono overflow-x-auto mb-2" {...props} />,
+  pre: ({node, ...props}: any) => <pre className="bg-black/20 p-2 rounded overflow-x-auto mb-2" {...props} />,
+  table: ({node, ...props}: any) => <table className="w-full text-xs border-collapse mb-2 border border-black/20" {...props} />,
+  thead: ({node, ...props}: any) => <thead className="border-b border-black/20 bg-black/10" {...props} />,
+  tbody: ({node, ...props}: any) => <tbody {...props} />,
+  tr: ({node, ...props}: any) => <tr className="border-b border-black/20" {...props} />,
+  th: ({node, ...props}: any) => <th className="text-left font-semibold p-2" {...props} />,
+  td: ({node, ...props}: any) => <td className="p-2" {...props} />,
+  blockquote: ({node, ...props}: any) => <blockquote className="border-l-2 border-black/30 pl-2 italic mb-2" {...props} />,
+  h1: ({node, ...props}: any) => <h1 className="text-lg font-bold mb-2" {...props} />,
+  h2: ({node, ...props}: any) => <h2 className="text-base font-bold mb-2" {...props} />,
+  h3: ({node, ...props}: any) => <h3 className="text-sm font-bold mb-2" {...props} />,
+  strong: ({node, ...props}: any) => <strong className="font-bold" {...props} />,
+  em: ({node, ...props}: any) => <em className="italic" {...props} />,
+};
 
 export default function Chat() {
   const { user } = useAuth();
@@ -95,7 +120,7 @@ export default function Chat() {
           {/* Messages Area */}
           <div 
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-6 space-y-6"
+            className="flex-1 overflow-y-auto p-6 space-y-4"
           >
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
@@ -125,26 +150,28 @@ export default function Chat() {
                 key={idx}
                 className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                <Avatar className={`h-8 w-8 ${msg.role === 'assistant' ? 'bg-gradient-to-br from-blue-500 to-purple-600' : 'bg-primary'}`}>
-                  <AvatarFallback className="text-white">
+                <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-gradient-to-br from-blue-500 to-purple-600' : 'bg-primary'}`}>
+                  <AvatarFallback className="text-white text-xs">
                     {msg.role === 'assistant' ? <Sparkles className="h-4 w-4" /> : <User className="h-4 w-4" />}
                   </AvatarFallback>
                 </Avatar>
                 
                 <div className={`flex flex-col max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div
-                    className={`rounded-2xl px-4 py-3 ${
+                    className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted'
+                        ? 'bg-primary text-primary-foreground rounded-br-none'
+                        : 'bg-muted text-foreground rounded-bl-none'
                     }`}
                   >
                     {msg.role === 'assistant' ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <div className="space-y-0">
+                        <ReactMarkdown components={markdownComponents}>
+                          {msg.content}
+                        </ReactMarkdown>
                       </div>
                     ) : (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-2">
@@ -156,12 +183,12 @@ export default function Chat() {
             
             {sendMutation.isPending && (
               <div className="flex gap-3">
-                <Avatar className="h-8 w-8 bg-gradient-to-br from-blue-500 to-purple-600">
-                  <AvatarFallback className="text-white">
+                <Avatar className="h-8 w-8 flex-shrink-0 bg-gradient-to-br from-blue-500 to-purple-600">
+                  <AvatarFallback className="text-white text-xs">
                     <Sparkles className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
-                <div className="bg-muted rounded-2xl px-4 py-3">
+                <div className="bg-muted rounded-2xl rounded-bl-none px-4 py-3">
                   <div className="flex gap-1">
                     <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                     <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -199,3 +226,4 @@ export default function Chat() {
     </div>
   );
 }
+
