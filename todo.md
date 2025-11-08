@@ -637,3 +637,12 @@
 - [x] Tariff will determine course duration
 - [x] Test Dashboard layout without Learning Plan
 
+
+
+
+## Remove Bottom Navigation Buttons
+- [x] Remove Practice Vocabulary button at bottom of Dashboard
+- [x] Remove View All Words button at bottom of Dashboard
+- [x] Remove View Progress button at bottom of Dashboard
+- [x] Navigation is already available in Sidebar
+

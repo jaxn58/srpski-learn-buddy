@@ -394,27 +394,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <div className="mt-8 flex gap-4 justify-center">
-          <Link href="/vocabulary">
-            <Button variant="outline">
-              <Brain className="mr-2 h-4 w-4" />
-              {t('dashboard.practiceVocab')}
-            </Button>
-          </Link>
-          <Link href="/vocabulary-list">
-            <Button variant="outline">
-              <BookOpen className="mr-2 h-4 w-4" />
-              View All Words
-            </Button>
-          </Link>
-          <Link href="/progress">
-            <Button variant="outline">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              {t('dashboard.viewProgress')}
-            </Button>
-          </Link>
-        </div>
-
         {/* Footer with Book Reference */}
         <footer className="mt-16 pt-8 border-t">
           <div className="flex items-center justify-between">
