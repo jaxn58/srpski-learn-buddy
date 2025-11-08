@@ -567,3 +567,13 @@
 - [x] Display XP earned in test results
 - [x] Update user profile with new totalXP
 
+
+
+
+## AdminHeader on All Admin Pages
+- [x] Add AdminHeader to User Management (Admin.tsx)
+- [x] Add AdminHeader to Feedback Management page
+- [x] Add AdminHeader to Beta Registrations page
+- [x] Ensure AdminHeader only visible to Admin/Superadmin roles
+- [x] Test AdminHeader visibility on all admin pages
+
