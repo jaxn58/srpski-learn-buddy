@@ -14,10 +14,10 @@ The Serbian AI Tutor employs a **four-tier pricing model** designed to maximize 
 **Key Pricing Tiers:**
 
 | Plan | Duration | Price | Monthly Cost | Target Audience |
-|------|----------|-------|--------------|-----------------|
-| **Intensive** | 3 months | €39 | €13/month | Highly motivated, fast learners |
-| **Balanced** | 6 months | €69 | €11.50/month | Mainstream, recommended option |
-| **Standard** | 9 months | €89 | €9.89/month | Value-conscious, steady learners |
+|------|----------|-------|--------------|------------------|
+| **Intensive** | 3 months | €69 | €23/month | Highly motivated, fast learners |
+| **Balanced** | 6 months | €79 | €13.17/month | Mainstream, recommended option |
+| **Standard** | 9 months | €95 | €10.56/month | Value-conscious, steady learners |
 | **Relaxed** | 12 months | €119 | €9.92/month | Budget-conscious, flexible learners |
 
 ---
@@ -39,10 +39,10 @@ The **Standard (9-month, €89)** plan serves as a strategic decoy to make the *
 **Without the Standard plan:** Customers see only three options and may choose the cheapest (Intensive) to save money.
 
 **With the Standard plan:** The comparison becomes:
-- Intensive: €39 for 3 months = €13/month
-- Balanced: €69 for 6 months = €11.50/month ← **Best value per month**
-- Standard: €89 for 9 months = €9.89/month (but longer commitment)
-- Relaxed: €119 for 12 months = €9.92/month (similar cost, more time)
+- Intensive: €69 for 3 months = €23/month
+- Balanced: €79 for 6 months = €13.17/month
+- Standard: €95 for 9 months = €10.56/month ← **Best value per month**
+- Relaxed: €119 for 12 months = €9.92/month (longest duration, lowest monthly cost)
 
 **Result:** The Balanced plan becomes the "Goldilocks option"—not too expensive, not too cheap, and offering the best value-to-commitment ratio. This typically captures 40-50% of conversions.
 
@@ -50,11 +50,11 @@ The **Standard (9-month, €89)** plan serves as a strategic decoy to make the *
 
 ### 1.3 Anchoring & Reference Pricing
 
-The **Intensive plan (€39)** serves as the price anchor. By positioning it first, customers mentally establish €39 as the baseline. When they see €69, their brain calculates the difference (€30 more) rather than evaluating the absolute price.
+The **Intensive plan (€69)** serves as the price anchor. By positioning it first, customers mentally establish €39 as the baseline. When they see €69, their brain calculates the difference (€30 more) rather than evaluating the absolute price.
 
 **Psychological Impact:**
-- €69 feels like "only €30 more" (relative thinking)
-- Not "€69 total" (absolute thinking)
+- €79 feels like "only €10 more" (relative thinking)
+- Not "€79 total" (absolute thinking)
 - This increases willingness to pay for higher tiers
 
 **Recommendation:** Always display plans in order (Intensive → Balanced → Standard → Relaxed) to maintain anchoring effect.
@@ -65,9 +65,9 @@ The **Intensive plan (€39)** serves as the price anchor. By positioning it fir
 
 Customers often use price as a proxy for quality. Higher prices signal better value, more features, or superior experience. This works in our favor because:
 
-- **Intensive (€39):** "Budget option, fast-track only"
-- **Balanced (€69):** "Premium, expert-recommended" ← Highest perceived quality
-- **Standard (€89):** "Extended value, more time to absorb"
+- **Intensive (€69):** "Fast-track option for motivated learners"
+- **Balanced (€79):** "Premium, expert-recommended" ← Highest perceived quality
+- **Standard (€95):** "Extended value, best monthly rate"
 - **Relaxed (€119):** "Ultimate flexibility, no pressure"
 
 The Balanced plan's "Most Popular" and "Expert Recommended" badges reinforce this perception, making it feel like the premium choice despite being mid-priced.
@@ -81,16 +81,16 @@ The Balanced plan's "Most Popular" and "Expert Recommended" badges reinforce thi
 The pricing strategy creates a natural upsell path:
 
 ```
-Intensive (€39)
-    ↓ [Upsell: "Upgrade to Balanced for better value"]
-Balanced (€69) ← Most conversions happen here
+Intensive (€69)
+    ↓ [Upsell: "Upgrade to Balanced for only €10 more"]
+Balanced (€79) ← Most conversions happen here
     ↓ [Upsell: "Need more time? Standard gives you 3 extra months"]
-Standard (€89)
+Standard (€95)
     ↓ [Upsell: "Maximum flexibility with Relaxed"]
 Relaxed (€119)
 ```
 
-**Why this works:** Each tier is only €20-30 more than the previous, making incremental upgrades feel affordable.
+**Why this works:** Each tier is only €10-24 more than the previous, making incremental upgrades feel affordable. The maximum upgrade cost from Intensive to Relaxed is capped at €50.
 
 ---
 
@@ -132,23 +132,23 @@ Relaxed (€119)
 
 ### 2.3 Upsell Messaging by Plan
 
-#### For Intensive Plan Customers (€39)
+#### For Intensive Plan Customers (€69)
 **Primary Upsell:** Upgrade to Balanced
-- **Message:** "Intensive learners often need more time. Upgrade to Balanced for only €30 more and get 3 extra months."
+- **Message:** "Intensive learners often need more time. Upgrade to Balanced for only €10 more and get 3 extra months."
 - **Trigger:** After completing Unit 5 (halfway through 3-month plan)
-- **Incentive:** "Upgrade now and get 1 month free" (€69 → €59 for 7 months)
+- **Incentive:** "Upgrade now and pay only the difference" (€10 for 3 extra months)
 
-#### For Balanced Plan Customers (€69)
+#### For Balanced Plan Customers (€79)
 **Primary Upsell:** Extend to Standard or Relaxed
-- **Message:** "Want more flexibility? Standard adds 3 months for only €20 more (€9.89/month vs €11.50/month)."
+- **Message:** "Want more flexibility? Standard adds 3 months for only €16 more (€10.56/month vs €13.17/month)."
 - **Trigger:** After 2 months of learning (when commitment is proven)
-- **Incentive:** "Add 3 months for €15 (normally €20)" or "Upgrade to Relaxed for €40 more"
+- **Incentive:** "Add 3 months for €16" or "Upgrade to Relaxed for €40 more"
 
-#### For Standard Plan Customers (€89)
+#### For Standard Plan Customers (€95)
 **Primary Upsell:** Extend to Relaxed
 - **Message:** "You're 67% through the course. Relaxed gives you 3 more months for maximum retention."
 - **Trigger:** After 6 months of learning
-- **Incentive:** "Extend to Relaxed for only €25 more" (€89 → €114 for 12 months)
+- **Incentive:** "Extend to Relaxed for only €24 more" (€95 → €119 for 12 months)
 
 ---
 
@@ -159,30 +159,30 @@ Relaxed (€119)
 **Current Pricing Model:**
 
 | Metric | Intensive | Balanced | Standard | Relaxed |
-|--------|-----------|----------|----------|---------|
+|--------|-----------|----------|----------|----------|
 | Duration | 3 mo | 6 mo | 9 mo | 12 mo |
-| Price | €39 | €69 | €89 | €119 |
-| Monthly Cost | €13.00 | €11.50 | €9.89 | €9.92 |
-| Discount vs Intensive | 0% | 11.5% | 24% | 24% |
+| Price | €69 | €79 | €95 | €119 |
+| Monthly Cost | €23.00 | €13.17 | €10.56 | €9.92 |
+| Discount vs Intensive | 0% | 42.75% | 54.11% | 56.88% |
 | Expected Conversion | 15% | 50% | 20% | 15% |
 
 **Revenue Calculation (100 customers):**
-- 15 × €39 = €585 (Intensive)
-- 50 × €69 = €3,450 (Balanced)
-- 20 × €89 = €1,780 (Standard)
+- 15 × €69 = €1,035 (Intensive)
+- 50 × €79 = €3,950 (Balanced)
+- 20 × €95 = €1,900 (Standard)
 - 15 × €119 = €1,785 (Relaxed)
-- **Total Revenue: €7,600**
-- **Average Revenue Per Customer: €76**
+- **Total Revenue: €8,670**
+- **Average Revenue Per Customer: €86.70**
 
 ---
 
 ### 3.2 Why This Pricing Maximizes Revenue
 
-1. **Balanced Plan Dominance:** By capturing 50% of customers at €69, we maximize revenue while maintaining accessibility.
+1. **Balanced Plan Dominance:** By capturing 50% of customers at €79, we maximize revenue while maintaining accessibility.
 
-2. **Psychological Discounting:** The Standard and Relaxed plans offer similar monthly costs (€9.89 vs €9.92) but different value propositions. This allows us to capture price-sensitive customers without cannibalizing higher-tier sales.
+2. **Psychological Discounting:** The Standard and Relaxed plans offer the lowest monthly costs (€10.56 vs €9.92), creating strong value perception. The significant discount from Intensive (€23/month) to Standard (54% discount) makes longer plans highly attractive.
 
-3. **Upsell Potential:** The €20-30 increments between tiers make upgrades feel affordable, increasing lifetime customer value.
+3. **Upsell Potential:** The €10-24 increments between tiers make upgrades feel affordable, with a maximum upgrade cost of €50 from Intensive to Relaxed, increasing lifetime customer value.
 
 4. **Perceived Value:** All plans include "All 27 units + AI Professor," so the value proposition is identical. The difference is only **time to complete**, which is a low-cost differentiator.
 
@@ -190,26 +190,26 @@ Relaxed (€119)
 
 ### 3.3 Alternative Pricing Scenarios
 
-#### Scenario A: Three-Tier Model (Original)
+#### Scenario A: Three-Tier Model (Alternative)
 | Plan | Price | Expected Revenue |
 |------|-------|-------------------|
-| Intensive (3 mo) | €39 | €585 (15%) |
-| Balanced (6 mo) | €69 | €3,450 (50%) |
-| Relaxed (12 mo) | €119 | €1,785 (25%) |
-| **Total** | - | **€5,820** |
+| Intensive (3 mo) | €69 | €1,035 (15%) |
+| Balanced (6 mo) | €79 | €3,950 (50%) |
+| Relaxed (12 mo) | €119 | €2,975 (35%) |
+| **Total** | - | **€7,960** |
 
-**Result:** €1,780 less revenue than four-tier model.
+**Result:** €710 less revenue than four-tier model.
 
-#### Scenario B: Four-Tier Model (Recommended)
+#### Scenario B: Four-Tier Model (Current - Option B)
 | Plan | Price | Expected Revenue |
 |------|-------|-------------------|
-| Intensive (3 mo) | €39 | €585 (15%) |
-| Balanced (6 mo) | €69 | €3,450 (50%) |
-| Standard (9 mo) | €89 | €1,780 (20%) |
+| Intensive (3 mo) | €69 | €1,035 (15%) |
+| Balanced (6 mo) | €79 | €3,950 (50%) |
+| Standard (9 mo) | €95 | €1,900 (20%) |
 | Relaxed (12 mo) | €119 | €1,785 (15%) |
-| **Total** | - | **€7,600** |
+| **Total** | - | **€8,670** |
 
-**Result:** +30.6% revenue increase vs three-tier model.
+**Result:** +8.9% revenue increase vs three-tier model. +14.1% increase vs old pricing (€7,600).
 
 ---
 
@@ -322,13 +322,13 @@ Add customer testimonials near each plan:
 
 | Plan | Customers | Repeat Rate | Repeat Revenue | Total LTV |
 |------|-----------|-------------|-----------------|-----------|
-| Intensive | 15 | 60% | €351 | €936 |
-| Balanced | 50 | 60% | €2,070 | €5,520 |
-| Standard | 20 | 60% | €1,068 | €2,848 |
+| Intensive | 15 | 60% | €621 | €1,656 |
+| Balanced | 50 | 60% | €2,370 | €6,320 |
+| Standard | 20 | 60% | €1,140 | €3,040 |
 | Relaxed | 15 | 60% | €1,071 | €2,856 |
-| **Total** | 100 | - | **€4,560** | **€12,160** |
+| **Total** | 100 | - | **€5,202** | **€13,872** |
 
-**Lifetime Value Per Customer: €121.60** (vs €76 first purchase)
+**Lifetime Value Per Customer: €138.72** (vs €86.70 first purchase)
 
 **Implication:** Focus on retention and customer satisfaction to maximize repeat purchases.
 
@@ -359,13 +359,13 @@ Add customer testimonials near each plan:
 ## Part 7: Key Metrics to Monitor
 
 | Metric | Target | Frequency |
-|--------|--------|-----------|
+|--------|--------|-----------|  
 | Conversion Rate by Tier | Balanced: 50% | Weekly |
-| Average Revenue Per User | €76+ | Weekly |
+| Average Revenue Per User | €86.70+ | Weekly |
 | Upsell Rate | 20%+ | Monthly |
 | Customer Satisfaction | 4.5+/5 stars | Monthly |
 | Repeat Purchase Rate | 60%+ | Quarterly |
-| Lifetime Value | €120+ | Quarterly |
+| Lifetime Value | €138+ | Quarterly |
 
 ---
 
@@ -374,10 +374,12 @@ Add customer testimonials near each plan:
 The four-tier pricing model with psychological pricing principles is designed to maximize revenue while maintaining customer satisfaction. By leveraging the decoy effect, anchoring, and social proof, we encourage customers to select the Balanced plan (50% conversion) while capturing price-sensitive customers with Standard and Relaxed options.
 
 **Expected Outcomes:**
-- 30% revenue increase vs three-tier model
+- 8.9% revenue increase vs three-tier model
+- 14.1% revenue increase vs old pricing (€7,600 → €8,670)
 - 50% of customers on Balanced plan
 - 20%+ upsell rate to higher tiers
-- €121.60 lifetime value per customer
+- €138.72 lifetime value per customer
+- Maximum upgrade cost capped at €50 (Intensive → Relaxed)
 
 This strategy balances accessibility, profitability, and customer value, positioning Serbian AI Tutor for sustainable growth.
 

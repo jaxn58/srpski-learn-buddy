@@ -3,11 +3,12 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { getLoginUrl } from "@/const";
-import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap } from "lucide-react";
 import { Link } from "wouter";
 import { UNITS_DATA, TOTAL_VOCABULARY } from "@/data/unitsForLanding";
 import { useState } from "react";
@@ -387,6 +388,311 @@ export default function Home() {
                     Upgrade anytime, keep all your progress, and continue learning without interruption.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing FAQ Section */}
+          <div className="mt-16 max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <div className="inline-block p-3 bg-primary/10 rounded-full mb-4">
+                <HelpCircle className="h-8 w-8 text-primary" />
+              </div>
+              <h3 className="text-3xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h3>
+              <p className="text-lg text-gray-600">Everything you need to know about our flexible pricing and upgrade options</p>
+            </div>
+
+            <Accordion type="single" collapsible className="space-y-4">
+              {/* Q1: Can I upgrade? */}
+              <AccordionItem value="item-1" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Can I upgrade to a longer plan later?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700 space-y-3">
+                  <p>
+                    Yes! You can upgrade to a longer plan anytime. You'll only pay the difference between your current plan and the new one. 
+                    For example, if you purchased Intensive (€69) and want to upgrade to Balanced (€79), you only pay €10 extra. 
+                    Your progress is preserved, and the upgrade takes effect immediately.
+                  </p>
+                  <div className="bg-blue-50 p-4 rounded-lg mt-3">
+                    <p className="font-semibold text-gray-900 mb-2">Key Points:</p>
+                    <ul className="space-y-1 text-sm">
+                      <li>• Pay only the price difference</li>
+                      <li>• Maximum upgrade cost: €50 (Intensive → Relaxed)</li>
+                      <li>• Instant activation, no waiting</li>
+                      <li>• All progress and achievements preserved</li>
+                    </ul>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q2: Can I downgrade? */}
+              <AccordionItem value="item-2" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <RefreshCw className="h-5 w-5 text-primary" />
+                    Can I downgrade to a shorter plan?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700">
+                  <p>
+                    No, downgrades are not available. Once you purchase a plan, you have access for the full duration. 
+                    However, you can always learn at your own pace—there's no requirement to finish within the time frame. 
+                    If you complete the course early, you'll still have access until your plan expires, giving you time to review and practice.
+                  </p>
+                  <div className="bg-gray-50 p-4 rounded-lg mt-3">
+                    <p className="font-semibold text-gray-900 mb-2">Why no downgrades?</p>
+                    <ul className="space-y-1 text-sm">
+                      <li>• One-time payment model (not subscription)</li>
+                      <li>• Full course access from day one</li>
+                      <li>• Flexible learning pace within your timeframe</li>
+                    </ul>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q3: What if I don't finish in time? */}
+              <AccordionItem value="item-3" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-5 w-5 text-primary" />
+                    What happens if I don't finish in time?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700 space-y-3">
+                  <p>
+                    No problem! If you need more time, you can extend your access by upgrading to a longer plan. You'll only pay the difference. 
+                    For example, if you have 2 months left on your Balanced plan (€79) and want to extend to Standard (€95), you pay €16 for 3 additional months. 
+                    Alternatively, you can repurchase any plan at the standard price.
+                  </p>
+                  <div className="bg-green-50 p-4 rounded-lg mt-3">
+                    <p className="font-semibold text-gray-900 mb-2">Your options:</p>
+                    <ul className="space-y-1 text-sm">
+                      <li>• <strong>Upgrade:</strong> Pay only the difference for more time</li>
+                      <li>• <strong>Repurchase:</strong> Buy any plan again at full price</li>
+                      <li>• <strong>Pause & Resume:</strong> Your progress is saved permanently</li>
+                    </ul>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q4: Subscription or one-time? */}
+              <AccordionItem value="item-4" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                    Is this a subscription or one-time payment?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700">
+                  <p>
+                    It's a <strong>one-time payment</strong>. You pay once and get full access to all 27 units for your chosen duration (3, 6, 9, or 12 months). 
+                    There are no recurring charges, no hidden fees, and no automatic renewals. After your access period ends, you can choose to repurchase if you want to continue learning.
+                  </p>
+                  <div className="flex gap-4 mt-4">
+                    <div className="flex items-center gap-2 text-sm text-green-700">
+                      <Check className="h-4 w-4" /> No surprise charges
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-green-700">
+                      <Check className="h-4 w-4" /> Cancel-free
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-green-700">
+                      <Check className="h-4 w-4" /> Transparent pricing
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q5: Same content? */}
+              <AccordionItem value="item-5" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <BookOpen className="h-5 w-5 text-primary" />
+                    Do all plans include the same content?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700">
+                  <p className="mb-3">
+                    Yes! All four plans (Intensive, Balanced, Standard, Relaxed) include the exact same content:
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="flex items-start gap-2">
+                      <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                      <span>All 27 units with comprehensive lessons</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                      <span>737+ vocabulary words with flashcard trainer</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                      <span>Interactive exercises with instant feedback</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                      <span>AI Learn Buddy for questions and practice</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                      <span>Gamification: XP, badges, and streaks</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                      <span>Progress tracking and achievements</span>
+                    </div>
+                  </div>
+                  <p className="mt-4 font-semibold text-gray-900">
+                    The only difference is the duration (how long you have access). Choose based on how much time you have per week to study.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q6: Refund policy */}
+              <AccordionItem value="item-6" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <Shield className="h-5 w-5 text-primary" />
+                    Can I get a refund?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700">
+                  <p>
+                    We offer a <strong>14-day money-back guarantee</strong>. If you're not satisfied with the course within the first 14 days, 
+                    contact us for a full refund—no questions asked. After 14 days, refunds are not available, but you can upgrade to a longer plan anytime if you need more time.
+                  </p>
+                  <div className="bg-blue-50 p-4 rounded-lg mt-3">
+                    <p className="font-semibold text-gray-900 mb-2">Refund policy:</p>
+                    <ul className="space-y-1 text-sm">
+                      <li>• Full refund within 14 days of purchase</li>
+                      <li>• No refunds after 14 days</li>
+                      <li>• Upgrades available anytime (pay the difference)</li>
+                    </ul>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q7: After expiration */}
+              <AccordionItem value="item-7" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    What happens after my plan expires?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700">
+                  <p>
+                    After your plan expires, you'll lose access to the course content, but <strong>your progress is saved permanently</strong>. 
+                    If you repurchase any plan later, you'll pick up exactly where you left off—all completed units, XP, badges, and vocabulary progress will be restored.
+                  </p>
+                  <div className="bg-gray-50 p-4 rounded-lg mt-3">
+                    <p className="font-semibold text-gray-900 mb-2">After expiration:</p>
+                    <ul className="space-y-1 text-sm">
+                      <li>• Access to course content ends</li>
+                      <li>• Progress saved in your account</li>
+                      <li>• Repurchase anytime to continue</li>
+                      <li>• All achievements and XP preserved</li>
+                    </ul>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q8: Which plan? */}
+              <AccordionItem value="item-8" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <Target className="h-5 w-5 text-primary" />
+                    Which plan is right for me?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700">
+                  <p className="mb-4">Choose based on how much time you can dedicate per week:</p>
+                  <div className="space-y-3">
+                    <div className="bg-red-50 p-3 rounded-lg">
+                      <p className="font-semibold text-gray-900">Intensive (3 months, €69)</p>
+                      <p className="text-sm">12+ hours/week — Best for full-time learners or those with an upcoming trip</p>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded-lg border-2 border-primary">
+                      <p className="font-semibold text-gray-900">Balanced (6 months, €79) ⭐ Recommended</p>
+                      <p className="text-sm">6-8 hours/week — Perfect for working professionals</p>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <p className="font-semibold text-gray-900">Standard (9 months, €95)</p>
+                      <p className="text-sm">4-5 hours/week — Best value per month (€10.56/month)</p>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded-lg">
+                      <p className="font-semibold text-gray-900">Relaxed (12 months, €119)</p>
+                      <p className="text-sm">3-4 hours/week — Maximum flexibility, lowest monthly cost (€9.92/month)</p>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm italic">Not sure? Start with <strong>Balanced</strong>—it's our most popular plan and offers the best balance of time and value.</p>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q9: Beta discount */}
+              <AccordionItem value="item-9" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    Do beta testers get a discount?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700">
+                  <p>
+                    Yes! Beta testers who register during the testing phase get <strong>50% OFF</strong> when the full course launches. 
+                    During beta, you have free access to Units 1-5. When we launch, you can purchase any plan at half price. 
+                    This is our way of saying thank you for helping us improve the course!
+                  </p>
+                  <div className="bg-yellow-50 p-4 rounded-lg mt-3 border-2 border-yellow-200">
+                    <p className="font-semibold text-gray-900 mb-2">🎁 Beta benefits:</p>
+                    <ul className="space-y-1 text-sm">
+                      <li>• Free access to Units 1-5 during beta</li>
+                      <li>• 50% OFF any plan at launch</li>
+                      <li>• Early access to new features</li>
+                      <li>• Direct input on course development</li>
+                    </ul>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Q10: How to upgrade */}
+              <AccordionItem value="item-10" className="bg-white rounded-xl shadow-md border-2 border-gray-100 px-6">
+                <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
+                  <div className="flex items-center gap-3">
+                    <Zap className="h-5 w-5 text-primary" />
+                    How do I upgrade my plan?
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-700">
+                  <p className="mb-3">Upgrading is simple:</p>
+                  <ol className="space-y-2 ml-4">
+                    <li>1. Go to your Dashboard</li>
+                    <li>2. Click "My Subscription" or "Upgrade Plan"</li>
+                    <li>3. Select your new plan</li>
+                    <li>4. Pay only the difference (e.g., €10 to go from Intensive to Balanced)</li>
+                    <li>5. Your access is extended immediately</li>
+                  </ol>
+                  <p className="mt-4">
+                    Your progress, XP, badges, and completed units are automatically preserved. You can upgrade as many times as you want—the maximum you'll ever pay is €50 (from Intensive to Relaxed).
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            {/* CTA after FAQ */}
+            <div className="mt-12 text-center p-8 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-2xl">
+              <p className="text-lg text-gray-900 mb-4">
+                <strong>Still have questions?</strong>
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button variant="outline" asChild>
+                  <a href="mailto:support@jacksenn.me">Contact Us</a>
+                </Button>
+                <Button asChild>
+                  <a href="#beta-register">Register for Beta - Try Units 1-5 Free</a>
+                </Button>
               </div>
             </div>
           </div>

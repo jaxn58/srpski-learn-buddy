@@ -801,3 +801,11 @@
 - [x] Add "Pay Only the Difference" upgrade policy section
 - [x] Test pricing page and verify all changes
 
+
+
+
+## Pricing Strategy Documentation & Features
+- [x] Update PRICING_STRATEGY.md to reflect the implemented Option B pricing (currently documents the old 4-tier structure)
+- [ ] Implement subscription management - Add a "My Subscription" page where users can view their plan and upgrade with one click
+- [x] Add pricing FAQ section on landing page addressing common questions like "Can I downgrade?" or "What happens if I don't finish in time?"
+
