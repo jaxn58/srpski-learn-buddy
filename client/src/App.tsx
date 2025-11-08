@@ -17,6 +17,7 @@ import VocabularyList from "./pages/VocabularyList";
 import Progress from "./pages/Progress";
 import Feedback from "./pages/Feedback";
 import MySubscription from "./pages/MySubscription";
+import SubscriptionAnalytics from "./pages/SubscriptionAnalytics";
 
 function Router() {
   return (
@@ -34,6 +35,7 @@ function Router() {
       <Route path={"/admin"} component={Admin} />
       <Route path={"/admin/feedback"} component={FeedbackManagement} />
       <Route path={"/admin/beta-registrations"} component={BetaRegistrations} />
+      <Route path={"/admin/subscription-analytics"} component={SubscriptionAnalytics} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -74,6 +74,7 @@ export function Sidebar() {
     { label: "User Management", path: "/admin", icon: <Users className="h-4 w-4" /> },
     { label: "Feedback", path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
     { label: "Beta Registrations", path: "/admin/beta-registrations", icon: <UserPlus className="h-4 w-4" /> },
+    { label: "Subscription Analytics", path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
   ];
 
   const isActive = (path: string) => location === path;

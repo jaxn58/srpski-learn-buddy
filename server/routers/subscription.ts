@@ -12,6 +12,7 @@ import {
   PLAN_PRICING,
   PlanType,
   getSubscriptionStats,
+  getSubscriptionAnalytics,
 } from "../subscription";
 
 export const subscriptionRouter = router({
@@ -200,5 +201,17 @@ export const subscriptionRouter = router({
 
       return await getUserSubscription(input.userId);
     }),
+
+  /**
+   * Admin: Get subscription analytics
+   */
+  getAnalytics: protectedProcedure.query(async ({ ctx }) => {
+    // Check if user is admin
+    if (ctx.user.role !== "admin" && ctx.user.role !== "superadmin") {
+      throw new Error("FORBIDDEN");
+    }
+
+    return await getSubscriptionAnalytics();
+  }),
 });
 

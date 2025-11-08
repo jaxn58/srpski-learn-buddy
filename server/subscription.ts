@@ -366,3 +366,98 @@ export async function getSubscriptionStats() {
   }
 }
 
+
+
+
+/**
+ * Get subscription analytics for admin dashboard
+ */
+export async function getSubscriptionAnalytics() {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Get all active subscriptions
+  const activeSubscriptions = await db
+    .select()
+    .from(userSubscriptions)
+    .where(eq(userSubscriptions.status, "active"));
+
+  // Count by plan
+  const usersByPlan = {
+    intensive: 0,
+    balanced: 0,
+    standard: 0,
+    relaxed: 0,
+  };
+
+  activeSubscriptions.forEach((sub) => {
+    if (sub.plan in usersByPlan) {
+      usersByPlan[sub.plan as PlanType]++;
+    }
+  });
+
+  // Calculate MRR (Monthly Recurring Revenue)
+  let mrr = 0;
+  activeSubscriptions.forEach((sub) => {
+    const planPricing = PLAN_PRICING[sub.plan as PlanType];
+    if (planPricing) {
+      // Convert one-time payment to monthly equivalent
+      mrr += planPricing.price / planPricing.months;
+    }
+  });
+
+  // Get all subscriptions (including cancelled)
+  const allSubscriptions = await db.select().from(userSubscriptions);
+
+  // Calculate churn rate (cancelled / total)
+  const cancelledCount = allSubscriptions.filter((sub) => sub.status === "cancelled").length;
+  const churnRate = allSubscriptions.length > 0 ? (cancelledCount / allSubscriptions.length) * 100 : 0;
+
+  // Get upgrade history
+  const upgradeHistory = await db
+    .select()
+    .from(subscriptionHistory)
+    .where(eq(subscriptionHistory.action, "upgrade"));
+
+  // Calculate conversion rate (upgrades / active subscriptions)
+  const conversionRate = activeSubscriptions.length > 0 
+    ? (upgradeHistory.length / activeSubscriptions.length) * 100 
+    : 0;
+
+  // Calculate total revenue
+  let totalRevenue = 0;
+  allSubscriptions.forEach((sub) => {
+    const planPricing = PLAN_PRICING[sub.plan as PlanType];
+    if (planPricing) {
+      totalRevenue += planPricing.price;
+    }
+  });
+
+  // Revenue by plan
+  const revenueByPlan = {
+    intensive: 0,
+    balanced: 0,
+    standard: 0,
+    relaxed: 0,
+  };
+
+  allSubscriptions.forEach((sub) => {
+    const planPricing = PLAN_PRICING[sub.plan as PlanType];
+    if (planPricing && sub.plan in revenueByPlan) {
+      revenueByPlan[sub.plan as PlanType] += planPricing.price;
+    }
+  });
+
+  return {
+    activeUsers: activeSubscriptions.length,
+    totalUsers: allSubscriptions.length,
+    usersByPlan,
+    mrr: Math.round(mrr), // in cents
+    churnRate: Math.round(churnRate * 100) / 100, // percentage
+    conversionRate: Math.round(conversionRate * 100) / 100, // percentage
+    totalRevenue, // in cents
+    revenueByPlan, // in cents
+    upgradeCount: upgradeHistory.length,
+  };
+}
+
