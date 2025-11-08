@@ -101,8 +101,14 @@ export default function Home() {
             A structured course with <strong>27 units</strong> and <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong> – featuring interactive exercises, vocabulary training, and AI-powered learning support.
           </p>
           <div className="flex gap-4 justify-center pt-4">
-            <Button size="lg" asChild className="bg-primary hover:bg-primary/90 text-lg px-8">
-              <a href="#beta-register">Register for Beta – Gratis*</a>
+            <Button 
+              size="lg" 
+              className="bg-primary hover:bg-primary/90 text-lg px-8"
+              onClick={() => {
+                document.getElementById('beta-registration')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              Register for Beta – Gratis*
             </Button>
             <Button size="lg" variant="outline" asChild className="text-lg px-8">
               <a href="#units">Explore Units</a>
