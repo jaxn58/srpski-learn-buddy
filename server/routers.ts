@@ -391,13 +391,15 @@ Formatting rules:
         systemPrompt += taskDescriptions.en;
 
         // Prepare messages for LLM
+        // History is already in correct order (oldest first), just take last 8 messages
+        const recentHistory = history.slice(-8);
+        
         const messages: any[] = [
           { role: "system", content: systemPrompt },
-          ...history.reverse().slice(-8).map(msg => ({
+          ...recentHistory.map(msg => ({
             role: msg.role === "user" ? "user" : "assistant",
             content: msg.content,
           })),
-          { role: "user", content: input.message },
         ];
 
         // Call LLM

@@ -874,3 +874,12 @@
 - [x] Auto-generate chat titles from first message
 - [x] Test multi-chat system
 
+
+
+
+## Chat History Context Bug
+- [x] Debug why LLM doesn't use previous messages in conversation
+- [x] Fix history loading in sendMessage endpoint
+- [x] Verify history is passed to LLM in correct order
+- [x] Test chat context with follow-up questions
+
