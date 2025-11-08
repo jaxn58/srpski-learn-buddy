@@ -16,6 +16,7 @@ import Vocabulary from "./pages/Vocabulary";
 import VocabularyList from "./pages/VocabularyList";
 import Progress from "./pages/Progress";
 import Feedback from "./pages/Feedback";
+import MySubscription from "./pages/MySubscription";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/vocabulary" component={Vocabulary} />
       <Route path="/vocabulary-list" component={VocabularyList} />
       <Route path={"/progress"} component={Progress} />
+      <Route path={"/subscription"} component={MySubscription} />
       <Route path={"/feedback"} component={Feedback} />
       <Route path={"/admin"} component={Admin} />
       <Route path={"/admin/feedback"} component={FeedbackManagement} />

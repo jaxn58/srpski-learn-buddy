@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus, Trophy, Star, Flame, Award } from "lucide-react";
+import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus, Trophy, Star, Flame, Award, CreditCard } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
@@ -66,6 +66,7 @@ export function Sidebar() {
     { label: "Practice Vocabulary", path: "/vocabulary", icon: <Brain className="h-5 w-5" /> },
     { label: "View All Words", path: "/vocabulary-list", icon: <FileText className="h-5 w-5" /> },
     { label: "View Progress", path: "/progress", icon: <TrendingUp className="h-5 w-5" /> },
+    { label: "My Subscription", path: "/subscription", icon: <CreditCard className="h-5 w-5" /> },
     { label: "Send Feedback", path: "/feedback", icon: <MessageSquare className="h-5 w-5" /> },
   ];
 
@@ -311,4 +312,8 @@ export function Sidebar() {
     </>
   );
 }
+
+
+
+export default Sidebar;
 
