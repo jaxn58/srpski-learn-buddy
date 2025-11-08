@@ -183,7 +183,7 @@ export default function Home() {
                 <Sparkles className="h-12 w-12 text-primary mb-3 mx-auto" />
                 <CardTitle className="text-2xl mb-2">Intensive</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">3 Months</CardDescription>
-                <p className="text-xs text-muted-foreground italic">Vollzeit-Lerner mit 12+ Stunden/Woche</p>
+                <p className="text-xs text-muted-foreground italic">Full-time learners with 12+ hours/week</p>
                 <div className="mt-4">
                   <div className="text-3xl font-bold text-primary">€39</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
@@ -225,7 +225,7 @@ export default function Home() {
                 <Target className="h-12 w-12 text-primary mb-3 mx-auto" />
                 <CardTitle className="text-2xl mb-2">Balanced</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">6 Months</CardDescription>
-                <p className="text-xs text-muted-foreground italic">Berufstätige mit 6-8 Stunden/Woche</p>
+                <p className="text-xs text-muted-foreground italic">Working professionals with 6-8 hours/week</p>
                 <div className="mt-4">
                   <div className="text-3xl font-bold text-primary">€69</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
@@ -270,7 +270,7 @@ export default function Home() {
                 <BookOpen className="h-12 w-12 text-primary mb-3 mx-auto" />
                 <CardTitle className="text-2xl mb-2">Standard</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">9 Months</CardDescription>
-                <p className="text-xs text-muted-foreground italic">Entspannt lernen mit 4-5 Stunden/Woche</p>
+                <p className="text-xs text-muted-foreground italic">Relaxed learning with 4-5 hours/week</p>
                 <div className="mt-4">
                   <div className="text-3xl font-bold text-primary">€89</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>
@@ -312,7 +312,7 @@ export default function Home() {
                 <Clock className="h-12 w-12 text-primary mb-3 mx-auto" />
                 <CardTitle className="text-2xl mb-2">Relaxed</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">12 Months</CardDescription>
-                <p className="text-xs text-muted-foreground italic">Nebenbei lernen mit 3-4 Stunden/Woche</p>
+                <p className="text-xs text-muted-foreground italic">Learn on the side with 3-4 hours/week</p>
                 <div className="mt-4">
                   <div className="text-3xl font-bold text-primary">€119</div>
                   <div className="text-xs text-muted-foreground">one-time payment</div>

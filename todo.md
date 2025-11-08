@@ -754,3 +754,11 @@
 - [x] Update card subtitles with lifestyle-focused messaging
 - [x] Test pricing page layout and verify changes
 
+
+
+
+## Pricing Cards Language Fix
+- [x] Translate German time descriptions to English (Vollzeit-Lerner → Full-time learners, etc.)
+- [x] Fix text alignment issue in Standard plan bullet points
+- [x] Verify all pricing cards use consistent English
+
