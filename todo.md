@@ -957,3 +957,12 @@
 - [x] Show confirmation dialog before deletion
 - [x] Test bulk delete functionality
 
+
+
+
+## Quiz Progress Persistence Bug
+- [ ] Fix quiz progress not saving when user answers questions
+- [ ] Ensure saveQuizAnswer mutation is actually called after each answer
+- [ ] Fix quiz not continuing from last position when user returns
+- [ ] Test quiz progress persistence across page reloads
+

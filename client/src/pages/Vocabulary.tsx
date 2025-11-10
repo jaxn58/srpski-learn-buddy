@@ -30,9 +30,10 @@ export default function Vocabulary() {
   const utils = trpc.useUtils();
 
   // Fetch quiz progress when unit is selected in quiz mode
+  // Use unitNumber 0 for "All Units" to track global progress
   const { data: quizProgress } = trpc.vocabulary.getQuizProgress.useQuery(
-    { unitNumber: selectedUnit === 'all' ? 1 : (selectedUnit as number) },
-    { enabled: mode === 'quiz' && selectedUnit !== 'all' }
+    { unitNumber: selectedUnit === 'all' ? 0 : (selectedUnit as number) },
+    { enabled: mode === 'quiz' }
   );
 
   // Mutations for quiz progress
@@ -74,7 +75,8 @@ export default function Vocabulary() {
       const unitNum = parseInt(unitParam);
       if (!isNaN(unitNum) && unitNum >= 1 && unitNum <= 27) {
         setSelectedUnit(unitNum);
-        setCurrentIndex(0);
+        // Don't reset currentIndex here - let quiz progress load first
+        // setCurrentIndex(0);
       }
     }
   }, [location]);
@@ -123,9 +125,11 @@ export default function Vocabulary() {
     setShowAnswer(true);
 
     // Save answer to database in quiz mode
-    if (mode === 'quiz' && selectedUnit !== 'all') {
+    if (mode === 'quiz') {
+      // Use unitNumber 0 for "All Units" to track global progress
+      const unitToSave = selectedUnit === 'all' ? 0 : (selectedUnit as number);
       await saveAnswerMutation.mutateAsync({
-        unitNumber: selectedUnit as number,
+        unitNumber: unitToSave,
         currentIndex,
         isCorrect: correct,
         wordId: currentWord.serbian,
