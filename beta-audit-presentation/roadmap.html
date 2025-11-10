@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Short-term Roadmap</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #FFFFFF;
+        }
+        
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background: #FFFFFF;
+            display: flex;
+            flex-direction: column;
+            padding: 60px 60px;
+            gap: 32px;
+        }
+        
+        .header {
+            text-align: center;
+        }
+        
+        .title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            font-size: 14px;
+            color: #4a4a4a;
+            margin-bottom: 8px;
+        }
+        
+        .timeline-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .week-box {
+            border: 2px solid #e0e0e0;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .week-box.week-1 {
+            border-top: 4px solid #FF3366;
+        }
+        
+        .week-box.week-2 {
+            border-top: 4px solid #0066FF;
+        }
+        
+        .week-box.week-3 {
+            border-top: 4px solid #4a4a4a;
+        }
+        
+        .week-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .week-number {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+        
+        .week-box.week-1 .week-number {
+            color: #FF3366;
+        }
+        
+        .week-box.week-2 .week-number {
+            color: #0066FF;
+        }
+        
+        .week-box.week-3 .week-number {
+            color: #4a4a4a;
+        }
+        
+        .week-status {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #4a4a4a;
+        }
+        
+        .tasks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px;
+            background: #f5f5f5;
+            font-size: 13px;
+            color: #4a4a4a;
+            line-height: 1.4;
+        }
+        
+        .task-icon {
+            font-size: 14px;
+            min-width: 16px;
+            margin-top: 2px;
+        }
+        
+        .week-box.week-1 .task-icon {
+            color: #FF3366;
+        }
+        
+        .week-box.week-2 .task-icon {
+            color: #0066FF;
+        }
+        
+        .week-box.week-3 .task-icon {
+            color: #4a4a4a;
+        }
+        
+        .effort-section {
+            border-top: 1px solid #e0e0e0;
+            padding-top: 12px;
+        }
+        
+        .effort-label {
+            font-size: 11px;
+            color: #4a4a4a;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .effort-value {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        
+        .progress-bar {
+            background: #e0e0e0;
+            height: 8px;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            background: #0066FF;
+            height: 100%;
+        }
+        
+        .week-box.week-1 .progress-fill {
+            background: #FF3366;
+            width: 35%;
+        }
+        
+        .week-box.week-2 .progress-fill {
+            background: #0066FF;
+            width: 30%;
+        }
+        
+        .week-box.week-3 .progress-fill {
+            background: #4a4a4a;
+            width: 20%;
+        }
+        
+        .summary-section {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            padding-top: 24px;
+            border-top: 2px solid #e0e0e0;
+        }
+        
+        .summary-item {
+            text-align: center;
+            padding: 16px;
+            background: #f5f5f5;
+        }
+        
+        .summary-label {
+            font-size: 11px;
+            color: #4a4a4a;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .summary-value {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">Short-term Roadmap</h1>
+            <p class="subtitle">3-week implementation plan to complete all critical components before Beta launch</p>
+        </div>
+        
+        <div class="timeline-grid">
+            <!-- Week 1 -->
+            <div class="week-box week-1">
+                <div class="week-header">
+                    <div class="week-number">Week 1</div>
+                    <div class="week-status">Foundation</div>
+                </div>
+                
+                <div class="tasks-list">
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Subscription Management</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Payment Processing</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>User Plan Limits</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Database Migrations</span>
+                    </div>
+                </div>
+                
+                <div class="effort-section">
+                    <div class="effort-label">Effort</div>
+                    <div class="effort-value">100-130 hrs</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Week 2 -->
+            <div class="week-box week-2">
+                <div class="week-header">
+                    <div class="week-number">Week 2</div>
+                    <div class="week-status">Enhancement</div>
+                </div>
+                
+                <div class="tasks-list">
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Email Automation</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Admin Dashboard</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Security & Compliance</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Legal Documents</span>
+                    </div>
+                </div>
+                
+                <div class="effort-section">
+                    <div class="effort-label">Effort</div>
+                    <div class="effort-value">80-110 hrs</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Week 3 -->
+            <div class="week-box week-3">
+                <div class="week-header">
+                    <div class="week-number">Week 3</div>
+                    <div class="week-status">Polish & Test</div>
+                </div>
+                
+                <div class="tasks-list">
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>End-to-End Testing</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Performance Optimization</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Documentation</span>
+                    </div>
+                    <div class="task-item">
+                        <span class="task-icon">□</span>
+                        <span>Final QA & Launch Prep</span>
+                    </div>
+                </div>
+                
+                <div class="effort-section">
+                    <div class="effort-label">Effort</div>
+                    <div class="effort-value">40-60 hrs</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="summary-section">
+            <div class="summary-item">
+                <div class="summary-label">Total Duration</div>
+                <div class="summary-value">3 Weeks</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Total Effort</div>
+                <div class="summary-value">220-300 hrs</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Team Size</div>
+                <div class="summary-value">2 Dev</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Launch Ready</div>
+                <div class="summary-value">Week 3</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

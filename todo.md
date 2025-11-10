@@ -384,19 +384,21 @@
 
 
 
-## Payment Integration - Paddle
-- [ ] Gather pricing requirements (subscription model, prices, currencies)
-- [ ] Create Paddle account and get API credentials
-- [ ] Implement Paddle SDK integration
-- [ ] Create subscription products in Paddle dashboard
-- [ ] Implement checkout flow for Units 6-27 access
-- [ ] Add paywall component for locked units
-- [ ] Implement 50% beta tester discount code
-- [ ] Add subscription status to user database
-- [ ] Create subscription management page in dashboard
+## Payment Integration - Paddle ✅ SELECTED
+- [ ] Set up Paddle account and get API credentials
+- [ ] Configure subscription plans (Free, Basic, Premium) in Paddle dashboard
+- [ ] Integrate Paddle SDK into frontend
+- [ ] Create subscription checkout component
 - [ ] Implement webhook handlers for subscription events (created, updated, cancelled)
-- [ ] Test complete payment flow end-to-end
+- [ ] Add subscription status tracking to user model (paddleCustomerId, paddleSubscriptionId)
+- [ ] Create subscription management page (pause, resume, cancel)
+- [ ] Implement feature limits based on subscription tier (Units 1-5 free, 6-27 paid)
+- [ ] Set up tax compliance for target regions
+- [ ] Implement 50% beta tester discount code
+- [ ] Add paywall component for locked units (Units 6-27)
+- [ ] Test subscription workflows (create, pause, cancel, upgrade)
 - [ ] Add subscription status display in admin panel
+- [ ] Deploy Paddle integration to production
 
 
 

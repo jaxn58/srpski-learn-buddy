@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline & Resource Estimates</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #FFFFFF;
+        }
+        
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background: #FFFFFF;
+            display: flex;
+            flex-direction: column;
+            padding: 60px 60px;
+            gap: 40px;
+        }
+        
+        .header {
+            text-align: center;
+        }
+        
+        .title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 12px;
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            color: #4a4a4a;
+            line-height: 1.6;
+        }
+        
+        .scenarios-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            flex: 1;
+        }
+        
+        .scenario-box {
+            border: 2px solid #0066FF;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+        }
+        
+        .scenario-box.recommended {
+            border-color: #FF3366;
+            background: #fff5f7;
+        }
+        
+        .recommended-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #FF3366;
+            color: #FFFFFF;
+            padding: 6px 16px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .scenario-title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+        }
+        
+        .metric-row {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .metric-label {
+            font-size: 12px;
+            color: #4a4a4a;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .metric-value {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: #0066FF;
+        }
+        
+        .scenario-box.recommended .metric-value {
+            color: #FF3366;
+        }
+        
+        .metric-detail {
+            font-size: 13px;
+            color: #4a4a4a;
+            line-height: 1.5;
+        }
+        
+        .divider {
+            height: 1px;
+            background: #e0e0e0;
+        }
+        
+        .tradeoffs-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .tradeoffs-title {
+            font-size: 12px;
+            color: #1a1a1a;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .tradeoff-item {
+            font-size: 12px;
+            color: #4a4a4a;
+            line-height: 1.5;
+            padding-left: 16px;
+            position: relative;
+        }
+        
+        .tradeoff-item:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #0066FF;
+            font-weight: 700;
+        }
+        
+        .scenario-box.recommended .tradeoff-item:before {
+            color: #FF3366;
+        }
+        
+        .footer-note {
+            text-align: center;
+            font-size: 13px;
+            color: #4a4a4a;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .footer-highlight {
+            font-weight: 700;
+            color: #0066FF;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h1 class="title">Timeline & Resource Estimates</h1>
+            <p class="subtitle">Choose the scenario that best fits your project needs and budget constraints</p>
+        </div>
+        
+        <div class="scenarios-grid">
+            <!-- Scenario 1: Single Developer -->
+            <div class="scenario-box">
+                <div class="scenario-title">Scenario 1</div>
+                <div class="scenario-title" style="font-size: 18px; margin-top: -16px;">Single Developer</div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Timeline</div>
+                    <div class="metric-value">5-7 weeks</div>
+                    <div class="metric-detail">Full-time development</div>
+                </div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Total Effort</div>
+                    <div class="metric-value">220-280 hrs</div>
+                </div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Budget</div>
+                    <div class="metric-value" style="font-size: 20px;">€11-21K</div>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="tradeoffs-section">
+                    <div class="tradeoffs-title">Considerations</div>
+                    <div class="tradeoff-item">Longest timeline</div>
+                    <div class="tradeoff-item">Single point of failure</div>
+                    <div class="tradeoff-item">Lower cost option</div>
+                </div>
+            </div>
+            
+            <!-- Scenario 2: Two Developers (RECOMMENDED) -->
+            <div class="scenario-box recommended">
+                <div class="recommended-badge">★ RECOMMENDED</div>
+                <div class="scenario-title">Scenario 2</div>
+                <div class="scenario-title" style="font-size: 18px; margin-top: -16px;">Two Developers</div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Timeline</div>
+                    <div class="metric-value">2.5-3.5 weeks</div>
+                    <div class="metric-detail">Full-time development</div>
+                </div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Total Effort</div>
+                    <div class="metric-value">110-140 hrs each</div>
+                </div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Budget</div>
+                    <div class="metric-value" style="font-size: 20px;">€11-21K</div>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="tradeoffs-section">
+                    <div class="tradeoffs-title">Benefits</div>
+                    <div class="tradeoff-item">Fastest timeline</div>
+                    <div class="tradeoff-item">Parallel work possible</div>
+                    <div class="tradeoff-item">Risk mitigation</div>
+                </div>
+            </div>
+            
+            <!-- Scenario 3: MVP Option -->
+            <div class="scenario-box">
+                <div class="scenario-title">Scenario 3</div>
+                <div class="scenario-title" style="font-size: 18px; margin-top: -16px;">MVP Option</div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Timeline</div>
+                    <div class="metric-value">2-3 weeks</div>
+                    <div class="metric-detail">Single developer</div>
+                </div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Total Effort</div>
+                    <div class="metric-value">90-130 hrs</div>
+                </div>
+                
+                <div class="metric-row">
+                    <div class="metric-label">Budget</div>
+                    <div class="metric-value" style="font-size: 20px;">€4.5-9.75K</div>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="tradeoffs-section">
+                    <div class="tradeoffs-title">Trade-offs</div>
+                    <div class="tradeoff-item">Subscription + Payment + Plan Limits only</div>
+                    <div class="tradeoff-item">No email automation</div>
+                    <div class="tradeoff-item">Basic admin features</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer-note">
+            <span class="footer-highlight">Recommendation:</span> Scenario 2 (Two Developers) provides the best balance of speed, risk mitigation, and cost efficiency for Beta launch.
+        </div>
+    </div>
+</body>
+</html>
