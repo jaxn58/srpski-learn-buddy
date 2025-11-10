@@ -352,13 +352,25 @@ export async function getUserBadges(userId: string) {
 
 export async function getQuizProgress(userId: string, unitNumber: number) {
   const db = await getDb();
-  if (!db) return undefined;
+  
+  const defaultProgress = {
+    userId,
+    unitNumber,
+    currentIndex: 0,
+    score: { correct: 0, total: 0 },
+    attempts: 0,
+    lastScore: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  
+  if (!db) return defaultProgress;
 
   const result = await db.select().from(quizProgress)
     .where(and(eq(quizProgress.userId, userId), eq(quizProgress.unitNumber, unitNumber)))
     .limit(1);
   
-  return result.length > 0 ? result[0] : undefined;
+  return result.length > 0 ? result[0] : defaultProgress;
 }
 
 export async function upsertQuizProgress(data: InsertQuizProgress) {

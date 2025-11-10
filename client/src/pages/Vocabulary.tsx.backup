@@ -27,11 +27,7 @@ export default function Vocabulary() {
   const [xpEarned, setXpEarned] = useState(0);
   const [quizStarted, setQuizStarted] = useState(false);
   const [lastQuizProgress, setLastQuizProgress] = useState<any>(null);
-  const [isLoadingProgress, setIsLoadingProgress] = useState(true);
   const utils = trpc.useUtils();
-
-  // localStorage key for quiz progress
-  const getStorageKey = () => `quiz_progress_${selectedUnit === 'all' ? 0 : selectedUnit}_${user?.id || 'guest'}`;
 
   // Fetch quiz progress when unit is selected in quiz mode
   // Use unitNumber 0 for "All Units" to track global progress
@@ -59,42 +55,17 @@ export default function Vocabulary() {
     }
   };
 
-  // Load quiz progress from localStorage FIRST (immediate), then sync with database
+  // Load quiz progress when mode changes to quiz
   useEffect(() => {
-    if (mode === 'quiz' && user) {
-      setIsLoadingProgress(true);
-      
-      // 1. Load from localStorage immediately
-      const storageKey = getStorageKey();
-      const savedProgress = localStorage.getItem(storageKey);
-      
-      if (savedProgress) {
-        try {
-          const progress = JSON.parse(savedProgress);
-          setCurrentIndex(progress.currentIndex || 0);
-          setScore(progress.score || { correct: 0, total: 0 });
-          setLastQuizProgress(progress);
-        } catch (e) {
-          console.error('Failed to parse quiz progress from localStorage', e);
-        }
-      }
-      
-      // 2. Sync with database in background
-      if (quizProgress && quizProgress.currentIndex > 0) {
-        setLastQuizProgress(quizProgress);
-        // Only update if database has newer progress
-        const savedIndex = savedProgress ? JSON.parse(savedProgress).currentIndex : 0;
-        if (quizProgress.currentIndex > savedIndex) {
-          setCurrentIndex(quizProgress.currentIndex);
-        }
-      }
-      
+    if (mode === 'quiz' && quizProgress && !quizStarted) {
+      setLastQuizProgress(quizProgress);
       setQuizStarted(true);
-      setIsLoadingProgress(false);
-    } else {
-      setIsLoadingProgress(false);
+      // Start from last position if available
+      if (quizProgress.currentIndex > 0) {
+        setCurrentIndex(quizProgress.currentIndex);
+      }
     }
-  }, [mode, selectedUnit, user, quizProgress]);
+  }, [quizProgress, mode, quizStarted]);
 
   // Read unit parameter from URL and set it
   useEffect(() => {
@@ -153,35 +124,16 @@ export default function Vocabulary() {
     setScore({ correct: score.correct + (correct ? 1 : 0), total: score.total + 1 });
     setShowAnswer(true);
 
-    // Save answer to BOTH localStorage and database in quiz mode
+    // Save answer to database in quiz mode
     if (mode === 'quiz') {
-      const newIndex = currentIndex + 1;
-      const newScore = { correct: score.correct + (correct ? 1 : 0), total: score.total + 1 };
-      
-      // 1. Save to localStorage immediately (fast, reliable)
-      const storageKey = getStorageKey();
-      const progressData = {
-        currentIndex: newIndex,
-        score: newScore,
-        lastScore: Math.round((newScore.correct / newScore.total) * 100),
-        totalAttempts: (lastQuizProgress?.totalAttempts || 0) + 1,
-        updatedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(storageKey, JSON.stringify(progressData));
-      
-      // 2. Save to database in background (persistent across devices)
+      // Use unitNumber 0 for "All Units" to track global progress
       const unitToSave = selectedUnit === 'all' ? 0 : (selectedUnit as number);
-      try {
-        await saveAnswerMutation.mutateAsync({
-          unitNumber: unitToSave,
-          currentIndex: newIndex,
-          isCorrect: correct,
-          wordId: currentWord.serbian,
-        });
-      } catch (e) {
-        console.error('Failed to save quiz progress to database', e);
-        // localStorage still has the progress, so user won't lose data
-      }
+      await saveAnswerMutation.mutateAsync({
+        unitNumber: unitToSave,
+        currentIndex,
+        isCorrect: correct,
+        wordId: currentWord.serbian,
+      });
     }
     
     setTimeout(() => {
@@ -197,10 +149,6 @@ export default function Vocabulary() {
     setIsCorrect(null);
     setXpEarned(0);
     setQuizStarted(false);
-    
-    // Clear localStorage
-    const storageKey = getStorageKey();
-    localStorage.removeItem(storageKey);
   };
 
   const handleResetQuizProgress = async () => {
