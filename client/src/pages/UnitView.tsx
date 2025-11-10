@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, CheckCircle2, MessageSquare, Lightbulb, Lock } from "lucide-react";
+import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { InteractiveMarkdownContent } from "@/components/InteractiveMarkdownContent";
@@ -343,7 +343,7 @@ export default function UnitView() {
                 </Link>
                 <Link href="/chat">
                   <Button variant="outline" className="w-full justify-start" size="lg">
-                    <MessageSquare className="mr-2 h-5 w-5" />
+                    <Brain className="mr-2 h-5 w-5" />
                     Ask AI Learn Buddy
                   </Button>
                 </Link>

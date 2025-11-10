@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, BookOpen, Trophy, MessageSquare, X } from "lucide-react";
+import { Info, BookOpen, Trophy, Brain, X } from "lucide-react";
 
 interface WelcomeOnboardingProps {
   userName: string;
@@ -149,7 +149,7 @@ export function WelcomeOnboarding({ userName, onClose }: WelcomeOnboardingProps)
           {step === 4 && (
             <div className="space-y-4">
               <Alert>
-                <MessageSquare className="h-4 w-4" />
+                <Brain className="h-4 w-4" />
                 <AlertTitle>AI Learn Buddy - Your AI Tutor</AlertTitle>
                 <AlertDescription>
                   Get instant help with grammar questions, vocabulary, and practice conversations.

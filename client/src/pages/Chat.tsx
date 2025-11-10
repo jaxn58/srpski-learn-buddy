@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { trpc } from "@/lib/trpc";
-import { Send, User, Sparkles } from "lucide-react";
+import { Send, User, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -153,8 +153,8 @@ export default function Chat() {
               <Button variant="ghost" size="sm">← Back</Button>
             </Link>
             <div className="flex items-center gap-3 flex-1">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-white" />
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center">
+                <Brain className="h-5 w-5 text-white" />
               </div>
               <div>
                 <h1 className="text-lg font-bold">AI Learn Buddy</h1>
@@ -174,8 +174,8 @@ export default function Chat() {
           >
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
-                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                  <Sparkles className="h-10 w-10 text-white" />
+                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center">
+                  <Brain className="h-10 w-10 text-white" />
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold mb-2">Start Learning Serbian!</h2>

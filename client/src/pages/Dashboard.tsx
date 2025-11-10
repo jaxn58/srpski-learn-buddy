@@ -248,7 +248,7 @@ export default function Dashboard() {
 
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <MessageSquare className="h-10 w-10 text-primary mb-2" />
+              <Brain className="h-10 w-10 text-primary mb-2" />
               <CardTitle>{t('dashboard.chatWithProfessor')}</CardTitle>
               <CardDescription>
                 {t('dashboard.chatDesc')}
