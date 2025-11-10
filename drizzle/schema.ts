@@ -248,3 +248,22 @@ export const subscriptionHistory = mysqlTable("subscriptionHistory", {
 export type SubscriptionHistory = typeof subscriptionHistory.$inferSelect;
 export type InsertSubscriptionHistory = typeof subscriptionHistory.$inferInsert;
 
+
+
+// Quiz Progress - Track quiz state and incorrect answers for adaptive learning
+export const quizProgress = mysqlTable("quizProgress", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("userId", { length: 64 }).notNull(),
+  unitNumber: int("unitNumber").notNull(),
+  currentIndex: int("currentIndex").default(0).notNull(), // Current position in quiz
+  totalAttempts: int("totalAttempts").default(0).notNull(), // How many times user took this quiz
+  lastScore: int("lastScore").default(0).notNull(), // Percentage from last attempt
+  incorrectWordIds: text("incorrectWordIds"), // JSON array of word IDs answered incorrectly
+  lastAttemptAt: timestamp("lastAttemptAt"),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
+
+export type QuizProgress = typeof quizProgress.$inferSelect;
+export type InsertQuizProgress = typeof quizProgress.$inferInsert;
+

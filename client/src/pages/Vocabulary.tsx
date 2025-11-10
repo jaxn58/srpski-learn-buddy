@@ -25,25 +25,46 @@ export default function Vocabulary() {
   const [userAnswer, setUserAnswer] = useState('');
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [xpEarned, setXpEarned] = useState(0);
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [lastQuizProgress, setLastQuizProgress] = useState<any>(null);
   const utils = trpc.useUtils();
-  // Temporarily disabled until user router is implemented
-  // const updateUserXP = trpc.user.addXP.useMutation({
-  //   onSuccess: () => {
-  //     utils.auth.me.invalidate();
-  //   },
-  // });
+
+  // Fetch quiz progress when unit is selected in quiz mode
+  const { data: quizProgress } = trpc.vocabulary.getQuizProgress.useQuery(
+    { unitNumber: selectedUnit === 'all' ? 1 : (selectedUnit as number) },
+    { enabled: mode === 'quiz' && selectedUnit !== 'all' }
+  );
+
+  // Mutations for quiz progress
+  const saveAnswerMutation = trpc.vocabulary.saveQuizAnswer.useMutation();
+  const completeQuizMutation = trpc.vocabulary.completeQuiz.useMutation();
+  const resetProgressMutation = trpc.vocabulary.resetQuizProgress.useMutation();
 
   const handleQuizComplete = async () => {
     const earnedXP = calculateXP(score.correct, score.total);
     setXpEarned(earnedXP);
-    if (user) {
-      try {
-        // await updateUserXP.mutateAsync({ xp: earnedXP });
-      } catch (error) {
-        console.error('Failed to update XP:', error);
-      }
+    
+    // Save quiz completion to database
+    if (selectedUnit !== 'all') {
+      await completeQuizMutation.mutateAsync({
+        unitNumber: selectedUnit as number,
+        score: score.correct,
+        total: score.total,
+      });
     }
   };
+
+  // Load quiz progress when mode changes to quiz
+  useEffect(() => {
+    if (mode === 'quiz' && quizProgress && !quizStarted) {
+      setLastQuizProgress(quizProgress);
+      setQuizStarted(true);
+      // Start from last position if available
+      if (quizProgress.currentIndex > 0) {
+        setCurrentIndex(quizProgress.currentIndex);
+      }
+    }
+  }, [quizProgress, mode, quizStarted]);
 
   // Read unit parameter from URL and set it
   useEffect(() => {
@@ -53,7 +74,7 @@ export default function Vocabulary() {
       const unitNum = parseInt(unitParam);
       if (!isNaN(unitNum) && unitNum >= 1 && unitNum <= 27) {
         setSelectedUnit(unitNum);
-        setCurrentIndex(0); // Reset to first word
+        setCurrentIndex(0);
       }
     }
   }, [location]);
@@ -89,7 +110,7 @@ export default function Vocabulary() {
     }
   };
 
-  const handleSubmitAnswer = () => {
+  const handleSubmitAnswer = async () => {
     if (!userAnswer.trim()) return;
     
     const userAnswerLower = userAnswer.trim().toLowerCase();
@@ -100,6 +121,16 @@ export default function Vocabulary() {
     setIsCorrect(correct);
     setScore({ correct: score.correct + (correct ? 1 : 0), total: score.total + 1 });
     setShowAnswer(true);
+
+    // Save answer to database in quiz mode
+    if (mode === 'quiz' && selectedUnit !== 'all') {
+      await saveAnswerMutation.mutateAsync({
+        unitNumber: selectedUnit as number,
+        currentIndex,
+        isCorrect: correct,
+        wordId: currentWord.serbian,
+      });
+    }
     
     setTimeout(() => {
       handleNext();
@@ -113,6 +144,16 @@ export default function Vocabulary() {
     setUserAnswer('');
     setIsCorrect(null);
     setXpEarned(0);
+    setQuizStarted(false);
+  };
+
+  const handleResetQuizProgress = async () => {
+    if (selectedUnit !== 'all') {
+      await resetProgressMutation.mutateAsync({
+        unitNumber: selectedUnit as number,
+      });
+      handleReset();
+    }
   };
 
   const calculateXP = (correct: number, total: number): number => {
@@ -213,6 +254,11 @@ export default function Vocabulary() {
                 {mode === 'quiz' && score.total > 0 && (
                   <div className="text-sm text-muted-foreground text-center">
                     Score: {score.correct} / {score.total} ({Math.round((score.correct / score.total) * 100)}%)
+                  </div>
+                )}
+                {mode === 'quiz' && lastQuizProgress && lastQuizProgress.lastScore > 0 && (
+                  <div className="text-sm text-muted-foreground text-center bg-blue-50 p-2 rounded">
+                    Last attempt: {lastQuizProgress.lastScore}% ({lastQuizProgress.totalAttempts} attempts)
                   </div>
                 )}
               </div>
@@ -339,6 +385,10 @@ export default function Vocabulary() {
                     <RotateCcw className="mr-2 h-4 w-4" />
                     Try Again
                   </Button>
+                  <Button variant="outline" onClick={handleResetQuizProgress}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reset Progress
+                  </Button>
                   <Link href="/dashboard">
                     <Button variant="outline">
                       <ArrowRight className="mr-2 h-4 w-4" />
@@ -371,3 +421,4 @@ export default function Vocabulary() {
     </div>
   );
 }
+

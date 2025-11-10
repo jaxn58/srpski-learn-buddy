@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult, unitExplanations, feedbackComments, InsertFeedbackComment, feedbackStatusHistory, InsertFeedbackStatusHistory, userBadges } from "../drizzle/schema";
+import { InsertUser, users, userProgress, InsertUserProgress, vocabulary, InsertVocabulary, chatMessages, InsertChatMessage, exerciseResults, InsertExerciseResult, unitExplanations, feedbackComments, InsertFeedbackComment, feedbackStatusHistory, InsertFeedbackStatusHistory, userBadges, quizProgress, InsertQuizProgress } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -346,5 +346,66 @@ export async function getUserBadges(userId: string) {
   if (!db) return [];
 
   return await db.select().from(userBadges).where(eq(userBadges.userId, userId));
+}
+
+// ============= QUIZ PROGRESS =============
+
+export async function getQuizProgress(userId: string, unitNumber: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(quizProgress)
+    .where(and(eq(quizProgress.userId, userId), eq(quizProgress.unitNumber, unitNumber)))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function upsertQuizProgress(data: InsertQuizProgress) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getQuizProgress(data.userId, data.unitNumber!);
+  
+  if (existing) {
+    await db.update(quizProgress)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(quizProgress.userId, data.userId), eq(quizProgress.unitNumber, data.unitNumber!)));
+  } else {
+    await db.insert(quizProgress).values(data);
+  }
+}
+
+export async function saveQuizAnswer(userId: string, unitNumber: number, currentIndex: number, isCorrect: boolean, incorrectWordIds: string[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const progress = await getQuizProgress(userId, unitNumber);
+  const existing = progress ? JSON.parse(progress.incorrectWordIds || "[]") : [];
+  
+  // Add word ID to incorrect list if answer was wrong
+  const updated = isCorrect ? existing : [...existing, ...incorrectWordIds].filter((v: string, i: number, a: string[]) => a.indexOf(v) === i);
+  
+  await upsertQuizProgress({
+    id: progress?.id || `quiz_${userId}_${unitNumber}_${Date.now()}`,
+    userId,
+    unitNumber,
+    currentIndex: currentIndex + 1,
+    totalAttempts: (progress?.totalAttempts || 0) + 1,
+    lastScore: 0, // Will be calculated on completion
+    incorrectWordIds: JSON.stringify(updated),
+    lastAttemptAt: new Date(),
+  });
+}
+
+export async function resetQuizProgress(userId: string, unitNumber: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(quizProgress)
+    .where(and(eq(quizProgress.userId, userId), eq(quizProgress.unitNumber, unitNumber)));
 }
 

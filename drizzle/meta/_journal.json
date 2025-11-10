@@ -92,6 +92,13 @@
       "when": 1762606517301,
       "tag": "0012_lowly_morlun",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1762761872417,
+      "tag": "0013_rare_red_skull",
+      "breakpoints": true
     }
   ]
 }

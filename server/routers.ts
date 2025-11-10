@@ -236,6 +236,58 @@ export const appRouter = router({
         });
         return { success: true };
       }),
+
+    getQuizProgress: protectedProcedure
+      .input(z.object({ unitNumber: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const { getQuizProgress } = await import("./db");
+        return await getQuizProgress(ctx.user.id, input.unitNumber);
+      }),
+
+    saveQuizAnswer: protectedProcedure
+      .input(z.object({
+        unitNumber: z.number(),
+        currentIndex: z.number(),
+        isCorrect: z.boolean(),
+        wordId: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { saveQuizAnswer } = await import("./db");
+        await saveQuizAnswer(ctx.user.id, input.unitNumber, input.currentIndex, input.isCorrect, [input.wordId]);
+        return { success: true };
+      }),
+
+    completeQuiz: protectedProcedure
+      .input(z.object({
+        unitNumber: z.number(),
+        score: z.number(),
+        total: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { upsertQuizProgress, getQuizProgress } = await import("./db");
+        const progress = await getQuizProgress(ctx.user.id, input.unitNumber);
+        const percentage = Math.round((input.score / input.total) * 100);
+        
+        await upsertQuizProgress({
+          id: progress?.id || `quiz_${ctx.user.id}_${input.unitNumber}_${Date.now()}`,
+          userId: ctx.user.id,
+          unitNumber: input.unitNumber,
+          currentIndex: 0,
+          totalAttempts: (progress?.totalAttempts || 0) + 1,
+          lastScore: percentage,
+          incorrectWordIds: progress?.incorrectWordIds || "[]",
+          lastAttemptAt: new Date(),
+        });
+        return { success: true, percentage };
+      }),
+
+    resetQuizProgress: protectedProcedure
+      .input(z.object({ unitNumber: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { resetQuizProgress } = await import("./db");
+        await resetQuizProgress(ctx.user.id, input.unitNumber);
+        return { success: true };
+      }),
   }),
 
   chat: router({
