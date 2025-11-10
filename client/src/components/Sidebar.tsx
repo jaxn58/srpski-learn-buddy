@@ -63,7 +63,7 @@ export function Sidebar() {
 
   const navItems: NavItem[] = [
     { label: "Dashboard", path: "/dashboard", icon: <Home className="h-5 w-5" /> },
-    { label: "Practice Vocabulary", path: "/vocabulary", icon: <Brain className="h-5 w-5" /> },
+    { label: "Practice Vocabulary", path: "/vocabulary", icon: <BookOpen className="h-5 w-5" /> },
     { label: "View All Words", path: "/vocabulary-list", icon: <FileText className="h-5 w-5" /> },
     { label: "View Progress", path: "/progress", icon: <TrendingUp className="h-5 w-5" /> },
     { label: "My Subscription", path: "/subscription", icon: <CreditCard className="h-5 w-5" /> },
