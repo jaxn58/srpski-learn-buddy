@@ -12,11 +12,51 @@ function getQueryParam(req: Request, key: string): string | undefined {
 }
 
 export function registerOAuthRoutes(app: Express) {
+  // Development-only endpoint for direct login bypass
+  app.post("/api/dev-login", async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({ error: "email is required" });
+      return;
+    }
+
+    try {
+      // Find user by email
+      const user = await db.getUserByEmail(email);
+      
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      // Create a session token using the SDK's internal JWT signing
+      const sessionToken = await sdk.createSessionToken(user.id, {
+        name: user.name || "",
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+      res.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
+    } catch (error) {
+      console.error("[DevLogin] Login failed", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
 
     if (!code || !state) {
+      // If OAUTH_SERVER_URL is not set, we assume external OAuth is disabled.
+      // We return a 404 to prevent the client from trying to use this endpoint.
+      if (!ENV.oAuthServerUrl) {
+        res.status(404).json({ error: "External OAuth is disabled" });
+        return;
+      }
       res.status(400).json({ error: "code and state are required" });
       return;
     }

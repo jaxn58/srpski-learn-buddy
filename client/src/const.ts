@@ -8,16 +8,21 @@ export const APP_LOGO =
 
 // Generate login URL at runtime so redirect URI reflects the current origin.
 export const getLoginUrl = () => {
-  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
-  const appId = import.meta.env.VITE_APP_ID;
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
-  const state = btoa(redirectUri);
+  // NOTE: External OAuth is disabled because the IP is blocked.
+  // We return a placeholder URL that will trigger the internal login flow if the app is configured for it.
+  // The actual login logic must be handled internally by the app's components.
+  // The original logic was:
+  // const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
+  // const appId = import.meta.env.VITE_APP_ID;
+  // const redirectUri = `${window.location.origin}/api/oauth/callback`;
+  // const state = btoa(redirectUri);
+  // const url = new URL(`${oauthPortalUrl}/app-auth`);
+  // url.searchParams.set("appId", appId);
+  // url.searchParams.set("redirectUri", redirectUri);
+  // url.searchParams.set("state", state);
+  // url.searchParams.set("type", "signIn");
+  // return url.toString();
 
-  const url = new URL(`${oauthPortalUrl}/app-auth`);
-  url.searchParams.set("appId", appId);
-  url.searchParams.set("redirectUri", redirectUri);
-  url.searchParams.set("state", state);
-  url.searchParams.set("type", "signIn");
-
-  return url.toString();
+  // Returning a local path that the app's router should handle for internal login/signup
+  return "";
 };

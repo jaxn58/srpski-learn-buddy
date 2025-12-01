@@ -8,26 +8,56 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { getLoginUrl } from "@/const";
-import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link } from "wouter";
+import { ManusDialog } from "@/components/ManusDialog";
 import { UNITS_DATA, TOTAL_VOCABULARY } from "@/data/unitsForLanding";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
   const [betaForm, setBetaForm] = useState({ name: "", email: "", motivation: "" });
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const registerMutation = trpc.beta.register.useMutation();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  const handleLogin = useCallback(() => {
+    // This is the function that will be called when the user clicks the "Login" button in the header
+    setIsLoginDialogOpen(true);
+  }, []);
 
-  const handleBetaSubmit = async (e: React.FormEvent) => {
+  const handleManusLogin = useCallback(async () => {
+    // This is the function that will be called when the user clicks the "Login with Manus" button in the dialog
+    // Since external OAuth is disabled, we use the dev-login endpoint
+    try {
+      const response = await fetch("/api/dev-login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: "Hello@jacksenn.me", // Default to the superadmin user
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(`Login failed: ${error.error || "Unknown error"}`);
+        return;
+      }
+
+      const data = await response.json();
+      toast.success(`Welcome, ${data.user.name || data.user.email}!`);
+      
+      // Redirect to dashboard after successful login
+      window.location.href = "/dashboard";
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error("Login failed. Please try again.");
+    }
+  }, []);
+
+  const handleBetaSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!betaForm.name || !betaForm.email) {
@@ -59,7 +89,15 @@ export default function Home() {
       toast.error("Registration failed. Please try again.");
       setIsSubmitting(false);
     }
-  };
+  }, [betaForm, registerMutation]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50">
@@ -77,12 +115,22 @@ export default function Home() {
               <Button className="bg-primary hover:bg-primary/90">Go to Dashboard</Button>
             </Link>
           ) : (
-            <Button asChild className="bg-primary hover:bg-primary/90">
-              <a href={getLoginUrl()}>Login</a>
+            <Button
+              className="bg-primary hover:bg-primary/90"
+              onClick={handleLogin}
+            >
+              Login
             </Button>
           )}
         </div>
       </header>
+
+      {/* Login Dialog */}
+      <ManusDialog
+        open={isLoginDialogOpen}
+        onOpenChange={setIsLoginDialogOpen}
+        onLogin={handleManusLogin}
+      />
 
       {/* Hero Section */}
       <section className="container py-20">

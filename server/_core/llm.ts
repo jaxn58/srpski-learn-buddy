@@ -209,10 +209,16 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+const resolveApiUrl = () => {
+  if (ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0) {
+    return `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`;
+  }
+  // Use Gemini API if GEMINI_API_KEY is set
+  if (process.env.GEMINI_API_KEY) {
+    return `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`;
+  }
+  return "https://api.openai.com/v1/chat/completions";
+};
 
 const assertApiKey = () => {
   if (!ENV.forgeApiKey) {
@@ -279,8 +285,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
   } = params;
 
+  // Use Gemini model if GEMINI_API_KEY is set, otherwise use OpenAI
+  const model = process.env.GEMINI_API_KEY ? "gemini-2.0-flash-exp" : "gpt-4o-mini";
+  
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model,
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,10 +305,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
+  payload.max_tokens = 4096
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,

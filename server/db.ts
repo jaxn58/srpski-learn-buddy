@@ -100,6 +100,18 @@ export async function getUser(id: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) {
@@ -357,9 +369,10 @@ export async function getQuizProgress(userId: string, unitNumber: number) {
     userId,
     unitNumber,
     currentIndex: 0,
-    score: { correct: 0, total: 0 },
-    attempts: 0,
-    lastScore: null,
+    totalAttempts: 0,
+    lastScore: 0,
+    incorrectWordIds: "[]",
+    lastAttemptAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
