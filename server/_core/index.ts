@@ -3,7 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
+import { clerkMiddleware } from "@clerk/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -30,11 +30,14 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // OAuth callback under /api/oauth/callback
-  registerOAuthRoutes(app);
+  
+  // Clerk middleware for authentication
+  app.use(clerkMiddleware());
+  
   // tRPC API
   app.use(
     "/api/trpc",
@@ -43,6 +46,79 @@ async function startServer() {
       createContext,
     })
   );
+
+  // Email webhook endpoint for Convex actions
+  app.post("/api/email/send", express.json(), async (req, res) => {
+    try {
+      const { templateName, variables, to, replyTo } = req.body;
+
+      if (!templateName || !variables || !to) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Missing required fields: templateName, variables, to" 
+        });
+      }
+
+      // Import email functions
+      const { sendBetaRegistrationEmail, sendUserActivationEmail, sendFeedbackConfirmationEmail, sendFeedbackAdminNotificationEmail } = await import("./email");
+
+      let result;
+      switch (templateName) {
+        case "beta-registration":
+          if (!variables.USER_NAME || !variables.USER_EMAIL) {
+            return res.status(400).json({ success: false, error: "Missing USER_NAME or USER_EMAIL" });
+          }
+          result = await sendBetaRegistrationEmail(variables.USER_NAME, variables.USER_EMAIL);
+          break;
+        
+        case "user-activation":
+          if (!variables.USER_NAME || !variables.USER_EMAIL || !variables.LOGIN_URL) {
+            return res.status(400).json({ success: false, error: "Missing USER_NAME, USER_EMAIL, or LOGIN_URL" });
+          }
+          result = await sendUserActivationEmail(variables.USER_NAME, variables.USER_EMAIL, variables.LOGIN_URL);
+          break;
+        
+        case "feedback-confirmation":
+          if (!variables.USER_NAME || !variables.USER_EMAIL || !variables.FEEDBACK_TYPE || !variables.FEEDBACK_TITLE) {
+            return res.status(400).json({ success: false, error: "Missing required feedback variables" });
+          }
+          result = await sendFeedbackConfirmationEmail(
+            variables.USER_NAME,
+            variables.USER_EMAIL,
+            variables.FEEDBACK_TYPE,
+            variables.FEEDBACK_TITLE
+          );
+          break;
+        
+        case "feedback-admin-notification":
+          if (!variables.USER_NAME || !variables.USER_EMAIL || !variables.FEEDBACK_TYPE || !variables.FEEDBACK_TITLE || !variables.FEEDBACK_DESCRIPTION || !variables.ADMIN_EMAIL) {
+            return res.status(400).json({ success: false, error: "Missing required feedback admin variables" });
+          }
+          result = await sendFeedbackAdminNotificationEmail(
+            variables.USER_NAME,
+            variables.USER_EMAIL,
+            variables.FEEDBACK_TYPE,
+            variables.FEEDBACK_TITLE,
+            variables.FEEDBACK_DESCRIPTION,
+            variables.ADMIN_EMAIL
+          );
+          break;
+        
+        default:
+          return res.status(400).json({ success: false, error: `Unknown template: ${templateName}` });
+      }
+
+      if (result.success) {
+        res.json({ success: true, messageId: (result as any).messageId });
+      } else {
+        res.status(500).json({ success: false, error: result.error });
+      }
+    } catch (error: any) {
+      console.error("[Email Webhook] Error:", error);
+      res.status(500).json({ success: false, error: error.message || "Internal server error" });
+    }
+  });
+  
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

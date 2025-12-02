@@ -5,7 +5,9 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { Badge } from "@/components/ui/badge";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { COURSE_WEEKS, COURSE_UNITS } from "../../../shared/courseData";
 import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock, Home, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
@@ -18,7 +20,8 @@ import { useState, useEffect } from "react";
 
 export default function Dashboard() {
   const { user, loading: authLoading, logout } = useAuth();
-  const { data: progress, isLoading: progressLoading } = trpc.progress.get.useQuery();
+  const progress = useQuery(api.progress.getUserProgress);
+  const progressLoading = progress === undefined;
   
   // Debug: Log user object to check isBetaTester
   useEffect(() => {
@@ -27,10 +30,11 @@ export default function Dashboard() {
       console.log('[Dashboard] isBetaTester:', user.isBetaTester);
     }
   }, [user]);
-  const { data: weeks } = trpc.course.getWeeks.useQuery();
-  const { data: units } = trpc.course.getUnits.useQuery();
-  const updateProgress = trpc.progress.update.useMutation();
-  const utils = trpc.useUtils();
+  
+  // Use static course data
+  const weeks = COURSE_WEEKS;
+  const units = COURSE_UNITS;
+  const updateProgressMutation = useMutation(api.progress.updateProgress);
   const { t } = useTranslation();
   
   // Onboarding tutorial state
@@ -56,17 +60,14 @@ export default function Dashboard() {
     setShowOnboarding(false);
   };
 
-  if (authLoading || progressLoading) {
+  // Show loading while auth or progress is loading
+  // Also show loading while user is being synced to Convex
+  if (authLoading || progressLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
-  }
-
-  if (!user) {
-    window.location.href = "/";
-    return null;
   }
 
   // Show pending approval overlay for inactive users
@@ -127,8 +128,8 @@ export default function Dashboard() {
   const displayUnits = isAdmin ? units?.map(u => u.number) : currentWeek?.units;
 
   const handleDurationChange = async (duration: string) => {
-    await updateProgress.mutateAsync({ learningDuration: parseInt(duration) });
-    utils.progress.get.invalidate();
+    await updateProgressMutation({ learningDuration: parseInt(duration) });
+    // Convex automatically updates the UI reactively
   };
 
   return (

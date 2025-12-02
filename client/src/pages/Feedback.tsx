@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Sidebar } from "@/components/Sidebar";
 import { MessageSquare } from "lucide-react";
 import { useState } from "react";
@@ -14,8 +15,8 @@ export default function Feedback() {
   const { user, loading } = useAuth();
   const [feedback, setFeedback] = useState({ type: "other" as const, title: "", description: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const feedbackMutation = trpc.feedback.submit.useMutation();
-  const { data: mySubmissions = [] } = trpc.feedback.getMySubmissions.useQuery();
+  const submitFeedbackMutation = useMutation(api.feedback.submit);
+  const mySubmissions = useQuery(api.feedback.getMySubmissions) ?? [];
 
   if (loading) {
     return (
@@ -55,7 +56,7 @@ export default function Feedback() {
     setIsSubmitting(true);
 
     try {
-      await feedbackMutation.mutateAsync({
+      await submitFeedbackMutation({
         type: feedback.type,
         title: feedback.title,
         description: feedback.description,

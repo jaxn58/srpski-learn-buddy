@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Users, Eye, Trash2, CheckCircle, XCircle } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -15,11 +16,11 @@ import { Sidebar } from "@/components/Sidebar";
 
 export default function BetaRegistrations() {
   const { user, loading: authLoading } = useAuth();
-  const { data: registrations, isLoading: registrationsLoading } = trpc.beta.getAll.useQuery();
+  const registrations = useQuery(api.beta.getAll);
+  const registrationsLoading = registrations === undefined;
   
-  const updateStatus = trpc.beta.updateStatus.useMutation();
-  const deleteRegistration = trpc.beta.delete.useMutation();
-  const utils = trpc.useUtils();
+  const updateStatusMutation = useMutation(api.beta.updateStatus);
+  const deleteRegistrationMutation = useMutation(api.beta.deleteRegistration);
   
   const [selectedRegistration, setSelectedRegistration] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -52,12 +53,11 @@ export default function BetaRegistrations() {
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
-      await updateStatus.mutateAsync({
-        id,
+      await updateStatusMutation({
+        id: id as any,
         status: status as any,
       });
       toast.success(`Registration ${status === 'approved' ? 'approved' : 'rejected'} successfully`);
-      utils.beta.getAll.invalidate();
     } catch (error) {
       toast.error('Failed to update status');
     }
@@ -67,9 +67,8 @@ export default function BetaRegistrations() {
     if (!confirm('Are you sure you want to delete this registration?')) return;
     
     try {
-      await deleteRegistration.mutateAsync({ id });
+      await deleteRegistrationMutation({ id: id as any });
       toast.success('Registration deleted successfully');
-      utils.beta.getAll.invalidate();
     } catch (error) {
       toast.error('Failed to delete registration');
     }
@@ -157,7 +156,7 @@ export default function BetaRegistrations() {
                   </TableRow>
                 ) : (
                   filteredRegistrations.map((registration) => (
-                    <TableRow key={registration.id}>
+                    <TableRow key={registration._id}>
                       <TableCell className="font-medium">{registration.name}</TableCell>
                       <TableCell>{registration.email}</TableCell>
                       <TableCell>
@@ -166,7 +165,7 @@ export default function BetaRegistrations() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {registration.registeredAt ? new Date(registration.registeredAt).toLocaleDateString('de-DE') : 'N/A'}
+                        {registration._creationTime ? new Date(registration._creationTime).toLocaleDateString('de-DE') : 'N/A'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -213,14 +212,14 @@ export default function BetaRegistrations() {
                                     <div className="flex gap-2 pt-4">
                                       <Button
                                         className="flex-1 bg-green-600 hover:bg-green-700"
-                                        onClick={() => handleStatusChange(registration.id, 'approved')}
+                                        onClick={() => handleStatusChange(registration._id, 'approved')}
                                       >
                                         <CheckCircle className="h-4 w-4 mr-2" />
                                         Approve
                                       </Button>
                                       <Button
                                         className="flex-1 bg-red-600 hover:bg-red-700"
-                                        onClick={() => handleStatusChange(registration.id, 'rejected')}
+                                        onClick={() => handleStatusChange(registration._id, 'rejected')}
                                       >
                                         <XCircle className="h-4 w-4 mr-2" />
                                         Reject
@@ -262,7 +261,7 @@ export default function BetaRegistrations() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleDelete(registration.id)}
+                                onClick={() => handleDelete(registration._id)}
                               >
                                 <Trash2 className="h-4 w-4 text-red-600" />
                               </Button>

@@ -286,7 +286,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   // Use Gemini model if GEMINI_API_KEY is set, otherwise use OpenAI
-  const model = process.env.GEMINI_API_KEY ? "gemini-2.0-flash-exp" : "gpt-4o-mini";
+  const model = process.env.GEMINI_API_KEY ? "gemini-1.5-flash" : "gpt-4o-mini";
   
   const payload: Record<string, unknown> = {
     model,

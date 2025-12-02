@@ -1,84 +1,61 @@
-import { getLoginUrl } from "@/const";
-import { trpc } from "@/lib/trpc";
-import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo } from "react";
+import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { useMemo, useEffect } from "react";
 
-type UseAuthOptions = {
-  redirectOnUnauthenticated?: boolean;
-  redirectPath?: string;
-};
+/**
+ * Custom useAuth hook that combines Clerk authentication with Convex user data
+ * from the database (includes role, isBetaTester, isActive, etc.)
+ */
+export function useAuth() {
+  const { user: clerkUser, isLoaded: clerkLoaded, isSignedIn } = useUser();
+  const { signOut } = useClerkAuth();
 
-export function useAuth(options?: UseAuthOptions) {
-  const { redirectOnUnauthenticated = false, redirectPath = getLoginUrl() } =
-    options ?? {};
-  const utils = trpc.useUtils();
+  // Fetch full user data from Convex (includes role, isBetaTester, etc.)
+  const dbUser = useQuery(api.users.me);
+  
+  // Mutation to sync user from Clerk to Convex
+  const syncUser = useMutation(api.users.syncUser);
 
-  const meQuery = trpc.auth.me.useQuery(undefined, {
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      utils.auth.me.setData(undefined, null);
-    },
-  });
-
-  const logout = useCallback(async () => {
-    try {
-      await logoutMutation.mutateAsync();
-    } catch (error: unknown) {
-      if (
-        error instanceof TRPCClientError &&
-        error.data?.code === "UNAUTHORIZED"
-      ) {
-        return;
-      }
-      throw error;
-    } finally {
-      utils.auth.me.setData(undefined, null);
-      await utils.auth.me.invalidate();
+  // Sync user on first sign in
+  useEffect(() => {
+    if (isSignedIn && clerkLoaded && dbUser === null) {
+      // User is signed in but not in database - sync them
+      syncUser().catch(console.error);
     }
-  }, [logoutMutation, utils]);
+  }, [isSignedIn, clerkLoaded, dbUser, syncUser]);
 
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
+    // Store user info for Manus runtime compatibility
+    if (dbUser) {
+      localStorage.setItem(
+        "manus-runtime-user-info",
+        JSON.stringify(dbUser)
+      );
+    }
+
+    // dbUser is undefined while loading, null if not found
+    const isLoading = !clerkLoaded || (isSignedIn && dbUser === undefined);
+
     return {
-      user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
-      error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
+      // Return the database user (has role, isBetaTester, isActive, etc.)
+      user: dbUser ?? null,
+      // Loading if either Clerk or Convex query is loading
+      loading: isLoading,
+      error: null,
+      isAuthenticated: isSignedIn === true && Boolean(dbUser),
+      // Also expose Clerk user for additional info
+      clerkUser: clerkUser ?? null,
     };
-  }, [
-    meQuery.data,
-    meQuery.error,
-    meQuery.isLoading,
-    logoutMutation.error,
-    logoutMutation.isPending,
-  ]);
-
-  useEffect(() => {
-    if (!redirectOnUnauthenticated) return;
-    if (meQuery.isLoading || logoutMutation.isPending) return;
-    if (state.user) return;
-    if (typeof window === "undefined") return;
-    if (window.location.pathname === redirectPath) return;
-
-    window.location.href = redirectPath
-  }, [
-    redirectOnUnauthenticated,
-    redirectPath,
-    logoutMutation.isPending,
-    meQuery.isLoading,
-    state.user,
-  ]);
+  }, [clerkLoaded, clerkUser, isSignedIn, dbUser]);
 
   return {
     ...state,
-    refresh: () => meQuery.refetch(),
-    logout,
+    refresh: () => {
+      // Convex handles reactivity automatically, no manual refresh needed
+    },
+    logout: async () => {
+      await signOut();
+    },
   };
 }

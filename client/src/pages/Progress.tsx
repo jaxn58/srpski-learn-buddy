@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress as ProgressBar } from "@/components/ui/progress";
-import { trpc } from "@/lib/trpc";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { BookOpen, CheckCircle2, Clock, TrendingUp, Calendar, Award } from "lucide-react";
 import { Link } from "wouter";
 import { COURSE_WEEKS } from "@shared/courseData";
@@ -11,7 +12,8 @@ import { Sidebar } from "@/components/Sidebar";
 
 export default function Progress() {
   const { user } = useAuth();
-  const { data: progress, isLoading } = trpc.progress.get.useQuery();
+  const progress = useQuery(api.progress.getUserProgress);
+  const isLoading = progress === undefined;
 
   if (!user) {
     window.location.href = "/";

@@ -3,18 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import { VOCABULARY, type VocabWord } from "@shared/vocabularyData";
 import { Sidebar } from "@/components/Sidebar";
 
 export default function Vocabulary() {
   const { user } = useAuth();
-  const { data: progress } = trpc.progress.get.useQuery();
+  const progress = useQuery(api.progress.getUserProgress);
   const [location] = useLocation();
   
   const [mode, setMode] = useState<'learn' | 'quiz'>('learn');
@@ -28,22 +29,21 @@ export default function Vocabulary() {
   const [quizStarted, setQuizStarted] = useState(false);
   const [lastQuizProgress, setLastQuizProgress] = useState<any>(null);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
-  const utils = trpc.useUtils();
 
   // localStorage key for quiz progress
-  const getStorageKey = () => `quiz_progress_${selectedUnit === 'all' ? 0 : selectedUnit}_${user?.id || 'guest'}`;
+  const getStorageKey = () => `quiz_progress_${selectedUnit === 'all' ? 0 : selectedUnit}_${user?._id || 'guest'}`;
 
   // Fetch quiz progress when unit is selected in quiz mode
   // Use unitNumber 0 for "All Units" to track global progress
-  const { data: quizProgress } = trpc.vocabulary.getQuizProgress.useQuery(
-    { unitNumber: selectedUnit === 'all' ? 0 : (selectedUnit as number) },
-    { enabled: mode === 'quiz' }
+  const quizProgress = useQuery(
+    api.exercises.getQuizProgress,
+    mode === 'quiz' ? { unitNumber: selectedUnit === 'all' ? 0 : (selectedUnit as number) } : "skip"
   );
 
   // Mutations for quiz progress
-  const saveAnswerMutation = trpc.vocabulary.saveQuizAnswer.useMutation();
-  const completeQuizMutation = trpc.vocabulary.completeQuiz.useMutation();
-  const resetProgressMutation = trpc.vocabulary.resetQuizProgress.useMutation();
+  const updateQuizProgressMutation = useMutation(api.exercises.updateQuizProgress);
+  const resetQuizProgressMutation = useMutation(api.exercises.resetQuizProgress);
+  const addExerciseCompletionMutation = useMutation(api.exercises.addCompletion);
 
   const handleQuizComplete = async () => {
     const earnedXP = calculateXP(score.correct, score.total);
@@ -51,10 +51,12 @@ export default function Vocabulary() {
     
     // Save quiz completion to database
     if (selectedUnit !== 'all') {
-      await completeQuizMutation.mutateAsync({
+      await addExerciseCompletionMutation({
         unitNumber: selectedUnit as number,
+        exerciseId: `vocab_quiz_unit_${selectedUnit}`,
         score: score.correct,
-        total: score.total,
+        totalQuestions: score.total,
+        xpEarned: earnedXP,
       });
     }
   };
@@ -172,11 +174,12 @@ export default function Vocabulary() {
       // 2. Save to database in background (persistent across devices)
       const unitToSave = selectedUnit === 'all' ? 0 : (selectedUnit as number);
       try {
-        await saveAnswerMutation.mutateAsync({
+        await updateQuizProgressMutation({
           unitNumber: unitToSave,
           currentIndex: newIndex,
-          isCorrect: correct,
-          wordId: currentWord.serbian,
+          lastScore: Math.round((newScore.correct / newScore.total) * 100),
+          incorrectWordIds: correct ? undefined : [currentWord.serbian],
+          incrementAttempts: true,
         });
       } catch (e) {
         console.error('Failed to save quiz progress to database', e);
@@ -205,7 +208,7 @@ export default function Vocabulary() {
 
   const handleResetQuizProgress = async () => {
     if (selectedUnit !== 'all') {
-      await resetProgressMutation.mutateAsync({
+      await resetQuizProgressMutation({
         unitNumber: selectedUnit as number,
       });
       handleReset();

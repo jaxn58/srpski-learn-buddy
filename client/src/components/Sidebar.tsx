@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus, Trophy, Star, Flame, Award, CreditCard } from "lucide-react";
+import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus, Trophy, Star, Flame, Award, CreditCard, Mail } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { trpc } from "@/lib/trpc"; // User router now properly exported
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 interface NavItem {
   label: string;
@@ -53,13 +54,11 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   
-  // Fetch gamification stats
-  const { data: progress } = trpc.progress.get.useQuery();
-  // Temporarily disabled until user router is implemented
-  // const { data: badgeData } = trpc.user.getBadgeCount.useQuery();
-  // const { data: userBadges } = trpc.user.getBadges.useQuery();
-  const badgeData = undefined;
-  const userBadges = undefined;
+  // Fetch gamification stats from Convex
+  const progress = useQuery(api.progress.getUserProgress);
+  const userBadges = useQuery(api.badges.getUserBadges);
+  const badgeCount = useQuery(api.badges.getBadgeCount);
+  const badgeData = badgeCount !== undefined ? { count: badgeCount } : undefined;
 
   const navItems: NavItem[] = [
     { label: "Dashboard", path: "/dashboard", icon: <Home className="h-5 w-5" /> },
@@ -74,6 +73,7 @@ export function Sidebar() {
     { label: "User Management", path: "/admin", icon: <Users className="h-4 w-4" /> },
     { label: "Feedback", path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
     { label: "Beta Registrations", path: "/admin/beta-registrations", icon: <UserPlus className="h-4 w-4" /> },
+    { label: "Email Templates", path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
     { label: "Subscription Analytics", path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
   ];
 

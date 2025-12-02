@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { renderEmailTemplate, type TemplateVariables } from './emailTemplates';
 
 let resend: Resend | null = null;
 
@@ -64,9 +65,25 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
 
 /**
  * Send beta registration confirmation email
+ * Uses template from Convex if available, falls back to hardcoded template
  */
 export async function sendBetaRegistrationEmail(name: string, email: string): Promise<{ success: boolean, error?: string }> {
-  const html = `
+  let subject: string;
+  let html: string;
+
+  try {
+    // Try to use template from Convex
+    const template = await renderEmailTemplate('beta-registration', {
+      USER_NAME: name,
+      USER_EMAIL: email,
+    });
+    subject = template.subject;
+    html = template.html;
+  } catch (error) {
+    // Fallback to hardcoded template if Convex template not available
+    console.warn('[Email] Using fallback template for beta-registration:', error);
+    subject = '🎉 Welcome to Serbian AI Tutor Beta Testing!';
+    html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -163,10 +180,11 @@ export async function sendBetaRegistrationEmail(name: string, email: string): Pr
 </body>
 </html>
   `;
+  }
 
   return sendEmail({
     to: email,
-    subject: '🎉 Welcome to Serbian AI Tutor Beta Testing!',
+    subject,
     html,
     replyTo: undefined, // No reply functionality for beta registration
   });
@@ -174,9 +192,26 @@ export async function sendBetaRegistrationEmail(name: string, email: string): Pr
 
 /**
  * Send user activation notification email
+ * Uses template from Convex if available, falls back to hardcoded template
  */
 export async function sendUserActivationEmail(name: string, email: string, loginUrl: string): Promise<{ success: boolean, error?: string }> {
-  const html = `
+  let subject: string;
+  let html: string;
+
+  try {
+    // Try to use template from Convex
+    const template = await renderEmailTemplate('user-activation', {
+      USER_NAME: name,
+      USER_EMAIL: email,
+      LOGIN_URL: loginUrl,
+    });
+    subject = template.subject;
+    html = template.html;
+  } catch (error) {
+    // Fallback to hardcoded template if Convex template not available
+    console.warn('[Email] Using fallback template for user-activation:', error);
+    subject = '✅ Your Serbian AI Tutor Account is Active!';
+    html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -262,10 +297,11 @@ export async function sendUserActivationEmail(name: string, email: string, login
 </body>
 </html>
   `;
+  }
 
   return sendEmail({
     to: email,
-    subject: '✅ Your Serbian AI Tutor Account is Active!',
+    subject,
     html,
   });
 }
@@ -274,6 +310,7 @@ export async function sendUserActivationEmail(name: string, email: string, login
 
 /**
  * Send feedback confirmation email to user
+ * Uses template from Convex if available, falls back to hardcoded template
  */
 export async function sendFeedbackConfirmationEmail(name: string, email: string, feedbackType: string, feedbackTitle: string): Promise<{ success: boolean, error?: string }> {
   const typeLabels: Record<string, string> = {
@@ -283,7 +320,24 @@ export async function sendFeedbackConfirmationEmail(name: string, email: string,
     other: '📝 Other'
   };
 
-  const html = `
+  let subject: string;
+  let html: string;
+
+  try {
+    // Try to use template from Convex
+    const template = await renderEmailTemplate('feedback-confirmation', {
+      USER_NAME: name,
+      USER_EMAIL: email,
+      FEEDBACK_TYPE: typeLabels[feedbackType] || feedbackType,
+      FEEDBACK_TITLE: feedbackTitle,
+    });
+    subject = template.subject;
+    html = template.html;
+  } catch (error) {
+    // Fallback to hardcoded template if Convex template not available
+    console.warn('[Email] Using fallback template for feedback-confirmation:', error);
+    subject = '✅ We Received Your Feedback!';
+    html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -356,10 +410,11 @@ export async function sendFeedbackConfirmationEmail(name: string, email: string,
 </body>
 </html>
   `;
+  }
 
   return sendEmail({
     to: email,
-    subject: '✅ We Received Your Feedback!',
+    subject,
     html,
     replyTo: undefined, // No reply functionality for feedback confirmation
   });
@@ -367,6 +422,7 @@ export async function sendFeedbackConfirmationEmail(name: string, email: string,
 
 /**
  * Send feedback notification email to admin/owner
+ * Uses template from Convex if available, falls back to hardcoded template
  */
 export async function sendFeedbackAdminNotificationEmail(userName: string, userEmail: string, feedbackType: string, feedbackTitle: string, feedbackDescription: string, adminEmail: string): Promise<{ success: boolean, error?: string }> {
   const typeLabels: Record<string, string> = {
@@ -376,7 +432,26 @@ export async function sendFeedbackAdminNotificationEmail(userName: string, userE
     other: '📝 Other'
   };
 
-  const html = `
+  let subject: string;
+  let html: string;
+
+  try {
+    // Try to use template from Convex
+    const template = await renderEmailTemplate('feedback-admin-notification', {
+      USER_NAME: userName,
+      USER_EMAIL: userEmail,
+      FEEDBACK_TYPE: typeLabels[feedbackType] || feedbackType,
+      FEEDBACK_TITLE: feedbackTitle,
+      FEEDBACK_DESCRIPTION: feedbackDescription,
+      ADMIN_EMAIL: adminEmail,
+    });
+    subject = template.subject;
+    html = template.html;
+  } catch (error) {
+    // Fallback to hardcoded template if Convex template not available
+    console.warn('[Email] Using fallback template for feedback-admin-notification:', error);
+    subject = `[${typeLabels[feedbackType] || feedbackType}] New Feedback: ${feedbackTitle}`;
+    html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -446,10 +521,11 @@ export async function sendFeedbackAdminNotificationEmail(userName: string, userE
 </body>
 </html>
   `;
+  }
 
   return sendEmail({
     to: adminEmail,
-    subject: `[${typeLabels[feedbackType] || feedbackType}] New Feedback: ${feedbackTitle}`,
+    subject,
     html,
   });
 }

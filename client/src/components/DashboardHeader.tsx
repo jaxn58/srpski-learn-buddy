@@ -1,5 +1,6 @@
+import { UserButton } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Home, TrendingUp, Brain, FileText, MessageSquare, LogOut, Menu, X } from "lucide-react";
+import { BookOpen, Home, TrendingUp, Brain, FileText, Menu, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -11,7 +12,7 @@ interface NavItem {
 }
 
 export function DashboardHeader() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -65,10 +66,14 @@ export function DashboardHeader() {
                 </span>
               )}
             </div>
-            <Button variant="outline" size="sm" onClick={() => logout()}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{
+                elements: {
+                  avatarBox: "w-9 h-9",
+                },
+              }}
+            />
           </div>
         </div>
 
@@ -81,16 +86,26 @@ export function DashboardHeader() {
                 <h1 className="text-sm font-bold">Serbian AI Tutor</h1>
               </div>
             </Link>
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1 hover:bg-gray-100 rounded"
-            >
-              {mobileMenuOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <UserButton
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: "w-8 h-8",
+                  },
+                }}
+              />
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                {mobileMenuOpen ? (
+                  <X className="h-5 w-5" />
+                ) : (
+                  <Menu className="h-5 w-5" />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Mobile Menu */}
@@ -109,30 +124,13 @@ export function DashboardHeader() {
                   </Button>
                 </Link>
               ))}
-              <div className="border-t pt-2 space-y-2">
-                <div className="text-xs text-muted-foreground px-2 py-1">
-                  {user?.name || user?.email}
+              {user?.isBetaTester && (
+                <div className="px-2 pt-2 border-t">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-sm">
+                    ✨ Beta Tester
+                  </span>
                 </div>
-                {user?.isBetaTester && (
-                  <div className="px-2">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-sm">
-                      ✨ Beta Tester
-                    </span>
-                  </div>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    logout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full justify-start gap-2 text-xs"
-                >
-                  <LogOut className="h-3 w-3" />
-                  Logout
-                </Button>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -140,4 +138,3 @@ export function DashboardHeader() {
     </header>
   );
 }
-

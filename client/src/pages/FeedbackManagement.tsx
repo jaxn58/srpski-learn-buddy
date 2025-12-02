@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { MessageSquare, Eye, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -16,11 +17,11 @@ import { Sidebar } from "@/components/Sidebar";
 
 export default function FeedbackManagement() {
   const { user, loading: authLoading } = useAuth();
-  const { data: submissions, isLoading: submissionsLoading } = trpc.feedback.getAllSubmissions.useQuery();
+  const submissions = useQuery(api.feedback.getAllSubmissions);
+  const submissionsLoading = submissions === undefined;
   
-  const updateStatus = trpc.feedback.updateStatus.useMutation();
-  const deleteFeedback = trpc.feedback.delete.useMutation();
-  const utils = trpc.useUtils();
+  const updateStatusMutation = useMutation(api.feedback.updateStatus);
+  const deleteFeedbackMutation = useMutation(api.feedback.deleteFeedback);
   
   const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
   const [adminNotes, setAdminNotes] = useState('');
@@ -53,13 +54,12 @@ export default function FeedbackManagement() {
 
   const handleStatusChange = async (id: string, status: string, notes?: string) => {
     try {
-      await updateStatus.mutateAsync({
-        id,
+      await updateStatusMutation({
+        id: id as any,
         status: status as any,
         adminNotes: notes
       });
       toast.success('Status updated successfully');
-      utils.feedback.getAllSubmissions.invalidate();
     } catch (error) {
       toast.error('Failed to update status');
     }
@@ -69,9 +69,8 @@ export default function FeedbackManagement() {
     if (!confirm('Are you sure you want to delete this feedback?')) return;
     
     try {
-      await deleteFeedback.mutateAsync({ id });
+      await deleteFeedbackMutation({ id: id as any });
       toast.success('Feedback deleted successfully');
-      utils.feedback.getAllSubmissions.invalidate();
     } catch (error) {
       toast.error('Failed to delete feedback');
     }

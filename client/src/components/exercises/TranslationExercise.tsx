@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check, X, Eye, RotateCcw, Star } from 'lucide-react';
-import { trpc } from '@/lib/trpc';
+import { useMutation } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
 import { toast } from 'sonner';
 
 export interface TranslationQuestion {
@@ -27,8 +28,7 @@ export function TranslationExercise({ title, instructions, questions, exerciseId
   const [showSolutions, setShowSolutions] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
   const [xpEarned, setXpEarned] = useState<number | null>(null);
-  const submitResult = trpc.exercises.submitResult.useMutation();
-  const utils = trpc.useUtils();
+  const submitResultMutation = useMutation(api.exercises.submitResult);
 
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -54,7 +54,7 @@ export function TranslationExercise({ title, instructions, questions, exerciseId
     // Submit result and award XP if perfect
     const correctCount = Object.values(newChecked).filter(v => v === true).length;
     try {
-      const result = await submitResult.mutateAsync({
+      const result = await submitResultMutation({
         unitNumber,
         exerciseType: 'translation',
         exerciseId,

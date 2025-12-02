@@ -1,6 +1,4 @@
-import { COOKIE_NAME } from "@shared/const";
-import { eq } from "drizzle-orm";
-import { getSessionCookieOptions } from "./_core/cookies";
+import { clerkClient } from "@clerk/express";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { adminRouter } from "./routers/admin";
@@ -23,6 +21,7 @@ import {
   addExerciseResult,
   getUnitExplanation as getUnitExplanationFromDb,
   getUser,
+  upsertUser,
   getDb
 } from "./db";
 import { users } from "../drizzle/schema";
@@ -47,14 +46,57 @@ export const appRouter = router({
 
   auth: router({
     me: publicProcedure.query(async ({ ctx }) => {
-      // Return full user data from database (includes isBetaTester, isActive, etc.)
-      if (!ctx.user) return null;
-      const fullUser = await getUser(ctx.user.id);
-      return fullUser || ctx.user;
+      // If no Clerk user ID, return null (not authenticated)
+      if (!ctx.clerkUserId) {
+        return null;
+      }
+
+      // Check if user exists in our database
+      let user = await getUser(ctx.clerkUserId);
+
+      // If user doesn't exist, sync from Clerk
+      if (!user) {
+        try {
+          // Get user data from Clerk
+          const clerkUser = await clerkClient.users.getUser(ctx.clerkUserId);
+          
+          const primaryEmail = clerkUser.emailAddresses.find(
+            (email) => email.id === clerkUser.primaryEmailAddressId
+          )?.emailAddress;
+
+          const name = [clerkUser.firstName, clerkUser.lastName]
+            .filter(Boolean)
+            .join(" ") || clerkUser.username || null;
+
+          // Create user in our database
+          await upsertUser({
+            id: ctx.clerkUserId,
+            name,
+            email: primaryEmail ?? null,
+            loginMethod: "clerk",
+            lastSignedIn: new Date(),
+          });
+
+          user = await getUser(ctx.clerkUserId);
+          console.log(`[Auth] Synced new user from Clerk: ${ctx.clerkUserId}`);
+        } catch (error) {
+          console.error("[Auth] Failed to sync user from Clerk:", error);
+          return null;
+        }
+      } else {
+        // Update last signed in time
+        await upsertUser({
+          id: ctx.clerkUserId,
+          lastSignedIn: new Date(),
+        });
+      }
+
+      return user;
     }),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    
+    // Logout is handled by Clerk on the frontend, but we keep this for compatibility
+    logout: publicProcedure.mutation(() => {
+      // Clerk handles logout on the frontend via signOut()
       return {
         success: true,
       } as const;
@@ -267,9 +309,9 @@ export const appRouter = router({
         const { upsertQuizProgress, getQuizProgress } = await import("./db");
         const progress = await getQuizProgress(ctx.user.id, input.unitNumber);
         const percentage = Math.round((input.score / input.total) * 100);
-        
+
         await upsertQuizProgress({
-          id: progress?.id || `quiz_${ctx.user.id}_${input.unitNumber}_${Date.now()}`,
+          id: (progress as any)?.id ?? nanoid(),
           userId: ctx.user.id,
           unitNumber: input.unitNumber,
           currentIndex: 0,

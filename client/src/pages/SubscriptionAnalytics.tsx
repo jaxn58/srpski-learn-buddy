@@ -1,13 +1,15 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import Sidebar from "@/components/Sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { trpc } from "@/lib/trpc";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { BarChart3, DollarSign, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { Redirect } from "wouter";
 
 export default function SubscriptionAnalytics() {
   const { user, loading: authLoading } = useAuth();
-  const { data: analytics, isLoading } = trpc.subscription.getAnalytics.useQuery();
+  const analytics = useQuery(api.subscriptions.getAnalytics);
+  const isLoading = analytics === undefined;
 
   // Check if user is admin
   if (!authLoading && (!user || (user.role !== "admin" && user.role !== "superadmin"))) {
@@ -47,11 +49,13 @@ export default function SubscriptionAnalytics() {
     );
   }
 
-  const formatCurrency = (cents: number) => {
+  const formatCurrency = (cents: number | undefined) => {
+    if (cents === undefined || cents === null) return "€0.00";
     return `€${(cents / 100).toFixed(2)}`;
   };
 
-  const formatPercentage = (value: number) => {
+  const formatPercentage = (value: number | undefined) => {
+    if (value === undefined || value === null) return "0.00%";
     return `${value.toFixed(2)}%`;
   };
 
@@ -70,9 +74,9 @@ export default function SubscriptionAnalytics() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{analytics.activeUsers}</div>
+                <div className="text-2xl font-bold">{analytics?.activeUsers || 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  {analytics.totalUsers} total users
+                  {analytics?.totalUsers || 0} total users
                 </p>
               </CardContent>
             </Card>
@@ -83,7 +87,7 @@ export default function SubscriptionAnalytics() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(analytics.mrr)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(analytics?.mrr)}</div>
                 <p className="text-xs text-muted-foreground">Monthly Recurring Revenue</p>
               </CardContent>
             </Card>
@@ -94,9 +98,9 @@ export default function SubscriptionAnalytics() {
                 <TrendingDown className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatPercentage(analytics.churnRate)}</div>
+                <div className="text-2xl font-bold">{formatPercentage(analytics?.churnRate)}</div>
                 <p className="text-xs text-muted-foreground">
-                  {analytics.totalUsers - analytics.activeUsers} cancelled
+                  {(analytics?.totalUsers || 0) - (analytics?.activeUsers || 0)} cancelled
                 </p>
               </CardContent>
             </Card>
@@ -107,9 +111,9 @@ export default function SubscriptionAnalytics() {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatPercentage(analytics.conversionRate)}</div>
+                <div className="text-2xl font-bold">{formatPercentage(analytics?.conversionRate)}</div>
                 <p className="text-xs text-muted-foreground">
-                  {analytics.upgradeCount} upgrades
+                  {analytics?.upgradeCount || 0} upgrades
                 </p>
               </CardContent>
             </Card>
@@ -124,7 +128,7 @@ export default function SubscriptionAnalytics() {
               </CardHeader>
               <CardContent>
                 <div className="text-4xl font-bold text-primary">
-                  {formatCurrency(analytics.totalRevenue)}
+                  {formatCurrency(analytics?.totalRevenue)}
                 </div>
               </CardContent>
             </Card>
@@ -138,19 +142,19 @@ export default function SubscriptionAnalytics() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Intensive (3 months)</span>
-                    <span className="text-sm font-bold">{formatCurrency(analytics.revenueByPlan.intensive)}</span>
+                    <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.intensive)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Balanced (6 months)</span>
-                    <span className="text-sm font-bold">{formatCurrency(analytics.revenueByPlan.balanced)}</span>
+                    <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.balanced)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Standard (9 months)</span>
-                    <span className="text-sm font-bold">{formatCurrency(analytics.revenueByPlan.standard)}</span>
+                    <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.standard)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Relaxed (12 months)</span>
-                    <span className="text-sm font-bold">{formatCurrency(analytics.revenueByPlan.relaxed)}</span>
+                    <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.relaxed)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -172,13 +176,13 @@ export default function SubscriptionAnalytics() {
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium">Intensive (€69 / 3 months)</span>
-                    <span className="text-sm font-bold">{analytics.usersByPlan.intensive} users</span>
+                    <span className="text-sm font-bold">{analytics?.usersByPlan?.intensive || 0} users</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-blue-600 h-2 rounded-full"
                       style={{
-                        width: `${(analytics.usersByPlan.intensive / analytics.activeUsers) * 100}%`,
+                        width: `${((analytics?.usersByPlan?.intensive || 0) / (analytics?.activeUsers || 1)) * 100}%`,
                       }}
                     ></div>
                   </div>
@@ -188,13 +192,13 @@ export default function SubscriptionAnalytics() {
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium">Balanced (€79 / 6 months)</span>
-                    <span className="text-sm font-bold">{analytics.usersByPlan.balanced} users</span>
+                    <span className="text-sm font-bold">{analytics?.usersByPlan?.balanced || 0} users</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-green-600 h-2 rounded-full"
                       style={{
-                        width: `${(analytics.usersByPlan.balanced / analytics.activeUsers) * 100}%`,
+                        width: `${((analytics?.usersByPlan?.balanced || 0) / (analytics?.activeUsers || 1)) * 100}%`,
                       }}
                     ></div>
                   </div>
@@ -204,13 +208,13 @@ export default function SubscriptionAnalytics() {
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium">Standard (€95 / 9 months)</span>
-                    <span className="text-sm font-bold">{analytics.usersByPlan.standard} users</span>
+                    <span className="text-sm font-bold">{analytics?.usersByPlan?.standard || 0} users</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-orange-600 h-2 rounded-full"
                       style={{
-                        width: `${(analytics.usersByPlan.standard / analytics.activeUsers) * 100}%`,
+                        width: `${((analytics?.usersByPlan?.standard || 0) / (analytics?.activeUsers || 1)) * 100}%`,
                       }}
                     ></div>
                   </div>
@@ -220,13 +224,13 @@ export default function SubscriptionAnalytics() {
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium">Relaxed (€119 / 12 months)</span>
-                    <span className="text-sm font-bold">{analytics.usersByPlan.relaxed} users</span>
+                    <span className="text-sm font-bold">{analytics?.usersByPlan?.relaxed || 0} users</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className="bg-purple-600 h-2 rounded-full"
                       style={{
-                        width: `${(analytics.usersByPlan.relaxed / analytics.activeUsers) * 100}%`,
+                        width: `${((analytics?.usersByPlan?.relaxed || 0) / (analytics?.activeUsers || 1)) * 100}%`,
                       }}
                     ></div>
                   </div>

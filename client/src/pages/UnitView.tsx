@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { COURSE_UNITS } from "../../../shared/courseData";
 import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
@@ -12,31 +14,40 @@ import { InteractiveMarkdownContent } from "@/components/InteractiveMarkdownCont
 import { Sidebar } from "@/components/Sidebar";
 
 export default function UnitView() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const params = useParams();
   const unitNumber = parseInt(params.unitNumber || "1");
 
-  const { data: unit } = trpc.course.getUnit.useQuery({ unitNumber });
-  const { data: explanation, isLoading, error } = trpc.course.getUnitExplanation.useQuery({ unitNumber });
+  // Get unit from static course data
+  const unit = COURSE_UNITS.find(u => u.number === unitNumber);
+  // Get explanation from Convex
+  const explanation = useQuery(api.units.getExplanation, { unitNumber });
+  const isLoading = explanation === undefined;
   
   // Check if unit is locked for beta testers
   const isLocked = user?.isBetaTester && unitNumber > 5;
-  const isBetaLockError = error?.message?.includes('BETA_LOCKED');
+  const isBetaLockError = false; // Handled by isLocked
   
   console.log('[UnitView] Debug:', { 
     unitNumber, 
     hasExplanation: !!explanation, 
     isLoading,
-    error: error?.message,
     overviewLength: explanation?.overview?.length,
     grammarLength: explanation?.grammarExplained?.length 
   });
-  const { data: progress } = trpc.progress.get.useQuery();
-  const completeUnitMutation = trpc.progress.completeUnit.useMutation();
-  const utils = trpc.useUtils();
+  const progress = useQuery(api.progress.getUserProgress);
+  const completeUnitMutation = useMutation(api.progress.completeUnit);
   
   // All hooks must be called before any conditional returns
   const [showSuccess, setShowSuccess] = React.useState(false);
+  const [isCompleting, setIsCompleting] = React.useState(false);
+
+  // Show loading while auth is loading
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    </div>;
+  }
 
   if (!user) {
     window.location.href = "/";
@@ -126,9 +137,13 @@ export default function UnitView() {
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
 
   const handleComplete = async () => {
-    await completeUnitMutation.mutateAsync({ unitNumber });
-    utils.progress.get.invalidate();
-    setShowSuccess(true);
+    setIsCompleting(true);
+    try {
+      await completeUnitMutation({ unitNumber });
+      setShowSuccess(true);
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const nextUnit = unitNumber < 27 ? unitNumber + 1 : null;
@@ -354,10 +369,10 @@ export default function UnitView() {
                   onClick={handleComplete} 
                   className="w-full" 
                   size="lg"
-                  disabled={completeUnitMutation.isPending}
+                  disabled={isCompleting}
                 >
                   <CheckCircle2 className="mr-2 h-5 w-5" />
-                  {completeUnitMutation.isPending ? "Marking as complete..." : "Mark Unit as Complete"}
+                  {isCompleting ? "Marking as complete..." : "Mark Unit as Complete"}
                 </Button>
               )}
 

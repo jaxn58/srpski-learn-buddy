@@ -3,7 +3,8 @@ import Sidebar from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Calendar, Check, Clock, CreditCard, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -12,32 +13,23 @@ export default function MySubscription() {
   const { user, loading: authLoading } = useAuth();
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0 });
 
-  // Fetch subscription data
-  const { data: subscription, isLoading: subLoading, refetch } = trpc.subscription.getCurrent.useQuery(
-    undefined,
-    { enabled: !!user }
-  );
+  // Fetch subscription data from Convex
+  const subscription = useQuery(api.subscriptions.getCurrent);
+  const subLoading = subscription === undefined;
   
-  const { data: daysRemaining } = trpc.subscription.getDaysRemaining.useQuery(
-    undefined,
-    { enabled: !!user && !!subscription }
+  const daysRemaining = useQuery(
+    api.subscriptions.getDaysRemaining,
+    subscription ? {} : "skip"
   );
 
-  const { data: availablePlans } = trpc.subscription.getPlans.useQuery();
+  const availablePlans = useQuery(api.subscriptions.getPlans);
 
-  // Calculate upgrade cost
-  const calculateUpgradeMutation = trpc.subscription.calculateUpgradeCost.useMutation();
-
-  // Cancel subscription
-  const cancelMutation = trpc.subscription.cancel.useMutation({
-    onSuccess: () => {
-      toast.success("Subscription cancelled successfully");
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(`Failed to cancel subscription: ${error.message}`);
-    },
-  });
+  // Calculate upgrade cost mutation
+  const calculateUpgradeMutation = useMutation(api.subscriptions.calculateUpgradeCost);
+  
+  // Cancel subscription mutation
+  const cancelMutation = useMutation(api.subscriptions.cancel);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Calculate time remaining
   useEffect(() => {
@@ -66,11 +58,14 @@ export default function MySubscription() {
     return () => clearInterval(interval);
   }, [subscription]);
 
+  const [isCalculating, setIsCalculating] = useState(false);
+
   const handleUpgrade = async (newPlan: string) => {
     if (!subscription) return;
 
+    setIsCalculating(true);
     try {
-      const result = await calculateUpgradeMutation.mutateAsync({
+      const result = await calculateUpgradeMutation({
         currentPlan: subscription.plan,
         newPlan,
       });
@@ -79,10 +74,12 @@ export default function MySubscription() {
       toast.info(`Upgrade cost: €${result.cost}. Payment integration coming soon!`);
     } catch (error: any) {
       toast.error(`Failed to calculate upgrade cost: ${error.message}`);
+    } finally {
+      setIsCalculating(false);
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (!subscription) return;
 
     const confirmed = window.confirm(
@@ -90,7 +87,15 @@ export default function MySubscription() {
     );
 
     if (confirmed) {
-      cancelMutation.mutate();
+      setIsCancelling(true);
+      try {
+        await cancelMutation({});
+        toast.success("Subscription cancelled successfully");
+      } catch (error: any) {
+        toast.error(`Failed to cancel subscription: ${error.message}`);
+      } finally {
+        setIsCancelling(false);
+      }
     }
   };
 
@@ -209,10 +214,10 @@ export default function MySubscription() {
                 <Button
                   variant="outline"
                   onClick={handleCancel}
-                  disabled={cancelMutation.isPending}
+                  disabled={isCancelling}
                   className="w-full"
                 >
-                  {cancelMutation.isPending ? "Cancelling..." : "Cancel Subscription"}
+                  {isCancelling ? "Cancelling..." : "Cancel Subscription"}
                 </Button>
               )}
             </CardContent>
@@ -266,11 +271,11 @@ export default function MySubscription() {
                           </ul>
                           <Button
                             onClick={() => handleUpgrade(plan.id)}
-                            disabled={calculateUpgradeMutation.isPending}
+                            disabled={isCalculating}
                             className="w-full"
                           >
                             <CreditCard className="h-4 w-4 mr-2" />
-                            {calculateUpgradeMutation.isPending ? "Calculating..." : "Upgrade Now"}
+                            {isCalculating ? "Calculating..." : "Upgrade Now"}
                           </Button>
                         </CardContent>
                       </Card>

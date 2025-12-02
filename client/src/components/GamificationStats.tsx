@@ -1,10 +1,21 @@
-import { trpc } from "@/lib/trpc";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Trophy, Flame, Star, Award } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export function GamificationStats() {
-  const { data: stats, isLoading } = trpc.gamification.getStats.useQuery();
+  const { user } = useAuth();
+  // Use user data which includes gamification stats
+  const stats = user ? {
+    level: user.level || 1,
+    totalXP: user.totalXP || 0,
+    currentStreak: user.currentStreak || 0,
+    longestStreak: user.longestStreak || 0,
+    xpToNextLevel: 300 - ((user.totalXP || 0) % 300),
+  } : null;
+  const isLoading = !user;
 
   if (isLoading) {
     return (

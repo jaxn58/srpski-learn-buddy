@@ -22,8 +22,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { trpc } from "@/lib/trpc";
-import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus } from "lucide-react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus, Mail } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -32,17 +33,19 @@ import { Sidebar } from "@/components/Sidebar";
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
-  const { data: users, isLoading: usersLoading } = trpc.admin.getAllUsers.useQuery();
-  const { data: progress, isLoading: progressLoading } = trpc.admin.getAllProgress.useQuery();
-  const { data: stats, isLoading: statsLoading } = trpc.admin.getStatistics.useQuery();
+  const users = useQuery(api.admin.getAllUsers);
+  const allProgress = useQuery(api.admin.getAllProgress);
+  const stats = useQuery(api.admin.getStatistics);
+  const usersLoading = users === undefined;
+  const progressLoading = allProgress === undefined;
+  const statsLoading = stats === undefined;
   
-  const updateRole = trpc.admin.updateUserRole.useMutation();
-  const toggleStatus = trpc.admin.toggleUserStatus.useMutation();
-  const toggleBetaTester = trpc.admin.toggleBetaTester.useMutation();
-  const deleteUser = trpc.admin.deleteUser.useMutation();
-  const resetProgress = trpc.admin.resetUserProgress.useMutation();
+  const updateRoleMutation = useMutation(api.admin.updateUserRole);
+  const toggleStatusMutation = useMutation(api.admin.toggleUserStatus);
+  const toggleBetaTesterMutation = useMutation(api.admin.toggleBetaTester);
+  const deleteUserMutation = useMutation(api.admin.deleteUser);
+  const resetProgressMutation = useMutation(api.admin.resetUserProgress);
   
-  const utils = trpc.useUtils();
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   if (authLoading || usersLoading || progressLoading || statsLoading) {
@@ -73,9 +76,8 @@ export default function Admin() {
 
   const handleRoleChange = async (userId: string, newRole: 'superadmin' | 'admin' | 'student') => {
     try {
-      await updateRole.mutateAsync({ userId, role: newRole });
+      await updateRoleMutation({ userId: userId as any, role: newRole });
       toast.success('Role updated successfully');
-      utils.admin.getAllUsers.invalidate();
     } catch (error) {
       toast.error('Failed to update role');
     }
@@ -83,9 +85,8 @@ export default function Admin() {
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
     try {
-      await toggleStatus.mutateAsync({ userId, isActive: !currentStatus });
+      await toggleStatusMutation({ userId: userId as any, isActive: !currentStatus });
       toast.success(currentStatus ? 'User deactivated' : 'User activated');
-      utils.admin.getAllUsers.invalidate();
     } catch (error) {
       toast.error('Failed to update user status');
     }
@@ -93,9 +94,8 @@ export default function Admin() {
 
   const handleToggleBetaTester = async (userId: string, currentStatus: boolean) => {
     try {
-      await toggleBetaTester.mutateAsync({ userId, isBetaTester: !currentStatus });
+      await toggleBetaTesterMutation({ userId: userId as any, isBetaTester: !currentStatus });
       toast.success(currentStatus ? 'Beta tester badge removed' : 'Beta tester badge added');
-      utils.admin.getAllUsers.invalidate();
     } catch (error) {
       toast.error('Failed to update beta tester status');
     }
@@ -103,10 +103,8 @@ export default function Admin() {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      await deleteUser.mutateAsync({ userId });
+      await deleteUserMutation({ userId: userId as any });
       toast.success('User deleted successfully');
-      utils.admin.getAllUsers.invalidate();
-      utils.admin.getAllProgress.invalidate();
       setDeletingUserId(null);
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete user');
@@ -115,9 +113,8 @@ export default function Admin() {
 
   const handleResetProgress = async (userId: string) => {
     try {
-      await resetProgress.mutateAsync({ userId });
+      await resetProgressMutation({ userId: userId as any });
       toast.success('Progress reset successfully');
-      utils.admin.getAllProgress.invalidate();
     } catch (error) {
       toast.error('Failed to reset progress');
     }
@@ -147,6 +144,21 @@ export default function Admin() {
         </header>
 
         <main className="container py-8">
+        {/* Quick Actions */}
+        <div className="grid gap-4 md:grid-cols-4 mb-8">
+          <Link href="/admin/email-templates">
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Email Templates</CardTitle>
+                <Mail className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">Manage email templates</p>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+
         {/* Statistics Cards */}
         <div className="grid gap-4 md:grid-cols-4 mb-8">
           <Card>
@@ -186,7 +198,7 @@ export default function Admin() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.averageProgress || 0}%</div>
+              <div className="text-2xl font-bold">{stats?.avgCompletedUnits || 0}</div>
             </CardContent>
           </Card>
         </div>
@@ -220,15 +232,15 @@ export default function Admin() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users?.map((u) => (
-                  <TableRow key={u.id}>
+                {users?.map((u: any) => (
+                  <TableRow key={u._id}>
                     <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
                     <TableCell>{u.email || 'N/A'}</TableCell>
                     <TableCell>
-                      {user.role === 'superadmin' && u.id !== user.id ? (
+                      {user.role === 'superadmin' && u._id !== user._id ? (
                         <Select
                           value={u.role}
-                          onValueChange={(value) => handleRoleChange(u.id, value as any)}
+                          onValueChange={(value) => handleRoleChange(u._id, value as any)}
                         >
                           <SelectTrigger className="w-[130px]">
                             <SelectValue />
@@ -267,23 +279,18 @@ export default function Admin() {
                     </TableCell>
                     <TableCell>
                       {u.subscription ? (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          u.subscription.plan === 'intensive' ? 'bg-orange-100 text-orange-800' :
-                          u.subscription.plan === 'balanced' ? 'bg-blue-100 text-blue-800' :
-                          u.subscription.plan === 'standard' ? 'bg-purple-100 text-purple-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
-                          {u.subscription.plan.charAt(0).toUpperCase() + u.subscription.plan.slice(1)}
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {u.subscription.planName || u.subscription.planType}
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">None</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {u.lastSignedIn ? new Date(u.lastSignedIn).toLocaleDateString('de-DE') : 'Never'}
+                      {u._lastModified ? new Date(u._lastModified).toLocaleDateString('de-DE') : 'Never'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {user.role === 'superadmin' && u.id !== user.id ? (
+                      {user.role === 'superadmin' && u._id !== user._id ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -293,7 +300,7 @@ export default function Admin() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleToggleStatus(u.id, u.isActive)}>
+                            <DropdownMenuItem onClick={() => handleToggleStatus(u._id, u.isActive)}>
                               {u.isActive ? (
                                 <>
                                   <Ban className="mr-2 h-4 w-4" />
@@ -306,7 +313,7 @@ export default function Admin() {
                                 </>
                               )}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleBetaTester(u.id, u.isBetaTester)}>
+                            <DropdownMenuItem onClick={() => handleToggleBetaTester(u._id, u.isBetaTester)}>
                               {u.isBetaTester ? (
                                 <>
                                   ✨ Remove Beta Badge
@@ -318,7 +325,7 @@ export default function Admin() {
                               )}
                             </DropdownMenuItem>
                             {u.role === 'student' && (
-                              <DropdownMenuItem onClick={() => handleResetProgress(u.id)}>
+                              <DropdownMenuItem onClick={() => handleResetProgress(u._id)}>
                                 <RotateCcw className="mr-2 h-4 w-4" />
                                 Reset Progress
                               </DropdownMenuItem>
@@ -330,14 +337,14 @@ export default function Admin() {
                                   className="text-red-600"
                                   onSelect={(e) => {
                                     e.preventDefault();
-                                    setDeletingUserId(u.id);
+                                    setDeletingUserId(u._id);
                                   }}
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Delete User
                                 </DropdownMenuItem>
                               </AlertDialogTrigger>
-                              {deletingUserId === u.id && (
+                              {deletingUserId === u._id && (
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -352,7 +359,7 @@ export default function Admin() {
                                       Cancel
                                     </AlertDialogCancel>
                                     <AlertDialogAction
-                                      onClick={() => handleDeleteUser(u.id)}
+                                      onClick={() => handleDeleteUser(u._id)}
                                       className="bg-red-600 hover:bg-red-700"
                                     >
                                       Delete
@@ -394,8 +401,12 @@ export default function Admin() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {progress?.filter(p => p.userRole === 'student').map((p) => (
-                  <TableRow key={p.id}>
+                {allProgress?.filter((p: any) => {
+                  // Find the user to check their role
+                  const user = users?.find((u: any) => u._id === p.userId);
+                  return user?.role === 'student';
+                }).map((p: any) => (
+                  <TableRow key={p._id}>
                     <TableCell className="font-medium">{p.userName}</TableCell>
                     <TableCell>{p.userEmail}</TableCell>
                     <TableCell>Week {p.currentWeek}</TableCell>

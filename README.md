@@ -1,8 +1,3 @@
-# Gamification + Footer Update
-
-
-## Rescue
-
 # Srpski AI Tutor
 
 **Serbian for Beginners. With your AI Learn Buddy.**
@@ -26,6 +21,7 @@ A structured course with 27 units and 737+ vocabulary words – featuring intera
 - pnpm (v10.x)
 - TiDB Cloud Account (or MySQL database)
 - Gemini API Key
+- Clerk Account (for authentication)
 
 ### **1. Clone the Repository**
 
@@ -40,28 +36,33 @@ cd srpski-tutor-rescue
 pnpm install
 ```
 
-### **3. Configure Environment Variables**
+### **3. Set Up Clerk Authentication**
 
-Create a `.env` file in the root of the project and add the following variables:
+1. Go to [clerk.com](https://clerk.com) and create a new application
+2. In the Clerk dashboard, configure your application:
+   - Enable Email/Password authentication
+   - (Optional) Enable social logins (Google, GitHub, etc.)
+3. Copy your API keys from the Clerk dashboard
 
-```env
-# Database (TiDB Cloud or MySQL)
-DATABASE_URL="mysql://user:password@host:port/database?sslaccept=strict"
+### **4. Configure Environment Variables**
 
-# Gemini API Key
-GEMINI_API_KEY="your_gemini_api_key"
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
 
-# Custom Dev Login (for testing)
-DEV_LOGIN_SECRET="your_secret_for_dev_login"
+2. Edit `.env` and fill in your actual values. Required variables:
+   - `VITE_CLERK_PUBLISHABLE_KEY` - From Clerk dashboard
+   - `CLERK_SECRET_KEY` - From Clerk dashboard
+   - `VITE_CONVEX_URL` - From Convex dashboard (e.g., `https://your-deployment.convex.cloud`)
+   - `DATABASE_URL` - Your MySQL/TiDB connection string
+   - `GEMINI_API_KEY` - For AI Learn Buddy feature
 
-# Optional: AWS S3 for file uploads
-AWS_ACCESS_KEY_ID=""
-AWS_SECRET_ACCESS_KEY=""
-AWS_REGION=""
-AWS_S3_BUCKET=""
-```
+   See `.env.example` for all available configuration options.
 
-### **4. Run Database Migrations**
+**Note:** The `.env` file is gitignored and will not be committed. Use `.env.example` as a template.
+
+### **5. Run Database Migrations**
 
 This will create all necessary tables in your database.
 
@@ -69,7 +70,7 @@ This will create all necessary tables in your database.
 pnpm db:push
 ```
 
-### **5. Import Old Data (Optional)**
+### **6. Import Old Data (Optional)**
 
 If you have the old CSV data, you can import it using the provided migration script:
 
@@ -77,7 +78,7 @@ If you have the old CSV data, you can import it using the provided migration scr
 node migrate_old_data.cjs
 ```
 
-### **6. Start the Development Server**
+### **7. Start the Development Server**
 
 ```bash
 pnpm dev
@@ -87,11 +88,11 @@ The app will be available at `http://localhost:3000`.
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React, Vite, TypeScript, TailwindCSS
+- **Frontend**: React 19, Vite, TypeScript, TailwindCSS
 - **Backend**: Express, tRPC, tsx
 - **Database**: TiDB Cloud (MySQL), Drizzle ORM
 - **AI**: Google Gemini
-- **Authentication**: Custom Dev-Login (for testing)
+- **Authentication**: Clerk (pre-built UI components)
 
 ## 📚 Architecture
 
@@ -99,6 +100,15 @@ The app will be available at `http://localhost:3000`.
 - **Vite for Development**: Serves the frontend and proxies API requests to the backend
 - **tRPC for API**: Type-safe API layer between frontend and backend
 - **Drizzle ORM**: Type-safe SQL query builder
+- **Clerk Auth**: Handles user authentication with pre-built sign-in/sign-up pages
+
+## 🔐 Authentication Flow
+
+1. Users sign in via Clerk's pre-built `<SignIn />` component at `/sign-in`
+2. New users are registered via `<SignUp />` at `/sign-up`
+3. Upon first authentication, users are automatically synced to the local database
+4. Protected routes use the `<SignedIn />` / `<SignedOut />` components
+5. User data (roles, beta tester status, etc.) is stored in the local database
 
 ## 📄 License
 

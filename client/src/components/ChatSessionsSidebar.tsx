@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { MessageSquarePlus, Trash2, MessageSquare, Trash } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -12,18 +13,17 @@ interface ChatSessionsSidebarProps {
 }
 
 export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewChat }: ChatSessionsSidebarProps) {
-  const { data: sessions, isLoading } = trpc.chat.getSessions.useQuery();
-  const deleteMutation = trpc.chat.deleteSession.useMutation();
-  const bulkDeleteMutation = trpc.chat.bulkDeleteNewChats.useMutation();
-  const utils = trpc.useUtils();
+  const sessions = useQuery(api.chat.getSessions);
+  const isLoading = sessions === undefined;
+  const deleteSessionMutation = useMutation(api.chat.deleteSession);
+  const bulkDeleteMutation = useMutation(api.chat.bulkDeleteNewChats);
 
   const handleDelete = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Delete this chat? This cannot be undone.")) return;
     
     try {
-      await deleteMutation.mutateAsync({ sessionId });
-      utils.chat.getSessions.invalidate();
+      await deleteSessionMutation({ sessionId: sessionId as any });
       
       // If deleting current session, trigger new chat
       if (sessionId === currentSessionId) {
@@ -44,11 +44,10 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
     if (!confirm(`Delete all ${newChatCount} empty chat${newChatCount > 1 ? 's' : ''}? This cannot be undone.`)) return;
     
     try {
-      const result = await bulkDeleteMutation.mutateAsync();
-      utils.chat.getSessions.invalidate();
+      const result = await bulkDeleteMutation({});
       
       // If current session was deleted, trigger new chat
-      const currentSession = sessions?.find(s => s.id === currentSessionId);
+      const currentSession = sessions?.find(s => s._id === currentSessionId);
       if (currentSession?.title === "New Chat") {
         onNewChat();
       }
@@ -102,12 +101,12 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
 
           {sessions?.map((session) => (
             <div
-              key={session.id}
-              onClick={() => onSelectSession(session.id)}
+              key={session._id}
+              onClick={() => onSelectSession(session._id)}
               className={cn(
                 "group flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors",
                 "hover:bg-accent",
-                currentSessionId === session.id && "bg-accent"
+                currentSessionId === session._id && "bg-accent"
               )}
             >
               <MessageSquare className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
@@ -116,15 +115,14 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                   {session.title}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(session.updatedAt!).toLocaleDateString()}
+                  {new Date(session._creationTime).toLocaleDateString()}
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => handleDelete(session.id, e)}
-                disabled={deleteMutation.isPending}
+                onClick={(e) => handleDelete(session._id, e)}
               >
                 <Trash2 className="h-3 w-3" />
               </Button>

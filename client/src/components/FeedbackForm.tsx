@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { MessageSquare, Send } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 
 export function FeedbackForm() {
@@ -16,7 +17,7 @@ export function FeedbackForm() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   
-  const submitFeedback = trpc.feedback.submit.useMutation();
+  const submitFeedbackMutation = useMutation(api.feedback.submit);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +33,7 @@ export function FeedbackForm() {
     }
 
     try {
-      await submitFeedback.mutateAsync({
+      await submitFeedbackMutation({
         type,
         title,
         description

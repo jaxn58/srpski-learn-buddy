@@ -13,6 +13,15 @@ export const publicProcedure = t.procedure;
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
 
+  // Check if we have a Clerk user ID but no database user
+  // This means the user is authenticated with Clerk but hasn't been synced yet
+  if (ctx.clerkUserId && !ctx.user) {
+    throw new TRPCError({ 
+      code: "UNAUTHORIZED", 
+      message: "User not synced. Please call auth.me first." 
+    });
+  }
+
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }

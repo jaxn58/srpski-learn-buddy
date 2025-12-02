@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { trpc } from "@/lib/trpc";
+import { useQuery, useMutation, useAction } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Send, User, Brain, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
@@ -44,35 +45,36 @@ const markdownComponents = {
 };
 
 export default function Chat() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<any[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   
-  const { data: progress } = trpc.progress.get.useQuery();
-  const { data: sessionMessages } = trpc.chat.getSessionMessages.useQuery(
-    { sessionId: currentSessionId!, limit: 50 },
-    { enabled: !!currentSessionId }
-  );
-  const sendMutation = trpc.chat.sendMessage.useMutation();
-  const createSessionMutation = trpc.chat.createSession.useMutation();
-  const utils = trpc.useUtils();
+  const progress = useQuery(api.progress.getUserProgress);
+  const createSessionMutation = useMutation(api.chat.createSession);
+  const sendMessageAction = useAction(api.chat.sendMessage);
 
   // Create initial session on mount
   useEffect(() => {
-    if (!currentSessionId) {
-      createSessionMutation.mutateAsync({ title: "New Chat" }).then(result => {
-        setCurrentSessionId(result.sessionId);
-      });
+    if (!currentSessionId && !isCreatingSession) {
+      setIsCreatingSession(true);
+      createSessionMutation({ title: "New Chat" }).then(sessionId => {
+        setCurrentSessionId(sessionId as unknown as string);
+        setIsCreatingSession(false);
+      }).catch(() => setIsCreatingSession(false));
     }
-  }, []);
+  }, [currentSessionId, isCreatingSession, createSessionMutation]);
 
-  useEffect(() => {
-    if (sessionMessages) {
-      setMessages(sessionMessages);
-    }
-  }, [sessionMessages]);
+  // Fetch messages for current session - Convex handles reactivity automatically
+  const sessionMessages = useQuery(
+    api.chat.getMessages,
+    currentSessionId ? { sessionId: currentSessionId as any } : "skip"
+  );
+
+  // Use Convex messages directly, with fallback to local state during loading
+  const messages = sessionMessages ?? [];
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -82,10 +84,8 @@ export default function Chat() {
 
   const handleNewChat = async () => {
     try {
-      const result = await createSessionMutation.mutateAsync({ title: "New Chat" });
-      setCurrentSessionId(result.sessionId);
-      setMessages([]);
-      utils.chat.getSessions.invalidate();
+      const sessionId = await createSessionMutation({ title: "New Chat" });
+      setCurrentSessionId(sessionId as unknown as string);
       toast.success("New chat started!");
     } catch (error) {
       console.error("Failed to create new chat:", error);
@@ -99,29 +99,25 @@ export default function Chat() {
   };
 
   const handleSend = async () => {
-    if (!message.trim() || sendMutation.isPending || !currentSessionId) return;
+    if (!message.trim() || isSending || !currentSessionId) return;
 
-    const userMessage = { role: "user", content: message, createdAt: new Date() };
-    setMessages(prev => [...prev, userMessage]);
+    const messageToSend = message;
     setMessage("");
+    setIsSending(true);
 
     try {
-      const response = await sendMutation.mutateAsync({
-        sessionId: currentSessionId,
-        message,
+      // Call AI action - it saves the user message and gets AI response
+      // Messages will be updated automatically via the sessionMessages query
+      await sendMessageAction({
+        sessionId: currentSessionId as any,
+        message: messageToSend,
         unitContext: progress?.currentUnit,
       });
-
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: response.message,
-        createdAt: new Date(),
-      }]);
-      
-      // Refresh session list to update timestamps
-      utils.chat.getSessions.invalidate();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to send message:", error);
+      toast.error(error.message || "Failed to get AI response");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -131,6 +127,14 @@ export default function Chat() {
       handleSend();
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     window.location.href = "/";
@@ -228,13 +232,13 @@ export default function Chat() {
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-2">
-                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(msg._creationTime || msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
               </div>
             ))}
             
-            {sendMutation.isPending && (
+            {isSending && (
               <div className="flex gap-3">
                 <Avatar className="h-8 w-8 flex-shrink-0 bg-gradient-to-br from-blue-500 to-purple-600">
                   <AvatarFallback className="text-white text-xs">
@@ -261,11 +265,11 @@ export default function Chat() {
                 onKeyPress={handleKeyPress}
                 placeholder="Type your message... (Press Enter to send)"
                 className="flex-1 rounded-full"
-                disabled={sendMutation.isPending}
+                disabled={isSending}
               />
               <Button
                 onClick={handleSend}
-                disabled={!message.trim() || sendMutation.isPending}
+                disabled={!message.trim() || isSending}
                 size="icon"
                 className="rounded-full h-10 w-10"
               >

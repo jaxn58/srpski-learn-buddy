@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,55 +8,16 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { getLoginUrl } from "@/const";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { ManusDialog } from "@/components/ManusDialog";
 import { UNITS_DATA, TOTAL_VOCABULARY } from "@/data/unitsForLanding";
 import { useState, useCallback } from "react";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
   const [betaForm, setBetaForm] = useState({ name: "", email: "", motivation: "" });
-  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const registerMutation = trpc.beta.register.useMutation();
-
-  const handleLogin = useCallback(() => {
-    // This is the function that will be called when the user clicks the "Login" button in the header
-    setIsLoginDialogOpen(true);
-  }, []);
-
-  const handleManusLogin = useCallback(async () => {
-    // This is the function that will be called when the user clicks the "Login with Manus" button in the dialog
-    // Since external OAuth is disabled, we use the dev-login endpoint
-    try {
-      const response = await fetch("/api/dev-login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: "Hello@jacksenn.me", // Default to the superadmin user
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        toast.error(`Login failed: ${error.error || "Unknown error"}`);
-        return;
-      }
-
-      const data = await response.json();
-      toast.success(`Welcome, ${data.user.name || data.user.email}!`);
-      
-      // Redirect to dashboard after successful login
-      window.location.href = "/dashboard";
-    } catch (error) {
-      console.error("Login error:", error);
-      toast.error("Login failed. Please try again.");
-    }
-  }, []);
+  const registerMutation = useMutation(api.beta.register);
 
   const handleBetaSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,10 +30,10 @@ export default function Home() {
     setIsSubmitting(true);
     
     try {
-      await registerMutation.mutateAsync({
+      await registerMutation({
         name: betaForm.name,
         email: betaForm.email,
-        motivation: betaForm.motivation,
+        motivation: betaForm.motivation || undefined,
       });
       
       toast.success("🎉 Registration successful! Check your email for confirmation.", {
@@ -85,8 +47,9 @@ export default function Home() {
       
       // Scroll to top of page
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (error) {
-      toast.error("Registration failed. Please try again.");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Registration failed. Please try again.";
+      toast.error(errorMessage);
       setIsSubmitting(false);
     }
   }, [betaForm, registerMutation]);
@@ -115,22 +78,14 @@ export default function Home() {
               <Button className="bg-primary hover:bg-primary/90">Go to Dashboard</Button>
             </Link>
           ) : (
-            <Button
-              className="bg-primary hover:bg-primary/90"
-              onClick={handleLogin}
-            >
-              Login
-            </Button>
+            <Link href="/sign-in">
+              <Button className="bg-primary hover:bg-primary/90">
+                Login
+              </Button>
+            </Link>
           )}
         </div>
       </header>
-
-      {/* Login Dialog */}
-      <ManusDialog
-        open={isLoginDialogOpen}
-        onOpenChange={setIsLoginDialogOpen}
-        onLogin={handleManusLogin}
-      />
 
       {/* Hero Section */}
       <section className="container py-20">
@@ -899,4 +854,3 @@ export default function Home() {
     </div>
   );
 }
-
