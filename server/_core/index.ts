@@ -35,20 +35,8 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
-  // Clerk middleware for authentication
-  app.use(clerkMiddleware());
-  
-  // tRPC API
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    })
-  );
-
-  // Email webhook endpoint for Convex actions
-  app.post("/api/email/send", express.json(), async (req, res) => {
+  // Public email webhook endpoint for Convex actions (must be BEFORE Clerk middleware)
+  app.post("/api/email/send", async (req, res) => {
     try {
       const { templateName, variables, to, replyTo } = req.body;
 
@@ -118,6 +106,18 @@ async function startServer() {
       res.status(500).json({ success: false, error: error.message || "Internal server error" });
     }
   });
+  
+  // Clerk middleware for authentication (protects routes after this point)
+  app.use(clerkMiddleware());
+  
+  // tRPC API
+  app.use(
+    "/api/trpc",
+    createExpressMiddleware({
+      router: appRouter,
+      createContext,
+    })
+  );
   
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
