@@ -23,7 +23,16 @@ export const me = query({
 
 // Sync user from Clerk (called on first sign-in)
 export const syncUser = mutation({
-  handler: async (ctx) => {
+  args: {
+    // Optional: User's chosen learning language (from landing page selection)
+    learningLanguage: v.optional(v.union(
+      v.literal("en"),
+      v.literal("de"),
+      v.literal("es"),
+      v.literal("fr")
+    ))
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
@@ -41,15 +50,27 @@ export const syncUser = mutation({
       return existing._id;
     }
 
-    // Create new user
+    // Determine if beta mode is currently active
+    const betaMode = process.env.BETA_MODE === "on" || process.env.BETA_MODE === "true";
+    const betaEnd = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : undefined;
+    const now = Date.now();
+    const shouldBeBetaTester =
+      betaMode && (!betaEnd || now <= betaEnd);
+
+    // User's learning language (default to English if not provided)
+    const userLanguage = args.learningLanguage || "en";
+
+    // Create new user - always active, beta testers get badge automatically
     const userId = await ctx.db.insert("users", {
       clerkId: identity.subject,
       name: identity.name ?? undefined,
       email: identity.email ?? undefined,
       loginMethod: "clerk",
       role: "student",
-      isActive: false, // New users start inactive
-      isBetaTester: false,
+      learningLanguage: userLanguage, // NEW: Set user's learning language
+      isActive: true, // New users are automatically active (no approval needed)
+      // During beta mode, mark new users automatically as beta testers
+      isBetaTester: shouldBeBetaTester,
       totalXP: 0,
       level: 1,
       currentStreak: 0,
@@ -71,6 +92,30 @@ export const syncUser = mutation({
   },
 });
 
+// Update user's learning language
+export const updateLearningLanguage = mutation({
+  args: {
+    learningLanguage: v.union(
+      v.literal("en"),
+      v.literal("de"),
+      v.literal("es"),
+      v.literal("fr")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    await ctx.db.patch(user._id, {
+      learningLanguage: args.learningLanguage,
+    });
+
+    return { success: true, learningLanguage: args.learningLanguage };
+  },
+});
+
 // Get all users (admin only)
 export const getAllUsers = query({
   handler: async (ctx) => {
@@ -80,6 +125,26 @@ export const getAllUsers = query({
     }
 
     return await ctx.db.query("users").collect();
+  },
+});
+
+// Update own learning language
+export const updateMyLanguage = mutation({
+  args: {
+    learningLanguage: v.union(
+      v.literal("en"),
+      v.literal("de"),
+      v.literal("es"),
+      v.literal("fr")
+    )
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    await ctx.db.patch(user._id, {
+      learningLanguage: args.learningLanguage,
+    });
   },
 });
 
@@ -176,6 +241,59 @@ export const makeSuperadmin = mutation({
     });
 
     return { success: true, userId: user._id };
+  },
+});
+
+// Activate all inactive users (one-time migration helper)
+export const activateAllUsers = mutation({
+  handler: async (ctx) => {
+    const inactiveUsers = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("isActive"), false))
+      .collect();
+
+    console.log(`[Activate All] Found ${inactiveUsers.length} inactive users`);
+
+    for (const user of inactiveUsers) {
+      await ctx.db.patch(user._id, {
+        isActive: true,
+      });
+      console.log(`[Activate All] Activated user: ${user.email || user.name || user._id}`);
+    }
+
+    return { 
+      success: true, 
+      activated: inactiveUsers.length,
+      users: inactiveUsers.map(u => ({ email: u.email, name: u.name }))
+    };
+  },
+});
+
+// Mark all users as beta testers (one-time migration helper)
+export const makeAllUsersBetaTesters = mutation({
+  handler: async (ctx) => {
+    const allUsers = await ctx.db.query("users").collect();
+    const nonBetaUsers = allUsers.filter(u => !u.isBetaTester);
+
+    console.log(`[Beta Testers] Found ${nonBetaUsers.length} non-beta users out of ${allUsers.length} total`);
+
+    for (const user of nonBetaUsers) {
+      await ctx.db.patch(user._id, {
+        isBetaTester: true,
+      });
+      console.log(`[Beta Testers] Added beta badge to: ${user.email || user.name || user._id}`);
+    }
+
+    return { 
+      success: true, 
+      updated: nonBetaUsers.length,
+      totalUsers: allUsers.length,
+      users: nonBetaUsers.map(u => ({ 
+        email: u.email, 
+        name: u.name,
+        role: u.role 
+      }))
+    };
   },
 });
 

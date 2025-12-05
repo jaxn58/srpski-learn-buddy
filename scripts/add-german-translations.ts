@@ -33,6 +33,11 @@ function translateToGerman(text: string): string {
   t = t.replace(/# Unit (\d+): Practice Examples/g, "# Lektion $1: Übungsbeispiele");
   t = t.replace(/# Unit (\d+): Practice Examples & Dialogues/g, "# Lektion $1: Übungsbeispiele & Dialoge");
   
+  // Title phrases - must come early to catch them in titles
+  t = t.replace(/At the Airport/g, "Am Flughafen");
+  t = t.replace(/Unit (\d+) corresponds to pages (\d+)-(\d+)/g, "Lektion $1 entspricht den Seiten $2-$3");
+  t = t.replace(/Unit (\d+) corresponds to page (\d+)/g, "Lektion $1 entspricht Seite $2");
+  
   // Section headers
   t = t.replace(/\*\*What You'll Learn:\*\*/g, "**Was du lernen wirst:**");
   t = t.replace(/\*\*Real-Life Context:\*\*/g, "**Alltagskontext:**");
@@ -67,7 +72,9 @@ function translateToGerman(text: string): string {
   t = t.replace(/Note:/g, "Hinweis:");
   t = t.replace(/🇲🇪 Montenegrin Note/g, "🇲🇪 Montenegrinischer Hinweis");
   
-  // Instructions
+  // Instructions (längere Patterns zuerst)
+  t = t.replace(/Practice this dialogue with a partner or out loud:/g, "Übe diesen Dialog mit einem Partner oder laut:");
+  t = t.replace(/with a partner or out loud/g, "mit einem Partner oder laut");
   t = t.replace(/Complete the sentences/g, "Vervollständige die Sätze");
   t = t.replace(/Translate to Serbian/g, "Übersetze ins Serbische");
   t = t.replace(/Identify the gender/g, "Bestimme das Geschlecht");
@@ -284,6 +291,70 @@ function translateToGerman(text: string): string {
   t = t.replace(/^How to talk about what you did yesterday, last week, etc\.$/gm, "Wie man über das spricht, was man gestern, letzte Woche, etc. getan hat");
   t = t.replace(/^Time expressions for the past$/gm, "Zeitausdrücke für die Vergangenheit");
   
+  // Bullet Points für "Was du lernen wirst:"
+  t = t.replace(/The Serbian Latin alphabet and pronunciation/g, "Das serbische lateinische Alphabet und die Aussprache");
+  t = t.replace(/Basic greetings and polite phrases/g, "Grundlegende Begrüßungen und höfliche Phrasen");
+  t = t.replace(/How to introduce yourself/g, "Wie man sich vorstellt");
+  t = t.replace(/The verb "biti" \(to be\) - your first Serbian verb!/g, "Das Verb \"biti\" (sein) - dein erstes serbisches Verb!");
+  t = t.replace(/Understanding grammatical gender \(masculine, feminine, neuter\)/g, "Grammatisches Geschlecht verstehen (männlich, weiblich, sächlich)");
+  t = t.replace(/Simple yes\/no questions/g, "Einfache Ja/Nein-Fragen");
+  
+  // Kontext-Beschreibungen
+  t = t.replace(/just landed in Belgrade\. You're at the airport, meeting someone for the first time\. This unit teaches you exactly what you need to navigate those first crucial conversations!/g, "gerade in Belgrad gelandet. Du bist am Flughafen und triffst jemanden zum ersten Mal. Diese Lektion lehrt dich genau das, was du brauchst, um diese ersten entscheidenden Gespräche zu meistern!");
+  t = t.replace(/Practice the alphabet daily - Serbian pronunciation is very consistent!/g, "Übe das Alphabet täglich - die serbische Aussprache ist sehr konsistent!");
+  t = t.replace(/Repeat the greetings out loud/g, "Wiederhole die Begrüßungen laut");
+  t = t.replace(/Don't worry about perfection - Serbians appreciate any effort to speak their language/g, "Mach dir keine Sorgen um Perfektion - Serben schätzen jede Anstrengung, ihre Sprache zu sprechen");
+  
+  // Grammatik-Überschriften
+  t = t.replace(/## 1\. The Serbian Alphabet/g, "## 1. Das serbische Alphabet");
+  t = t.replace(/1\. The Serbian Alphabet/g, "1. Das serbische Alphabet");
+  t = t.replace(/Serbian uses both Cyrillic and Latin alphabets\. In this course, we focus on the Latin alphabet, which has 30 letters\./g, "Serbisch verwendet sowohl das kyrillische als auch das lateinische Alphabet. In diesem Kurs konzentrieren wir uns auf das lateinische Alphabet, das 30 Buchstaben hat.");
+  t = t.replace(/### Key Pronunciation Rules:/g, "### Wichtige Ausspracheregeln:");
+  t = t.replace(/Key Pronunciation Rules:/g, "Wichtige Ausspracheregeln:");
+  t = t.replace(/## 2\. Greetings and Basic Phrases/g, "## 2. Begrüßungen und grundlegende Phrasen");
+  t = t.replace(/2\. Greetings and Basic Phrases/g, "2. Begrüßungen und grundlegende Phrasen");
+  t = t.replace(/\*\*Important:\*\* Each letter has ONE sound - no exceptions! Once you learn it, you can read ANY Serbian word\./g, "**Wichtig:** Jeder Buchstabe hat EINEN Laut - keine Ausnahmen! Sobald du es lernst, kannst du JEDES serbische Wort lesen.");
+  t = t.replace(/Each letter has ONE sound - no exceptions! Once you learn it, you can read ANY Serbian word\./g, "Jeder Buchstabe hat EINEN Laut - keine Ausnahmen! Sobald du es lernst, kannst du JEDES serbische Wort lesen.");
+  
+  // Dialog-Überschriften und Szenarien (spezifische Patterns zuerst)
+  t = t.replace(/## 📝 Dialogue 1: Meeting Someone at the Airport/g, "## 📝 Dialog 1: Jemanden am Flughafen treffen");
+  t = t.replace(/## 📝 Dialogue 2: At the Information Desk/g, "## 📝 Dialog 2: Am Informationsschalter");
+  t = t.replace(/Dialogue 1: Meeting Someone at the Airport/g, "Dialog 1: Jemanden am Flughafen treffen");
+  t = t.replace(/Dialogue 2: At the Information Desk/g, "Dialog 2: Am Informationsschalter");
+  t = t.replace(/\*\*Scenario:\*\* You've just arrived in Belgrade and meet your Serbian friend Marko\./g, "**Szenario:** Du bist gerade in Belgrad angekommen und triffst deinen serbischen Freund Marko.");
+  t = t.replace(/You've just arrived in Belgrade and meet your Serbian friend Marko\./g, "Du bist gerade in Belgrad angekommen und triffst deinen serbischen Freund Marko.");
+  
+  // Dialog-Übersetzungen (spezifische Patterns mit Markdown zuerst, dann allgemeine)
+  t = t.replace(/\*\*Marko:\*\* Good day!/g, "**Marko:** Guten Tag!");
+  t = t.replace(/\*\*You:\*\* Good day!/g, "**You:** Guten Tag!");
+  t = t.replace(/\*\*You:\*\* Good day! Are you Marko\?/g, "**You:** Guten Tag! Bist du Marko?");
+  t = t.replace(/\*\*Marko:\*\* Yes, I am Marko\. What's your name\?/g, "**Marko:** Ja, ich bin Marko. Wie heißt du?");
+  t = t.replace(/\*\*You:\*\* I am \[Your Name\]\. Nice to meet you\./g, "**You:** Ich bin [Dein Name]. Freut mich, dich kennenzulernen.");
+  t = t.replace(/\*\*Marko:\*\* Nice to meet you\. Where are you from\?/g, "**Marko:** Freut mich, dich kennenzulernen. Woher kommst du?");
+  t = t.replace(/\*\*You:\*\* I am from America\./g, "**You:** Ich komme aus Amerika.");
+  t = t.replace(/\*\*Marko:\*\* Welcome to Serbia!/g, "**Marko:** Willkommen in Serbien!");
+  t = t.replace(/\*\*You:\*\* Excuse me, where is the taxi\?/g, "**You:** Entschuldigung, wo ist das Taxi?");
+  t = t.replace(/\*\*Employee:\*\* The taxi is outside, to the right\./g, "**Employee:** Das Taxi ist draußen, rechts.");
+  t = t.replace(/\*\*You:\*\* Thank you\./g, "**You:** Danke.");
+  t = t.replace(/\*\*Employee:\*\* You're welcome\./g, "**Employee:** Bitte schön.");
+  
+  // Allgemeine Dialog-Übersetzungen (ohne Markdown-Formatierung)
+  t = t.replace(/Good day! Are you Marko\?/g, "Guten Tag! Bist du Marko?");
+  t = t.replace(/Good day!/g, "Guten Tag!");
+  t = t.replace(/Are you Marko\?/g, "Bist du Marko?");
+  t = t.replace(/Yes, I am Marko\. What's your name\?/g, "Ja, ich bin Marko. Wie heißt du?");
+  t = t.replace(/What's your name\?/g, "Wie heißt du?");
+  t = t.replace(/I am \[Your Name\]\. Nice to meet you\./g, "Ich bin [Dein Name]. Freut mich, dich kennenzulernen.");
+  t = t.replace(/Nice to meet you\. Where are you from\?/g, "Freut mich, dich kennenzulernen. Woher kommst du?");
+  t = t.replace(/Nice to meet you\./g, "Freut mich, dich kennenzulernen.");
+  t = t.replace(/Where are you from\?/g, "Woher kommst du?");
+  t = t.replace(/I am from America\./g, "Ich komme aus Amerika.");
+  t = t.replace(/Welcome to Serbia!/g, "Willkommen in Serbien!");
+  t = t.replace(/Excuse me, where is the taxi\?/g, "Entschuldigung, wo ist das Taxi?");
+  t = t.replace(/The taxi is outside, to the right\./g, "Das Taxi ist draußen, rechts.");
+  t = t.replace(/Thank you\./g, "Danke.");
+  t = t.replace(/You're welcome\./g, "Bitte schön.");
+  
   return t;
 }
 
@@ -317,7 +388,17 @@ async function addGermanTranslations() {
           ? translateToGerman(unit.bookReference) 
           : undefined;
 
-        await client.mutation(api.units.updateGermanTranslationsScript, {
+        // Debug output for Unit 1
+        if (unit.unitNumber === 1) {
+          console.log(`\n📝 Debug: Unit 1 Translation Sample`);
+          console.log(`Original overview (first 200 chars): ${(unit.overview || '').substring(0, 200)}`);
+          console.log(`Translated overview (first 200 chars): ${overviewGerman.substring(0, 200)}`);
+          console.log(`Overview German length: ${overviewGerman.length}`);
+          console.log(`Grammar German length: ${grammarExplainedGerman.length}`);
+          console.log(`Practice German length: ${practiceExamplesGerman.length}`);
+        }
+
+        const result = await client.mutation(api.units.updateGermanTranslationsScript, {
           unitNumber: unit.unitNumber,
           overviewGerman,
           grammarExplainedGerman,
@@ -325,7 +406,27 @@ async function addGermanTranslations() {
           bookReferenceGerman,
         });
 
-        console.log(`✅ Unit ${unit.unitNumber} translated successfully`);
+        // Verify the write was successful
+        if (result) {
+          console.log(`✅ Unit ${unit.unitNumber} translated successfully (ID: ${result})`);
+          
+          // For Unit 1, verify the data was written
+          if (unit.unitNumber === 1) {
+            try {
+              const verification = await client.query(api.units.getExplanation, { unitNumber: 1 });
+              if (verification && (verification as any).overviewGerman) {
+                console.log(`   ✓ Verified: overviewGerman exists in database (${(verification as any).overviewGerman.length} chars)`);
+              } else {
+                console.log(`   ⚠️  Warning: overviewGerman not found in database after write`);
+              }
+            } catch (verifyError: any) {
+              console.log(`   ⚠️  Could not verify write: ${verifyError.message}`);
+            }
+          }
+        } else {
+          console.log(`⚠️  Unit ${unit.unitNumber} mutation returned no result`);
+        }
+        
         successCount++;
       } catch (error: any) {
         console.error(`❌ Failed to translate Unit ${unit.unitNumber}: ${error.message}`);
