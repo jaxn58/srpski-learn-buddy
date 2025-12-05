@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useCallback } from "react";
 
-import { VOCABULARY, type VocabWord } from "@shared/vocabularyData";
+import { VOCABULARY, type VocabWord } from "@shared/data";
 import { Sidebar } from "@/components/Sidebar";
 
 export default function Vocabulary() {

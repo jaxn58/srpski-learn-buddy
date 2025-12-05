@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { COURSE_WEEKS, COURSE_UNITS } from "../../../shared/courseData";
+import { COURSE_WEEKS, COURSE_UNITS } from "@shared/data";
 import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock, Home, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";

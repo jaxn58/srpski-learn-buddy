@@ -25,7 +25,7 @@ import {
   getDb
 } from "./db";
 import { users } from "../drizzle/schema";
-import { COURSE_UNITS, COURSE_WEEKS } from "../shared/courseData";
+import { COURSE_UNITS, COURSE_WEEKS } from "../shared/data/index";
 import { invokeLLM } from "./_core/llm";
 import { nanoid } from "nanoid";
 import {

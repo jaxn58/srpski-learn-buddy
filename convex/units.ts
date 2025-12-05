@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -12,16 +12,76 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .first();
 }
 
+// Helper to check unit access
+async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
+  const user = await getCurrentUser(ctx);
+  if (!user) return false;
+
+  // Admins have full access
+  if (user.role === "admin" || user.role === "superadmin") {
+    return true;
+  }
+
+  // Check for active subscription
+  const subscription = await ctx.db
+    .query("userSubscriptions")
+    .withIndex("by_user", (q) => q.eq("userId", user._id))
+    .filter((q) => q.eq(q.field("status"), "active"))
+    .first();
+
+  if (subscription?.maxAccessibleUnits && unitNumber <= subscription.maxAccessibleUnits) {
+    return true;
+  }
+
+  // Paid subscriptions get full access
+  if (subscription && subscription.planType !== "beta" && unitNumber <= 27) {
+    return true;
+  }
+
+  // Fallback: Beta Tester Flag
+  if (user.isBetaTester && unitNumber <= 5) {
+    return true;
+  }
+
+  return false;
+}
+
 // Get unit explanation
 export const getExplanation = query({
   args: {
     unitNumber: v.number(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
+    if (!hasAccess) {
+      throw new Error("UNIT_LOCKED");
+    }
+
+    const user = await getCurrentUser(ctx);
+    const userLanguage = user?.learningLanguage || 'en';
+    
+    const explanation = await ctx.db
       .query("unitExplanations")
       .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
       .first();
+    
+    if (!explanation) {
+      return null;
+    }
+    
+    // Return German version if available and user language is German
+    if (userLanguage === 'de' && explanation.overviewGerman) {
+      return {
+        ...explanation,
+        overview: explanation.overviewGerman,
+        grammarExplained: explanation.grammarExplainedGerman || explanation.grammarExplained,
+        practiceExamples: explanation.practiceExamplesGerman || explanation.practiceExamples,
+        bookReference: explanation.bookReferenceGerman || explanation.bookReference,
+      };
+    }
+    
+    // Return English version (default)
+    return explanation;
   },
 });
 
@@ -63,6 +123,72 @@ export const upsertExplanation = mutation({
     }
 
     return await ctx.db.insert("unitExplanations", args);
+  },
+});
+
+// Update German translations for unit explanation (admin only)
+export const updateGermanTranslations = mutation({
+  args: {
+    unitNumber: v.number(),
+    overviewGerman: v.optional(v.string()),
+    grammarExplainedGerman: v.optional(v.string()),
+    practiceExamplesGerman: v.optional(v.string()),
+    bookReferenceGerman: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+      throw new Error("Unauthorized");
+    }
+
+    const existing = await ctx.db
+      .query("unitExplanations")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .first();
+
+    if (!existing) {
+      throw new Error(`Unit explanation for unit ${args.unitNumber} not found`);
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (args.overviewGerman !== undefined) updates.overviewGerman = args.overviewGerman;
+    if (args.grammarExplainedGerman !== undefined) updates.grammarExplainedGerman = args.grammarExplainedGerman;
+    if (args.practiceExamplesGerman !== undefined) updates.practiceExamplesGerman = args.practiceExamplesGerman;
+    if (args.bookReferenceGerman !== undefined) updates.bookReferenceGerman = args.bookReferenceGerman;
+
+    await ctx.db.patch(existing._id, updates);
+    return existing._id;
+  },
+});
+
+// Temporary mutation to update German translations (for scripts - no auth required)
+// TODO: Remove this after translations are complete and use updateGermanTranslations instead
+export const updateGermanTranslationsScript = mutation({
+  args: {
+    unitNumber: v.number(),
+    overviewGerman: v.optional(v.string()),
+    grammarExplainedGerman: v.optional(v.string()),
+    practiceExamplesGerman: v.optional(v.string()),
+    bookReferenceGerman: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("unitExplanations")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .first();
+
+    if (!existing) {
+      throw new Error(`Unit explanation for unit ${args.unitNumber} not found`);
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (args.overviewGerman !== undefined) updates.overviewGerman = args.overviewGerman;
+    if (args.grammarExplainedGerman !== undefined) updates.grammarExplainedGerman = args.grammarExplainedGerman;
+    if (args.practiceExamplesGerman !== undefined) updates.practiceExamplesGerman = args.practiceExamplesGerman;
+    if (args.bookReferenceGerman !== undefined) updates.bookReferenceGerman = args.bookReferenceGerman;
+
+    await ctx.db.patch(existing._id, updates);
+    return existing._id;
   },
 });
 

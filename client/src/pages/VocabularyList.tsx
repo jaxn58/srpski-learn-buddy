@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { VOCABULARY } from "@shared/vocabularyData";
+import { VOCABULARY } from "@shared/data";
 import { Search, BookOpen, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo } from "react";

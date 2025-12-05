@@ -82,3 +82,5 @@ export function calculateCurrentWeek(completedUnits: number[], learningDuration:
   return Math.min(currentWeek, learningDuration);
 }
 
+
+

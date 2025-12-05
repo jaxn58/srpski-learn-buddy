@@ -6,15 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { COURSE_UNITS } from "../../../shared/courseData";
+import { COURSE_UNITS } from "@shared/data";
 import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { InteractiveMarkdownContent } from "@/components/InteractiveMarkdownContent";
 import { Sidebar } from "@/components/Sidebar";
+import { useTranslation } from "react-i18next";
 
 export default function UnitView() {
   const { user, loading: authLoading } = useAuth();
+  const { t, i18n } = useTranslation();
   const params = useParams();
   const unitNumber = parseInt(params.unitNumber || "1");
 
@@ -22,11 +24,44 @@ export default function UnitView() {
   const unit = COURSE_UNITS.find(u => u.number === unitNumber);
   // Get explanation from Convex
   const explanation = useQuery(api.units.getExplanation, { unitNumber });
+  
+  // All hooks must be called before any conditional returns
+  const progress = useQuery(api.progress.getUserProgress);
+  const completeUnitMutation = useMutation(api.progress.completeUnit);
+  const unitCompletionStatus = useQuery(api.progress.canCompleteUnit, { unitNumber });
+  const [showSuccess, setShowSuccess] = React.useState(false);
+  const [isCompleting, setIsCompleting] = React.useState(false);
+  
+  // Calculate derived values after hooks
   const isLoading = explanation === undefined;
+  const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
   
   // Check if unit is locked for beta testers
   const isLocked = user?.isBetaTester && unitNumber > 5;
   const isBetaLockError = false; // Handled by isLocked
+  
+  // Callback and effect hooks
+  const handleComplete = React.useCallback(async () => {
+    setIsCompleting(true);
+    try {
+      await completeUnitMutation({ unitNumber });
+      setShowSuccess(true);
+    } finally {
+      setIsCompleting(false);
+    }
+  }, [completeUnitMutation, unitNumber]);
+
+  // Automatischer Abschluss wenn Bedingungen erfüllt sind
+  React.useEffect(() => {
+    if (
+      !isCompleted &&
+      unitCompletionStatus?.canComplete &&
+      !isCompleting &&
+      !showSuccess
+    ) {
+      handleComplete();
+    }
+  }, [isCompleted, unitCompletionStatus?.canComplete, isCompleting, showSuccess, handleComplete]);
   
   console.log('[UnitView] Debug:', { 
     unitNumber, 
@@ -35,12 +70,6 @@ export default function UnitView() {
     overviewLength: explanation?.overview?.length,
     grammarLength: explanation?.grammarExplained?.length 
   });
-  const progress = useQuery(api.progress.getUserProgress);
-  const completeUnitMutation = useMutation(api.progress.completeUnit);
-  
-  // All hooks must be called before any conditional returns
-  const [showSuccess, setShowSuccess] = React.useState(false);
-  const [isCompleting, setIsCompleting] = React.useState(false);
 
   // Show loading while auth is loading
   if (authLoading) {
@@ -70,11 +99,11 @@ export default function UnitView() {
           <div className="container py-4">
             <div className="flex items-center gap-4">
               <Link href="/dashboard">
-                <Button variant="ghost" size="sm">← Back to Dashboard</Button>
+                <Button variant="ghost" size="sm">← {t('unit.backToDashboard')}</Button>
               </Link>
               <div className="flex items-center gap-2">
                 <Lock className="h-6 w-6 text-gray-500" />
-                <h1 className="text-xl font-bold text-gray-600">Unit {unitNumber} - Locked</h1>
+                <h1 className="text-xl font-bold text-gray-600">{t('unit.locked', { number: unitNumber })}</h1>
               </div>
             </div>
           </div>
@@ -84,46 +113,45 @@ export default function UnitView() {
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
                 <Lock className="h-8 w-8 text-yellow-600" />
-                <CardTitle className="text-2xl">🔒 This Unit is Locked</CardTitle>
+                <CardTitle className="text-2xl">{t('unit.lockedTitle')}</CardTitle>
               </div>
               <CardDescription className="text-base">
-                As a beta tester, you have access to Units 1-5 for free.
+                {t('unit.lockedDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-white rounded-lg p-4 border border-yellow-200">
-                <h3 className="font-semibold text-lg mb-2">🎁 Beta Tester Benefits</h3>
+                <h3 className="font-semibold text-lg mb-2">{t('unit.betaBenefits')}</h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>Free access</strong> to Units 1-5 during beta testing</span>
+                    <span>{t('unit.betaBenefit1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>50% OFF discount</strong> when the full course launches</span>
+                    <span>{t('unit.betaBenefit2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>Early access</strong> to all features and improvements</span>
+                    <span>{t('unit.betaBenefit3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold">✓</span>
-                    <span><strong>Shape the future</strong> of the app with your feedback</span>
+                    <span>{t('unit.betaBenefit4')}</span>
                   </li>
                 </ul>
               </div>
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                 <p className="text-sm text-blue-900">
-                  <strong>💡 What's next?</strong> Complete Units 1-5, practice vocabulary, and send us your feedback! 
-                  Units 6-27 will be unlocked after the beta testing phase ends.
+                  <strong>{t('unit.whatsNext')}</strong> {t('unit.whatsNextDesc')}
                 </p>
               </div>
               <div className="flex gap-3 pt-2">
                 <Link href="/dashboard">
-                  <Button variant="default">← Back to Dashboard</Button>
+                  <Button variant="default">← {t('unit.backToDashboard')}</Button>
                 </Link>
                 <Link href="/feedback">
-                  <Button variant="outline">Send Feedback</Button>
+                  <Button variant="outline">{t('unit.sendFeedback')}</Button>
                 </Link>
               </div>
             </CardContent>
@@ -133,18 +161,6 @@ export default function UnitView() {
       </div>
     );
   }
-
-  const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
-
-  const handleComplete = async () => {
-    setIsCompleting(true);
-    try {
-      await completeUnitMutation({ unitNumber });
-      setShowSuccess(true);
-    } finally {
-      setIsCompleting(false);
-    }
-  };
 
   const nextUnit = unitNumber < 27 ? unitNumber + 1 : null;
   const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
@@ -158,22 +174,22 @@ export default function UnitView() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/dashboard">
-                <Button variant="ghost" size="sm">← Back to Dashboard</Button>
+                <Button variant="ghost" size="sm">← {t('unit.backToDashboard')}</Button>
               </Link>
               <div className="flex items-center gap-2">
                 <BookOpen className="h-6 w-6 text-primary" />
-                <h1 className="text-xl font-bold">Unit {unitNumber}</h1>
+                <h1 className="text-xl font-bold">{t('unit.unit', { number: unitNumber })}</h1>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {prevUnit && (
                 <Link href={`/unit/${prevUnit}`}>
-                  <Button variant="outline" size="sm">← Previous</Button>
+                  <Button variant="outline" size="sm">{t('unit.previous')}</Button>
                 </Link>
               )}
               {nextUnit && (
                 <Link href={`/unit/${nextUnit}`}>
-                  <Button variant="outline" size="sm">Next →</Button>
+                  <Button variant="outline" size="sm">{t('unit.next')}</Button>
                 </Link>
               )}
             </div>
@@ -189,19 +205,19 @@ export default function UnitView() {
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="text-3xl mb-2">
-                    {unit.title}
+                    {i18n.language === 'de' ? unit.titleGerman : unit.titleEnglish}
                   </CardTitle>
                   <CardDescription className="text-lg">
-                    {unit.titleEnglish}
+                    {unit.title}
                   </CardDescription>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Page {unit.page} in coursebook
+                    {t('unit.pageInCoursebook', { page: unit.page })}
                   </p>
                 </div>
                 {isCompleted && (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                     <CheckCircle2 className="mr-1 h-4 w-4" />
-                    Completed
+                    {t('unit.completed')}
                   </Badge>
                 )}
               </div>
@@ -216,13 +232,13 @@ export default function UnitView() {
                   <div className="flex items-center gap-3">
                     <CheckCircle2 className="h-8 w-8 text-green-600" />
                     <div>
-                      <h3 className="font-semibold text-green-900">Great job! Unit completed!</h3>
-                      <p className="text-sm text-green-700">You've finished Unit {unitNumber}. Keep up the excellent work!</p>
+                      <h3 className="font-semibold text-green-900">{t('unit.unitCompleted')}</h3>
+                      <p className="text-sm text-green-700">{t('unit.unitCompletedDesc', { number: unitNumber })}</p>
                     </div>
                   </div>
                   {nextUnit && (
                     <Link href={`/unit/${nextUnit}`}>
-                      <Button>Continue to Unit {nextUnit} →</Button>
+                      <Button>{t('unit.continueToUnit', { number: nextUnit })}</Button>
                     </Link>
                   )}
                 </div>
@@ -233,9 +249,9 @@ export default function UnitView() {
           {/* Main Content Tabs */}
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="grammar">Grammar Explained</TabsTrigger>
-              <TabsTrigger value="practice">Practice Examples</TabsTrigger>
+              <TabsTrigger value="overview">{t('unit.unitOverview')}</TabsTrigger>
+              <TabsTrigger value="grammar">{t('unit.grammarExplained')}</TabsTrigger>
+              <TabsTrigger value="practice">{t('unit.practiceExamples')}</TabsTrigger>
             </TabsList>
 
             {/* Overview Tab */}
@@ -245,7 +261,7 @@ export default function UnitView() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Lightbulb className="h-5 w-5 text-primary" />
-                      Unit Overview
+                      {t('unit.unitOverview')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -257,11 +273,11 @@ export default function UnitView() {
                   {/* Topics */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Lesson Topics</CardTitle>
+                      <CardTitle>{t('unit.lessonTopics')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ul className="space-y-2">
-                        {unit.topics.map((topic, idx) => (
+                        {(i18n.language === 'de' ? unit.topicsGerman : unit.topics).map((topic, idx) => (
                           <li key={idx} className="flex items-start gap-2">
                             <span className="text-primary mt-1">•</span>
                             <span>{topic}</span>
@@ -274,7 +290,7 @@ export default function UnitView() {
                   {/* Grammar Focus */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Grammar Focus</CardTitle>
+                      <CardTitle>{t('unit.grammarFocus')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-2">
@@ -290,7 +306,7 @@ export default function UnitView() {
                   {/* Vocabulary Themes */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Vocabulary Areas</CardTitle>
+                      <CardTitle>{t('unit.vocabularyAreas')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-wrap gap-2">
@@ -317,8 +333,8 @@ export default function UnitView() {
               ) : (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
-                    <p>Detailed grammar explanations for this unit are coming soon!</p>
-                    <p className="text-sm mt-2">In the meantime, check the coursebook or ask the AI Learn Buddy.</p>
+                    <p>{t('unit.grammarComingSoon')}</p>
+                    <p className="text-sm mt-2">{t('unit.grammarComingSoonDesc')}</p>
                   </CardContent>
                 </Card>
               )}
@@ -335,8 +351,8 @@ export default function UnitView() {
               ) : (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
-                    <p>Practice dialogues for this unit are coming soon!</p>
-                    <p className="text-sm mt-2">Check the coursebook for exercises and dialogues.</p>
+                    <p>{t('unit.practiceComingSoon')}</p>
+                    <p className="text-sm mt-2">{t('unit.practiceComingSoonDesc')}</p>
                   </CardContent>
                 </Card>
               )}
@@ -346,40 +362,30 @@ export default function UnitView() {
           {/* Actions */}
           <Card>
             <CardHeader>
-              <CardTitle>Learning Activities</CardTitle>
+              <CardTitle>{t('unit.activities')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
                 <Link href={`/vocabulary?unit=${unitNumber}`}>
                   <Button variant="outline" className="w-full justify-start" size="lg">
                     <BookOpen className="mr-2 h-5 w-5" />
-                    Practice Vocabulary
+                    {t('unit.practiceVocab')}
                   </Button>
                 </Link>
                 <Link href="/chat">
                   <Button variant="outline" className="w-full justify-start" size="lg">
                     <Brain className="mr-2 h-5 w-5" />
-                    Ask AI Learn Buddy
+                    {t('unit.chatWithProfessor')}
                   </Button>
                 </Link>
               </div>
 
-              {!isCompleted && (
-                <Button 
-                  onClick={handleComplete} 
-                  className="w-full" 
-                  size="lg"
-                  disabled={isCompleting}
-                >
-                  <CheckCircle2 className="mr-2 h-5 w-5" />
-                  {isCompleting ? "Marking as complete..." : "Mark Unit as Complete"}
-                </Button>
-              )}
+              {/* Button entfernt - Abschluss erfolgt automatisch */}
 
               {isCompleted && nextUnit && (
                 <Link href={`/unit/${nextUnit}`}>
                   <Button className="w-full" size="lg">
-                    Continue to Unit {nextUnit} →
+                    {t('unit.continueToUnit', { number: nextUnit })}
                   </Button>
                 </Link>
               )}

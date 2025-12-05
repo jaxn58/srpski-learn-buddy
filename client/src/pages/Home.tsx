@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { UNITS_DATA, TOTAL_VOCABULARY } from "@/data/unitsForLanding";
+import { getUnitsForLanding, getTotalVocabularyCount, VOCABULARY } from "@shared/data";
 import { useState, useCallback } from "react";
 
 export default function Home() {
@@ -18,6 +18,10 @@ export default function Home() {
   const [betaForm, setBetaForm] = useState({ name: "", email: "", motivation: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const registerMutation = useMutation(api.beta.register);
+  
+  // Generate units data for landing page
+  const UNITS_DATA = getUnitsForLanding(VOCABULARY);
+  const TOTAL_VOCABULARY = getTotalVocabularyCount(VOCABULARY);
 
   const handleBetaSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();

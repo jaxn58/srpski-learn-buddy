@@ -7,7 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { BookOpen, CheckCircle2, Clock, TrendingUp, Calendar, Award } from "lucide-react";
 import { Link } from "wouter";
-import { COURSE_WEEKS } from "@shared/courseData";
+import { COURSE_WEEKS } from "@shared/data";
 import { Sidebar } from "@/components/Sidebar";
 
 export default function Progress() {
