@@ -3,16 +3,29 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { VOCABULARY } from "@shared/data";
+import { VOCABULARY, getTranslation, type SupportedLanguage } from "@shared/data";
 import { Search, BookOpen, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { useTranslation } from "react-i18next";
 
 export default function VocabularyList() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUnit, setSelectedUnit] = useState<number | 'all'>('all');
+  
+  // Get accessible units from Convex
+  const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
+  
+  // User's learning language from database (defaults to English if not set)
+  const userLanguage: SupportedLanguage = (user?.learningLanguage as SupportedLanguage) || "en";
+
+  // Fetch vocabulary progress for all units
+  const vocabProgressData = useQuery(api.vocabulary.getUserVocabularyProgress, {});
 
   if (!user) {
     window.location.href = "/";
@@ -22,6 +35,11 @@ export default function VocabularyList() {
   // Filter and search vocabulary
   const filteredVocabulary = useMemo(() => {
     let filtered = VOCABULARY;
+
+    // Beta/Subscription Beschränkung
+    if (accessInfo && accessInfo.maxUnits > 0) {
+      filtered = filtered.filter(v => v.unit <= accessInfo.maxUnits);
+    }
 
     // Filter by unit
     if (selectedUnit !== 'all') {
@@ -33,12 +51,12 @@ export default function VocabularyList() {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(v => 
         v.serbian.toLowerCase().includes(search) || 
-        v.english.toLowerCase().includes(search)
+        getTranslation(v, userLanguage).toLowerCase().includes(search)
       );
     }
 
     return filtered;
-  }, [searchTerm, selectedUnit]);
+  }, [searchTerm, selectedUnit, accessInfo]);
 
   // Group by unit
   const groupedByUnit = useMemo(() => {
@@ -52,7 +70,10 @@ export default function VocabularyList() {
     return groups;
   }, [filteredVocabulary]);
 
-  const units = Array.from({ length: 27 }, (_, i) => i + 1);
+  // Units beschränken basierend auf Zugriff
+  const units = accessInfo && accessInfo.maxUnits > 0
+    ? Array.from({ length: Math.min(27, accessInfo.maxUnits) }, (_, i) => i + 1)
+    : Array.from({ length: 27 }, (_, i) => i + 1);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -65,12 +86,12 @@ export default function VocabularyList() {
             <div className="flex items-center gap-4">
               <Link href="/dashboard">
                 <Button variant="ghost" size="sm">
-                  ← Back to Dashboard
+                  {t('vocabularyList.backToDashboard')}
                 </Button>
               </Link>
               <div className="flex items-center gap-2">
                 <BookOpen className="h-6 w-6 text-primary" />
-                <h1 className="text-2xl font-bold">Vocabulary Reference</h1>
+                <h1 className="text-2xl font-bold">{t('vocabularyList.title')}</h1>
               </div>
             </div>
           </div>
@@ -81,9 +102,9 @@ export default function VocabularyList() {
         {/* Search and Filter */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Search & Filter</CardTitle>
+            <CardTitle>{t('vocabularyList.searchFilter')}</CardTitle>
             <CardDescription>
-              Browse all {VOCABULARY.length} words from the coursebook
+              {t('vocabularyList.searchFilter.desc', { count: VOCABULARY.length })}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -91,7 +112,7 @@ export default function VocabularyList() {
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search in Serbian or English..."
+                placeholder={t('vocabularyList.searchPlaceholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -102,7 +123,7 @@ export default function VocabularyList() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4" />
-                <span className="text-sm font-medium">Filter by Unit:</span>
+                <span className="text-sm font-medium">{t('vocabularyList.filterByUnit')}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -110,7 +131,7 @@ export default function VocabularyList() {
                   size="sm"
                   onClick={() => setSelectedUnit('all')}
                 >
-                  All Units
+                  {t('vocabularyList.allUnits')}
                 </Button>
                 {units.map(unit => (
                   <Button
@@ -119,7 +140,7 @@ export default function VocabularyList() {
                     size="sm"
                     onClick={() => setSelectedUnit(unit)}
                   >
-                    Unit {unit}
+                    {t('vocabularyList.unit', { number: unit })}
                   </Button>
                 ))}
               </div>
@@ -127,7 +148,7 @@ export default function VocabularyList() {
 
             {/* Results count */}
             <div className="text-sm text-muted-foreground">
-              Showing {filteredVocabulary.length} word{filteredVocabulary.length !== 1 ? 's' : ''}
+              {t('vocabularyList.showing', { count: filteredVocabulary.length })}
             </div>
           </CardContent>
         </Card>
@@ -142,23 +163,40 @@ export default function VocabularyList() {
                 <Card key={unit}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Badge variant="secondary">Unit {unit}</Badge>
+                      <Badge variant="secondary">{t('vocabularyList.unit', { number: unit })}</Badge>
                       <span className="text-base font-normal text-muted-foreground">
-                        {words.length} word{words.length !== 1 ? 's' : ''}
+                        {t('vocabularyList.words', { count: words.length })}
                       </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {words.map((word, idx) => (
-                        <div
-                          key={idx}
-                          className="flex justify-between items-center p-3 rounded-lg border bg-card hover:bg-accent transition-colors"
-                        >
-                          <span className="font-medium">{word.serbian}</span>
-                          <span className="text-muted-foreground">{word.english}</span>
-                        </div>
-                      ))}
+                      {words.map((word, idx) => {
+                        const wordProgress = vocabProgressData?.find(
+                          p => p.serbianWord === word.serbian && p.unitNumber === word.unit
+                        );
+                        return (
+                          <div
+                            key={idx}
+                            className="flex justify-between items-center p-3 rounded-lg border bg-card hover:bg-accent transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              {wordProgress?.mastered && (
+                                <span className="text-yellow-500" title="Gemeistert!">⭐</span>
+                              )}
+                              <span className="font-medium">{word.serbian}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {wordProgress && (wordProgress.correctAnswerCount || 0) > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {wordProgress.correctAnswerCount || 0}/3
+                                </Badge>
+                              )}
+                              <span className="text-muted-foreground">{getTranslation(word, userLanguage)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
@@ -169,25 +207,42 @@ export default function VocabularyList() {
           <Card>
             <CardHeader>
               <CardTitle>
-                {typeof selectedUnit === 'number' ? `Unit ${selectedUnit}` : 'All Units'}
+                {typeof selectedUnit === 'number' ? t('vocabularyList.unit', { number: selectedUnit }) : t('vocabularyList.allUnits')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {filteredVocabulary.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filteredVocabulary.map((word, idx) => (
-                    <div
-                      key={idx}
-                      className="flex justify-between items-center p-3 rounded-lg border bg-card hover:bg-accent transition-colors"
-                    >
-                      <span className="font-medium">{word.serbian}</span>
-                      <span className="text-muted-foreground">{word.english}</span>
-                    </div>
-                  ))}
+                  {filteredVocabulary.map((word, idx) => {
+                    const wordProgress = vocabProgressData?.find(
+                      p => p.serbianWord === word.serbian && p.unitNumber === word.unit
+                    );
+                    return (
+                      <div
+                        key={idx}
+                        className="flex justify-between items-center p-3 rounded-lg border bg-card hover:bg-accent transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          {wordProgress?.mastered && (
+                            <span className="text-yellow-500" title="Gemeistert!">⭐</span>
+                          )}
+                          <span className="font-medium">{word.serbian}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {wordProgress && (wordProgress.correctAnswerCount || 0) > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {wordProgress.correctAnswerCount || 0}/3
+                            </Badge>
+                          )}
+                          <span className="text-muted-foreground">{getTranslation(word, userLanguage)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
-                  No words found matching your search.
+                  {t('vocabularyList.noWords')}
                 </div>
               )}
             </CardContent>

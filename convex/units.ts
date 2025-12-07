@@ -69,8 +69,12 @@ export const getExplanation = query({
       return null;
     }
     
+    // Debug logging
+    console.log(`[getExplanation] Unit ${args.unitNumber}: userLanguage=${userLanguage}, hasOverviewGerman=${!!explanation.overviewGerman}`);
+    
     // Return German version if available and user language is German
     if (userLanguage === 'de' && explanation.overviewGerman) {
+      console.log(`[getExplanation] Returning German version for Unit ${args.unitNumber}`);
       return {
         ...explanation,
         overview: explanation.overviewGerman,
@@ -81,6 +85,7 @@ export const getExplanation = query({
     }
     
     // Return English version (default)
+    console.log(`[getExplanation] Returning English version for Unit ${args.unitNumber}`);
     return explanation;
   },
 });

@@ -12,6 +12,40 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .first();
 }
 
+// Helper to check unit access
+async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
+  const user = await getCurrentUser(ctx);
+  if (!user) return false;
+
+  // Admins have full access
+  if (user.role === "admin" || user.role === "superadmin") {
+    return true;
+  }
+
+  // Check for active subscription
+  const subscription = await ctx.db
+    .query("userSubscriptions")
+    .withIndex("by_user", (q) => q.eq("userId", user._id))
+    .filter((q) => q.eq(q.field("status"), "active"))
+    .first();
+
+  if (subscription?.maxAccessibleUnits && unitNumber <= subscription.maxAccessibleUnits) {
+    return true;
+  }
+
+  // Paid subscriptions get full access
+  if (subscription && subscription.planType !== "beta" && unitNumber <= 27) {
+    return true;
+  }
+
+  // Fallback: Beta Tester Flag
+  if (user.isBetaTester && unitNumber <= 5) {
+    return true;
+  }
+
+  return false;
+}
+
 // Get exercise results for current user
 export const getResults = query({
   handler: async (ctx) => {
@@ -37,6 +71,12 @@ export const addResult = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
+
+    // Check unit access
+    const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
+    if (!hasAccess) {
+      throw new Error("UNIT_LOCKED");
+    }
 
     return await ctx.db.insert("exerciseResults", {
       userId: user._id,
@@ -70,6 +110,12 @@ export const addCompletion = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
+
+    // Check unit access
+    const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
+    if (!hasAccess) {
+      throw new Error("UNIT_LOCKED");
+    }
 
     // Add completion record
     await ctx.db.insert("exerciseCompletions", {
@@ -108,6 +154,22 @@ export const getQuizProgress = query({
         q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
       )
       .first();
+  },
+});
+
+// Get all quiz progress for current user (for auto-selecting next unit)
+export const getAllQuizProgress = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+
+    const allProgress = await ctx.db
+      .query("quizProgress")
+      .withIndex("by_user_unit", (q) => q.eq("userId", user._id))
+      .collect();
+
+    return allProgress;
   },
 });
 
@@ -174,6 +236,50 @@ export const resetQuizProgress = mutation({
 
     if (existing) {
       await ctx.db.delete(existing._id);
+    }
+  },
+});
+
+// Get incorrect words for a unit (for targeted practice)
+export const getIncorrectWords = query({
+  args: {
+    unitNumber: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+
+    const progress = await ctx.db
+      .query("quizProgress")
+      .withIndex("by_user_unit", (q) =>
+        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+      )
+      .first();
+
+    return progress?.incorrectWordIds ?? [];
+  },
+});
+
+// Clear incorrect words after successful practice
+export const clearIncorrectWords = mutation({
+  args: {
+    unitNumber: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const existing = await ctx.db
+      .query("quizProgress")
+      .withIndex("by_user_unit", (q) =>
+        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        incorrectWordIds: [],
+      });
     }
   },
 });

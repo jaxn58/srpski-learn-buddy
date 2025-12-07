@@ -16,6 +16,9 @@ export const ENV = {
   
   // Environment
   isProduction: process.env.NODE_ENV === "production",
+  // Beta mode: when true, new users are automatically marked as beta testers
+  betaMode: process.env.BETA_MODE === "on" || process.env.BETA_MODE === "true",
+  betaEndDate: process.env.BETA_END_DATE ?? "",
   
   // AI/LLM
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",

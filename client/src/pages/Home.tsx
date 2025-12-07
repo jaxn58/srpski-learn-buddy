@@ -1,6 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { SignUp } from "@clerk/clerk-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,55 +7,44 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2, Globe } from "lucide-react";
 import { Link } from "wouter";
 import { getUnitsForLanding, getTotalVocabularyCount, VOCABULARY } from "@shared/data";
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
-  const [betaForm, setBetaForm] = useState({ name: "", email: "", motivation: "" });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const registerMutation = useMutation(api.beta.register);
+  const { t, i18n } = useTranslation();
+  
+  // Language selection state
+  const [selectedLang, setSelectedLang] = useState<'en' | 'de'>('en');
+  
+  // Load preferred language on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('preferredLanguage');
+    if (stored === 'de') {
+      setSelectedLang('de');
+      i18n.changeLanguage('de');
+    }
+  }, [i18n]);
+  
+  // Save language preference
+  const handleLanguageChange = (lang: 'en' | 'de') => {
+    setSelectedLang(lang);
+    localStorage.setItem('preferredLanguage', lang);
+    i18n.changeLanguage(lang);
+  };
   
   // Generate units data for landing page
   const UNITS_DATA = getUnitsForLanding(VOCABULARY);
   const TOTAL_VOCABULARY = getTotalVocabularyCount(VOCABULARY);
-
-  const handleBetaSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!betaForm.name || !betaForm.email) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      await registerMutation({
-        name: betaForm.name,
-        email: betaForm.email,
-        motivation: betaForm.motivation || undefined,
-      });
-      
-      toast.success("🎉 Registration successful! Check your email for confirmation.", {
-        description: "We've sent you a confirmation email. You'll receive another email once your account is activated.",
-        duration: 5000,
-      });
-      
-      // Reset form
-      setBetaForm({ name: "", email: "", motivation: "" });
-      setIsSubmitting(false);
-      
-      // Scroll to top of page
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Registration failed. Please try again.";
-      toast.error(errorMessage);
-      setIsSubmitting(false);
-    }
-  }, [betaForm, registerMutation]);
 
   if (loading) {
     return (
@@ -74,20 +62,41 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <BookOpen className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Serbian AI Tutor
+              {t('home.header.title')}
             </h1>
           </div>
+          
+          <div className="flex items-center gap-3">
+            {/* Language Selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Globe className="h-4 w-4" />
+                  {selectedLang === 'en' ? '🇬🇧 English' : '🇩🇪 Deutsch'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleLanguageChange('en')}>
+                  🇬🇧 English
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleLanguageChange('de')}>
+                  🇩🇪 Deutsch
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
           {isAuthenticated ? (
             <Link href="/dashboard">
-              <Button className="bg-primary hover:bg-primary/90">Go to Dashboard</Button>
+                <Button className="bg-primary hover:bg-primary/90">{t('home.header.dashboard')}</Button>
             </Link>
           ) : (
             <Link href="/sign-in">
               <Button className="bg-primary hover:bg-primary/90">
-                Login
+                  {t('home.header.login')}
               </Button>
             </Link>
           )}
+          </div>
         </div>
       </header>
 
@@ -95,18 +104,22 @@ export default function Home() {
       <section className="container py-20">
         <div className="max-w-4xl mx-auto text-center space-y-6">
           <div className="inline-block px-4 py-2 bg-accent/20 rounded-full text-primary font-semibold mb-4 border border-accent/40">
-            🔥 Now in Beta Testing – Gratis*
+            {t('home.hero.badge')}
           </div>
           <h2 className="text-6xl font-bold tracking-tight">
             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Serbian for Beginners.
+              {t('home.hero.title')}
             </span>
             <br />
-            With your AI Learn Buddy.
+            {t('home.hero.titleHighlight')}
           </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            A structured course with <strong>27 units</strong> and <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong> – featuring interactive exercises, vocabulary training, and AI-powered learning support.
+          <p className="text-2xl font-semibold text-foreground/80 max-w-2xl mx-auto">
+            {t('home.hero.subtitle')}
           </p>
+          <p 
+            className="text-xl text-muted-foreground max-w-2xl mx-auto" 
+            dangerouslySetInnerHTML={{ __html: t('home.hero.description', { count: TOTAL_VOCABULARY }) }}
+          />
           <div className="flex gap-4 justify-center pt-4">
             <Button 
               size="lg" 
@@ -115,10 +128,10 @@ export default function Home() {
                 document.getElementById('beta-registration')?.scrollIntoView({ behavior: 'smooth' });
               }}
             >
-              Register for Beta – Gratis*
+              {t('home.hero.ctaPrimary')}
             </Button>
             <Button size="lg" variant="outline" asChild className="text-lg px-8">
-              <a href="#units">Explore Units</a>
+              <a href="#units">{t('home.hero.ctaSecondary')}</a>
             </Button>
           </div>
         </div>
@@ -130,9 +143,9 @@ export default function Home() {
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <BookOpen className="h-12 w-12 text-primary mb-2" />
-              <CardTitle>Structured Plan</CardTitle>
+              <CardTitle>{t('home.features.structuredPlan.title')}</CardTitle>
               <CardDescription>
-                Structured learning path through all 27 lessons of the course
+                {t('home.features.structuredPlan.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -140,9 +153,9 @@ export default function Home() {
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <Brain className="h-12 w-12 text-primary mb-2" />
-              <CardTitle>AI Learn Buddy</CardTitle>
+              <CardTitle>{t('home.features.aiProfessor.title')}</CardTitle>
               <CardDescription>
-                Your personal AI tutor answers questions, explains grammar, provides conversation practice, and adapts to your learning style
+                {t('home.features.aiProfessor.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -150,9 +163,9 @@ export default function Home() {
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <Trophy className="h-12 w-12 text-primary mb-2" />
-              <CardTitle>Gamification & Rewards</CardTitle>
+              <CardTitle>{t('home.features.gamification.title')}</CardTitle>
               <CardDescription>
-                Earn XP, unlock badges, and maintain streaks to stay motivated
+                {t('home.features.gamification.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -160,9 +173,9 @@ export default function Home() {
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <TrendingUp className="h-12 w-12 text-primary mb-2" />
-              <CardTitle>Progress Tracking</CardTitle>
+              <CardTitle>{t('home.features.progress.title')}</CardTitle>
               <CardDescription>
-                See your achievements and stay motivated with clear milestones
+                {t('home.features.progress.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -170,9 +183,9 @@ export default function Home() {
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <BookOpen className="h-12 w-12 text-primary mb-2" />
-              <CardTitle>Vocabulary Trainer</CardTitle>
+              <CardTitle>{t('home.features.vocabulary.title')}</CardTitle>
               <CardDescription>
-                Master 737+ words with interactive flashcards and spaced repetition
+                {t('home.features.vocabulary.desc')}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -183,10 +196,11 @@ export default function Home() {
       <section className="container py-20">
         <div className="max-w-4xl mx-auto text-center space-y-8">
           <div className="space-y-4">
-            <h3 className="text-4xl font-bold">Learn at Your Own Pace</h3>
-            <p className="text-xl text-muted-foreground">
-              Choose your learning speed – from <strong>3 months intensive</strong> to <strong>12 months relaxed</strong>
-            </p>
+            <h3 className="text-4xl font-bold">{t('home.pricing.title')}</h3>
+            <p 
+              className="text-xl text-muted-foreground" 
+              dangerouslySetInnerHTML={{ __html: t('home.pricing.subtitle') }}
+            />
           </div>
           
           {/* Pricing Cards */}
@@ -195,41 +209,41 @@ export default function Home() {
             <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
               <CardHeader className="text-center pb-4">
                 <Sparkles className="h-12 w-12 text-primary mb-3 mx-auto" />
-                <CardTitle className="text-2xl mb-2">Intensive</CardTitle>
-                <CardDescription className="text-base font-semibold mb-2">3 Months</CardDescription>
-                <p className="text-xs text-muted-foreground italic">Full-time learners with 12+ hours/week</p>
+                <CardTitle className="text-2xl mb-2">{t('home.pricing.intensive.title')}</CardTitle>
+                <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.intensive.duration')}</CardDescription>
+                <p className="text-xs text-muted-foreground italic">{t('home.pricing.intensive.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">€69</div>
-                  <div className="text-xs text-muted-foreground">one-time payment</div>
+                  <div className="text-3xl font-bold text-primary">{t('home.pricing.intensive.price')}</div>
+                  <div className="text-xs text-muted-foreground">{t('home.pricing.intensive.payment')}</div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>2-3 units/week</span>
+                    <span>{t('home.pricing.intensive.feature1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Intensive immersion</span>
+                    <span>{t('home.pricing.intensive.feature2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Fast progress</span>
+                    <span>{t('home.pricing.intensive.feature3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>All 27 units</span>
+                    <span>{t('home.pricing.intensive.feature4')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Learn Buddy</span>
+                    <span>{t('home.pricing.intensive.feature5')}</span>
                   </li>
                 </ul>
                 <Button className="w-full" disabled>
-                  Choose Plan
+                  {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
+                <p className="text-xs text-center text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
               </CardContent>
             </Card>
 
@@ -237,86 +251,86 @@ export default function Home() {
             <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
               <CardHeader className="text-center pb-4">
                 <Target className="h-12 w-12 text-primary mb-3 mx-auto" />
-                <CardTitle className="text-2xl mb-2">Balanced</CardTitle>
-                <CardDescription className="text-base font-semibold mb-2">6 Months</CardDescription>
-                <p className="text-xs text-muted-foreground italic">Working professionals with 6-8 hours/week</p>
+                <CardTitle className="text-2xl mb-2">{t('home.pricing.balanced.title')}</CardTitle>
+                <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.balanced.duration')}</CardDescription>
+                <p className="text-xs text-muted-foreground italic">{t('home.pricing.balanced.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">€79</div>
-                  <div className="text-xs text-muted-foreground">one-time payment</div>
+                  <div className="text-3xl font-bold text-primary">{t('home.pricing.balanced.price')}</div>
+                  <div className="text-xs text-muted-foreground">{t('home.pricing.balanced.payment')}</div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>1 unit/week</span>
+                    <span>{t('home.pricing.balanced.feature1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Perfect alongside job</span>
+                    <span>{t('home.pricing.balanced.feature2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Structured progress</span>
+                    <span>{t('home.pricing.balanced.feature3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>All 27 units</span>
+                    <span>{t('home.pricing.balanced.feature4')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Learn Buddy</span>
+                    <span>{t('home.pricing.balanced.feature5')}</span>
                   </li>
                 </ul>
                 <Button className="w-full" disabled>
-                  Choose Plan
+                  {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
+                <p className="text-xs text-center text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
               </CardContent>
             </Card>
 
             {/* Standard Plan (Most Popular - Best Value) */}
             <Card className="border-4 border-primary shadow-2xl scale-105 relative">
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                <span className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">Most Popular</span>
+                <span className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">{t('home.pricing.standard.badge')}</span>
               </div>
               <CardHeader className="text-center pb-4 pt-8">
                 <BookOpen className="h-12 w-12 text-primary mb-3 mx-auto" />
-                <CardTitle className="text-2xl mb-2">Standard</CardTitle>
-                <CardDescription className="text-base font-semibold mb-2">9 Months</CardDescription>
-                <p className="text-xs text-muted-foreground italic">Relaxed learning with 4-5 hours/week</p>
+                <CardTitle className="text-2xl mb-2">{t('home.pricing.standard.title')}</CardTitle>
+                <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.standard.duration')}</CardDescription>
+                <p className="text-xs text-muted-foreground italic">{t('home.pricing.standard.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">€95</div>
-                  <div className="text-xs text-muted-foreground">one-time payment</div>
+                  <div className="text-3xl font-bold text-primary">{t('home.pricing.standard.price')}</div>
+                  <div className="text-xs text-muted-foreground">{t('home.pricing.standard.payment')}</div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>2-3 units/month</span>
+                    <span>{t('home.pricing.standard.feature1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Time to review & deepen</span>
+                    <span>{t('home.pricing.standard.feature2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Best value for money</span>
+                    <span>{t('home.pricing.standard.feature3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>All 27 units</span>
+                    <span>{t('home.pricing.standard.feature4')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Learn Buddy</span>
+                    <span>{t('home.pricing.standard.feature5')}</span>
                   </li>
                 </ul>
                 <Button className="w-full bg-primary" disabled>
-                  Choose Plan
+                  {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
+                <p className="text-xs text-center text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
               </CardContent>
             </Card>
 
@@ -324,41 +338,41 @@ export default function Home() {
             <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
               <CardHeader className="text-center pb-4">
                 <Clock className="h-12 w-12 text-primary mb-3 mx-auto" />
-                <CardTitle className="text-2xl mb-2">Relaxed</CardTitle>
-                <CardDescription className="text-base font-semibold mb-2">12 Months</CardDescription>
-                <p className="text-xs text-muted-foreground italic">Learn on the side with 3-4 hours/week</p>
+                <CardTitle className="text-2xl mb-2">{t('home.pricing.relaxed.title')}</CardTitle>
+                <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.relaxed.duration')}</CardDescription>
+                <p className="text-xs text-muted-foreground italic">{t('home.pricing.relaxed.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">€119</div>
-                  <div className="text-xs text-muted-foreground">one-time payment</div>
+                  <div className="text-3xl font-bold text-primary">{t('home.pricing.relaxed.price')}</div>
+                  <div className="text-xs text-muted-foreground">{t('home.pricing.relaxed.payment')}</div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Flexible schedule</span>
+                    <span>{t('home.pricing.relaxed.feature1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>Learn & apply in real life</span>
+                    <span>{t('home.pricing.relaxed.feature2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>No stress, no pressure</span>
+                    <span>{t('home.pricing.relaxed.feature3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>All 27 units</span>
+                    <span>{t('home.pricing.relaxed.feature4')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>AI Learn Buddy</span>
+                    <span>{t('home.pricing.relaxed.feature5')}</span>
                   </li>
                 </ul>
                 <Button className="w-full" disabled>
-                  Choose Plan
+                  {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">Available after launch</p>
+                <p className="text-xs text-center text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
               </CardContent>
             </Card>
           </div>
@@ -369,36 +383,36 @@ export default function Home() {
               <div className="inline-block p-3 bg-primary/10 rounded-full">
                 <TrendingUp className="h-8 w-8 text-primary" />
               </div>
-              <h4 className="text-2xl font-bold text-gray-900">Need More Time? No Problem!</h4>
+              <h4 className="text-2xl font-bold text-gray-900">{t('home.pricing.upgrade.title')}</h4>
               <p className="text-lg text-gray-700 max-w-2xl mx-auto">
-                Upgrade to a longer plan anytime - you only pay the difference. Fair, transparent, no surprises.
+                {t('home.pricing.upgrade.subtitle')}
               </p>
               <div className="grid md:grid-cols-3 gap-6 mt-8 text-left">
                 <div className="bg-white p-6 rounded-xl shadow-md">
                   <div className="flex items-center gap-3 mb-3">
                     <Check className="h-6 w-6 text-green-600" />
-                    <h5 className="font-bold text-gray-900">Pay Only the Difference</h5>
+                    <h5 className="font-bold text-gray-900">{t('home.pricing.upgrade.feature1.title')}</h5>
                   </div>
                   <p className="text-sm text-gray-600">
-                    If you bought Intensive (€69) and want to switch to Balanced (€79), you only pay €10 extra.
+                    {t('home.pricing.upgrade.feature1.desc')}
                   </p>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-md">
                   <div className="flex items-center gap-3 mb-3">
                     <Check className="h-6 w-6 text-green-600" />
-                    <h5 className="font-bold text-gray-900">Maximum Cost: €50</h5>
+                    <h5 className="font-bold text-gray-900">{t('home.pricing.upgrade.feature2.title')}</h5>
                   </div>
                   <p className="text-sm text-gray-600">
-                    Even upgrading from Intensive to Relaxed on day 1 costs only €50 - never more than the price difference.
+                    {t('home.pricing.upgrade.feature2.desc')}
                   </p>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-md">
                   <div className="flex items-center gap-3 mb-3">
                     <Check className="h-6 w-6 text-green-600" />
-                    <h5 className="font-bold text-gray-900">Instant Activation</h5>
+                    <h5 className="font-bold text-gray-900">{t('home.pricing.upgrade.feature3.title')}</h5>
                   </div>
                   <p className="text-sm text-gray-600">
-                    Upgrade anytime, keep all your progress, and continue learning without interruption.
+                    {t('home.pricing.upgrade.feature3.desc')}
                   </p>
                 </div>
               </div>
@@ -411,8 +425,8 @@ export default function Home() {
               <div className="inline-block p-3 bg-primary/10 rounded-full mb-4">
                 <HelpCircle className="h-8 w-8 text-primary" />
               </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h3>
-              <p className="text-lg text-gray-600">Everything you need to know about our flexible pricing and upgrade options</p>
+              <h3 className="text-3xl font-bold text-gray-900 mb-4">{t('home.faq.title')}</h3>
+              <p className="text-lg text-gray-600">{t('home.faq.subtitle')}</p>
             </div>
 
             <Accordion type="single" collapsible className="space-y-4">
@@ -421,22 +435,20 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <TrendingUp className="h-5 w-5 text-primary" />
-                    Can I upgrade to a longer plan later?
+                    {t('home.faq.q1.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700 space-y-3">
                   <p>
-                    Yes! You can upgrade to a longer plan anytime. You'll only pay the difference between your current plan and the new one. 
-                    For example, if you purchased Intensive (€69) and want to upgrade to Balanced (€79), you only pay €10 extra. 
-                    Your progress is preserved, and the upgrade takes effect immediately.
+                    {t('home.faq.q1.answer')}
                   </p>
                   <div className="bg-blue-50 p-4 rounded-lg mt-3">
-                    <p className="font-semibold text-gray-900 mb-2">Key Points:</p>
+                    <p className="font-semibold text-gray-900 mb-2">{t('home.faq.q1.keyPoints')}</p>
                     <ul className="space-y-1 text-sm">
-                      <li>• Pay only the price difference</li>
-                      <li>• Maximum upgrade cost: €50 (Intensive → Relaxed)</li>
-                      <li>• Instant activation, no waiting</li>
-                      <li>• All progress and achievements preserved</li>
+                      <li>{t('home.faq.q1.point1')}</li>
+                      <li>{t('home.faq.q1.point2')}</li>
+                      <li>{t('home.faq.q1.point3')}</li>
+                      <li>{t('home.faq.q1.point4')}</li>
                     </ul>
                   </div>
                 </AccordionContent>
@@ -447,21 +459,19 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <RefreshCw className="h-5 w-5 text-primary" />
-                    Can I downgrade to a shorter plan?
+                    {t('home.faq.q2.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
                   <p>
-                    No, downgrades are not available. Once you purchase a plan, you have access for the full duration. 
-                    However, you can always learn at your own pace—there's no requirement to finish within the time frame. 
-                    If you complete the course early, you'll still have access until your plan expires, giving you time to review and practice.
+                    {t('home.faq.q2.answer')}
                   </p>
                   <div className="bg-gray-50 p-4 rounded-lg mt-3">
-                    <p className="font-semibold text-gray-900 mb-2">Why no downgrades?</p>
+                    <p className="font-semibold text-gray-900 mb-2">{t('home.faq.q2.why')}</p>
                     <ul className="space-y-1 text-sm">
-                      <li>• One-time payment model (not subscription)</li>
-                      <li>• Full course access from day one</li>
-                      <li>• Flexible learning pace within your timeframe</li>
+                      <li>{t('home.faq.q2.reason1')}</li>
+                      <li>{t('home.faq.q2.reason2')}</li>
+                      <li>{t('home.faq.q2.reason3')}</li>
                     </ul>
                   </div>
                 </AccordionContent>
@@ -472,21 +482,19 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <Clock className="h-5 w-5 text-primary" />
-                    What happens if I don't finish in time?
+                    {t('home.faq.q3.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700 space-y-3">
                   <p>
-                    No problem! If you need more time, you can extend your access by upgrading to a longer plan. You'll only pay the difference. 
-                    For example, if you have 2 months left on your Balanced plan (€79) and want to extend to Standard (€95), you pay €16 for 3 additional months. 
-                    Alternatively, you can repurchase any plan at the standard price.
+                    {t('home.faq.q3.answer')}
                   </p>
                   <div className="bg-green-50 p-4 rounded-lg mt-3">
-                    <p className="font-semibold text-gray-900 mb-2">Your options:</p>
+                    <p className="font-semibold text-gray-900 mb-2">{t('home.faq.q3.options')}</p>
                     <ul className="space-y-1 text-sm">
-                      <li>• <strong>Upgrade:</strong> Pay only the difference for more time</li>
-                      <li>• <strong>Repurchase:</strong> Buy any plan again at full price</li>
-                      <li>• <strong>Pause & Resume:</strong> Your progress is saved permanently</li>
+                      <li dangerouslySetInnerHTML={{ __html: t('home.faq.q3.option1') }} />
+                      <li dangerouslySetInnerHTML={{ __html: t('home.faq.q3.option2') }} />
+                      <li dangerouslySetInnerHTML={{ __html: t('home.faq.q3.option3') }} />
                     </ul>
                   </div>
                 </AccordionContent>
@@ -497,23 +505,20 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <DollarSign className="h-5 w-5 text-primary" />
-                    Is this a subscription or one-time payment?
+                    {t('home.faq.q4.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
-                  <p>
-                    It's a <strong>one-time payment</strong>. You pay once and get full access to all 27 units for your chosen duration (3, 6, 9, or 12 months). 
-                    There are no recurring charges, no hidden fees, and no automatic renewals. After your access period ends, you can choose to repurchase if you want to continue learning.
-                  </p>
+                  <p dangerouslySetInnerHTML={{ __html: t('home.faq.q4.answer') }} />
                   <div className="flex gap-4 mt-4">
                     <div className="flex items-center gap-2 text-sm text-green-700">
-                      <Check className="h-4 w-4" /> No surprise charges
+                      <Check className="h-4 w-4" /> {t('home.faq.q4.check1')}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-green-700">
-                      <Check className="h-4 w-4" /> Cancel-free
+                      <Check className="h-4 w-4" /> {t('home.faq.q4.check2')}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-green-700">
-                      <Check className="h-4 w-4" /> Transparent pricing
+                      <Check className="h-4 w-4" /> {t('home.faq.q4.check3')}
                     </div>
                   </div>
                 </AccordionContent>
@@ -524,41 +529,41 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <BookOpen className="h-5 w-5 text-primary" />
-                    Do all plans include the same content?
+                    {t('home.faq.q5.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
                   <p className="mb-3">
-                    Yes! All four plans (Intensive, Balanced, Standard, Relaxed) include the exact same content:
+                    {t('home.faq.q5.answer')}
                   </p>
                   <div className="grid md:grid-cols-2 gap-3">
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                      <span>All 27 units with comprehensive lessons</span>
+                      <span>{t('home.faq.q5.item1')}</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                      <span>737+ vocabulary words with flashcard trainer</span>
+                      <span>{t('home.faq.q5.item2')}</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                      <span>Interactive exercises with instant feedback</span>
+                      <span>{t('home.faq.q5.item3')}</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                      <span>AI Learn Buddy for questions and practice</span>
+                      <span>{t('home.faq.q5.item4')}</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                      <span>Gamification: XP, badges, and streaks</span>
+                      <span>{t('home.faq.q5.item5')}</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                      <span>Progress tracking and achievements</span>
+                      <span>{t('home.faq.q5.item6')}</span>
                     </div>
                   </div>
                   <p className="mt-4 font-semibold text-gray-900">
-                    The only difference is the duration (how long you have access). Choose based on how much time you have per week to study.
+                    {t('home.faq.q5.note')}
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -568,20 +573,17 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <Shield className="h-5 w-5 text-primary" />
-                    Can I get a refund?
+                    {t('home.faq.q6.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
-                  <p>
-                    We offer a <strong>14-day money-back guarantee</strong>. If you're not satisfied with the course within the first 14 days, 
-                    contact us for a full refund—no questions asked. After 14 days, refunds are not available, but you can upgrade to a longer plan anytime if you need more time.
-                  </p>
+                  <p dangerouslySetInnerHTML={{ __html: t('home.faq.q6.answer') }} />
                   <div className="bg-blue-50 p-4 rounded-lg mt-3">
-                    <p className="font-semibold text-gray-900 mb-2">Refund policy:</p>
+                    <p className="font-semibold text-gray-900 mb-2">{t('home.faq.q6.policy')}</p>
                     <ul className="space-y-1 text-sm">
-                      <li>• Full refund within 14 days of purchase</li>
-                      <li>• No refunds after 14 days</li>
-                      <li>• Upgrades available anytime (pay the difference)</li>
+                      <li>{t('home.faq.q6.rule1')}</li>
+                      <li>{t('home.faq.q6.rule2')}</li>
+                      <li>{t('home.faq.q6.rule3')}</li>
                     </ul>
                   </div>
                 </AccordionContent>
@@ -592,21 +594,18 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <Calendar className="h-5 w-5 text-primary" />
-                    What happens after my plan expires?
+                    {t('home.faq.q7.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
-                  <p>
-                    After your plan expires, you'll lose access to the course content, but <strong>your progress is saved permanently</strong>. 
-                    If you repurchase any plan later, you'll pick up exactly where you left off—all completed units, XP, badges, and vocabulary progress will be restored.
-                  </p>
+                  <p dangerouslySetInnerHTML={{ __html: t('home.faq.q7.answer') }} />
                   <div className="bg-gray-50 p-4 rounded-lg mt-3">
-                    <p className="font-semibold text-gray-900 mb-2">After expiration:</p>
+                    <p className="font-semibold text-gray-900 mb-2">{t('home.faq.q7.after')}</p>
                     <ul className="space-y-1 text-sm">
-                      <li>• Access to course content ends</li>
-                      <li>• Progress saved in your account</li>
-                      <li>• Repurchase anytime to continue</li>
-                      <li>• All achievements and XP preserved</li>
+                      <li>{t('home.faq.q7.point1')}</li>
+                      <li>{t('home.faq.q7.point2')}</li>
+                      <li>{t('home.faq.q7.point3')}</li>
+                      <li>{t('home.faq.q7.point4')}</li>
                     </ul>
                   </div>
                 </AccordionContent>
@@ -617,30 +616,30 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <Target className="h-5 w-5 text-primary" />
-                    Which plan is right for me?
+                    {t('home.faq.q8.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
-                  <p className="mb-4">Choose based on how much time you can dedicate per week:</p>
+                  <p className="mb-4">{t('home.faq.q8.intro')}</p>
                   <div className="space-y-3">
                     <div className="bg-red-50 p-3 rounded-lg">
-                      <p className="font-semibold text-gray-900">Intensive (3 months, €69)</p>
-                      <p className="text-sm">12+ hours/week — Best for full-time learners or those with an upcoming trip</p>
+                      <p className="font-semibold text-gray-900">{t('home.faq.q8.intensive.title')}</p>
+                      <p className="text-sm">{t('home.faq.q8.intensive.desc')}</p>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg border-2 border-primary">
-                      <p className="font-semibold text-gray-900">Balanced (6 months, €79) ⭐ Recommended</p>
-                      <p className="text-sm">6-8 hours/week — Perfect for working professionals</p>
+                      <p className="font-semibold text-gray-900">{t('home.faq.q8.balanced.title')}</p>
+                      <p className="text-sm">{t('home.faq.q8.balanced.desc')}</p>
                     </div>
                     <div className="bg-green-50 p-3 rounded-lg">
-                      <p className="font-semibold text-gray-900">Standard (9 months, €95)</p>
-                      <p className="text-sm">4-5 hours/week — Best value per month (€10.56/month)</p>
+                      <p className="font-semibold text-gray-900">{t('home.faq.q8.standard.title')}</p>
+                      <p className="text-sm">{t('home.faq.q8.standard.desc')}</p>
                     </div>
                     <div className="bg-purple-50 p-3 rounded-lg">
-                      <p className="font-semibold text-gray-900">Relaxed (12 months, €119)</p>
-                      <p className="text-sm">3-4 hours/week — Maximum flexibility, lowest monthly cost (€9.92/month)</p>
+                      <p className="font-semibold text-gray-900">{t('home.faq.q8.relaxed.title')}</p>
+                      <p className="text-sm">{t('home.faq.q8.relaxed.desc')}</p>
                     </div>
                   </div>
-                  <p className="mt-4 text-sm italic">Not sure? Start with <strong>Balanced</strong>—it's our most popular plan and offers the best balance of time and value.</p>
+                  <p className="mt-4 text-sm italic" dangerouslySetInnerHTML={{ __html: t('home.faq.q8.note') }} />
                 </AccordionContent>
               </AccordionItem>
 
@@ -649,22 +648,18 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <Sparkles className="h-5 w-5 text-primary" />
-                    Do beta testers get a discount?
+                    {t('home.faq.q9.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
-                  <p>
-                    Yes! Beta testers who register during the testing phase get <strong>50% OFF</strong> when the full course launches. 
-                    During beta, you have free access to Units 1-5. When we launch, you can purchase any plan at half price. 
-                    This is our way of saying thank you for helping us improve the course!
-                  </p>
+                  <p dangerouslySetInnerHTML={{ __html: t('home.faq.q9.answer') }} />
                   <div className="bg-yellow-50 p-4 rounded-lg mt-3 border-2 border-yellow-200">
-                    <p className="font-semibold text-gray-900 mb-2">🎁 Beta benefits:</p>
+                    <p className="font-semibold text-gray-900 mb-2">{t('home.faq.q9.benefits')}</p>
                     <ul className="space-y-1 text-sm">
-                      <li>• Free access to Units 1-5 during beta</li>
-                      <li>• 50% OFF any plan at launch</li>
-                      <li>• Early access to new features</li>
-                      <li>• Direct input on course development</li>
+                      <li>{t('home.faq.q9.benefit1')}</li>
+                      <li>{t('home.faq.q9.benefit2')}</li>
+                      <li>{t('home.faq.q9.benefit3')}</li>
+                      <li>{t('home.faq.q9.benefit4')}</li>
                     </ul>
                   </div>
                 </AccordionContent>
@@ -675,20 +670,20 @@ export default function Home() {
                 <AccordionTrigger className="text-lg font-semibold text-gray-900 hover:text-primary">
                   <div className="flex items-center gap-3">
                     <Zap className="h-5 w-5 text-primary" />
-                    How do I upgrade my plan?
+                    {t('home.faq.q10.question')}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
-                  <p className="mb-3">Upgrading is simple:</p>
+                  <p className="mb-3">{t('home.faq.q10.intro')}</p>
                   <ol className="space-y-2 ml-4">
-                    <li>1. Go to your Dashboard</li>
-                    <li>2. Click "My Subscription" or "Upgrade Plan"</li>
-                    <li>3. Select your new plan</li>
-                    <li>4. Pay only the difference (e.g., €10 to go from Intensive to Balanced)</li>
-                    <li>5. Your access is extended immediately</li>
+                    <li>{t('home.faq.q10.step1')}</li>
+                    <li>{t('home.faq.q10.step2')}</li>
+                    <li>{t('home.faq.q10.step3')}</li>
+                    <li>{t('home.faq.q10.step4')}</li>
+                    <li>{t('home.faq.q10.step5')}</li>
                   </ol>
                   <p className="mt-4">
-                    Your progress, XP, badges, and completed units are automatically preserved. You can upgrade as many times as you want—the maximum you'll ever pay is €50 (from Intensive to Relaxed).
+                    {t('home.faq.q10.note')}
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -703,31 +698,31 @@ export default function Home() {
                 <div className="inline-block">
                   <span className="text-5xl">🎁</span>
                 </div>
-                <h4 className="text-3xl font-bold text-yellow-900">Get 50% OFF at Launch!</h4>
-                <p className="text-lg text-yellow-800 max-w-3xl mx-auto">
-                  Help shape the future of Serbian learning! Join our <strong>Beta Testing Program</strong> and get <strong>early access to Units 1-5</strong> for free, 
-                  plus <strong>50% discount</strong> on your chosen plan when we launch.
-                </p>
+                <h4 className="text-3xl font-bold text-yellow-900">{t('home.beta.banner.title')}</h4>
+                <p 
+                  className="text-lg text-yellow-800 max-w-3xl mx-auto" 
+                  dangerouslySetInnerHTML={{ __html: t('home.beta.banner.subtitle') }}
+                />
                 <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto mt-6">
                   <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
                     <div className="text-2xl mb-2">✓</div>
-                    <h5 className="font-semibold text-yellow-900 mb-1">Free Units 1-5</h5>
-                    <p className="text-sm text-yellow-800">Test the full course experience with no commitment</p>
+                    <h5 className="font-semibold text-yellow-900 mb-1">{t('home.beta.banner.feature1.title')}</h5>
+                    <p className="text-sm text-yellow-800">{t('home.beta.banner.feature1.desc')}</p>
                   </div>
                   <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
                     <div className="text-2xl mb-2">💰</div>
-                    <h5 className="font-semibold text-yellow-900 mb-1">50% Launch Discount</h5>
-                    <p className="text-sm text-yellow-800">Lock in your discount when the full course launches</p>
+                    <h5 className="font-semibold text-yellow-900 mb-1">{t('home.beta.banner.feature2.title')}</h5>
+                    <p className="text-sm text-yellow-800">{t('home.beta.banner.feature2.desc')}</p>
                   </div>
                 </div>
                 <div className="pt-4">
                   <a href="#beta-registration">
                     <Button size="lg" className="bg-yellow-600 hover:bg-yellow-700 text-white text-lg px-8">
-                      Register for Beta Test
+                      {t('home.beta.banner.cta')}
                     </Button>
                   </a>
                 </div>
-                <p className="text-xs text-yellow-700">No registration, no credit card required. Just test and send us feedback!</p>
+                <p className="text-xs text-yellow-700">{t('home.beta.banner.note')}</p>
               </div>
             </CardContent>
           </Card>
@@ -738,28 +733,34 @@ export default function Home() {
       <section id="units" className="container py-20 bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center space-y-4 mb-12">
-            <h3 className="text-4xl font-bold">Complete Course Overview</h3>
-            <p className="text-xl text-muted-foreground">
-              All <strong>27 units</strong> with <strong>{TOTAL_VOCABULARY}+ vocabulary words</strong>
-            </p>
+            <h3 className="text-4xl font-bold">{t('home.units.title')}</h3>
+            <p 
+              className="text-xl text-muted-foreground" 
+              dangerouslySetInnerHTML={{ __html: t('home.units.subtitle', { count: TOTAL_VOCABULARY }) }}
+            />
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {UNITS_DATA.map((unit) => (
+            {UNITS_DATA.map((unit) => {
+              const currentLanguage = i18n.language;
+              const displayTitle = currentLanguage === 'de' ? unit.titleGerman : unit.titleEnglish;
+              const displayTopics = currentLanguage === 'de' ? unit.topicsGerman : unit.topics;
+              
+              return (
               <Card 
                 key={unit.number} 
                 className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-xl hover:scale-105 bg-white"
               >
                 <CardHeader>
                   <div className="flex-1">
-                    <div className="text-sm font-semibold text-primary mb-1">Unit {unit.number}</div>
-                    <CardTitle className="text-lg">{unit.titleEnglish}</CardTitle>
+                      <div className="text-sm font-semibold text-primary mb-1">{t('home.units.unit', { number: unit.number })}</div>
+                      <CardTitle className="text-lg">{displayTitle}</CardTitle>
                     <p className="text-sm text-muted-foreground italic mt-1">{unit.title}</p>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-1 text-sm text-muted-foreground">
-                    {unit.topics.map((topic, idx) => (
+                      {displayTopics.map((topic, idx) => (
                       <li key={idx} className="flex items-start">
                         <span className="text-primary mr-2">•</span>
                         {topic}
@@ -768,77 +769,52 @@ export default function Home() {
                   </ul>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Beta Registration Form */}
+      {/* Beta Registration / Sign Up Section */}
       <section id="beta-registration" className="container py-20">
         <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
           <CardHeader className="text-center bg-gradient-to-r from-red-50 via-white to-blue-50">
             <div className="inline-block px-4 py-2 bg-accent/30 rounded-full text-primary font-bold mb-4 border-2 border-accent">
-              🎁 Get 50% OFF at Launch!
+              {t('home.beta.discount')}
             </div>
             <CardTitle className="text-3xl">
-              Join the Beta Testing Program – Gratis*
+              {t('home.beta.title')}
             </CardTitle>
             <CardDescription className="text-lg">
-              Help shape the future of Serbian learning and get early access to the first 5 units
+              {t('home.beta.subtitle')}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
-            <form onSubmit={handleBetaSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="name">Your Name</Label>
-                <Input
-                  id="name"
-                  placeholder="Enter your full name"
-                  value={betaForm.name}
-                  onChange={(e) => setBetaForm({ ...betaForm, name: e.target.value })}
-
-
-                  required
+            {!isAuthenticated ? (
+              <div className="space-y-4 flex flex-col items-center">
+                <SignUp
+                  routing="virtual"
+                  signInUrl="/sign-in"
                 />
+                <p className="text-sm text-center text-muted-foreground max-w-xl">
+                  {t('home.beta.signupNote')}
+                </p>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="your.email@example.com"
-                  value={betaForm.email}
-                  onChange={(e) => setBetaForm({ ...betaForm, email: e.target.value })}
-                  required
-                />
+            ) : (
+              <div className="space-y-4 text-center">
+                <p className="text-lg font-semibold">
+                  {t('home.beta.authenticated')}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {t('home.beta.authenticatedDesc')}
+                </p>
+                <Link href="/dashboard">
+                  <Button className="bg-primary hover:bg-primary/90 text-lg">
+                    {t('home.beta.dashboard')}
+                  </Button>
+                </Link>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="motivation">Why do you want to learn Serbian?</Label>
-                <Textarea
-                  id="motivation"
-                  placeholder="Tell us about your motivation..."
-                  value={betaForm.motivation}
-                  onChange={(e) => setBetaForm({ ...betaForm, motivation: e.target.value })}
-                  rows={4}
-                  required
-                />
-              </div>
-
-              <Button 
-                type="submit" 
-                size="lg" 
-                className="w-full bg-primary hover:bg-primary/90 text-lg"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Registering..." : "Register for Beta Test"}
-              </Button>
-
-              <p className="text-sm text-center text-muted-foreground">
-                By registering, you'll be redirected to create your account. The admin will review and activate your access.
-              </p>
-            </form>
+            )}
           </CardContent>
         </Card>
       </section>
@@ -847,12 +823,12 @@ export default function Home() {
       <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
         <div className="text-center text-sm text-muted-foreground space-y-3">
           <p className="text-xs italic">
-            * Gratis (Free) refers to the first 5 units of the course. Full access to all 27 units will be available with a paid subscription after the beta testing phase.
+            {t('home.footer.gratis')}
           </p>
           <p>
-            Course structure inspired by proven language learning methodologies
+            {t('home.footer.structure')}
           </p>
-          <p className="font-semibold">© 2025 Serbian AI Tutor by jacksenn.me. Powered by Manus AI.</p>
+          <p className="font-semibold">{t('home.footer.copyright')}</p>
         </div>
       </footer>
     </div>

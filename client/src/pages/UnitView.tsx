@@ -67,8 +67,12 @@ export default function UnitView() {
     unitNumber, 
     hasExplanation: !!explanation, 
     isLoading,
+    userLanguage: user?.learningLanguage,
     overviewLength: explanation?.overview?.length,
-    grammarLength: explanation?.grammarExplained?.length 
+    grammarLength: explanation?.grammarExplained?.length,
+    overviewPreview: explanation?.overview?.substring(0, 100),
+    hasOverviewGerman: !!(explanation as any)?.overviewGerman,
+    overviewGermanLength: (explanation as any)?.overviewGerman?.length
   });
 
   // Show loading while auth is loading

@@ -2,8 +2,10 @@ export interface Unit {
   number: number;
   title: string;
   titleEnglish: string;
+  titleGerman: string;
   page: number;
   topics: string[];
+  topicsGerman: string[];
   grammarFocus: string[];
   vocabularyThemes: string[];
 }
@@ -13,8 +15,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 1,
     title: "Na aerodromu",
     titleEnglish: "At the airport",
+    titleGerman: "Am Flughafen",
     page: 5,
     topics: ["Greetings and main phrases", "Gender of nouns", "Simple questions"],
+    topicsGerman: ["Begrüßungen und wichtige Phrasen", "Geschlecht von Substantiven", "Einfache Fragen"],
     grammarFocus: ["Verb 'biti' (to be)", "Introduction to cases", "Possessives 'my', 'your'"],
     vocabularyThemes: ["Airport", "Greetings", "Basic phrases"]
   },
@@ -22,8 +26,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 2,
     title: "U kafeu",
     titleEnglish: "In the café",
+    titleGerman: "Im Café",
     page: 10,
     topics: ["Making simple orders", "Cardinal numbers"],
+    topicsGerman: ["Einfache Bestellungen aufgeben", "Kardinalzahlen"],
     grammarFocus: ["Verb 'imati' (to have)", "Numbers 1-100"],
     vocabularyThemes: ["Café", "Drinks", "Food", "Numbers"]
   },
@@ -31,8 +37,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 3,
     title: "Kako Stiv Bond uči srpski?",
     titleEnglish: "How is Steve Bond learning Serbian?",
+    titleGerman: "Wie lernt Steve Bond Serbisch?",
     page: 16,
     topics: ["Talk about learning language", "Television, newspapers, radio"],
+    topicsGerman: ["Über Sprachenlernen sprechen", "Fernsehen, Zeitungen, Radio"],
     grammarFocus: ["Present tense verbs", "Locative case"],
     vocabularyThemes: ["Learning", "Media", "Languages"]
   },
@@ -40,8 +48,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 4,
     title: "Gde je…?",
     titleEnglish: "Where is…?",
+    titleGerman: "Wo ist…?",
     page: 20,
     topics: ["Places of interest", "Asking for and giving directions"],
+    topicsGerman: ["Sehenswürdigkeiten", "Nach dem Weg fragen und Wegbeschreibungen geben"],
     grammarFocus: ["Verb 'ići' (to go)", "Prepositions 'u' and 'na' with locative", "Vocative case"],
     vocabularyThemes: ["City places", "Directions", "Buildings"]
   },
@@ -49,8 +59,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 5,
     title: "U sobi",
     titleEnglish: "In the room",
+    titleGerman: "Im Zimmer",
     page: 27,
     topics: ["Describe a room", "Hotel services and facilities"],
+    topicsGerman: ["Ein Zimmer beschreiben", "Hotelservice und Einrichtungen"],
     grammarFocus: ["Ordinal numbers", "Verb 'moći' (can)", "Verbs ending with –eti and –ovati"],
     vocabularyThemes: ["Room furniture", "Hotel", "Ordinal numbers"]
   },
@@ -58,8 +70,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 6,
     title: "Kupovina hrane",
     titleEnglish: "Shopping for food",
+    titleGerman: "Lebensmittel einkaufen",
     page: 33,
     topics: ["Make purchases", "Deal with prices"],
+    topicsGerman: ["Einkäufe tätigen", "Mit Preisen umgehen"],
     grammarFocus: ["Use of 'treba' (need)"],
     vocabularyThemes: ["Food", "Shopping", "Prices"]
   },
@@ -67,8 +81,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 7,
     title: "Dođite u goste",
     titleEnglish: "Come to my place",
+    titleGerman: "Kommt zu mir nach Hause",
     page: 39,
     topics: ["Receive guests", "Days of the week", "Tell the time"],
+    topicsGerman: ["Gäste empfangen", "Wochentage", "Die Uhrzeit angeben"],
     grammarFocus: ["Time expressions", "Making appointments"],
     vocabularyThemes: ["Days", "Time", "Invitations"]
   },
@@ -76,8 +92,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 8,
     title: "U restoranu",
     titleEnglish: "In the restaurant",
+    titleGerman: "Im Restaurant",
     page: 43,
     topics: ["Order a meal", "Book a table"],
+    topicsGerman: ["Eine Mahlzeit bestellen", "Einen Tisch reservieren"],
     grammarFocus: ["Restaurant vocabulary"],
     vocabularyThemes: ["Serbian menu", "Restaurant", "Food"]
   },
@@ -85,8 +103,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 9,
     title: "Tipičan dan",
     titleEnglish: "Daily routine",
+    titleGerman: "Ein typischer Tag",
     page: 51,
     topics: ["Talk about daily routine"],
+    topicsGerman: ["Über den Tagesablauf sprechen"],
     grammarFocus: ["Genitive case singular", "Verbs 'jesti' and 'piti'", "Reflexive verbs"],
     vocabularyThemes: ["Daily activities", "Routine"]
   },
@@ -94,8 +114,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 10,
     title: "Porodica",
     titleEnglish: "Family",
+    titleGerman: "Familie",
     page: 58,
     topics: ["Talk about family", "Personal details"],
+    topicsGerman: ["Über die Familie sprechen", "Persönliche Angaben"],
     grammarFocus: ["Plural of nouns"],
     vocabularyThemes: ["Family members", "Personal information"]
   },
@@ -103,8 +125,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 11,
     title: "Ljudi",
     titleEnglish: "People",
+    titleGerman: "Menschen",
     page: 66,
     topics: ["Characters, hobbies and work"],
+    topicsGerman: ["Charaktere, Hobbys und Arbeit"],
     grammarFocus: ["Possessive pronouns", "Accusative case singular and plural"],
     vocabularyThemes: ["Character traits", "Hobbies", "Professions"]
   },
@@ -112,8 +136,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 12,
     title: "Narodi i jezici",
     titleEnglish: "Nationalities and languages",
+    titleGerman: "Nationalitäten und Sprachen",
     page: 77,
     topics: ["Nationalities and languages"],
+    topicsGerman: ["Nationalitäten und Sprachen"],
     grammarFocus: ["Locative case of adjectives", "Use of 'koji' (which)"],
     vocabularyThemes: ["Countries", "Nationalities", "Languages"]
   },
@@ -121,8 +147,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 13,
     title: "Kako je bilo juče?",
     titleEnglish: "How was it yesterday?",
+    titleGerman: "Wie war es gestern?",
     page: 84,
     topics: ["Talk about the past"],
+    topicsGerman: ["Über die Vergangenheit sprechen"],
     grammarFocus: ["Past tense formation", "Past tense expressions"],
     vocabularyThemes: ["Past events", "Time expressions"]
   },
@@ -130,8 +158,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 14,
     title: "Vreme",
     titleEnglish: "Weather",
+    titleGerman: "Wetter",
     page: 91,
     topics: ["Weather, seasons and months", "Points of compass"],
+    topicsGerman: ["Wetter, Jahreszeiten und Monate", "Himmelsrichtungen"],
     grammarFocus: ["Instrumental case singular"],
     vocabularyThemes: ["Weather", "Seasons", "Months", "Compass"]
   },
@@ -139,8 +169,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 15,
     title: "Kako, s kim i kada putujete?",
     titleEnglish: "How, with who and when do you travel?",
+    titleGerman: "Wie, mit wem und wann reisen Sie?",
     page: 99,
     topics: ["Means of travelling", "Travel preferences"],
+    topicsGerman: ["Reisemittel", "Reisepräferenzen"],
     grammarFocus: ["Instrumental case plural", "Feminine nouns ending with consonant"],
     vocabularyThemes: ["Transport", "Travel"]
   },
@@ -148,8 +180,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 16,
     title: "Stivov novi stan",
     titleEnglish: "Steve's new apartment",
+    titleGerman: "Steves neue Wohnung",
     page: 109,
     topics: ["Describe an apartment", "Moving to new apartment"],
+    topicsGerman: ["Eine Wohnung beschreiben", "In eine neue Wohnung umziehen"],
     grammarFocus: ["Dative case singular", "Dative of personal pronouns"],
     vocabularyThemes: ["Apartment", "Moving", "Furniture"]
   },
@@ -157,8 +191,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 17,
     title: "Telefonski razgovor",
     titleEnglish: "Telephone conversation",
+    titleGerman: "Telefongespräch",
     page: 115,
     topics: ["Use a telephone", "Leave and receive messages"],
+    topicsGerman: ["Ein Telefon benutzen", "Nachrichten hinterlassen und empfangen"],
     grammarFocus: ["Expressions with dative case"],
     vocabularyThemes: ["Telephone", "Messages"]
   },
@@ -166,8 +202,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 18,
     title: "Stiv planira vikend",
     titleEnglish: "Planning a weekend",
+    titleGerman: "Ein Wochenende planen",
     page: 118,
     topics: ["Talk about future plans"],
+    topicsGerman: ["Über zukünftige Pläne sprechen"],
     grammarFocus: ["Future tense", "Verb 'hteti' (to want)"],
     vocabularyThemes: ["Weekend activities", "Plans"]
   },
@@ -175,8 +213,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 19,
     title: "Srećan rođendan!",
     titleEnglish: "Happy birthday!",
+    titleGerman: "Alles Gute zum Geburtstag!",
     page: 124,
     topics: ["Anniversaries and celebrations", "Planning a party"],
+    topicsGerman: ["Jubiläen und Feiern", "Eine Party planen"],
     grammarFocus: ["Express dates", "Genitive and accusative of personal pronouns"],
     vocabularyThemes: ["Celebrations", "Dates", "Parties"]
   },
@@ -184,8 +224,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 20,
     title: "Kod lekara",
     titleEnglish: "Health matters",
+    titleGerman: "Beim Arzt",
     page: 138,
     topics: ["Body parts", "Visit to the doctor"],
+    topicsGerman: ["Körperteile", "Arztbesuch"],
     grammarFocus: ["Verb 'boleti' (to hurt)", "Imperative"],
     vocabularyThemes: ["Body", "Health", "Doctor"]
   },
@@ -193,8 +235,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 21,
     title: "Boje i odeća",
     titleEnglish: "Colors and Clothes",
+    titleGerman: "Farben und Kleidung",
     page: 145,
     topics: ["Colors", "Shopping for clothes"],
+    topicsGerman: ["Farben", "Kleidung einkaufen"],
     grammarFocus: ["Demonstrative pronouns 'ovaj, taj, onaj'", "Plural of locative and dative"],
     vocabularyThemes: ["Colors", "Clothes", "Shoes"]
   },
@@ -202,8 +246,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 22,
     title: "Šta je bolje?",
     titleEnglish: "What's better?",
+    titleGerman: "Was ist besser?",
     page: 153,
     topics: ["Services in cities"],
+    topicsGerman: ["Dienstleistungen in Städten"],
     grammarFocus: ["Comparatives and superlatives", "Plural of genitive"],
     vocabularyThemes: ["City services", "Comparisons"]
   },
@@ -211,8 +257,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 23,
     title: "Kako izgledaju?",
     titleEnglish: "How do they look like?",
+    titleGerman: "Wie sehen sie aus?",
     page: 163,
     topics: ["Describe people", "Professions"],
+    topicsGerman: ["Menschen beschreiben", "Berufe"],
     grammarFocus: ["Negatives", "Indefinite and negative pronouns", "Use of 'svoj'"],
     vocabularyThemes: ["Appearance", "Professions"]
   },
@@ -220,8 +268,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 24,
     title: "Poseta",
     titleEnglish: "Visiting places",
+    titleGerman: "Orte besuchen",
     page: 172,
     topics: ["Hotel services", "Book a hotel room"],
+    topicsGerman: ["Hotelservice", "Ein Hotelzimmer buchen"],
     grammarFocus: ["Subjunctive/conditional"],
     vocabularyThemes: ["Hotel", "Accommodation"]
   },
@@ -229,8 +279,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 25,
     title: "(Ne)običan dan",
     titleEnglish: "(Un)usual day",
+    titleGerman: "Ein (un)gewöhnlicher Tag",
     page: 178,
     topics: ["Events of a day"],
+    topicsGerman: ["Ereignisse eines Tages"],
     grammarFocus: ["Imperfective and perfective aspects"],
     vocabularyThemes: ["Daily events", "Verb aspects"]
   },
@@ -238,8 +290,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 26,
     title: "Iznenađenje",
     titleEnglish: "Surprise",
+    titleGerman: "Überraschung",
     page: 186,
     topics: ["Plan an evening"],
+    topicsGerman: ["Einen Abend planen"],
     grammarFocus: ["Prefixed verbs of motion"],
     vocabularyThemes: ["Evening activities", "Motion verbs"]
   },
@@ -247,8 +301,10 @@ export const COURSE_UNITS: Unit[] = [
     number: 27,
     title: "Šta ćeš raditi sutra?",
     titleEnglish: "What will you do tomorrow?",
+    titleGerman: "Was wirst du morgen machen?",
     page: 190,
     topics: ["Arrange a meeting", "Invite friends"],
+    topicsGerman: ["Ein Treffen vereinbaren", "Freunde einladen"],
     grammarFocus: ["Verb 'hteti'", "Instrumental of personal pronouns"],
     vocabularyThemes: ["Social invitations", "Future plans"]
   }
@@ -262,8 +318,10 @@ export interface UnitForLanding {
   number: number;
   title: string;
   titleEnglish: string;
+  titleGerman: string;
   vocabCount: number;
   topics: string[];
+  topicsGerman: string[];
 }
 
 /**
@@ -281,8 +339,10 @@ export function getUnitsForLanding(vocabulary: Array<{ unit: number }>): UnitFor
     number: unit.number,
     title: unit.title,
     titleEnglish: unit.titleEnglish,
+    titleGerman: unit.titleGerman,
     vocabCount: vocabCounts[unit.number] || 0,
-    topics: unit.topics
+    topics: unit.topics,
+    topicsGerman: unit.topicsGerman
   }));
 }
 

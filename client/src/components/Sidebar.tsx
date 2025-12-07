@@ -7,6 +7,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useTranslation } from "react-i18next";
 
 interface NavItem {
   label: string;
@@ -53,6 +54,7 @@ export function Sidebar() {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { t } = useTranslation();
   
   // Fetch gamification stats from Convex
   const progress = useQuery(api.progress.getUserProgress);
@@ -61,20 +63,20 @@ export function Sidebar() {
   const badgeData = badgeCount !== undefined ? { count: badgeCount } : undefined;
 
   const navItems: NavItem[] = [
-    { label: "Dashboard", path: "/dashboard", icon: <Home className="h-5 w-5" /> },
-    { label: "Practice Vocabulary", path: "/vocabulary", icon: <BookOpen className="h-5 w-5" /> },
-    { label: "View All Words", path: "/vocabulary-list", icon: <FileText className="h-5 w-5" /> },
-    { label: "View Progress", path: "/progress", icon: <TrendingUp className="h-5 w-5" /> },
-    { label: "My Subscription", path: "/subscription", icon: <CreditCard className="h-5 w-5" /> },
-    { label: "Send Feedback", path: "/feedback", icon: <MessageSquare className="h-5 w-5" /> },
+    { label: t('sidebar.dashboard'), path: "/dashboard", icon: <Home className="h-5 w-5" /> },
+    { label: t('sidebar.practiceVocab'), path: "/vocabulary", icon: <BookOpen className="h-5 w-5" /> },
+    { label: t('sidebar.viewAllWords'), path: "/vocabulary-list", icon: <FileText className="h-5 w-5" /> },
+    { label: t('sidebar.viewProgress'), path: "/progress", icon: <TrendingUp className="h-5 w-5" /> },
+    { label: t('sidebar.mySubscription'), path: "/subscription", icon: <CreditCard className="h-5 w-5" /> },
+    { label: t('sidebar.sendFeedback'), path: "/feedback", icon: <MessageSquare className="h-5 w-5" /> },
   ];
 
   const adminItems: NavItem[] = [
-    { label: "User Management", path: "/admin", icon: <Users className="h-4 w-4" /> },
-    { label: "Feedback", path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
-    { label: "Beta Registrations", path: "/admin/beta-registrations", icon: <UserPlus className="h-4 w-4" /> },
-    { label: "Email Templates", path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
-    { label: "Subscription Analytics", path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
+    { label: t('sidebar.userManagement'), path: "/admin", icon: <Users className="h-4 w-4" /> },
+    { label: t('sidebar.feedback'), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
+    { label: t('sidebar.betaRegistrations'), path: "/admin/beta-registrations", icon: <UserPlus className="h-4 w-4" /> },
+    { label: t('sidebar.emailTemplates'), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
+    { label: t('sidebar.subscriptionAnalytics'), path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
   ];
 
   const isActive = (path: string) => location === path;
@@ -148,11 +150,11 @@ export function Sidebar() {
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                      {user?.role === 'superadmin' ? 'Superadmin' : user?.role === 'admin' ? 'Admin' : 'Student'}
+                      {user?.role === 'superadmin' ? t('sidebar.role.superadmin') : user?.role === 'admin' ? t('sidebar.role.admin') : t('sidebar.role.student')}
                     </span>
                     {user?.isBetaTester && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-medium">
-                        ✨ Beta
+                        {t('sidebar.beta')}
                       </span>
                     )}
                   </div>
@@ -187,11 +189,11 @@ export function Sidebar() {
                   <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <Trophy className="h-3.5 w-3.5 text-yellow-600" />
-                      <span className="text-xs font-medium text-gray-600">Level</span>
+                      <span className="text-xs font-medium text-gray-600">{t('sidebar.level')}</span>
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-base font-bold text-gray-900">{user.level || 1}</span>
-                      <span className="text-xs text-gray-500">{300 - ((user.totalXP || 0) % 300)} XP to next</span>
+                      <span className="text-xs text-gray-500">{t('sidebar.xpToNext', { count: 300 - ((user.totalXP || 0) % 300) })}</span>
                     </div>
                   </div>
                   
@@ -199,11 +201,11 @@ export function Sidebar() {
                   <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <Star className="h-3.5 w-3.5 text-blue-600" />
-                      <span className="text-xs font-medium text-gray-600">Total XP</span>
+                      <span className="text-xs font-medium text-gray-600">{t('sidebar.totalXP')}</span>
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-base font-bold text-gray-900">{user.totalXP || 0}</span>
-                      <span className="text-xs text-gray-500">Points earned</span>
+                      <span className="text-xs text-gray-500">{t('sidebar.pointsEarned')}</span>
                     </div>
                   </div>
                   
@@ -211,11 +213,11 @@ export function Sidebar() {
                   <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <Flame className="h-3.5 w-3.5 text-orange-600" />
-                      <span className="text-xs font-medium text-gray-600">Streak</span>
+                      <span className="text-xs font-medium text-gray-600">{t('sidebar.streak')}</span>
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-base font-bold text-gray-900">{user.currentStreak || 0} 🔥</span>
-                      <span className="text-xs text-gray-500">Days in a row</span>
+                      <span className="text-xs text-gray-500">{t('sidebar.daysInRow')}</span>
                     </div>
                   </div>
                   
@@ -223,11 +225,11 @@ export function Sidebar() {
                   <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <Award className="h-3.5 w-3.5 text-purple-600" />
-                      <span className="text-xs font-medium text-gray-600">Badges</span>
+                      <span className="text-xs font-medium text-gray-600">{t('sidebar.badges')}</span>
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-base font-bold text-gray-900">{badgeData?.count || 0}</span>
-                      <span className="text-xs text-gray-500">Achievements</span>
+                      <span className="text-xs text-gray-500">{t('sidebar.achievements')}</span>
                     </div>
                   </div>
                 </div>
@@ -264,7 +266,7 @@ export function Sidebar() {
               <div className="flex items-center gap-2 px-3 py-2 mb-2">
                 <Shield className="h-4 w-4 text-primary" />
                 <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">
-                  Admin Panel
+                  {t('sidebar.adminPanel')}
                 </span>
               </div>
               <div className="space-y-1">
@@ -303,7 +305,7 @@ export function Sidebar() {
             )}
           >
             <LogOut className="h-5 w-5 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Logout</span>}
+            {!collapsed && <span className="text-sm font-medium">{t('sidebar.logout')}</span>}
           </button>
         </div>
       </aside>

@@ -9,9 +9,11 @@ import { BookOpen, CheckCircle2, Clock, TrendingUp, Calendar, Award } from "luci
 import { Link } from "wouter";
 import { COURSE_WEEKS } from "@shared/data";
 import { Sidebar } from "@/components/Sidebar";
+import { useTranslation } from "react-i18next";
 
 export default function Progress() {
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const progress = useQuery(api.progress.getUserProgress);
   const isLoading = progress === undefined;
 
@@ -59,11 +61,11 @@ export default function Progress() {
         <div className="container py-4">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
-              <Button variant="ghost" size="sm">← Back to Dashboard</Button>
+              <Button variant="ghost" size="sm">{t('progress.backToDashboard')}</Button>
             </Link>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">Learning Progress</h1>
+              <h1 className="text-xl font-bold">{t('progress.title')}</h1>
             </div>
           </div>
         </div>
@@ -75,47 +77,47 @@ export default function Progress() {
           <div className="grid md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Progress</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('progress.totalProgress')}</CardTitle>
                 <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
-                <p className="text-xs text-muted-foreground">Units completed</p>
+                <p className="text-xs text-muted-foreground">{t('progress.unitsCompleted')}</p>
                 <ProgressBar value={progressPercent} className="mt-2" />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Current Week</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('progress.currentWeek')}</CardTitle>
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{currentWeek}/{totalWeeks}</div>
-                <p className="text-xs text-muted-foreground">Week progress</p>
+                <p className="text-xs text-muted-foreground">{t('progress.weekProgress')}</p>
                 <ProgressBar value={weekProgress} className="mt-2" />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Learning Pace</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('progress.learningPace')}</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{avgUnitsPerWeek}</div>
-                <p className="text-xs text-muted-foreground">Units per week</p>
+                <p className="text-xs text-muted-foreground">{t('progress.unitsPerWeek')}</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Days Active</CardTitle>
+                <CardTitle className="text-sm font-medium">{t('progress.daysActive')}</CardTitle>
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{daysSinceStart}</div>
-                <p className="text-xs text-muted-foreground">Since you started</p>
+                <p className="text-xs text-muted-foreground">{t('progress.sinceStarted')}</p>
               </CardContent>
             </Card>
           </div>
@@ -124,19 +126,19 @@ export default function Progress() {
           {currentWeekInfo && (
             <Card>
               <CardHeader>
-                <CardTitle>Week {currentWeek}: {currentWeekInfo.title}</CardTitle>
+                <CardTitle>{t('progress.week', { number: currentWeek })}: {i18n.language === 'de' && currentWeekInfo.titleGerman ? currentWeekInfo.titleGerman : currentWeekInfo.title}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <h4 className="font-semibold mb-2">Learning Objectives:</h4>
+                    <h4 className="font-semibold mb-2">{t('progress.learningObjectives')}</h4>
                     <ul className="space-y-1">
-                      {currentWeekInfo.goals?.map((obj: string, idx: number) => (
+                      {(i18n.language === 'de' && currentWeekInfo.goalsGerman ? currentWeekInfo.goalsGerman : currentWeekInfo.goals)?.map((obj: string, idx: number) => (
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <span className="text-primary mt-1">•</span>
                           <span>{obj}</span>
                         </li>
-                      )) || <li className="text-sm text-muted-foreground">No objectives available</li>}
+                      )) || <li className="text-sm text-muted-foreground">{t('progress.noObjectives')}</li>}
                     </ul>
                   </div>
                 </div>
@@ -147,20 +149,20 @@ export default function Progress() {
           {/* Timeline */}
           <Card>
             <CardHeader>
-              <CardTitle>Learning Timeline</CardTitle>
-              <CardDescription>Your journey through the course</CardDescription>
+              <CardTitle>{t('progress.timeline')}</CardTitle>
+              <CardDescription>{t('progress.timelineDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex justify-between text-sm">
                   <div>
-                    <div className="font-medium">Started</div>
+                    <div className="font-medium">{t('progress.started')}</div>
                     <div className="text-muted-foreground">
                       {startDate.toLocaleDateString('de-DE')}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium">Estimated Completion</div>
+                    <div className="font-medium">{t('progress.estimatedCompletion')}</div>
                     <div className="text-muted-foreground">
                       {estimatedEndDate.toLocaleDateString('de-DE')}
                     </div>
@@ -168,7 +170,7 @@ export default function Progress() {
                 </div>
                 <ProgressBar value={weekProgress} className="h-3" />
                 <div className="text-center text-sm text-muted-foreground">
-                  {totalWeeks - currentWeek} weeks remaining
+                  {t('progress.weeksRemaining', { count: totalWeeks - currentWeek })}
                 </div>
               </div>
             </CardContent>
@@ -177,8 +179,8 @@ export default function Progress() {
           {/* Units Progress Grid */}
           <Card>
             <CardHeader>
-              <CardTitle>Units Overview</CardTitle>
-              <CardDescription>Track your progress through all 27 units</CardDescription>
+              <CardTitle>{t('progress.unitsOverview')}</CardTitle>
+              <CardDescription>{t('progress.unitsOverviewDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-9 gap-2">
@@ -211,15 +213,15 @@ export default function Progress() {
               <div className="flex gap-6 mt-4 text-sm">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded bg-green-50 border-2 border-green-500"></div>
-                  <span>Completed</span>
+                  <span>{t('progress.completed')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded bg-blue-50 border-2 border-blue-500"></div>
-                  <span>Current</span>
+                  <span>{t('progress.current')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded bg-gray-50 border-2 border-gray-200"></div>
-                  <span>Not Started</span>
+                  <span>{t('progress.notStarted')}</span>
                 </div>
               </div>
             </CardContent>
@@ -231,7 +233,7 @@ export default function Progress() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Award className="h-5 w-5 text-primary" />
-                  Achievements
+                  {t('progress.achievements')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -240,8 +242,8 @@ export default function Progress() {
                     <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
                       <div className="text-3xl">🎯</div>
                       <div>
-                        <div className="font-semibold">First Steps</div>
-                        <div className="text-xs text-muted-foreground">Completed first unit</div>
+                        <div className="font-semibold">{t('progress.achievement.firstSteps')}</div>
+                        <div className="text-xs text-muted-foreground">{t('progress.achievement.firstSteps.desc')}</div>
                       </div>
                     </div>
                   )}
@@ -249,8 +251,8 @@ export default function Progress() {
                     <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
                       <div className="text-3xl">🚀</div>
                       <div>
-                        <div className="font-semibold">Getting Started</div>
-                        <div className="text-xs text-muted-foreground">Completed 5 units</div>
+                        <div className="font-semibold">{t('progress.achievement.gettingStarted')}</div>
+                        <div className="text-xs text-muted-foreground">{t('progress.achievement.gettingStarted.desc')}</div>
                       </div>
                     </div>
                   )}
@@ -258,8 +260,8 @@ export default function Progress() {
                     <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
                       <div className="text-3xl">⭐</div>
                       <div>
-                        <div className="font-semibold">Halfway There</div>
-                        <div className="text-xs text-muted-foreground">Completed 10 units</div>
+                        <div className="font-semibold">{t('progress.achievement.halfwayThere')}</div>
+                        <div className="text-xs text-muted-foreground">{t('progress.achievement.halfwayThere.desc')}</div>
                       </div>
                     </div>
                   )}
@@ -267,8 +269,8 @@ export default function Progress() {
                     <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
                       <div className="text-3xl">🏆</div>
                       <div>
-                        <div className="font-semibold">Almost There</div>
-                        <div className="text-xs text-muted-foreground">Completed 20 units</div>
+                        <div className="font-semibold">{t('progress.achievement.almostThere')}</div>
+                        <div className="text-xs text-muted-foreground">{t('progress.achievement.almostThere.desc')}</div>
                       </div>
                     </div>
                   )}
@@ -276,8 +278,8 @@ export default function Progress() {
                     <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
                       <div className="text-3xl">🎓</div>
                       <div>
-                        <div className="font-semibold">Course Master</div>
-                        <div className="text-xs text-muted-foreground">Completed all units!</div>
+                        <div className="font-semibold">{t('progress.achievement.courseMaster')}</div>
+                        <div className="text-xs text-muted-foreground">{t('progress.achievement.courseMaster.desc')}</div>
                       </div>
                     </div>
                   )}
@@ -289,15 +291,15 @@ export default function Progress() {
           {/* Study Tips */}
           <Card className="bg-primary/5 border-primary/20">
             <CardHeader>
-              <CardTitle className="text-primary">Keep Going!</CardTitle>
+              <CardTitle className="text-primary">{t('progress.keepGoing')}</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm">
-                <li>📚 Consistency is key - try to study a little every day</li>
-                <li>🎯 Set weekly goals to stay on track</li>
-                <li>💬 Practice with the AI Learn Buddy regularly</li>
-                <li>🔁 Review completed units to reinforce learning</li>
-                <li>✍️ Complete all exercises in the coursebook</li>
+                <li>{t('progress.tip1')}</li>
+                <li>{t('progress.tip2')}</li>
+                <li>{t('progress.tip3')}</li>
+                <li>{t('progress.tip4')}</li>
+                <li>{t('progress.tip5')}</li>
               </ul>
             </CardContent>
           </Card>

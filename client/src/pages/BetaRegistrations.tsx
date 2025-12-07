@@ -243,7 +243,7 @@ export default function BetaRegistrations() {
                                     variant="outline"
                                     size="sm"
                                     className="text-green-600 hover:text-green-700"
-                                    onClick={() => handleStatusChange(registration.id, 'approved')}
+                                    onClick={() => handleStatusChange(registration._id, 'approved')}
                                   >
                                     <CheckCircle className="h-4 w-4" />
                                   </Button>
@@ -251,7 +251,7 @@ export default function BetaRegistrations() {
                                     variant="outline"
                                     size="sm"
                                     className="text-red-600 hover:text-red-700"
-                                    onClick={() => handleStatusChange(registration.id, 'rejected')}
+                                    onClick={() => handleStatusChange(registration._id, 'rejected')}
                                   >
                                     <XCircle className="h-4 w-4" />
                                   </Button>

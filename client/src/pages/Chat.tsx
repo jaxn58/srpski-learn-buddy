@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Sidebar } from "@/components/Sidebar";
 import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
+import { useTranslation } from "react-i18next";
 
 // Custom Markdown components for clean rendering
 const markdownComponents = {
@@ -46,6 +47,7 @@ const markdownComponents = {
 
 export default function Chat() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -84,12 +86,12 @@ export default function Chat() {
 
   const handleNewChat = async () => {
     try {
-      const sessionId = await createSessionMutation({ title: "New Chat" });
+      const sessionId = await createSessionMutation({ title: t('chat.newChat') });
       setCurrentSessionId(sessionId as unknown as string);
-      toast.success("New chat started!");
+      toast.success(t('chat.newChatSuccess'));
     } catch (error) {
       console.error("Failed to create new chat:", error);
-      toast.error("Failed to create new chat");
+      toast.error(t('chat.newChatError'));
     }
   };
 
@@ -115,7 +117,7 @@ export default function Chat() {
       });
     } catch (error: any) {
       console.error("Failed to send message:", error);
-      toast.error(error.message || "Failed to get AI response");
+      toast.error(error.message || t('chat.sendError'));
     } finally {
       setIsSending(false);
     }
@@ -154,15 +156,15 @@ export default function Chat() {
         <div className="container py-4">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
-              <Button variant="ghost" size="sm">← Back</Button>
+              <Button variant="ghost" size="sm">{t('chat.back')}</Button>
             </Link>
             <div className="flex items-center gap-3 flex-1">
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center">
                 <Brain className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold">AI Learn Buddy</h1>
-                <p className="text-xs text-muted-foreground">Your Serbian language tutor</p>
+                <h1 className="text-lg font-bold">{t('chat.title')}</h1>
+                <p className="text-xs text-muted-foreground">{t('chat.subtitle')}</p>
               </div>
             </div>
           </div>
@@ -182,18 +184,18 @@ export default function Chat() {
                   <Brain className="h-10 w-10 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold mb-2">Start Learning Serbian!</h2>
-                  <p className="text-muted-foreground mb-4">Ask me anything about grammar, vocabulary, or practice conversation</p>
+                  <h2 className="text-2xl font-bold mb-2">{t('chat.welcome.title')}</h2>
+                  <p className="text-muted-foreground mb-4">{t('chat.welcome.subtitle')}</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl">
                   <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Explain the verb 'biti' to me")}>
-                    <p className="text-sm font-medium">Explain verb 'biti'</p>
+                    <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
                   </Card>
                   <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("What is the locative case?")}>
-                    <p className="text-sm font-medium">Locative case</p>
+                    <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
                   </Card>
                   <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Dobar dan! Kako ste?")}>
-                    <p className="text-sm font-medium">Practice conversation</p>
+                    <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
                   </Card>
                 </div>
               </div>
@@ -263,7 +265,7 @@ export default function Chat() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Type your message... (Press Enter to send)"
+                placeholder={t('chat.placeholder')}
                 className="flex-1 rounded-full"
                 disabled={isSending}
               />

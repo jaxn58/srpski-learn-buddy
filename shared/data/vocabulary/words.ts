@@ -1,509 +1,2313 @@
 // Comprehensive vocabulary list for all 27 units from "Step by Step Serbian 1"
-export type VocabWord = {
-  serbian: string;
-  english: string;
-  alternatives?: string[]; // Alternative correct answers
-  unit: number;
-};
+// Multi-language support: English & German (more languages coming soon)
+import { VocabWord } from './helpers';
 
 export const VOCABULARY: VocabWord[] = [
-  // Unit 1 - Na aerodromu (At the airport)
-  { serbian: "aerodrom", english: "airport", unit: 1 },
-  { serbian: "pasoš", english: "passport", unit: 1 },
-  { serbian: "karta", english: "ticket", unit: 1 },
-  { serbian: "prtljag", english: "luggage", unit: 1 },
-  { serbian: "dobar dan", english: "good day", unit: 1 },
-  { serbian: "dobro jutro", english: "good morning", unit: 1 },
-  { serbian: "dobro veče", english: "good evening", unit: 1 },
-  { serbian: "laku noć", english: "good night", unit: 1 },
-  { serbian: "hvala", english: "thank you", unit: 1 },
-  { serbian: "molim", english: "please", alternatives: ["you're welcome"], unit: 1 },
-  { serbian: "da", english: "yes", unit: 1 },
-  { serbian: "ne", english: "no", unit: 1 },
-  { serbian: "izvините", english: "excuse me", unit: 1 },
-  { serbian: "zdravo", english: "hello", alternatives: ["hi"], unit: 1 },
-  { serbian: "ćao", english: "bye", unit: 1 },
-  { serbian: "doviđenja", english: "goodbye", unit: 1 },
-  { serbian: "ja", english: "I", unit: 1 },
-  { serbian: "ti", english: "you (informal)", unit: 1 },
-  { serbian: "on", english: "he", unit: 1 },
-  { serbian: "ona", english: "she", unit: 1 },
-  { serbian: "ono", english: "it", unit: 1 },
-  { serbian: "biti", english: "to be", unit: 1 },
-  { serbian: "imati", english: "to have", unit: 1 },
+  // Unit 1 - Na aerodromu (At the airport / Am Flughafen)
+  { 
+    serbian: "aerodrom", 
+    translations: { en: "airport", de: "Flughafen" },
+    unit: 1 
+  },
+  { 
+    serbian: "pasoš", 
+    translations: { en: "passport", de: "Reisepass" },
+    unit: 1 
+  },
+  { 
+    serbian: "karta", 
+    translations: { en: "ticket", de: "Ticket" },
+    alternatives: { de: ["Karte", "Fahrkarte"] },
+    unit: 1 
+  },
+  { 
+    serbian: "prtljag", 
+    translations: { en: "luggage", de: "Gepäck" },
+    unit: 1 
+  },
+  { 
+    serbian: "dobar dan", 
+    translations: { en: "good day", de: "guten Tag" },
+    unit: 1 
+  },
+  { 
+    serbian: "dobro jutro", 
+    translations: { en: "good morning", de: "guten Morgen" },
+    unit: 1 
+  },
+  { 
+    serbian: "dobro veče", 
+    translations: { en: "good evening", de: "guten Abend" },
+    unit: 1 
+  },
+  { 
+    serbian: "laku noć", 
+    translations: { en: "good night", de: "gute Nacht" },
+    unit: 1 
+  },
+  { 
+    serbian: "hvala", 
+    translations: { en: "thank you", de: "danke" },
+    unit: 1 
+  },
+  { 
+    serbian: "molim", 
+    translations: { en: "please", de: "bitte" },
+    alternatives: { 
+      en: ["you're welcome"], 
+      de: ["gern geschehen", "bitte schön"] 
+    },
+    unit: 1 
+  },
+  { 
+    serbian: "da", 
+    translations: { en: "yes", de: "ja" },
+    unit: 1 
+  },
+  { 
+    serbian: "ne", 
+    translations: { en: "no", de: "nein" },
+    unit: 1 
+  },
+  { 
+    serbian: "izvinite", 
+    translations: { en: "excuse me", de: "entschuldigen Sie" },
+    alternatives: { de: ["Entschuldigung"] },
+    unit: 1 
+  },
+  { 
+    serbian: "zdravo", 
+    translations: { en: "hello", de: "hallo" },
+    alternatives: { en: ["hi"], de: ["servus"] },
+    unit: 1 
+  },
+  { 
+    serbian: "ćao", 
+    translations: { en: "bye", de: "tschüss" },
+    alternatives: { de: ["ciao"] },
+    unit: 1 
+  },
+  { 
+    serbian: "doviđenja", 
+    translations: { en: "goodbye", de: "auf Wiedersehen" },
+    unit: 1 
+  },
+  { 
+    serbian: "ja", 
+    translations: { en: "I", de: "ich" },
+    unit: 1 
+  },
+  { 
+    serbian: "ti", 
+    translations: { en: "you (informal)", de: "du" },
+    unit: 1 
+  },
+  { 
+    serbian: "on", 
+    translations: { en: "he", de: "er" },
+    unit: 1 
+  },
+  { 
+    serbian: "ona", 
+    translations: { en: "she", de: "sie" },
+    unit: 1 
+  },
+  { 
+    serbian: "ono", 
+    translations: { en: "it", de: "es" },
+    unit: 1 
+  },
+  { 
+    serbian: "biti", 
+    translations: { en: "to be", de: "sein" },
+    unit: 1 
+  },
+  { 
+    serbian: "imati", 
+    translations: { en: "to have", de: "haben" },
+    unit: 1 
+  },
 
-  // Unit 2 - U hotelu (At the hotel)
-  { serbian: "hotel", english: "hotel", unit: 2 },
-  { serbian: "soba", english: "room", unit: 2 },
-  { serbian: "ključ", english: "key", unit: 2 },
-  { serbian: "rezervacija", english: "reservation", unit: 2 },
-  { serbian: "noć", english: "night", unit: 2 },
-  { serbian: "dan", english: "day", unit: 2 },
-  { serbian: "recepcija", english: "reception", unit: 2 },
-  { serbian: "kupatilo", english: "bathroom", unit: 2 },
-  { serbian: "krevet", english: "bed", unit: 2 },
-  { serbian: "tuš", english: "shower", unit: 2 },
-  { serbian: "lift", english: "elevator", unit: 2 },
-  { serbian: "doručak", english: "breakfast", unit: 2 },
-  { serbian: "cena", english: "price", unit: 2 },
-  { serbian: "slobodan", english: "free", alternatives: ["available"], unit: 2 },
-  { serbian: "zauzet", english: "occupied", alternatives: ["busy"], unit: 2 },
+  // Unit 2 - U hotelu (At the hotel / Im Hotel)
+  { 
+    serbian: "hotel", 
+    translations: { en: "hotel", de: "Hotel" },
+    unit: 2 
+  },
+  { 
+    serbian: "soba", 
+    translations: { en: "room", de: "Zimmer" },
+    unit: 2 
+  },
+  { 
+    serbian: "ključ", 
+    translations: { en: "key", de: "Schlüssel" },
+    unit: 2 
+  },
+  { 
+    serbian: "rezervacija", 
+    translations: { en: "reservation", de: "Reservierung" },
+    alternatives: { de: ["Buchung"] },
+    unit: 2 
+  },
+  { 
+    serbian: "noć", 
+    translations: { en: "night", de: "Nacht" },
+    unit: 2 
+  },
+  { 
+    serbian: "dan", 
+    translations: { en: "day", de: "Tag" },
+    unit: 2 
+  },
+  { 
+    serbian: "recepcija", 
+    translations: { en: "reception", de: "Rezeption" },
+    alternatives: { de: ["Empfang"] },
+    unit: 2 
+  },
+  { 
+    serbian: "kupatilo", 
+    translations: { en: "bathroom", de: "Badezimmer" },
+    alternatives: { de: ["Bad"] },
+    unit: 2 
+  },
+  { 
+    serbian: "krevet", 
+    translations: { en: "bed", de: "Bett" },
+    unit: 2 
+  },
+  { 
+    serbian: "tuš", 
+    translations: { en: "shower", de: "Dusche" },
+    unit: 2 
+  },
+  { 
+    serbian: "lift", 
+    translations: { en: "elevator", de: "Aufzug" },
+    alternatives: { de: ["Fahrstuhl", "Lift"] },
+    unit: 2 
+  },
+  { 
+    serbian: "doručak", 
+    translations: { en: "breakfast", de: "Frühstück" },
+    unit: 2 
+  },
+  { 
+    serbian: "cena", 
+    translations: { en: "price", de: "Preis" },
+    unit: 2 
+  },
+  { 
+    serbian: "slobodan", 
+    translations: { en: "free", de: "frei" },
+    alternatives: { en: ["available"], de: ["verfügbar"] },
+    unit: 2 
+  },
+  { 
+    serbian: "zauzet", 
+    translations: { en: "occupied", de: "besetzt" },
+    alternatives: { en: ["busy"], de: ["belegt"] },
+    unit: 2 
+  },
 
-  // Unit 3 - U kafiću (At the café)
-  { serbian: "kafić", english: "café", unit: 3 },
-  { serbian: "kafa", english: "coffee", unit: 3 },
-  { serbian: "čaj", english: "tea", unit: 3 },
-  { serbian: "voda", english: "water", unit: 3 },
-  { serbian: "sok", english: "juice", unit: 3 },
-  { serbian: "pivo", english: "beer", unit: 3 },
-  { serbian: "vino", english: "wine", unit: 3 },
-  { serbian: "mleko", english: "milk", unit: 3 },
-  { serbian: "šećer", english: "sugar", unit: 3 },
-  { serbian: "račun", english: "bill", unit: 3 },
-  { serbian: "konobar", english: "waiter", unit: 3 },
-  { serbian: "meni", english: "menu", unit: 3 },
-  { serbian: "želeti", english: "to want", alternatives: ["wish"], unit: 3 },
-  { serbian: "piti", english: "to drink", unit: 3 },
+  // Unit 3 - U kafiću (At the café / Im Café)
+  { 
+    serbian: "kafić", 
+    translations: { en: "café", de: "Café" },
+    unit: 3 
+  },
+  { 
+    serbian: "kafa", 
+    translations: { en: "coffee", de: "Kaffee" },
+    unit: 3 
+  },
+  { 
+    serbian: "čaj", 
+    translations: { en: "tea", de: "Tee" },
+    unit: 3 
+  },
+  { 
+    serbian: "voda", 
+    translations: { en: "water", de: "Wasser" },
+    unit: 3 
+  },
+  { 
+    serbian: "sok", 
+    translations: { en: "juice", de: "Saft" },
+    unit: 3 
+  },
+  { 
+    serbian: "pivo", 
+    translations: { en: "beer", de: "Bier" },
+    unit: 3 
+  },
+  { 
+    serbian: "vino", 
+    translations: { en: "wine", de: "Wein" },
+    unit: 3 
+  },
+  { 
+    serbian: "mleko", 
+    translations: { en: "milk", de: "Milch" },
+    unit: 3 
+  },
+  { 
+    serbian: "šećer", 
+    translations: { en: "sugar", de: "Zucker" },
+    unit: 3 
+  },
+  { 
+    serbian: "račun", 
+    translations: { en: "bill", de: "Rechnung" },
+    unit: 3 
+  },
+  { 
+    serbian: "konobar", 
+    translations: { en: "waiter", de: "Kellner" },
+    unit: 3 
+  },
+  { 
+    serbian: "meni", 
+    translations: { en: "menu", de: "Speisekarte" },
+    alternatives: { de: ["Menü"] },
+    unit: 3 
+  },
+  { 
+    serbian: "želeti", 
+    translations: { en: "to want", de: "wollen" },
+    alternatives: { en: ["wish"], de: ["wünschen", "möchten"] },
+    unit: 3 
+  },
+  { 
+    serbian: "piti", 
+    translations: { en: "to drink", de: "trinken" },
+    unit: 3 
+  },
 
-  // Unit 4 - Gde je...? (Where is...?)
-  { serbian: "gde", english: "where", unit: 4 },
-  { serbian: "ovde", english: "here", unit: 4 },
-  { serbian: "tamo", english: "there", unit: 4 },
-  { serbian: "ulica", english: "street", unit: 4 },
-  { serbian: "trg", english: "square", unit: 4 },
-  { serbian: "most", english: "bridge", unit: 4 },
-  { serbian: "park", english: "park", unit: 4 },
-  { serbian: "muzej", english: "museum", unit: 4 },
-  { serbian: "pozorište", english: "theater", unit: 4 },
-  { serbian: "bioskop", english: "cinema", unit: 4 },
-  { serbian: "restoran", english: "restaurant", unit: 4 },
-  { serbian: "banka", english: "bank", unit: 4 },
-  { serbian: "pošta", english: "post office", unit: 4 },
-  { serbian: "levo", english: "left", unit: 4 },
-  { serbian: "desno", english: "right", unit: 4 },
-  { serbian: "pravo", english: "straight", unit: 4 },
-  { serbian: "blizu", english: "near", unit: 4 },
-  { serbian: "daleko", english: "far", unit: 4 },
+  // Unit 4 - Gde je...? (Where is...? / Wo ist...?)
+  { 
+    serbian: "gde", 
+    translations: { en: "where", de: "wo" },
+    unit: 4 
+  },
+  { 
+    serbian: "ovde", 
+    translations: { en: "here", de: "hier" },
+    unit: 4 
+  },
+  { 
+    serbian: "tamo", 
+    translations: { en: "there", de: "dort" },
+    alternatives: { de: ["da"] },
+    unit: 4 
+  },
+  { 
+    serbian: "ulica", 
+    translations: { en: "street", de: "Straße" },
+    unit: 4 
+  },
+  { 
+    serbian: "trg", 
+    translations: { en: "square", de: "Platz" },
+    unit: 4 
+  },
+  { 
+    serbian: "most", 
+    translations: { en: "bridge", de: "Brücke" },
+    unit: 4 
+  },
+  { 
+    serbian: "park", 
+    translations: { en: "park", de: "Park" },
+    unit: 4 
+  },
+  { 
+    serbian: "muzej", 
+    translations: { en: "museum", de: "Museum" },
+    unit: 4 
+  },
+  { 
+    serbian: "pozorište", 
+    translations: { en: "theater", de: "Theater" },
+    unit: 4 
+  },
+  { 
+    serbian: "bioskop", 
+    translations: { en: "cinema", de: "Kino" },
+    unit: 4 
+  },
+  { 
+    serbian: "restoran", 
+    translations: { en: "restaurant", de: "Restaurant" },
+    unit: 4 
+  },
+  { 
+    serbian: "banka", 
+    translations: { en: "bank", de: "Bank" },
+    unit: 4 
+  },
+  { 
+    serbian: "pošta", 
+    translations: { en: "post office", de: "Postamt" },
+    alternatives: { de: ["Post"] },
+    unit: 4 
+  },
+  { 
+    serbian: "levo", 
+    translations: { en: "left", de: "links" },
+    unit: 4 
+  },
+  { 
+    serbian: "desno", 
+    translations: { en: "right", de: "rechts" },
+    unit: 4 
+  },
+  { 
+    serbian: "pravo", 
+    translations: { en: "straight", de: "geradeaus" },
+    unit: 4 
+  },
+  { 
+    serbian: "blizu", 
+    translations: { en: "near", de: "nah" },
+    alternatives: { de: ["in der Nähe"] },
+    unit: 4 
+  },
+  { 
+    serbian: "daleko", 
+    translations: { en: "far", de: "weit" },
+    unit: 4 
+  },
 
-  // Unit 5 - Šta radiš? (What are you doing?)
-  { serbian: "raditi", english: "to work / do", unit: 5 },
-  { serbian: "učiti", english: "to learn / study", unit: 5 },
-  { serbian: "čitati", english: "to read", unit: 5 },
-  { serbian: "pisati", english: "to write", unit: 5 },
-  { serbian: "govoriti", english: "to speak", unit: 5 },
-  { serbian: "slušati", english: "to listen", unit: 5 },
-  { serbian: "gledati", english: "to watch / look", unit: 5 },
-  { serbian: "razumeti", english: "to understand", unit: 5 },
-  { serbian: "znati", english: "to know", unit: 5 },
-  { serbian: "moći", english: "can / to be able", unit: 5 },
-  { serbian: "jezik", english: "language", unit: 5 },
-  { serbian: "knjiga", english: "book", unit: 5 },
-  { serbian: "novine", english: "newspaper", unit: 5 },
-  { serbian: "časopis", english: "magazine", unit: 5 },
-  { serbian: "film", english: "film / movie", unit: 5 },
-  { serbian: "muzika", english: "music", unit: 5 },
+  // Unit 5 - Šta radiš? (What are you doing? / Was machst du?)
+  { 
+    serbian: "raditi", 
+    translations: { en: "to work / do", de: "arbeiten / machen" },
+    unit: 5 
+  },
+  { 
+    serbian: "učiti", 
+    translations: { en: "to learn / study", de: "lernen / studieren" },
+    unit: 5 
+  },
+  { 
+    serbian: "čitati", 
+    translations: { en: "to read", de: "lesen" },
+    unit: 5 
+  },
+  { 
+    serbian: "pisati", 
+    translations: { en: "to write", de: "schreiben" },
+    unit: 5 
+  },
+  { 
+    serbian: "govoriti", 
+    translations: { en: "to speak", de: "sprechen" },
+    alternatives: { de: ["reden"] },
+    unit: 5 
+  },
+  { 
+    serbian: "slušati", 
+    translations: { en: "to listen", de: "hören" },
+    alternatives: { de: ["zuhören"] },
+    unit: 5 
+  },
+  { 
+    serbian: "gledati", 
+    translations: { en: "to watch / look", de: "schauen / ansehen" },
+    unit: 5 
+  },
+  { 
+    serbian: "razumeti", 
+    translations: { en: "to understand", de: "verstehen" },
+    unit: 5 
+  },
+  { 
+    serbian: "znati", 
+    translations: { en: "to know", de: "wissen / kennen" },
+    unit: 5 
+  },
+  { 
+    serbian: "moći", 
+    translations: { en: "can / to be able", de: "können" },
+    unit: 5 
+  },
+  { 
+    serbian: "jezik", 
+    translations: { en: "language", de: "Sprache" },
+    unit: 5 
+  },
+  { 
+    serbian: "knjiga", 
+    translations: { en: "book", de: "Buch" },
+    unit: 5 
+  },
+  { 
+    serbian: "novine", 
+    translations: { en: "newspaper", de: "Zeitung" },
+    unit: 5 
+  },
+  { 
+    serbian: "časopis", 
+    translations: { en: "magazine", de: "Zeitschrift" },
+    alternatives: { de: ["Magazin"] },
+    unit: 5 
+  },
+  { 
+    serbian: "film", 
+    translations: { en: "film / movie", de: "Film" },
+    unit: 5 
+  },
+  { 
+    serbian: "muzika", 
+    translations: { en: "music", de: "Musik" },
+    unit: 5 
+  },
 
-  // Unit 6 - Koliko je sati? (What time is it?)
-  { serbian: "sat", english: "hour / clock", unit: 6 },
-  { serbian: "vreme", english: "time", unit: 6 },
-  { serbian: "minut", english: "minute", unit: 6 },
-  { serbian: "sekund", english: "second", unit: 6 },
-  { serbian: "jutro", english: "morning", unit: 6 },
-  { serbian: "podne", english: "noon", unit: 6 },
-  { serbian: "popodne", english: "afternoon", unit: 6 },
-  { serbian: "veče", english: "evening", unit: 6 },
-  { serbian: "noć", english: "night", unit: 6 },
-  { serbian: "rano", english: "early", unit: 6 },
-  { serbian: "kasno", english: "late", unit: 6 },
-  { serbian: "sada", english: "now", unit: 6 },
-  { serbian: "danas", english: "today", unit: 6 },
-  { serbian: "sutra", english: "tomorrow", unit: 6 },
-  { serbian: "juče", english: "yesterday", unit: 6 },
+  // Unit 6 - Koliko je sati? (What time is it? / Wie spät ist es?)
+  { 
+    serbian: "sat", 
+    translations: { en: "hour / clock", de: "Stunde / Uhr" },
+    unit: 6 
+  },
+  { 
+    serbian: "vreme", 
+    translations: { en: "time", de: "Zeit" },
+    unit: 6 
+  },
+  { 
+    serbian: "minut", 
+    translations: { en: "minute", de: "Minute" },
+    unit: 6 
+  },
+  { 
+    serbian: "sekund", 
+    translations: { en: "second", de: "Sekunde" },
+    unit: 6 
+  },
+  { 
+    serbian: "jutro", 
+    translations: { en: "morning", de: "Morgen" },
+    unit: 6 
+  },
+  { 
+    serbian: "podne", 
+    translations: { en: "noon", de: "Mittag" },
+    unit: 6 
+  },
+  { 
+    serbian: "popodne", 
+    translations: { en: "afternoon", de: "Nachmittag" },
+    unit: 6 
+  },
+  { 
+    serbian: "veče", 
+    translations: { en: "evening", de: "Abend" },
+    unit: 6 
+  },
+  { 
+    serbian: "noć", 
+    translations: { en: "night", de: "Nacht" },
+    unit: 6 
+  },
+  { 
+    serbian: "rano", 
+    translations: { en: "early", de: "früh" },
+    unit: 6 
+  },
+  { 
+    serbian: "kasno", 
+    translations: { en: "late", de: "spät" },
+    unit: 6 
+  },
+  { 
+    serbian: "sada", 
+    translations: { en: "now", de: "jetzt" },
+    unit: 6 
+  },
+  { 
+    serbian: "danas", 
+    translations: { en: "today", de: "heute" },
+    unit: 6 
+  },
+  { 
+    serbian: "sutra", 
+    translations: { en: "tomorrow", de: "morgen" },
+    unit: 6 
+  },
+  { 
+    serbian: "juče", 
+    translations: { en: "yesterday", de: "gestern" },
+    unit: 6 
+  },
 
-  // Unit 7 - Dogovor (Making arrangements)
-  { serbian: "dogovor", english: "arrangement / agreement", unit: 7 },
-  { serbian: "sastanak", english: "meeting", unit: 7 },
-  { serbian: "poziv", english: "invitation", unit: 7 },
-  { serbian: "ponedeljak", english: "Monday", unit: 7 },
-  { serbian: "utorak", english: "Tuesday", unit: 7 },
-  { serbian: "sreda", english: "Wednesday", unit: 7 },
-  { serbian: "četvrtak", english: "Thursday", unit: 7 },
-  { serbian: "petak", english: "Friday", unit: 7 },
-  { serbian: "subota", english: "Saturday", unit: 7 },
-  { serbian: "nedelja", english: "Sunday", unit: 7 },
-  { serbian: "nedelja", english: "week", unit: 7 },
-  { serbian: "vikend", english: "weekend", unit: 7 },
-  { serbian: "slobodan", english: "free (time)", unit: 7 },
+  // Unit 7 - Dogovor (Making arrangements / Verabredungen)
+  { 
+    serbian: "dogovor", 
+    translations: { en: "arrangement / agreement", de: "Verabredung / Vereinbarung" },
+    unit: 7 
+  },
+  { 
+    serbian: "sastanak", 
+    translations: { en: "meeting", de: "Treffen / Besprechung" },
+    unit: 7 
+  },
+  { 
+    serbian: "poziv", 
+    translations: { en: "invitation", de: "Einladung" },
+    unit: 7 
+  },
+  { 
+    serbian: "ponedeljak", 
+    translations: { en: "Monday", de: "Montag" },
+    unit: 7 
+  },
+  { 
+    serbian: "utorak", 
+    translations: { en: "Tuesday", de: "Dienstag" },
+    unit: 7 
+  },
+  { 
+    serbian: "sreda", 
+    translations: { en: "Wednesday", de: "Mittwoch" },
+    unit: 7 
+  },
+  { 
+    serbian: "četvrtak", 
+    translations: { en: "Thursday", de: "Donnerstag" },
+    unit: 7 
+  },
+  { 
+    serbian: "petak", 
+    translations: { en: "Friday", de: "Freitag" },
+    unit: 7 
+  },
+  { 
+    serbian: "subota", 
+    translations: { en: "Saturday", de: "Samstag" },
+    unit: 7 
+  },
+  { 
+    serbian: "nedelja", 
+    translations: { en: "Sunday", de: "Sonntag" },
+    unit: 7 
+  },
+  { 
+    serbian: "nedelja", 
+    translations: { en: "week", de: "Woche" },
+    unit: 7 
+  },
+  { 
+    serbian: "vikend", 
+    translations: { en: "weekend", de: "Wochenende" },
+    unit: 7 
+  },
+  { 
+    serbian: "slobodan", 
+    translations: { en: "free (time)", de: "frei (Zeit)" },
+    unit: 7 
+  },
 
-  // Unit 8 - U restoranu (In the restaurant)
-  { serbian: "restoran", english: "restaurant", unit: 8 },
-  { serbian: "meni", english: "menu", unit: 8 },
-  { serbian: "jelo", english: "dish / meal", unit: 8 },
-  { serbian: "predjelo", english: "appetizer", unit: 8 },
-  { serbian: "glavno jelo", english: "main course", unit: 8 },
-  { serbian: "desert", english: "dessert", unit: 8 },
-  { serbian: "supa", english: "soup", unit: 8 },
-  { serbian: "salata", english: "salad", unit: 8 },
-  { serbian: "meso", english: "meat", unit: 8 },
-  { serbian: "riba", english: "fish", unit: 8 },
-  { serbian: "piletina", english: "chicken", unit: 8 },
-  { serbian: "svinjetina", english: "pork", unit: 8 },
-  { serbian: "govedina", english: "beef", unit: 8 },
-  { serbian: "hleb", english: "bread", unit: 8 },
-  { serbian: "pirinač", english: "rice", unit: 8 },
-  { serbian: "krompir", english: "potato", unit: 8 },
-  { serbian: "povrće", english: "vegetables", unit: 8 },
-  { serbian: "voće", english: "fruit", unit: 8 },
-  { serbian: "ukusan", english: "delicious / tasty", unit: 8 },
-  { serbian: "jesti", english: "to eat", unit: 8 },
+  // Unit 8 - U restoranu (In the restaurant / Im Restaurant)
+  { 
+    serbian: "restoran", 
+    translations: { en: "restaurant", de: "Restaurant" },
+    unit: 8 
+  },
+  { 
+    serbian: "meni", 
+    translations: { en: "menu", de: "Speisekarte" },
+    alternatives: { de: ["Menü"] },
+    unit: 8 
+  },
+  { 
+    serbian: "jelo", 
+    translations: { en: "dish / meal", de: "Gericht / Mahlzeit" },
+    unit: 8 
+  },
+  { 
+    serbian: "predjelo", 
+    translations: { en: "appetizer", de: "Vorspeise" },
+    unit: 8 
+  },
+  { 
+    serbian: "glavno jelo", 
+    translations: { en: "main course", de: "Hauptgericht" },
+    unit: 8 
+  },
+  { 
+    serbian: "desert", 
+    translations: { en: "dessert", de: "Dessert" },
+    alternatives: { de: ["Nachspeise", "Nachtisch"] },
+    unit: 8 
+  },
+  { 
+    serbian: "supa", 
+    translations: { en: "soup", de: "Suppe" },
+    unit: 8 
+  },
+  { 
+    serbian: "salata", 
+    translations: { en: "salad", de: "Salat" },
+    unit: 8 
+  },
+  { 
+    serbian: "meso", 
+    translations: { en: "meat", de: "Fleisch" },
+    unit: 8 
+  },
+  { 
+    serbian: "riba", 
+    translations: { en: "fish", de: "Fisch" },
+    unit: 8 
+  },
+  { 
+    serbian: "piletina", 
+    translations: { en: "chicken", de: "Hühnchen" },
+    alternatives: { de: ["Hähnchen", "Huhn"] },
+    unit: 8 
+  },
+  { 
+    serbian: "svinjetina", 
+    translations: { en: "pork", de: "Schweinefleisch" },
+    unit: 8 
+  },
+  { 
+    serbian: "govedina", 
+    translations: { en: "beef", de: "Rindfleisch" },
+    unit: 8 
+  },
+  { 
+    serbian: "hleb", 
+    translations: { en: "bread", de: "Brot" },
+    unit: 8 
+  },
+  { 
+    serbian: "pirinač", 
+    translations: { en: "rice", de: "Reis" },
+    unit: 8 
+  },
+  { 
+    serbian: "krompir", 
+    translations: { en: "potato", de: "Kartoffel" },
+    unit: 8 
+  },
+  { 
+    serbian: "povrće", 
+    translations: { en: "vegetables", de: "Gemüse" },
+    unit: 8 
+  },
+  { 
+    serbian: "voće", 
+    translations: { en: "fruit", de: "Obst" },
+    unit: 8 
+  },
+  { 
+    serbian: "ukusan", 
+    translations: { en: "delicious / tasty", de: "lecker / schmackhaft" },
+    unit: 8 
+  },
+  { 
+    serbian: "jesti", 
+    translations: { en: "to eat", de: "essen" },
+    unit: 8 
+  },
 
-  // Unit 9 - Tipičan dan (Daily routine)
-  { serbian: "ustati", english: "to get up", unit: 9 },
-  { serbian: "umiti se", english: "to wash oneself", unit: 9 },
-  { serbian: "obući se", english: "to get dressed", unit: 9 },
-  { serbian: "doručkovati", english: "to have breakfast", unit: 9 },
-  { serbian: "ići", english: "to go", unit: 9 },
-  { serbian: "posao", english: "work / job", unit: 9 },
-  { serbian: "ručati", english: "to have lunch", unit: 9 },
-  { serbian: "ručak", english: "lunch", unit: 9 },
-  { serbian: "večerati", english: "to have dinner", unit: 9 },
-  { serbian: "večera", english: "dinner", unit: 9 },
-  { serbian: "odmarati se", english: "to rest", unit: 9 },
-  { serbian: "spavati", english: "to sleep", unit: 9 },
-  { serbian: "svaki dan", english: "every day", unit: 9 },
-  { serbian: "obično", english: "usually", unit: 9 },
-  { serbian: "ponekad", english: "sometimes", unit: 9 },
-  { serbian: "uvek", english: "always", unit: 9 },
-  { serbian: "nikad", english: "never", unit: 9 },
+  // Unit 9 - Tipičan dan (Daily routine / Tägliche Routine)
+  { 
+    serbian: "ustati", 
+    translations: { en: "to get up", de: "aufstehen" },
+    unit: 9 
+  },
+  { 
+    serbian: "umiti se", 
+    translations: { en: "to wash oneself", de: "sich waschen" },
+    unit: 9 
+  },
+  { 
+    serbian: "obući se", 
+    translations: { en: "to get dressed", de: "sich anziehen" },
+    unit: 9 
+  },
+  { 
+    serbian: "doručkovati", 
+    translations: { en: "to have breakfast", de: "frühstücken" },
+    unit: 9 
+  },
+  { 
+    serbian: "ići", 
+    translations: { en: "to go", de: "gehen" },
+    unit: 9 
+  },
+  { 
+    serbian: "posao", 
+    translations: { en: "work / job", de: "Arbeit / Job" },
+    unit: 9 
+  },
+  { 
+    serbian: "ručati", 
+    translations: { en: "to have lunch", de: "zu Mittag essen" },
+    unit: 9 
+  },
+  { 
+    serbian: "ručak", 
+    translations: { en: "lunch", de: "Mittagessen" },
+    unit: 9 
+  },
+  { 
+    serbian: "večerati", 
+    translations: { en: "to have dinner", de: "zu Abend essen" },
+    unit: 9 
+  },
+  { 
+    serbian: "večera", 
+    translations: { en: "dinner", de: "Abendessen" },
+    unit: 9 
+  },
+  { 
+    serbian: "odmarati se", 
+    translations: { en: "to rest", de: "sich ausruhen" },
+    unit: 9 
+  },
+  { 
+    serbian: "spavati", 
+    translations: { en: "to sleep", de: "schlafen" },
+    unit: 9 
+  },
+  { 
+    serbian: "svaki dan", 
+    translations: { en: "every day", de: "jeden Tag" },
+    unit: 9 
+  },
+  { 
+    serbian: "obično", 
+    translations: { en: "usually", de: "normalerweise / gewöhnlich" },
+    unit: 9 
+  },
+  { 
+    serbian: "ponekad", 
+    translations: { en: "sometimes", de: "manchmal" },
+    unit: 9 
+  },
+  { 
+    serbian: "uvek", 
+    translations: { en: "always", de: "immer" },
+    unit: 9 
+  },
+  { 
+    serbian: "nikad", 
+    translations: { en: "never", de: "nie / niemals" },
+    unit: 9 
+  },
 
-  // Unit 10 - Porodica (Family)
-  { serbian: "porodica", english: "family", unit: 10 },
-  { serbian: "otac", english: "father", unit: 10 },
-  { serbian: "majka", english: "mother", unit: 10 },
-  { serbian: "sin", english: "son", unit: 10 },
-  { serbian: "kćerka", english: "daughter", unit: 10 },
-  { serbian: "brat", english: "brother", unit: 10 },
-  { serbian: "sestra", english: "sister", unit: 10 },
-  { serbian: "deda", english: "grandfather", unit: 10 },
-  { serbian: "baba", english: "grandmother", unit: 10 },
-  { serbian: "muž", english: "husband", unit: 10 },
-  { serbian: "žena", english: "wife / woman", unit: 10 },
-  { serbian: "dete", english: "child", unit: 10 },
-  { serbian: "deca", english: "children", unit: 10 },
-  { serbian: "roditelji", english: "parents", unit: 10 },
-  { serbian: "rođak", english: "relative", unit: 10 },
-  { serbian: "prijatelj", english: "friend (male)", unit: 10 },
-  { serbian: "prijateljica", english: "friend (female)", unit: 10 },
+  // Unit 10 - Porodica (Family / Familie)
+  { 
+    serbian: "porodica", 
+    translations: { en: "family", de: "Familie" },
+    unit: 10 
+  },
+  { 
+    serbian: "otac", 
+    translations: { en: "father", de: "Vater" },
+    unit: 10 
+  },
+  { 
+    serbian: "majka", 
+    translations: { en: "mother", de: "Mutter" },
+    unit: 10 
+  },
+  { 
+    serbian: "sin", 
+    translations: { en: "son", de: "Sohn" },
+    unit: 10 
+  },
+  { 
+    serbian: "kćerka", 
+    translations: { en: "daughter", de: "Tochter" },
+    unit: 10 
+  },
+  { 
+    serbian: "brat", 
+    translations: { en: "brother", de: "Bruder" },
+    unit: 10 
+  },
+  { 
+    serbian: "sestra", 
+    translations: { en: "sister", de: "Schwester" },
+    unit: 10 
+  },
+  { 
+    serbian: "deda", 
+    translations: { en: "grandfather", de: "Großvater" },
+    alternatives: { de: ["Opa"] },
+    unit: 10 
+  },
+  { 
+    serbian: "baba", 
+    translations: { en: "grandmother", de: "Großmutter" },
+    alternatives: { de: ["Oma"] },
+    unit: 10 
+  },
+  { 
+    serbian: "muž", 
+    translations: { en: "husband", de: "Ehemann" },
+    alternatives: { de: ["Mann"] },
+    unit: 10 
+  },
+  { 
+    serbian: "žena", 
+    translations: { en: "wife / woman", de: "Ehefrau / Frau" },
+    unit: 10 
+  },
+  { 
+    serbian: "dete", 
+    translations: { en: "child", de: "Kind" },
+    unit: 10 
+  },
+  { 
+    serbian: "deca", 
+    translations: { en: "children", de: "Kinder" },
+    unit: 10 
+  },
+  { 
+    serbian: "roditelji", 
+    translations: { en: "parents", de: "Eltern" },
+    unit: 10 
+  },
+  { 
+    serbian: "rođak", 
+    translations: { en: "relative", de: "Verwandter" },
+    unit: 10 
+  },
+  { 
+    serbian: "prijatelj", 
+    translations: { en: "friend (male)", de: "Freund" },
+    unit: 10 
+  },
+  { 
+    serbian: "prijateljica", 
+    translations: { en: "friend (female)", de: "Freundin" },
+    unit: 10 
+  },
 
-  // Unit 11 - Ljudi (People)
-  { serbian: "čovek", english: "man / person", unit: 11 },
-  { serbian: "ljudi", english: "people", unit: 11 },
-  { serbian: "muškarac", english: "man", unit: 11 },
-  { serbian: "žena", english: "woman", unit: 11 },
-  { serbian: "mlad", english: "young", unit: 11 },
-  { serbian: "star", english: "old", unit: 11 },
-  { serbian: "visok", english: "tall", unit: 11 },
-  { serbian: "nizak", english: "short (height)", unit: 11 },
-  { serbian: "lep", english: "beautiful / handsome", unit: 11 },
-  { serbian: "ružan", english: "ugly", unit: 11 },
-  { serbian: "pametan", english: "smart / clever", unit: 11 },
-  { serbian: "glup", english: "stupid", unit: 11 },
-  { serbian: "dobar", english: "good", unit: 11 },
-  { serbian: "loš", english: "bad", unit: 11 },
-  { serbian: "ljubazan", english: "kind / polite", unit: 11 },
-  { serbian: "zanimanje", english: "occupation / profession", unit: 11 },
-  { serbian: "hobi", english: "hobby", unit: 11 },
-  { serbian: "sport", english: "sport", unit: 11 },
+  // Unit 11 - Ljudi (People / Menschen)
+  { 
+    serbian: "čovek", 
+    translations: { en: "man / person", de: "Mann / Person" },
+    alternatives: { de: ["Mensch"] },
+    unit: 11 
+  },
+  { 
+    serbian: "ljudi", 
+    translations: { en: "people", de: "Leute / Menschen" },
+    unit: 11 
+  },
+  { 
+    serbian: "muškarac", 
+    translations: { en: "man", de: "Mann" },
+    unit: 11 
+  },
+  { 
+    serbian: "žena", 
+    translations: { en: "woman", de: "Frau" },
+    unit: 11 
+  },
+  { 
+    serbian: "mlad", 
+    translations: { en: "young", de: "jung" },
+    unit: 11 
+  },
+  { 
+    serbian: "star", 
+    translations: { en: "old", de: "alt" },
+    unit: 11 
+  },
+  { 
+    serbian: "visok", 
+    translations: { en: "tall", de: "groß" },
+    alternatives: { de: ["hoch"] },
+    unit: 11 
+  },
+  { 
+    serbian: "nizak", 
+    translations: { en: "short (height)", de: "klein / niedrig" },
+    unit: 11 
+  },
+  { 
+    serbian: "lep", 
+    translations: { en: "beautiful / handsome", de: "schön / hübsch" },
+    unit: 11 
+  },
+  { 
+    serbian: "ružan", 
+    translations: { en: "ugly", de: "hässlich" },
+    unit: 11 
+  },
+  { 
+    serbian: "pametan", 
+    translations: { en: "smart / clever", de: "klug / intelligent" },
+    alternatives: { de: ["schlau"] },
+    unit: 11 
+  },
+  { 
+    serbian: "glup", 
+    translations: { en: "stupid", de: "dumm" },
+    unit: 11 
+  },
+  { 
+    serbian: "dobar", 
+    translations: { en: "good", de: "gut" },
+    unit: 11 
+  },
+  { 
+    serbian: "loš", 
+    translations: { en: "bad", de: "schlecht" },
+    unit: 11 
+  },
+  { 
+    serbian: "ljubazan", 
+    translations: { en: "kind / polite", de: "freundlich / höflich" },
+    unit: 11 
+  },
+  { 
+    serbian: "zanimanje", 
+    translations: { en: "occupation / profession", de: "Beruf" },
+    unit: 11 
+  },
+  { 
+    serbian: "hobi", 
+    translations: { en: "hobby", de: "Hobby" },
+    unit: 11 
+  },
+  { 
+    serbian: "sport", 
+    translations: { en: "sport", de: "Sport" },
+    unit: 11 
+  },
 
-  // Unit 12 - Narodi i jezici (Nationalities and languages)
-  { serbian: "narod", english: "nation / people", unit: 12 },
-  { serbian: "zemlja", english: "country / land", unit: 12 },
-  { serbian: "grad", english: "city", unit: 12 },
-  { serbian: "Srbija", english: "Serbia", unit: 12 },
-  { serbian: "Srbijanac", english: "Serbian (male)", unit: 12 },
-  { serbian: "Srbijanka", english: "Serbian (female)", unit: 12 },
-  { serbian: "srpski", english: "Serbian (language/adj)", unit: 12 },
-  { serbian: "Engleska", english: "England", unit: 12 },
-  { serbian: "Englez", english: "Englishman", unit: 12 },
-  { serbian: "Engleskinja", english: "Englishwoman", unit: 12 },
-  { serbian: "engleski", english: "English (language/adj)", unit: 12 },
-  { serbian: "Nemačka", english: "Germany", unit: 12 },
-  { serbian: "Nemac", english: "German (male)", unit: 12 },
-  { serbian: "Nemicа", english: "German (female)", unit: 12 },
-  { serbian: "nemački", english: "German (language/adj)", unit: 12 },
-  { serbian: "Francuska", english: "France", unit: 12 },
-  { serbian: "Italija", english: "Italy", unit: 12 },
-  { serbian: "Rusija", english: "Russia", unit: 12 },
-  { serbian: "Amerika", english: "America", unit: 12 },
+  // Unit 12 - Narodi i jezici (Nationalities and languages / Nationen und Sprachen)
+  { 
+    serbian: "narod", 
+    translations: { en: "nation / people", de: "Nation / Volk" },
+    unit: 12 
+  },
+  { 
+    serbian: "zemlja", 
+    translations: { en: "country / land", de: "Land" },
+    unit: 12 
+  },
+  { 
+    serbian: "grad", 
+    translations: { en: "city", de: "Stadt" },
+    unit: 12 
+  },
+  { 
+    serbian: "Srbija", 
+    translations: { en: "Serbia", de: "Serbien" },
+    unit: 12 
+  },
+  { 
+    serbian: "Srbijanac", 
+    translations: { en: "Serbian (male)", de: "Serbe" },
+    unit: 12 
+  },
+  { 
+    serbian: "Srbijanka", 
+    translations: { en: "Serbian (female)", de: "Serbin" },
+    unit: 12 
+  },
+  { 
+    serbian: "srpski", 
+    translations: { en: "Serbian (language/adj)", de: "Serbisch" },
+    unit: 12 
+  },
+  { 
+    serbian: "Engleska", 
+    translations: { en: "England", de: "England" },
+    unit: 12 
+  },
+  { 
+    serbian: "Englez", 
+    translations: { en: "Englishman", de: "Engländer" },
+    unit: 12 
+  },
+  { 
+    serbian: "Engleskinja", 
+    translations: { en: "Englishwoman", de: "Engländerin" },
+    unit: 12 
+  },
+  { 
+    serbian: "engleski", 
+    translations: { en: "English (language/adj)", de: "Englisch" },
+    unit: 12 
+  },
+  { 
+    serbian: "Nemačka", 
+    translations: { en: "Germany", de: "Deutschland" },
+    unit: 12 
+  },
+  { 
+    serbian: "Nemac", 
+    translations: { en: "German (male)", de: "Deutscher" },
+    unit: 12 
+  },
+  { 
+    serbian: "Nemica", 
+    translations: { en: "German (female)", de: "Deutsche" },
+    unit: 12 
+  },
+  { 
+    serbian: "nemački", 
+    translations: { en: "German (language/adj)", de: "Deutsch" },
+    unit: 12 
+  },
+  { 
+    serbian: "Francuska", 
+    translations: { en: "France", de: "Frankreich" },
+    unit: 12 
+  },
+  { 
+    serbian: "Italija", 
+    translations: { en: "Italy", de: "Italien" },
+    unit: 12 
+  },
+  { 
+    serbian: "Rusija", 
+    translations: { en: "Russia", de: "Russland" },
+    unit: 12 
+  },
+  { 
+    serbian: "Amerika", 
+    translations: { en: "America", de: "Amerika" },
+    unit: 12 
+  },
 
-  // Unit 13 - Kako je bilo juče? (How was it yesterday?)
-  { serbian: "juče", english: "yesterday", unit: 13 },
-  { serbian: "prekjuče", english: "day before yesterday", unit: 13 },
-  { serbian: "prošle nedelje", english: "last week", unit: 13 },
-  { serbian: "prošlog meseca", english: "last month", unit: 13 },
-  { serbian: "prošle godine", english: "last year", unit: 13 },
-  { serbian: "bio", english: "was (male)", unit: 13 },
-  { serbian: "bila", english: "was (female)", unit: 13 },
-  { serbian: "bilo", english: "was (neuter)", unit: 13 },
-  { serbian: "išao", english: "went (male)", unit: 13 },
-  { serbian: "išla", english: "went (female)", unit: 13 },
-  { serbian: "video", english: "saw (male)", unit: 13 },
-  { serbian: "videla", english: "saw (female)", unit: 13 },
-  { serbian: "rekao", english: "said (male)", unit: 13 },
-  { serbian: "rekla", english: "said (female)", unit: 13 },
+  // Unit 13 - Kako je bilo juče? (How was it yesterday? / Wie war es gestern?)
+  { 
+    serbian: "juče", 
+    translations: { en: "yesterday", de: "gestern" },
+    unit: 13 
+  },
+  { 
+    serbian: "prekjuče", 
+    translations: { en: "day before yesterday", de: "vorgestern" },
+    unit: 13 
+  },
+  { 
+    serbian: "prošle nedelje", 
+    translations: { en: "last week", de: "letzte Woche" },
+    unit: 13 
+  },
+  { 
+    serbian: "prošlog meseca", 
+    translations: { en: "last month", de: "letzten Monat" },
+    unit: 13 
+  },
+  { 
+    serbian: "prošle godine", 
+    translations: { en: "last year", de: "letztes Jahr" },
+    unit: 13 
+  },
+  { 
+    serbian: "bio", 
+    translations: { en: "was (male)", de: "war (männlich)" },
+    unit: 13 
+  },
+  { 
+    serbian: "bila", 
+    translations: { en: "was (female)", de: "war (weiblich)" },
+    unit: 13 
+  },
+  { 
+    serbian: "bilo", 
+    translations: { en: "was (neuter)", de: "war (sächlich)" },
+    unit: 13 
+  },
+  { 
+    serbian: "išao", 
+    translations: { en: "went (male)", de: "ging (männlich)" },
+    unit: 13 
+  },
+  { 
+    serbian: "išla", 
+    translations: { en: "went (female)", de: "ging (weiblich)" },
+    unit: 13 
+  },
+  { 
+    serbian: "video", 
+    translations: { en: "saw (male)", de: "sah (männlich)" },
+    unit: 13 
+  },
+  { 
+    serbian: "videla", 
+    translations: { en: "saw (female)", de: "sah (weiblich)" },
+    unit: 13 
+  },
+  { 
+    serbian: "rekao", 
+    translations: { en: "said (male)", de: "sagte (männlich)" },
+    unit: 13 
+  },
+  { 
+    serbian: "rekla", 
+    translations: { en: "said (female)", de: "sagte (weiblich)" },
+    unit: 13 
+  },
 
-  // Unit 14 - Vreme (Weather)
-  { serbian: "vreme", english: "weather / time", unit: 14 },
-  { serbian: "sunce", english: "sun", unit: 14 },
-  { serbian: "kiša", english: "rain", unit: 14 },
-  { serbian: "sneg", english: "snow", unit: 14 },
-  { serbian: "vetar", english: "wind", unit: 14 },
-  { serbian: "oblak", english: "cloud", unit: 14 },
-  { serbian: "temperatura", english: "temperature", unit: 14 },
-  { serbian: "toplo", english: "warm / hot", unit: 14 },
-  { serbian: "hladno", english: "cold", unit: 14 },
-  { serbian: "lepo", english: "nice / beautiful", unit: 14 },
-  { serbian: "loše", english: "bad", unit: 14 },
-  { serbian: "proleće", english: "spring", unit: 14 },
-  { serbian: "leto", english: "summer", unit: 14 },
-  { serbian: "jesen", english: "autumn / fall", unit: 14 },
-  { serbian: "zima", english: "winter", unit: 14 },
-  { serbian: "januar", english: "January", unit: 14 },
-  { serbian: "februar", english: "February", unit: 14 },
-  { serbian: "mart", english: "March", unit: 14 },
-  { serbian: "april", english: "April", unit: 14 },
-  { serbian: "maj", english: "May", unit: 14 },
-  { serbian: "jun", english: "June", unit: 14 },
-  { serbian: "jul", english: "July", unit: 14 },
-  { serbian: "avgust", english: "August", unit: 14 },
-  { serbian: "septembar", english: "September", unit: 14 },
-  { serbian: "oktobar", english: "October", unit: 14 },
-  { serbian: "novembar", english: "November", unit: 14 },
-  { serbian: "decembar", english: "December", unit: 14 },
-  { serbian: "sever", english: "north", unit: 14 },
-  { serbian: "jug", english: "south", unit: 14 },
-  { serbian: "istok", english: "east", unit: 14 },
-  { serbian: "zapad", english: "west", unit: 14 },
+  // Unit 14 - Vreme (Weather / Wetter)
+  { 
+    serbian: "vreme", 
+    translations: { en: "weather / time", de: "Wetter / Zeit" },
+    unit: 14 
+  },
+  { 
+    serbian: "sunce", 
+    translations: { en: "sun", de: "Sonne" },
+    unit: 14 
+  },
+  { 
+    serbian: "kiša", 
+    translations: { en: "rain", de: "Regen" },
+    unit: 14 
+  },
+  { 
+    serbian: "sneg", 
+    translations: { en: "snow", de: "Schnee" },
+    unit: 14 
+  },
+  { 
+    serbian: "vetar", 
+    translations: { en: "wind", de: "Wind" },
+    unit: 14 
+  },
+  { 
+    serbian: "oblak", 
+    translations: { en: "cloud", de: "Wolke" },
+    unit: 14 
+  },
+  { 
+    serbian: "temperatura", 
+    translations: { en: "temperature", de: "Temperatur" },
+    unit: 14 
+  },
+  { 
+    serbian: "toplo", 
+    translations: { en: "warm / hot", de: "warm / heiß" },
+    unit: 14 
+  },
+  { 
+    serbian: "hladno", 
+    translations: { en: "cold", de: "kalt" },
+    unit: 14 
+  },
+  { 
+    serbian: "lepo", 
+    translations: { en: "nice / beautiful", de: "schön" },
+    unit: 14 
+  },
+  { 
+    serbian: "loše", 
+    translations: { en: "bad", de: "schlecht" },
+    unit: 14 
+  },
+  { 
+    serbian: "proleće", 
+    translations: { en: "spring", de: "Frühling" },
+    unit: 14 
+  },
+  { 
+    serbian: "leto", 
+    translations: { en: "summer", de: "Sommer" },
+    unit: 14 
+  },
+  { 
+    serbian: "jesen", 
+    translations: { en: "autumn / fall", de: "Herbst" },
+    unit: 14 
+  },
+  { 
+    serbian: "zima", 
+    translations: { en: "winter", de: "Winter" },
+    unit: 14 
+  },
+  { 
+    serbian: "januar", 
+    translations: { en: "January", de: "Januar" },
+    unit: 14 
+  },
+  { 
+    serbian: "februar", 
+    translations: { en: "February", de: "Februar" },
+    unit: 14 
+  },
+  { 
+    serbian: "mart", 
+    translations: { en: "March", de: "März" },
+    unit: 14 
+  },
+  { 
+    serbian: "april", 
+    translations: { en: "April", de: "April" },
+    unit: 14 
+  },
+  { 
+    serbian: "maj", 
+    translations: { en: "May", de: "Mai" },
+    unit: 14 
+  },
+  { 
+    serbian: "jun", 
+    translations: { en: "June", de: "Juni" },
+    unit: 14 
+  },
+  { 
+    serbian: "jul", 
+    translations: { en: "July", de: "Juli" },
+    unit: 14 
+  },
+  { 
+    serbian: "avgust", 
+    translations: { en: "August", de: "August" },
+    unit: 14 
+  },
+  { 
+    serbian: "septembar", 
+    translations: { en: "September", de: "September" },
+    unit: 14 
+  },
+  { 
+    serbian: "oktobar", 
+    translations: { en: "October", de: "Oktober" },
+    unit: 14 
+  },
+  { 
+    serbian: "novembar", 
+    translations: { en: "November", de: "November" },
+    unit: 14 
+  },
+  { 
+    serbian: "decembar", 
+    translations: { en: "December", de: "Dezember" },
+    unit: 14 
+  },
+  { 
+    serbian: "sever", 
+    translations: { en: "north", de: "Norden" },
+    unit: 14 
+  },
+  { 
+    serbian: "jug", 
+    translations: { en: "south", de: "Süden" },
+    unit: 14 
+  },
+  { 
+    serbian: "istok", 
+    translations: { en: "east", de: "Osten" },
+    unit: 14 
+  },
+  { 
+    serbian: "zapad", 
+    translations: { en: "west", de: "Westen" },
+    unit: 14 
+  },
 
-  // Unit 15 - Kako, s kim i kada putujete? (How, with whom and when do you travel?)
-  { serbian: "putovati", english: "to travel", unit: 15 },
-  { serbian: "putovanje", english: "journey / trip", unit: 15 },
-  { serbian: "avion", english: "airplane", unit: 15 },
-  { serbian: "voz", english: "train", unit: 15 },
-  { serbian: "autobus", english: "bus", unit: 15 },
-  { serbian: "auto", english: "car", unit: 15 },
-  { serbian: "taksi", english: "taxi", unit: 15 },
-  { serbian: "bicikl", english: "bicycle", unit: 15 },
-  { serbian: "brod", english: "ship / boat", unit: 15 },
-  { serbian: "stanica", english: "station", unit: 15 },
-  { serbian: "voziti", english: "to drive", unit: 15 },
-  { serbian: "leteti", english: "to fly", unit: 15 },
-  { serbian: "brzo", english: "fast / quickly", unit: 15 },
-  { serbian: "sporo", english: "slow / slowly", unit: 15 },
-  { serbian: "sa", english: "with", unit: 15 },
-  { serbian: "bez", english: "without", unit: 15 },
+  // Unit 15 - Kako, s kim i kada putujete? (How, with whom and when do you travel? / Wie, mit wem und wann reist du?)
+  { 
+    serbian: "putovati", 
+    translations: { en: "to travel", de: "reisen" },
+    unit: 15 
+  },
+  { 
+    serbian: "putovanje", 
+    translations: { en: "journey / trip", de: "Reise" },
+    unit: 15 
+  },
+  { 
+    serbian: "avion", 
+    translations: { en: "airplane", de: "Flugzeug" },
+    unit: 15 
+  },
+  { 
+    serbian: "voz", 
+    translations: { en: "train", de: "Zug" },
+    unit: 15 
+  },
+  { 
+    serbian: "autobus", 
+    translations: { en: "bus", de: "Bus" },
+    unit: 15 
+  },
+  { 
+    serbian: "auto", 
+    translations: { en: "car", de: "Auto" },
+    unit: 15 
+  },
+  { 
+    serbian: "taksi", 
+    translations: { en: "taxi", de: "Taxi" },
+    unit: 15 
+  },
+  { 
+    serbian: "bicikl", 
+    translations: { en: "bicycle", de: "Fahrrad" },
+    unit: 15 
+  },
+  { 
+    serbian: "brod", 
+    translations: { en: "ship / boat", de: "Schiff / Boot" },
+    unit: 15 
+  },
+  { 
+    serbian: "stanica", 
+    translations: { en: "station", de: "Bahnhof / Station" },
+    unit: 15 
+  },
+  { 
+    serbian: "voziti", 
+    translations: { en: "to drive", de: "fahren" },
+    unit: 15 
+  },
+  { 
+    serbian: "leteti", 
+    translations: { en: "to fly", de: "fliegen" },
+    unit: 15 
+  },
+  { 
+    serbian: "brzo", 
+    translations: { en: "fast / quickly", de: "schnell" },
+    unit: 15 
+  },
+  { 
+    serbian: "sporo", 
+    translations: { en: "slow / slowly", de: "langsam" },
+    unit: 15 
+  },
+  { 
+    serbian: "sa", 
+    translations: { en: "with", de: "mit" },
+    unit: 15 
+  },
+  { 
+    serbian: "bez", 
+    translations: { en: "without", de: "ohne" },
+    unit: 15 
+  },
 
-  // Unit 16 - Stivov novi stan (Steve's new apartment)
-  { serbian: "stan", english: "apartment", unit: 16 },
-  { serbian: "kuća", english: "house", unit: 16 },
-  { serbian: "sprat", english: "floor / storey", unit: 16 },
-  { serbian: "dnevna soba", english: "living room", unit: 16 },
-  { serbian: "spavaća soba", english: "bedroom", unit: 16 },
-  { serbian: "kuhinja", english: "kitchen", unit: 16 },
-  { serbian: "trpezarija", english: "dining room", unit: 16 },
-  { serbian: "kupatilo", english: "bathroom", unit: 16 },
-  { serbian: "balkon", english: "balcony", unit: 16 },
-  { serbian: "prozor", english: "window", unit: 16 },
-  { serbian: "vrata", english: "door", unit: 16 },
-  { serbian: "sto", english: "table", unit: 16 },
-  { serbian: "stolica", english: "chair", unit: 16 },
-  { serbian: "fotelja", english: "armchair", unit: 16 },
-  { serbian: "kauč", english: "couch / sofa", unit: 16 },
-  { serbian: "krevet", english: "bed", unit: 16 },
-  { serbian: "orman", english: "wardrobe / closet", unit: 16 },
-  { serbian: "polica", english: "shelf", unit: 16 },
-  { serbian: "tepih", english: "carpet / rug", unit: 16 },
-  { serbian: "lampa", english: "lamp", unit: 16 },
-  { serbian: "slika", english: "picture / painting", unit: 16 },
+  // Unit 16 - Stivov novi stan (Steve's new apartment / Steves neue Wohnung)
+  { 
+    serbian: "stan", 
+    translations: { en: "apartment", de: "Wohnung" },
+    unit: 16 
+  },
+  { 
+    serbian: "kuća", 
+    translations: { en: "house", de: "Haus" },
+    unit: 16 
+  },
+  { 
+    serbian: "sprat", 
+    translations: { en: "floor / storey", de: "Etage / Stockwerk" },
+    unit: 16 
+  },
+  { 
+    serbian: "dnevna soba", 
+    translations: { en: "living room", de: "Wohnzimmer" },
+    unit: 16 
+  },
+  { 
+    serbian: "spavaća soba", 
+    translations: { en: "bedroom", de: "Schlafzimmer" },
+    unit: 16 
+  },
+  { 
+    serbian: "kuhinja", 
+    translations: { en: "kitchen", de: "Küche" },
+    unit: 16 
+  },
+  { 
+    serbian: "trpezarija", 
+    translations: { en: "dining room", de: "Esszimmer" },
+    unit: 16 
+  },
+  { 
+    serbian: "kupatilo", 
+    translations: { en: "bathroom", de: "Badezimmer" },
+    alternatives: { de: ["Bad"] },
+    unit: 16 
+  },
+  { 
+    serbian: "balkon", 
+    translations: { en: "balcony", de: "Balkon" },
+    unit: 16 
+  },
+  { 
+    serbian: "prozor", 
+    translations: { en: "window", de: "Fenster" },
+    unit: 16 
+  },
+  { 
+    serbian: "vrata", 
+    translations: { en: "door", de: "Tür" },
+    unit: 16 
+  },
+  { 
+    serbian: "sto", 
+    translations: { en: "table", de: "Tisch" },
+    unit: 16 
+  },
+  { 
+    serbian: "stolica", 
+    translations: { en: "chair", de: "Stuhl" },
+    unit: 16 
+  },
+  { 
+    serbian: "fotelja", 
+    translations: { en: "armchair", de: "Sessel" },
+    unit: 16 
+  },
+  { 
+    serbian: "kauč", 
+    translations: { en: "couch / sofa", de: "Couch / Sofa" },
+    unit: 16 
+  },
+  { 
+    serbian: "krevet", 
+    translations: { en: "bed", de: "Bett" },
+    unit: 16 
+  },
+  { 
+    serbian: "orman", 
+    translations: { en: "wardrobe / closet", de: "Schrank / Kleiderschrank" },
+    unit: 16 
+  },
+  { 
+    serbian: "polica", 
+    translations: { en: "shelf", de: "Regal" },
+    unit: 16 
+  },
+  { 
+    serbian: "tepih", 
+    translations: { en: "carpet / rug", de: "Teppich" },
+    unit: 16 
+  },
+  { 
+    serbian: "lampa", 
+    translations: { en: "lamp", de: "Lampe" },
+    unit: 16 
+  },
+  { 
+    serbian: "slika", 
+    translations: { en: "picture / painting", de: "Bild / Gemälde" },
+    unit: 16 
+  },
 
-  // Unit 17 - Telefonski razgovor (Telephone conversation)
-  { serbian: "telefon", english: "telephone", unit: 17 },
-  { serbian: "mobilni", english: "mobile phone", unit: 17 },
-  { serbian: "poziv", english: "call", unit: 17 },
-  { serbian: "poruka", english: "message", unit: 17 },
-  { serbian: "broj", english: "number", unit: 17 },
-  { serbian: "zvati", english: "to call", unit: 17 },
-  { serbian: "odgovoriti", english: "to answer", unit: 17 },
-  { serbian: "slušati", english: "to listen", unit: 17 },
-  { serbian: "čuti", english: "to hear", unit: 17 },
-  { serbian: "javiti se", english: "to get in touch", unit: 17 },
-  { serbian: "halo", english: "hello (on phone)", unit: 17 },
-  { serbian: "trenutak", english: "moment", unit: 17 },
-  { serbian: "zauzeto", english: "busy (phone line)", unit: 17 },
+  // Unit 17 - Telefonski razgovor (Telephone conversation / Telefongespräch)
+  { 
+    serbian: "telefon", 
+    translations: { en: "telephone", de: "Telefon" },
+    unit: 17 
+  },
+  { 
+    serbian: "mobilni", 
+    translations: { en: "mobile phone", de: "Handy / Mobiltelefon" },
+    unit: 17 
+  },
+  { 
+    serbian: "poziv", 
+    translations: { en: "call", de: "Anruf" },
+    unit: 17 
+  },
+  { 
+    serbian: "poruka", 
+    translations: { en: "message", de: "Nachricht" },
+    unit: 17 
+  },
+  { 
+    serbian: "broj", 
+    translations: { en: "number", de: "Nummer" },
+    unit: 17 
+  },
+  { 
+    serbian: "zvati", 
+    translations: { en: "to call", de: "anrufen" },
+    unit: 17 
+  },
+  { 
+    serbian: "odgovoriti", 
+    translations: { en: "to answer", de: "antworten" },
+    unit: 17 
+  },
+  { 
+    serbian: "slušati", 
+    translations: { en: "to listen", de: "hören / zuhören" },
+    unit: 17 
+  },
+  { 
+    serbian: "čuti", 
+    translations: { en: "to hear", de: "hören" },
+    unit: 17 
+  },
+  { 
+    serbian: "javiti se", 
+    translations: { en: "to get in touch", de: "sich melden" },
+    unit: 17 
+  },
+  { 
+    serbian: "halo", 
+    translations: { en: "hello (on phone)", de: "hallo (am Telefon)" },
+    unit: 17 
+  },
+  { 
+    serbian: "trenutak", 
+    translations: { en: "moment", de: "Moment / Augenblick" },
+    unit: 17 
+  },
+  { 
+    serbian: "zauzeto", 
+    translations: { en: "busy (phone line)", de: "besetzt (Leitung)" },
+    unit: 17 
+  },
 
-  // Unit 18 - Stiv planira vikend (Planning a weekend)
-  { serbian: "plan", english: "plan", unit: 18 },
-  { serbian: "planirati", english: "to plan", unit: 18 },
-  { serbian: "hteti", english: "to want", unit: 18 },
-  { serbian: "hoću", english: "I will / I want", unit: 18 },
-  { serbian: "nećу", english: "I won't", unit: 18 },
-  { serbian: "izlet", english: "trip / excursion", unit: 18 },
-  { serbian: "piknik", english: "picnic", unit: 18 },
-  { serbian: "šetnja", english: "walk", unit: 18 },
-  { serbian: "kupovina", english: "shopping", unit: 18 },
-  { serbian: "bioskop", english: "cinema", unit: 18 },
-  { serbian: "koncert", english: "concert", unit: 18 },
-  { serbian: "zabava", english: "party / fun", unit: 18 },
+  // Unit 18 - Stiv planira vikend (Planning a weekend / Wochenendplanung)
+  { 
+    serbian: "plan", 
+    translations: { en: "plan", de: "Plan" },
+    unit: 18 
+  },
+  { 
+    serbian: "planirati", 
+    translations: { en: "to plan", de: "planen" },
+    unit: 18 
+  },
+  { 
+    serbian: "hteti", 
+    translations: { en: "to want", de: "wollen" },
+    unit: 18 
+  },
+  { 
+    serbian: "hoću", 
+    translations: { en: "I will / I want", de: "ich werde / ich will" },
+    unit: 18 
+  },
+  { 
+    serbian: "neću", 
+    translations: { en: "I won't", de: "ich werde nicht" },
+    unit: 18 
+  },
+  { 
+    serbian: "izlet", 
+    translations: { en: "trip / excursion", de: "Ausflug" },
+    unit: 18 
+  },
+  { 
+    serbian: "piknik", 
+    translations: { en: "picnic", de: "Picknick" },
+    unit: 18 
+  },
+  { 
+    serbian: "šetnja", 
+    translations: { en: "walk", de: "Spaziergang" },
+    unit: 18 
+  },
+  { 
+    serbian: "kupovina", 
+    translations: { en: "shopping", de: "Einkaufen" },
+    unit: 18 
+  },
+  { 
+    serbian: "bioskop", 
+    translations: { en: "cinema", de: "Kino" },
+    unit: 18 
+  },
+  { 
+    serbian: "koncert", 
+    translations: { en: "concert", de: "Konzert" },
+    unit: 18 
+  },
+  { 
+    serbian: "zabava", 
+    translations: { en: "party / fun", de: "Party / Spaß" },
+    unit: 18 
+  },
 
-  // Unit 19 - Srećan rođendan! (Happy birthday!)
-  { serbian: "rođendan", english: "birthday", unit: 19 },
-  { serbian: "srećan", english: "happy", unit: 19 },
-  { serbian: "proslava", english: "celebration", unit: 19 },
-  { serbian: "poklon", english: "gift / present", unit: 19 },
-  { serbian: "torta", english: "cake", unit: 19 },
-  { serbian: "svećа", english: "candle", unit: 19 },
-  { serbian: "gost", english: "guest", unit: 19 },
-  { serbian: "zabava", english: "party", unit: 19 },
-  { serbian: "čestitati", english: "to congratulate", unit: 19 },
-  { serbian: "slaviti", english: "to celebrate", unit: 19 },
-  { serbian: "datum", english: "date", unit: 19 },
-  { serbian: "godina", english: "year", unit: 19 },
-  { serbian: "mesec", english: "month", unit: 19 },
+  // Unit 19 - Srećan rođendan! (Happy birthday! / Alles Gute zum Geburtstag!)
+  { 
+    serbian: "rođendan", 
+    translations: { en: "birthday", de: "Geburtstag" },
+    unit: 19 
+  },
+  { 
+    serbian: "srećan", 
+    translations: { en: "happy", de: "glücklich / fröhlich" },
+    unit: 19 
+  },
+  { 
+    serbian: "proslava", 
+    translations: { en: "celebration", de: "Feier" },
+    unit: 19 
+  },
+  { 
+    serbian: "poklon", 
+    translations: { en: "gift / present", de: "Geschenk" },
+    unit: 19 
+  },
+  { 
+    serbian: "torta", 
+    translations: { en: "cake", de: "Kuchen / Torte" },
+    unit: 19 
+  },
+  { 
+    serbian: "sveća", 
+    translations: { en: "candle", de: "Kerze" },
+    unit: 19
+  },
+  { 
+    serbian: "gost", 
+    translations: { en: "guest", de: "Gast" },
+    unit: 19 
+  },
+  { 
+    serbian: "zabava", 
+    translations: { en: "party", de: "Party / Feier" },
+    unit: 19 
+  },
+  { 
+    serbian: "čestitati", 
+    translations: { en: "to congratulate", de: "gratulieren" },
+    unit: 19 
+  },
+  { 
+    serbian: "slaviti", 
+    translations: { en: "to celebrate", de: "feiern" },
+    unit: 19 
+  },
+  { 
+    serbian: "datum", 
+    translations: { en: "date", de: "Datum" },
+    unit: 19 
+  },
+  { 
+    serbian: "godina", 
+    translations: { en: "year", de: "Jahr" },
+    unit: 19 
+  },
+  { 
+    serbian: "mesec", 
+    translations: { en: "month", de: "Monat" },
+    unit: 19 
+  },
 
-  // Unit 20 - Kod lekara (Health matters)
-  { serbian: "lekar", english: "doctor", unit: 20 },
-  { serbian: "bolnica", english: "hospital", unit: 20 },
-  { serbian: "apoteka", english: "pharmacy", unit: 20 },
-  { serbian: "lek", english: "medicine / drug", unit: 20 },
-  { serbian: "bolest", english: "illness / disease", unit: 20 },
-  { serbian: "boleti", english: "to hurt / ache", unit: 20 },
-  { serbian: "boli me", english: "it hurts me", unit: 20 },
-  { serbian: "glava", english: "head", unit: 20 },
-  { serbian: "oko", english: "eye", unit: 20 },
-  { serbian: "uvo", english: "ear", unit: 20 },
-  { serbian: "nos", english: "nose", unit: 20 },
-  { serbian: "usta", english: "mouth", unit: 20 },
-  { serbian: "zub", english: "tooth", unit: 20 },
-  { serbian: "grlo", english: "throat", unit: 20 },
-  { serbian: "stomak", english: "stomach", unit: 20 },
-  { serbian: "ruka", english: "hand / arm", unit: 20 },
-  { serbian: "noga", english: "leg / foot", unit: 20 },
-  { serbian: "srce", english: "heart", unit: 20 },
-  { serbian: "temperatura", english: "temperature / fever", unit: 20 },
-  { serbian: "prehlada", english: "cold (illness)", unit: 20 },
-  { serbian: "grip", english: "flu", unit: 20 },
+  // Unit 20 - Kod lekara (Health matters / Gesundheit)
+  { 
+    serbian: "lekar", 
+    translations: { en: "doctor", de: "Arzt" },
+    unit: 20 
+  },
+  { 
+    serbian: "bolnica", 
+    translations: { en: "hospital", de: "Krankenhaus" },
+    unit: 20 
+  },
+  { 
+    serbian: "apoteka", 
+    translations: { en: "pharmacy", de: "Apotheke" },
+    unit: 20 
+  },
+  { 
+    serbian: "lek", 
+    translations: { en: "medicine / drug", de: "Medikament / Arznei" },
+    unit: 20 
+  },
+  { 
+    serbian: "bolest", 
+    translations: { en: "illness / disease", de: "Krankheit" },
+    unit: 20 
+  },
+  { 
+    serbian: "boleti", 
+    translations: { en: "to hurt / ache", de: "schmerzen / wehtun" },
+    unit: 20 
+  },
+  { 
+    serbian: "boli me", 
+    translations: { en: "it hurts me", de: "es tut mir weh" },
+    unit: 20 
+  },
+  { 
+    serbian: "glava", 
+    translations: { en: "head", de: "Kopf" },
+    unit: 20 
+  },
+  { 
+    serbian: "oko", 
+    translations: { en: "eye", de: "Auge" },
+    unit: 20 
+  },
+  { 
+    serbian: "uvo", 
+    translations: { en: "ear", de: "Ohr" },
+    unit: 20 
+  },
+  { 
+    serbian: "nos", 
+    translations: { en: "nose", de: "Nase" },
+    unit: 20 
+  },
+  { 
+    serbian: "usta", 
+    translations: { en: "mouth", de: "Mund" },
+    unit: 20 
+  },
+  { 
+    serbian: "zub", 
+    translations: { en: "tooth", de: "Zahn" },
+    unit: 20 
+  },
+  { 
+    serbian: "grlo", 
+    translations: { en: "throat", de: "Hals / Rachen" },
+    unit: 20 
+  },
+  { 
+    serbian: "stomak", 
+    translations: { en: "stomach", de: "Magen / Bauch" },
+    unit: 20 
+  },
+  { 
+    serbian: "ruka", 
+    translations: { en: "hand / arm", de: "Hand / Arm" },
+    unit: 20 
+  },
+  { 
+    serbian: "noga", 
+    translations: { en: "leg / foot", de: "Bein / Fuß" },
+    unit: 20 
+  },
+  { 
+    serbian: "srce", 
+    translations: { en: "heart", de: "Herz" },
+    unit: 20 
+  },
+  { 
+    serbian: "temperatura", 
+    translations: { en: "temperature / fever", de: "Temperatur / Fieber" },
+    unit: 20 
+  },
+  { 
+    serbian: "prehlada", 
+    translations: { en: "cold (illness)", de: "Erkältung" },
+    unit: 20 
+  },
+  { 
+    serbian: "grip", 
+    translations: { en: "flu", de: "Grippe" },
+    unit: 20 
+  },
 
-  // Unit 21 - Boje i odeća (Colors and Clothes)
-  { serbian: "boja", english: "color", unit: 21 },
-  { serbian: "beo", english: "white", unit: 21 },
-  { serbian: "crn", english: "black", unit: 21 },
-  { serbian: "crven", english: "red", unit: 21 },
-  { serbian: "plav", english: "blue", unit: 21 },
-  { serbian: "zelen", english: "green", unit: 21 },
-  { serbian: "žut", english: "yellow", unit: 21 },
-  { serbian: "narandžast", english: "orange", unit: 21 },
-  { serbian: "ljubičast", english: "purple", unit: 21 },
-  { serbian: "siv", english: "gray", unit: 21 },
-  { serbian: "braon", english: "brown", unit: 21 },
-  { serbian: "odeća", english: "clothes", unit: 21 },
-  { serbian: "košulja", english: "shirt", unit: 21 },
-  { serbian: "majica", english: "T-shirt", unit: 21 },
-  { serbian: "pantalone", english: "pants / trousers", unit: 21 },
-  { serbian: "farmerke", english: "jeans", unit: 21 },
-  { serbian: "suknja", english: "skirt", unit: 21 },
-  { serbian: "haljina", english: "dress", unit: 21 },
-  { serbian: "jakna", english: "jacket", unit: 21 },
-  { serbian: "kaput", english: "coat", unit: 21 },
-  { serbian: "cipele", english: "shoes", unit: 21 },
-  { serbian: "patike", english: "sneakers", unit: 21 },
-  { serbian: "čizme", english: "boots", unit: 21 },
-  { serbian: "nositi", english: "to wear / carry", unit: 21 },
+  // Unit 21 - Boje i odeća (Colors and Clothes / Farben und Kleidung)
+  { 
+    serbian: "boja", 
+    translations: { en: "color", de: "Farbe" },
+    unit: 21 
+  },
+  { 
+    serbian: "beo", 
+    translations: { en: "white", de: "weiß" },
+    unit: 21 
+  },
+  { 
+    serbian: "crn", 
+    translations: { en: "black", de: "schwarz" },
+    unit: 21 
+  },
+  { 
+    serbian: "crven", 
+    translations: { en: "red", de: "rot" },
+    unit: 21 
+  },
+  { 
+    serbian: "plav", 
+    translations: { en: "blue", de: "blau" },
+    unit: 21 
+  },
+  { 
+    serbian: "zelen", 
+    translations: { en: "green", de: "grün" },
+    unit: 21 
+  },
+  { 
+    serbian: "žut", 
+    translations: { en: "yellow", de: "gelb" },
+    unit: 21 
+  },
+  { 
+    serbian: "narandžast", 
+    translations: { en: "orange", de: "orange" },
+    unit: 21 
+  },
+  { 
+    serbian: "ljubičast", 
+    translations: { en: "purple", de: "lila / violett" },
+    unit: 21 
+  },
+  { 
+    serbian: "siv", 
+    translations: { en: "gray", de: "grau" },
+    unit: 21 
+  },
+  { 
+    serbian: "braon", 
+    translations: { en: "brown", de: "braun" },
+    unit: 21 
+  },
+  { 
+    serbian: "odeća", 
+    translations: { en: "clothes", de: "Kleidung" },
+    unit: 21 
+  },
+  { 
+    serbian: "košulja", 
+    translations: { en: "shirt", de: "Hemd" },
+    unit: 21 
+  },
+  { 
+    serbian: "majica", 
+    translations: { en: "T-shirt", de: "T-Shirt" },
+    unit: 21 
+  },
+  { 
+    serbian: "pantalone", 
+    translations: { en: "pants / trousers", de: "Hose" },
+    unit: 21 
+  },
+  { 
+    serbian: "farmerke", 
+    translations: { en: "jeans", de: "Jeans" },
+    unit: 21 
+  },
+  { 
+    serbian: "suknja", 
+    translations: { en: "skirt", de: "Rock" },
+    unit: 21 
+  },
+  { 
+    serbian: "haljina", 
+    translations: { en: "dress", de: "Kleid" },
+    unit: 21 
+  },
+  { 
+    serbian: "jakna", 
+    translations: { en: "jacket", de: "Jacke" },
+    unit: 21 
+  },
+  { 
+    serbian: "kaput", 
+    translations: { en: "coat", de: "Mantel" },
+    unit: 21 
+  },
+  { 
+    serbian: "cipele", 
+    translations: { en: "shoes", de: "Schuhe" },
+    unit: 21 
+  },
+  { 
+    serbian: "patike", 
+    translations: { en: "sneakers", de: "Turnschuhe / Sneakers" },
+    unit: 21 
+  },
+  { 
+    serbian: "čizme", 
+    translations: { en: "boots", de: "Stiefel" },
+    unit: 21 
+  },
+  { 
+    serbian: "nositi", 
+    translations: { en: "to wear / carry", de: "tragen" },
+    unit: 21 
+  },
 
-  // Unit 22 - Šta je bolje? (What's better?)
-  { serbian: "bolji", english: "better", unit: 22 },
-  { serbian: "najbolji", english: "best", unit: 22 },
-  { serbian: "gori", english: "worse", unit: 22 },
-  { serbian: "najgori", english: "worst", unit: 22 },
-  { serbian: "veći", english: "bigger", unit: 22 },
-  { serbian: "najveći", english: "biggest", unit: 22 },
-  { serbian: "manji", english: "smaller", unit: 22 },
-  { serbian: "najmanji", english: "smallest", unit: 22 },
-  { serbian: "viši", english: "taller", unit: 22 },
-  { serbian: "niži", english: "shorter", unit: 22 },
-  { serbian: "lepši", english: "more beautiful", unit: 22 },
-  { serbian: "najlepši", english: "most beautiful", unit: 22 },
-  { serbian: "jeftiniji", english: "cheaper", unit: 22 },
-  { serbian: "skuplji", english: "more expensive", unit: 22 },
-  { serbian: "brži", english: "faster", unit: 22 },
-  { serbian: "sporiji", english: "slower", unit: 22 },
+  // Unit 22 - Šta je bolje? (What's better? / Was ist besser?)
+  { 
+    serbian: "bolji", 
+    translations: { en: "better", de: "besser" },
+    unit: 22 
+  },
+  { 
+    serbian: "najbolji", 
+    translations: { en: "best", de: "am besten / der beste" },
+    unit: 22 
+  },
+  { 
+    serbian: "gori", 
+    translations: { en: "worse", de: "schlechter" },
+    unit: 22 
+  },
+  { 
+    serbian: "najgori", 
+    translations: { en: "worst", de: "am schlechtesten / der schlechteste" },
+    unit: 22 
+  },
+  { 
+    serbian: "veći", 
+    translations: { en: "bigger", de: "größer" },
+    unit: 22 
+  },
+  { 
+    serbian: "najveći", 
+    translations: { en: "biggest", de: "am größten / der größte" },
+    unit: 22 
+  },
+  { 
+    serbian: "manji", 
+    translations: { en: "smaller", de: "kleiner" },
+    unit: 22 
+  },
+  { 
+    serbian: "najmanji", 
+    translations: { en: "smallest", de: "am kleinsten / der kleinste" },
+    unit: 22 
+  },
+  { 
+    serbian: "viši", 
+    translations: { en: "taller", de: "größer / höher" },
+    unit: 22 
+  },
+  { 
+    serbian: "niži", 
+    translations: { en: "shorter", de: "kleiner / niedriger" },
+    unit: 22 
+  },
+  { 
+    serbian: "lepši", 
+    translations: { en: "more beautiful", de: "schöner" },
+    unit: 22 
+  },
+  { 
+    serbian: "najlepši", 
+    translations: { en: "most beautiful", de: "am schönsten / der schönste" },
+    unit: 22 
+  },
+  { 
+    serbian: "jeftiniji", 
+    translations: { en: "cheaper", de: "günstiger / billiger" },
+    unit: 22 
+  },
+  { 
+    serbian: "skuplji", 
+    translations: { en: "more expensive", de: "teurer" },
+    unit: 22 
+  },
+  { 
+    serbian: "brži", 
+    translations: { en: "faster", de: "schneller" },
+    unit: 22 
+  },
+  { 
+    serbian: "sporiji", 
+    translations: { en: "slower", de: "langsamer" },
+    unit: 22 
+  },
 
-  // Unit 23 - Kako izgledaju? (How do they look like?)
-  { serbian: "izgled", english: "appearance / look", unit: 23 },
-  { serbian: "izgledati", english: "to look / appear", unit: 23 },
-  { serbian: "kosa", english: "hair", unit: 23 },
-  { serbian: "oči", english: "eyes", unit: 23 },
-  { serbian: "plav", english: "blond", unit: 23 },
-  { serbian: "crn", english: "black (hair)", unit: 23 },
-  { serbian: "smeđ", english: "brown (hair)", unit: 23 },
-  { serbian: "kratak", english: "short", unit: 23 },
-  { serbian: "dug", english: "long", unit: 23 },
-  { serbian: "debeo", english: "fat / thick", unit: 23 },
-  { serbian: "mršav", english: "thin / skinny", unit: 23 },
-  { serbian: "lep", english: "beautiful / handsome", unit: 23 },
-  { serbian: "ružan", english: "ugly", unit: 23 },
-  { serbian: "mlad", english: "young", unit: 23 },
-  { serbian: "star", english: "old", unit: 23 },
+  // Unit 23 - Kako izgledaju? (How do they look like? / Wie sehen sie aus?)
+  { 
+    serbian: "izgled", 
+    translations: { en: "appearance / look", de: "Aussehen" },
+    unit: 23 
+  },
+  { 
+    serbian: "izgledati", 
+    translations: { en: "to look / appear", de: "aussehen" },
+    unit: 23 
+  },
+  { 
+    serbian: "kosa", 
+    translations: { en: "hair", de: "Haare" },
+    unit: 23 
+  },
+  { 
+    serbian: "oči", 
+    translations: { en: "eyes", de: "Augen" },
+    unit: 23 
+  },
+  { 
+    serbian: "plav", 
+    translations: { en: "blond", de: "blond" },
+    unit: 23 
+  },
+  { 
+    serbian: "crn", 
+    translations: { en: "black (hair)", de: "schwarz (Haare)" },
+    unit: 23 
+  },
+  { 
+    serbian: "smeđ", 
+    translations: { en: "brown (hair)", de: "braun (Haare)" },
+    unit: 23 
+  },
+  { 
+    serbian: "kratak", 
+    translations: { en: "short", de: "kurz" },
+    unit: 23 
+  },
+  { 
+    serbian: "dug", 
+    translations: { en: "long", de: "lang" },
+    unit: 23 
+  },
+  { 
+    serbian: "debeo", 
+    translations: { en: "fat / thick", de: "dick / fett" },
+    unit: 23 
+  },
+  { 
+    serbian: "mršav", 
+    translations: { en: "thin / skinny", de: "dünn / mager" },
+    unit: 23 
+  },
+  { 
+    serbian: "lep", 
+    translations: { en: "beautiful / handsome", de: "schön / hübsch" },
+    unit: 23 
+  },
+  { 
+    serbian: "ružan", 
+    translations: { en: "ugly", de: "hässlich" },
+    unit: 23 
+  },
+  { 
+    serbian: "mlad", 
+    translations: { en: "young", de: "jung" },
+    unit: 23 
+  },
+  { 
+    serbian: "star", 
+    translations: { en: "old", de: "alt" },
+    unit: 23 
+  },
 
-  // Unit 24 - Poseta (Visiting places)
-  { serbian: "poseta", english: "visit", unit: 24 },
-  { serbian: "posetiti", english: "to visit", unit: 24 },
-  { serbian: "turista", english: "tourist", unit: 24 },
-  { serbian: "turizam", english: "tourism", unit: 24 },
-  { serbian: "znamenitost", english: "landmark / sight", unit: 24 },
-  { serbian: "crkva", english: "church", unit: 24 },
-  { serbian: "tvrđava", english: "fortress", unit: 24 },
-  { serbian: "zamak", english: "castle", unit: 24 },
-  { serbian: "spomenik", english: "monument", unit: 24 },
-  { serbian: "fotografija", english: "photograph", unit: 24 },
-  { serbian: "fotografisati", english: "to photograph", unit: 24 },
-  { serbian: "razgledati", english: "to sightsee", unit: 24 },
+  // Unit 24 - Poseta (Visiting places / Orte besuchen)
+  { 
+    serbian: "poseta", 
+    translations: { en: "visit", de: "Besuch" },
+    unit: 24 
+  },
+  { 
+    serbian: "posetiti", 
+    translations: { en: "to visit", de: "besuchen" },
+    unit: 24 
+  },
+  { 
+    serbian: "turista", 
+    translations: { en: "tourist", de: "Tourist" },
+    unit: 24 
+  },
+  { 
+    serbian: "turizam", 
+    translations: { en: "tourism", de: "Tourismus" },
+    unit: 24 
+  },
+  { 
+    serbian: "znamenitost", 
+    translations: { en: "landmark / sight", de: "Sehenswürdigkeit" },
+    unit: 24 
+  },
+  { 
+    serbian: "crkva", 
+    translations: { en: "church", de: "Kirche" },
+    unit: 24 
+  },
+  { 
+    serbian: "tvrđava", 
+    translations: { en: "fortress", de: "Festung" },
+    unit: 24 
+  },
+  { 
+    serbian: "zamak", 
+    translations: { en: "castle", de: "Schloss" },
+    unit: 24 
+  },
+  { 
+    serbian: "spomenik", 
+    translations: { en: "monument", de: "Denkmal" },
+    unit: 24 
+  },
+  { 
+    serbian: "fotografija", 
+    translations: { en: "photograph", de: "Fotografie / Foto" },
+    unit: 24 
+  },
+  { 
+    serbian: "fotografisati", 
+    translations: { en: "to photograph", de: "fotografieren" },
+    unit: 24 
+  },
+  { 
+    serbian: "razgledati", 
+    translations: { en: "to sightsee", de: "besichtigen" },
+    unit: 24 
+  },
 
-  // Unit 25 - (Ne)običan dan ((Un)usual day)
-  { serbian: "običan", english: "usual / ordinary", unit: 25 },
-  { serbian: "neobičan", english: "unusual", unit: 25 },
-  { serbian: "događaj", english: "event", unit: 25 },
-  { serbian: "desiti se", english: "to happen", unit: 25 },
-  { serbian: "početi", english: "to begin / start", unit: 25 },
-  {serbian: "završiti", english: "to finish / end", unit: 25 },
-  { serbian: "nastaviti", english: "to continue", unit: 25 },
-  { serbian: "prestati", english: "to stop", unit: 25 },
-  { serbian: "uspeti", english: "to succeed", unit: 25 },
-  { serbian: "probati", english: "to try", unit: 25 },
+  // Unit 25 - (Ne)običan dan ((Un)usual day / (Un)gewöhnlicher Tag)
+  { 
+    serbian: "običan", 
+    translations: { en: "usual / ordinary", de: "gewöhnlich / normal" },
+    unit: 25 
+  },
+  { 
+    serbian: "neobičan", 
+    translations: { en: "unusual", de: "ungewöhnlich" },
+    unit: 25 
+  },
+  { 
+    serbian: "događaj", 
+    translations: { en: "event", de: "Ereignis / Veranstaltung" },
+    unit: 25 
+  },
+  { 
+    serbian: "desiti se", 
+    translations: { en: "to happen", de: "passieren / geschehen" },
+    unit: 25 
+  },
+  { 
+    serbian: "početi", 
+    translations: { en: "to begin / start", de: "beginnen / anfangen" },
+    unit: 25 
+  },
+  { 
+    serbian: "završiti", 
+    translations: { en: "to finish / end", de: "beenden / fertigstellen" },
+    unit: 25 
+  },
+  { 
+    serbian: "nastaviti", 
+    translations: { en: "to continue", de: "fortsetzen / weitermachen" },
+    unit: 25 
+  },
+  { 
+    serbian: "prestati", 
+    translations: { en: "to stop", de: "aufhören / stoppen" },
+    unit: 25 
+  },
+  { 
+    serbian: "uspeti", 
+    translations: { en: "to succeed", de: "gelingen / Erfolg haben" },
+    unit: 25 
+  },
+  { 
+    serbian: "probati", 
+    translations: { en: "to try", de: "versuchen / probieren" },
+    unit: 25 
+  },
 
-  // Unit 26 - Iznenađenje (Surprise)
-  { serbian: "iznenađenje", english: "surprise", unit: 26 },
-  { serbian: "iznenaditi", english: "to surprise", unit: 26 },
-  { serbian: "doći", english: "to come / arrive", unit: 26 },
-  { serbian: "otići", english: "to leave / go away", unit: 26 },
-  { serbian: "ući", english: "to enter", unit: 26 },
-  { serbian: "izaći", english: "to exit / go out", unit: 26 },
-  { serbian: "proći", english: "to pass", unit: 26 },
-  { serbian: "preći", english: "to cross", unit: 26 },
-  { serbian: "doneti", english: "to bring", unit: 26 },
-  { serbian: "odneti", english: "to take away", unit: 26 },
+  // Unit 26 - Iznenađenje (Surprise / Überraschung)
+  { 
+    serbian: "iznenađenje", 
+    translations: { en: "surprise", de: "Überraschung" },
+    unit: 26 
+  },
+  { 
+    serbian: "iznenaditi", 
+    translations: { en: "to surprise", de: "überraschen" },
+    unit: 26 
+  },
+  { 
+    serbian: "doći", 
+    translations: { en: "to come / arrive", de: "kommen / ankommen" },
+    unit: 26 
+  },
+  { 
+    serbian: "otići", 
+    translations: { en: "to leave / go away", de: "weggehen / verlassen" },
+    unit: 26 
+  },
+  { 
+    serbian: "ući", 
+    translations: { en: "to enter", de: "eintreten / hineingehen" },
+    unit: 26 
+  },
+  { 
+    serbian: "izaći", 
+    translations: { en: "to exit / go out", de: "ausgehen / hinausgehen" },
+    unit: 26 
+  },
+  { 
+    serbian: "proći", 
+    translations: { en: "to pass", de: "vorbeigehen / passieren" },
+    unit: 26 
+  },
+  { 
+    serbian: "preći", 
+    translations: { en: "to cross", de: "überqueren" },
+    unit: 26 
+  },
+  { 
+    serbian: "doneti", 
+    translations: { en: "to bring", de: "bringen / mitbringen" },
+    unit: 26 
+  },
+  { 
+    serbian: "odneti", 
+    translations: { en: "to take away", de: "wegnehmen / mitnehmen" },
+    unit: 26 
+  },
 
-  // Unit 27 - Šta ćeš raditi sutra? (What will you do tomorrow?)
-  { serbian: "sutra", english: "tomorrow", unit: 27 },
-  { serbian: "prekosutra", english: "day after tomorrow", unit: 27 },
-  { serbian: "sledeće nedelje", english: "next week", unit: 27 },
-  { serbian: "sledećeg meseca", english: "next month", unit: 27 },
-  { serbian: "sledeće godine", english: "next year", unit: 27 },
-  { serbian: "uskoro", english: "soon", unit: 27 },
-  { serbian: "kasnije", english: "later", unit: 27 },
-  { serbian: "možda", english: "maybe / perhaps", unit: 27 },
-  { serbian: "sigurno", english: "certainly / surely", unit: 27 },
-  { serbian: "verovatno", english: "probably", unit: 27 },
-  { serbian: "nadam se", english: "I hope", unit: 27 },
+  // Unit 27 - Šta ćeš raditi sutra? (What will you do tomorrow? / Was wirst du morgen machen?)
+  { 
+    serbian: "sutra", 
+    translations: { en: "tomorrow", de: "morgen" },
+    unit: 27 
+  },
+  { 
+    serbian: "prekosutra", 
+    translations: { en: "day after tomorrow", de: "übermorgen" },
+    unit: 27 
+  },
+  { 
+    serbian: "sledeće nedelje", 
+    translations: { en: "next week", de: "nächste Woche" },
+    unit: 27 
+  },
+  { 
+    serbian: "sledećeg meseca", 
+    translations: { en: "next month", de: "nächsten Monat" },
+    unit: 27 
+  },
+  { 
+    serbian: "sledeće godine", 
+    translations: { en: "next year", de: "nächstes Jahr" },
+    unit: 27 
+  },
+  { 
+    serbian: "uskoro", 
+    translations: { en: "soon", de: "bald" },
+    unit: 27 
+  },
+  { 
+    serbian: "kasnije", 
+    translations: { en: "later", de: "später" },
+    unit: 27 
+  },
+  { 
+    serbian: "možda", 
+    translations: { en: "maybe / perhaps", de: "vielleicht" },
+    unit: 27 
+  },
+  { 
+    serbian: "sigurno", 
+    translations: { en: "certainly / surely", de: "sicher / bestimmt" },
+    unit: 27 
+  },
+  { 
+    serbian: "verovatno", 
+    translations: { en: "probably", de: "wahrscheinlich" },
+    unit: 27 
+  },
+  { 
+    serbian: "nadam se", 
+    translations: { en: "I hope", de: "ich hoffe" },
+    unit: 27 
+  },
 ];
 
 

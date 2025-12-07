@@ -9,6 +9,13 @@ export default defineSchema({
     email: v.optional(v.string()),
     loginMethod: v.optional(v.string()),
     role: v.union(v.literal("superadmin"), v.literal("admin"), v.literal("student")),
+    // Multi-language support: User's chosen learning language (optional for backward compatibility)
+    learningLanguage: v.optional(v.union(
+      v.literal("en"), // English → Serbian
+      v.literal("de"), // Deutsch → Serbisch
+      v.literal("es"), // Español → Serbio (future)
+      v.literal("fr")  // Français → Serbe (future)
+    )),
     isActive: v.boolean(),
     isBetaTester: v.boolean(),
     // Gamification fields
@@ -19,7 +26,8 @@ export default defineSchema({
     lastActiveDate: v.optional(v.number()), // timestamp
   })
     .index("by_clerk_id", ["clerkId"])
-    .index("by_email", ["email"]),
+    .index("by_email", ["email"])
+    .index("by_language", ["learningLanguage"]), // NEW: Query users by language
 
   // ============= USER PROGRESS =============
   userProgress: defineTable({
@@ -40,6 +48,9 @@ export default defineSchema({
     mastered: v.boolean(),
     reviewCount: v.number(),
     lastReviewedAt: v.optional(v.number()), // timestamp
+    correctAnswerCount: v.number(), // Wie oft richtig beantwortet
+    incorrectAnswerCount: v.number(), // Wie oft falsch beantwortet
+    lastAnsweredAt: v.optional(v.number()), // Letzter Versuch (timestamp)
   })
     .index("by_user", ["userId"])
     .index("by_user_unit", ["userId", "unitNumber"]),
@@ -78,6 +89,11 @@ export default defineSchema({
     grammarExplained: v.string(),
     practiceExamples: v.string(),
     bookReference: v.optional(v.string()),
+    // German translations (optional for backward compatibility)
+    overviewGerman: v.optional(v.string()),
+    grammarExplainedGerman: v.optional(v.string()),
+    practiceExamplesGerman: v.optional(v.string()),
+    bookReferenceGerman: v.optional(v.string()),
   }).index("by_unit", ["unitNumber"]),
 
   // ============= GAMIFICATION: EXERCISE COMPLETIONS =============
@@ -164,6 +180,7 @@ export default defineSchema({
   userSubscriptions: defineTable({
     userId: v.id("users"),
     planType: v.union(
+      v.literal("beta"),
       v.literal("intensive"),
       v.literal("balanced"),
       v.literal("standard"),
@@ -179,6 +196,7 @@ export default defineSchema({
     ),
     autoRenew: v.boolean(),
     cancelledAt: v.optional(v.number()),
+    maxAccessibleUnits: v.optional(v.number()), // Max units accessible (e.g., 5 for beta, 27 for full)
   }).index("by_user", ["userId"]),
 
   // ============= SUBSCRIPTION HISTORY =============

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { COURSE_WEEKS, COURSE_UNITS } from "@shared/data";
-import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Download, Clock, Home, Lock } from "lucide-react";
+import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Clock, Home, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -35,10 +35,31 @@ export default function Dashboard() {
   const weeks = COURSE_WEEKS;
   const units = COURSE_UNITS;
   const updateProgressMutation = useMutation(api.progress.updateProgress);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   
   // Onboarding tutorial state
   const [showOnboarding, setShowOnboarding] = useState(false);
+  
+  // Beta banner dismiss state
+  const [showBetaBanner, setShowBetaBanner] = useState(true);
+  
+  // Load beta banner preference from localStorage
+  useEffect(() => {
+    if (user) {
+      const dismissed = localStorage.getItem(`beta_banner_dismissed_${user._id}`);
+      if (dismissed === 'true') {
+        setShowBetaBanner(false);
+      }
+    }
+  }, [user]);
+  
+  // Handle dismissing the beta banner permanently
+  const handleDismissBetaBanner = () => {
+    if (user) {
+      localStorage.setItem(`beta_banner_dismissed_${user._id}`, 'true');
+      setShowBetaBanner(false);
+    }
+  };
   
   // Show onboarding for new users (created within last 24 hours)
   useEffect(() => {
@@ -78,37 +99,37 @@ export default function Dashboard() {
           <CardHeader>
             <div className="flex items-center gap-3 mb-2">
               <Clock className="h-8 w-8 text-yellow-600" />
-              <CardTitle className="text-2xl">Account Pending Approval</CardTitle>
+              <CardTitle className="text-2xl">{t('dashboard.pendingApproval.title')}</CardTitle>
             </div>
             <CardDescription className="text-base">
-              Your beta tester application is being reviewed
+              {t('dashboard.pendingApproval.desc')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-white rounded-lg p-4 border border-yellow-200">
-              <h3 className="font-semibold mb-2">What happens next?</h3>
+              <h3 className="font-semibold mb-2">{t('dashboard.pendingApproval.whatNext')}</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <span className="text-yellow-600 mt-0.5">•</span>
-                  <span>Our team will review your application within 24-48 hours</span>
+                  <span>{t('dashboard.pendingApproval.review')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-yellow-600 mt-0.5">•</span>
-                  <span>You'll receive an email at <strong>{user.email}</strong> once approved</span>
+                  <span dangerouslySetInnerHTML={{ __html: t('dashboard.pendingApproval.email', { email: user.email }) }} />
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-yellow-600 mt-0.5">•</span>
-                  <span>After approval, you'll have full access to Units 1-5</span>
+                  <span>{t('dashboard.pendingApproval.access')}</span>
                 </li>
               </ul>
             </div>
             <div className="flex gap-2">
               <Button onClick={() => window.location.href = '/'} variant="outline" className="flex-1">
                 <Home className="mr-2 h-4 w-4" />
-                Back to Home
+                {t('dashboard.pendingApproval.backHome')}
               </Button>
               <Button onClick={logout} variant="ghost" className="flex-1">
-                Logout
+                {t('dashboard.pendingApproval.logout')}
               </Button>
             </div>
           </CardContent>
@@ -148,32 +169,46 @@ export default function Dashboard() {
 
 
         {/* Beta Tester Benefits Banner */}
-        {user.isBetaTester && (
+        {user.isBetaTester && showBetaBanner && (
           <div className="mb-6 border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-6">
             <div className="flex items-start gap-4">
               <div className="bg-yellow-400 rounded-full p-3 flex-shrink-0">
                 <span className="text-2xl">🎁</span>
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-xl mb-3 text-gray-900">Beta Tester Benefits</h3>
+                <h3 className="font-bold text-xl mb-3 text-gray-900">{t('dashboard.betaBanner.title')}</h3>
                 <p className="text-sm text-gray-700 mb-3">
-                  <strong>Thank you for being an early supporter!</strong> As a beta tester, you have:
+                  <strong>{t('dashboard.betaBanner.thankYou')}</strong> {t('dashboard.betaBanner.intro')}
                 </p>
                 <ul className="text-sm text-gray-700 space-y-2 mb-4">
                   <li className="flex items-start">
                     <span className="mr-2">✓</span>
-                    <span><strong>Free access</strong> to Units 1-5 during the beta phase</span>
+                    <span>{t('dashboard.betaBanner.benefit1')}</span>
                   </li>
                   <li className="flex items-start">
                     <span className="mr-2">✓</span>
-                    <span><strong>50% OFF discount</strong> on the full course (all 27 units) when we launch</span>
+                    <span>{t('dashboard.betaBanner.benefit2')}</span>
                   </li>
-
                 </ul>
-                <div className="bg-white/80 rounded-md p-3 border border-yellow-300">
+                <div className="bg-white/80 rounded-md p-3 border border-yellow-300 mb-3">
                   <p className="text-xs text-gray-600">
-                    <strong>📅 After Launch:</strong> You'll receive an email with your exclusive 50% discount code to unlock Units 6-27 and continue your Serbian learning journey!
+                    <strong>{t('dashboard.betaBanner.afterLaunch')}</strong> {t('dashboard.betaBanner.afterLaunchDesc')}
                   </p>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <input 
+                    type="checkbox" 
+                    id="dismiss-beta-banner"
+                    className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        handleDismissBetaBanner();
+                      }
+                    }}
+                  />
+                  <label htmlFor="dismiss-beta-banner" className="cursor-pointer select-none">
+                    {t('dashboard.betaBanner.dontShow')}
+                  </label>
                 </div>
               </div>
             </div>
@@ -210,9 +245,9 @@ export default function Dashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Week {progress?.currentWeek}</div>
+              <div className="text-2xl font-bold">{t('dashboard.week', { number: progress?.currentWeek })}</div>
               <p className="text-xs text-muted-foreground mt-2">
-                {currentWeek?.title}
+                {i18n.language === 'de' && currentWeek?.titleGerman ? currentWeek.titleGerman : currentWeek?.title}
               </p>
             </CardContent>
           </Card>
@@ -223,9 +258,12 @@ export default function Dashboard() {
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Unit {progress?.currentUnit}</div>
+              <div className="text-2xl font-bold">{t('dashboard.unit', { number: progress?.currentUnit })}</div>
               <p className="text-xs text-muted-foreground mt-2">
-                {units?.find(u => u.number === progress?.currentUnit)?.title}
+                {(() => {
+                  const unit = units?.find(u => u.number === progress?.currentUnit);
+                  return i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish;
+                })()}
               </p>
             </CardContent>
           </Card>
@@ -237,12 +275,15 @@ export default function Dashboard() {
               <BookOpen className="h-10 w-10 text-primary mb-2" />
               <CardTitle>{t('dashboard.continueLesson')}</CardTitle>
               <CardDescription>
-                {units?.find(u => u.number === progress?.currentUnit)?.titleEnglish}
+                {(() => {
+                  const unit = units?.find(u => u.number === progress?.currentUnit);
+                  return i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish;
+                })()}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href={`/unit/${progress?.currentUnit}`}>
-                <Button className="w-full">Go to Lesson</Button>
+                <Button className="w-full">{t('dashboard.goToLesson')}</Button>
               </Link>
             </CardContent>
           </Card>
@@ -265,16 +306,16 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Week {progress?.currentWeek}: {currentWeek?.title}</CardTitle>
+            <CardTitle>{t('dashboard.week', { number: progress?.currentWeek })}: {i18n.language === 'de' && currentWeek?.titleGerman ? currentWeek.titleGerman : currentWeek?.title}</CardTitle>
             <CardDescription>
-              {currentWeek?.goals.join(" • ")}
+              {(i18n.language === 'de' && currentWeek?.goalsGerman ? currentWeek.goalsGerman : currentWeek?.goals)?.join(" • ")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
                 <h4 className="font-semibold mb-3 text-lg">
-                  {isAdmin ? 'All Units (Admin View)' : t('dashboard.lessonsThisWeek')}
+                  {isAdmin ? t('dashboard.adminView') : t('dashboard.lessonsThisWeek')}
                 </h4>
                 <div className="grid gap-4">
                   {displayUnits?.map(unitNum => {
@@ -291,19 +332,19 @@ export default function Dashboard() {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant="outline" className="bg-gray-100">
-                                    Unit {unitNum}
+                                    {t('dashboard.unit', { number: unitNum })}
                                   </Badge>
                                   <Lock className="h-4 w-4 text-gray-500" />
-                                  <span className="text-gray-500 text-sm font-medium">🔒 Locked</span>
+                                  <span className="text-gray-500 text-sm font-medium">{t('dashboard.locked')}</span>
                                 </div>
                                 <div className="font-semibold text-lg mb-1 text-gray-600">
-                                  {unit?.title}
+                                  {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
                                 </div>
                                 <div className="text-sm text-gray-500 mb-3">
-                                  {unit?.titleEnglish}
+                                  {unit?.title}
                                 </div>
                                 <div className="text-xs text-gray-600 bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
-                                  🎁 <strong>Beta Tester:</strong> Units 6-27 will be unlocked after beta testing. You'll get <strong>50% OFF</strong> at launch!
+                                  🎁 <strong>{t('dashboard.betaTester.note')}</strong> {t('dashboard.betaTester.unlockNote')}
                                 </div>
                               </div>
                               <div className="text-right">
@@ -314,7 +355,7 @@ export default function Dashboard() {
                                   disabled
                                 >
                                   <Lock className="mr-1 h-3 w-3" />
-                                  Locked
+                                  {t('dashboard.lockedButton')}
                                 </Button>
                               </div>
                             </div>
@@ -335,31 +376,31 @@ export default function Dashboard() {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant={isCurrent ? 'default' : isCompleted ? 'secondary' : 'outline'}>
-                                    Unit {unitNum}
+                                    {t('dashboard.unit', { number: unitNum })}
                                   </Badge>
                                   {isCompleted && (
-                                    <span className="text-green-600 text-sm font-medium">✓ Completed</span>
+                                    <span className="text-green-600 text-sm font-medium">{t('dashboard.completedBadge')}</span>
                                   )}
                                   {isCurrent && !isCompleted && (
-                                    <span className="text-primary text-sm font-medium">→ Current Lesson</span>
+                                    <span className="text-primary text-sm font-medium">{t('dashboard.currentLessonBadge')}</span>
                                   )}
                                 </div>
                                 <div className="font-semibold text-lg mb-1">
-                                  {unit?.title}
+                                  {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
                                 </div>
                                 <div className="text-sm text-muted-foreground mb-3">
-                                  {unit?.titleEnglish}
+                                  {unit?.title}
                                 </div>
                                 {unit?.topics && unit.topics.length > 0 && (
                                   <div className="flex flex-wrap gap-1.5">
-                                    {unit.topics.slice(0, 3).map((topic, idx) => (
+                                    {(i18n.language === 'de' ? unit.topicsGerman : unit.topics).slice(0, 3).map((topic, idx) => (
                                       <Badge key={idx} variant="outline" className="text-xs">
                                         {topic}
                                       </Badge>
                                     ))}
-                                    {unit.topics.length > 3 && (
+                                    {(i18n.language === 'de' ? unit.topicsGerman : unit.topics).length > 3 && (
                                       <Badge variant="outline" className="text-xs">
-                                        +{unit.topics.length - 3} more
+                                        {t('dashboard.moreTopics', { count: (i18n.language === 'de' ? unit.topicsGerman : unit.topics).length - 3 })}
                                       </Badge>
                                     )}
                                   </div>
@@ -371,7 +412,7 @@ export default function Dashboard() {
                                   size="sm"
                                   className="whitespace-nowrap"
                                 >
-                                  {isCompleted ? 'Review' : isCurrent ? 'Continue' : 'Start'}
+                                  {isCompleted ? t('dashboard.review') : isCurrent ? t('dashboard.continue') : t('dashboard.start')}
                                 </Button>
                               </div>
                             </div>
@@ -386,7 +427,7 @@ export default function Dashboard() {
               <div>
                 <h4 className="font-semibold mb-2">{t('dashboard.practiceActivities')}</h4>
                 <ul className="space-y-1 text-sm text-muted-foreground">
-                  {currentWeek?.practiceActivities.map((activity, idx) => (
+                  {(i18n.language === 'de' && currentWeek?.practiceActivitiesGerman ? currentWeek.practiceActivitiesGerman : currentWeek?.practiceActivities)?.map((activity, idx) => (
                     <li key={idx}>• {activity}</li>
                   ))}
                 </ul>
@@ -394,25 +435,6 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Footer with Book Reference */}
-        <footer className="mt-16 pt-8 border-t">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <BookOpen className="h-4 w-4" />
-              <span>
-                <strong>Companion to:</strong> "Step by Step Serbian 1" by Mirjana Danilović
-                <span className="ml-2">• All content is original and independently created to complement the book</span>
-              </span>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <a href="/step-by-step-serbian.pdf" target="_blank" rel="noopener noreferrer">
-                <Download className="h-4 w-4 mr-2" />
-                Download PDF
-              </a>
-            </Button>
-          </div>
-        </footer>
       </main>
     </div>
     </>

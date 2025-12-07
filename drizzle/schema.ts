@@ -216,7 +216,7 @@ export type InsertFeedbackStatusHistory = typeof feedbackStatusHistory.$inferIns
 export const userSubscriptions = mysqlTable("userSubscriptions", {
   id: varchar("id", { length: 64 }).primaryKey(),
   userId: varchar("userId", { length: 64 }).notNull().unique(),
-  planType: mysqlEnum("planType", ["intensive", "balanced", "standard", "relaxed"]).notNull(),
+  planType: mysqlEnum("planType", ["beta", "intensive", "balanced", "standard", "relaxed"]).notNull(),
   planDurationMonths: int("planDurationMonths").notNull(), // 3, 6, 9, or 12
   planPrice: int("planPrice").notNull(), // in cents (e.g., 6900 = €69.00)
   purchasedAt: timestamp("purchasedAt").defaultNow(),
@@ -224,6 +224,7 @@ export const userSubscriptions = mysqlTable("userSubscriptions", {
   status: mysqlEnum("status", ["active", "expired", "cancelled"]).default("active").notNull(),
   autoRenew: boolean("autoRenew").default(false).notNull(),
   cancelledAt: timestamp("cancelledAt"),
+  maxAccessibleUnits: int("maxAccessibleUnits"), // Max units accessible (e.g., 5 for beta, 27 for full)
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow(),
 });

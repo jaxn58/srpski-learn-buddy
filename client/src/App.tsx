@@ -23,10 +23,15 @@ import EmailTemplates from "./pages/EmailTemplates";
 import SignInPage from "./pages/SignIn";
 import SignUpPage from "./pages/SignUp";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import i18n from "./i18n";
 
 // Protected route wrapper that requires authentication
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isLoaded } = useAuth();
+  
   
   // Show loading while Clerk is initializing
   if (!isLoaded) {
@@ -121,6 +126,15 @@ function Router() {
 }
 
 function App() {
+  // Auto-switch language based on user preference
+  const user = useQuery(api.users.me);
+  
+  useEffect(() => {
+    if (user?.learningLanguage) {
+      i18n.changeLanguage(user.learningLanguage);
+    }
+  }, [user?.learningLanguage]);
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">

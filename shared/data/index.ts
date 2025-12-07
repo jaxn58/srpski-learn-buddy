@@ -10,6 +10,7 @@ export * from "./course/revisions";
 
 // Vocabulary data
 export * from "./vocabulary/words";
+export * from "./vocabulary/helpers";
 
 // Learning plans
 export * from "./learning/plans";

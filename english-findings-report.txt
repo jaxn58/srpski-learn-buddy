@@ -1,0 +1,1238 @@
+================================================================================
+🔍 ENGLISH TEXT DETECTION REPORT
+================================================================================
+Generated: 2025-12-05T15:07:36.274Z
+
+🔍 Searching for English text in German translations...
+
+📡 Connecting to Convex: https://reminiscent-panda-57.c...
+
+📚 Fetching all unit explanations...
+
+✅ Found 27 unit explanations
+
+
+================================================================================
+📊 ANALYSIS RESULTS
+================================================================================
+
+Total units checked: 27
+Units with English text: 27
+Total findings: 108
+
+⚠️  Found English text in the following fields:
+
+
+================================================================================
+📝 Unit 1
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, was, be, in
+   Context: ## Willkommen zu Lektion 1: Am Flughafen
+
+**Was du lernen wirst:**
+- Das serbische lateinische Alphabet und die Aussprache
+- Grundlegende Begrüßungen und höfliche Phrasen
+- Wie man sich vorstellt
+- Da...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: was, is, THE, are, a, the, have, be, The, has...
+   Context: # Lektion 1: Grammatik erklärt
+
+## 1. Das serbische Alphabet
+
+Serbisch verwendet sowohl das kyrillische als auch das lateinische Alphabet. In diesem Kurs konzentrieren wir uns auf das lateinische Alph...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: be, A, the, a, Your, you, where, in, until, to...
+   Context: # Lektion 1: Übungsbeispiele & Dialogs
+
+## 📝 Dialog 1: Jemanden am Flughafen treffen
+
+**Szenario:** Du bist gerade in Belgrad angekommen und triffst deinen serbischen Freund Marko.
+
+---
+
+**Marko:** D...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 1 entspricht den Seiten 5-9 in 'Schritt für Schritt Serbisch 1' von Mirjana Danilović
+
+================================================================================
+📝 Unit 2
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, a, is, the, are, You, This, you, they, how...
+   Context: ## Willkommen zu Lektion 2: Im Café
+
+**Was du lernen wirst:**
+- Zahlen von 1 bis 100
+- Wie man Essen und Getränke in einem Café bestellt
+- Das Verb "imati" (haben)
+- Nach Preisen fragen
+- Grundlegende...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: The, have, is, has, a, Can, the, does, A, are...
+   Context: # Lektion 2: Grammatik erklärt
+
+## 1. Zahlen 1-100
+
+Zahlen sind unerlässlich für Bestellungen, Bezahlen und alltägliche Gespräche!
+
+### Numbers 1-20:
+
+| Number | Serbisch | Aussprache |
+|--------|----...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: would, the, is, A, are, will, a, have, does, you...
+   Context: # Lektion 2: Übungsbeispiele & Dialogs
+
+## 📝 Dialog 1: Kaffee bestellen
+
+**Szenario:** Du bist in einem Belgrader Café und bestellst Kaffee.
+
+---
+
+**Kellner:** Dobar dan! Šta želite?  
+**Du:** Dobar ...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 2 entspricht den Seiten 10-15 in 'Schritt für Schritt Serbisch 1' von Mirjana Danilović
+
+================================================================================
+📝 Unit 3
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, The, the, You, your, you, This, they, these, we...
+   Context: ## Willkommen zu Lektion 3: Serbisch lernen
+
+**Was du lernen wirst:**
+- Present tense verbs (Group 1 and 2)
+- Talking about täglich activities
+- Media vocabulary (TV, radio, newspapers)
+- The Locative...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: the, a, have, are, do, They, you, You, we, We...
+   Context: # Lektion 3: Grammatik erklärt
+
+## 1. Präsens-Verben - Gruppe 1 (-AM Verben)
+
+Diese Verben enden auf **-am** in the "ja" (Ich) form. They're very regular!
+
+### Beispiel: **čitati** (to read)
+
+| Person...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: are, do, Do, a, the, have, an, you, What, Why...
+   Context: # Lektion 3: Übungsbeispiele & Dialogs
+
+## 📝 Dialog 1: Talking About Serbisch lernen
+
+**Marko:** Šta radiš?  
+**Du:** Učim srpski.  
+**Marko:** Zašto učiš srpski?  
+**Du:** Volim Srbiju i srpsku kult...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 3 entspricht den Seiten 16-22 in 'Schritt für Schritt Serbisch 1' von Mirjana Danilović
+
+================================================================================
+📝 Unit 4
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, The, the, You, This, you, how, for, and, to...
+   Context: ## Willkommen zu Lektion 4: Sich zurechtfinden
+
+**Was du lernen wirst:**
+- Asking for and giving directions
+- The Vocative case (for addressing people)
+- The verb "ići" (to go) and its conjugation
+- L...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: is, an, the, do, a, are, This, you, You, we...
+   Context: # Lektion 4: Grammatik erklärt
+
+## 1. Das Verb "ići" (gehen)
+
+This is an irregular but essential verb!
+
+| Person | Form | Englisch | Beispiel |
+|--------|------|---------|---------|
+| **ja** | **idem*...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: is, the, The, Is, You, where, for, then, on, to...
+   Context: # Lektion 4: Übungsbeispiele & Dialogs
+
+## 📝 Dialog: Asking for Directions
+
+**Du:** Izvinite, gde je pošta?  
+**Einheimischer:** Pošta je blizu. Idite pravo, pa levo.  
+**Du:** Hvala. Je li daleko?  ...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 4 entspricht den Seiten 23-29 in 'Schritt für Schritt Serbisch 1' von Mirjana Danilović
+
+================================================================================
+📝 Unit 5
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, The, can, be, an, You, your, This, you, and...
+   Context: ## Willkommen zu Lektion 5: Dein Zimmer beschreiben
+
+**Was du lernen wirst:**
+- Describing rooms and furniture
+- Ordinal numbers (first, second, third...)
+- The verb "moći" (can/to be able to)
+- Color...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: The, can, be, do, a, you, You, we, We, they...
+   Context: # Lektion 5: Grammatik erklärt
+
+## 1. The Verb "moći" (can/to be able to)
+
+| Person | Form | Englisch | Beispiel |
+|--------|------|---------|---------|
+| **ja** | **mogu** | I can | **Mogu da pomogne...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: a, A, is, does, have, has, the, The, can, This...
+   Context: # Lektion 5: Übungsbeispiele & Dialogs
+
+## 📝 Dialog: Describing a Room
+
+**Agent:** Ovo je vaša soba.  
+**Du:** Lepa je! Koliko prozora ima?  
+**Agent:** Ima dva prozora.  
+**Du:** A gde je krevet?  
+...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 5 entspricht den Seiten 30-36 in 'Schritt für Schritt Serbisch 1' von Mirjana Danilović
+
+================================================================================
+📝 Unit 6
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, a, an, was, be, in, and, at, or, with
+   Context: ## Willkommen zu Lektion 6: Lebensmittel einkaufen
+
+**Was du lernen wirst:**
+- Wie man Lebensmittel einkauft in serbischen Märkten und Supermärkten
+- Wichtige Vokabeln für Lebensmittel (Obst, Gemüse, ...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: The, is, the, an, have, a, BE, do, does, are...
+   Context: # Lektion 6: Grammatik erklärt
+
+## 1. The Verb "Trebati" (To Need)
+
+"Trebati" is one of the most useful verbs for shopping, but it works differently from English. It's an **impersonal verb**, meaning ...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: the, At, to, To
+   Context: # Lektion 6: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit6_trebati" />
+
+---
+
+<InteractiveExercise type="translation" id="unit6_shopping" />
+
+---
+
+<InteractiveExercise type="fillIn...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 6 entspricht Seite 33 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 7
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, a, the, being, is, you, your, This, How, who...
+   Context: ## Willkommen zu Lektion 7: Describing People
+
+**Was du lernen wirst:**
+- How to describe people's physical appearance
+- Character traits and personality adjectives
+- Adjective agreement with gender a...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: the, a, an, is, has, are, they, with, in, and...
+   Context: # Lektion 7: Grammatik erklärt
+
+## 1. Adjective Agreement
+
+Im Serbischen, adjectives must agree with the noun they describe in **gender**, **number**, and **case**.
+
+### Gender Endings:
+
+| Geschlecht ...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: A, a, On, and, with
+   Context: # Lektion 7: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit7_adjectives" />
+
+---
+
+<InteractiveExercise type="translation" id="unit7_descriptions" />
+
+---
+
+<InteractiveExercise type=...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 7 entspricht Seite 40 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 8
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, the, have, your, we, This, you, How, how, to...
+   Context: ## Willkommen zu Lektion 8: Daily Routine
+
+**Was du lernen wirst:**
+- How to talk about your täglich activities
+- Reflexive verbs (verbs with "se")
+- Time expressions (in the morning, at night, etc.)
+...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: are, the, have, they, You, to, at, on, On, in...
+   Context: # Lektion 8: Grammatik erklärt
+
+## 1. Reflexive Verbs
+
+Many täglich routine verbs are **reflexive** - they include the particle **"se"** (oneself).
+
+### Common Reflexive Verbs:
+
+| Serbisch | Literal T...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: Your, you, your, what, with, and, Talk
+   Context: # Lektion 8: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit8_reflexive" />
+
+---
+
+<InteractiveExercise type="translation" id="unit8_routine" />
+
+---
+
+<InteractiveExercise type="fillI...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 8 entspricht Seite 47 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 9
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, the, a, is, you, How, how, to, and, or...
+   Context: ## Willkommen zu Lektion 9: Telling Time
+
+**Was du lernen wirst:**
+- How to ask and tell the time auf Serbisch
+- Hours, minutes, and time expressions
+- Days of the week
+- Schedule vocabulary
+
+**Alltag...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: is, a, the, What, When, what, At, to, with, and...
+   Context: # Lektion 9: Grammatik erklärt
+
+## 1. Asking About Time
+
+| Serbisch | Englisch |
+|---------|---------|
+| Koliko je sati? | What time is it? |
+| Kada? | When? |
+| U koliko sati? | At what time? |
+
+---
+...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: is, the, these, your, What, on, and, Talk
+   Context: # Lektion 9: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit9_time" />
+
+---
+
+<InteractiveExercise type="translation" id="unit9_schedule" />
+
+---
+
+<InteractiveExercise type="fillInBla...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 9 entspricht Seite 52 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 10
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, is, the, your, This, you, How, and, to, in...
+   Context: ## Willkommen zu Lektion 10: Family
+
+**Was du lernen wirst:**
+- Family member vocabulary (immediate and extended family)
+- Plural forms of nouns
+- How to talk about your family
+- Age expressions
+
+**Al...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: a, are, is, you, How, On, and, Talking, old, I am...
+   Context: # Lektion 10: Grammatik erklärt
+
+## 1. Family Vokabeln
+
+### Immediate Family:
+
+| Serbisch | Englisch | Serbisch | Englisch |
+|---------|---------|---------|---------|
+| porodica | family | roditelji |...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: Your, these, your, You, and
+   Context: # Lektion 10: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit10_family" />
+
+---
+
+<InteractiveExercise type="translation" id="unit10_relationships" />
+
+---
+
+<InteractiveExercise type=...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 10 entspricht Seite 58 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 11
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, was, did, the, is, be, you, your, what, in...
+   Context: ## Willkommen zu Lektion 11: Einführung in die Vergangenheitsform
+
+**Was du lernen wirst:**
+- Wie man die Vergangenheitsform bildet auf Serbisch (prošlo vreme)
+- Vergangenheitsendungen für verschieden...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: a, do, the, did, Was, is, you, What, to, on...
+   Context: # Lektion 11: Grammatik erklärt
+
+## 1. Bildung der Vergangenheitsform
+
+Die serbische Vergangenheitsform (prošlo vreme) wird gebildet mit:
+**Hilfsverb "biti" (sein) + Partizip Perfekt**
+
+### Partizip P...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: do, in
+   Context: # Lektion 11: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit11_past_tense" />
+
+---
+
+<InteractiveExercise type="translation" id="unit11_past_sentences" />
+
+---
+
+<InteractiveExercise ...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 11 entspricht Seite 65 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 12
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, do, are, How, to, from, for, in, talking, going...
+   Context: ## Willkommen zu Lektion 12: Verbs of Motion
+
+**Was du lernen wirst:**
+- Key verbs of motion (ići, doći, otići, etc.)
+- Directional prefixes
+- How to express "going to" vs "coming from"
+- Vokabeln für...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: do, a, the, Do, are, We, to, by, from, until...
+   Context: # Lektion 12: Grammatik erklärt
+
+## 1. Basic Motion Verbs
+
+### Core Verbs:
+
+| Verb | Bedeutung | Present | Past (M/F) |
+|------|---------|---------|------------|
+| ići | to go | idem | išao/išla |
+| d...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: do, Your, you, how, to, Talk
+   Context: # Lektion 12: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit12_motion_verbs" />
+
+---
+
+<InteractiveExercise type="translation" id="unit12_directions" />
+
+---
+
+<InteractiveExercise ty...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 12 entspricht Seite 72 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 13
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, is, This, you, How, and, to, in, talk, unit...
+   Context: ## Willkommen zu Lektion 13: Weather and Seasons
+
+**Was du lernen wirst:**
+- Weather vocabulary and expressions
+- Four seasons auf Serbisch
+- Temperature and weather conditions
+- How to talk about cli...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: the, The, is, a, has, this, We, What, in, on...
+   Context: # Lektion 13: Grammatik erklärt
+
+## 1. Seasons (Godišnja Doba)
+
+| Serbisch | Englisch | Characteristics |
+|---------|---------|-----------------|
+| proleće | spring | Warm, flowers bloom |
+| leto | su...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: Today, today, Talk
+   Context: # Lektion 13: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit13_weather" />
+
+---
+
+<InteractiveExercise type="translation" id="unit13_seasons" />
+
+---
+
+<InteractiveExercise type="fill...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 13 entspricht Seite 78 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 14
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, do, is, you, How, what, and, to, in, talk...
+   Context: ## Willkommen zu Lektion 14: Hobbies and Free Time
+
+**Was du lernen wirst:**
+- Hobby and leisure vocabulary
+- Sports and activities
+- How to talk about what you like to do
+- Frequency expressions
+- Cu...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: do, be, a, the, is, and, to, in, on, On...
+   Context: # Lektion 14: Grammatik erklärt
+
+## 1. Hobby Vokabeln
+
+### Common Hobbies:
+
+| Serbisch | Englisch |
+|---------|---------|
+| čitanje | reading |
+| pisanje | writing |
+| crtanje | drawing |
+| slikanje |...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: do, Your, these, you, what, to, Talk
+   Context: # Lektion 14: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit14_hobbies" />
+
+---
+
+<InteractiveExercise type="translation" id="unit14_activities" />
+
+---
+
+<InteractiveExercise type="f...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 14 entspricht Seite 84 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 15
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, How, and, to, in, for, Talk
+   Context: ## Willkommen zu Lektion 15: Making Plans and Invitations
+
+**Was du lernen wirst:**
+- How to invite someone
+- Accept and decline invitations politely
+- Make suggestions and plans
+- Talk about future e...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: Would, Will, Do, can, have, the, do, should, A, are...
+   Context: # Lektion 15: Grammatik erklärt
+
+## 1. Making Invitations
+
+### Formal Invitations:
+
+- **Želite li da...?** (Would you like to...?)
+- **Da li biste želeli da...?** (Would you like to...? - very formal)...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: a, the, an, these, you, You, for, to, and, with...
+   Context: # Lektion 15: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit15_invitations" />
+
+---
+
+<InteractiveExercise type="translation" id="unit15_plans" />
+
+---
+
+<InteractiveExercise type="fi...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 15 entspricht Seite 90 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 16
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, your, How, for, to, and, in
+   Context: ## Willkommen zu Lektion 16: Asking for Directions
+
+**Was du lernen wirst:**
+- How to ask for and give directions
+- Prepositions of location and direction
+- Street and landmark vocabulary
+- Polite phr...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: is, do, Is, Can, the, you, You, Where, How, where...
+   Context: # Lektion 16: Grammatik erklärt
+
+## 1. Asking for Directions
+
+### Basic Fragen:
+
+| Serbisch | Englisch |
+|---------|---------|
+| Gde je...? | Where is...? |
+| Kako da dođem do...? | How do I get to......
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: a, Your, your, from, to, for, and
+   Context: # Lektion 16: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit16_directions" />
+
+---
+
+<InteractiveExercise type="translation" id="unit16_asking" />
+
+---
+
+<InteractiveExercise type="fi...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 16 entspricht Seite 96 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 17
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, and, in
+   Context: ## Willkommen zu Lektion 17: Health and Body
+
+**Was du lernen wirst:**
+- Vokabeln für Körperteile
+- Ausdrücke für Gesundheit und Krankheit
+- Wie man Symptome beschreibt
+- Einen Arzt oder eine Apotheke...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: a, do, Does, have, the, is, has, you, How, What...
+   Context: # Lektion 17: Grammatik erklärt
+
+## 1. Body Parts (Delovi Tela)
+
+### Head and Face:
+
+| Serbisch | Englisch |
+|---------|---------|
+| glava | head |
+| kosa | hair |
+| lice | face |
+| oko (oči) | eye (e...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: In
+   Context: # Lektion 17: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit17_body_parts" />
+
+---
+
+<InteractiveExercise type="translation" id="unit17_symptoms" />
+
+---
+
+<InteractiveExercise type="...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 17 entspricht Seite 102 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 18
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, the, is, How, to, and, in
+   Context: ## Willkommen zu Lektion 18: Imperative Mood
+
+**Was du lernen wirst:**
+- How to form commands auf Serbisch
+- Polite vs informell commands
+- Negative commands
+- Common imperative expressions
+- Giving i...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: The, is, the, Do, a, Be, are, from, To, on...
+   Context: # Lektion 18: Grammatik erklärt
+
+## 1. Imperative Formation
+
+The imperative is formed from the present tense stem:
+
+### Regelmäßige Verben:
+
+| Infinitiv | Present (ti) | Imperative (ti) | Imperative (...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: might, a, Do, you, to, for, with
+   Context: # Lektion 18: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit18_commands" />
+
+---
+
+<InteractiveExercise type="translation" id="unit18_requests" />
+
+---
+
+<InteractiveExercise type="fi...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 18 entspricht Seite 108 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 19
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, are, How, and, to, for, in
+   Context: ## Willkommen zu Lektion 19: Comparatives and Superlatives
+
+**Was du lernen wirst:**
+- How to compare things auf Serbisch
+- Comparative forms of adjectives
+- Superlative forms
+- Irregular comparatives...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: the, is, a, are, This, that, to, and, On, in...
+   Context: # Lektion 19: Grammatik erklärt
+
+## 1. Comparative Formation
+
+Add **-iji/-ija/-ije** to the adjective stem:
+
+| Positive | Comparative | Englisch |
+|----------|-------------|---------|
+| lep | **lepši*...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: a, you, with, for, know
+   Context: # Lektion 19: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit19_comparatives" />
+
+---
+
+<InteractiveExercise type="translation" id="unit19_superlatives" />
+
+---
+
+<InteractiveExercise ...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 19 entspricht Seite 114 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 20
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, the, will, your, How, to, with, and, for, in...
+   Context: ## Willkommen zu Lektion 20: Future Tense
+
+**Was du lernen wirst:**
+- How to form the future tense
+- Future tense with "hteti" (will)
+- Making plans and predictions
+- Time expressions for the future
+-...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: will, be, do, the, Do, is, You, We, They, you...
+   Context: # Lektion 20: Grammatik erklärt
+
+## 1. Future Tense Formation
+
+**Future = hteti (to want) + infinitive**
+
+### Conjugation of "hteti":
+
+| Person | Short Form | Beispiel |
+|--------|------------|-------...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: will, do, the, Your, you, You, what, for, with, Tomorrow...
+   Context: # Lektion 20: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit20_future" />
+
+---
+
+<InteractiveExercise type="translation" id="unit20_plans" />
+
+---
+
+<InteractiveExercise type="fillInB...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 20 entspricht Seite 120 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 21
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, being, the, is, How, to, and, If, then, with...
+   Context: ## Willkommen zu Lektion 21: Conditional Mood
+
+**Was du lernen wirst:**
+- How to express conditions and hypotheticals
+- Conditional mood formation
+- "If... then..." constructions
+- Expressing wishes a...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: would, have, do, can, had, be, The, Would, could, should...
+   Context: # Lektion 21: Grammatik erklärt
+
+## 1. Conditional Formation
+
+**Conditional = "bi" + past participle**
+
+### Conjugation of "bi":
+
+| Person | Form | Beispiel |
+|--------|------|---------|
+| ja | bih | ...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: would, do, had, Your, you, what, if, with, and, for
+   Context: # Lektion 21: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit21_conditional" />
+
+---
+
+<InteractiveExercise type="translation" id="unit21_wishes" />
+
+---
+
+<InteractiveExercise type="f...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 21 entspricht Seite 126 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 22
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, for, and, in
+   Context: ## Willkommen zu Lektion 22: Expressing Emotions
+
+**Was du lernen wirst:**
+- Vokabeln for emotions and feelings
+- Wie man Glück, Traurigkeit und Wut ausdrückt
+- Auf Nachrichten und Situationen reagier...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: an, a, do, are, Are, can, A, the, is, being...
+   Context: # Lektion 22: Grammatik erklärt
+
+## 1. Basic Emotions
+
+| Serbisch | Englisch |
+|---------|---------|
+| srećan/srećna | happy |
+| tužan/tužna | sad |
+| ljut/ljuta | angry |
+| uzbuđen/uzbuđena | excited...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: an, you, how, today
+   Context: # Lektion 22: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit22_emotions" />
+
+---
+
+<InteractiveExercise type="translation" id="unit22_reactions" />
+
+---
+
+<InteractiveExercise type="f...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 22 entspricht Seite 132 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 23
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, and, In, in
+   Context: ## Willkommen zu Lektion 23: Travel and Transportation
+
+**Was du lernen wirst:**
+- Vokabeln für Verkehrsmittel (Bus, Zug, Flugzeug)
+- Fahrkarten kaufen und Reservierungen vornehmen
+- Nach Fahrplänen u...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: the, is, does, Are, have, The, was, can, a, has...
+   Context: # Lektion 23: Grammatik erklärt
+
+## 1. Transportation Vokabeln
+
+| Serbisch | Englisch |
+|---------|---------|
+| autobus | bus |
+| voz | train |
+| avion | airplane |
+| taksi | taxi |
+| tramvaj | tram |...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: a, you, to
+   Context: # Lektion 23: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit23_transport" />
+
+---
+
+<InteractiveExercise type="translation" id="unit23_tickets" />
+
+---
+
+<InteractiveExercise type="fi...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 23 entspricht Seite 138 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 24
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: the, Was, a, At, and, in, learning
+   Context: ## Willkommen zu Lektion 24: At the Restaurant
+
+**Was du lernen wirst:**
+- Restaurant vocabulary and menu items
+- Ordering food and drinks
+- Making reservations
+- Asking about dishes and ingredients
+-...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: the, a, would, Can, do, have, Does, The, is, was...
+   Context: # Lektion 24: Grammatik erklärt
+
+## 1. Restaurant Vokabeln
+
+### Places to Eat:
+
+| Serbisch | Englisch |
+|---------|---------|
+| restoran | restaurant |
+| kafić | café |
+| kafana | tavern |
+| picerija ...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: would, a, the, Your, you, what, at, and
+   Context: # Lektion 24: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit24_restaurant" />
+
+---
+
+<InteractiveExercise type="translation" id="unit24_ordering" />
+
+---
+
+<InteractiveExercise type="...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 24 entspricht Seite 144 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 25
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, the, for, and, on, in
+   Context: ## Willkommen zu Lektion 25: Shopping for Clothes
+
+**Was du lernen wirst:**
+- Clothing vocabulary
+- Colors and sizes
+- Shopping phrases and questions
+- Trying on clothes
+- Describing style and fit
+
+**...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: do, have, Can, are, is, the, Do, does, Is, a...
+   Context: # Lektion 25: Grammatik erklärt
+
+## 1. Clothing Vokabeln
+
+### Basic Clothes:
+
+| Serbisch | Englisch |
+|---------|---------|
+| košulja | shirt |
+| majica | t-shirt |
+| pantalone | pants |
+| farmerke | ...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: Your, you, what, how, and, to, on, today, you're
+   Context: # Lektion 25: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit25_clothes" />
+
+---
+
+<InteractiveExercise type="translation" id="unit25_shopping" />
+
+---
+
+<InteractiveExercise type="fil...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 25 entspricht Seite 150 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 26
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, the, your, and, with, for, in
+   Context: ## Willkommen zu Lektion 26: Serbian Culture
+
+**Was du lernen wirst:**
+- Serbian holidays and traditions
+- Cultural customs and etiquette
+- Famous Serbian landmarks
+- Traditional food and music
+- Soci...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: The, is, a, May, the, be, can, are, do, has...
+   Context: # Lektion 26: Grammatik erklärt
+
+## 1. Major Holidays (Praznici)
+
+### Religious Holidays:
+
+- **Božić** (Christmas - January 7th, Orthodox)
+- **Uskrs** (Easter - Orthodox calendar)
+- **Slava** (Family ...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: is, that, you, what
+   Context: # Lektion 26: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit26_culture" />
+
+---
+
+<InteractiveExercise type="translation" id="unit26_holidays" />
+
+---
+
+<InteractiveExercise type="fil...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 26 entspricht Seite 156 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📝 Unit 27
+================================================================================
+
+🔴 Field: overviewGerman
+   English phrases found: Was, your, You, This, you, and, in, for, so, Real-life...
+   Context: ## Willkommen zu Lektion 27: Review and Conversation
+
+**Was du lernen wirst:**
+- Comprehensive review of Units 1-26
+- Putting it all together in conversation
+- Real-life dialogue practice
+- Tips for c...
+
+🔴 Field: grammarExplainedGerman
+   English phrases found: the, A, Being, can, have, a, be, is, The, are...
+   Context: # Lektion 27: Grammatik erklärt
+
+## 🎉 Congratulations! You've Completed the Course!
+
+Let's review the major grammar concepts you've mastered:
+
+---
+
+## 1. Verb Tenses You Know
+
+✅ **Present Tense** - b...
+
+🔴 Field: practiceExamplesGerman
+   English phrases found: Have, a, the, has, Your, your, You, What, in, and...
+   Context: # Lektion 27: Übungsbeispiele
+
+<InteractiveExercise type="fillInBlank" id="unit27_review" />
+
+---
+
+<InteractiveExercise type="translation" id="unit27_conversation" />
+
+---
+
+<InteractiveExercise type="...
+
+🔴 Field: bookReferenceGerman
+   English phrases found: in
+   Context: Lektion 27 entspricht Seite 162 in "Schritt für Schritt Serbisch 1" von Vladislava Ribnikar
+
+================================================================================
+📋 SUMMARY
+================================================================================
+
+Total issues found: 108
+Units affected: 27
+
+💡 Next steps:
+   1. Review the findings above
+   2. Update the translation function in add-german-translations.ts
+   3. Re-run add-german-translations.ts to fix the translations
+   4. Re-run this script to verify all English text is removed
+
+
+✅ Script completed successfully!
+
+📄 Complete report saved to: D:\DEVELOPMENT\Cursor\srpski-tutor-rescue\english-findings-report.txt
+

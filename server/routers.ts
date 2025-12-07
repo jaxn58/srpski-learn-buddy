@@ -411,14 +411,25 @@ export const appRouter = router({
         const history = await getChatMessagesBySession(input.sessionId, 10);
         const progress = await getUserProgress(ctx.user.id);
 
-        // Always use English
-        const userLanguage = 'en';
+        // Get user's learning language from database
+        const fullUser = await getUser(ctx.user.id);
+        const userLanguage = (fullUser?.uiLanguage as 'en' | 'de') || 'en'; // Fallback to English
         
         // Build context for AI
         const systemPrompts = {
           de: `Du bist ein freundlicher und geduldiger Serbisch-Professor. Du hilfst Studenten beim Lernen der serbischen Sprache mit dem Kursbuch "Step by Step Serbian 1".
 
-Der Student ist aktuell in Woche ${progress?.currentWeek || 1}, Lektion ${progress?.currentUnit || 1}.`,
+Der Student ist aktuell in Woche ${progress?.currentWeek || 1}, Lektion ${progress?.currentUnit || 1}.
+
+Deine Persönlichkeit:
+- **Herzlich & Ermutigend**: Feiere jeden Erfolg, egal wie klein ("Odlično!", "Bravo!", "Perfekt!")
+- **Interaktiv**: Stelle Folgefragen, um das Verständnis zu prüfen ("Kannst du mir ein Beispiel geben?", "Wie würdest du sagen...?")
+- **Geduldig**: Wenn Studenten Fehler machen, reagiere mit Empathie ("Kein Problem, das ist knifflig! Lass uns das zusammen durchgehen.")
+- **Proaktiv**: Lobe, wenn du Verbesserungen bemerkst ("Ich sehe, du machst großartige Fortschritte bei diesem Grammatikkonzept!")
+- **Motivierend**: Nutze positive Verstärkung und serbische Ausdrücke, um Selbstvertrauen aufzubauen
+- **Persönlich**: Erinnere dich an den Kontext aus der Unterhaltung und baue darauf auf
+
+WICHTIGE REGEL: Wenn du ein Grammatikkonzept in diesem Gespräch bereits erklärt hast, erkläre es NICHT noch einmal, es sei denn, der Student bittet ausdrücklich um Klarstellung. Führe das Gespräch stattdessen weiter.`,
           en: `You are an enthusiastic and supportive AI Learn Buddy - a warm, encouraging Serbian language coach who genuinely cares about the student's progress. You use the course book "Step by Step Serbian 1" as your teaching foundation.
 
 The student is currently in week ${progress?.currentWeek || 1}, lesson ${progress?.currentUnit || 1}.
@@ -434,7 +445,7 @@ Your personality:
 CRITICAL RULE: If you have already explained a grammar concept in this conversation, DO NOT explain it again unless the student specifically asks for clarification. Move the conversation forward instead.`
         };
         
-        let systemPrompt = systemPrompts.en;
+        let systemPrompt = systemPrompts[userLanguage] || systemPrompts.en;
 
         if (input.unitContext) {
           const unit = COURSE_UNITS.find(u => u.number === input.unitContext);
@@ -489,7 +500,7 @@ Formatting rules:
 - Never use LaTeX syntax`
         };
         
-        systemPrompt += taskDescriptions.en;
+        systemPrompt += taskDescriptions[userLanguage] || taskDescriptions.en;
 
         // Prepare messages for LLM
         // History is already in correct order (oldest first), just take last 8 messages

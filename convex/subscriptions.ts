@@ -14,11 +14,47 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 
 // Subscription plans
 const SUBSCRIPTION_PLANS = [
+  { id: "beta", name: "Beta Access", months: 0, price: 0, unitsPerWeek: 0 },
   { id: "intensive", name: "Intensive", months: 3, price: 29, unitsPerWeek: 3 },
   { id: "balanced", name: "Balanced", months: 6, price: 49, unitsPerWeek: 2 },
   { id: "standard", name: "Standard", months: 9, price: 69, unitsPerWeek: 1.5 },
   { id: "relaxed", name: "Relaxed", months: 12, price: 89, unitsPerWeek: 1 },
 ];
+
+// Get accessible units for current user based on subscription
+export const getAccessibleUnits = query({
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return { maxUnits: 0, isBeta: false };
+
+    // Check for active subscription first
+    const subscription = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .first();
+
+    if (subscription?.maxAccessibleUnits) {
+      return {
+        maxUnits: subscription.maxAccessibleUnits,
+        isBeta: subscription.planType === "beta",
+      };
+    }
+
+    // Fallback: Check Beta Tester Flag (for backwards compatibility)
+    if (user.isBetaTester) {
+      return { maxUnits: 5, isBeta: true };
+    }
+
+    // Check if they have any paid subscription (full access to all 27 units)
+    if (subscription && subscription.planType !== "beta") {
+      return { maxUnits: 27, isBeta: false };
+    }
+
+    // Default: no access
+    return { maxUnits: 0, isBeta: false };
+  },
+});
 
 // Get user's current subscription (alias for getUserSubscription)
 export const getCurrent = query({
@@ -30,6 +66,21 @@ export const getCurrent = query({
       .query("userSubscriptions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .first();
+
+    // Virtual Beta Subscription for Beta Testers without subscription
+    if (!subscription && user.isBetaTester) {
+      return {
+        planType: "beta" as const,
+        planName: "Beta Access",
+        maxAccessibleUnits: 5,
+        status: "active" as const,
+        expiresAt: null,
+        planDurationMonths: 0,
+        planPrice: 0,
+        autoRenew: false,
+        virtual: true,
+      };
+    }
 
     if (!subscription) return null;
 

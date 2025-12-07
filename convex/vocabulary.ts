@@ -74,6 +74,8 @@ export const addVocabulary = mutation({
       unitNumber: args.unitNumber,
       mastered: false,
       reviewCount: 0,
+      correctAnswerCount: 0,
+      incorrectAnswerCount: 0,
     });
   },
 });
@@ -142,12 +144,104 @@ export const addBulkVocabulary = mutation({
           ...word,
           mastered: false,
           reviewCount: 0,
+          correctAnswerCount: 0,
+          incorrectAnswerCount: 0,
         });
         insertedIds.push(id);
       }
     }
 
     return insertedIds;
+  },
+});
+
+// Record vocabulary answer (quiz tracking)
+export const recordVocabularyAnswer = mutation({
+  args: {
+    serbianWord: v.string(),
+    unitNumber: v.number(),
+    isCorrect: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    // Find existing vocabulary entry for this user, word, and unit
+    const existing = await ctx.db
+      .query("vocabulary")
+      .withIndex("by_user_unit", (q) =>
+        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+      )
+      .filter((q) => q.eq(q.field("serbianWord"), args.serbianWord))
+      .first();
+
+    if (existing) {
+      // Update existing entry
+      const newCorrectCount = args.isCorrect 
+        ? (existing.correctAnswerCount || 0) + 1 
+        : (existing.correctAnswerCount || 0);
+      const newIncorrectCount = args.isCorrect 
+        ? (existing.incorrectAnswerCount || 0) 
+        : (existing.incorrectAnswerCount || 0) + 1;
+      
+      // Mark as mastered if correctAnswerCount >= 3
+      const isMastered = newCorrectCount >= 3;
+
+      await ctx.db.patch(existing._id, {
+        correctAnswerCount: newCorrectCount,
+        incorrectAnswerCount: newIncorrectCount,
+        mastered: isMastered,
+        lastAnsweredAt: Date.now(),
+        lastReviewedAt: Date.now(),
+      });
+
+      return existing._id;
+    } else {
+      // Create new entry (word not yet in user's vocabulary table)
+      // We need the translation - for now, we'll create with a placeholder
+      // In practice, this should come from the VOCABULARY data
+      const newCorrectCount = args.isCorrect ? 1 : 0;
+      const newIncorrectCount = args.isCorrect ? 0 : 1;
+      const isMastered = newCorrectCount >= 3;
+
+      return await ctx.db.insert("vocabulary", {
+        userId: user._id,
+        serbianWord: args.serbianWord,
+        englishTranslation: "", // Will be populated from VOCABULARY data
+        unitNumber: args.unitNumber,
+        mastered: isMastered,
+        reviewCount: 1,
+        correctAnswerCount: newCorrectCount,
+        incorrectAnswerCount: newIncorrectCount,
+        lastAnsweredAt: Date.now(),
+        lastReviewedAt: Date.now(),
+      });
+    }
+  },
+});
+
+// Get user vocabulary progress
+export const getUserVocabularyProgress = query({
+  args: { 
+    unitNumber: v.optional(v.number()) 
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+
+    let query = ctx.db
+      .query("vocabulary")
+      .withIndex("by_user", (q) => q.eq("userId", user._id));
+
+    if (args.unitNumber !== undefined) {
+      query = ctx.db
+        .query("vocabulary")
+        .withIndex("by_user_unit", (q) =>
+          q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+        );
+    }
+
+    return await query.collect();
   },
 });
 

@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 
 // Plan pricing in cents (€)
 export const PLAN_PRICING = {
+  beta: { price: 0, months: 0 }, // Free beta access
   intensive: { price: 6900, months: 3 }, // €69.00 for 3 months
   balanced: { price: 7900, months: 6 }, // €79.00 for 6 months
   standard: { price: 9500, months: 9 }, // €95.00 for 9 months
@@ -12,6 +13,37 @@ export const PLAN_PRICING = {
 } as const;
 
 export type PlanType = keyof typeof PLAN_PRICING;
+
+/**
+ * Get accessible units for a user based on subscription or beta status
+ */
+export async function getAccessibleUnits(userId: string, isBetaTester: boolean): Promise<{ maxUnits: number; isBeta: boolean }> {
+  const subscription = await getUserSubscription(userId);
+  
+  // Check for active subscription with maxAccessibleUnits
+  if (subscription && subscription.status === "active") {
+    // If subscription has explicit maxAccessibleUnits, use it
+    if (subscription.maxAccessibleUnits) {
+      return {
+        maxUnits: subscription.maxAccessibleUnits,
+        isBeta: subscription.planType === "beta",
+      };
+    }
+    
+    // Paid subscriptions get full access
+    if (subscription.planType !== "beta") {
+      return { maxUnits: 27, isBeta: false };
+    }
+  }
+  
+  // Fallback: Beta Tester Flag
+  if (isBetaTester) {
+    return { maxUnits: 5, isBeta: true };
+  }
+  
+  // Default: no access
+  return { maxUnits: 0, isBeta: false };
+}
 
 /**
  * Get user's current active subscription

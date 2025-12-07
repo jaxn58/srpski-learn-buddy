@@ -24,10 +24,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus, Mail } from "lucide-react";
+import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus, Mail, ArrowUpDown } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Sidebar } from "@/components/Sidebar";
 
 
@@ -47,6 +47,87 @@ export default function Admin() {
   const resetProgressMutation = useMutation(api.admin.resetUserProgress);
   
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  
+  // Sorting state for users table
+  const [usersSortField, setUsersSortField] = useState<string>('name');
+  const [usersSortDirection, setUsersSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Sorting state for progress table
+  const [progressSortField, setProgressSortField] = useState<string>('userName');
+  const [progressSortDirection, setProgressSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Sort users
+  const sortedUsers = useMemo(() => {
+    if (!users) return [];
+    const sorted = [...users].sort((a: any, b: any) => {
+      let aVal = a[usersSortField];
+      let bVal = b[usersSortField];
+      
+      if (usersSortField === 'subscription') {
+        aVal = a.subscription?.planName || 'None';
+        bVal = b.subscription?.planName || 'None';
+      }
+      
+      if (aVal === undefined || aVal === null) aVal = '';
+      if (bVal === undefined || bVal === null) bVal = '';
+      
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      
+      if (aVal < bVal) return usersSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return usersSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [users, usersSortField, usersSortDirection]);
+  
+  // Sort progress
+  const sortedProgress = useMemo(() => {
+    if (!allProgress) return [];
+    const filtered = allProgress.filter((p: any) => {
+      const user = users?.find((u: any) => u._id === p.userId);
+      return user?.role === 'student';
+    });
+    
+    const sorted = [...filtered].sort((a: any, b: any) => {
+      let aVal = a[progressSortField];
+      let bVal = b[progressSortField];
+      
+      if (progressSortField === 'completedUnits') {
+        aVal = a.completedUnits?.length || 0;
+        bVal = b.completedUnits?.length || 0;
+      }
+      
+      if (aVal === undefined || aVal === null) aVal = '';
+      if (bVal === undefined || bVal === null) bVal = '';
+      
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      
+      if (aVal < bVal) return progressSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return progressSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [allProgress, users, progressSortField, progressSortDirection]);
+  
+  const toggleUserSort = (field: string) => {
+    if (usersSortField === field) {
+      setUsersSortDirection(usersSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setUsersSortField(field);
+      setUsersSortDirection('asc');
+    }
+  };
+  
+  const toggleProgressSort = (field: string) => {
+    if (progressSortField === field) {
+      setProgressSortDirection(progressSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setProgressSortField(field);
+      setProgressSortDirection('asc');
+    }
+  };
 
   if (authLoading || usersLoading || progressLoading || statsLoading) {
     return (
@@ -103,11 +184,21 @@ export default function Admin() {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      await deleteUserMutation({ userId: userId as any });
-      toast.success('User deleted successfully');
+      const result = await deleteUserMutation({ userId: userId as any });
+      
+      if (result?.warning) {
+        toast.warning(result.warning, {
+          duration: 8000,
+          description: 'To fully delete the user, also remove them from the Clerk Dashboard.',
+        });
+      } else {
+        toast.success('User deleted successfully from both Clerk and Convex');
+      }
+      
       setDeletingUserId(null);
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete user');
+      console.error('Delete user error:', error);
     }
   };
 
@@ -124,60 +215,16 @@ export default function Admin() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <header className="border-b bg-card">
-          <div className="container py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-6 w-6 text-primary" />
-                <h1 className="text-xl font-bold">Admin Panel</h1>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">
-                  {user.name} ({user.role})
-                </span>
-                <Link href="/dashboard">
-                  <Button variant="outline" size="sm">Back to Learning</Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </header>
-
         <main className="container py-8">
-        {/* Quick Actions */}
-        <div className="grid gap-4 md:grid-cols-4 mb-8">
-          <Link href="/admin/email-templates">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Email Templates</CardTitle>
-                <Mail className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">Manage email templates</p>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-
         {/* Statistics Cards */}
-        <div className="grid gap-4 md:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-4 md:grid-cols-3 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Users</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.activeUsers || 0}</div>
+              <div className="text-2xl font-bold">{stats?.activeUsers || 0} von {stats?.totalUsers || 0} active</div>
               <p className="text-xs text-muted-foreground">Last 7 days</p>
             </CardContent>
           </Card>
@@ -207,7 +254,8 @@ export default function Admin() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              User Management
+              User Management 
+              <span className="text-sm font-normal text-muted-foreground">({stats?.totalUsers || 0} Total Users)</span>
               {user.role === 'admin' && (
                 <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
               )}
@@ -221,18 +269,46 @@ export default function Admin() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Beta Tester</TableHead>
-                  <TableHead>Subscription</TableHead>
-                  <TableHead>Last Signed In</TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('name')} className="h-8 px-2">
+                      Name <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('email')} className="h-8 px-2">
+                      Email <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('role')} className="h-8 px-2">
+                      Role <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isActive')} className="h-8 px-2">
+                      Status <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isBetaTester')} className="h-8 px-2">
+                      Beta Tester <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('subscription')} className="h-8 px-2">
+                      Subscription <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('_lastModified')} className="h-8 px-2">
+                      Last Signed In <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users?.map((u: any) => (
+                {sortedUsers?.map((u: any) => (
                   <TableRow key={u._id}>
                     <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
                     <TableCell>{u.email || 'N/A'}</TableCell>
@@ -331,43 +407,19 @@ export default function Admin() {
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onSelect={(e) => {
-                                    e.preventDefault();
-                                    setDeletingUserId(u._id);
-                                  }}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete User
-                                </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              {deletingUserId === u._id && (
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This action cannot be undone. This will permanently delete the user
-                                      account and remove all associated data including progress, vocabulary,
-                                      and chat history.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel onClick={() => setDeletingUserId(null)}>
-                                      Cancel
-                                    </AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleDeleteUser(u._id)}
-                                      className="bg-red-600 hover:bg-red-700"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              )}
-                            </AlertDialog>
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={async () => {
+                                const confirmed = window.confirm(
+                                  "This will permanently delete the user account and all associated data (progress, vocabulary, chat history). Are you sure?"
+                                );
+                                if (!confirmed) return;
+                                await handleDeleteUser(u._id);
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete User
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
@@ -391,21 +443,45 @@ export default function Admin() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Current Week</TableHead>
-                  <TableHead>Current Unit</TableHead>
-                  <TableHead>Completed Units</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Last Activity</TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userName')} className="h-8 px-2">
+                      Student <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userEmail')} className="h-8 px-2">
+                      Email <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('currentWeek')} className="h-8 px-2">
+                      Current Week <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('currentUnit')} className="h-8 px-2">
+                      Current Unit <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('completedUnits')} className="h-8 px-2">
+                      Completed Units <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('learningDuration')} className="h-8 px-2">
+                      Duration <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('lastActivityAt')} className="h-8 px-2">
+                      Last Activity <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {allProgress?.filter((p: any) => {
-                  // Find the user to check their role
-                  const user = users?.find((u: any) => u._id === p.userId);
-                  return user?.role === 'student';
-                }).map((p: any) => (
+                {sortedProgress?.map((p: any) => (
                   <TableRow key={p._id}>
                     <TableCell className="font-medium">{p.userName}</TableCell>
                     <TableCell>{p.userEmail}</TableCell>
