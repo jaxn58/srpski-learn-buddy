@@ -1,8 +1,0 @@
-{
-  "query": "SELECT unitId, \n  CASE \n    WHEN overview LIKE '%sj%' OR overview LIKE '%zj%' THEN 'overview'\n    WHEN grammarExplained LIKE '%sj%' OR grammarExplained LIKE '%zj%' THEN 'grammar'\n    WHEN practiceExamples LIKE '%sj%' OR practiceExamples LIKE '%zj%' THEN 'practice'\n  END as section\nFROM unit_explanations \nWHERE overview LIKE '%sj%' OR overview LIKE '%zj%' \n   OR grammarExplained LIKE '%sj%' OR grammarExplained LIKE '%zj%'\n   OR practiceExamples LIKE '%sj%' OR practiceExamples LIKE '%zj%';",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute SELECT unitId, \n  CASE \n    WHEN overview LIKE '%sj%' OR overview LIKE '%zj%' THEN 'overview'\n    WHEN grammarExplained LIKE '%sj%' OR grammarExplained LIKE '%zj%' THEN 'grammar'\n    WHEN practiceExamples LIKE '%sj%' OR practiceExamples LIKE '%zj%' THEN 'practice'\n  END as section\nFROM unit_explanations \nWHERE overview LIKE '%sj%' OR overview LIKE '%zj%' \n   OR grammarExplained LIKE '%sj%' OR grammarExplained LIKE '%zj%'\n   OR practiceExamples LIKE '%sj%' OR practiceExamples LIKE '%zj%';",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1146 (42S02) at line 1: Table 'lhzrtrsefpxmcmrtryrobu.unit_explanations' doesn't exist"
-  ]
-}

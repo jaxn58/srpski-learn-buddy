@@ -60,23 +60,13 @@ export const translations = {
 
 **B. Datenbank-Erweiterung**
 
-```sql
--- Neue Spalte in users-Tabelle
-ALTER TABLE users ADD COLUMN preferred_language VARCHAR(10) DEFAULT 'en';
+**Note:** This document was written for MySQL/TiDB. The application now uses Convex as the database. Schema changes should be implemented in `convex/schema.ts` instead of SQL.
 
--- Neue Tabelle für Kursinhalte in mehreren Sprachen
-CREATE TABLE course_content_i18n (
-  id VARCHAR(64) PRIMARY KEY,
-  unit_id INT NOT NULL,
-  language VARCHAR(10) NOT NULL,
-  title VARCHAR(255),
-  description TEXT,
-  content JSON,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_unit_language (unit_id, language),
-  FOREIGN KEY (unit_id) REFERENCES units(id)
-);
-```
+Die Datenbank-Erweiterung für Multi-Language Support erfordert:
+- `preferred_language` Feld in der users-Tabelle (bereits vorhanden als `learningLanguage`)
+- Tabelle für mehrsprachige Kursinhalte (kann als Convex-Tabelle implementiert werden)
+
+Diese Änderungen sollten in `convex/schema.ts` implementiert werden.
 
 **C. Backend-Anpassungen**
 

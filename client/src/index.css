@@ -48,6 +48,11 @@
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.45 0.18 250); /* Royal blue from flag */
   --secondary-foreground: oklch(0.985 0 0);
+  --brand-blue: var(--secondary);
+  --brand-blue-foreground: var(--secondary-foreground);
+  --brand-blue-soft: color-mix(in oklch, var(--brand-blue) 12%, white);
+  --brand-blue-soft-border: color-mix(in oklch, var(--brand-blue) 28%, white);
+  --brand-blue-strong-text: color-mix(in oklch, var(--brand-blue) 45%, black);
   --accent: oklch(0.75 0.15 85); /* Gold from crown */
   --accent-foreground: oklch(0.15 0 0);
   --sidebar-primary: oklch(0.50 0.24 15);
@@ -167,7 +172,7 @@
     .container {
       padding-left: 2rem; /* 32px - desktop padding */
       padding-right: 2rem;
-      max-width: 1280px; /* Standard content width */
+      /* max-width removed to allow full-width content with sidebar */
     }
   }
 }

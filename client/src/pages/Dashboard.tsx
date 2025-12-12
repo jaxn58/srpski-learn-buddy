@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { COURSE_WEEKS, COURSE_UNITS } from "@shared/data";
-import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Clock, Home, Lock } from "lucide-react";
+import { COURSE_WEEKS, COURSE_UNITS, COURSE_MODULES, getModuleForUnit, getModuleProgress } from "@shared/data";
+import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Clock, Home, Lock, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -19,9 +19,13 @@ import { Sidebar } from "@/components/Sidebar";
 import { useState, useEffect } from "react";
 
 export default function Dashboard() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout, clerkUser } = useAuth();
   const progress = useQuery(api.progress.getUserProgress);
   const progressLoading = progress === undefined;
+  const accessibleUnits = useQuery(api.subscriptions.getAccessibleUnits);
+  const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
+  
+  const syncUserMutation = useMutation(api.users.syncUser);
   
   // Debug: Log user object to check isBetaTester
   useEffect(() => {
@@ -30,12 +34,37 @@ export default function Dashboard() {
       console.log('[Dashboard] isBetaTester:', user.isBetaTester);
     }
   }, [user]);
+
+  // Explicit sync check: If Clerk user exists but Convex user doesn't, trigger sync
+  useEffect(() => {
+    if (clerkUser && !authLoading && !user) {
+      console.log('[Dashboard] Clerk user exists but Convex user not found, triggering sync...', {
+        clerkId: clerkUser.id,
+        email: clerkUser.emailAddresses?.[0]?.emailAddress,
+      });
+      
+      // Wait a moment to let useAuth hook handle it first, then retry if needed
+      const timeoutId = setTimeout(() => {
+        syncUserMutation({ learningLanguage: 'en' })
+          .then(() => {
+            console.log('[Dashboard] Manual sync successful');
+          })
+          .catch((error) => {
+            console.error('[Dashboard] Manual sync failed:', error);
+          });
+      }, 3000); // Wait 3 seconds to give useAuth hook a chance first
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [clerkUser, user, authLoading, syncUserMutation]);
   
   // Use static course data
   const weeks = COURSE_WEEKS;
   const units = COURSE_UNITS;
   const updateProgressMutation = useMutation(api.progress.updateProgress);
   const { t, i18n } = useTranslation();
+  const completedBadgeClass = "bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm";
+  const masteredBadgeClass = "bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 shadow-sm";
   
   // Onboarding tutorial state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -63,10 +92,10 @@ export default function Dashboard() {
   
   // Show onboarding for new users (created within last 24 hours)
   useEffect(() => {
-    if (user && user.createdAt) {
-      const createdDate = new Date(user.createdAt);
+    if (user) {
+      const createdDate = new Date(user._creationTime);
       const daysSinceCreation = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
-      const hasSeenOnboarding = localStorage.getItem(`onboarding_seen_${user.id}`);
+      const hasSeenOnboarding = localStorage.getItem(`onboarding_seen_${user._id}`);
       
       if (daysSinceCreation < 1 && !hasSeenOnboarding) {
         setShowOnboarding(true);
@@ -76,10 +105,115 @@ export default function Dashboard() {
   
   const handleCloseOnboarding = () => {
     if (user) {
-      localStorage.setItem(`onboarding_seen_${user.id}`, 'true');
+      localStorage.setItem(`onboarding_seen_${user._id}`, 'true');
     }
     setShowOnboarding(false);
   };
+
+  const currentWeek = weeks?.find(w => w.weekNumber === progress?.currentWeek);
+  const completedUnits = progress?.completedUnits || [];
+  
+  // Determine if user is beta tester
+  const isBeta = user?.isBetaTester || accessibleUnits?.isBeta || false;
+  const totalUnits = isBeta ? 6 : (units?.length || 27);
+  const progressPercentage = (completedUnits.length / totalUnits) * 100;
+  const learningDuration = progress?.learningDuration || 12;
+  
+  // Admin bypass: Show all units for admins
+  const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
+  const rawAccessible = Array.isArray(accessibleUnits)
+    ? accessibleUnits
+    : Array.isArray((accessibleUnits as any)?.units)
+    ? (accessibleUnits as any).units
+    : Array.isArray((accessibleUnits as any)?.accessibleUnits)
+    ? (accessibleUnits as any).accessibleUnits
+    : [];
+  const displayUnits = isAdmin ? units?.map(u => u.number) : currentWeek?.units;
+  const visibleUnits = Array.from(
+    new Set(
+      [
+        ...(displayUnits || []),
+        ...(rawAccessible || []),
+        progress?.currentUnit,
+        ...completedUnits,
+      ].filter(Boolean) as number[]
+    )
+  );
+
+  const accessibleCount = Array.isArray(rawAccessible) ? rawAccessible.length : 0;
+
+  const sendLayoutLog = (payload: {
+    hypothesisId: string;
+    message: string;
+    data: Record<string, unknown>;
+  }) => {
+    // #region agent log
+    fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "pre-fix",
+        hypothesisId: payload.hypothesisId,
+        location: "Dashboard.tsx:instrumentation",
+        message: payload.message,
+        data: payload.data,
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  };
+
+  useEffect(() => {
+    const visibleCount = visibleUnits?.length ?? 0;
+    const currentUnit = progress?.currentUnit ?? null;
+    const weekNumber = currentWeek?.weekNumber ?? null;
+
+    sendLayoutLog({
+      hypothesisId: "H1",
+      message: "Dashboard render state",
+      data: {
+        authLoading,
+        progressLoading,
+        hasUser: !!user,
+        userId: user?._id ?? null,
+        currentUnit,
+      },
+    });
+
+    sendLayoutLog({
+      hypothesisId: "H2",
+      message: "Module visibility summary",
+      data: {
+        totalUnits,
+        completedUnits: completedUnits.length,
+        visibleUnits: visibleCount,
+        isBeta,
+      },
+    });
+
+    sendLayoutLog({
+      hypothesisId: "H3",
+      message: "Week and access data",
+      data: {
+        weekNumber,
+        accessibleCount,
+        learningDuration,
+      },
+    });
+  }, [
+    authLoading,
+    progressLoading,
+    user?._id,
+    progress?.currentUnit,
+    completedUnits.length,
+    visibleUnits?.length,
+    totalUnits,
+    currentWeek?.weekNumber,
+    isBeta,
+    accessibleCount,
+    learningDuration,
+  ]);
 
   // Show loading while auth or progress is loading
   // Also show loading while user is being synced to Convex
@@ -138,21 +272,6 @@ export default function Dashboard() {
     );
   }
 
-  const currentWeek = weeks?.find(w => w.weekNumber === progress?.currentWeek);
-  const completedUnits = progress?.completedUnits || [];
-  const totalUnits = units?.length || 27;
-  const progressPercentage = (completedUnits.length / totalUnits) * 100;
-  const learningDuration = progress?.learningDuration || 12;
-  
-  // Admin bypass: Show all units for admins
-  const isAdmin = user.role === 'superadmin' || user.role === 'admin';
-  const displayUnits = isAdmin ? units?.map(u => u.number) : currentWeek?.units;
-
-  const handleDurationChange = async (duration: string) => {
-    await updateProgressMutation({ learningDuration: parseInt(duration) });
-    // Convex automatically updates the UI reactively
-  };
-
   return (
     <>
       {showOnboarding && user && (
@@ -165,7 +284,8 @@ export default function Dashboard() {
       <div className="flex min-h-screen bg-background">
       <Sidebar />
 
-      <main className="container py-8">
+      <div className="flex-1 md:ml-64 w-full">
+      <main className="container py-8 w-full">
 
 
         {/* Beta Tester Benefits Banner */}
@@ -220,12 +340,12 @@ export default function Dashboard() {
             {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Learner' })}
           </h2>
           <p className="text-muted-foreground">
-            {t('dashboard.weekProgress', { current: progress?.currentWeek, total: learningDuration })}
+            {isBeta ? t('dashboard.betaProgress') : t('dashboard.weekProgress', { current: progress?.currentWeek, total: learningDuration })}
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card>
+        <div className="grid md:grid-cols-3 gap-6 mb-8 items-stretch">
+          <Card className="h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t('dashboard.totalProgress')}</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -239,7 +359,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{t('dashboard.currentWeek')}</CardTitle>
               <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -252,21 +372,30 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('dashboard.currentLesson')}</CardTitle>
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{t('dashboard.unit', { number: progress?.currentUnit })}</div>
-              <p className="text-xs text-muted-foreground mt-2">
+          <Link href={progress?.currentUnit ? `/unit/${progress.currentUnit}` : "#"}>
+            <Card className={`h-full cursor-pointer hover:shadow-lg transition-shadow ${!progress?.currentUnit ? 'pointer-events-none opacity-60' : ''}`}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{t('dashboard.currentLesson')}</CardTitle>
+                <BookOpen className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
                 {(() => {
-                  const unit = units?.find(u => u.number === progress?.currentUnit);
-                  return i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish;
+                  const currentUnit = progress?.currentUnit;
+                  const unit = units?.find(u => u.number === currentUnit);
+                  return (
+                    <>
+                      <div className="text-2xl font-bold">
+                        {t('dashboard.unit', { number: currentUnit })}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
+                      </p>
+                    </>
+                  );
                 })()}
-              </p>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -290,7 +419,7 @@ export default function Dashboard() {
 
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <Brain className="h-10 w-10 text-primary mb-2" />
+              <Brain className="h-10 w-10 text-yellow-500 mb-2" />
               <CardTitle>{t('dashboard.chatWithProfessor')}</CardTitle>
               <CardDescription>
                 {t('dashboard.chatDesc')}
@@ -298,7 +427,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <Link href="/chat">
-                <Button className="w-full" variant="outline">{t('dashboard.openChat')}</Button>
+                <Button className="w-full border-yellow-500 text-yellow-600 hover:bg-yellow-50 hover:border-yellow-600" variant="outline">{t('dashboard.openChat')}</Button>
               </Link>
             </CardContent>
           </Card>
@@ -318,11 +447,12 @@ export default function Dashboard() {
                   {isAdmin ? t('dashboard.adminView') : t('dashboard.lessonsThisWeek')}
                 </h4>
                 <div className="grid gap-4">
-                  {displayUnits?.map(unitNum => {
+                  {visibleUnits?.map(unitNum => {
                     const unit = units?.find(u => u.number === unitNum);
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
-                    const isLocked = user.isBetaTester && unitNum > 5;
+                    const isMastered = masteredUnits?.includes(unitNum);
+                    const isLocked = user.isBetaTester && unitNum > 6;
 
                     if (isLocked) {
                       return (
@@ -368,18 +498,27 @@ export default function Dashboard() {
                       <Link key={unitNum} href={`/unit/${unitNum}`}>
                         <Card className={`transition-all hover:shadow-md ${
                           isCurrent ? 'border-primary ring-2 ring-primary/20' : 
-                          isCompleted ? 'border-green-500 bg-green-50/50' : 
+                          isMastered ? 'border-amber-400 bg-amber-50/60' :
+                          isCompleted ? 'border-[color:var(--brand-blue-soft-border)] bg-[color:var(--brand-blue-soft)]' : 
                           'hover:border-primary/50'
                         }`}>
                           <CardContent className="p-5">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
-                                  <Badge variant={isCurrent ? 'default' : isCompleted ? 'secondary' : 'outline'}>
+                                  <Badge variant={isCurrent ? 'default' : 'outline'}>
                                     {t('dashboard.unit', { number: unitNum })}
                                   </Badge>
                                   {isCompleted && (
-                                    <span className="text-green-600 text-sm font-medium">{t('dashboard.completedBadge')}</span>
+                                    <Badge className={completedBadgeClass}>
+                                      {t('dashboard.completedBadge')}
+                                    </Badge>
+                                  )}
+                                  {isMastered && (
+                                    <Badge className={masteredBadgeClass}>
+                                      <Star className="mr-1 h-3 w-3 text-white" fill="currentColor" strokeWidth={0} />
+                                      {t('dashboard.masteredBadge', 'Mastered')}
+                                    </Badge>
                                   )}
                                   {isCurrent && !isCompleted && (
                                     <span className="text-primary text-sm font-medium">{t('dashboard.currentLessonBadge')}</span>
@@ -436,6 +575,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </main>
+      </div>
     </div>
     </>
   );

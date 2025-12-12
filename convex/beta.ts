@@ -13,42 +13,6 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .first();
 }
 
-// Action to send email via server endpoint
-export const sendEmailAction = action({
-  args: {
-    templateName: v.string(),
-    variables: v.record(v.string(), v.union(v.string(), v.number())),
-  },
-  handler: async (ctx, args) => {
-    // Get server URL from environment or use default
-    const serverUrl = process.env.SERVER_URL || process.env.VITE_SERVER_URL || "http://localhost:3000";
-    
-    try {
-      const response = await fetch(`${serverUrl}/api/email/send`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          templateName: args.templateName,
-          variables: args.variables,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || `HTTP ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error: any) {
-      console.error("[Beta Registration] Failed to send email:", error);
-      // Don't throw - email failure shouldn't block registration
-      return { success: false, error: error.message };
-    }
-  },
-});
-
 // Register for beta (public)
 export const register = mutation({
   args: {
@@ -77,12 +41,9 @@ export const register = mutation({
 
     // Schedule email to be sent (non-blocking)
     try {
-      await ctx.scheduler.runAfter(0, api.beta.sendEmailAction, {
-        templateName: "beta-registration",
-        variables: {
-          USER_NAME: args.name,
-          USER_EMAIL: args.email,
-        },
+      await ctx.scheduler.runAfter(0, api.email.sendBetaRegistrationEmail, {
+        name: args.name,
+        email: args.email,
       });
     } catch (error) {
       console.error("[Beta Registration] Failed to schedule email:", error);

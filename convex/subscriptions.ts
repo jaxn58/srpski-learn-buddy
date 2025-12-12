@@ -1,5 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, action, QueryCtx, MutationCtx, internalMutation } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -42,8 +44,9 @@ export const getAccessibleUnits = query({
     }
 
     // Fallback: Check Beta Tester Flag (for backwards compatibility)
+    // Beta testers have access to Module 1 (Units 1-6)
     if (user.isBetaTester) {
-      return { maxUnits: 5, isBeta: true };
+      return { maxUnits: 6, isBeta: true };
     }
 
     // Check if they have any paid subscription (full access to all 27 units)
@@ -68,11 +71,12 @@ export const getCurrent = query({
       .first();
 
     // Virtual Beta Subscription for Beta Testers without subscription
+    // Beta testers have access to Module 1 (Units 1-6)
     if (!subscription && user.isBetaTester) {
       return {
         planType: "beta" as const,
         planName: "Beta Access",
-        maxAccessibleUnits: 5,
+        maxAccessibleUnits: 6,
         status: "active" as const,
         expiresAt: null,
         planDurationMonths: 0,
@@ -414,6 +418,144 @@ export const toggleAutoRenew = mutation({
     });
 
     return !subscription.autoRenew;
+  },
+});
+
+// ===== Server-side helpers for migrations =====
+
+const serverUpsertArgs = {
+  clerkId: v.string(),
+  planType: v.union(
+    v.literal("beta"),
+    v.literal("intensive"),
+    v.literal("balanced"),
+    v.literal("standard"),
+    v.literal("relaxed")
+  ),
+  planDurationMonths: v.number(),
+  planPrice: v.number(),
+  status: v.union(
+    v.literal("active"),
+    v.literal("expired"),
+    v.literal("cancelled")
+  ),
+  expiresAt: v.number(),
+  autoRenew: v.optional(v.boolean()),
+  maxAccessibleUnits: v.optional(v.number()),
+  cancelledAt: v.optional(v.number()),
+};
+
+export const internalUpsertSubscriptionForServer = internalMutation({
+  args: serverUpsertArgs,
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error(`User with clerkId ${args.clerkId} not found in Convex.`);
+    }
+
+    const existing = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .first();
+
+    const payload = {
+      planType: args.planType,
+      planDurationMonths: args.planDurationMonths,
+      planPrice: args.planPrice,
+      status: args.status,
+      expiresAt: args.expiresAt,
+      autoRenew: args.autoRenew ?? existing?.autoRenew ?? false,
+      maxAccessibleUnits: args.maxAccessibleUnits ?? existing?.maxAccessibleUnits,
+      cancelledAt: args.cancelledAt ?? existing?.cancelledAt ?? undefined,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, payload);
+      return existing._id;
+    }
+
+    return await ctx.db.insert("userSubscriptions", {
+      userId: user._id,
+      ...payload,
+    });
+  },
+});
+
+export const upsertSubscriptionForServer = action({
+  args: {
+    serverToken: v.string(),
+    ...serverUpsertArgs,
+  },
+  handler: async (ctx, args): Promise<Id<"userSubscriptions">> => {
+    if (!process.env.CONVEX_SERVER_TOKEN || args.serverToken !== process.env.CONVEX_SERVER_TOKEN) {
+      throw new Error("Unauthorized server token");
+    }
+
+    const { serverToken: _token, ...rest } = args;
+    return await ctx.runMutation(internal.subscriptions.internalUpsertSubscriptionForServer, rest);
+  },
+});
+
+const serverHistoryArgs = {
+  clerkId: v.string(),
+  action: v.union(
+    v.literal("purchased"),
+    v.literal("upgraded"),
+    v.literal("downgraded"),
+    v.literal("cancelled"),
+    v.literal("expired"),
+    v.literal("renewed")
+  ),
+  previousPlanType: v.optional(v.string()),
+  newPlanType: v.optional(v.string()),
+  previousExpiresAt: v.optional(v.number()),
+  newExpiresAt: v.optional(v.number()),
+  cost: v.optional(v.number()),
+  notes: v.optional(v.string()),
+  migrationId: v.optional(v.string()),
+};
+
+export const internalAddSubscriptionHistoryForServer = internalMutation({
+  args: serverHistoryArgs,
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error(`User with clerkId ${args.clerkId} not found in Convex.`);
+    }
+
+    await ctx.db.insert("subscriptionHistory", {
+      userId: user._id,
+      action: args.action,
+      previousPlanType: args.previousPlanType,
+      newPlanType: args.newPlanType,
+      previousExpiresAt: args.previousExpiresAt ?? undefined,
+      newExpiresAt: args.newExpiresAt ?? undefined,
+      cost: args.cost ?? undefined,
+      notes: args.notes ?? args.migrationId ?? undefined,
+    });
+  },
+});
+
+export const addSubscriptionHistoryForServer = action({
+  args: {
+    serverToken: v.string(),
+    ...serverHistoryArgs,
+  },
+  handler: async (ctx, args) => {
+    if (!process.env.CONVEX_SERVER_TOKEN || args.serverToken !== process.env.CONVEX_SERVER_TOKEN) {
+      throw new Error("Unauthorized server token");
+    }
+
+    const { serverToken: _token, ...rest } = args;
+    await ctx.runMutation(internal.subscriptions.internalAddSubscriptionHistoryForServer, rest);
   },
 });
 

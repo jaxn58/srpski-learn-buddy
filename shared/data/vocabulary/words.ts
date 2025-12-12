@@ -1,4 +1,4 @@
-// Comprehensive vocabulary list for all 27 units from "Step by Step Serbian 1"
+// Comprehensive vocabulary list for all 27 units from "Serbian LearnBuddy"
 // Multi-language support: English & German (more languages coming soon)
 import { VocabWord } from './helpers';
 
