@@ -7,7 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { BookOpen, CheckCircle2, Clock, TrendingUp, Calendar, Award } from "lucide-react";
 import { Link } from "wouter";
-import { COURSE_WEEKS } from "@shared/data";
+import { COURSE_WEEKS, COURSE_MODULES, getModuleProgress } from "@shared/data";
 import { Sidebar } from "@/components/Sidebar";
 import { useTranslation } from "react-i18next";
 
@@ -31,24 +31,24 @@ export default function Progress() {
   }
 
   const completedUnits = progress?.completedUnits || [];
-  const totalUnits = 27;
-  const progressPercent = (completedUnits.length / totalUnits) * 100;
+  const totalLessons = 27;
+  const progressPercent = (completedUnits.length / totalLessons) * 100;
   const currentWeek = progress?.currentWeek || 1;
   const learningDuration = progress?.learningDuration || 12;
   const totalWeeks = learningDuration;
   const weekProgress = (currentWeek / totalWeeks) * 100;
 
   // Calculate estimated completion date
-  const startDate = progress?.startedAt ? new Date(progress.startedAt) : new Date();
+  const startDate = progress ? new Date(progress._creationTime) : new Date();
   const estimatedEndDate = new Date(startDate);
   estimatedEndDate.setDate(estimatedEndDate.getDate() + (learningDuration * 7));
 
   // Calculate days since start
   const daysSinceStart = Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   
-  // Calculate average units per week
+  // Calculate average lessons per week
   const weeksElapsed = Math.max(1, Math.floor(daysSinceStart / 7));
-  const avgUnitsPerWeek = (completedUnits.length / weeksElapsed).toFixed(1);
+  const avgLessonsPerWeek = (completedUnits.length / weeksElapsed).toFixed(1);
 
   // Get current week info
   const currentWeekInfo = COURSE_WEEKS.find(w => w.weekNumber === currentWeek);
@@ -56,7 +56,7 @@ export default function Progress() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex-1 md:ml-64 w-full">
       <header className="border-b bg-card">
         <div className="container py-4">
           <div className="flex items-center gap-4">
@@ -81,7 +81,7 @@ export default function Progress() {
                 <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
+                <div className="text-2xl font-bold">{completedUnits.length}/{totalLessons}</div>
                 <p className="text-xs text-muted-foreground">{t('progress.unitsCompleted')}</p>
                 <ProgressBar value={progressPercent} className="mt-2" />
               </CardContent>
@@ -105,7 +105,7 @@ export default function Progress() {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{avgUnitsPerWeek}</div>
+                <div className="text-2xl font-bold">{avgLessonsPerWeek}</div>
                 <p className="text-xs text-muted-foreground">{t('progress.unitsPerWeek')}</p>
               </CardContent>
             </Card>
@@ -176,53 +176,38 @@ export default function Progress() {
             </CardContent>
           </Card>
 
-          {/* Units Progress Grid */}
+          {/* Modules Progress Overview */}
           <Card>
             <CardHeader>
               <CardTitle>{t('progress.unitsOverview')}</CardTitle>
               <CardDescription>{t('progress.unitsOverviewDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-9 gap-2">
-                {Array.from({ length: totalUnits }, (_, i) => i + 1).map((unitNum) => {
-                  const isCompleted = completedUnits.includes(unitNum);
-                  const isCurrent = progress?.currentUnit === unitNum;
+              <div className="space-y-6">
+                {COURSE_MODULES.map((module) => {
+                  const moduleProgress = getModuleProgress(module.id, completedUnits);
+                  const moduleTitle = i18n.language === 'de' ? module.titleGerman : module.titleEnglish;
                   
                   return (
-                    <div
-                      key={unitNum}
-                      className={`
-                        aspect-square rounded-lg border-2 flex items-center justify-center font-semibold
-                        ${isCompleted 
-                          ? 'bg-green-50 border-green-500 text-green-700' 
-                          : isCurrent
-                          ? 'bg-blue-50 border-blue-500 text-blue-700'
-                          : 'bg-gray-50 border-gray-200 text-gray-400'
-                        }
-                      `}
-                    >
-                      {isCompleted ? (
-                        <CheckCircle2 className="h-5 w-5" />
-                      ) : (
-                        <span className="text-sm">{unitNum}</span>
-                      )}
+                    <div key={module.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="text-sm">
+                            {t('units.module', { number: module.number })}
+                          </Badge>
+                          <span className="font-semibold">{moduleTitle}</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {t('progress.lessonsCompleted', { 
+                            completed: moduleProgress.completed, 
+                            total: moduleProgress.total 
+                          })}
+                        </span>
+                      </div>
+                      <ProgressBar value={moduleProgress.percentage} />
                     </div>
                   );
                 })}
-              </div>
-              <div className="flex gap-6 mt-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-green-50 border-2 border-green-500"></div>
-                  <span>{t('progress.completed')}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-blue-50 border-2 border-blue-500"></div>
-                  <span>{t('progress.current')}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-gray-50 border-2 border-gray-200"></div>
-                  <span>{t('progress.notStarted')}</span>
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -304,6 +289,13 @@ export default function Progress() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Footer */}
+        <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
+          <div className="text-center text-sm text-muted-foreground">
+            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
+          </div>
+        </footer>
       </main>
       </div>
     </div>

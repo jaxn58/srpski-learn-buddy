@@ -14,12 +14,62 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 
 // Helper to check unit access
 async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
+  console.log(`[Units] checkUnitAccess called for unit ${unitNumber}`);
+  
   const user = await getCurrentUser(ctx);
-  if (!user) return false;
+  if (!user) {
+    console.log(`[Units] checkUnitAccess: User not authenticated`);
+    return false;
+  }
+
+  console.log(`[Units] checkUnitAccess: User found: ${user._id}, role: ${user.role}, isBetaTester: ${user.isBetaTester}`);
 
   // Admins have full access
   if (user.role === "admin" || user.role === "superadmin") {
+    console.log(`[Units] checkUnitAccess: Admin access granted for unit ${unitNumber}`);
     return true;
+  }
+
+  // Fetch user progress to see which units are unlocked
+  const progress = await ctx.db
+    .query("userProgress")
+    .withIndex("by_user", (q) => q.eq("userId", user._id))
+    .first();
+
+  const completedUnits = progress?.completedUnits ?? [];
+  const currentUnit = progress?.currentUnit ?? 1;
+  
+  // Unit is unlocked if:
+  // 1. It's already completed
+  // 2. currentUnit points to this unit or higher (next unit to work on)
+  // 3. Previous unit is completed (unitNumber - 1 in completedUnits)
+  const isCompleted = completedUnits.includes(unitNumber);
+  const isCurrentOrNext = unitNumber <= currentUnit;
+  const previousUnitCompleted = unitNumber === 1 || completedUnits.includes(unitNumber - 1);
+  
+  const maxUnlockedUnit = Math.max(1, currentUnit, ...completedUnits);
+  const unlockedByProgress = isCompleted || isCurrentOrNext || previousUnitCompleted;
+
+  console.log(`[Units] checkUnitAccess: Progress check:`, {
+    currentUnit,
+    completedUnits,
+    maxUnlockedUnit,
+    unitNumber,
+    unlockedByProgress,
+    isCompleted,
+    isCurrentOrNext,
+    previousUnitCompleted,
+    breakdown: {
+      'isCompleted': isCompleted,
+      'isCurrentOrNext': isCurrentOrNext,
+      'previousUnitCompleted': previousUnitCompleted,
+    },
+  });
+
+  if (!unlockedByProgress) {
+    console.log(`[Units] checkUnitAccess: Unit ${unitNumber} NOT unlocked by progress`);
+  } else {
+    console.log(`[Units] checkUnitAccess: Unit ${unitNumber} unlocked by progress ✓`);
   }
 
   // Check for active subscription
@@ -30,20 +80,26 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     .first();
 
   if (subscription?.maxAccessibleUnits && unitNumber <= subscription.maxAccessibleUnits) {
+    console.log(`[Units] checkUnitAccess: Access granted via subscription (maxAccessibleUnits: ${subscription.maxAccessibleUnits})`);
     return true;
   }
 
-  // Paid subscriptions get full access
+  // Paid subscriptions get full access (if within total course length)
   if (subscription && subscription.planType !== "beta" && unitNumber <= 27) {
+    console.log(`[Units] checkUnitAccess: Access granted via paid subscription`);
     return true;
   }
 
-  // Fallback: Beta Tester Flag
-  if (user.isBetaTester && unitNumber <= 5) {
+  // Fallback: Beta Tester Flag (Module 1: Units 1-6)
+  if (user.isBetaTester && unitNumber <= 6) {
+    console.log(`[Units] checkUnitAccess: Access granted via Beta Tester flag`);
     return true;
   }
 
-  return false;
+  const finalResult = unlockedByProgress;
+  console.log(`[Units] checkUnitAccess: Final result for unit ${unitNumber}: ${finalResult ? 'GRANTED' : 'DENIED'}`);
+  
+  return finalResult;
 }
 
 // Get unit explanation
@@ -57,8 +113,8 @@ export const getExplanation = query({
       throw new Error("UNIT_LOCKED");
     }
 
-    const user = await getCurrentUser(ctx);
-    const userLanguage = user?.learningLanguage || 'en';
+    // BETA: Force English for all users
+    const userLanguage = 'en';
     
     const explanation = await ctx.db
       .query("unitExplanations")
@@ -69,23 +125,7 @@ export const getExplanation = query({
       return null;
     }
     
-    // Debug logging
-    console.log(`[getExplanation] Unit ${args.unitNumber}: userLanguage=${userLanguage}, hasOverviewGerman=${!!explanation.overviewGerman}`);
-    
-    // Return German version if available and user language is German
-    if (userLanguage === 'de' && explanation.overviewGerman) {
-      console.log(`[getExplanation] Returning German version for Unit ${args.unitNumber}`);
-      return {
-        ...explanation,
-        overview: explanation.overviewGerman,
-        grammarExplained: explanation.grammarExplainedGerman || explanation.grammarExplained,
-        practiceExamples: explanation.practiceExamplesGerman || explanation.practiceExamples,
-        bookReference: explanation.bookReferenceGerman || explanation.bookReference,
-      };
-    }
-    
-    // Return English version (default)
-    console.log(`[getExplanation] Returning English version for Unit ${args.unitNumber}`);
+    // BETA: Return English version only (skip German translation logic)
     return explanation;
   },
 });
@@ -97,6 +137,94 @@ export const getAllExplanations = query({
   },
 });
 
+// ============= NEW MULTI-LANGUAGE CONTENT TABLE =============
+
+// Insert unit content (for migration script - no auth required)
+export const insertUnitContent = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    contentType: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Check if already exists
+    const existing = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q
+          .eq("unitNumber", args.unitNumber)
+          .eq("language", args.language)
+          .eq("contentType", args.contentType)
+      )
+      .first();
+
+    if (existing) {
+      // Update existing
+      await ctx.db.patch(existing._id, {
+        content: args.content,
+      });
+      return existing._id;
+    }
+
+    // Insert new
+    return await ctx.db.insert("unitContent", {
+      unitNumber: args.unitNumber,
+      language: args.language,
+      contentType: args.contentType,
+      content: args.content,
+    });
+  },
+});
+
+// Get unit content for a specific language
+export const getUnitContent = query({
+  args: {
+    unitNumber: v.number(),
+    language: v.optional(v.string()), // Default: "en"
+  },
+  handler: async (ctx, args) => {
+    const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
+    if (!hasAccess) {
+      throw new Error("UNIT_LOCKED");
+    }
+
+    const language = args.language || "en";
+
+    // Get all content for this unit and language
+    const contents = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", args.unitNumber).eq("language", language)
+      )
+      .collect();
+
+    // Convert array to object with contentType as keys
+    const result: Record<string, string> = {};
+    for (const content of contents) {
+      result[content.contentType] = content.content;
+    }
+
+    // If no content found in new table, fallback to old table (for backward compatibility)
+    if (contents.length === 0) {
+      const explanation = await ctx.db
+        .query("unitExplanations")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+        .first();
+
+      if (explanation) {
+        // Map old structure to new structure
+        result.overview = explanation.overview;
+        result.grammar = explanation.grammarExplained;
+        result.practice = explanation.practiceExamples;
+        // Note: bookReference is no longer migrated
+      }
+    }
+
+    return result;
+  },
+});
+
 // Create/update unit explanation (admin only)
 export const upsertExplanation = mutation({
   args: {
@@ -104,7 +232,6 @@ export const upsertExplanation = mutation({
     overview: v.string(),
     grammarExplained: v.string(),
     practiceExamples: v.string(),
-    bookReference: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -122,7 +249,6 @@ export const upsertExplanation = mutation({
         overview: args.overview,
         grammarExplained: args.grammarExplained,
         practiceExamples: args.practiceExamples,
-        bookReference: args.bookReference,
       });
       return existing._id;
     }
@@ -138,7 +264,6 @@ export const updateGermanTranslations = mutation({
     overviewGerman: v.optional(v.string()),
     grammarExplainedGerman: v.optional(v.string()),
     practiceExamplesGerman: v.optional(v.string()),
-    bookReferenceGerman: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -159,7 +284,6 @@ export const updateGermanTranslations = mutation({
     if (args.overviewGerman !== undefined) updates.overviewGerman = args.overviewGerman;
     if (args.grammarExplainedGerman !== undefined) updates.grammarExplainedGerman = args.grammarExplainedGerman;
     if (args.practiceExamplesGerman !== undefined) updates.practiceExamplesGerman = args.practiceExamplesGerman;
-    if (args.bookReferenceGerman !== undefined) updates.bookReferenceGerman = args.bookReferenceGerman;
 
     await ctx.db.patch(existing._id, updates);
     return existing._id;
@@ -174,7 +298,6 @@ export const updateGermanTranslationsScript = mutation({
     overviewGerman: v.optional(v.string()),
     grammarExplainedGerman: v.optional(v.string()),
     practiceExamplesGerman: v.optional(v.string()),
-    bookReferenceGerman: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -190,7 +313,6 @@ export const updateGermanTranslationsScript = mutation({
     if (args.overviewGerman !== undefined) updates.overviewGerman = args.overviewGerman;
     if (args.grammarExplainedGerman !== undefined) updates.grammarExplainedGerman = args.grammarExplainedGerman;
     if (args.practiceExamplesGerman !== undefined) updates.practiceExamplesGerman = args.practiceExamplesGerman;
-    if (args.bookReferenceGerman !== undefined) updates.bookReferenceGerman = args.bookReferenceGerman;
 
     await ctx.db.patch(existing._id, updates);
     return existing._id;
@@ -205,7 +327,6 @@ export const seedExplanation = mutation({
     overview: v.string(),
     grammarExplained: v.string(),
     practiceExamples: v.string(),
-    bookReference: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Check if already exists
@@ -220,13 +341,35 @@ export const seedExplanation = mutation({
         overview: args.overview,
         grammarExplained: args.grammarExplained,
         practiceExamples: args.practiceExamples,
-        bookReference: args.bookReference,
       });
       return existing._id;
     }
 
     // Insert new
     return await ctx.db.insert("unitExplanations", args);
+  },
+});
+
+// Remove bookReference fields from all unitExplanations (cleanup migration - no auth required for one-time cleanup)
+export const removeBookReferenceFields = mutation({
+  handler: async (ctx) => {
+    const allExplanations = await ctx.db.query("unitExplanations").collect();
+    let updated = 0;
+    
+    for (const explanation of allExplanations) {
+      // Get full document to check for bookReference fields
+      const doc = await ctx.db.get(explanation._id);
+      if (doc && ('bookReference' in doc || 'bookReferenceGerman' in doc)) {
+        // Create new object without bookReference fields
+        const { bookReference, bookReferenceGerman, ...cleanDoc } = doc as any;
+        
+        // Replace document without those fields
+        await ctx.db.replace(explanation._id, cleanDoc);
+        updated++;
+      }
+    }
+    
+    return { updated, total: allExplanations.length };
   },
 });
 

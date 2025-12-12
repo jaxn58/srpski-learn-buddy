@@ -5,6 +5,7 @@
 
 // Course data
 export * from "./course/units";
+export * from "./course/modules";
 export * from "./course/weeks";
 export * from "./course/revisions";
 
@@ -14,6 +15,12 @@ export * from "./vocabulary/helpers";
 
 // Learning plans
 export * from "./learning/plans";
+
+// Pronunciation audio
+export * from "./pronunciation-audio";
+
+// Vocabulary audio
+export * from "./vocabulary-audio";
 
 
 
