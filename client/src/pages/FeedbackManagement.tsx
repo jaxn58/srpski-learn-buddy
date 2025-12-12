@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { MessageSquare, Eye, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -15,16 +16,21 @@ import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 
 
+type FeedbackSubmissionDoc = Doc<"feedbackSubmissions">;
+type FeedbackStatus = "new" | "reviewed" | "in_progress" | "completed" | "rejected";
+type FeedbackType = "bug" | "feature" | "improvement" | "other";
+
 export default function FeedbackManagement() {
   const { user, loading: authLoading } = useAuth();
-  const submissions = useQuery(api.feedback.getAllSubmissions);
+  const submissions = useQuery(api.feedback.getAllSubmissions) as FeedbackSubmissionDoc[] | undefined;
   const submissionsLoading = submissions === undefined;
   
   const updateStatusMutation = useMutation(api.feedback.updateStatus);
   const deleteFeedbackMutation = useMutation(api.feedback.deleteFeedback);
   
-  const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
+  const [selectedFeedback, setSelectedFeedback] = useState<FeedbackSubmissionDoc | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
+  const [currentStatus, setCurrentStatus] = useState<FeedbackStatus>('new');
 
   if (authLoading || submissionsLoading) {
     return (
@@ -52,31 +58,40 @@ export default function FeedbackManagement() {
     );
   }
 
-  const handleStatusChange = async (id: string, status: string, notes?: string) => {
+  const handleSaveChanges = async () => {
+    if (!selectedFeedback) return;
+    
     try {
       await updateStatusMutation({
-        id: id as any,
-        status: status as any,
-        adminNotes: notes
+        id: selectedFeedback._id,
+        status: currentStatus,
+        adminNotes: adminNotes || undefined
       });
-      toast.success('Status updated successfully');
-    } catch (error) {
-      toast.error('Failed to update status');
+      toast.success('Feedback updated successfully');
+      // Update selectedFeedback with new values to reflect changes in dialog
+      setSelectedFeedback({
+        ...selectedFeedback,
+        status: currentStatus,
+        adminNotes: adminNotes
+      });
+    } catch (error: any) {
+      console.error('Update error:', error);
+      toast.error(error?.message || 'Failed to update feedback');
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: Id<"feedbackSubmissions">) => {
     if (!confirm('Are you sure you want to delete this feedback?')) return;
     
     try {
-      await deleteFeedbackMutation({ id: id as any });
+      await deleteFeedbackMutation({ id });
       toast.success('Feedback deleted successfully');
     } catch (error) {
       toast.error('Failed to delete feedback');
     }
   };
 
-  const getTypeIcon = (type: string) => {
+  const getTypeIcon = (type: FeedbackType | string) => {
     switch (type) {
       case 'bug': return '🐛';
       case 'feature': return '✨';
@@ -85,7 +100,7 @@ export default function FeedbackManagement() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: FeedbackStatus | string) => {
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800';
       case 'reviewed': return 'bg-yellow-100 text-yellow-800';
@@ -99,7 +114,7 @@ export default function FeedbackManagement() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 md:ml-64 w-full flex flex-col">
         <header className="border-b bg-card">
           <div className="container py-4">
             <div className="flex items-center justify-between">
@@ -149,8 +164,8 @@ export default function FeedbackManagement() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  submissions?.map((feedback) => (
-                    <TableRow key={feedback.id}>
+                  submissions?.map((feedback: FeedbackSubmissionDoc) => (
+                    <TableRow key={feedback._id}>
                       <TableCell>
                         <span className="text-lg">{getTypeIcon(feedback.type)}</span>
                       </TableCell>
@@ -173,6 +188,7 @@ export default function FeedbackManagement() {
                                 onClick={() => {
                                   setSelectedFeedback(feedback);
                                   setAdminNotes(feedback.adminNotes || '');
+                                  setCurrentStatus(feedback.status);
                                 }}
                               >
                                 <Eye className="h-4 w-4" />
@@ -184,7 +200,7 @@ export default function FeedbackManagement() {
                                   {getTypeIcon(feedback.type)} {feedback.title}
                                 </DialogTitle>
                                 <DialogDescription>
-                                  Submitted on {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleString('de-DE') : 'N/A'}
+                                  Submitted on {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'N/A'}
                                 </DialogDescription>
                               </DialogHeader>
                               
@@ -201,8 +217,8 @@ export default function FeedbackManagement() {
                                     <div>
                                       <h3 className="font-semibold mb-2">Status</h3>
                                       <Select
-                                        value={feedback.status}
-                                        onValueChange={(value) => handleStatusChange(feedback.id, value, adminNotes)}
+                                        value={currentStatus}
+                                        onValueChange={(value: FeedbackStatus) => setCurrentStatus(value)}
                                       >
                                         <SelectTrigger>
                                           <SelectValue />
@@ -228,9 +244,9 @@ export default function FeedbackManagement() {
                                       <Button
                                         className="mt-2"
                                         size="sm"
-                                        onClick={() => handleStatusChange(feedback.id, feedback.status, adminNotes)}
+                                        onClick={handleSaveChanges}
                                       >
-                                        Save Notes
+                                        Save Changes
                                       </Button>
                                     </div>
                                   </>
@@ -254,7 +270,7 @@ export default function FeedbackManagement() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleDelete(feedback.id)}
+                              onClick={() => handleDelete(feedback._id)}
                             >
                               <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>

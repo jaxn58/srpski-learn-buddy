@@ -57,11 +57,11 @@ Beide Werte bekommst du im Clerk-Dashboard bei deinem Projekt.
 
 #### 3.3 Weitere wichtige Server-ENV (Beispiele)
 
-- `DATABASE_URL=...`
 - `JWT_SECRET=...`
+- `CONVEX_URL=...` (Convex deployment URL)
 - ggf. weitere Werte, die du lokal in `.env` nutzt (ohne `VITE_`).
 
-> **Hinweis:** `SERVER_URL` brauchst du auf dem **Server selbst** normalerweise nicht. Wichtig ist sie für **Convex** (siehe nächster Abschnitt).
+> **Hinweis:** `SERVER_URL` brauchst du auf dem **Server selbst** normalerweise nicht. Wichtig ist sie für **Convex** (siehe nächster Abschnitt). Die Datenhaltung erfolgt vollständig über Convex, eine separate Datenbank ist nicht mehr erforderlich.
 
 ---
 

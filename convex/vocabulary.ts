@@ -234,10 +234,11 @@ export const getUserVocabularyProgress = query({
       .withIndex("by_user", (q) => q.eq("userId", user._id));
 
     if (args.unitNumber !== undefined) {
+      const unitNumber = args.unitNumber;
       query = ctx.db
         .query("vocabulary")
         .withIndex("by_user_unit", (q) =>
-          q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+          q.eq("userId", user._id).eq("unitNumber", unitNumber)
         );
     }
 

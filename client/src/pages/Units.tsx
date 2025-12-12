@@ -15,7 +15,7 @@ export default function Units() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   const progress = useQuery(api.progress.getUserProgress);
-  const masteredUnits = useQuery(api.progress.getMasteredUnits);
+  const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
 
   const isBetaTester = Boolean(user?.isBetaTester);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";

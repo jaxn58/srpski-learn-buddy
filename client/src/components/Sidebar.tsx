@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus, Trophy, Star, Flame, Award, CreditCard, Mail } from "lucide-react";
+import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus, Trophy, Star, Flame, Award, CreditCard, Mail, Layers, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 import { Link, useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
@@ -55,6 +56,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { t } = useTranslation();
+  const debugRunId = "post-fix";
   
   // Fetch gamification stats from Convex
   const progress = useQuery(api.progress.getUserProgress);
@@ -62,8 +64,25 @@ export function Sidebar() {
   const badgeCount = useQuery(api.badges.getBadgeCount);
   const badgeData = badgeCount !== undefined ? { count: badgeCount } : undefined;
 
+  // Debug: Log when user data changes
+  useEffect(() => {
+    if (user) {
+      console.log('[Sidebar] User data updated:', {
+        totalXP: user.totalXP,
+        level: user.level,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [user]);
+
   const navItems: NavItem[] = [
     { label: t('sidebar.dashboard'), path: "/dashboard", icon: <Home className="h-5 w-5" /> },
+    { label: t('sidebar.units'), path: "/units", icon: <Layers className="h-5 w-5" /> },
+    {
+      label: t('sidebar.aiLearnBuddy'),
+      path: "/chat",
+      icon: <Brain className="h-5 w-5 text-yellow-500" />,
+    },
     { label: t('sidebar.practiceVocab'), path: "/vocabulary", icon: <BookOpen className="h-5 w-5" /> },
     { label: t('sidebar.viewAllWords'), path: "/vocabulary-list", icon: <FileText className="h-5 w-5" /> },
     { label: t('sidebar.viewProgress'), path: "/progress", icon: <TrendingUp className="h-5 w-5" /> },
@@ -73,11 +92,13 @@ export function Sidebar() {
 
   const adminItems: NavItem[] = [
     { label: t('sidebar.userManagement'), path: "/admin", icon: <Users className="h-4 w-4" /> },
+    { label: "Prompt Admin", path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
     { label: t('sidebar.feedback'), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
-    { label: t('sidebar.betaRegistrations'), path: "/admin/beta-registrations", icon: <UserPlus className="h-4 w-4" /> },
     { label: t('sidebar.emailTemplates'), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
     { label: t('sidebar.subscriptionAnalytics'), path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
   ];
+
+  useEffect(() => {}, []);
 
   const isActive = (path: string) => location === path;
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
@@ -107,6 +128,7 @@ export function Sidebar() {
           collapsed ? "w-20" : "w-64",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
+        data-sidebar="true"
       >
         {/* Header */}
         <div className="p-4 border-b flex items-center justify-between">
@@ -183,57 +205,66 @@ export function Sidebar() {
               </div>
               
               {/* Gamification Stats - Compact Rows */}
-              {user && (
-                <div className="space-y-1.5 pt-2 border-t border-primary/10">
-                  {/* Level */}
-                  <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Trophy className="h-3.5 w-3.5 text-yellow-600" />
-                      <span className="text-xs font-medium text-gray-600">{t('sidebar.level')}</span>
+              {user && (() => {
+                const totalXP = user.totalXP || 0;
+                const currentLevel = user.level || 1;
+                const xpInCurrentLevel = totalXP % 300;
+                const xpToNextLevel = 300 - xpInCurrentLevel;
+                const levelProgress = (xpInCurrentLevel / 300) * 100;
+                
+                return (
+                  <div className="space-y-1.5 pt-2 border-t border-primary/10">
+                    {/* Level */}
+                    <div className="bg-white/50 rounded px-2 py-1.5 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Trophy className="h-3.5 w-3.5 text-yellow-600" />
+                          <span className="text-xs font-medium text-gray-600">{t('sidebar.level')}</span>
+                        </div>
+                        <span className="text-base font-bold text-gray-900">{currentLevel}</span>
+                      </div>
+                      <Progress value={levelProgress} className="h-1.5" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">{xpInCurrentLevel}/300 XP</span>
+                        <span className="text-xs text-gray-500">{t('sidebar.xpToNext', { count: xpToNextLevel })}</span>
+                      </div>
                     </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-base font-bold text-gray-900">{user.level || 1}</span>
-                      <span className="text-xs text-gray-500">{t('sidebar.xpToNext', { count: 300 - ((user.totalXP || 0) % 300) })}</span>
+                    
+                    {/* Total XP */}
+                    <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Star className="h-3.5 w-3.5 text-blue-600" />
+                        <span className="text-xs font-medium text-gray-600">{t('sidebar.totalXP')}</span>
+                      </div>
+                      <span className="text-base font-bold text-gray-900">{totalXP} XP</span>
+                    </div>
+                    
+                    {/* Streak */}
+                    <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Flame className="h-3.5 w-3.5 text-orange-600" />
+                        <span className="text-xs font-medium text-gray-600">{t('sidebar.streak')}</span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-base font-bold text-gray-900">{user.currentStreak || 0} 🔥</span>
+                        <span className="text-xs text-gray-500">{t('sidebar.daysInRow')}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Badges */}
+                    <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Award className="h-3.5 w-3.5 text-purple-600" />
+                        <span className="text-xs font-medium text-gray-600">{t('sidebar.badges')}</span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-base font-bold text-gray-900">{badgeData?.count || 0}</span>
+                        <span className="text-xs text-gray-500">{t('sidebar.achievements')}</span>
+                      </div>
                     </div>
                   </div>
-                  
-                  {/* Total XP */}
-                  <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Star className="h-3.5 w-3.5 text-blue-600" />
-                      <span className="text-xs font-medium text-gray-600">{t('sidebar.totalXP')}</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-base font-bold text-gray-900">{user.totalXP || 0}</span>
-                      <span className="text-xs text-gray-500">{t('sidebar.pointsEarned')}</span>
-                    </div>
-                  </div>
-                  
-                  {/* Streak */}
-                  <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Flame className="h-3.5 w-3.5 text-orange-600" />
-                      <span className="text-xs font-medium text-gray-600">{t('sidebar.streak')}</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-base font-bold text-gray-900">{user.currentStreak || 0} 🔥</span>
-                      <span className="text-xs text-gray-500">{t('sidebar.daysInRow')}</span>
-                    </div>
-                  </div>
-                  
-                  {/* Badges */}
-                  <div className="flex items-center justify-between bg-white/50 rounded px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Award className="h-3.5 w-3.5 text-purple-600" />
-                      <span className="text-xs font-medium text-gray-600">{t('sidebar.badges')}</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-base font-bold text-gray-900">{badgeData?.count || 0}</span>
-                      <span className="text-xs text-gray-500">{t('sidebar.achievements')}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         )}
@@ -309,9 +340,6 @@ export function Sidebar() {
           </button>
         </div>
       </aside>
-
-      {/* Spacer for main content */}
-      <div className={cn("hidden md:block", collapsed ? "w-20" : "w-64")} />
     </>
   );
 }

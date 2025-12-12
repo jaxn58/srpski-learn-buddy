@@ -1,19 +1,19 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import { getAuth } from "@clerk/express";
-import type { User } from "../../drizzle/schema";
-import * as db from "../db";
+import type { ConvexUser } from "../convexUsers";
+import { fetchConvexUserByClerkId } from "../convexUsers";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
-  user: User | null;
+  user: ConvexUser | null;
   clerkUserId: string | null;
 };
 
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
-  let user: User | null = null;
+  let user: ConvexUser | null = null;
   let clerkUserId: string | null = null;
 
   try {
@@ -22,15 +22,7 @@ export async function createContext(
     clerkUserId = auth.userId;
 
     if (clerkUserId) {
-      // Look up user in our database by Clerk ID
-      const dbUser = await db.getUser(clerkUserId);
-      user = dbUser ?? null;
-      
-      // If user doesn't exist in our DB, they might be new
-      // The user sync will happen in the auth.me endpoint
-      if (!user) {
-        console.log(`[Auth] Clerk user ${clerkUserId} not found in database - will sync on auth.me call`);
-      }
+      user = await fetchConvexUserByClerkId(clerkUserId);
     }
   } catch (error) {
     // Authentication is optional for public procedures.

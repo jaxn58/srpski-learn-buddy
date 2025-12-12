@@ -1,5 +1,11 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, internalMutation, action, QueryCtx, MutationCtx, internalQuery } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import type { Id, Doc } from "./_generated/dataModel";
+
+type UserDoc = Doc<"users">;
+type FixUserNameResult = { success: boolean; userId: Id<"users">; name: string };
+type UpdateXpResult = { totalXP: number; level: number };
 
 // Helper to get the current user from Clerk identity
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -17,7 +23,49 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 // Get current authenticated user
 export const me = query({
   handler: async (ctx) => {
-    return await getCurrentUser(ctx);
+    try {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity) {
+        console.log('[users.me] No identity found - user not authenticated');
+        return null;
+      }
+
+      console.log('[users.me] Looking up user with Clerk ID:', {
+        clerkId: identity.subject,
+        email: identity.email,
+        name: identity.name,
+      });
+
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+        .first();
+
+      if (!user) {
+        console.log('[users.me] User not found in database:', {
+          clerkId: identity.subject,
+          email: identity.email,
+        });
+        return null;
+      }
+
+      console.log('[users.me] Found user:', {
+        userId: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        clerkId: user.clerkId,
+      });
+
+      return user;
+    } catch (error) {
+      console.error('[users.me] Error fetching user:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      // Return null instead of throwing to allow sync to proceed
+      return null;
+    }
   },
 });
 
@@ -33,8 +81,30 @@ export const syncUser = mutation({
     ))
   },
   handler: async (ctx, args) => {
+    console.log('[syncUser] Starting user sync...', {
+      learningLanguage: args.learningLanguage,
+    });
+
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) {
+      const error = new Error("Not authenticated - no identity found");
+      console.error('[syncUser] Authentication failed:', error);
+      throw error;
+    }
+
+    console.log('[syncUser] Identity retrieved:', {
+      subject: identity.subject,
+      name: identity.name,
+      email: identity.email,
+      issuer: identity.issuer,
+    });
+
+    // Validate identity.subject (Clerk ID)
+    if (!identity.subject || typeof identity.subject !== 'string') {
+      const error = new Error(`Invalid Clerk ID: ${identity.subject}`);
+      console.error('[syncUser] Invalid Clerk ID:', error);
+      throw error;
+    }
 
     // Check if user already exists
     const existing = await ctx.db
@@ -43,10 +113,47 @@ export const syncUser = mutation({
       .first();
 
     if (existing) {
-      // Update last active time
-      await ctx.db.patch(existing._id, {
-        lastActiveDate: Date.now(),
+      console.log('[syncUser] User already exists, updating lastActiveDate:', {
+        userId: existing._id,
+        clerkId: identity.subject,
+        email: existing.email,
+        currentRole: existing.role,
       });
+      
+      // Special case: Ensure hello@jacksenn.me is always superadmin
+      const updates: any = {
+        lastActiveDate: Date.now(),
+      };
+      
+      // BETA FIX: Update learningLanguage if provided and different from current
+      if (args.learningLanguage && args.learningLanguage !== existing.learningLanguage) {
+        console.log('[syncUser] Updating learningLanguage:', {
+          userId: existing._id,
+          from: existing.learningLanguage,
+          to: args.learningLanguage,
+        });
+        updates.learningLanguage = args.learningLanguage;
+      }
+      
+      if (existing.email === "hello@jacksenn.me" && existing.role !== "superadmin") {
+        console.log('[syncUser] Upgrading hello@jacksenn.me to superadmin');
+        updates.role = "superadmin";
+        updates.isActive = true;
+        updates.isBetaTester = true;
+      }
+      
+      await ctx.db.patch(existing._id, updates);
+
+      // Update progress.lastActivityAt so Admin "Last Activity" is fresh on login
+      const existingProgress = await ctx.db
+        .query("userProgress")
+        .withIndex("by_user", (q) => q.eq("userId", existing._id))
+        .first();
+      if (existingProgress) {
+        const ts = Date.now();
+        await ctx.db.patch(existingProgress._id, { lastActivityAt: ts });
+      }
+
       return existing._id;
     }
 
@@ -57,38 +164,67 @@ export const syncUser = mutation({
     const shouldBeBetaTester =
       betaMode && (!betaEnd || now <= betaEnd);
 
+    console.log('[syncUser] Creating new user:', {
+      clerkId: identity.subject,
+      name: identity.name,
+      email: identity.email,
+      betaMode,
+      shouldBeBetaTester,
+      learningLanguage: args.learningLanguage || "en",
+    });
+
     // User's learning language (default to English if not provided)
     const userLanguage = args.learningLanguage || "en";
 
-    // Create new user - always active, beta testers get badge automatically
-    const userId = await ctx.db.insert("users", {
-      clerkId: identity.subject,
-      name: identity.name ?? undefined,
-      email: identity.email ?? undefined,
-      loginMethod: "clerk",
-      role: "student",
-      learningLanguage: userLanguage, // NEW: Set user's learning language
-      isActive: true, // New users are automatically active (no approval needed)
-      // During beta mode, mark new users automatically as beta testers
-      isBetaTester: shouldBeBetaTester,
-      totalXP: 0,
-      level: 1,
-      currentStreak: 0,
-      longestStreak: 0,
-      lastActiveDate: Date.now(),
-    });
+    try {
+      // Create new user - always active, beta testers get badge automatically
+      const userId = await ctx.db.insert("users", {
+        clerkId: identity.subject,
+        name: identity.name ?? undefined,
+        email: identity.email ?? undefined,
+        loginMethod: "clerk",
+        role: "student",
+        learningLanguage: userLanguage,
+        isActive: true, // New users are automatically active (no approval needed)
+        // During beta mode, mark new users automatically as beta testers
+        isBetaTester: shouldBeBetaTester,
+        totalXP: 0,
+        level: 1,
+        currentStreak: 0,
+        longestStreak: 0,
+        lastActiveDate: Date.now(),
+      });
 
-    // Create initial user progress
-    await ctx.db.insert("userProgress", {
-      userId,
-      currentWeek: 1,
-      currentUnit: 1,
-      completedUnits: [],
-      learningDuration: 12,
-      uiLanguage: "en",
-    });
+      console.log('[syncUser] User created successfully:', {
+        userId,
+        clerkId: identity.subject,
+      });
 
-    return userId;
+      // Create initial user progress
+      await ctx.db.insert("userProgress", {
+        userId,
+        currentWeek: 1,
+        currentUnit: 1,
+        completedUnits: [],
+        learningDuration: 12,
+        uiLanguage: "en",
+        lastActivityAt: Date.now(),
+      });
+
+      console.log('[syncUser] User progress created successfully:', {
+        userId,
+      });
+
+      return userId;
+    } catch (error) {
+      console.error('[syncUser] Failed to create user:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        clerkId: identity.subject,
+        email: identity.email,
+      });
+      throw error;
+    }
   },
 });
 
@@ -206,8 +342,8 @@ export const updateUserXP = mutation({
     if (!user) throw new Error("Not authenticated");
 
     const newTotalXP = user.totalXP + args.xpToAdd;
-    // Simple leveling: every 100 XP = 1 level
-    const newLevel = Math.floor(newTotalXP / 100) + 1;
+    // Level calculation: every 300 XP = 1 level (consistent with Drizzle)
+    const newLevel = Math.floor(newTotalXP / 300) + 1;
 
     await ctx.db.patch(user._id, {
       totalXP: newTotalXP,
@@ -225,6 +361,79 @@ export const makeSuperadmin = mutation({
     email: v.string(),
   },
   handler: async (ctx, args) => {
+    console.log('[makeSuperadmin] Starting for email:', args.email);
+    
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (!user) {
+      console.error('[makeSuperadmin] User not found:', args.email);
+      throw new Error(`User with email ${args.email} not found`);
+    }
+
+    console.log('[makeSuperadmin] Found user:', {
+      userId: user._id,
+      clerkId: user.clerkId,
+      currentRole: user.role,
+    });
+
+    await ctx.db.patch(user._id, {
+      role: "superadmin",
+      isActive: true,
+      isBetaTester: true,
+    });
+
+    console.log('[makeSuperadmin] Successfully updated user to superadmin');
+
+    return { success: true, userId: user._id };
+  },
+});
+
+// Make user superadmin by Clerk ID (more reliable)
+export const makeSuperadminByClerkId = mutation({
+  args: {
+    clerkId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    console.log('[makeSuperadminByClerkId] Starting for clerkId:', args.clerkId);
+    
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+
+    if (!user) {
+      console.error('[makeSuperadminByClerkId] User not found:', args.clerkId);
+      throw new Error(`User with Clerk ID ${args.clerkId} not found`);
+    }
+
+    console.log('[makeSuperadminByClerkId] Found user:', {
+      userId: user._id,
+      email: user.email,
+      currentRole: user.role,
+    });
+
+    await ctx.db.patch(user._id, {
+      role: "superadmin",
+      isActive: true,
+      isBetaTester: true,
+    });
+
+    console.log('[makeSuperadminByClerkId] Successfully updated user to superadmin');
+
+    return { success: true, userId: user._id, user };
+  },
+});
+
+// Fix user name (for debugging - remove after use)
+export const fixUserName = internalMutation({
+  args: {
+    email: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", args.email))
@@ -235,12 +444,24 @@ export const makeSuperadmin = mutation({
     }
 
     await ctx.db.patch(user._id, {
-      role: "superadmin",
-      isActive: true,
-      isBetaTester: true,
+      name: args.name,
     });
 
-    return { success: true, userId: user._id };
+    return { success: true, userId: user._id, name: args.name };
+  },
+});
+
+// Action to fix user name (can be called without auth)
+export const fixUserNameAction = action({
+  args: {
+    email: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args): Promise<FixUserNameResult> => {
+    return await ctx.runMutation(internal.users.fixUserName, {
+      email: args.email,
+      name: args.name,
+    });
   },
 });
 
@@ -339,6 +560,114 @@ export const updateStreak = mutation({
     });
 
     return { currentStreak: newStreak, longestStreak };
+  },
+});
+
+// Internal mutation to update XP by Clerk ID (called from action)
+export const internalUpdateXPByClerkId = internalMutation({
+  args: {
+    clerkId: v.string(),
+    xpToAdd: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Validate input parameters
+    if (!args.clerkId || typeof args.clerkId !== 'string') {
+      throw new Error(`Invalid clerkId: ${args.clerkId}`);
+    }
+    if (typeof args.xpToAdd !== 'number' || args.xpToAdd <= 0) {
+      throw new Error(`Invalid xpToAdd: ${args.xpToAdd} (must be a positive number)`);
+    }
+
+    console.log(`[Convex] internalUpdateXPByClerkId: Looking up user with clerkId=${args.clerkId}, xpToAdd=${args.xpToAdd}`);
+    
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+    
+    if (!user) {
+      const errorMsg = `User with Clerk ID ${args.clerkId} not found in Convex database. User may need to be synced via syncUser mutation.`;
+      console.error(`[Convex] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+
+    const oldTotalXP = user.totalXP || 0;
+    const oldLevel = user.level || 1;
+    const newTotalXP = oldTotalXP + args.xpToAdd;
+    // Level calculation: every 300 XP = 1 level (consistent with Drizzle)
+    const newLevel = Math.floor(newTotalXP / 300) + 1;
+
+    console.log(`[Convex] Updating user XP: ${oldTotalXP} -> ${newTotalXP} (+${args.xpToAdd}), Level: ${oldLevel} -> ${newLevel}`);
+
+    await ctx.db.patch(user._id, {
+      totalXP: newTotalXP,
+      level: newLevel,
+      lastActiveDate: Date.now(),
+    });
+
+    const result = { totalXP: newTotalXP, level: newLevel };
+    console.log(`[Convex] Successfully updated user XP:`, result);
+    return result;
+  },
+});
+
+// Action to update XP by Clerk ID (can be called from tRPC)
+export const updateXPByClerkId = action({
+  args: {
+    clerkId: v.string(),
+    xpToAdd: v.number(),
+  },
+  handler: async (ctx, args): Promise<UpdateXpResult> => {
+    console.log(`[Convex] updateXPByClerkId action called: clerkId=${args.clerkId}, xpToAdd=${args.xpToAdd}`);
+    
+    try {
+      // Call internal mutation
+      const result: UpdateXpResult = await ctx.runMutation(internal.users.internalUpdateXPByClerkId, {
+        clerkId: args.clerkId,
+        xpToAdd: args.xpToAdd,
+      });
+      console.log(`[Convex] updateXPByClerkId action completed successfully:`, result);
+      return result;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[Convex] updateXPByClerkId action failed:`, {
+        clerkId: args.clerkId,
+        xpToAdd: args.xpToAdd,
+        error: errorMsg,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      throw error;
+    }
+  },
+});
+
+// Server-side helper action to fetch a user by Clerk ID
+export const internalGetUserByClerkId = internalQuery({
+  args: {
+    clerkId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+  },
+});
+
+export const getUserByClerkIdForServer = action({
+  args: {
+    clerkId: v.string(),
+    serverToken: v.string(),
+  },
+  handler: async (ctx, args): Promise<UserDoc | null> => {
+    const serverToken = process.env.CONVEX_SERVER_TOKEN;
+    if (!serverToken || args.serverToken !== serverToken) {
+      throw new Error("Unauthorized server token");
+    }
+
+    return await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+      clerkId: args.clerkId,
+    });
   },
 });
 

@@ -17,6 +17,7 @@ import type * as exercises from "../exercises.js";
 import type * as feedback from "../feedback.js";
 import type * as progress from "../progress.js";
 import type * as subscriptions from "../subscriptions.js";
+import type * as unitExercises from "../unitExercises.js";
 import type * as units from "../units.js";
 import type * as users from "../users.js";
 import type * as vocabulary from "../vocabulary.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   feedback: typeof feedback;
   progress: typeof progress;
   subscriptions: typeof subscriptions;
+  unitExercises: typeof unitExercises;
   units: typeof units;
   users: typeof users;
   vocabulary: typeof vocabulary;

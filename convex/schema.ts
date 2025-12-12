@@ -37,6 +37,7 @@ export default defineSchema({
     completedUnits: v.array(v.number()), // Array of completed unit numbers
     learningDuration: v.number(), // Duration in weeks: 12, 24, 36, 48
     uiLanguage: v.string(), // always "en"
+    lastActivityAt: v.optional(v.number()), // last activity timestamp
   }).index("by_user", ["userId"]),
 
   // ============= VOCABULARY =============
@@ -55,11 +56,31 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_unit", ["userId", "unitNumber"]),
 
+  // ============= EXERCISE QUESTION PROGRESS =============
+  exerciseQuestionProgress: defineTable({
+    userId: v.id("users"),
+    exerciseId: v.string(), // z.B. "unit1-biti-conjugation"
+    questionId: v.string(), // z.B. "unit1-biti-conjugation-q1"
+    unitNumber: v.number(),
+    correctAnswerCount: v.number(),
+    incorrectAnswerCount: v.number(),
+    mastered: v.boolean(),
+    lastAnsweredAt: v.optional(v.number()),
+    lastReviewedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_exercise", ["userId", "exerciseId"])
+    .index("by_user_question", ["userId", "exerciseId", "questionId"]),
+
   // ============= CHAT SESSIONS =============
   chatSessions: defineTable({
     userId: v.id("users"),
     title: v.string(),
-  }).index("by_user", ["userId"]),
+    archived: v.optional(v.boolean()), // optional for backward compatibility
+    archivedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_archived", ["userId", "archived"]),
 
   // ============= CHAT MESSAGES =============
   chatMessages: defineTable({
@@ -71,6 +92,7 @@ export default defineSchema({
   })
     .index("by_session", ["sessionId"])
     .index("by_user", ["userId"]),
+
 
   // ============= EXERCISE RESULTS =============
   exerciseResults: defineTable({
@@ -88,13 +110,21 @@ export default defineSchema({
     overview: v.string(),
     grammarExplained: v.string(),
     practiceExamples: v.string(),
-    bookReference: v.optional(v.string()),
     // German translations (optional for backward compatibility)
     overviewGerman: v.optional(v.string()),
     grammarExplainedGerman: v.optional(v.string()),
     practiceExamplesGerman: v.optional(v.string()),
-    bookReferenceGerman: v.optional(v.string()),
   }).index("by_unit", ["unitNumber"]),
+
+  // ============= UNIT CONTENT (Modern multi-language support) =============
+  // New scalable table for multi-language unit content
+  // Replaces the need for separate fields per language (overviewGerman, overviewSpanish, etc.)
+  unitContent: defineTable({
+    unitNumber: v.number(),
+    language: v.string(), // "en", "de", "es", "fr"
+    contentType: v.string(), // "overview", "grammar", "practice"
+    content: v.string(), // The actual markdown content
+  }).index("by_unit_lang_type", ["unitNumber", "language", "contentType"]),
 
   // ============= GAMIFICATION: EXERCISE COMPLETIONS =============
   exerciseCompletions: defineTable({
@@ -104,7 +134,9 @@ export default defineSchema({
     score: v.number(), // Number of correct answers
     totalQuestions: v.number(),
     xpEarned: v.number(),
-  }).index("by_user", ["userId"]),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_exercise", ["userId", "exerciseId", "unitNumber"]),
 
   // ============= GAMIFICATION: USER BADGES =============
   userBadges: defineTable({
@@ -141,6 +173,7 @@ export default defineSchema({
     ),
     adminNotes: v.optional(v.string()),
     reviewedAt: v.optional(v.number()),
+    submittedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"]),
@@ -248,5 +281,23 @@ export default defineSchema({
     .index("by_name", ["name"])
     .index("by_category", ["category"])
     .index("by_active", ["isActive"]),
+
+  // ============= CHAT PROMPTS (admin-managed) =============
+  chatPrompts: defineTable({
+    name: v.string(), // e.g., "default"
+    content: v.string(), // system prompt text
+    updatedBy: v.optional(v.id("users")),
+    updatedAt: v.number(),
+  })
+    .index("by_name", ["name"]),
+
+  // ============= CHAT PROMPT HISTORY =============
+  chatPromptHistory: defineTable({
+    name: v.string(), // e.g., "default"
+    content: v.string(), // system prompt text
+    updatedBy: v.optional(v.id("users")),
+    updatedAt: v.number(),
+  })
+    .index("by_name_updatedAt", ["name", "updatedAt"]),
 });
 

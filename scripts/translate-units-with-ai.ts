@@ -205,7 +205,6 @@ async function translateAllUnits() {
           overviewGerman?: string;
           grammarExplainedGerman?: string;
           practiceExamplesGerman?: string;
-          bookReferenceGerman?: string;
         } = {};
 
         // Translate overview from English source
@@ -227,13 +226,6 @@ async function translateAllUnits() {
           log(`  📝 Translating practice examples from English (${unit.practiceExamples.length} chars)...`);
           translations.practiceExamplesGerman = await translateText(unit.practiceExamples);
           log(`  ✅ Practice examples translated`);
-        }
-
-        // Translate book reference from English source
-        if (unit.bookReference) {
-          log(`  📝 Translating book reference from English...`);
-          translations.bookReferenceGerman = await translateText(unit.bookReference);
-          log(`  ✅ Book reference translated`);
         }
 
         // Save to Convex (overwrites existing German translations)

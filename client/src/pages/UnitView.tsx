@@ -38,7 +38,7 @@ export default function UnitView() {
   const unit = COURSE_UNITS.find(u => u.number === unitNumber);
   // Get explanation from Convex
   const explanation = useQuery(api.units.getExplanation, { unitNumber });
-  
+
   // All hooks must be called before any conditional returns
   const progress = useQuery(api.progress.getUserProgress);
   const masteryStatus = useQuery(api.progress.getUnitMasteryStatus, { unitNumber });
@@ -140,7 +140,7 @@ export default function UnitView() {
       showSuccess,
       willCallComplete: !isCompleted && unitCompletionStatus?.canComplete && !isCompleting && !showSuccess,
     });
-    
+
     if (
       !isCompleted &&
       unitCompletionStatus?.canComplete &&
@@ -483,14 +483,14 @@ export default function UnitView() {
 
             {/* Practice Tab */}
             <TabsContent value="practice" className="space-y-6 mt-6">
-              {explanation ? (
+              {explanation && explanation.practiceExamples && explanation.practiceExamples.trim().length > 0 ? (
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base font-semibold">
                         {t('unit.practiceExamples')}
                       </CardTitle>
-                      
+
                       {/* XP Info Modal Trigger */}
                       <Dialog>
                         <DialogTrigger asChild>

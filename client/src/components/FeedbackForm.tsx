@@ -16,6 +16,7 @@ export function FeedbackForm() {
   const [type, setType] = useState<'bug' | 'feature' | 'improvement' | 'other'>('feature');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const submitFeedbackMutation = useMutation(api.feedback.submit);
 
@@ -33,6 +34,7 @@ export function FeedbackForm() {
     }
 
     try {
+      setIsSubmitting(true);
       await submitFeedbackMutation({
         type,
         title,
@@ -46,6 +48,8 @@ export function FeedbackForm() {
       setType('feature');
     } catch (error: any) {
       toast.error(error.message || 'Failed to submit feedback');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -68,7 +72,7 @@ export function FeedbackForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="type">Type</Label>
-            <Select value={type} onValueChange={(value: any) => setType(value)}>
+            <Select value={type} onValueChange={(value: 'bug' | 'feature' | 'improvement' | 'other') => setType(value)}>
               <SelectTrigger id="type">
                 <SelectValue />
               </SelectTrigger>
@@ -112,9 +116,9 @@ export function FeedbackForm() {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitFeedback.isPending}>
+            <Button type="submit" disabled={isSubmitting}>
               <Send className="mr-2 h-4 w-4" />
-              {submitFeedback.isPending ? 'Submitting...' : 'Submit Feedback'}
+              {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
             </Button>
           </div>
         </form>

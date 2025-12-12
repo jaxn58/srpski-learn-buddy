@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Users, Eye, Trash2, CheckCircle, XCircle } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -14,16 +15,20 @@ import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 
 
+type BetaRegistrationDoc = Doc<"betaRegistrations">;
+type BetaStatus = "pending" | "approved" | "rejected";
+
 export default function BetaRegistrations() {
   const { user, loading: authLoading } = useAuth();
-  const registrations = useQuery(api.beta.getAll);
+  const registrations = useQuery(api.beta.getAll) as BetaRegistrationDoc[] | undefined;
   const registrationsLoading = registrations === undefined;
   
   const updateStatusMutation = useMutation(api.beta.updateStatus);
   const deleteRegistrationMutation = useMutation(api.beta.deleteRegistration);
   
-  const [selectedRegistration, setSelectedRegistration] = useState<any>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedRegistration, setSelectedRegistration] = useState<BetaRegistrationDoc | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | BetaStatus>("all");
+
 
   if (authLoading || registrationsLoading) {
     return (
@@ -51,11 +56,11 @@ export default function BetaRegistrations() {
     );
   }
 
-  const handleStatusChange = async (id: string, status: string) => {
+  const handleStatusChange = async (id: Id<"betaRegistrations">, status: BetaStatus) => {
     try {
       await updateStatusMutation({
-        id: id as any,
-        status: status as any,
+        id,
+        status,
       });
       toast.success(`Registration ${status === 'approved' ? 'approved' : 'rejected'} successfully`);
     } catch (error) {
@@ -63,18 +68,18 @@ export default function BetaRegistrations() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: Id<"betaRegistrations">) => {
     if (!confirm('Are you sure you want to delete this registration?')) return;
     
     try {
-      await deleteRegistrationMutation({ id: id as any });
+      await deleteRegistrationMutation({ id });
       toast.success('Registration deleted successfully');
     } catch (error) {
       toast.error('Failed to delete registration');
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: BetaStatus) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'approved': return 'bg-green-100 text-green-800';
@@ -83,14 +88,14 @@ export default function BetaRegistrations() {
     }
   };
 
-  const filteredRegistrations = registrations?.filter(reg => 
+  const filteredRegistrations = registrations?.filter((reg: BetaRegistrationDoc) => 
     statusFilter === 'all' || reg.status === statusFilter
   ) || [];
 
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 md:ml-64 w-full flex flex-col">
         <header className="border-b bg-card">
           <div className="container py-4">
             <div className="flex items-center justify-between">
@@ -123,7 +128,7 @@ export default function BetaRegistrations() {
                   {user.role === 'admin' && ' (View only - no edit permissions)'}
                 </CardDescription>
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={(value: "all" | BetaStatus) => setStatusFilter(value)}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
@@ -183,7 +188,7 @@ export default function BetaRegistrations() {
                               <DialogHeader>
                                 <DialogTitle>{registration.name}</DialogTitle>
                                 <DialogDescription>
-                                  Registered on {registration.registeredAt ? new Date(registration.registeredAt).toLocaleString('de-DE') : 'N/A'}
+                                  Registered on {new Date(registration._creationTime).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
                                 </DialogDescription>
                               </DialogHeader>
                               

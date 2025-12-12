@@ -10,7 +10,10 @@ import { useState, useMemo } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Doc } from "../../../convex/_generated/dataModel";
 import { useTranslation } from "react-i18next";
+
+type VocabularyProgressDoc = Doc<"vocabulary">;
 
 export default function VocabularyList() {
   const { user } = useAuth();
@@ -21,11 +24,11 @@ export default function VocabularyList() {
   // Get accessible units from Convex
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
   
-  // User's learning language from database (defaults to English if not set)
-  const userLanguage: SupportedLanguage = (user?.learningLanguage as SupportedLanguage) || "en";
+  // BETA: Force English for all users
+  const userLanguage: SupportedLanguage = "en";
 
   // Fetch vocabulary progress for all units
-  const vocabProgressData = useQuery(api.vocabulary.getUserVocabularyProgress, {});
+  const vocabProgressData = useQuery(api.vocabulary.getUserVocabularyProgress, {}) as VocabularyProgressDoc[] | undefined;
 
   if (!user) {
     window.location.href = "/";
@@ -78,7 +81,7 @@ export default function VocabularyList() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex-1 md:ml-64 w-full">
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
@@ -173,7 +176,7 @@ export default function VocabularyList() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {words.map((word, idx) => {
                         const wordProgress = vocabProgressData?.find(
-                          p => p.serbianWord === word.serbian && p.unitNumber === word.unit
+                          (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
                         );
                         return (
                           <div
@@ -182,7 +185,7 @@ export default function VocabularyList() {
                           >
                             <div className="flex items-center gap-2">
                               {wordProgress?.mastered && (
-                                <span className="text-yellow-500" title="Gemeistert!">⭐</span>
+                                <span className="text-yellow-500" title="Mastered!">⭐</span>
                               )}
                               <span className="font-medium">{word.serbian}</span>
                             </div>
@@ -215,7 +218,7 @@ export default function VocabularyList() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {filteredVocabulary.map((word, idx) => {
                     const wordProgress = vocabProgressData?.find(
-                      p => p.serbianWord === word.serbian && p.unitNumber === word.unit
+                      (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
                     );
                     return (
                       <div
@@ -224,7 +227,7 @@ export default function VocabularyList() {
                       >
                         <div className="flex items-center gap-2">
                           {wordProgress?.mastered && (
-                            <span className="text-yellow-500" title="Gemeistert!">⭐</span>
+                            <span className="text-yellow-500" title="Mastered!">⭐</span>
                           )}
                           <span className="font-medium">{word.serbian}</span>
                         </div>

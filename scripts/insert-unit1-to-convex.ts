@@ -1,6 +1,13 @@
-import { getDb } from "../server/db";
-import { unitExplanations } from "../drizzle/schema";
-import { nanoid } from "nanoid";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../convex/_generated/api";
+
+const CONVEX_URL = process.env.VITE_CONVEX_URL || process.env.CONVEX_URL;
+
+if (!CONVEX_URL) {
+  console.error("❌ CONVEX_URL not found in environment variables");
+  console.error("Please set VITE_CONVEX_URL in .env.local");
+  process.exit(1);
+}
 
 const UNIT_1_OVERVIEW = `## Welcome to Unit 1: At the Airport
 
@@ -198,189 +205,125 @@ const UNIT_1_PRACTICE = `# Unit 1: Practice Examples & Dialogues
 
 ---
 
-**Marko:** Dobar dan!  
-**You:** Dobar dan! Da li ste vi Marko?  
-**Marko:** Da, ja sam Marko. Kako se zovete?  
-**You:** Ja sam [Your Name]. Drago mi je.  
-**Marko:** Drago mi je. Odakle ste?  
-**You:** Ja sam iz Amerike.  
-**Marko:** Dobrodošli u Srbiju!
+**Marko:** Zdravo! Da li ste vi [Your Name]?  
+*Hi! Are you [Your Name]?*
+
+**You:** Da, ja sam [Your Name]. Drago mi je!  
+*Yes, I am [Your Name]. Nice to meet you!*
+
+**Marko:** Drago mi je! Odakle ste?  
+*Nice to meet you! Where are you from?*
+
+**You:** Ja sam iz [Your Country].  
+*I am from [Your Country].*
+
+**Marko:** Dobrodošli u Srbiju!  
+*Welcome to Serbia!*
+
+**You:** Hvala!  
+*Thank you!*
 
 ---
 
-**Translation:**
+## 🎯 Practice Exercises
 
-**Marko:** Good day!  
-**You:** Good day! Are you Marko?  
-**Marko:** Yes, I am Marko. What's your name?  
-**You:** I am [Your Name]. Nice to meet you.  
-**Marko:** Nice to meet you. Where are you from?  
-**You:** I am from America.  
-**Marko:** Welcome to Serbia!
+### Exercise 1: Fill in the blanks with "sam", "si", "je", "smo", "ste", or "su"
 
----
+1. Ja **___** student. (I am a student)
+2. Ti **___** turist. (You are a tourist)
+3. On **___** pilot. (He is a pilot)
+4. Mi **___** iz Amerike. (We are from America)
+5. Vi **___** profesor. (You are a professor)
+6. Oni **___** studenti. (They are students)
 
-## 📝 Dialogue 2: At the Information Desk
-
-**You:** Izvinite, gde je taksi?  
-**Employee:** Taksi je napolju, desno.  
-**You:** Hvala.  
-**Employee:** Molim.
-
-**Translation:**
-
-**You:** Excuse me, where is the taxi?  
-**Employee:** The taxi is outside, to the right.  
-**You:** Thank you.  
-**Employee:** You're welcome.
+**Answers:** 1. sam, 2. si, 3. je, 4. smo, 5. ste, 6. su
 
 ---
 
-## ✏️ Exercise 1: Fill in the Blanks (Verb "biti")
+### Exercise 2: Translate to Serbian
 
-Complete the sentences with the correct form of "biti":
-
-1. Ja _____ student. (I am a student)
-2. Ti _____ turist. (You are a tourist)
-3. On _____ pilot. (He is a pilot)
-4. Mi _____ iz Srbije. (We are from Serbia)
-5. Vi _____ profesor. (You are a professor)
-6. Oni _____ studenti. (They are students)
-
-**Answers:**
-1. sam
-2. si
-3. je
-4. smo
-5. ste
-6. su
-
----
-
-## ✏️ Exercise 2: Translate to Serbian
-
-1. Good day!
-2. I am from Germany.
-3. Nice to meet you.
+1. I am from Germany.
+2. Are you a student?
+3. Nice to meet you!
 4. Where are you from?
-5. Thank you.
+5. Good day!
 
 **Answers:**
-1. Dobar dan!
-2. Ja sam iz Nemačke.
-3. Drago mi je.
-4. Odakle ste?
-5. Hvala.
+1. Ja sam iz Nemačke.
+2. Da li ste vi student? / Da li si student? (formal/informal)
+3. Drago mi je!
+4. Odakle ste? / Odakle si? (formal/informal)
+5. Dobar dan!
 
 ---
 
-## ✏️ Exercise 3: Gender Recognition
+### Exercise 3: Gender Recognition
 
 Identify the gender of these nouns:
+1. aerodrom (airport)
+2. karta (ticket)
+3. ime (name)
+4. student (student)
+5. Ana (Ana - name)
 
-1. **aerodrom** (airport)
-2. **karta** (ticket)
-3. **ime** (name)
-4. **student** (student)
-5. **Srbija** (Serbia)
-
-**Answers:**
-1. Masculine (ends in consonant)
-2. Feminine (ends in -a)
-3. Neuter (ends in -e)
-4. Masculine (ends in consonant)
-5. Feminine (ends in -a)
+**Answers:** 1. masculine, 2. feminine, 3. neuter, 4. masculine, 5. feminine
 
 ---
 
-## 🎭 Role-Play Exercise
-
-**Practice this dialogue with a partner or out loud:**
-
-**Person A:** Zdravo! Ja sam Ana. Kako se zovete?  
-**Person B:** Ja sam [name]. Drago mi je.  
-**Person A:** Odakle ste?  
-**Person B:** Ja sam iz [country]. A vi?  
-**Person A:** Ja sam iz Srbije.
-
----
-
-## 📚 Vocabulary Review
-
-### People & Places:
-- **aerodrom** - airport
-- **taksi** - taxi
-- **student** - student (m)
-- **studentkinja** - student (f)
-- **turist** - tourist (m)
-- **turistkinja** - tourist (f)
-- **pilot** - pilot
-- **profesor** - professor
-
-### Countries:
-- **Srbija** - Serbia
-- **Amerika** - America
-- **Nemačka** - Germany
-- **Engleska** - England
-
----
-
-## 🌍 Cultural Note: Serbian Hospitality
-
-Serbians are known for their warm hospitality! When you meet someone for the first time, it's common to:
-- Shake hands firmly
-- Make eye contact
-- Use "vi" (formal you) until invited to use "ti" (informal you)
-- Accept offers of coffee - it's a big part of Serbian culture!
-
-**Useful phrase:** "Hvala na gostoprimstvu!" (Thank you for the hospitality!)
-
----
-
-## 🎯 Self-Check
+## 💡 Self-Check
 
 Can you now:
-- ✅ Introduce yourself in Serbian?
-- ✅ Say where you're from?
-- ✅ Conjugate "biti" (to be)?
-- ✅ Recognize masculine, feminine, and neuter nouns?
-- ✅ Form a simple yes/no question?
+- ✅ Conjugate "biti" (to be) for all persons?
+- ✅ Form yes/no questions with "Da li"?
+- ✅ Say "Where are you from?" and answer it?
+- ✅ Recognize basic gender patterns?
+- ✅ Use basic greetings?
 
-If yes - congratulations! You're ready for Unit 2! 🎉`;
+**If yes - odlično! You're ready for Unit 2! 🎉**`;
 
-async function insertRealContent() {
-  console.log("Inserting comprehensive Unit 1 content...");
+async function insertUnit1() {
+  console.log("🚀 Inserting Unit 1 into Convex...");
+  console.log(`   Convex URL: ${CONVEX_URL}`);
 
-  const db = await getDb();
-  if (!db) {
-    console.error("Database not available!");
-    process.exit(1);
-  }
+  const client = new ConvexHttpClient(CONVEX_URL);
 
   try {
-    await db.insert(unitExplanations).values({
-      id: nanoid(),
+    const result = await client.mutation(api.units.seedExplanation, {
       unitNumber: 1,
       overview: UNIT_1_OVERVIEW,
       grammarExplained: UNIT_1_GRAMMAR,
       practiceExamples: UNIT_1_PRACTICE,
-      bookReference: "Unit 1 corresponds to pages 5-9 in 'Step by Step Serbian 1' by Mirjana Danilović",
     });
-    
-    console.log(`✅ Inserted Unit 1 with ${UNIT_1_OVERVIEW.length + UNIT_1_GRAMMAR.length + UNIT_1_PRACTICE.length} total characters`);
-    console.log(`   - Overview: ${UNIT_1_OVERVIEW.length} chars`);
-    console.log(`   - Grammar: ${UNIT_1_GRAMMAR.length} chars`);
-    console.log(`   - Practice: ${UNIT_1_PRACTICE.length} chars`);
+
+    console.log(`✅ Successfully inserted Unit 1!`);
+    console.log(`   ID: ${result}`);
+    console.log(`   Overview: ${UNIT_1_OVERVIEW.length} chars`);
+    console.log(`   Grammar: ${UNIT_1_GRAMMAR.length} chars`);
+    console.log(`   Practice: ${UNIT_1_PRACTICE.length} chars`);
   } catch (error: any) {
-    console.error(`❌ Error:`, error.message);
+    console.error(`❌ Error inserting Unit 1:`, error.message);
+    if (error.message.includes("already exists")) {
+      console.log("   ℹ️ Unit 1 already exists, updating...");
+      // Try to update instead
+      try {
+        await client.mutation(api.units.upsertExplanation, {
+          unitNumber: 1,
+          overview: UNIT_1_OVERVIEW,
+          grammarExplained: UNIT_1_GRAMMAR,
+          practiceExamples: UNIT_1_PRACTICE,
+        });
+        console.log("✅ Successfully updated Unit 1!");
+      } catch (updateError: any) {
+        console.error(`❌ Error updating Unit 1:`, updateError.message);
+      }
+    }
   }
 
   console.log("Done!");
   process.exit(0);
 }
 
-insertRealContent().catch((error) => {
+insertUnit1().catch((error) => {
   console.error("Fatal error:", error);
   process.exit(1);
 });
-

@@ -107,6 +107,23 @@ async function startServer() {
     }
   });
   
+  // Paddle webhook endpoint (must be BEFORE Clerk middleware)
+  app.post("/api/paddle/webhook", async (req, res) => {
+    try {
+      const caller = appRouter.createCaller(
+        await createContext({ req, res } as any)
+      );
+      await caller.paddle.webhook(req.body);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Paddle Webhook] Error:", error);
+      res.status(500).json({
+        success: false,
+        error: error?.message || "Internal server error",
+      });
+    }
+  });
+  
   // Clerk middleware for authentication (protects routes after this point)
   app.use(clerkMiddleware());
   

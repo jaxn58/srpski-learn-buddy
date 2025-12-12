@@ -12,97 +12,6 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .first();
 }
 
-// Get user's feedback submissions
-export const getUserFeedback = query({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) return [];
-
-    return await ctx.db
-      .query("feedbackSubmissions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .order("desc")
-      .collect();
-  },
-});
-
-// Get all feedback (admin only)
-export const getAllFeedback = query({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
-      throw new Error("Unauthorized");
-    }
-
-    return await ctx.db.query("feedbackSubmissions").order("desc").collect();
-  },
-});
-
-// Submit feedback
-export const submitFeedback = mutation({
-  args: {
-    type: v.union(
-      v.literal("bug"),
-      v.literal("feature"),
-      v.literal("improvement"),
-      v.literal("other")
-    ),
-    title: v.string(),
-    description: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
-
-    return await ctx.db.insert("feedbackSubmissions", {
-      userId: user._id,
-      type: args.type,
-      title: args.title,
-      description: args.description,
-      status: "new",
-    });
-  },
-});
-
-// Update feedback status (admin only)
-export const updateFeedbackStatus = mutation({
-  args: {
-    feedbackId: v.id("feedbackSubmissions"),
-    status: v.union(
-      v.literal("new"),
-      v.literal("reviewed"),
-      v.literal("in_progress"),
-      v.literal("completed"),
-      v.literal("rejected")
-    ),
-    adminNotes: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
-      throw new Error("Unauthorized");
-    }
-
-    const feedback = await ctx.db.get(args.feedbackId);
-    if (!feedback) throw new Error("Feedback not found");
-
-    // Record status change
-    await ctx.db.insert("feedbackStatusHistory", {
-      feedbackId: args.feedbackId,
-      previousStatus: feedback.status,
-      newStatus: args.status,
-      changedBy: user._id,
-    });
-
-    // Update feedback
-    await ctx.db.patch(args.feedbackId, {
-      status: args.status,
-      adminNotes: args.adminNotes,
-      reviewedAt: Date.now(),
-    });
-  },
-});
-
 // Get feedback comments
 export const getComments = query({
   args: {
@@ -150,6 +59,11 @@ export const getStatusHistory = query({
     feedbackId: v.id("feedbackSubmissions"),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+      throw new Error("Unauthorized");
+    }
+
     return await ctx.db
       .query("feedbackStatusHistory")
       .withIndex("by_feedback", (q) => q.eq("feedbackId", args.feedbackId))
@@ -157,7 +71,7 @@ export const getStatusHistory = query({
   },
 });
 
-// Aliases for frontend compatibility
+// Get user's feedback submissions
 export const getMySubmissions = query({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
@@ -217,6 +131,7 @@ export const submit = mutation({
       title: args.title,
       description: args.description,
       status: "new",
+      submittedAt: Date.now(),
     });
   },
 });

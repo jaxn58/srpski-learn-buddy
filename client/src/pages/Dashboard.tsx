@@ -23,7 +23,7 @@ export default function Dashboard() {
   const progress = useQuery(api.progress.getUserProgress);
   const progressLoading = progress === undefined;
   const accessibleUnits = useQuery(api.subscriptions.getAccessibleUnits);
-  const masteredUnits = useQuery(api.progress.getMasteredUnits);
+  const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
   
   const syncUserMutation = useMutation(api.users.syncUser);
   
@@ -110,6 +110,111 @@ export default function Dashboard() {
     setShowOnboarding(false);
   };
 
+  const currentWeek = weeks?.find(w => w.weekNumber === progress?.currentWeek);
+  const completedUnits = progress?.completedUnits || [];
+  
+  // Determine if user is beta tester
+  const isBeta = user?.isBetaTester || accessibleUnits?.isBeta || false;
+  const totalLessons = isBeta ? 6 : (units?.length || 27);
+  const progressPercentage = (completedUnits.length / totalLessons) * 100;
+  const learningDuration = progress?.learningDuration || 12;
+  
+  // Admin bypass: Show all units for admins
+  const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
+  const rawAccessible = Array.isArray(accessibleUnits)
+    ? accessibleUnits
+    : Array.isArray((accessibleUnits as any)?.units)
+    ? (accessibleUnits as any).units
+    : Array.isArray((accessibleUnits as any)?.accessibleUnits)
+    ? (accessibleUnits as any).accessibleUnits
+    : [];
+  const displayUnits = isAdmin ? units?.map(u => u.number) : currentWeek?.units;
+  const visibleUnits = Array.from(
+    new Set(
+      [
+        ...(displayUnits || []),
+        ...(rawAccessible || []),
+        progress?.currentUnit,
+        ...completedUnits,
+      ].filter(Boolean) as number[]
+    )
+  );
+
+  const accessibleCount = Array.isArray(rawAccessible) ? rawAccessible.length : 0;
+
+  const sendLayoutLog = (payload: {
+    hypothesisId: string;
+    message: string;
+    data: Record<string, unknown>;
+  }) => {
+    // #region agent log
+    fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "pre-fix",
+        hypothesisId: payload.hypothesisId,
+        location: "Dashboard.tsx:instrumentation",
+        message: payload.message,
+        data: payload.data,
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  };
+
+  useEffect(() => {
+    const visibleCount = visibleUnits?.length ?? 0;
+    const currentUnit = progress?.currentUnit ?? null;
+    const weekNumber = currentWeek?.weekNumber ?? null;
+
+    sendLayoutLog({
+      hypothesisId: "H1",
+      message: "Dashboard render state",
+      data: {
+        authLoading,
+        progressLoading,
+        hasUser: !!user,
+        userId: user?._id ?? null,
+        currentUnit,
+      },
+    });
+
+    sendLayoutLog({
+      hypothesisId: "H2",
+      message: "Module visibility summary",
+      data: {
+        totalLessons,
+        completedLessons: completedUnits.length,
+        visibleUnits: visibleCount,
+        isBeta,
+      },
+    });
+
+    sendLayoutLog({
+      hypothesisId: "H3",
+      message: "Week and access data",
+      data: {
+        weekNumber,
+        accessibleCount,
+        learningDuration,
+      },
+    });
+  }, [
+    authLoading,
+    progressLoading,
+    user?._id,
+    progress?.currentUnit,
+    completedUnits.length,
+    visibleUnits?.length,
+    totalLessons,
+    currentWeek?.weekNumber,
+    isBeta,
+    accessibleCount,
+    learningDuration,
+  ]);
+
   // Show loading while auth or progress is loading
   // Also show loading while user is being synced to Convex
   if (authLoading || progressLoading || !user) {
@@ -166,109 +271,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const currentWeek = weeks?.find(w => w.weekNumber === progress?.currentWeek);
-  const completedUnits = progress?.completedUnits || [];
-  
-  // Determine if user is beta tester
-  const isBeta = user.isBetaTester || accessibleUnits?.isBeta || false;
-  
-  // Total lessons: 6 for beta testers (Module 1), 27 for full access
-  const totalLessons = isBeta ? 6 : (units?.length || 27);
-  const progressPercentage = (completedUnits.length / totalLessons) * 100;
-  const learningDuration = progress?.learningDuration || 12;
-  
-  // Admin bypass: Show all units for admins
-  const isAdmin = user.role === 'superadmin' || user.role === 'admin';
-  const rawAccessible = Array.isArray(accessibleUnits)
-    ? accessibleUnits
-    : Array.isArray((accessibleUnits as any)?.units)
-    ? (accessibleUnits as any).units
-    : Array.isArray((accessibleUnits as any)?.accessibleUnits)
-    ? (accessibleUnits as any).accessibleUnits
-    : [];
-  const displayUnits = isAdmin ? units?.map(u => u.number) : currentWeek?.units;
-  const visibleUnits = Array.from(
-    new Set(
-      [
-        ...(displayUnits || []),
-        ...(rawAccessible || []),
-        progress?.currentUnit,
-        ...completedUnits,
-      ].filter(Boolean) as number[]
-    )
-  );
-
-  const handleDurationChange = async (duration: string) => {
-    await updateProgressMutation({ learningDuration: parseInt(duration) });
-    // Convex automatically updates the UI reactively
-  };
-
-  const sendLayoutLog = (payload: {
-    hypothesisId: string;
-    message: string;
-    data: Record<string, unknown>;
-  }) => {
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/68d7872b-f8e4-49ce-82bf-bcd0b94b182b", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: "pre-fix",
-        hypothesisId: payload.hypothesisId,
-        location: "Dashboard.tsx:unitBadges",
-        message: payload.message,
-        data: payload.data,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  };
-
-  useEffect(() => {
-    if (!visibleUnits?.length || !units) return;
-
-    const sampleUnits = visibleUnits.slice(0, 3);
-    sampleUnits.forEach((unitNumber) => {
-      const isCompleted = completedUnits.includes(unitNumber);
-      const isMastered = masteredUnits?.includes(unitNumber) ?? false;
-      const isCurrent = unitNumber === progress?.currentUnit;
-
-      sendLayoutLog({
-        hypothesisId: "H1",
-        message: "Unit badge flags",
-        data: {
-          unitNumber,
-          isCompleted,
-          isMastered,
-          isCurrent,
-        },
-      });
-
-      sendLayoutLog({
-        hypothesisId: "H2",
-        message: "Badge render order",
-        data: {
-          unitNumber,
-          badges: [
-            isCompleted ? "completed" : null,
-            isMastered ? "mastered" : null,
-            isCurrent && !isCompleted ? "current" : null,
-          ].filter(Boolean),
-        },
-      });
-    });
-
-    sendLayoutLog({
-      hypothesisId: "H3",
-      message: "Badge container class verification",
-      data: {
-        className: "flex items-center gap-2 mb-2",
-        visibleUnitCount: visibleUnits.length,
-      },
-    });
-  }, [visibleUnits, units, completedUnits, masteredUnits, progress?.currentUnit]);
 
   return (
     <>

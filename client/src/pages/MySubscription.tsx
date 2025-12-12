@@ -6,14 +6,25 @@ import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Calendar, Check, Clock, CreditCard, TrendingUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { hasPaddleConfig, initPaddle, openCheckout } from "@/lib/paddle";
+
+type SubscriptionPlan = {
+  id: "beta" | "intensive" | "balanced" | "standard" | "relaxed";
+  name: string;
+  months: number;
+  price: number;
+  unitsPerWeek: number;
+};
 
 export default function MySubscription() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0 });
+  const paddleConfigured = hasPaddleConfig();
+  const [paddleReady, setPaddleReady] = useState(!paddleConfigured);
 
   // Fetch subscription data from Convex
   const subscription = useQuery(api.subscriptions.getCurrent);
@@ -24,7 +35,19 @@ export default function MySubscription() {
     subscription ? {} : "skip"
   );
 
-  const availablePlans = useQuery(api.subscriptions.getPlans);
+  const subscriptionPlan =
+    subscription && typeof subscription === "object" && "plan" in subscription
+      ? (subscription as { plan: string }).plan
+      : subscription?.planType;
+
+  const normalizedPlan = subscriptionPlan || subscription?.planType || "beta";
+
+  const subscriptionEndsAt =
+    subscription && typeof subscription === "object" && "endsAt" in subscription
+      ? (subscription as { endsAt: number | null }).endsAt
+      : subscription?.expiresAt ?? null;
+
+  const availablePlans = useQuery(api.subscriptions.getPlans) as SubscriptionPlan[] | undefined;
 
   // Calculate upgrade cost mutation
   const calculateUpgradeMutation = useMutation(api.subscriptions.calculateUpgradeCost);
@@ -35,11 +58,11 @@ export default function MySubscription() {
 
   // Calculate time remaining
   useEffect(() => {
-    if (!subscription?.endsAt) return;
+    if (!subscriptionEndsAt) return;
 
     const updateTimer = () => {
       const now = new Date();
-      const end = new Date(subscription.endsAt);
+      const end = new Date(subscriptionEndsAt);
       const diff = end.getTime() - now.getTime();
 
       if (diff <= 0) {
@@ -58,22 +81,71 @@ export default function MySubscription() {
     const interval = setInterval(updateTimer, 60000); // Update every minute
 
     return () => clearInterval(interval);
-  }, [subscription]);
+  }, [subscriptionEndsAt]);
 
   const [isCalculating, setIsCalculating] = useState(false);
 
+  const productIdMap = useMemo(
+    () => ({
+      beta: "",
+      intensive: import.meta.env.VITE_PADDLE_PRODUCT_INTENSIVE || "",
+      balanced: import.meta.env.VITE_PADDLE_PRODUCT_BALANCED || "",
+      standard: import.meta.env.VITE_PADDLE_PRODUCT_STANDARD || "",
+      relaxed: import.meta.env.VITE_PADDLE_PRODUCT_RELAXED || "",
+    }),
+    []
+  );
+
+  useEffect(() => {
+    if (!paddleConfigured) {
+      return;
+    }
+
+    initPaddle().then((instance) => {
+      if (!instance) {
+        toast.error("Paddle konnte nicht initialisiert werden.");
+        return;
+      }
+
+      setPaddleReady(true);
+    });
+  }, [paddleConfigured]);
+
   const handleUpgrade = async (newPlan: string) => {
-    if (!subscription) return;
+    if (!subscription || !user) return;
+
+    if (!paddleConfigured) {
+      toast.error("Paddle ist nicht konfiguriert.");
+      return;
+    }
+
+    const productId = productIdMap[newPlan as keyof typeof productIdMap];
+    if (!productId) {
+      toast.error("Für diesen Plan wurde keine Paddle Product ID hinterlegt.");
+      return;
+    }
 
     setIsCalculating(true);
     try {
       const result = await calculateUpgradeMutation({
-        currentPlan: subscription.plan,
+        currentPlan: subscriptionPlan || subscription.planType,
         newPlan,
       });
 
-      // TODO: Integrate with payment provider (Payoneer/Paddle)
-      toast.info(t('subscription.upgradeCost', { cost: result.cost }));
+      if (result?.cost) {
+        toast.info(t('subscription.upgradeCost', { cost: result.cost }));
+      }
+
+      await openCheckout({
+        productId,
+        userId: user.clerkId || String(user._id),
+        userEmail: user.email || "",
+        metadata: {
+          planType: newPlan,
+          previousPlan: subscriptionPlan || subscription.planType,
+          upgradeCost: result?.cost ?? 0,
+        },
+      });
     } catch (error: any) {
       toast.error(t('subscription.upgradeError', { error: error.message }));
     } finally {
@@ -99,11 +171,12 @@ export default function MySubscription() {
     }
   };
 
+
   if (authLoading || subLoading) {
     return (
-      <div className="flex h-screen">
+      <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 md:ml-64 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
             <p className="mt-4 text-muted-foreground">{t('subscription.loading')}</p>
@@ -117,9 +190,9 @@ export default function MySubscription() {
     // Check if user is Beta Tester
     if (user?.isBetaTester) {
       return (
-        <div className="flex h-screen">
+        <div className="flex min-h-screen bg-background">
           <Sidebar />
-          <div className="flex-1 p-8">
+          <div className="flex-1 md:ml-64 w-full p-8">
             <div className="max-w-4xl mx-auto">
               <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>
               <Card className="border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
@@ -182,9 +255,9 @@ export default function MySubscription() {
     
     // No subscription and not Beta Tester
     return (
-      <div className="flex h-screen">
+      <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <div className="flex-1 p-8">
+        <div className="flex-1 md:ml-64 p-8 w-full">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>
             <Card>
@@ -207,11 +280,11 @@ export default function MySubscription() {
   }
 
   // Special handling for Beta subscriptions
-  if (subscription.plan === "beta" || (subscription as any).planType === "beta") {
+  if (normalizedPlan === "beta") {
     return (
-      <div className="flex h-screen">
+      <div className="flex min-h-screen bg-background">
         <Sidebar />
-          <div className="flex-1 p-8">
+          <div className="flex-1 md:ml-64 p-8">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>
             <Card className="border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
@@ -272,17 +345,17 @@ export default function MySubscription() {
     );
   }
 
-  const planDuration = subscription.plan === "intensive" ? 90 : 
-                       subscription.plan === "balanced" ? 180 : 
-                       subscription.plan === "standard" ? 270 : 365;
+  const planDuration = normalizedPlan === "intensive" ? 90 : 
+                       normalizedPlan === "balanced" ? 180 : 
+                       normalizedPlan === "standard" ? 270 : 365;
   
   const daysElapsed = planDuration - (daysRemaining || 0);
   const progressPercentage = (daysElapsed / planDuration) * 100;
 
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 p-8 overflow-y-auto">
+      <div className="flex-1 md:ml-64 p-8 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>
 
@@ -291,16 +364,16 @@ export default function MySubscription() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl capitalize">{subscription.plan} {t('subscription.plan')}</CardTitle>
+                  <CardTitle className="text-2xl capitalize">{normalizedPlan} {t('subscription.plan')}</CardTitle>
                   <CardDescription>
                     {subscription.status === "active" ? t('subscription.active') : t('subscription.cancelled')}
                   </CardDescription>
                 </div>
                 <div className="text-right">
                   <div className="text-3xl font-bold text-primary">
-                    €{subscription.plan === "intensive" ? "69" : 
-                       subscription.plan === "balanced" ? "79" : 
-                       subscription.plan === "standard" ? "95" : "119"}
+                    €{normalizedPlan === "intensive" ? "69" : 
+                       normalizedPlan === "balanced" ? "79" : 
+                       normalizedPlan === "standard" ? "95" : "119"}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {planDuration} {t('subscription.days')}
@@ -333,11 +406,13 @@ export default function MySubscription() {
                 <div>
                   <div className="font-semibold">{t('subscription.expiresOn')}</div>
                   <div className="text-sm text-muted-foreground">
-                    {new Date(subscription.endsAt).toLocaleDateString("de-DE", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
+                    {subscriptionEndsAt
+                      ? new Date(subscriptionEndsAt).toLocaleDateString("de-DE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })
+                      : t('subscription.noSubscription')}
                   </div>
                 </div>
               </div>
@@ -371,16 +446,16 @@ export default function MySubscription() {
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2">
                   {availablePlans
-                    .filter((plan) => {
-                      const currentOrder = ["intensive", "balanced", "standard", "relaxed"].indexOf(subscription.plan);
+                    .filter((plan: SubscriptionPlan) => {
+                      const currentOrder = ["intensive", "balanced", "standard", "relaxed"].indexOf(normalizedPlan);
                       const planOrder = ["intensive", "balanced", "standard", "relaxed"].indexOf(plan.id);
                       return planOrder > currentOrder;
                     })
-                    .map((plan) => (
+                    .map((plan: SubscriptionPlan) => (
                       <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
                         <CardHeader>
                           <CardTitle className="capitalize">{plan.name}</CardTitle>
-                          <CardDescription>{plan.duration} {t('subscription.days')}</CardDescription>
+                          <CardDescription>{plan.months} {t('subscription.days')}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="text-3xl font-bold text-primary">€{plan.price}</div>
@@ -404,7 +479,7 @@ export default function MySubscription() {
                           </ul>
                           <Button
                             onClick={() => handleUpgrade(plan.id)}
-                            disabled={isCalculating}
+                            disabled={isCalculating || !paddleReady}
                             className="w-full"
                           >
                             <CreditCard className="h-4 w-4 mr-2" />

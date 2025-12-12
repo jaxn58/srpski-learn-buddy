@@ -1,6 +1,92 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
 
+// Get unit explanation
+export const getExplanation = query({
+  args: {
+    unitNumber: v.number(),
+  },
+  handler: async (ctx, args) => {
+    console.log(`[getExplanation] Starting query for unit ${args.unitNumber}`);
+
+    // First try the new unitContent table
+    const [overview, grammar, practice] = await Promise.all([
+      ctx.db
+        .query("unitContent")
+        .withIndex("by_unit_lang_type", (q) =>
+          q.eq("unitNumber", args.unitNumber).eq("language", "en").eq("contentType", "overview")
+        )
+        .first(),
+      ctx.db
+        .query("unitContent")
+        .withIndex("by_unit_lang_type", (q) =>
+          q.eq("unitNumber", args.unitNumber).eq("language", "en").eq("contentType", "grammar")
+        )
+        .first(),
+      ctx.db
+        .query("unitContent")
+        .withIndex("by_unit_lang_type", (q) =>
+          q.eq("unitNumber", args.unitNumber).eq("language", "en").eq("contentType", "practice")
+        )
+        .first()
+    ]);
+
+    console.log(`[getExplanation] unitContent results for unit ${args.unitNumber}:`, {
+      overviewFound: !!overview,
+      grammarFound: !!grammar,
+      practiceFound: !!practice,
+      overviewLength: overview?.content?.length || 0,
+      grammarLength: grammar?.content?.length || 0,
+      practiceLength: practice?.content?.length || 0
+    });
+
+    // If we have content from the new table, use it
+    if (overview?.content || grammar?.content || practice?.content) {
+      console.log(`[getExplanation] Using content from unitContent table for unit ${args.unitNumber}`);
+      return {
+        unitNumber: args.unitNumber,
+        overview: overview?.content || null,
+        grammarExplained: grammar?.content || null,
+        practiceExamples: practice?.content || null,
+      };
+    }
+
+    console.log(`[getExplanation] No content in unitContent, trying unitExplanations for unit ${args.unitNumber}`);
+
+    // Fallback: Try the old unitExplanations table for units that weren't migrated
+    const oldExplanation = await ctx.db
+      .query("unitExplanations")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .first();
+
+    console.log(`[getExplanation] unitExplanations result for unit ${args.unitNumber}:`, {
+      found: !!oldExplanation,
+      hasOverview: !!(oldExplanation?.overview?.length > 0),
+      hasGrammar: !!(oldExplanation?.grammarExplained?.length > 0),
+      hasPractice: !!(oldExplanation?.practiceExamples?.length > 0)
+    });
+
+    if (oldExplanation) {
+      console.log(`[getExplanation] Using content from unitExplanations table for unit ${args.unitNumber}`);
+      return {
+        unitNumber: args.unitNumber,
+        overview: oldExplanation.overview || null,
+        grammarExplained: oldExplanation.grammarExplained || null,
+        practiceExamples: oldExplanation.practiceExamples || null,
+      };
+    }
+
+    console.log(`[getExplanation] No content found anywhere for unit ${args.unitNumber}`);
+    // No content found in either table
+    return {
+      unitNumber: args.unitNumber,
+      overview: null,
+      grammarExplained: null,
+      practiceExamples: null,
+    };
+  },
+});
+
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -14,19 +100,13 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 
 // Helper to check unit access
 async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
-  console.log(`[Units] checkUnitAccess called for unit ${unitNumber}`);
-  
   const user = await getCurrentUser(ctx);
   if (!user) {
-    console.log(`[Units] checkUnitAccess: User not authenticated`);
     return false;
   }
 
-  console.log(`[Units] checkUnitAccess: User found: ${user._id}, role: ${user.role}, isBetaTester: ${user.isBetaTester}`);
-
   // Admins have full access
   if (user.role === "admin" || user.role === "superadmin") {
-    console.log(`[Units] checkUnitAccess: Admin access granted for unit ${unitNumber}`);
     return true;
   }
 
@@ -50,26 +130,8 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
   const maxUnlockedUnit = Math.max(1, currentUnit, ...completedUnits);
   const unlockedByProgress = isCompleted || isCurrentOrNext || previousUnitCompleted;
 
-  console.log(`[Units] checkUnitAccess: Progress check:`, {
-    currentUnit,
-    completedUnits,
-    maxUnlockedUnit,
-    unitNumber,
-    unlockedByProgress,
-    isCompleted,
-    isCurrentOrNext,
-    previousUnitCompleted,
-    breakdown: {
-      'isCompleted': isCompleted,
-      'isCurrentOrNext': isCurrentOrNext,
-      'previousUnitCompleted': previousUnitCompleted,
-    },
-  });
-
   if (!unlockedByProgress) {
-    console.log(`[Units] checkUnitAccess: Unit ${unitNumber} NOT unlocked by progress`);
-  } else {
-    console.log(`[Units] checkUnitAccess: Unit ${unitNumber} unlocked by progress ✓`);
+    return false;
   }
 
   // Check for active subscription
@@ -80,55 +142,22 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     .first();
 
   if (subscription?.maxAccessibleUnits && unitNumber <= subscription.maxAccessibleUnits) {
-    console.log(`[Units] checkUnitAccess: Access granted via subscription (maxAccessibleUnits: ${subscription.maxAccessibleUnits})`);
     return true;
   }
 
   // Paid subscriptions get full access (if within total course length)
   if (subscription && subscription.planType !== "beta" && unitNumber <= 27) {
-    console.log(`[Units] checkUnitAccess: Access granted via paid subscription`);
     return true;
   }
 
   // Fallback: Beta Tester Flag (Module 1: Units 1-6)
   if (user.isBetaTester && unitNumber <= 6) {
-    console.log(`[Units] checkUnitAccess: Access granted via Beta Tester flag`);
     return true;
   }
 
-  const finalResult = unlockedByProgress;
-  console.log(`[Units] checkUnitAccess: Final result for unit ${unitNumber}: ${finalResult ? 'GRANTED' : 'DENIED'}`);
-  
-  return finalResult;
+  return unlockedByProgress;
 }
 
-// Get unit explanation
-export const getExplanation = query({
-  args: {
-    unitNumber: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
-    if (!hasAccess) {
-      throw new Error("UNIT_LOCKED");
-    }
-
-    // BETA: Force English for all users
-    const userLanguage = 'en';
-    
-    const explanation = await ctx.db
-      .query("unitExplanations")
-      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
-      .first();
-    
-    if (!explanation) {
-      return null;
-    }
-    
-    // BETA: Return English version only (skip German translation logic)
-    return explanation;
-  },
-});
 
 // Get all unit explanations
 export const getAllExplanations = query({
