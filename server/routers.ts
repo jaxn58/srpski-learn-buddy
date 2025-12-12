@@ -1,21 +1,10 @@
-import { router, publicProcedure } from "./_core/trpc";
-import { systemRouter } from "./_core/systemRouter";
-import { fetchConvexUserByClerkId } from "./convexUsers";
+import { router } from "./_core/trpc";
 import { paddleRouter } from "./routers/paddle";
 
+// Simplified router - only Paddle remains (until fully migrated to Convex)
+// All other endpoints (auth, system) have been migrated to Convex
 export const appRouter = router({
-  system: systemRouter,
   paddle: paddleRouter,
-  auth: router({
-    me: publicProcedure.query(async ({ ctx }) => {
-      if (!ctx.clerkUserId) {
-        return null;
-      }
-
-      return await fetchConvexUserByClerkId(ctx.clerkUserId);
-    }),
-    logout: publicProcedure.mutation(() => ({ success: true } as const)),
-  }),
 });
 
 export type AppRouter = typeof appRouter;

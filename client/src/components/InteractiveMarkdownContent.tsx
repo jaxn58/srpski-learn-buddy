@@ -101,37 +101,27 @@ const EXERCISES: Record<string, any> = {
   'unit1-gender': {
     type: 'genderRecognition',
     title: 'Exercise 3: Gender Recognition',
-    instructions: 'Identify the gender of these nouns (masculine, feminine, or neuter):',
+    instructions: 'Identify the gender of these nouns:',
     questions: [
       {
         id: '1',
         text: 'aerodrom (airport)',
         answer: 'masculine',
-        hint: 'Ends in a consonant'
       },
       {
         id: '2',
-        text: 'karta (ticket)',
-        answer: 'feminine',
-        hint: 'Ends in -a'
+        text: 'pasoš (passport)',
+        answer: 'masculine',
       },
       {
         id: '3',
-        text: 'ime (name)',
-        answer: 'neuter',
-        hint: 'Ends in -e'
+        text: 'karta (ticket)',
+        answer: 'feminine',
       },
       {
         id: '4',
-        text: 'student (student)',
+        text: 'prtljag (luggage)',
         answer: 'masculine',
-        hint: 'Ends in a consonant'
-      },
-      {
-        id: '5',
-        text: 'Srbija (Serbia)',
-        answer: 'feminine',
-        hint: 'Ends in -a'
       },
     ] as GenderRecognitionQuestion[]
   },

@@ -57,7 +57,7 @@ export function WelcomeOnboarding({ userName, onClose }: WelcomeOnboardingProps)
                 <AlertTitle>Your Learning Journey Starts Here</AlertTitle>
                 <AlertDescription>
                   Serbian AI Tutor is your companion to the "Serbian LearnBuddy" textbook.
-                  This interactive platform helps you master Serbian through structured lessons,
+                  This interactive platform helps you master Serbian through structured units,
                   exercises, and AI-powered support.
                 </AlertDescription>
               </Alert>
@@ -78,9 +78,9 @@ export function WelcomeOnboarding({ userName, onClose }: WelcomeOnboardingProps)
             <div className="space-y-4">
               <Alert>
                 <BookOpen className="h-4 w-4" />
-                <AlertTitle>5 Modules, 27 Lessons</AlertTitle>
+                <AlertTitle>5 Modules, 27 Units</AlertTitle>
                 <AlertDescription>
-                  The course is divided into 5 comprehensive modules with 27 interactive lessons covering different topics.
+                  The course is divided into 5 comprehensive modules with 27 interactive units covering different topics.
                   You can choose your learning pace: 3, 6, 9, or 12 months. Each module builds on the previous one, creating a solid foundation for advanced learning.
                 </AlertDescription>
               </Alert>

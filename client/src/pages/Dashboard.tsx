@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { COURSE_WEEKS, COURSE_UNITS, COURSE_MODULES, getModuleForUnit, getLessonNumberInModule, getModuleProgress } from "@shared/data";
+import { COURSE_WEEKS, COURSE_UNITS, COURSE_MODULES, getModuleForUnit, getModuleProgress } from "@shared/data";
 import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Clock, Home, Lock, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
@@ -115,8 +115,8 @@ export default function Dashboard() {
   
   // Determine if user is beta tester
   const isBeta = user?.isBetaTester || accessibleUnits?.isBeta || false;
-  const totalLessons = isBeta ? 6 : (units?.length || 27);
-  const progressPercentage = (completedUnits.length / totalLessons) * 100;
+  const totalUnits = isBeta ? 6 : (units?.length || 27);
+  const progressPercentage = (completedUnits.length / totalUnits) * 100;
   const learningDuration = progress?.learningDuration || 12;
   
   // Admin bypass: Show all units for admins
@@ -185,8 +185,8 @@ export default function Dashboard() {
       hypothesisId: "H2",
       message: "Module visibility summary",
       data: {
-        totalLessons,
-        completedLessons: completedUnits.length,
+        totalUnits,
+        completedUnits: completedUnits.length,
         visibleUnits: visibleCount,
         isBeta,
       },
@@ -208,7 +208,7 @@ export default function Dashboard() {
     progress?.currentUnit,
     completedUnits.length,
     visibleUnits?.length,
-    totalLessons,
+    totalUnits,
     currentWeek?.weekNumber,
     isBeta,
     accessibleCount,
@@ -351,7 +351,7 @@ export default function Dashboard() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{completedUnits.length}/{totalLessons}</div>
+              <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
               <Progress value={progressPercentage} className="mt-2" />
               <p className="text-xs text-muted-foreground mt-2">
                 {Math.round(progressPercentage)}% {t('dashboard.completed')}
@@ -381,16 +381,11 @@ export default function Dashboard() {
               <CardContent>
                 {(() => {
                   const currentUnit = progress?.currentUnit;
-                  const module = currentUnit ? getModuleForUnit(currentUnit) : null;
-                  const lessonNumber = currentUnit ? getLessonNumberInModule(currentUnit) : 0;
                   const unit = units?.find(u => u.number === currentUnit);
                   return (
                     <>
                       <div className="text-2xl font-bold">
-                        {module && lessonNumber > 0 
-                          ? `${t('dashboard.module', { number: module.number })} • ${t('dashboard.lesson', { number: lessonNumber })}`
-                          : t('dashboard.unit', { number: currentUnit })
-                        }
+                        {t('dashboard.unit', { number: currentUnit })}
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
                         {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
@@ -467,13 +462,7 @@ export default function Dashboard() {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant="outline" className="bg-gray-100">
-                                    {(() => {
-                                      const module = getModuleForUnit(unitNum);
-                                      const lessonNumber = getLessonNumberInModule(unitNum);
-                                      return module && lessonNumber > 0
-                                        ? `${t('dashboard.module', { number: module.number })} • ${t('dashboard.lesson', { number: lessonNumber })}`
-                                        : t('dashboard.unit', { number: unitNum });
-                                    })()}
+                                    {t('dashboard.unit', { number: unitNum })}
                                   </Badge>
                                   <Lock className="h-4 w-4 text-gray-500" />
                                   <span className="text-gray-500 text-sm font-medium">{t('dashboard.locked')}</span>
@@ -518,13 +507,7 @@ export default function Dashboard() {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant={isCurrent ? 'default' : 'outline'}>
-                                    {(() => {
-                                      const module = getModuleForUnit(unitNum);
-                                      const lessonNumber = getLessonNumberInModule(unitNum);
-                                      return module && lessonNumber > 0
-                                        ? `${t('dashboard.module', { number: module.number })} • ${t('dashboard.lesson', { number: lessonNumber })}`
-                                        : t('dashboard.unit', { number: unitNum });
-                                    })()}
+                                    {t('dashboard.unit', { number: unitNum })}
                                   </Badge>
                                   {isCompleted && (
                                     <Badge className={completedBadgeClass}>

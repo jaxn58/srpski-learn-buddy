@@ -257,16 +257,7 @@ const UNIT_1_PRACTICE = `# Unit 1: Practice Examples & Dialogues
 
 ---
 
-### Exercise 3: Gender Recognition
-
-Identify the gender of these nouns:
-1. aerodrom (airport)
-2. karta (ticket)
-3. ime (name)
-4. student (student)
-5. Ana (Ana - name)
-
-**Answers:** 1. masculine, 2. feminine, 3. neuter, 4. masculine, 5. feminine
+[EXERCISE:unit1-gender]
 
 ---
 
@@ -327,3 +318,5 @@ insertUnit1().catch((error) => {
   console.error("Fatal error:", error);
   process.exit(1);
 });
+
+

@@ -31,8 +31,8 @@ export default function Progress() {
   }
 
   const completedUnits = progress?.completedUnits || [];
-  const totalLessons = 27;
-  const progressPercent = (completedUnits.length / totalLessons) * 100;
+  const totalUnits = 27;
+  const progressPercent = (completedUnits.length / totalUnits) * 100;
   const currentWeek = progress?.currentWeek || 1;
   const learningDuration = progress?.learningDuration || 12;
   const totalWeeks = learningDuration;
@@ -46,9 +46,9 @@ export default function Progress() {
   // Calculate days since start
   const daysSinceStart = Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   
-  // Calculate average lessons per week
+  // Calculate average units per week
   const weeksElapsed = Math.max(1, Math.floor(daysSinceStart / 7));
-  const avgLessonsPerWeek = (completedUnits.length / weeksElapsed).toFixed(1);
+  const avgUnitsPerWeek = (completedUnits.length / weeksElapsed).toFixed(1);
 
   // Get current week info
   const currentWeekInfo = COURSE_WEEKS.find(w => w.weekNumber === currentWeek);
@@ -81,7 +81,7 @@ export default function Progress() {
                 <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{completedUnits.length}/{totalLessons}</div>
+                <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
                 <p className="text-xs text-muted-foreground">{t('progress.unitsCompleted')}</p>
                 <ProgressBar value={progressPercent} className="mt-2" />
               </CardContent>
@@ -105,7 +105,7 @@ export default function Progress() {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{avgLessonsPerWeek}</div>
+                <div className="text-2xl font-bold">{avgUnitsPerWeek}</div>
                 <p className="text-xs text-muted-foreground">{t('progress.unitsPerWeek')}</p>
               </CardContent>
             </Card>

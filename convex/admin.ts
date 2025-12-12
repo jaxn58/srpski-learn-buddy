@@ -508,6 +508,10 @@ export const markUnit1Complete = mutation({
     }
 
     console.log('[markUnit1Complete] User found:', user._id);
+    if (user.role !== "superadmin") {
+      console.error('[markUnit1Complete] Unauthorized role:', user.role);
+      throw new Error("Unauthorized");
+    }
 
     // Unit 1 vocabulary words (from shared/data/vocabulary/words.ts)
     const unit1VocabWords = [

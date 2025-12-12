@@ -55,6 +55,9 @@ export default function UnitView() {
   const isLoading = explanation === undefined;
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
   const isMastered = masteryStatus?.isMastered ?? false;
+
+  const shouldShowManualUnit1CompleteButton =
+    unitNumber === 1 && !isCompleted && user?.role === "superadmin";
   
   // Check if unit is locked for beta testers
   const isLocked = user?.isBetaTester && unitNumber > 6;
@@ -106,6 +109,12 @@ export default function UnitView() {
   // Handle manual Unit 1 completion
   const handleMarkUnit1Complete = React.useCallback(async () => {
     if (unitNumber !== 1) return;
+    if (user?.role !== "superadmin") {
+      toast.error("Unauthorized", {
+        description: "This action is only available to superadmins.",
+      });
+      return;
+    }
     
     setIsMarkingComplete(true);
     try {
@@ -129,7 +138,7 @@ export default function UnitView() {
     } finally {
       setIsMarkingComplete(false);
     }
-  }, [markUnit1CompleteMutation, unitNumber]);
+  }, [markUnit1CompleteMutation, unitNumber, user?.role, isCompleted]);
 
   // Automatischer Abschluss wenn Bedingungen erfüllt sind
   React.useEffect(() => {
@@ -610,7 +619,7 @@ export default function UnitView() {
               </div>
 
               {/* Manual Unit 1 Completion Button - Only for Unit 1 */}
-              {unitNumber === 1 && !isCompleted && (
+              {shouldShowManualUnit1CompleteButton && (
                 <div className="border-t pt-4 mt-4">
                   <Button 
                     onClick={handleMarkUnit1Complete}

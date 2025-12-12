@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { COURSE_MODULES, COURSE_UNITS, getModuleProgress, getLessonNumberInModule, getUnitsForModule } from "@shared/data";
+import { COURSE_MODULES, COURSE_UNITS, getModuleProgress, getUnitsForModule } from "@shared/data";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { Lock, BookOpen, Star, ChevronDown } from "lucide-react";
@@ -94,13 +94,12 @@ export default function Units() {
                       <AccordionItem value={`module-${module.id}`} className="border-none">
                         <AccordionTrigger className="hover:no-underline">
                           <span className="text-sm font-medium text-muted-foreground">
-                            {moduleUnits.length} {t("units.lessons", { count: moduleUnits.length })}
+                            {t("units.lessons", { count: moduleUnits.length })}
                           </span>
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                             {moduleUnits.map((unit) => {
-                              const lessonNumber = getLessonNumberInModule(unit.number);
                               const locked = !isAdmin && isBetaTester && unit.number > 6;
                               const isCurrent = progress?.currentUnit === unit.number;
                               const isCompleted = completedUnits.includes(unit.number);
@@ -127,7 +126,7 @@ export default function Units() {
                                     <CardHeader className="space-y-1">
                                       <div className="flex items-center gap-2">
                                         <Badge variant={isCurrent ? "default" : "outline"}>
-                                          {t("units.lesson", { number: lessonNumber })}
+                                          {t("units.lesson", { number: unit.number })}
                                         </Badge>
                                         {isCompleted && !locked && (
                                           <Badge className="bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm">

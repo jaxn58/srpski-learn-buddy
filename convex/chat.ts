@@ -347,13 +347,22 @@ export const sendMessage = action({
     unitContext: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<{ message: string }> => {
+    // #region agent log
+    console.log('[DEBUG-H_ALL] sendMessage ACTION START', {sessionId:args.sessionId,messageLength:args.message?.length});
+    // #endregion
     const session = await ctx.runQuery(api.chat.getSessionById, { sessionId: args.sessionId });
+    // #region agent log
+    console.log('[DEBUG-H_E] Session fetched', {sessionExists:!!session,isArchived:session?.archived});
+    // #endregion
     if (session?.archived) {
       throw new Error("Cannot send messages to an archived chat.");
     }
 
     // Get the API key from environment
     const apiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
+    // #region agent log
+    console.log('[DEBUG-H_D] API key check', {hasApiKey:!!apiKey,hasOpenAI:!!process.env.OPENAI_API_KEY,hasGemini:!!process.env.GEMINI_API_KEY});
+    // #endregion
     if (!apiKey) {
       console.error("AI API Key missing:", {
         hasOpenAI: !!process.env.OPENAI_API_KEY,
@@ -370,6 +379,9 @@ export const sendMessage = action({
       content: args.message,
       unitContext: args.unitContext,
     });
+    // #region agent log
+    console.log('[DEBUG-H_ALL] User message saved', {success:true});
+    // #endregion
 
     // Get recent chat history for context
     const history: ChatMessageDoc[] = await ctx.runQuery(api.chat.getMessages, {
@@ -378,12 +390,24 @@ export const sendMessage = action({
 
     // Build system prompt (admin-configurable with fallback)
     let promptDoc;
+    // #region agent log
+    console.log('[DEBUG-H_AB] BEFORE getChatPrompt');
+    // #endregion
     try {
       promptDoc = await ctx.runQuery(api.admin.getChatPrompt, { name: "default" });
+      // #region agent log
+      console.log('[DEBUG-H_AB] getChatPrompt SUCCESS', {hasPromptDoc:!!promptDoc});
+      // #endregion
     } catch (e) {
+      // #region agent log
+      console.log('[DEBUG-H_ABC] getChatPrompt FAILED', {error:e instanceof Error?e.message:String(e),errorType:e?.constructor?.name});
+      // #endregion
       // swallow and rely on fallback
     }
     const systemPrompt = promptDoc?.content || DEFAULT_CHAT_SYSTEM_PROMPT;
+    // #region agent log
+    console.log('[DEBUG-H_A] System prompt resolved', {usingCustomPrompt:!!promptDoc,promptLength:systemPrompt?.length});
+    // #endregion
 
     // Prepare messages for the AI
     const recentHistory: ChatMessageDoc[] = history.slice(-8);
@@ -406,6 +430,9 @@ export const sendMessage = action({
     const model = isGemini ? "gemini-2.0-flash" : "gpt-4o-mini";
 
     // Call the AI API
+    // #region agent log
+    console.log('[DEBUG-H_D] BEFORE AI API call', {apiUrl,model,messageCount:messages.length});
+    // #endregion
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -418,6 +445,9 @@ export const sendMessage = action({
         max_tokens: 2048,
       }),
     });
+    // #region agent log
+    console.log('[DEBUG-H_D] AI API response received', {ok:response.ok,status:response.status});
+    // #endregion
 
     if (!response.ok) {
       const errorText = await response.text();

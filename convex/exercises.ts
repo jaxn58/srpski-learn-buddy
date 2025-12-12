@@ -444,13 +444,13 @@ export const recordExerciseQuestionAnswer = mutation({
     if (args.isCorrect) {
       // XP based on Spaced Repetition level
       if (currentCorrectCount === 0) {
-        earnedXP = 5; // 1st time correct
+        earnedXP = 10; // 1st time correct
       } else if (currentCorrectCount === 1) {
-        earnedXP = 10; // 2nd time correct
+        earnedXP = 5; // 2nd time correct
       } else if (currentCorrectCount === 2) {
-        earnedXP = 20; // 3rd time correct (Mastered!)
+        earnedXP = 3; // 3rd time correct (Mastered!)
       }
-      // After 3rd time: no more XP (already mastered)
+      // After mastery (3+ correct): NO MORE XP
       
       console.log('[Convex] Progressive XP awarded:', {
         questionId: args.questionId,

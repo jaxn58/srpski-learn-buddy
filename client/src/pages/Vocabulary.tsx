@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown } from "lucide-react";
+import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Link, useLocation } from "wouter";
@@ -87,10 +87,11 @@ export default function Vocabulary() {
   const recordVocabularyAnswerMutation = useMutation(api.vocabulary.recordVocabularyAnswer);
 
   // Fetch vocabulary progress for filtering (both quiz and learn mode)
+  // Load ALL units for mastery checking, not just selected unit
   const vocabProgressData = useQuery(
     api.vocabulary.getUserVocabularyProgress,
     (mode === 'quiz' || mode === 'learn') 
-      ? { unitNumber: selectedUnit === 'all' ? undefined : (selectedUnit as number) } 
+      ? { unitNumber: undefined } // Load all units
       : "skip"
   ) as VocabularyProgressDoc[] | undefined;
 
@@ -548,6 +549,30 @@ export default function Vocabulary() {
     return Math.floor(total * 1);
   };
 
+  // Helper function to check if a unit is mastered
+  // A unit is mastered when ALL vocabulary words in that unit have correctAnswerCount >= 3
+  const isUnitMastered = (unitNumber: number): boolean => {
+    // Get all vocabulary words for this unit
+    const unitVocab = VOCABULARY.filter(v => v.unit === unitNumber);
+    if (unitVocab.length === 0) return false;
+    
+    // Check if vocabProgressData is loaded
+    if (!vocabProgressData || vocabProgressData.length === 0) {
+      return false;
+    }
+    
+    // Check if all words in the unit are mastered (correctAnswerCount >= 3)
+    const allMastered = unitVocab.every(word => {
+      const progress = vocabProgressData.find(
+        (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
+      );
+      const correctCount = progress?.correctAnswerCount ?? 0;
+      return correctCount >= 3;
+    });
+    
+    return allMastered;
+  };
+
   const completedUnits = progress?.completedUnits || [];
 
   return (
@@ -673,21 +698,29 @@ export default function Vocabulary() {
                 >
                   {t('vocabulary.allUnits')}
                 </Button>
-                {availableUnits.map(unit => (
-                  <Button
-                    key={unit}
-                    variant={selectedUnit === unit ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => { 
-                      setIsManualSelection(true); // Mark as manual selection
-                      setRecentQuizCompletion(false); // Reset quiz completion flag
-                      setSelectedUnit(unit); 
-                      handleReset(); 
-                    }}
-                  >
-                    {t('vocabulary.unit', { number: unit })}
-                  </Button>
-                ))}
+                {availableUnits.map(unit => {
+                  const mastered = isUnitMastered(unit);
+                  const isSelected = selectedUnit === unit;
+                  return (
+                    <Button
+                      key={unit}
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      className={mastered && !isSelected ? 'bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500' : ''}
+                      onClick={() => { 
+                        setIsManualSelection(true); // Mark as manual selection
+                        setRecentQuizCompletion(false); // Reset quiz completion flag
+                        setSelectedUnit(unit); 
+                        handleReset(); 
+                      }}
+                    >
+                      {mastered && (
+                        <Star className="h-4 w-4 mr-1.5 text-white fill-white" />
+                      )}
+                      {t('vocabulary.unit', { number: unit })}
+                    </Button>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
