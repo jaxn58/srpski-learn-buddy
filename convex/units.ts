@@ -7,9 +7,24 @@ export const getExplanation = query({
     unitNumber: v.number(),
   },
   handler: async (ctx, args) => {
-    console.log(`[getExplanation] Starting query for unit ${args.unitNumber}`);
+    // Try unitExplanations FIRST (has correct data for most units)
+    const explanation = await ctx.db
+      .query("unitExplanations")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .first();
 
-    // First try the new unitContent table
+    if (explanation && (explanation.overview || explanation.grammarExplained || explanation.practiceExamples)) {
+      return {
+        unitNumber: args.unitNumber,
+        overview: explanation.overview || null,
+        grammarExplained: explanation.grammarExplained || null,
+        practiceExamples: explanation.practiceExamples || null,
+      };
+    }
+
+    console.log(`[getExplanation] No content in unitExplanations, trying unitContent for unit ${args.unitNumber}`);
+
+    // Fallback: Try the new unitContent table
     const [overview, grammar, practice] = await Promise.all([
       ctx.db
         .query("unitContent")
@@ -40,7 +55,7 @@ export const getExplanation = query({
       practiceLength: practice?.content?.length || 0
     });
 
-    // If we have content from the new table, use it
+    // If we have content from unitContent, use it
     if (overview?.content || grammar?.content || practice?.content) {
       console.log(`[getExplanation] Using content from unitContent table for unit ${args.unitNumber}`);
       return {
@@ -48,31 +63,6 @@ export const getExplanation = query({
         overview: overview?.content || null,
         grammarExplained: grammar?.content || null,
         practiceExamples: practice?.content || null,
-      };
-    }
-
-    console.log(`[getExplanation] No content in unitContent, trying unitExplanations for unit ${args.unitNumber}`);
-
-    // Fallback: Try the old unitExplanations table for units that weren't migrated
-    const oldExplanation = await ctx.db
-      .query("unitExplanations")
-      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
-      .first();
-
-    console.log(`[getExplanation] unitExplanations result for unit ${args.unitNumber}:`, {
-      found: !!oldExplanation,
-      hasOverview: !!(oldExplanation?.overview?.length > 0),
-      hasGrammar: !!(oldExplanation?.grammarExplained?.length > 0),
-      hasPractice: !!(oldExplanation?.practiceExamples?.length > 0)
-    });
-
-    if (oldExplanation) {
-      console.log(`[getExplanation] Using content from unitExplanations table for unit ${args.unitNumber}`);
-      return {
-        unitNumber: args.unitNumber,
-        overview: oldExplanation.overview || null,
-        grammarExplained: oldExplanation.grammarExplained || null,
-        practiceExamples: oldExplanation.practiceExamples || null,
       };
     }
 

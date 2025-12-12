@@ -286,6 +286,7 @@ export default defineSchema({
   chatPrompts: defineTable({
     name: v.string(), // e.g., "default"
     content: v.string(), // system prompt text
+    description: v.optional(v.string()), // optional description of changes
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.number(),
   })
@@ -295,6 +296,7 @@ export default defineSchema({
   chatPromptHistory: defineTable({
     name: v.string(), // e.g., "default"
     content: v.string(), // system prompt text
+    description: v.optional(v.string()), // optional description of changes
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.number(),
   })

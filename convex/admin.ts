@@ -426,10 +426,11 @@ export const resetAllUsersToEnglish = mutation({
 });
 
 // Upsert chat prompt (admin/superadmin)
-export const setChatPrompt = mutation({
+export const updateChatPrompt = mutation({
   args: {
     name: v.optional(v.string()),
     content: v.string(),
+    description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const admin = await getAdminUser(ctx);
@@ -444,6 +445,7 @@ export const setChatPrompt = mutation({
     const payload = {
       name,
       content: args.content,
+      description: args.description,
       updatedBy: admin._id as Id<"users">,
       updatedAt: Date.now(),
     };
@@ -461,7 +463,10 @@ export const setChatPrompt = mutation({
   },
 });
 
-// Chat prompt history (latest first, limited)
+// Alias for backward compatibility
+export const setChatPrompt = updateChatPrompt;
+
+// Chat prompt history (latest first, limited) with user info
 export const getChatPromptHistory = query({
   args: {
     name: v.optional(v.string()),
@@ -478,7 +483,89 @@ export const getChatPromptHistory = query({
       .withIndex("by_name_updatedAt", (q) => q.eq("name", name))
       .order("desc")
       .take(limit);
-    return history;
+    
+    // Enrich with user info
+    const enrichedHistory = await Promise.all(
+      history.map(async (entry) => {
+        let userName = "Unknown";
+        if (entry.updatedBy) {
+          const user = await ctx.db.get(entry.updatedBy);
+          userName = user?.name || user?.email || "Unknown";
+        }
+        return {
+          ...entry,
+          updatedByName: userName,
+        };
+      })
+    );
+    
+    return enrichedHistory;
+  },
+});
+
+// Restore a specific version from history (superadmin only)
+export const restoreChatPromptVersion = mutation({
+  args: {
+    historyId: v.id("chatPromptHistory"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin || admin.role !== "superadmin") {
+      throw new Error("Unauthorized: Superadmin access required");
+    }
+
+    // Get the history entry
+    const historyEntry = await ctx.db.get(args.historyId);
+    if (!historyEntry) {
+      throw new Error("History entry not found");
+    }
+
+    // Get the current prompt
+    const existing = await ctx.db
+      .query("chatPrompts")
+      .withIndex("by_name", (q) => q.eq("name", historyEntry.name))
+      .first();
+
+    const payload = {
+      name: historyEntry.name,
+      content: historyEntry.content,
+      description: `Restored from version: ${new Date(historyEntry.updatedAt).toLocaleString()}`,
+      updatedBy: admin._id as Id<"users">,
+      updatedAt: Date.now(),
+    };
+
+    // Save to history
+    await ctx.db.insert("chatPromptHistory", payload);
+
+    // Update or create current prompt
+    if (existing) {
+      await ctx.db.patch(existing._id, payload);
+    } else {
+      await ctx.db.insert("chatPrompts", payload);
+    }
+
+    return { success: true };
+  },
+});
+
+// Delete a specific version from history (superadmin only)
+export const deleteChatPromptVersion = mutation({
+  args: {
+    historyId: v.id("chatPromptHistory"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin || admin.role !== "superadmin") {
+      throw new Error("Unauthorized: Superadmin access required");
+    }
+
+    const historyEntry = await ctx.db.get(args.historyId);
+    if (!historyEntry) {
+      throw new Error("History entry not found");
+    }
+
+    await ctx.db.delete(args.historyId);
+    return { success: true };
   },
 });
 
