@@ -1,18 +1,18 @@
 # Git Shortcuts fuer PowerShell
-function git-save {
+function Save-GitChanges {
     param([string]$message)
     git add .
     git commit -m $message
     Write-Host "Committed: $message" -ForegroundColor Green
 }
 
-function git-pushup {
+function Push-GitBranch {
     $branch = git branch --show-current
     git push origin $branch
     Write-Host "Pushed to: $branch" -ForegroundColor Green
 }
 
-function git-quick {
+function Invoke-GitQuick {
     param([string]$message)
     git add .
     git commit -m $message
@@ -22,6 +22,6 @@ function git-quick {
 }
 
 # Aliases setzen
-Set-Alias -Name gsave -Value git-save
-Set-Alias -Name gpush -Value git-pushup
-Set-Alias -Name gquick -Value git-quick
+Set-Alias -Name gsave -Value Save-GitChanges
+Set-Alias -Name gpush -Value Push-GitBranch
+Set-Alias -Name gquick -Value Invoke-GitQuick

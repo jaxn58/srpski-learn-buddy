@@ -210,3 +210,6 @@ content: string (Markdown)
 ---
 
 **Fazit:** Die `unitContent` Tabelle enthält größtenteils **falsche Zuordnungen**. Das Frontend lädt diese falschen Daten, obwohl in `unitExplanations` teilweise korrekte Daten existieren.
+
+
+
