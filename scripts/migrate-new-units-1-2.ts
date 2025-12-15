@@ -29,26 +29,6 @@ async function migrateNewUnits() {
   console.log(`   Content Dir: ${CONTENT_DIR}`);
 
   const client = new ConvexHttpClient(CONVEX_URL);
-  const moduleRefCache = new Map<string, string>();
-
-  const getModuleRef = async (moduleSlug: string, language: "en" | "de" = "en") => {
-    const key = `${moduleSlug}:${language}`;
-    if (moduleRefCache.has(key)) {
-      return moduleRefCache.get(key)!;
-    }
-
-    const moduleRef = await client.query(api.modules.getModuleRefBySlug, {
-      moduleSlug,
-      language,
-    });
-
-    if (!moduleRef) {
-      throw new Error(`❌ Module reference not found for slug "${moduleSlug}" (${language})`);
-    }
-
-    moduleRefCache.set(key, moduleRef);
-    return moduleRef;
-  };
   
   // Only process the new Units 1 and 2
   const filesToProcess = [
@@ -91,7 +71,7 @@ async function migrateNewUnits() {
         console.error(`   ⚠️  Skipping module metadata update.`);
       } else {
         const moduleId = moduleData.id;
-        console.log(`   Using module slug: ${moduleId}`);
+        console.log(`   Using moduleId: ${moduleId}`);
         
         try {
           await client.mutation(api.modules.insertModuleMetadata, {
@@ -108,7 +88,6 @@ async function migrateNewUnits() {
 
       // Update Unit Metadata
       try {
-        const moduleRef = moduleData ? await getModuleRef(moduleData.id, "en") : undefined;
         await client.mutation(api.units.insertUnitMetadata, {
           unitNumber: unitNum,
           language: "en",
@@ -116,7 +95,7 @@ async function migrateNewUnits() {
           topics: [], // Could be extracted from overview if needed
           grammarFocus: [],
           vocabularyThemes: [],
-          moduleRef,
+          moduleId: moduleData?.id,
         });
         console.log("   ✅ Unit Metadata");
       } catch (e: any) {

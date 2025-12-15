@@ -1,7 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
 import { COURSE_UNITS } from "../shared/data/course/units";
-import { getModuleForUnit } from "../shared/data/course/modules";
 import * as dotenv from "dotenv";
 
 // Load environment variables from .env.local
@@ -20,37 +19,14 @@ async function migrateUnitMetadata() {
   console.log(`   Convex URL: ${CONVEX_URL}`);
 
   const client = new ConvexHttpClient(CONVEX_URL);
-  const moduleRefCache = new Map<string, string>();
-
-  const getModuleRef = async (moduleSlug: string, language: "en" | "de") => {
-    const key = `${moduleSlug}:${language}`;
-    if (moduleRefCache.has(key)) {
-      return moduleRefCache.get(key)!;
-    }
-
-    const moduleRef = await client.query(api.modules.getModuleRefBySlug, {
-      moduleSlug,
-      language,
-    });
-
-    if (!moduleRef) {
-      throw new Error(`❌ Module reference not found for slug "${moduleSlug}" (${language})`);
-    }
-
-    moduleRefCache.set(key, moduleRef);
-    return moduleRef;
-  };
   let successCount = 0;
   let errorCount = 0;
 
   for (const unit of COURSE_UNITS) {
     console.log(`Processing Unit ${unit.number}: ${unit.titleEnglish}`);
-    const module = getModuleForUnit(unit.number);
-    const moduleSlug = module?.id;
 
     // 1. Migrate English Data
     try {
-      const moduleRef = moduleSlug ? await getModuleRef(moduleSlug, "en") : undefined;
       await client.mutation(api.units.insertUnitMetadata, {
         unitNumber: unit.number,
         language: "en",
@@ -58,7 +34,6 @@ async function migrateUnitMetadata() {
         topics: unit.topics,
         grammarFocus: unit.grammarFocus,
         vocabularyThemes: unit.vocabularyThemes,
-        moduleRef,
       });
       process.stdout.write("  ✅ EN ");
       successCount++;
@@ -69,7 +44,6 @@ async function migrateUnitMetadata() {
 
     // 2. Migrate German Data
     try {
-      const moduleRef = moduleSlug ? await getModuleRef(moduleSlug, "de") : undefined;
       await client.mutation(api.units.insertUnitMetadata, {
         unitNumber: unit.number,
         language: "de",
@@ -78,7 +52,6 @@ async function migrateUnitMetadata() {
         // Grammar and Vocab themes are currently only in English in the source file
         grammarFocus: unit.grammarFocus.map(t => `[TODO] ${t}`),
         vocabularyThemes: unit.vocabularyThemes.map(t => `[TODO] ${t}`),
-        moduleRef,
       });
       process.stdout.write("✅ DE\n");
       successCount++;

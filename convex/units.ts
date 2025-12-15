@@ -1,66 +1,5 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
-
-type ConvexCtx = QueryCtx | MutationCtx;
-
-async function fetchModuleMetadata(
-  ctx: ConvexCtx,
-  options: {
-    moduleRef?: Id<"moduleMetadata"> | null;
-    moduleSlug?: string | null;
-    language?: string;
-  }
-) {
-  if (options.moduleRef) {
-    const doc = await ctx.db.get(options.moduleRef);
-    if (doc) {
-      return doc;
-    }
-  }
-
-  if (!options.moduleSlug) {
-    return null;
-  }
-
-  const language = options.language || "en";
-  const byLanguage = await ctx.db
-    .query("moduleMetadata")
-    .withIndex("by_module_lang", (q) =>
-      q.eq("moduleId", options.moduleSlug!).eq("language", language)
-    )
-    .first();
-
-  if (byLanguage) {
-    return byLanguage;
-  }
-
-  if (language !== "en") {
-    return await ctx.db
-      .query("moduleMetadata")
-      .withIndex("by_module_lang", (q) =>
-        q.eq("moduleId", options.moduleSlug!).eq("language", "en")
-      )
-      .first();
-  }
-
-  return null;
-}
-
-async function resolveModuleRef(
-  ctx: ConvexCtx,
-  options: {
-    moduleRef?: Id<"moduleMetadata"> | null;
-    moduleSlug?: string | null;
-    language?: string;
-  }
-) {
-  if (options.moduleRef) {
-    return options.moduleRef;
-  }
-  const module = await fetchModuleMetadata(ctx, options);
-  return module?._id;
-}
 
 /**
  * @deprecated Use getUnitContent instead. This query will be removed after migration.
@@ -235,16 +174,9 @@ export const insertUnitMetadata = mutation({
     topics: v.array(v.string()),
     grammarFocus: v.array(v.string()),
     vocabularyThemes: v.array(v.string()),
-    moduleRef: v.optional(v.id("moduleMetadata")),
-    legacyModuleId: v.optional(v.string()), // fallback until all scripts supply moduleRef
+    moduleId: v.optional(v.string()), // "foundation", "daily-life", etc.
   },
   handler: async (ctx, args) => {
-    const resolvedModuleRef = await resolveModuleRef(ctx, {
-      moduleRef: args.moduleRef,
-      moduleSlug: args.legacyModuleId,
-      language: args.language,
-    });
-
     const existing = await ctx.db
       .query("unitMetadata")
       .withIndex("by_unit_lang", (q) =>
@@ -258,7 +190,7 @@ export const insertUnitMetadata = mutation({
         topics: args.topics,
         grammarFocus: args.grammarFocus,
         vocabularyThemes: args.vocabularyThemes,
-        ...(resolvedModuleRef !== undefined && { moduleRef: resolvedModuleRef }),
+        ...(args.moduleId !== undefined && { moduleId: args.moduleId }),
       });
       return existing._id;
     }
@@ -270,7 +202,7 @@ export const insertUnitMetadata = mutation({
       topics: args.topics,
       grammarFocus: args.grammarFocus,
       vocabularyThemes: args.vocabularyThemes,
-      moduleRef: resolvedModuleRef,
+      moduleId: args.moduleId,
     });
   },
 });
@@ -337,71 +269,37 @@ export const getAllUnitsMetadata = query({
 // Get all units for a specific module
 export const getUnitsByModule = query({
   args: {
-    moduleRef: v.optional(v.id("moduleMetadata")),
-    legacyModuleId: v.optional(v.string()),
+    moduleId: v.string(),
     language: v.optional(v.string()), // Default: "en"
   },
   handler: async (ctx, args) => {
     const language = args.language || "en";
-
-    if (!args.moduleRef && !args.legacyModuleId) {
-      throw new Error("moduleRef or legacyModuleId is required");
-    }
-
-    const resolvedModuleRef = await resolveModuleRef(ctx, {
-      moduleRef: args.moduleRef,
-      moduleSlug: args.legacyModuleId,
-      language,
-    });
-
-    if (resolvedModuleRef) {
-      const units = await ctx.db
-        .query("unitMetadata")
-        .withIndex("by_module_ref", (q) => q.eq("moduleRef", resolvedModuleRef))
-        .filter((q) => q.eq(q.field("language"), language))
-        .collect();
-
-      if (units.length === 0 && language !== "en") {
-        return await ctx.db
-          .query("unitMetadata")
-          .withIndex("by_module_ref", (q) => q.eq("moduleRef", resolvedModuleRef))
-          .filter((q) => q.eq(q.field("language"), "en"))
-          .collect();
-      }
-
-      return units.sort((a, b) => a.unitNumber - b.unitNumber);
-    }
-
-    // Legacy fallback: filter by deprecated moduleId slug
-    const allUnits = await ctx.db
+    
+    const units = await ctx.db
       .query("unitMetadata")
+      .withIndex("by_module", (q) => q.eq("moduleId", args.moduleId))
       .filter((q) => q.eq(q.field("language"), language))
       .collect();
-
-    const legacyMatches = allUnits.filter(
-      (unit) => (unit as any).moduleId === args.legacyModuleId
-    );
-
-    if (legacyMatches.length === 0 && language !== "en") {
-      const englishUnits = await ctx.db
+      
+    // If empty and not English, try fallback
+    if (units.length === 0 && language !== "en") {
+      return await ctx.db
         .query("unitMetadata")
+        .withIndex("by_module", (q) => q.eq("moduleId", args.moduleId))
         .filter((q) => q.eq(q.field("language"), "en"))
         .collect();
-      return englishUnits
-        .filter((unit) => (unit as any).moduleId === args.legacyModuleId)
-        .sort((a, b) => a.unitNumber - b.unitNumber);
     }
 
-    return legacyMatches.sort((a, b) => a.unitNumber - b.unitNumber);
+    return units.sort((a, b) => a.unitNumber - b.unitNumber);
   },
 });
 
-// Update moduleRef for a unit metadata entry (for migration)
-export const updateUnitModuleRef = mutation({
+// Update moduleId for a unit metadata entry (for migration)
+export const updateUnitModuleId = mutation({
   args: {
     unitNumber: v.number(),
     language: v.string(),
-    moduleRef: v.id("moduleMetadata"),
+    moduleId: v.string(),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -416,7 +314,7 @@ export const updateUnitModuleRef = mutation({
     }
 
     await ctx.db.patch(existing._id, {
-      moduleRef: args.moduleRef,
+      moduleId: args.moduleId,
     });
 
     return existing._id;
@@ -569,12 +467,15 @@ export const getUnitComplete = query({
       )
       .collect();
 
-    // 4. Get module (Foreign Key: moduleRef)
-    const module = await fetchModuleMetadata(ctx, {
-      moduleRef: metadata.moduleRef ?? null,
-      moduleSlug: (metadata as any).moduleId ?? null,
-      language: finalLanguage,
-    });
+    // 4. Get module (Foreign Key: moduleId)
+    const module = metadata.moduleId
+      ? await ctx.db
+          .query("moduleMetadata")
+          .withIndex("by_module_lang", (q) =>
+            q.eq("moduleId", metadata!.moduleId!).eq("language", finalLanguage)
+          )
+          .first()
+      : null;
 
     return {
       metadata,
@@ -1084,12 +985,6 @@ export const copyUnitData = mutation({
         .first();
       
       if (!existing) {
-        const moduleRef = await resolveModuleRef(ctx, {
-          moduleRef: meta.moduleRef ?? null,
-          moduleSlug: (meta as any).moduleId ?? null,
-          language: meta.language,
-        });
-
         await ctx.db.insert("unitMetadata", {
           unitNumber: args.toUnitNumber,
           language: meta.language,
@@ -1097,7 +992,7 @@ export const copyUnitData = mutation({
           topics: meta.topics,
           grammarFocus: meta.grammarFocus,
           vocabularyThemes: meta.vocabularyThemes,
-          moduleRef,
+          moduleId: meta.moduleId,
         });
         copied.metadata++;
       }

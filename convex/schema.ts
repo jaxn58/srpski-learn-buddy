@@ -136,8 +136,8 @@ export default defineSchema({
   // ============= NEW CONTENT STRUCTURE METADATA =============
   
   // 1. Unit Metadata (Master-Table for Units, Multi-language)
-  // Primary Key: (unitNumber, language)
-  // Foreign Key: moduleRef → moduleMetadata._id
+  // Primary Key: (unitNumber, language) - Composite Primary Key
+  // Foreign Key: moduleId → moduleMetadata.moduleId
   unitMetadata: defineTable({
     unitNumber: v.number(), // Primary Key (composite with language)
     language: v.string(), // "en", "de", "es", "fr" - Primary Key (composite with unitNumber)
@@ -145,14 +145,14 @@ export default defineSchema({
     topics: v.array(v.string()), // Array of Topics
     grammarFocus: v.array(v.string()), // Array of Grammar Focus points
     vocabularyThemes: v.array(v.string()), // Array of Vocabulary Themes
-    moduleRef: v.optional(v.id("moduleMetadata")), // Foreign Key to moduleMetadata via Convex document ID
+    moduleId: v.optional(v.string()), // Foreign Key to moduleMetadata.moduleId
   })
     .index("by_unit_lang", ["unitNumber", "language"]) // Composite Primary Key
-    .index("by_module_ref", ["moduleRef"]), // Foreign Key Index
+    .index("by_module", ["moduleId"]), // Foreign Key Index
 
   // 2. Module Metadata (Multi-language)
   moduleMetadata: defineTable({
-    moduleId: v.string(), // Human friendly slug ("foundation", "daily-life", ...)
+    moduleId: v.string(), // "foundation", "daily-life", etc.
     language: v.string(),
     title: v.string(),
     description: v.string(),

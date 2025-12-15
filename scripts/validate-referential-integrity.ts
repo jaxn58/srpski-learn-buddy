@@ -15,7 +15,7 @@ if (!CONVEX_URL) {
 interface IntegrityReport {
   orphanedContent: Array<{ unitNumber: number; language: string; contentType: string }>;
   orphanedTests: Array<{ unitNumber: number; language: string; questionId: string }>;
-  orphanedMetadata: Array<{ unitNumber: number; language: string; moduleRef?: string; moduleId?: string }>;
+  orphanedMetadata: Array<{ unitNumber: number; language: string; moduleId?: string }>;
   totalIssues: number;
 }
 
@@ -76,11 +76,10 @@ async function validateReferentialIntegrity() {
           });
         }
 
-        // Check metadata with moduleRef
-        if (metadata && (metadata.moduleRef || (metadata as any).moduleId)) {
+        // Check metadata with moduleId
+        if (metadata && metadata.moduleId) {
           const module = await client.query(api.modules.getModuleMetadata, {
-            moduleRef: metadata.moduleRef,
-            moduleSlug: (metadata as any)?.moduleId,
+            moduleId: metadata.moduleId,
             language,
           });
 
@@ -88,8 +87,7 @@ async function validateReferentialIntegrity() {
             report.orphanedMetadata.push({
               unitNumber,
               language,
-              moduleRef: metadata.moduleRef,
-              moduleId: (metadata as any)?.moduleId,
+              moduleId: metadata.moduleId,
             });
           }
         }
@@ -130,9 +128,8 @@ async function validateReferentialIntegrity() {
   if (report.orphanedMetadata.length > 0) {
     console.log(`\n❌ Orphaned Metadata Entries: ${report.orphanedMetadata.length}`);
     report.orphanedMetadata.forEach((entry) => {
-      const identifier = entry.moduleRef ? `moduleRef ${entry.moduleRef}` : `moduleId "${entry.moduleId}"`;
       console.log(
-        `   Unit ${entry.unitNumber} (${entry.language}): ${identifier} - Missing moduleMetadata`
+        `   Unit ${entry.unitNumber} (${entry.language}): moduleId "${entry.moduleId}" - Missing moduleMetadata`
       );
     });
   }

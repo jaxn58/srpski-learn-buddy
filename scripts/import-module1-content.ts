@@ -3,7 +3,6 @@ import { api } from "../convex/_generated/api";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
-import * as cheerio from "cheerio";
 import { load } from "cheerio";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
@@ -41,17 +40,6 @@ const turndownService = new TurndownService({
 });
 turndownService.use(gfm);
 
-type TranslationEntry = {
-  language: string;
-  translation: string;
-  alt?: string;
-};
-
-interface ParsedVocabularyItem {
-  serbian: string;
-  translations: TranslationEntry[];
-}
-
 type SectionContent = {
   overview?: string;
   vocabulary?: string;
@@ -59,7 +47,6 @@ type SectionContent = {
   phrases?: string;
   dialogues?: string;
   testIntroduction?: string;
-  vocabularyItems?: ParsedVocabularyItem[];
 };
 
 interface IndexMetadata {
@@ -182,186 +169,7 @@ function toMarkdown(html: string): string {
   return turndownService.turndown(cleaned).trim();
 }
 
-function parseVocabularyTables(sectionHtml: string, unitNumber: number): ParsedVocabularyItem[] {
-  if (!sectionHtml.trim()) {
-    return [];
-  }
-
-  const $ = load(`<section>${sectionHtml}</section>`);
-  const itemsMap = new Map<string, ParsedVocabularyItem>();
-
-  $("table").each((_, tableEl) => {
-    const table = $(tableEl);
-    const headers = getTableHeaders($, table);
-    if (!headers.length) {
-      return;
-    }
-
-    const englishColumns = findColumns(headers, ["english", "translation", "meaning"]);
-    if (!englishColumns.length) {
-      return;
-    }
-
-    const notesColumns = findColumns(headers, ["note", "notes", "comment"]);
-    let serbianColumns = findColumns(headers, [
-      "serbian",
-      "serbian phrase",
-      "phrase",
-      "word",
-      "masculine",
-      "feminine",
-      "neuter",
-    ]);
-
-    if (!serbianColumns.length) {
-      serbianColumns = headers
-        .map((_, idx) => idx)
-        .filter((idx) => !englishColumns.includes(idx) && !notesColumns.includes(idx))
-        .slice(0, 2);
-    }
-
-    const rows = getTableRows($, table);
-    rows.forEach((row) => {
-      const cells = $(row).find("td, th").toArray();
-      if (!cells.length) {
-        return;
-      }
-
-      const cellTexts = headers.map((_, idx) => {
-        const cell = cells[idx];
-        if (!cell) return "";
-        return cleanCellText($(cell).text());
-      });
-
-      const englishText = englishColumns
-        .map((idx) => cellTexts[idx])
-        .find((text) => Boolean(text));
-      if (!englishText) {
-        return;
-      }
-
-      const notesText = notesColumns.map((idx) => cellTexts[idx]).filter(Boolean).join(" ");
-      const altFromNotes = extractAltFromNotes(notesText);
-
-      serbianColumns.forEach((colIdx) => {
-        const value = cellTexts[colIdx];
-        if (!value) {
-          return;
-        }
-
-        const variants = splitSerbianVariants(value);
-        if (!variants.length) {
-          return;
-        }
-
-        for (const variant of variants) {
-          const normalized = variant.trim();
-          if (!normalized) continue;
-
-          const entryKey = normalized.toLowerCase();
-          const translationEntry: TranslationEntry = {
-            language: "en",
-            translation: englishText,
-            ...(altFromNotes ? { alt: altFromNotes } : {}),
-          };
-
-          const existing = itemsMap.get(entryKey);
-          if (existing) {
-            const alreadyHasTranslation = existing.translations.some(
-              (t) => t.translation === translationEntry.translation && t.alt === translationEntry.alt
-            );
-            if (!alreadyHasTranslation) {
-              existing.translations.push(translationEntry);
-            }
-          } else {
-            itemsMap.set(entryKey, {
-              serbian: normalized,
-              translations: [translationEntry],
-            });
-          }
-        }
-      });
-    });
-  });
-
-  if (!itemsMap.size && sectionHtml.trim()) {
-    console.warn(`  ⚠️  No vocabulary tables parsed for unit ${unitNumber}`);
-  }
-
-  return Array.from(itemsMap.values());
-}
-
-function getTableHeaders($root: cheerio.CheerioAPI, table: cheerio.Cheerio): string[] {
-  let headerCells = table.find("thead tr").first().find("th");
-  if (!headerCells.length) {
-    const firstRow = table.find("tr").first();
-    headerCells = firstRow.find("th");
-    if (!headerCells.length) {
-      headerCells = firstRow.find("td");
-    }
-  }
-
-  const headers: string[] = [];
-  headerCells.each((_, cell) => {
-    const text = $root(cell).text();
-    headers.push(normalizeHeaderName(cleanCellText(text)));
-  });
-  return headers;
-}
-
-function getTableRows($root: cheerio.CheerioAPI, table: cheerio.Cheerio): cheerio.Element[] {
-  const bodyRows = table.find("tbody tr").toArray().filter((row) => $root(row).find("td").length);
-  if (bodyRows.length) {
-    return bodyRows;
-  }
-
-  const allRows = table.find("tr").toArray();
-  if (allRows.length <= 1) {
-    return [];
-  }
-  return allRows.slice(1);
-}
-
-function normalizeHeaderName(text: string): string {
-  return text.toLowerCase().replace(/\u00a0/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function findColumns(headers: string[], keywords: string[]): number[] {
-  return headers
-    .map((header, idx) => (keywords.some((keyword) => header.includes(keyword)) ? idx : -1))
-    .filter((idx) => idx >= 0);
-}
-
-function cleanCellText(text: string): string {
-  return text.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function splitSerbianVariants(value: string): string[] {
-  return value
-    .split("/")
-    .map((part) => part.replace(/\*/g, "").trim())
-    .filter(Boolean);
-}
-
-function extractAltFromNotes(notes: string): string | undefined {
-  if (!notes) {
-    return undefined;
-  }
-
-  const montenegroMatch = notes.match(/montenegro[^:]*:\s*"?([A-Za-zćčšđžĆČŠĐŽ\s]+)"?/i);
-  if (montenegroMatch) {
-    return cleanCellText(montenegroMatch[1]);
-  }
-
-  const ijekavianMatch = notes.match(/ijekavian[^:]*:\s*"?([A-Za-zćčšđžĆČŠĐŽ\s]+)"?/i);
-  if (ijekavianMatch) {
-    return cleanCellText(ijekavianMatch[1]);
-  }
-
-  return undefined;
-}
-
-function parseUnitContent(filePath: string, unitNumber: number): SectionContent {
+function parseUnitContent(filePath: string): SectionContent {
   const html = fs.readFileSync(filePath, "utf-8");
   const $ = load(html);
 
@@ -380,7 +188,6 @@ function parseUnitContent(filePath: string, unitNumber: number): SectionContent 
     phrases: toMarkdown(phraseSplit.phrases || ""),
     dialogues: toMarkdown(phraseSplit.dialogues || ""),
     testIntroduction: toMarkdown(testHtml),
-    vocabularyItems: parseVocabularyTables(vocabularyHtml, unitNumber),
   };
 }
 
@@ -390,26 +197,6 @@ async function importContent() {
   console.log(`   Content Dir: ${CONTENT_DIR}\n`);
 
   const client = new ConvexHttpClient(CONVEX_URL);
-  const moduleRefCache = new Map<string, string>();
-
-  const getModuleRef = async (moduleSlug: string, language: "en" | "de" = "en") => {
-    const key = `${moduleSlug}:${language}`;
-    if (moduleRefCache.has(key)) {
-      return moduleRefCache.get(key)!;
-    }
-
-    const moduleRef = await client.query(api.modules.getModuleRefBySlug, {
-      moduleSlug,
-      language,
-    });
-
-    if (!moduleRef) {
-      throw new Error(`❌ Module reference not found for slug "${moduleSlug}" (${language})`);
-    }
-
-    moduleRefCache.set(key, moduleRef);
-    return moduleRef;
-  };
   const indexMetadata = parseIndexMetadata();
 
   for (const unit of UNITS) {
@@ -421,7 +208,7 @@ async function importContent() {
       continue;
     }
 
-    const sections = parseUnitContent(unitFile, unit.number);
+    const sections = parseUnitContent(unitFile);
     const metadata = indexMetadata[unit.number];
 
     if (!metadata) {
@@ -431,8 +218,6 @@ async function importContent() {
 
     try {
       console.log("  📝 Updating unit metadata...");
-      const foundationModuleRef = await getModuleRef("foundation", "en");
-
       await client.mutation(api.units.insertUnitMetadata, {
         unitNumber: unit.number,
         language: "en",
@@ -440,7 +225,7 @@ async function importContent() {
         topics: [metadata.description],
         grammarFocus: metadata.grammarFocus,
         vocabularyThemes: metadata.vocabularyThemes,
-        moduleRef: foundationModuleRef,
+        moduleId: "foundation",
       });
       console.log("  ✅ Metadata updated");
     } catch (error: any) {
@@ -448,29 +233,7 @@ async function importContent() {
     }
 
     // Insert unit content sections
-    const { vocabularyItems, ...markdownSections } = sections;
-
-    if (unit.number <= 5) {
-      if (vocabularyItems && vocabularyItems.length > 0) {
-        console.log(`  📚 Upserting ${vocabularyItems.length} vocabulary items...`);
-        for (const vocab of vocabularyItems) {
-          try {
-            await client.mutation(api.vocabulary.upsertCourseVocabulary, {
-              unitNumber: unit.number,
-              serbian: vocab.serbian,
-              translations: vocab.translations,
-            });
-          } catch (error: any) {
-            console.error(`  ❌ Failed to upsert vocab "${vocab.serbian}": ${error.message}`);
-          }
-        }
-        console.log("  ✅ Vocabulary upsert complete");
-      } else {
-        console.warn("  ⚠️  No vocabulary items parsed for this unit");
-      }
-    }
-
-    const entries = Object.entries(markdownSections) as Array<[keyof SectionContent, string | undefined]>;
+    const entries = Object.entries(sections) as Array<[keyof SectionContent, string | undefined]>;
     for (const [contentType, markdown] of entries) {
       if (!markdown) continue;
       try {

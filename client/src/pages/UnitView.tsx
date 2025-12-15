@@ -29,24 +29,17 @@ export default function UnitView() {
   const content = useQuery(api.units.getUnitContentSections, { unitNumber, language: displayLanguage });
   const vocabulary = useQuery(api.vocabulary.getCourseVocabularyByUnit, { unitNumber });
 
-  // Determine module reference (Convex document ID) and legacy slug for fallback
-  const moduleRef = unitMetadata?.moduleRef;
-  const legacyModuleSlug =
-    (unitMetadata as any)?.moduleId ||
-    COURSE_MODULES.find((m) => m.units.includes(unitNumber))?.id;
+  // Determine Module from unitMetadata (now includes moduleId)
+  // Fallback to COURSE_MODULES if moduleId is not yet set in DB (before migration)
+  const moduleId = unitMetadata?.moduleId || COURSE_MODULES.find(m => m.units.includes(unitNumber))?.id;
   // Bis zur vollständigen Multi-Language-Unterstützung müssen Modulnamen überall auf Englisch bleiben.
   const moduleLanguage = "en";
-  const moduleMetadata = useQuery(
-    api.modules.getModuleMetadata,
-    moduleRef
-      ? { moduleRef }
-      : legacyModuleSlug
-        ? { moduleSlug: legacyModuleSlug, language: moduleLanguage }
-        : "skip"
+  const moduleMetadata = useQuery(api.modules.getModuleMetadata, 
+    moduleId ? { moduleId, language: moduleLanguage } : "skip"
   );
 
   const moduleTitle = React.useMemo(() => {
-    if (!moduleRef && !legacyModuleSlug) {
+    if (!moduleId) {
       return undefined;
     }
 
@@ -62,11 +55,9 @@ export default function UnitView() {
       return sanitizeTitle(moduleMetadata.title);
     }
 
-    const fallbackModule = legacyModuleSlug
-      ? COURSE_MODULES.find((module) => module.id === legacyModuleSlug)
-      : undefined;
+    const fallbackModule = COURSE_MODULES.find((module) => module.id === moduleId);
     return fallbackModule?.titleEnglish;
-  }, [moduleRef, legacyModuleSlug, moduleMetadata?.title]);
+  }, [moduleId, moduleMetadata?.title]);
 
   // Progress hooks
   const progress = useQuery(api.progress.getUserProgress);
@@ -164,11 +155,11 @@ export default function UnitView() {
                 <Link href="/dashboard" className="hover:text-foreground transition-colors">
                   {t('sidebar.dashboard')}
                 </Link>
-                {moduleTitle && (moduleMetadata?.moduleId || legacyModuleSlug) && (
+                {moduleTitle && moduleId && (
                   <>
                     <ChevronRight className="h-4 w-4 mx-1" />
                     <Link 
-                      href={`/units#module-${moduleMetadata?.moduleId || legacyModuleSlug}`}
+                      href={`/units#module-${moduleId}`}
                       className="font-medium text-foreground hover:text-primary transition-colors"
                     >
                       {moduleTitle}

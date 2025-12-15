@@ -152,6 +152,27 @@ export default function Dashboard() {
 
   const accessibleCount = Array.isArray(rawAccessible) ? rawAccessible.length : 0;
 
+  const sendLayoutLog = (payload: {
+    hypothesisId: string;
+    message: string;
+    data: Record<string, unknown>;
+  }) => {
+    // #region agent log
+    fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "pre-fix",
+        hypothesisId: payload.hypothesisId,
+        location: "Dashboard.tsx:instrumentation",
+        message: payload.message,
+        data: payload.data,
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  };
 
   useEffect(() => {
     const visibleCount = visibleUnits?.length ?? 0;
