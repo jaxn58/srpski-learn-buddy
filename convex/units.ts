@@ -32,7 +32,7 @@ export const getExplanation = query({
     console.log(`[getExplanation] No content in unitExplanations, trying unitContent for unit ${args.unitNumber}`);
 
     // Fallback: Try the new unitContent table
-    const [overview, grammar, practice] = await Promise.all([
+    const [overview, grammar] = await Promise.all([
       ctx.db
         .query("unitContent")
         .withIndex("by_unit_lang_type", (q) =>
@@ -44,32 +44,24 @@ export const getExplanation = query({
         .withIndex("by_unit_lang_type", (q) =>
           q.eq("unitNumber", args.unitNumber).eq("language", "en").eq("contentType", "grammar")
         )
-        .first(),
-      ctx.db
-        .query("unitContent")
-        .withIndex("by_unit_lang_type", (q) =>
-          q.eq("unitNumber", args.unitNumber).eq("language", "en").eq("contentType", "practice")
-        )
         .first()
     ]);
 
     console.log(`[getExplanation] unitContent results for unit ${args.unitNumber}:`, {
       overviewFound: !!overview,
       grammarFound: !!grammar,
-      practiceFound: !!practice,
       overviewLength: overview?.content?.length || 0,
-      grammarLength: grammar?.content?.length || 0,
-      practiceLength: practice?.content?.length || 0
+      grammarLength: grammar?.content?.length || 0
     });
 
     // If we have content from unitContent, use it
-    if (overview?.content || grammar?.content || practice?.content) {
+    if (overview?.content || grammar?.content) {
       console.log(`[getExplanation] Using content from unitContent table for unit ${args.unitNumber}`);
       return {
         unitNumber: args.unitNumber,
         overview: overview?.content || null,
         grammarExplained: grammar?.content || null,
-        practiceExamples: practice?.content || null,
+        practiceExamples: null,
       };
     }
 
@@ -403,7 +395,7 @@ export const getUnitContent = query({
         q.eq("unitNumber", args.unitNumber).eq("language", finalLanguage)
       )
       .collect();
-    // #region agent log
+    
     // Convert array to object with contentType as keys
     const result: Record<string, string> = {};
     for (const content of contents) {
@@ -947,6 +939,81 @@ export const cleanMarkdownInTests = mutation({
     }
     
     return { updated, categoriesCleaned, questionsCleaned };
+  },
+});
+
+// ============= CLEANUP OPERATIONS =============
+
+// Delete unitContent entries with invalid contentTypes (for cleanup script)
+export const deleteInvalidContentTypes = mutation({
+  args: {
+    unitNumbers: v.array(v.number()), // Array of unit numbers to clean
+    contentTypes: v.array(v.string()), // Array of invalid contentTypes to remove (e.g., ["practice", "bookReference"])
+    dryRun: v.optional(v.boolean()), // If true, only count without deleting
+  },
+  handler: async (ctx, args) => {
+    console.log(`[deleteInvalidContentTypes] Cleaning units: ${args.unitNumbers.join(", ")}`);
+    console.log(`[deleteInvalidContentTypes] ContentTypes: ${args.contentTypes.join(", ")}`);
+    console.log(`[deleteInvalidContentTypes] Dry run: ${args.dryRun ?? false}`);
+    
+    let found = 0;
+    let deleted = 0;
+    const foundEntries: Array<{ unitNumber: number; language: string; contentType: string; id: string }> = [];
+
+    for (const unitNumber of args.unitNumbers) {
+      for (const contentType of args.contentTypes) {
+        // Find all entries with this contentType for this unit
+        const entries = await ctx.db
+          .query("unitContent")
+          .filter((q) => 
+            q.and(
+              q.eq(q.field("unitNumber"), unitNumber),
+              q.eq(q.field("contentType"), contentType as any) // Cast to bypass TypeScript check
+            )
+          )
+          .collect();
+
+        found += entries.length;
+
+        for (const entry of entries) {
+          foundEntries.push({
+            unitNumber: entry.unitNumber,
+            language: entry.language,
+            contentType: entry.contentType as string,
+            id: entry._id,
+          });
+
+          if (!args.dryRun) {
+            await ctx.db.delete(entry._id);
+            deleted++;
+          }
+        }
+      }
+    }
+
+    console.log(`[deleteInvalidContentTypes] Found: ${found}, Deleted: ${deleted}`);
+    
+    return {
+      found,
+      deleted,
+      entries: foundEntries,
+      dryRun: args.dryRun ?? false,
+    };
+  },
+});
+
+// Legacy alias for backward compatibility
+export const deleteInvalidPracticeContent = mutation({
+  args: {
+    unitNumbers: v.array(v.number()),
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runMutation(api.units.deleteInvalidContentTypes, {
+      unitNumbers: args.unitNumbers,
+      contentTypes: ["practice"],
+      dryRun: args.dryRun,
+    });
   },
 });
 

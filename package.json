@@ -19,7 +19,8 @@
     "migrate:shift-units": "tsx scripts/shift-units-1-5.ts",
     "migrate:new-units": "tsx scripts/migrate-new-units-1-2.ts",
     "migrate:all-units": "tsx scripts/migrate-unit-content-new-structure.ts",
-    "cleanup:vocabulary": "tsx scripts/cleanup-vocabulary-units-1-6.ts"
+    "cleanup:vocabulary": "tsx scripts/cleanup-vocabulary-units-1-6.ts",
+    "cleanup:practice": "tsx scripts/cleanup-invalid-practice-content.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

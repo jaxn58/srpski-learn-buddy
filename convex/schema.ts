@@ -212,7 +212,8 @@ export default defineSchema({
       v.literal("phrases"),
       v.literal("dialogues"),
       v.literal("vocabulary"),
-      v.literal("testIntroduction")
+      v.literal("testIntroduction"),
+      v.literal("practice") // TEMPORARY: For cleanup of legacy data in units 7-27. Remove after cleanup.
     ), // Type-safe content type
     content: v.string(), // The actual markdown content
     version: v.optional(v.number()), // For content versioning

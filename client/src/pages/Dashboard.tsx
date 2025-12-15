@@ -154,42 +154,7 @@ export default function Dashboard() {
 
 
   useEffect(() => {
-    const visibleCount = visibleUnits?.length ?? 0;
-    const currentUnit = progress?.currentUnit ?? null;
-    const weekNumber = currentWeek?.weekNumber ?? null;
-
-    sendLayoutLog({
-      hypothesisId: "H1",
-      message: "Dashboard render state",
-      data: {
-        authLoading,
-        progressLoading,
-        hasUser: !!user,
-        userId: user?._id ?? null,
-        currentUnit,
-      },
-    });
-
-    sendLayoutLog({
-      hypothesisId: "H2",
-      message: "Module visibility summary",
-      data: {
-        totalUnits,
-        completedUnits: completedUnits.length,
-        visibleUnits: visibleCount,
-        isBeta,
-      },
-    });
-
-    sendLayoutLog({
-      hypothesisId: "H3",
-      message: "Week and access data",
-      data: {
-        weekNumber,
-        accessibleCount,
-        learningDuration,
-      },
-    });
+    // Removed debug instrumentation
   }, [
     authLoading,
     progressLoading,
