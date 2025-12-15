@@ -5,21 +5,56 @@ import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { COURSE_MODULES, COURSE_UNITS, getModuleProgress, getUnitsForModule } from "@shared/data";
 import { useTranslation } from "react-i18next";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Lock, BookOpen, Star, ChevronDown } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Sidebar } from "@/components/Sidebar";
+import { useEffect, useState } from "react";
 
 export default function Units() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
+  const [location] = useLocation();
   const progress = useQuery(api.progress.getUserProgress);
   const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
 
   const isBetaTester = Boolean(user?.isBetaTester);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const completedUnits = progress?.completedUnits || [];
+
+  // Extract module ID from hash (e.g., #module-foundation -> foundation)
+  const hash = typeof window !== "undefined" ? window.location.hash : "";
+  const moduleIdFromHash = hash.startsWith("#module-") ? hash.replace("#module-", "") : null;
+  
+  // State for controlled accordion
+  const [openModule, setOpenModule] = useState<string | undefined>(
+    moduleIdFromHash ? `module-${moduleIdFromHash}` : undefined
+  );
+
+  // Update open module when hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      const newHash = window.location.hash;
+      const newModuleId = newHash.startsWith("#module-") ? newHash.replace("#module-", "") : null;
+      if (newModuleId) {
+        setOpenModule(`module-${newModuleId}`);
+        // Scroll to the module after a short delay to ensure it's rendered
+        setTimeout(() => {
+          const element = document.getElementById(`module-card-${newModuleId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 100);
+      }
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    // Also check on mount
+    handleHashChange();
+
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -48,7 +83,11 @@ export default function Units() {
               const moduleDescription = i18n.language === "de" ? module.descriptionGerman : module.description;
 
               return (
-                <Card key={module.id} className={isModuleLocked ? "opacity-60 border-dashed" : ""}>
+                <Card 
+                  key={module.id} 
+                  id={`module-card-${module.id}`}
+                  className={isModuleLocked ? "opacity-60 border-dashed" : ""}
+                >
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -90,7 +129,21 @@ export default function Units() {
                   </CardHeader>
                   
                   <CardContent>
-                    <Accordion type="single" collapsible className="w-full">
+                    <Accordion 
+                      type="single" 
+                      collapsible 
+                      className="w-full"
+                      value={openModule === `module-${module.id}` ? `module-${module.id}` : undefined}
+                      onValueChange={(value) => {
+                        setOpenModule(value);
+                        // Update hash when accordion is opened/closed
+                        if (value === `module-${module.id}`) {
+                          window.history.replaceState(null, "", `#module-${module.id}`);
+                        } else if (openModule === `module-${module.id}`) {
+                          window.history.replaceState(null, "", location);
+                        }
+                      }}
+                    >
                       <AccordionItem value={`module-${module.id}`} className="border-none">
                         <AccordionTrigger className="hover:no-underline">
                           <span className="text-sm font-medium text-muted-foreground">

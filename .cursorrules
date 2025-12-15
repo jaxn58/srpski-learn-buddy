@@ -1,6 +1,10 @@
-
-
 # XP System Rules
-- Nach Mastery (3x richtig) gibt es KEINE weiteren XP mehr
+- Beim Erstellen von Datenbanken oder Strukturen gilt immer darauf zu achten, dass hier eine Mehrsprachigkeit integrierbar, leicht integrierbar sein soll. Vorerst benutzen wir aber nur Englisch.
+- Nach der Mastery, das heißt dreimal richtige Antwort, kann kein weiteres XP mehr generiert werden.
 - XP System: 1st=10 XP, 2nd=5 XP, 3rd=3 XP, danach=0 XP
 - NIEMALS Eigeninitiative beim Design - immer konsistent mit bestehenden Komponenten
+- Keine Eigeninitiative beim Anlegen von Dateien oder beim Ändern von Dateien. Alles muss immer in Rückfrage mit dem Benutzer geschehen.
+- Keine 'Quick & Dirty' Lösungen.
+- Verwende keine Emojis
+- Die Inhalte für unsere App sollen dynamisch sein und nicht hardcoded aus der Datenbank gezogen werden. Du kannst mir ja Vorschläge machen, wenn es da irgendwo Probleme gibt.
+- Bis zu dem Zeitpunkt, wo die App multi-language fähig gemacht wird, oder sobald sie freigeschaltet ist als multi-language App, sollen alle Inhalte Englisch sein. Darauf ist zu achten.

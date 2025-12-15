@@ -17,11 +17,11 @@ export const COURSE_MODULES: Module[] = [
     id: "foundation",
     number: 1,
     title: "Osnove",
-    titleEnglish: "Foundation",
-    titleGerman: "Grundlagen",
+    titleEnglish: "The Arrival",
+    titleGerman: "Die Ankunft",
     description: "Master the basics: greetings, numbers, directions, and essential vocabulary",
     descriptionGerman: "Grundlagen beherrschen: Begrüßungen, Zahlen, Wegbeschreibungen und wichtige Vokabeln",
-    units: [1, 2, 3, 4, 5, 6]
+    units: [1, 2, 3, 4, 5, 6, 7, 8]
   },
   {
     id: "daily-life",

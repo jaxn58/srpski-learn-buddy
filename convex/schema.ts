@@ -72,6 +72,20 @@ export default defineSchema({
     .index("by_user_exercise", ["userId", "exerciseId"])
     .index("by_user_question", ["userId", "exerciseId", "questionId"]),
 
+  // ============= INTERACTIVE TEST QUESTION PROGRESS (Mastery per Question) =============
+  questionProgress: defineTable({
+    userId: v.id("users"),
+    unitNumber: v.number(),
+    questionId: v.string(), // Stable question ID (e.g., "u1_trans_q1")
+    correctAttempts: v.number(), // Only correct answers count
+    isMastered: v.boolean(), // true after 3 correct attempts
+    totalXPEarned: v.number(), // Total XP earned from this question
+    lastAttemptAt: v.number(), // Timestamp of last attempt
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_unit", ["userId", "unitNumber"])
+    .index("by_user_question", ["userId", "questionId"]),
+
   // ============= CHAT SESSIONS =============
   chatSessions: defineTable({
     userId: v.id("users"),
@@ -104,7 +118,10 @@ export default defineSchema({
     correctAnswers: v.number(),
   }).index("by_user", ["userId"]),
 
-  // ============= UNIT EXPLANATIONS (AI-generated content) =============
+  // ============= UNIT EXPLANATIONS (DEPRECATED - Legacy table) =============
+  // @deprecated This table is deprecated. Use unitContent instead.
+  // Migration: unitExplanations → unitContent
+  // This table will be removed after migration is complete.
   unitExplanations: defineTable({
     unitNumber: v.number(),
     overview: v.string(),
@@ -118,19 +135,24 @@ export default defineSchema({
 
   // ============= NEW CONTENT STRUCTURE METADATA =============
   
-  // 1. Unit Metadata (Multi-language)
+  // 1. Unit Metadata (Master-Table for Units, Multi-language)
+  // Primary Key: (unitNumber, language)
+  // Foreign Key: moduleRef → moduleMetadata._id
   unitMetadata: defineTable({
-    unitNumber: v.number(),
-    language: v.string(), // "en", "de", "es", "fr"
+    unitNumber: v.number(), // Primary Key (composite with language)
+    language: v.string(), // "en", "de", "es", "fr" - Primary Key (composite with unitNumber)
     title: v.string(), // Translated Title
     topics: v.array(v.string()), // Array of Topics
     grammarFocus: v.array(v.string()), // Array of Grammar Focus points
     vocabularyThemes: v.array(v.string()), // Array of Vocabulary Themes
-  }).index("by_unit_lang", ["unitNumber", "language"]),
+    moduleRef: v.optional(v.id("moduleMetadata")), // Foreign Key to moduleMetadata via Convex document ID
+  })
+    .index("by_unit_lang", ["unitNumber", "language"]) // Composite Primary Key
+    .index("by_module_ref", ["moduleRef"]), // Foreign Key Index
 
   // 2. Module Metadata (Multi-language)
   moduleMetadata: defineTable({
-    moduleId: v.string(), // "foundation", "daily-life", etc.
+    moduleId: v.string(), // Human friendly slug ("foundation", "daily-life", ...)
     language: v.string(),
     title: v.string(),
     description: v.string(),
@@ -154,14 +176,17 @@ export default defineSchema({
   }).index("by_vocab_lang", ["vocabularyId", "language"]),
 
   // 5. Interactive Tests (Central Question DB for Gamification)
+  // Relational: Foreign Key to unitMetadata (unitNumber, language)
+  // Normalized: One row per question
   unitInteractiveTests: defineTable({
-    unitNumber: v.number(),
-    language: v.string(),
+    unitNumber: v.number(), // Foreign Key to unitMetadata (composite with language)
+    language: v.string(), // Foreign Key to unitMetadata (composite with unitNumber)
     category: v.string(), // "translation", "fillInBlank", "multipleChoice", "vocabularyMatching", "dialogueCompletion"
-    
+    categoryInstructions: v.optional(v.string()), // Instructions for this category (e.g. "Translate the following sentences...")
+
     // Gamification-IDs
-    questionId: v.string(), // Stable ID (e.g. "u1_trans_q1") for exerciseQuestionProgress
-    
+    questionId: v.string(), // Stable ID (e.g. "u1_trans_q1") for exerciseQuestionProgress - Unique identifier
+
     questionType: v.string(), // "translation", "fillInBlank", "multipleChoice", "matching", "dialogue"
     question: v.string(), // The Question/Task
     correctAnswer: v.string(), // Correct Answer
@@ -170,19 +195,50 @@ export default defineSchema({
     hint: v.optional(v.string()), // Optional Hint
     order: v.number(), // Order within category
   })
-  .index("by_unit_lang_category", ["unitNumber", "language", "category"])
-  .index("by_unit_lang", ["unitNumber", "language"])
-  .index("by_question_id", ["questionId"]),
+    .index("by_unit_lang_category", ["unitNumber", "language", "category"]) // Composite FK + category
+    .index("by_unit_lang", ["unitNumber", "language"]) // Foreign Key to unitMetadata
+    .index("by_question_id", ["questionId"]), // Unique for Gamification
 
   // ============= UNIT CONTENT (Modern multi-language support) =============
-  // New scalable table for multi-language unit content
-  // Supports: overview, grammar, phrases, dialogues
+  // Relational: Foreign Key to unitMetadata (unitNumber, language)
+  // Normalized: One row per unit+language+contentType
+  // Supports: overview, grammar, phrases, dialogues, testIntroduction
   unitContent: defineTable({
-    unitNumber: v.number(),
-    language: v.string(), // "en", "de", "es", "fr"
-    contentType: v.string(), // "overview", "grammar", "phrases", "dialogues" (interactiveTest is in separate table)
+    unitNumber: v.number(), // Foreign Key to unitMetadata (composite with language)
+    language: v.string(), // "en", "de", "es", "fr" - Foreign Key to unitMetadata (composite with unitNumber)
+    contentType: v.union(
+      v.literal("overview"),
+      v.literal("grammar"),
+      v.literal("phrases"),
+      v.literal("dialogues"),
+      v.literal("vocabulary"),
+      v.literal("testIntroduction")
+    ), // Type-safe content type
     content: v.string(), // The actual markdown content
-  }).index("by_unit_lang_type", ["unitNumber", "language", "contentType"]),
+    version: v.optional(v.number()), // For content versioning
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_unit_lang_type", ["unitNumber", "language", "contentType"]) // Composite FK + contentType
+    .index("by_unit_lang", ["unitNumber", "language"]), // Foreign Key to unitMetadata
+
+  // ============= CENTRAL COURSE VOCABULARY (Master Data) =============
+  // Stores vocabulary definitions from Units (Markdown)
+  // Multi-language ready via translations array
+  courseVocabulary: defineTable({
+    unitNumber: v.number(),
+    serbian: v.string(),
+    // Flexible translations: [{lang: "en", text: "passport"}, {lang: "de", text: "Reisepass"}]
+    translations: v.array(v.object({
+      language: v.string(), // "en", "de", "es", "fr", etc.
+      translation: v.string(),
+      alt: v.optional(v.string()) // Optional Montenegrin variant or alternatives
+    })),
+    gender: v.optional(v.string()), // m, f, n
+    pronunciation: v.optional(v.string()),
+  })
+  .index("by_unit", ["unitNumber"])
+  .index("by_serbian", ["serbian"]),
 
   // ============= GAMIFICATION: EXERCISE COMPLETIONS =============
   exerciseCompletions: defineTable({

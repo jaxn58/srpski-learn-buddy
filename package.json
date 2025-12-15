@@ -15,7 +15,11 @@
     "migrate:email-templates": "tsx scripts/migrate-email-templates.ts",
     "generate:pronunciation-audio": "tsx scripts/generate-pronunciation-audio.ts",
     "export:units": "tsx scripts/export-unit-contents.ts",
-    "compare:book": "tsx scripts/compare-with-book.ts"
+    "compare:book": "tsx scripts/compare-with-book.ts",
+    "migrate:shift-units": "tsx scripts/shift-units-1-5.ts",
+    "migrate:new-units": "tsx scripts/migrate-new-units-1-2.ts",
+    "migrate:all-units": "tsx scripts/migrate-unit-content-new-structure.ts",
+    "cleanup:vocabulary": "tsx scripts/cleanup-vocabulary-units-1-6.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
@@ -62,6 +66,7 @@
     "@types/nodemailer": "^7.0.2",
     "axios": "^1.12.0",
     "bcrypt": "^6.0.0",
+    "cheerio": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -97,6 +102,8 @@
     "superjson": "^1.13.3",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
+    "turndown": "^7.2.2",
+    "turndown-plugin-gfm": "^1.0.2",
     "vaul": "^1.1.2",
     "wouter": "^3.3.5",
     "zod": "^4.1.12"

@@ -483,7 +483,12 @@ export const getMasteredUnits = query({
       }
 
       const masteredUnits: number[] = [];
-      const candidateUnits = new Set([...vocabStats.keys(), ...exerciseStats.keys()]);
+      const candidateUnits = Array.from(
+        new Set([
+          ...Array.from(vocabStats.keys()),
+          ...Array.from(exerciseStats.keys())
+        ])
+      );
 
       for (const unitNumber of candidateUnits) {
         const vocab = vocabStats.get(unitNumber);
@@ -502,6 +507,117 @@ export const getMasteredUnits = query({
       console.error("[getMasteredUnits] Error, returning empty array:", error);
       return [];
     }
+  },
+});
+
+// ============= INTERACTIVE TEST PROGRESS (Block-based with per-question mastery) =============
+
+// Submit results for Interactive Test category (block-based checking)
+export const submitCategoryResult = mutation({
+  args: {
+    unitNumber: v.number(),
+    category: v.string(),
+    questionResults: v.array(v.object({
+      questionId: v.string(),
+      isCorrect: v.boolean(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    let totalXP = 0;
+    const updatedProgress: Array<{
+      questionId: string;
+      correctAttempts: number;
+      isMastered: boolean;
+      xpEarned: number;
+    }> = [];
+
+    for (const result of args.questionResults) {
+      if (!result.isCorrect) {
+        // Falsche Antworten zählen nicht für Progress/XP
+        continue;
+      }
+
+      // Hole existierenden Progress für diese Frage
+      const existingProgress = await ctx.db
+        .query("questionProgress")
+        .withIndex("by_user_question", (q) => 
+          q.eq("userId", user._id).eq("questionId", result.questionId)
+        )
+        .first();
+
+      const correctAttempts = (existingProgress?.correctAttempts ?? 0) + 1;
+      const isMastered = correctAttempts >= 3;
+
+      // XP-Berechnung nach .cursorrules:
+      // 1st correct=10 XP, 2nd correct=5 XP, 3rd correct=3 XP, mastered (>3)=0 XP
+      let xpForQuestion = 0;
+      if (correctAttempts === 1) xpForQuestion = 10;
+      else if (correctAttempts === 2) xpForQuestion = 5;
+      else if (correctAttempts === 3) xpForQuestion = 3;
+      // Nach Mastery (>3): 0 XP
+
+      totalXP += xpForQuestion;
+
+      // Update oder Create Progress
+      if (existingProgress) {
+        await ctx.db.patch(existingProgress._id, {
+          correctAttempts,
+          isMastered,
+          totalXPEarned: (existingProgress.totalXPEarned ?? 0) + xpForQuestion,
+          lastAttemptAt: Date.now(),
+        });
+      } else {
+        await ctx.db.insert("questionProgress", {
+          userId: user._id,
+          unitNumber: args.unitNumber,
+          questionId: result.questionId,
+          correctAttempts,
+          isMastered,
+          totalXPEarned: xpForQuestion,
+          lastAttemptAt: Date.now(),
+        });
+      }
+
+      updatedProgress.push({
+        questionId: result.questionId,
+        correctAttempts,
+        isMastered,
+        xpEarned: xpForQuestion,
+      });
+    }
+
+    // Update User XP
+    await ctx.db.patch(user._id, {
+      totalXP: (user.totalXP ?? 0) + totalXP,
+    });
+
+    console.log(`[Progress] submitCategoryResult: User ${user._id} earned ${totalXP} XP from ${args.category} in unit ${args.unitNumber}`);
+
+    return { 
+      earnedXP: totalXP,
+      updatedProgress,
+    };
+  },
+});
+
+// Get question progress for a unit (Mastery status)
+export const getQuestionProgress = query({
+  args: { unitNumber: v.number() },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+
+    const progress = await ctx.db
+      .query("questionProgress")
+      .withIndex("by_user_unit", (q) => 
+        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+      )
+      .collect();
+
+    return progress;
   },
 });
 

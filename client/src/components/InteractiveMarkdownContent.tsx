@@ -3,6 +3,8 @@ import remarkGfm from 'remark-gfm';
 import { FillInBlankExercise, type FillInBlankQuestion } from './exercises/FillInBlank';
 import { TranslationExercise, type TranslationQuestion } from './exercises/TranslationExercise';
 import { GenderRecognitionExercise, type GenderRecognitionQuestion } from './exercises/GenderRecognition';
+import { NEW_UNIT1_EXERCISES } from './exercises/new-unit1-exercises';
+import { NEW_UNIT2_EXERCISES } from './exercises/new-unit2-exercises';
 import { UNIT2_EXERCISES } from './exercises/unit2-exercises';
 import { UNITS_3_5_EXERCISES } from './exercises/units-3-5-exercises';
 import { UNIT6_EXERCISES } from './exercises/unit6-exercises';
@@ -12,6 +14,8 @@ import { UNITS_16_27_EXERCISES } from './exercises/units-16-27-exercises';
 
 // Exercise data definitions
 const EXERCISES: Record<string, any> = {
+  ...NEW_UNIT1_EXERCISES,
+  ...NEW_UNIT2_EXERCISES,
   ...UNIT2_EXERCISES,
   ...UNITS_3_5_EXERCISES,
   ...UNIT6_EXERCISES,

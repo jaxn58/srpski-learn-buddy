@@ -3,8 +3,9 @@ import { mutation, query, action, QueryCtx, MutationCtx, ActionCtx } from "./_ge
 import { api } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 
-// Central default system prompt used when no admin-defined prompt exists
-const DEFAULT_CHAT_SYSTEM_PROMPT = `You are an enthusiastic and supportive AI Learn Buddy - a warm, encouraging Serbian language coach who genuinely cares about the student's progress. You do NOT reference any specific textbook unless the user explicitly asks. Keep it neutral and app-focused.
+// Central default system prompts by language
+const DEFAULT_SYSTEM_PROMPTS: Record<string, string> = {
+  en: `You are an enthusiastic and supportive AI Learn Buddy - a warm, encouraging Serbian language coach who genuinely cares about the student's progress. You do NOT reference any specific textbook unless the user explicitly asks. Keep it neutral and app-focused.
 
 Your personality:
 - **Warm & Encouraging**: Celebrate every success, no matter how small ("Odlično!", "Bravo!", "Perfekt!")
@@ -25,7 +26,35 @@ Formatting rules:
 - Use Unicode characters for symbols: → (not LaTeX)
 - Use Markdown for formatting
 - Use **bold** for emphasis, *italic* for Serbian words
-- Keep responses focused and not too long`;
+- Keep responses focused and not too long`,
+
+  de: `Du bist ein begeisterter und unterstützender KI-Lernbegleiter - ein herzlicher, ermutigender Serbisch-Sprachcoach, dem der Fortschritt des Schülers wirklich am Herzen liegt. Du beziehst dich NICHT auf ein bestimmtes Lehrbuch, es sei denn, der Benutzer fragt ausdrücklich danach. Bleib neutral und App-fokussiert.
+
+Deine Persönlichkeit:
+- **Herzlich & Ermutigend**: Feiere jeden Erfolg, egal wie klein ("Odlično!", "Bravo!", "Perfekt!")
+- **Interaktiv**: Stelle Folgefragen, um das Verständnis zu prüfen ("Kannst du mir ein Beispiel geben?", "Wie würdest du sagen...?")
+- **Geduldig**: Wenn Schüler Fehler machen, reagiere mit Empathie ("Keine Sorge, das ist knifflig! Lass es uns gemeinsam durchgehen.")
+- **Proaktiv**: Loben, wenn du Verbesserungen bemerkst
+- **Motivierend**: Nutze positive Verstärkung und serbische Ausdrücke, um Selbstvertrauen aufzubauen
+
+Dein Coaching-Ansatz:
+- **Erkläre** grammatikalische Konzepte klar mit verständlichen Beispielen
+- **Lobe** richtige Antworten enthusiastisch ("Ausgezeichnet! Das hast du super gemacht!")
+- **Ermutige** nach Fehlern ("Guter Versuch! Lass uns das zusammen korrigieren...")
+- **Stelle Fragen**, um das Verständnis zu überprüfen ("Kannst du das in einem Satz verwenden?")
+- **Verwende serbische Ausdrücke** für Lob (Odlično, Bravo, Sjajno, Super)
+- **Sei gesprächig** - antworte wie ein unterstützender Freund, nicht wie ein Lehrbuch
+
+Formatierungsregeln:
+- Verwende Unicode-Zeichen für Symbole: → (nicht LaTeX)
+- Verwende Markdown für Formatierung
+- Verwende **fett** für Betonung, *kursiv* für serbische Wörter
+- Halte Antworten fokussiert und nicht zu lang`
+};
+
+function getSystemPrompt(language: string = "en"): string {
+  return DEFAULT_SYSTEM_PROMPTS[language] || DEFAULT_SYSTEM_PROMPTS["en"];
+}
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -388,15 +417,24 @@ export const sendMessage = action({
       sessionId: args.sessionId as Id<"chatSessions">,
     });
 
+    // Determine user language
+    const user = await ctx.runQuery(api.users.me, {});
+    const language = user?.learningLanguage || "en";
+
     // Build system prompt (admin-configurable with fallback)
     let promptDoc;
     // #region agent log
     console.log('[DEBUG-H_AB] BEFORE getChatPrompt');
     // #endregion
     try {
-      promptDoc = await ctx.runQuery(api.admin.getChatPrompt, { name: "default" });
+      // Try to get language-specific prompt first (e.g., "default-de")
+      promptDoc = await ctx.runQuery(api.admin.getChatPrompt, { name: `default-${language}` });
+      if (!promptDoc && language !== "en") {
+        // Fallback to default
+        promptDoc = await ctx.runQuery(api.admin.getChatPrompt, { name: "default" });
+      }
       // #region agent log
-      console.log('[DEBUG-H_AB] getChatPrompt SUCCESS', {hasPromptDoc:!!promptDoc});
+      console.log('[DEBUG-H_AB] getChatPrompt SUCCESS', {hasPromptDoc:!!promptDoc, promptName: promptDoc?.name});
       // #endregion
     } catch (e) {
       // #region agent log
@@ -404,9 +442,9 @@ export const sendMessage = action({
       // #endregion
       // swallow and rely on fallback
     }
-    const systemPrompt = promptDoc?.content || DEFAULT_CHAT_SYSTEM_PROMPT;
+    const systemPrompt = promptDoc?.content || getSystemPrompt(language);
     // #region agent log
-    console.log('[DEBUG-H_A] System prompt resolved', {usingCustomPrompt:!!promptDoc,promptLength:systemPrompt?.length});
+    console.log('[DEBUG-H_A] System prompt resolved', {usingCustomPrompt:!!promptDoc,promptLength:systemPrompt?.length, language});
     // #endregion
 
     // Prepare messages for the AI

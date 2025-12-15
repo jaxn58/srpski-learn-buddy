@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { COURSE_WEEKS, COURSE_UNITS, COURSE_MODULES, getModuleForUnit, getModuleProgress } from "@shared/data";
+import { COURSE_WEEKS } from "@shared/data"; // Keep for unit mapping
 import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Clock, Home, Lock, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
@@ -20,10 +20,19 @@ import { useState, useEffect } from "react";
 
 export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
+  const { t, i18n } = useTranslation();
+  
+  // Use user's learning language or fallback to UI language or 'en'
+  const displayLanguage = user?.learningLanguage || (i18n.language === 'de' ? 'de' : 'en');
+  
   const progress = useQuery(api.progress.getUserProgress);
   const progressLoading = progress === undefined;
   const accessibleUnits = useQuery(api.subscriptions.getAccessibleUnits);
   const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
+  
+  // Load dynamic data from DB instead of static files
+  const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
+  const weeks = useQuery(api.weeks.getAllWeeks, { language: displayLanguage });
   
   const syncUserMutation = useMutation(api.users.syncUser);
   
@@ -58,11 +67,7 @@ export default function Dashboard() {
     }
   }, [clerkUser, user, authLoading, syncUserMutation]);
   
-  // Use static course data
-  const weeks = COURSE_WEEKS;
-  const units = COURSE_UNITS;
   const updateProgressMutation = useMutation(api.progress.updateProgress);
-  const { t, i18n } = useTranslation();
   const completedBadgeClass = "bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm";
   const masteredBadgeClass = "bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 shadow-sm";
   
@@ -110,7 +115,11 @@ export default function Dashboard() {
     setShowOnboarding(false);
   };
 
+  // Find current week metadata from DB
   const currentWeek = weeks?.find(w => w.weekNumber === progress?.currentWeek);
+  // Get static week config for unit mapping
+  const staticCurrentWeek = COURSE_WEEKS.find(w => w.weekNumber === progress?.currentWeek);
+  
   const completedUnits = progress?.completedUnits || [];
   
   // Determine if user is beta tester
@@ -128,7 +137,8 @@ export default function Dashboard() {
     : Array.isArray((accessibleUnits as any)?.accessibleUnits)
     ? (accessibleUnits as any).accessibleUnits
     : [];
-  const displayUnits = isAdmin ? units?.map(u => u.number) : currentWeek?.units;
+    
+  const displayUnits = isAdmin ? units?.map(u => u.unitNumber) : staticCurrentWeek?.units;
   const visibleUnits = Array.from(
     new Set(
       [
@@ -142,27 +152,6 @@ export default function Dashboard() {
 
   const accessibleCount = Array.isArray(rawAccessible) ? rawAccessible.length : 0;
 
-  const sendLayoutLog = (payload: {
-    hypothesisId: string;
-    message: string;
-    data: Record<string, unknown>;
-  }) => {
-    // #region agent log
-    fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: "pre-fix",
-        hypothesisId: payload.hypothesisId,
-        location: "Dashboard.tsx:instrumentation",
-        message: payload.message,
-        data: payload.data,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  };
 
   useEffect(() => {
     const visibleCount = visibleUnits?.length ?? 0;
@@ -367,7 +356,7 @@ export default function Dashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{t('dashboard.week', { number: progress?.currentWeek })}</div>
               <p className="text-xs text-muted-foreground mt-2">
-                {i18n.language === 'de' && currentWeek?.titleGerman ? currentWeek.titleGerman : currentWeek?.title}
+                {currentWeek?.title}
               </p>
             </CardContent>
           </Card>
@@ -381,14 +370,14 @@ export default function Dashboard() {
               <CardContent>
                 {(() => {
                   const currentUnit = progress?.currentUnit;
-                  const unit = units?.find(u => u.number === currentUnit);
+                  const unit = units?.find(u => u.unitNumber === currentUnit);
                   return (
                     <>
                       <div className="text-2xl font-bold">
                         {t('dashboard.unit', { number: currentUnit })}
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
-                        {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
+                        {unit?.title}
                       </p>
                     </>
                   );
@@ -405,8 +394,8 @@ export default function Dashboard() {
               <CardTitle>{t('dashboard.continueLesson')}</CardTitle>
               <CardDescription>
                 {(() => {
-                  const unit = units?.find(u => u.number === progress?.currentUnit);
-                  return i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish;
+                  const unit = units?.find(u => u.unitNumber === progress?.currentUnit);
+                  return unit?.title;
                 })()}
               </CardDescription>
             </CardHeader>

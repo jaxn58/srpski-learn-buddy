@@ -10,18 +10,30 @@ export interface Unit {
 }
 
 export const COURSE_UNITS: Unit[] = [
+  // New Units 1 and 2
   {
     number: 1,
-    title: "Na aerodromu",
-    titleEnglish: "At the airport",
-    titleGerman: "Am Flughafen",
-    topics: ["Greetings and main phrases", "Gender of nouns", "Simple questions"],
-    topicsGerman: ["Begrüßungen und wichtige Phrasen", "Geschlecht von Substantiven", "Einfache Fragen"],
-    grammarFocus: ["Verb 'biti' (to be)", "Introduction to cases", "Possessives 'my', 'your'"],
-    vocabularyThemes: ["Airport", "Greetings", "Basic phrases"]
+    title: "Prve reči",
+    titleEnglish: "First Words",
+    titleGerman: "Erste Wörter",
+    topics: ["Greetings", "Politeness", "Language barrier", "Basics"],
+    topicsGerman: ["Begrüßungen", "Höflichkeit", "Sprachbarriere", "Grundlagen"],
+    grammarFocus: ["Verb 'biti' (to be) - partial (sam, si, je)", "Basic phrases"],
+    vocabularyThemes: ["Greetings", "Politeness", "Language barrier", "Basics"]
   },
   {
     number: 2,
+    title: "Ko si ti?",
+    titleEnglish: "Who Are You?",
+    titleGerman: "Wer bist du?",
+    topics: ["Introductions", "Countries and nationalities", "Noun gender basics"],
+    topicsGerman: ["Vorstellungen", "Länder und Nationalitäten", "Grundlagen des Substantivgeschlechts"],
+    grammarFocus: ["Verb 'biti' (to be) - full conjugation", "Verb 'zvati se' (to be called)", "Noun gender"],
+    vocabularyThemes: ["Introduction", "Countries", "Nationalities"]
+  },
+  // Shifted units (old Units 2-5 → Units 3-6)
+  {
+    number: 3,
     title: "U kafeu",
     titleEnglish: "In the café",
     titleGerman: "Im Café",
@@ -31,7 +43,7 @@ export const COURSE_UNITS: Unit[] = [
     vocabularyThemes: ["Café", "Drinks", "Food", "Numbers"]
   },
   {
-    number: 3,
+    number: 4,
     title: "Kako Stiv Bond uči srpski?",
     titleEnglish: "How is Steve Bond learning Serbian?",
     titleGerman: "Wie lernt Steve Bond Serbisch?",
@@ -41,7 +53,7 @@ export const COURSE_UNITS: Unit[] = [
     vocabularyThemes: ["Learning", "Media", "Languages"]
   },
   {
-    number: 4,
+    number: 5,
     title: "Gde je…?",
     titleEnglish: "Where is…?",
     titleGerman: "Wo ist…?",
@@ -51,7 +63,7 @@ export const COURSE_UNITS: Unit[] = [
     vocabularyThemes: ["City places", "Directions", "Buildings"]
   },
   {
-    number: 5,
+    number: 6,
     title: "U sobi",
     titleEnglish: "In the room",
     titleGerman: "Im Zimmer",
@@ -60,8 +72,19 @@ export const COURSE_UNITS: Unit[] = [
     grammarFocus: ["Ordinal numbers", "Verb 'moći' (can)", "Verbs ending with –eti and –ovati"],
     vocabularyThemes: ["Room furniture", "Hotel", "Ordinal numbers"]
   },
+  // Unit 7 (old Unit 1 - kept as reference)
   {
-    number: 6,
+    number: 7,
+    title: "Na aerodromu",
+    titleEnglish: "At the airport",
+    titleGerman: "Am Flughafen",
+    topics: ["Greetings and main phrases", "Gender of nouns", "Simple questions"],
+    topicsGerman: ["Begrüßungen und wichtige Phrasen", "Geschlecht von Substantiven", "Einfache Fragen"],
+    grammarFocus: ["Verb 'biti' (to be)", "Introduction to cases", "Possessives 'my', 'your'"],
+    vocabularyThemes: ["Airport", "Greetings", "Basic phrases"]
+  },
+  {
+    number: 8,
     title: "Kupovina hrane",
     titleEnglish: "Shopping for food",
     titleGerman: "Lebensmittel einkaufen",
@@ -71,7 +94,7 @@ export const COURSE_UNITS: Unit[] = [
     vocabularyThemes: ["Food", "Shopping", "Prices"]
   },
   {
-    number: 7,
+    number: 9,
     title: "Dođite u goste",
     titleEnglish: "Come to my place",
     titleGerman: "Kommt zu mir nach Hause",

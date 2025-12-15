@@ -17,8 +17,14 @@ if (!CONVEX_URL) {
 
 const CONTENT_DIR = path.join(process.cwd(), "New Content", "learn-with.me-main");
 
-async function migrateUnitContent() {
-  console.log("🚀 Migrating Unit Content (New Structure) to Convex...");
+/**
+ * Migrate new Units 1 and 2 from Markdown files
+ * This script processes:
+ * - Unit-1-First-Words-v7.md → Unit 1
+ * - Unit-2-Who-Are-You-v7.md → Unit 2
+ */
+async function migrateNewUnits() {
+  console.log("🚀 Migrating New Units 1 and 2 to Convex...");
   console.log(`   Convex URL: ${CONVEX_URL}`);
   console.log(`   Content Dir: ${CONTENT_DIR}`);
 
@@ -44,15 +50,25 @@ async function migrateUnitContent() {
     return moduleRef;
   };
   
-  // Find markdown files
-  const files = fs.readdirSync(CONTENT_DIR).filter(f => f.startsWith("Unit-") && f.endsWith(".md"));
-  console.log(`   Found ${files.length} unit files:`, files);
+  // Only process the new Units 1 and 2
+  const filesToProcess = [
+    "Unit-1-First-Words-v7.md",
+    "Unit-2-Who-Are-You-v7.md"
+  ];
 
-  for (const file of files) {
-    const filePath = path.join(CONTENT_DIR, file);
+  for (const fileName of filesToProcess) {
+    const filePath = path.join(CONTENT_DIR, fileName);
+    
+    if (!fs.existsSync(filePath)) {
+      console.error(`❌ File not found: ${filePath}`);
+      continue;
+    }
+
     const content = fs.readFileSync(filePath, "utf-8");
     
-    console.log(`\nProcessing ${file}...`);
+    console.log(`\n${"=".repeat(80)}`);
+    console.log(`Processing ${fileName}...`);
+    console.log("=".repeat(80));
     
     // 1. Extract Metadata (Module & Unit)
     const moduleMatch = content.match(/# Module (\d+): (.*)/);
@@ -68,12 +84,11 @@ async function migrateUnitContent() {
       console.log(`   Unit ${unitNum}: ${unitTitle}`);
       
       // Update Module Metadata
-      // Find the correct moduleId from COURSE_MODULES based on module number
       const moduleData = COURSE_MODULES.find(m => m.number === moduleNum);
       
       if (!moduleData) {
         console.error(`   ⚠️  WARNING: Module ${moduleNum} not found in COURSE_MODULES!`);
-        console.error(`   ⚠️  Skipping module metadata update to avoid creating legacy entries.`);
+        console.error(`   ⚠️  Skipping module metadata update.`);
       } else {
         const moduleId = moduleData.id;
         console.log(`   Using module slug: ${moduleId}`);
@@ -83,11 +98,11 @@ async function migrateUnitContent() {
             moduleId: moduleId,
             language: "en",
             title: moduleName,
-            description: moduleData.description, // Use description from COURSE_MODULES
+            description: moduleData.description,
           });
-          process.stdout.write("   ✅ Module Meta ");
+          console.log("   ✅ Module Metadata");
         } catch (e: any) {
-          console.error(`❌ Module Meta Error: ${e.message}`);
+          console.error(`   ❌ Module Meta Error: ${e.message}`);
         }
       }
 
@@ -98,14 +113,14 @@ async function migrateUnitContent() {
           unitNumber: unitNum,
           language: "en",
           title: unitTitle,
-          topics: [], // We'd need to extract topics from overview potentially
+          topics: [], // Could be extracted from overview if needed
           grammarFocus: [],
           vocabularyThemes: [],
           moduleRef,
         });
-        process.stdout.write("✅ Unit Meta ");
+        console.log("   ✅ Unit Metadata");
       } catch (e: any) {
-        console.error(`❌ Unit Meta Error: ${e.message}`);
+        console.error(`   ❌ Unit Meta Error: ${e.message}`);
       }
       
       // 2. Extract Content Sections
@@ -133,8 +148,8 @@ async function migrateUnitContent() {
               console.error(`   ❌ Vocab Error (${item.serbian}): ${e.message}`);
             }
           }
-          process.stdout.write("✅ Vocabulary ");
-          continue; // Don't upload as raw markdown content if we use DB
+          console.log("   ✅ Vocabulary");
+          continue; // Don't upload as raw markdown content
         }
         
         try {
@@ -144,9 +159,9 @@ async function migrateUnitContent() {
             contentType: key,
             content: text,
           });
-          process.stdout.write(`✅ ${key} `);
+          console.log(`   ✅ ${key}`);
         } catch (e: any) {
-          console.error(`❌ ${key} Error: ${e.message}`);
+          console.error(`   ❌ ${key} Error: ${e.message}`);
         }
       }
       
@@ -163,15 +178,15 @@ async function migrateUnitContent() {
               contentType: "testIntroduction",
               content: testIntro,
             });
-            process.stdout.write("✅ Test Intro ");
+            console.log("   ✅ Test Introduction");
           } catch (e: any) {
-            console.error(`❌ Test Intro Error: ${e.message}`);
+            console.error(`   ❌ Test Intro Error: ${e.message}`);
           }
         }
         
         // Pass the full content so we can parse Answer Key
         const questions = parseInteractiveTest(content, unitNum);
-        console.log(`\n   Found ${questions.length} test questions`);
+        console.log(`   Found ${questions.length} test questions`);
         
         for (const q of questions) {
           try {
@@ -193,10 +208,18 @@ async function migrateUnitContent() {
             console.error(`   ❌ Test Q Error (${q.questionId}): ${e.message}`);
           }
         }
-        process.stdout.write("✅ Test Questions\n");
+        console.log("   ✅ Test Questions");
       }
+      
+      console.log(`\n✅ Completed migration of ${fileName}`);
+    } else {
+      console.error(`❌ Could not parse module/unit from ${fileName}`);
     }
   }
+  
+  console.log("\n" + "=".repeat(80));
+  console.log("✅ Migration Complete!");
+  console.log("=".repeat(80));
 }
 
 function extractSections(content: string) {
@@ -209,7 +232,7 @@ function extractSections(content: string) {
   const phrasesRegex = /## 4\. Phrases([\s\S]*?)## 5\./;
   const dialoguesRegex = /## 5\. Dialogues([\s\S]*?)## 6\./;
   const testRegex = /## 6\. Interactive Test([\s\S]*?)(## Summary|## Answer Key|$)/;
-  const summaryRegex = /## Summary([\s\S]*?)$/; // Summary usually at end
+  const summaryRegex = /## Summary([\s\S]*?)$/;
   
   const overviewMatch = content.match(overviewRegex);
   const vocabMatch = content.match(vocabRegex);
@@ -242,8 +265,6 @@ function extractSections(content: string) {
 function parseAnswerKey(content: string): Map<number, { answer: string, alternatives: string[] }> {
   const answerMap = new Map();
   
-  // Find Answer Key section (with optional German title in parentheses)
-  // Look for "## Answer Key" and capture everything until "## Summary" or end of file
   const answerKeyMatch = content.match(/## Answer Key[^\n]*\n([\s\S]*?)(?=\n## Summary|$)/);
   if (!answerKeyMatch) {
     return answerMap;
@@ -253,30 +274,25 @@ function parseAnswerKey(content: string): Map<number, { answer: string, alternat
   const lines = answerKeyContent.split('\n');
   
   for (const line of lines) {
-    // Match patterns like "1. Dobar dan." or "21. a) Text" or "31. granica → border"
     const answerMatch = line.match(/^(\d+)\.\s+(.+)/);
     if (answerMatch) {
       const qNum = parseInt(answerMatch[1]);
       let answerText = answerMatch[2].trim();
       
-      // Handle multiple choice answers (extract the option text)
       const mcMatch = answerText.match(/^[a-d]\)\s+(.+)/);
       if (mcMatch) {
         answerText = mcMatch[1].trim();
       }
       
-      // Handle vocabulary matching (extract the translation)
       const matchingMatch = answerText.match(/\w+\s+→\s+(.+)/);
       if (matchingMatch) {
         answerText = matchingMatch[1].trim();
       }
       
-      // Handle alternatives separated by "/"
       const parts = answerText.split('/').map(p => p.trim());
       const mainAnswer = parts[0];
       const alternatives = parts.slice(1);
       
-      // Remove asterisks (Montenegrin markers)
       const cleanAnswer = mainAnswer.replace(/\*/g, '').trim();
       const cleanAlternatives = alternatives.map(a => a.replace(/\*/g, '').trim());
       
@@ -293,11 +309,9 @@ function parseAnswerKey(content: string): Map<number, { answer: string, alternat
 function parseInteractiveTest(content: string, unitNum: number) {
   const questions: any[] = [];
   
-  // 1. Parse Answer Key first
   const answerMap = parseAnswerKey(content);
   console.log(`   Parsed ${answerMap.size} answers from Answer Key`);
   
-  // Extract only the test section (from "## 6. Interactive Test" to "## Answer Key")
   const testSectionMatch = content.match(/## 6\. Interactive Test([\s\S]*?)(?=## Answer Key)/);
   if (!testSectionMatch) {
     console.log('   ⚠️  No Interactive Test section found');
@@ -306,7 +320,6 @@ function parseInteractiveTest(content: string, unitNum: number) {
   
   const testContent = testSectionMatch[1];
   
-  // Split by categories
   const categoryRegex = /### Category (\d+): (.*?)\n([\s\S]*?)(?=### Category|$)/g;
   let match;
   
@@ -315,7 +328,6 @@ function parseInteractiveTest(content: string, unitNum: number) {
     const catName = match[2].trim();
     const catContent = match[3].trim();
     
-    // Determine category key
     let categoryKey = "unknown";
     let questionType = "text";
     
@@ -325,14 +337,12 @@ function parseInteractiveTest(content: string, unitNum: number) {
     else if (catName.includes("Vocabulary Matching")) { categoryKey = "vocabularyMatching"; questionType = "matching"; }
     else if (catName.includes("Dialogue Completion")) { categoryKey = "dialogueCompletion"; questionType = "dialogue"; }
     
-    // Extract Instructions (everything between "**Instructions:**" and the first numbered question or dialogue marker)
     let categoryInstructions = "";
     const instructionsMatch = catContent.match(/\*\*Instructions:\*\*\s*(.+?)(?=\n\d+\.|\n\*\*Dialogue)/s);
     if (instructionsMatch) {
       categoryInstructions = instructionsMatch[1].trim();
     }
     
-    // Parse questions based on category type
     const lines = catContent.split('\n');
     let currentQ: any = null;
     let qIndex = 0;
@@ -342,16 +352,13 @@ function parseInteractiveTest(content: string, unitNum: number) {
       const qMatch = line.match(/^(\d+)\.\s+(.*)/);
       
       if (qMatch) {
-        // Save previous question if exists
         if (currentQ) questions.push(currentQ);
         
         const qNum = parseInt(qMatch[1]);
         let qText = qMatch[2].trim();
         qIndex++;
         
-        // For dialogue completion, combine multi-line questions
         if (categoryKey === "dialogueCompletion") {
-          // Check if next lines continue the dialogue context
           let j = i + 1;
           while (j < lines.length && !lines[j].match(/^\d+\./) && lines[j].trim() && !lines[j].includes("**Dialogue")) {
             qText += " " + lines[j].trim();
@@ -359,7 +366,6 @@ function parseInteractiveTest(content: string, unitNum: number) {
           }
         }
         
-        // Get answer from answerMap
         const answerData = answerMap.get(qNum);
         const correctAnswer = answerData?.answer || "";
         const acceptableAlternatives = answerData?.alternatives || [];
@@ -374,18 +380,15 @@ function parseInteractiveTest(content: string, unitNum: number) {
           question: qText,
           correctAnswer: correctAnswer,
           acceptableAlternatives: acceptableAlternatives.length > 0 ? acceptableAlternatives : undefined,
-          order: qNum, // Use original question number for order
+          order: qNum,
           options: [],
         };
       } else if (currentQ && categoryKey === "multipleChoice") {
-        // Parse options like "   - a) ..." or "    - a) ..."
         const optMatch = line.match(/^\s*-\s+[a-z]\)\s+(.*)/);
         if (optMatch) {
           currentQ.options.push(optMatch[1].trim());
         }
       } else if (currentQ && categoryKey === "vocabularyMatching" && line.includes("**Options:**")) {
-        // For vocabulary matching, parse the options line
-        // Example: "**Options:** border, hotel, passport, ..."
         const optionsMatch = line.match(/\*\*Options:\*\*\s*(.+)/);
         if (optionsMatch) {
           const optionsText = optionsMatch[1];
@@ -394,7 +397,6 @@ function parseInteractiveTest(content: string, unitNum: number) {
       }
     }
     
-    // Push last question
     if (currentQ) questions.push(currentQ);
   }
   
@@ -430,7 +432,8 @@ function parseVocabulary(content: string, unitNum: number) {
   return items;
 }
 
-migrateUnitContent().catch((error) => {
+migrateNewUnits().catch((error) => {
   console.error("Fatal error:", error);
   process.exit(1);
 });
+

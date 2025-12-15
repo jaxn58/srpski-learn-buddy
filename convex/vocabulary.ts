@@ -1,6 +1,85 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 
+// ============= COURSE VOCABULARY (Master Data) =============
+
+// Upsert course vocabulary (for migration script)
+export const upsertCourseVocabulary = mutation({
+  args: {
+    unitNumber: v.number(),
+    serbian: v.string(),
+    translations: v.array(v.object({
+      language: v.string(),
+      translation: v.string(),
+      alt: v.optional(v.string())
+    })),
+    gender: v.optional(v.string()),
+    pronunciation: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if word already exists in this unit
+    const existing = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .filter((q) => q.eq(q.field("serbian"), args.serbian))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        translations: args.translations, // Overwrite translations (source of truth is Markdown)
+        gender: args.gender,
+        pronunciation: args.pronunciation,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("courseVocabulary", {
+      unitNumber: args.unitNumber,
+      serbian: args.serbian,
+      translations: args.translations,
+      gender: args.gender,
+      pronunciation: args.pronunciation,
+    });
+  },
+});
+
+// Get vocabulary for a unit (Master Data)
+export const getCourseVocabularyByUnit = query({
+  args: {
+    unitNumber: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+  },
+});
+
+// Delete vocabulary by unit numbers (for migration/cleanup)
+export const deleteVocabularyByUnits = mutation({
+  args: {
+    unitNumbers: v.array(v.number()),
+  },
+  handler: async (ctx, args) => {
+    let totalDeleted = 0;
+    
+    for (const unitNum of args.unitNumbers) {
+      const entries = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", unitNum))
+        .collect();
+      
+      for (const entry of entries) {
+        await ctx.db.delete(entry._id);
+        totalDeleted++;
+      }
+    }
+    
+    return { deleted: totalDeleted };
+  },
+});
+
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();

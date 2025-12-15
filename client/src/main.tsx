@@ -4,6 +4,7 @@ import { ConvexReactClient } from "convex/react";
 import { createRoot } from "react-dom/client";
 import { deDE } from "@clerk/localizations";
 import { useEffect, useState } from "react";
+import { I18nextProvider } from "react-i18next";
 import App from "./App";
 import "./index.css";
 import i18n from "./i18n";
@@ -52,9 +53,11 @@ function DynamicClerkProvider({ children }: { children: React.ReactNode }) {
 }
 
 createRoot(document.getElementById("root")!).render(
-  <DynamicClerkProvider>
-    <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-      <App />
-    </ConvexProviderWithClerk>
-  </DynamicClerkProvider>
+  <I18nextProvider i18n={i18n}>
+    <DynamicClerkProvider>
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <App />
+      </ConvexProviderWithClerk>
+    </DynamicClerkProvider>
+  </I18nextProvider>
 );
