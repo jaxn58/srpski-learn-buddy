@@ -16,6 +16,7 @@ import type * as email from "../email.js";
 import type * as emailTemplates from "../emailTemplates.js";
 import type * as exercises from "../exercises.js";
 import type * as feedback from "../feedback.js";
+import type * as modules from "../modules.js";
 import type * as progress from "../progress.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as system from "../system.js";
@@ -23,6 +24,7 @@ import type * as unitExercises from "../unitExercises.js";
 import type * as units from "../units.js";
 import type * as users from "../users.js";
 import type * as vocabulary from "../vocabulary.js";
+import type * as weeks from "../weeks.js";
 
 import type {
   ApiFromModules,
@@ -39,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   emailTemplates: typeof emailTemplates;
   exercises: typeof exercises;
   feedback: typeof feedback;
+  modules: typeof modules;
   progress: typeof progress;
   subscriptions: typeof subscriptions;
   system: typeof system;
@@ -46,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   units: typeof units;
   users: typeof users;
   vocabulary: typeof vocabulary;
+  weeks: typeof weeks;
 }>;
 
 /**

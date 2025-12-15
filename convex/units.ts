@@ -156,6 +156,106 @@ export const getAllExplanations = query({
   },
 });
 
+// ============= NEW MULTI-LANGUAGE METADATA (UNIT) =============
+
+// Insert unit metadata (for migration script)
+export const insertUnitMetadata = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    title: v.string(),
+    topics: v.array(v.string()),
+    grammarFocus: v.array(v.string()),
+    vocabularyThemes: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) =>
+        q.eq("unitNumber", args.unitNumber).eq("language", args.language)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        title: args.title,
+        topics: args.topics,
+        grammarFocus: args.grammarFocus,
+        vocabularyThemes: args.vocabularyThemes,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("unitMetadata", {
+      unitNumber: args.unitNumber,
+      language: args.language,
+      title: args.title,
+      topics: args.topics,
+      grammarFocus: args.grammarFocus,
+      vocabularyThemes: args.vocabularyThemes,
+    });
+  },
+});
+
+// Get unit metadata for a specific language
+export const getUnitMetadata = query({
+  args: {
+    unitNumber: v.number(),
+    language: v.optional(v.string()), // Default: "en"
+  },
+  handler: async (ctx, args) => {
+    const language = args.language || "en";
+    
+    const metadata = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) =>
+        q.eq("unitNumber", args.unitNumber).eq("language", language)
+      )
+      .first();
+
+    // Fallback to English if requested language not found
+    if (!metadata && language !== "en") {
+      const enMetadata = await ctx.db
+        .query("unitMetadata")
+        .withIndex("by_unit_lang", (q) =>
+          q.eq("unitNumber", args.unitNumber).eq("language", "en")
+        )
+        .first();
+      
+      if (enMetadata) return enMetadata;
+    }
+
+    return metadata;
+  },
+});
+
+// Get all units metadata for a specific language
+export const getAllUnitsMetadata = query({
+  args: {
+    language: v.optional(v.string()), // Default: "en"
+  },
+  handler: async (ctx, args) => {
+    const language = args.language || "en";
+    
+    // This is not perfectly efficient as we can't sort by unitNumber with the language index easily
+    // But for <100 units it's fine
+    const allMetadata = await ctx.db
+      .query("unitMetadata")
+      .filter((q) => q.eq(q.field("language"), language))
+      .collect();
+      
+    // If empty and not English, try fallback
+    if (allMetadata.length === 0 && language !== "en") {
+      return await ctx.db
+        .query("unitMetadata")
+        .filter((q) => q.eq(q.field("language"), "en"))
+        .collect();
+    }
+
+    return allMetadata.sort((a, b) => a.unitNumber - b.unitNumber);
+  },
+});
+
 // ============= NEW MULTI-LANGUAGE CONTENT TABLE =============
 
 // Insert unit content (for migration script - no auth required)
@@ -240,6 +340,112 @@ export const getUnitContent = query({
       }
     }
 
+    return result;
+  },
+});
+
+// Insert unit interactive test question (for migration script)
+export const insertUnitInteractiveTest = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    category: v.string(),
+    questionId: v.string(),
+    questionType: v.string(),
+    question: v.string(),
+    correctAnswer: v.string(),
+    acceptableAlternatives: v.optional(v.array(v.string())),
+    options: v.optional(v.array(v.string())),
+    hint: v.optional(v.string()),
+    order: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Check if question already exists (by questionId)
+    const existing = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_question_id", (q) => q.eq("questionId", args.questionId))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        unitNumber: args.unitNumber,
+        language: args.language,
+        category: args.category,
+        questionType: args.questionType,
+        question: args.question,
+        correctAnswer: args.correctAnswer,
+        acceptableAlternatives: args.acceptableAlternatives,
+        options: args.options,
+        hint: args.hint,
+        order: args.order,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("unitInteractiveTests", {
+      unitNumber: args.unitNumber,
+      language: args.language,
+      category: args.category,
+      questionId: args.questionId,
+      questionType: args.questionType,
+      question: args.question,
+      correctAnswer: args.correctAnswer,
+      acceptableAlternatives: args.acceptableAlternatives,
+      options: args.options,
+      hint: args.hint,
+      order: args.order,
+    });
+  },
+});
+
+// Get interactive test for a unit
+export const getUnitInteractiveTest = query({
+  args: {
+    unitNumber: v.number(),
+    language: v.optional(v.string()), // Default: "en"
+  },
+  handler: async (ctx, args) => {
+    const language = args.language || "en";
+    
+    // Fetch all questions for this unit
+    const questions = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => 
+        q.eq("unitNumber", args.unitNumber).eq("language", language)
+      )
+      .collect();
+      
+    // Sort by category and order
+    return questions.sort((a, b) => {
+      if (a.category !== b.category) {
+        return a.category.localeCompare(b.category);
+      }
+      return a.order - b.order;
+    });
+  },
+});
+
+// Get unit content sections (Overview, Grammar, Phrases, Dialogues)
+export const getUnitContentSections = query({
+  args: {
+    unitNumber: v.number(),
+    language: v.optional(v.string()), // Default: "en"
+  },
+  handler: async (ctx, args) => {
+    const language = args.language || "en";
+    
+    const contents = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) => 
+        q.eq("unitNumber", args.unitNumber).eq("language", language)
+      )
+      .collect();
+      
+    const result: Record<string, string> = {};
+    for (const content of contents) {
+      result[content.contentType] = content.content;
+    }
+    
     return result;
   },
 });

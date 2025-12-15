@@ -116,13 +116,71 @@ export default defineSchema({
     practiceExamplesGerman: v.optional(v.string()),
   }).index("by_unit", ["unitNumber"]),
 
+  // ============= NEW CONTENT STRUCTURE METADATA =============
+  
+  // 1. Unit Metadata (Multi-language)
+  unitMetadata: defineTable({
+    unitNumber: v.number(),
+    language: v.string(), // "en", "de", "es", "fr"
+    title: v.string(), // Translated Title
+    topics: v.array(v.string()), // Array of Topics
+    grammarFocus: v.array(v.string()), // Array of Grammar Focus points
+    vocabularyThemes: v.array(v.string()), // Array of Vocabulary Themes
+  }).index("by_unit_lang", ["unitNumber", "language"]),
+
+  // 2. Module Metadata (Multi-language)
+  moduleMetadata: defineTable({
+    moduleId: v.string(), // "foundation", "daily-life", etc.
+    language: v.string(),
+    title: v.string(),
+    description: v.string(),
+  }).index("by_module_lang", ["moduleId", "language"]),
+
+  // 3. Week Metadata (Multi-language)
+  weekMetadata: defineTable({
+    weekNumber: v.number(),
+    language: v.string(),
+    title: v.string(),
+    goals: v.array(v.string()),
+    practiceActivities: v.array(v.string()),
+  }).index("by_week_lang", ["weekNumber", "language"]),
+
+  // 4. Vocabulary Translations (Multi-language)
+  vocabularyTranslations: defineTable({
+    vocabularyId: v.id("vocabulary"),
+    language: v.string(), // "en", "de", "es", "fr"
+    translation: v.string(),
+    alternatives: v.optional(v.array(v.string())),
+  }).index("by_vocab_lang", ["vocabularyId", "language"]),
+
+  // 5. Interactive Tests (Central Question DB for Gamification)
+  unitInteractiveTests: defineTable({
+    unitNumber: v.number(),
+    language: v.string(),
+    category: v.string(), // "translation", "fillInBlank", "multipleChoice", "vocabularyMatching", "dialogueCompletion"
+    
+    // Gamification-IDs
+    questionId: v.string(), // Stable ID (e.g. "u1_trans_q1") for exerciseQuestionProgress
+    
+    questionType: v.string(), // "translation", "fillInBlank", "multipleChoice", "matching", "dialogue"
+    question: v.string(), // The Question/Task
+    correctAnswer: v.string(), // Correct Answer
+    acceptableAlternatives: v.optional(v.array(v.string())), // Alternative correct answers
+    options: v.optional(v.array(v.string())), // For Multiple Choice
+    hint: v.optional(v.string()), // Optional Hint
+    order: v.number(), // Order within category
+  })
+  .index("by_unit_lang_category", ["unitNumber", "language", "category"])
+  .index("by_unit_lang", ["unitNumber", "language"])
+  .index("by_question_id", ["questionId"]),
+
   // ============= UNIT CONTENT (Modern multi-language support) =============
   // New scalable table for multi-language unit content
-  // Replaces the need for separate fields per language (overviewGerman, overviewSpanish, etc.)
+  // Supports: overview, grammar, phrases, dialogues
   unitContent: defineTable({
     unitNumber: v.number(),
     language: v.string(), // "en", "de", "es", "fr"
-    contentType: v.string(), // "overview", "grammar", "practice"
+    contentType: v.string(), // "overview", "grammar", "phrases", "dialogues" (interactiveTest is in separate table)
     content: v.string(), // The actual markdown content
   }).index("by_unit_lang_type", ["unitNumber", "language", "contentType"]),
 
