@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { COURSE_MODULES, COURSE_UNITS, getModuleProgress, getUnitsForModule } from "@shared/data";
+import { COURSE_MODULES, COURSE_UNITS, getUnitsForModule, getModuleProgress } from "@shared/data";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "wouter";
 import { Lock, BookOpen, Star, ChevronDown } from "lucide-react";
@@ -26,6 +26,10 @@ export default function Units() {
   // Load modules from database (new consolidated structure)
   const dbModules = useQuery(api.modules.getAllModulesConsolidated);
   
+  // Load all units metadata from database
+  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" });
+  const dbUnitsDe = useQuery(api.units.getAllUnitsMetadata, { language: "de" });
+  
   // Extract module ID from hash (e.g., #module-foundation -> foundation)
   const hash = typeof window !== "undefined" ? window.location.hash : "";
   const moduleIdFromHash = hash.startsWith("#module-") ? hash.replace("#module-", "") : null;
@@ -45,6 +49,7 @@ export default function Units() {
         titleGerman: dbModule.titleDe || "",
         description: dbModule.descriptionEn || "",
         descriptionGerman: dbModule.descriptionDe || "",
+        moduleMetadataId: dbModule._id,
       }));
     }
     // Fallback to static COURSE_MODULES
@@ -55,8 +60,87 @@ export default function Units() {
       titleGerman: m.titleGerman,
       description: m.description,
       descriptionGerman: m.descriptionGerman,
+      moduleMetadataId: undefined,
     }));
   }, [dbModules]);
+
+  // Map units by module slug/moduleId
+  const unitsByModule = useMemo(() => {
+    const result: Record<string, Array<{
+      number: number;
+      title: string;
+      titleEnglish: string;
+      titleGerman: string;
+      topics: string[];
+      topicsGerman: string[];
+    }>> = {};
+
+    // If no database units available, return empty (will use fallback)
+    if (!dbUnitsEn || dbUnitsEn.length === 0) {
+      return result;
+    }
+
+    // Group units by moduleId (old structure) or moduleMetadataId (new structure)
+    dbUnitsEn.forEach((unitEn) => {
+      const unitDe = dbUnitsDe?.find(u => u.unitNumber === unitEn.unitNumber);
+      
+      // Try to find the module slug for this unit
+      // First check if we have a moduleMetadataId
+      let moduleSlug: string | undefined;
+      
+      if (unitEn.moduleMetadataId && dbModules) {
+        const module = dbModules.find(m => m._id === unitEn.moduleMetadataId);
+        moduleSlug = module?.slug;
+      } else if (unitEn.moduleId) {
+        // Fallback to old moduleId structure
+        moduleSlug = unitEn.moduleId;
+      }
+
+      if (!moduleSlug) {
+        // Try to match by unit number ranges (fallback)
+        if (unitEn.unitNumber <= 6) moduleSlug = "foundation";
+        else if (unitEn.unitNumber <= 11) moduleSlug = "daily-life";
+        else if (unitEn.unitNumber <= 15) moduleSlug = "communication-culture";
+        else if (unitEn.unitNumber <= 20) moduleSlug = "advanced-communication";
+        else moduleSlug = "mastery";
+      }
+
+      if (moduleSlug) {
+        if (!result[moduleSlug]) {
+          result[moduleSlug] = [];
+        }
+        
+        // Check if unit already exists (avoid duplicates)
+        const exists = result[moduleSlug].find(u => u.number === unitEn.unitNumber);
+        if (!exists) {
+          result[moduleSlug].push({
+            number: unitEn.unitNumber,
+            title: unitEn.title,
+            titleEnglish: unitEn.title,
+            titleGerman: unitDe?.title || unitEn.title,
+            topics: unitEn.topics || [],
+            topicsGerman: unitDe?.topics || unitEn.topics || [],
+          });
+        }
+      }
+    });
+
+    // Sort units by number within each module
+    Object.keys(result).forEach(moduleSlug => {
+      result[moduleSlug].sort((a, b) => a.number - b.number);
+    });
+
+    return result;
+  }, [dbUnitsEn, dbUnitsDe, dbModules]);
+
+  // Calculate module progress based on database units
+  const getModuleProgressFromDB = (moduleId: string, completedUnits: number[]) => {
+    const moduleUnits = unitsByModule[moduleId] || [];
+    const completed = moduleUnits.filter(unit => completedUnits.includes(unit.number)).length;
+    const total = moduleUnits.length;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return { completed, total, percentage };
+  };
 
   // Update open module when hash changes
   useEffect(() => {
@@ -87,20 +171,29 @@ export default function Units() {
       <Sidebar />
       <div className="flex-1 md:ml-64 w-full">
         <div className="container py-10 space-y-8">
-          <header className="space-y-2 text-center">
-            <p className="text-sm font-medium text-primary uppercase tracking-wider">
-              {t("units.subtitle")}
-            </p>
-            <h1 className="text-4xl md:text-5xl font-bold">
-              {t("units.title")}
-            </h1>
-          </header>
-
           <div className="space-y-6">
             {modules.map((module) => {
-              // Use static unit data (can be enhanced later to load from DB)
-              const moduleUnits = getUnitsForModule(module.id);
-              const moduleProgress = getModuleProgress(module.id, completedUnits);
+              // Load units from database, fallback to static data if not available
+              let moduleUnits = unitsByModule[module.id] || [];
+              const hasDbUnits = moduleUnits.length > 0;
+              
+              // Fallback to static data if no database units found for this module
+              if (!hasDbUnits) {
+                const staticUnits = getUnitsForModule(module.id);
+                moduleUnits = staticUnits.map(unit => ({
+                  number: unit.number,
+                  title: unit.title,
+                  titleEnglish: unit.titleEnglish,
+                  titleGerman: unit.titleGerman,
+                  topics: unit.topics,
+                  topicsGerman: unit.topicsGerman,
+                }));
+              }
+              
+              // Calculate progress - use DB function if units from DB, otherwise static
+              const moduleProgress = hasDbUnits
+                ? getModuleProgressFromDB(module.id, completedUnits)
+                : getModuleProgress(module.id, completedUnits);
               
               // Check if module is locked (beta testers only have access to Module 1)
               const isModuleLocked = !isAdmin && isBetaTester && module.number > 1;
@@ -231,7 +324,7 @@ export default function Units() {
                                       </div>
                                       <CardTitle className="text-lg">{title}</CardTitle>
                                       <CardDescription className="text-sm text-muted-foreground">
-                                        {unit.title}
+                                        {i18n.language === "de" ? unit.titleGerman : unit.titleEnglish}
                                       </CardDescription>
                                     </CardHeader>
                                     <CardContent className="space-y-2">
