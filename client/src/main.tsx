@@ -12,7 +12,7 @@ import i18n from "./i18n";
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const CONVEX_URL = import.meta.env.VITE_CONVEX_URL;
 
-// #region agent log - Production diagnostics
+// #region agent log - Production diagnostics + Patch verification
 console.log('[DEBUG] Environment check:', {
   hasClerkKey: !!CLERK_PUBLISHABLE_KEY,
   clerkKeyPrefix: CLERK_PUBLISHABLE_KEY?.substring(0, 10),
@@ -23,22 +23,32 @@ console.log('[DEBUG] Environment check:', {
   userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'server',
   isProduction: import.meta.env.PROD,
   timestamp: new Date().toISOString(),
+  runId: 'post-fix',
   hypothesisId: 'A,B,D'
 });
 
-// Check if credentials API is writable (Hypothesis B)
+// VERIFICATION: Check if polyfill fixed the credentials API (Hypothesis B)
 if (typeof window !== 'undefined' && navigator.credentials) {
   try {
-    const descriptor = Object.getOwnPropertyDescriptor(navigator.credentials, 'get');
-    console.log('[DEBUG] Credentials API check:', {
+    const descriptorNav = Object.getOwnPropertyDescriptor(navigator, 'credentials');
+    const descriptorGet = Object.getOwnPropertyDescriptor(navigator.credentials, 'get');
+    
+    console.log('[DEBUG POST-FIX] Credentials API verification:', {
+      // Navigator.credentials descriptor
+      navCredentialsWritable: descriptorNav?.writable,
+      navCredentialsConfigurable: descriptorNav?.configurable,
+      // credentials.get descriptor
       hasGet: !!navigator.credentials.get,
-      isWritable: descriptor?.writable,
-      isConfigurable: descriptor?.configurable,
-      isEnumerable: descriptor?.enumerable,
-      hypothesisId: 'B,C'
+      getIsWritable: descriptorGet?.writable,
+      getIsConfigurable: descriptorGet?.configurable,
+      getIsEnumerable: descriptorGet?.enumerable,
+      // Polyfill check
+      polyfillApplied: descriptorNav?.writable === true && descriptorNav?.configurable === true,
+      runId: 'post-fix',
+      hypothesisId: 'B-FIX'
     });
   } catch (e) {
-    console.error('[DEBUG] Error checking credentials API:', e, { hypothesisId: 'B' });
+    console.error('[DEBUG POST-FIX] Error checking credentials API:', e, { runId: 'post-fix', hypothesisId: 'B-FIX' });
   }
 }
 // #endregion

@@ -9,6 +9,50 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <title>Serbian AI Tutor</title>
+    
+    <!-- Early WebAuthn Polyfill: Must run BEFORE Clerk loads -->
+    <script>
+      // Fix read-only Credentials API in production
+      (function() {
+        if (typeof navigator !== 'undefined' && navigator.credentials) {
+          try {
+            // Save original methods
+            const originalGet = navigator.credentials.get;
+            const originalCreate = navigator.credentials.create;
+            const originalStore = navigator.credentials.store;
+            const originalPreventSilentAccess = navigator.credentials.preventSilentAccess;
+            
+            // Create a wrappable CredentialsContainer proxy
+            const credentialsProxy = {
+              get: function(...args) {
+                return originalGet.apply(navigator.credentials, args);
+              },
+              create: function(...args) {
+                return originalCreate.apply(navigator.credentials, args);
+              },
+              store: function(...args) {
+                return originalStore ? originalStore.apply(navigator.credentials, args) : Promise.resolve();
+              },
+              preventSilentAccess: function(...args) {
+                return originalPreventSilentAccess ? originalPreventSilentAccess.apply(navigator.credentials, args) : Promise.resolve();
+              }
+            };
+            
+            // Replace navigator.credentials with wrappable proxy
+            Object.defineProperty(navigator, 'credentials', {
+              value: credentialsProxy,
+              writable: true,
+              configurable: true,
+              enumerable: true
+            });
+            
+            console.log('[WebAuthn Polyfill] Successfully patched Credentials API');
+          } catch (e) {
+            console.warn('[WebAuthn Polyfill] Could not patch Credentials API:', e);
+          }
+        }
+      })();
+    </script>
   </head>
 
   <body>
