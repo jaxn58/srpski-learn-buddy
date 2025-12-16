@@ -27,6 +27,11 @@ console.log('[DEBUG] Environment check:', {
   hypothesisId: 'A,B,D'
 });
 
+// Send to debug server (Hypothesis D - Convex URL verification)
+const logData = {location:'main.tsx:13',message:'Main initialization',data:{hasClerkKey:!!CLERK_PUBLISHABLE_KEY,clerkKeyPrefix:CLERK_PUBLISHABLE_KEY?.substring(0,12),hasConvexUrl:!!CONVEX_URL,convexUrl:CONVEX_URL,isProduction:import.meta.env.PROD,mode:import.meta.env.MODE},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'};
+console.log('[DEBUG]', logData);
+fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+
 // VERIFICATION: Check if polyfill fixed the credentials API (Hypothesis B)
 if (typeof window !== 'undefined' && navigator.credentials) {
   try {

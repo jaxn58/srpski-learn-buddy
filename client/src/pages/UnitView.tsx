@@ -22,11 +22,38 @@ export default function UnitView() {
   const params = useParams();
   const unitNumber = parseInt(params.unitNumber || "1");
   
+  // #region agent log
+  // Log component mount and parameters (Hypotheses A, C, E)
+  React.useEffect(() => {
+    const logData = {location:'UnitView.tsx:23',message:'UnitView mount',data:{rawUnitNumber:params.unitNumber,parsedUnitNumber:unitNumber,isNaN:isNaN(unitNumber),authLoading,userExists:!!user,userId:user?._id,userRole:user?.role,userLearningLanguage:user?.learningLanguage,i18nLanguage:i18n.language},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C,E'};
+    console.log('[DEBUG]', logData);
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+  }, [params.unitNumber, unitNumber, authLoading, user, i18n.language]);
+  // #endregion
+  
   // Use user's learning language or fallback
   const displayLanguage = user?.learningLanguage || (i18n.language === 'de' ? 'de' : 'en');
 
+  // #region agent log
+  // Log display language determination (Hypothesis C)
+  React.useEffect(() => {
+    const logData = {location:'UnitView.tsx:26',message:'Display language determined',data:{displayLanguage,userLearningLanguage:user?.learningLanguage,i18nLanguage:i18n.language,fallbackUsed:!user?.learningLanguage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'};
+    console.log('[DEBUG]', logData);
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+  }, [displayLanguage, user?.learningLanguage, i18n.language]);
+  // #endregion
+
   // Load Unit Metadata & Content from DB
   const unitMetadata = useQuery(api.units.getUnitMetadata, { unitNumber, language: displayLanguage });
+  
+  // #region agent log
+  // Log metadata query result (Hypothesis B)
+  React.useEffect(() => {
+    const logData = {location:'UnitView.tsx:29',message:'Unit metadata query result',data:{unitMetadata:unitMetadata===undefined?'undefined':(unitMetadata===null?'null':'found'),unitNumber,language:displayLanguage,metadataId:unitMetadata?._id,metadataTitle:unitMetadata?.title,queryParams:{unitNumber,language:displayLanguage}},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'};
+    console.log('[DEBUG]', logData);
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+  }, [unitMetadata, unitNumber, displayLanguage]);
+  // #endregion
   const content = useQuery(api.units.getUnitContentSections, { unitNumber, language: displayLanguage });
   const vocabulary = useQuery(api.vocabulary.getCourseVocabularyByUnit, { unitNumber });
 
@@ -134,6 +161,17 @@ export default function UnitView() {
     </div>;
   }
 
+  // #region agent log
+  // Log before showing error (All hypotheses)
+  React.useEffect(() => {
+    if (!user || !unitMetadata) {
+      const logData = {location:'UnitView.tsx:137',message:'Unit not found condition triggered',data:{userExists:!!user,userId:user?._id,unitMetadataExists:!!unitMetadata,unitMetadataValue:unitMetadata===undefined?'undefined':(unitMetadata===null?'null':'found'),authLoading,isLoading,unitNumber,displayLanguage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,C,E'};
+      console.log('[DEBUG]', logData);
+      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch(()=>{});
+    }
+  }, [user, unitMetadata, authLoading, isLoading, unitNumber, displayLanguage]);
+  // #endregion
+  
   if (!user || !unitMetadata) {
     return <div className="min-h-screen flex items-center justify-center">Unit not found</div>;
   }
