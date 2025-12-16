@@ -16,6 +16,7 @@ import type * as email from "../email.js";
 import type * as emailTemplates from "../emailTemplates.js";
 import type * as exercises from "../exercises.js";
 import type * as feedback from "../feedback.js";
+import type * as http from "../http.js";
 import type * as modules from "../modules.js";
 import type * as progress from "../progress.js";
 import type * as subscriptions from "../subscriptions.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   emailTemplates: typeof emailTemplates;
   exercises: typeof exercises;
   feedback: typeof feedback;
+  http: typeof http;
   modules: typeof modules;
   progress: typeof progress;
   subscriptions: typeof subscriptions;
