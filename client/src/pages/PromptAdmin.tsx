@@ -27,7 +27,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 import { Sparkles, History, Eye, RotateCcw, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -111,7 +111,7 @@ export default function PromptAdmin() {
 
   if (authLoading || currentPrompt === undefined || promptHistory === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -119,7 +119,7 @@ export default function PromptAdmin() {
 
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
@@ -138,9 +138,7 @@ export default function PromptAdmin() {
   const isSuperadmin = user.role === 'superadmin';
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 md:ml-64 w-full flex flex-col">
+    <div className="flex flex-col h-full">
         <header className="border-b bg-card">
           <div className="container py-4">
             <div className="flex items-center justify-between">
@@ -349,7 +347,6 @@ export default function PromptAdmin() {
             </Tabs>
           </div>
         </main>
-      </div>
 
       {/* Preview Dialog */}
       <Dialog open={!!previewVersion} onOpenChange={() => setPreviewVersion(null)}>
@@ -427,11 +424,3 @@ export default function PromptAdmin() {
     </div>
   );
 }
-
-
-
-
-
-
-
-

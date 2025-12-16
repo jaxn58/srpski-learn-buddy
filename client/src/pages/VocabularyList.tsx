@@ -8,7 +8,7 @@ import type { SupportedLanguage } from "@shared/data";
 import { Search, BookOpen, Filter, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo } from "react";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 import { AnimatedPage } from "@/components/AnimatedPage";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -154,10 +154,7 @@ export default function VocabularyList() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <AnimatedPage>
-      <div className="flex-1 md:ml-64 w-full">
+    <AnimatedPage>
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
@@ -310,8 +307,6 @@ export default function VocabularyList() {
           </Link>
         </div>
       </div>
-      </div>
-      </AnimatedPage>
-    </div>
+    </AnimatedPage>
   );
 }

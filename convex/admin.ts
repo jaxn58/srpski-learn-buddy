@@ -27,14 +27,19 @@ export const getChatPrompt = query({
   },
   handler: async (ctx, args) => {
     const admin = await getAdminUser(ctx);
-    if (!admin) throw new Error("Unauthorized");
+    if (!admin) {
+        console.log("getChatPrompt: Unauthorized");
+        throw new Error("Unauthorized");
+    }
 
     const name = args.name || "default";
+    console.log(`getChatPrompt: Querying for name="${name}"`);
     const prompt = await ctx.db
       .query("chatPrompts")
       .withIndex("by_name", (q) => q.eq("name", name))
       .first();
 
+    console.log(`getChatPrompt: Result found: ${!!prompt}`);
     return prompt || null;
   },
 });
@@ -591,15 +596,20 @@ export const getChatPromptHistory = query({
   },
   handler: async (ctx, args) => {
     const admin = await getAdminUser(ctx);
-    if (!admin) throw new Error("Unauthorized");
+    if (!admin) {
+        console.log("getChatPromptHistory: Unauthorized");
+        throw new Error("Unauthorized");
+    }
 
     const name = args.name || "default";
+    console.log(`getChatPromptHistory: Querying for name="${name}"`);
     const limit = args.limit && args.limit > 0 ? Math.min(args.limit, 50) : 20;
     const history = await ctx.db
       .query("chatPromptHistory")
       .withIndex("by_name_updatedAt", (q) => q.eq("name", name))
       .order("desc")
       .take(limit);
+    console.log(`getChatPromptHistory: Found ${history.length} entries`);
     
     // Enrich with user info
     const enrichedHistory = await Promise.all(

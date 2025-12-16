@@ -6,14 +6,13 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
-import { GlobalBanner } from "./components/GlobalBanner";
+import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import WeekView from "./pages/WeekView";
 import UnitView from "./pages/UnitView";
 import Chat from "./pages/Chat";
 import Admin from "./pages/Admin";
-import AdminBanners from "./pages/AdminBanners";
 import FeedbackManagement from "./pages/FeedbackManagement";
 import Vocabulary from "./pages/Vocabulary";
 import VocabularyQuizRedirect from "./pages/VocabularyQuizRedirect";
@@ -60,7 +59,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function Protected({ Component }: { Component: React.ComponentType }) {
   return (
     <ProtectedRoute>
-      <Component />
+      <DashboardLayout>
+        <Component />
+      </DashboardLayout>
     </ProtectedRoute>
   );
 }
@@ -111,13 +112,7 @@ function Router() {
         {() => <Protected Component={Feedback} />}
       </Route>
       
-      {/* Admin routes */}
-      <Route path="/admin">
-        {() => <Protected Component={Admin} />}
-      </Route>
-      <Route path="/admin/banners">
-        {() => <Protected Component={AdminBanners} />}
-      </Route>
+      {/* Admin routes - Specific routes must come before general /admin route */}
       <Route path="/admin/prompt">
         {() => <Protected Component={PromptAdmin} />}
       </Route>
@@ -129,6 +124,9 @@ function Router() {
       </Route>
       <Route path="/admin/email-templates">
         {() => <Protected Component={EmailTemplates} />}
+      </Route>
+      <Route path="/admin">
+        {() => <Protected Component={Admin} />}
       </Route>
       
       {/* 404 */}
@@ -150,7 +148,6 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <LanguageProvider defaultLanguage="en">
           <TooltipProvider>
-            <GlobalBanner />
             <Toaster />
             <Router />
           </TooltipProvider>

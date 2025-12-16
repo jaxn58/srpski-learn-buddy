@@ -153,7 +153,7 @@ export interface UnitExplanation {
 
 ### Units 6-27
 - Create placeholder content (already done)
-- Expand after user feedback on Units 1-5
+- Expand after user feedback on the first 3 units
 - Maintain consistency in structure and quality
 
 ### Future Enhancements

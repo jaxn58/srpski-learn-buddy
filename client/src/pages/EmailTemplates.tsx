@@ -16,7 +16,7 @@ import { Mail, Eye, Trash2, Edit, Plus, CheckCircle, XCircle, ArrowLeft, Code, E
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState, useMemo, useEffect } from "react";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -137,7 +137,7 @@ export default function EmailTemplates() {
 
   if (authLoading || templatesLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -145,7 +145,7 @@ export default function EmailTemplates() {
 
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
@@ -270,9 +270,7 @@ export default function EmailTemplates() {
   // Editor View
   if (viewMode === "editor") {
     return (
-      <div className="flex min-h-screen bg-background">
-        <Sidebar />
-        <div className="flex-1 md:ml-64 w-full flex flex-col">
+      <div className="flex flex-col h-full">
           <header className="border-b bg-card">
             <div className="container py-4">
               <div className="flex items-center justify-between">
@@ -548,16 +546,13 @@ export default function EmailTemplates() {
               </Panel>
             </PanelGroup>
           </main>
-        </div>
       </div>
     );
   }
 
   // List View
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 md:ml-64 w-full flex flex-col">
+    <div className="flex flex-col h-full">
         <header className="border-b bg-card">
           <div className="container py-4">
             <div className="flex items-center justify-between">
@@ -760,7 +755,6 @@ export default function EmailTemplates() {
             </CardContent>
           </Card>
         </main>
-      </div>
     </div>
   );
 }

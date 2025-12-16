@@ -116,10 +116,10 @@ Not sure? Start with **Balanced**—it's our most popular plan and offers the be
 ### 9. Do beta testers get a discount?
 
 **Answer:**
-Yes! Beta testers who register during the testing phase get **50% OFF** when the full course launches. During beta, you have free access to Units 1-5. When we launch, you can purchase any plan at half price. This is our way of saying thank you for helping us improve the course!
+Yes! Beta testers who register during the testing phase get **50% OFF** when the full course launches. During beta, you have free access to the first 3 units of Module 1 (Foundation). When we launch, you can purchase any plan at half price. This is our way of saying thank you for helping us improve the course!
 
 **Beta benefits:**
-- Free access to Units 1-5 during beta
+- Free access to the first 3 units of Module 1 (Foundation) during beta
 - 50% OFF any plan at launch
 - Early access to new features
 - Direct input on course development
@@ -157,7 +157,7 @@ Your progress, XP, badges, and completed units are automatically preserved. You 
 
 ### Call-to-Action
 After FAQ section, add:
-> **Still have questions?** [Contact us](#) or [Register for Beta](#beta-register) to try Units 1-5 for free!
+> **Still have questions?** [Contact us](#) or [Register for Beta](#beta-register) to try the first 3 units for free!
 
 ---
 

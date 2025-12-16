@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 import { MessageSquare } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -25,27 +25,21 @@ export default function Feedback() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-background">
-        <Sidebar />
-        <div className="flex-1 md:ml-64 w-full flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="flex min-h-screen bg-background">
-        <Sidebar />
-        <div className="flex-1 md:ml-64 w-full flex items-center justify-center">
-          <Card className="max-w-md">
-            <CardHeader>
-              <CardTitle>{t('feedback.loginRequired.title')}</CardTitle>
-              <CardDescription>{t('feedback.loginRequired.desc')}</CardDescription>
-            </CardHeader>
-          </Card>
-        </div>
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle>{t('feedback.loginRequired.title')}</CardTitle>
+            <CardDescription>{t('feedback.loginRequired.desc')}</CardDescription>
+          </CardHeader>
+        </Card>
       </div>
     );
   }
@@ -104,178 +98,172 @@ export default function Feedback() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 md:ml-64 w-full">
-        <main className="container py-12">
-          <div className="max-w-2xl mx-auto">
-            <div className="text-center space-y-4 mb-12">
-              <div className="flex items-center justify-center gap-3 mb-4">
-                <MessageSquare className="h-8 w-8 text-primary" />
-                <h1 className="text-4xl font-bold">{t('feedback.title')}</h1>
-              </div>
-              <p className="text-xl text-muted-foreground">
-                {t('feedback.subtitle')}
-              </p>
-            </div>
-
-            <Card className="border-2 shadow-lg">
-              <CardHeader className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10">
-                <CardTitle>{t('feedback.shareThoughts')}</CardTitle>
-                <CardDescription>
-                  {t('feedback.shareThoughtsDesc')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-8">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="type">{t('feedback.type')}</Label>
-                    <select
-                      id="type"
-                      value={feedback.type}
-                      onChange={(e) => setFeedback({ ...feedback, type: e.target.value as any })}
-                      disabled={isSubmitting}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
-                    >
-                      <option value="bug">{t('feedback.type.bug')}</option>
-                      <option value="feature">{t('feedback.type.feature')}</option>
-                      <option value="improvement">{t('feedback.type.improvement')}</option>
-                      <option value="other">{t('feedback.type.other')}</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="title">{t('feedback.title.label')}</Label>
-                    <Input
-                      id="title"
-                      placeholder={t('feedback.title.placeholder')}
-                      value={feedback.title}
-                      onChange={(e) => setFeedback({ ...feedback, title: e.target.value })}
-                      disabled={isSubmitting}
-                      maxLength={200}
-                    />
-                    <p className="text-xs text-muted-foreground">{feedback.title.length}/200</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="description">{t('feedback.description')}</Label>
-                    <Textarea
-                      id="description"
-                      placeholder={t('feedback.description.placeholder')}
-                      value={feedback.description}
-                      onChange={(e) => setFeedback({ ...feedback, description: e.target.value })}
-                      disabled={isSubmitting}
-                      rows={8}
-                      className="resize-none"
-                      maxLength={5000}
-                    />
-                    <p className="text-xs text-muted-foreground">{feedback.description.length}/5000</p>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full bg-primary hover:bg-primary/90 text-lg"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? t('feedback.sending') : t('feedback.send')}
-                  </Button>
-
-                  <p className="text-sm text-center text-muted-foreground">
-                    {t('feedback.thankYou')}
-                  </p>
-                </form>
-              </CardContent>
-            </Card>
-
-            <div className="mt-12 grid md:grid-cols-3 gap-6">
-              <Card className="border-0 bg-gradient-to-br from-primary/5 to-secondary/5">
-                <CardHeader>
-                  <div className="text-3xl mb-2">💡</div>
-                  <CardTitle className="text-lg">{t('feedback.suggestions.title')}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {t('feedback.suggestions.desc')}
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 bg-gradient-to-br from-primary/5 to-secondary/5">
-                <CardHeader>
-                  <div className="text-3xl mb-2">🐛</div>
-                  <CardTitle className="text-lg">{t('feedback.bugReports.title')}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {t('feedback.bugReports.desc')}
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 bg-gradient-to-br from-primary/5 to-secondary/5">
-                <CardHeader>
-                  <div className="text-3xl mb-2">⭐</div>
-                  <CardTitle className="text-lg">{t('feedback.general.title')}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {t('feedback.general.desc')}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {mySubmissions.length > 0 && (
-              <div className="mt-16">
-                <h2 className="text-2xl font-bold mb-6">{t('feedback.history.title')}</h2>
-                <div className="space-y-4">
-                  {mySubmissions.map((submission: FeedbackSubmissionDoc) => (
-                    <Card key={submission._id} className="border-l-4 border-l-primary">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg">{submission.title}</CardTitle>
-                            <CardDescription className="mt-1">
-                              {typeLabels[submission.type as keyof typeof typeLabels]}
-                            </CardDescription>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[submission.status as keyof typeof statusColors]}`}>
-                            {statusLabels[submission.status as keyof typeof statusLabels]}
-                          </span>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-muted-foreground mb-3">{submission.description}</p>
-                        {submission.adminNotes && (
-                          <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                            <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                              {t('feedback.adminNote') || 'Admin Note'}:
-                            </p>
-                            <p className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
-                              {submission.adminNotes}
-                            </p>
-                          </div>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {t('feedback.submitted')}: {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString('de-DE', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          }) : 'Unknown'}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
+    <div className="container py-12">
+      <div className="max-w-2xl mx-auto">
+        <div className="text-center space-y-4 mb-12">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <MessageSquare className="h-8 w-8 text-primary" />
+            <h1 className="text-4xl font-bold">{t('feedback.title')}</h1>
           </div>
-        </main>
+          <p className="text-xl text-muted-foreground">
+            {t('feedback.subtitle')}
+          </p>
+        </div>
+
+        <Card className="border-2 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10">
+            <CardTitle>{t('feedback.shareThoughts')}</CardTitle>
+            <CardDescription>
+              {t('feedback.shareThoughtsDesc')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="type">{t('feedback.type')}</Label>
+                <select
+                  id="type"
+                  value={feedback.type}
+                  onChange={(e) => setFeedback({ ...feedback, type: e.target.value as any })}
+                  disabled={isSubmitting}
+                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
+                >
+                  <option value="bug">{t('feedback.type.bug')}</option>
+                  <option value="feature">{t('feedback.type.feature')}</option>
+                  <option value="improvement">{t('feedback.type.improvement')}</option>
+                  <option value="other">{t('feedback.type.other')}</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="title">{t('feedback.title.label')}</Label>
+                <Input
+                  id="title"
+                  placeholder={t('feedback.title.placeholder')}
+                  value={feedback.title}
+                  onChange={(e) => setFeedback({ ...feedback, title: e.target.value })}
+                  disabled={isSubmitting}
+                  maxLength={200}
+                />
+                <p className="text-xs text-muted-foreground">{feedback.title.length}/200</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">{t('feedback.description')}</Label>
+                <Textarea
+                  id="description"
+                  placeholder={t('feedback.description.placeholder')}
+                  value={feedback.description}
+                  onChange={(e) => setFeedback({ ...feedback, description: e.target.value })}
+                  disabled={isSubmitting}
+                  rows={8}
+                  className="resize-none"
+                  maxLength={5000}
+                />
+                <p className="text-xs text-muted-foreground">{feedback.description.length}/5000</p>
+              </div>
+
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full bg-primary hover:bg-primary/90 text-lg"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? t('feedback.sending') : t('feedback.send')}
+              </Button>
+
+              <p className="text-sm text-center text-muted-foreground">
+                {t('feedback.thankYou')}
+              </p>
+            </form>
+          </CardContent>
+        </Card>
+
+        <div className="mt-12 grid md:grid-cols-3 gap-6">
+          <Card className="border-0 bg-gradient-to-br from-primary/5 to-secondary/5">
+            <CardHeader>
+              <div className="text-3xl mb-2">💡</div>
+              <CardTitle className="text-lg">{t('feedback.suggestions.title')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {t('feedback.suggestions.desc')}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 bg-gradient-to-br from-primary/5 to-secondary/5">
+            <CardHeader>
+              <div className="text-3xl mb-2">🐛</div>
+              <CardTitle className="text-lg">{t('feedback.bugReports.title')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {t('feedback.bugReports.desc')}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 bg-gradient-to-br from-primary/5 to-secondary/5">
+            <CardHeader>
+              <div className="text-3xl mb-2">⭐</div>
+              <CardTitle className="text-lg">{t('feedback.general.title')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {t('feedback.general.desc')}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {mySubmissions.length > 0 && (
+          <div className="mt-16">
+            <h2 className="text-2xl font-bold mb-6">{t('feedback.history.title')}</h2>
+            <div className="space-y-4">
+              {mySubmissions.map((submission: FeedbackSubmissionDoc) => (
+                <Card key={submission._id} className="border-l-4 border-l-primary">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg">{submission.title}</CardTitle>
+                        <CardDescription className="mt-1">
+                          {typeLabels[submission.type as keyof typeof typeLabels]}
+                        </CardDescription>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[submission.status as keyof typeof statusColors]}`}>
+                        {statusLabels[submission.status as keyof typeof statusLabels]}
+                      </span>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-3">{submission.description}</p>
+                    {submission.adminNotes && (
+                      <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                          {t('feedback.adminNote') || 'Admin Note'}:
+                        </p>
+                        <p className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
+                          {submission.adminNotes}
+                        </p>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {t('feedback.submitted')}: {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString('de-DE', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : 'Unknown'}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

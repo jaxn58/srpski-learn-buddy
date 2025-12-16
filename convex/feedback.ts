@@ -87,26 +87,41 @@ export const getMySubmissions = query({
 
 export const getAllSubmissions = query({
   handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+    try {
+      const user = await getCurrentUser(ctx);
+      if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+        return [];
+      }
+
+      const submissions = await ctx.db.query("feedbackSubmissions").order("desc").collect();
+      
+      // Enrich with user info
+      const enrichedSubmissions = await Promise.all(
+        submissions.map(async (sub) => {
+          try {
+            const submitter = await ctx.db.get(sub.userId);
+            return {
+              ...sub,
+              userName: submitter?.name || submitter?.email || "Unknown",
+              userEmail: submitter?.email || "",
+            };
+          } catch (e) {
+            console.error(`Failed to enrich submission ${sub._id}:`, e);
+            return {
+              ...sub,
+              userName: "Unknown (Error)",
+              userEmail: "",
+            };
+          }
+        })
+      );
+
+      return enrichedSubmissions;
+    } catch (error) {
+      console.error("Error loading feedback submissions:", error);
+      // Return empty array instead of throwing to prevent infinite loading state
       return [];
     }
-
-    const submissions = await ctx.db.query("feedbackSubmissions").order("desc").collect();
-    
-    // Enrich with user info
-    const enrichedSubmissions = await Promise.all(
-      submissions.map(async (sub) => {
-        const submitter = await ctx.db.get(sub.userId);
-        return {
-          ...sub,
-          userName: submitter?.name || submitter?.email || "Unknown",
-          userEmail: submitter?.email || "",
-        };
-      })
-    );
-
-    return enrichedSubmissions;
   },
 });
 

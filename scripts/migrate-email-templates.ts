@@ -84,7 +84,7 @@ const templates = [
               <div style="background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 24px 0; border-radius: 4px;">
                 <p style="color: #065F46; margin: 0; font-size: 14px; line-height: 1.5;">
                   <strong>🎁 Beta Tester Benefits</strong><br>
-                  • <strong>Free access</strong> to Units 1-5 during beta testing<br>
+                  • <strong>Free access</strong> to the first 3 units of Module 1 (Foundation) during beta testing<br>
                   • <strong>50% OFF discount</strong> on the full course when we launch<br>
                   • Early access to all features and improvements
                 </p>
@@ -92,7 +92,7 @@ const templates = [
               
               <h3 style="color: #1a1a1a; margin: 32px 0 16px 0; font-size: 18px; font-weight: 600;">What's Included in Beta:</h3>
               <ul style="color: #4a4a4a; line-height: 1.8; margin: 0 0 16px 0; padding-left: 20px;">
-                <li><strong>5 Units</strong> of structured Serbian lessons (Units 1-5)</li>
+                <li><strong>3 Units</strong> of structured Serbian lessons (Units 1-3 of Module 1)</li>
                 <li>Interactive exercises and vocabulary training</li>
                 <li>AI-powered learning assistant</li>
                 <li>Gamification features: XP, badges, and streaks</li>

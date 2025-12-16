@@ -1,5 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import Sidebar from "@/components/Sidebar";
+// Sidebar import removed
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -22,13 +22,10 @@ export default function SubscriptionAnalytics() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="flex h-screen">
-        <Sidebar />
-        <div className="flex-1 md:ml-64 w-full flex items-center justify-center" data-subscription-analytics-main>
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-4 text-muted-foreground">Loading analytics...</p>
-          </div>
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading analytics...</p>
         </div>
       </div>
     );
@@ -36,18 +33,15 @@ export default function SubscriptionAnalytics() {
 
   if (!analytics) {
     return (
-      <div className="flex h-screen">
-        <Sidebar />
-        <div className="flex-1 md:ml-64 w-full p-8" data-subscription-analytics-main>
-          <div className="max-w-6xl mx-auto">
-            <h1 className="text-3xl font-bold mb-6">Subscription Analytics</h1>
-            <Card>
-              <CardHeader>
-                <CardTitle>No Data Available</CardTitle>
-                <CardDescription>No subscription data found.</CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
+      <div className="p-8 w-full" data-subscription-analytics-main>
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl font-bold mb-6">Subscription Analytics</h1>
+          <Card>
+            <CardHeader>
+              <CardTitle>No Data Available</CardTitle>
+              <CardDescription>No subscription data found.</CardDescription>
+            </CardHeader>
+          </Card>
         </div>
       </div>
     );
@@ -64,187 +58,183 @@ export default function SubscriptionAnalytics() {
   };
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <div className="flex-1 md:ml-64 w-full p-8 overflow-y-auto" data-subscription-analytics-main>
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6">Subscription Analytics</h1>
+    <div className="p-8 w-full overflow-y-auto" data-subscription-analytics-main>
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Subscription Analytics</h1>
 
-          {/* Key Metrics */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{analytics?.activeUsers || 0}</div>
-                <p className="text-xs text-muted-foreground">
-                  {analytics?.totalUsers || 0} total users
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">MRR</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(analytics?.mrr)}</div>
-                <p className="text-xs text-muted-foreground">Monthly Recurring Revenue</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Churn Rate</CardTitle>
-                <TrendingDown className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatPercentage(analytics?.churnRate)}</div>
-                <p className="text-xs text-muted-foreground">
-                  {(analytics?.totalUsers || 0) - (analytics?.activeUsers || 0)} cancelled
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Upgrade Rate</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatPercentage(analytics?.conversionRate)}</div>
-                <p className="text-xs text-muted-foreground">
-                  {analytics?.upgradeCount || 0} upgrades
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Revenue Metrics */}
-          <div className="grid gap-4 md:grid-cols-2 mb-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Total Revenue</CardTitle>
-                <CardDescription>All-time revenue from subscriptions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-primary">
-                  {formatCurrency(analytics?.totalRevenue)}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Revenue by Plan</CardTitle>
-                <CardDescription>Breakdown of revenue per subscription tier</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Intensive (3 months)</span>
-                    <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.intensive)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Balanced (6 months)</span>
-                    <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.balanced)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Standard (9 months)</span>
-                    <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.standard)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Relaxed (12 months)</span>
-                    <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.relaxed)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Users by Plan */}
+        {/* Key Metrics */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Active Users by Plan
-              </CardTitle>
-              <CardDescription>Distribution of active subscriptions across plans</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {/* Intensive */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium">Intensive (€69 / 3 months)</span>
-                    <span className="text-sm font-bold">{analytics?.usersByPlan?.intensive || 0} users</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{
-                        width: `${((analytics?.usersByPlan?.intensive || 0) / (analytics?.activeUsers || 1)) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
+              <div className="text-2xl font-bold">{analytics?.activeUsers || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                {analytics?.totalUsers || 0} total users
+              </p>
+            </CardContent>
+          </Card>
 
-                {/* Balanced */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium">Balanced (€79 / 6 months)</span>
-                    <span className="text-sm font-bold">{analytics?.usersByPlan?.balanced || 0} users</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-600 h-2 rounded-full"
-                      style={{
-                        width: `${((analytics?.usersByPlan?.balanced || 0) / (analytics?.activeUsers || 1)) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">MRR</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(analytics?.mrr)}</div>
+              <p className="text-xs text-muted-foreground">Monthly Recurring Revenue</p>
+            </CardContent>
+          </Card>
 
-                {/* Standard */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium">Standard (€95 / 9 months)</span>
-                    <span className="text-sm font-bold">{analytics?.usersByPlan?.standard || 0} users</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-orange-600 h-2 rounded-full"
-                      style={{
-                        width: `${((analytics?.usersByPlan?.standard || 0) / (analytics?.activeUsers || 1)) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Churn Rate</CardTitle>
+              <TrendingDown className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatPercentage(analytics?.churnRate)}</div>
+              <p className="text-xs text-muted-foreground">
+                {(analytics?.totalUsers || 0) - (analytics?.activeUsers || 0)} cancelled
+              </p>
+            </CardContent>
+          </Card>
 
-                {/* Relaxed */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium">Relaxed (€119 / 12 months)</span>
-                    <span className="text-sm font-bold">{analytics?.usersByPlan?.relaxed || 0} users</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-purple-600 h-2 rounded-full"
-                      style={{
-                        width: `${((analytics?.usersByPlan?.relaxed || 0) / (analytics?.activeUsers || 1)) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Upgrade Rate</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatPercentage(analytics?.conversionRate)}</div>
+              <p className="text-xs text-muted-foreground">
+                {analytics?.upgradeCount || 0} upgrades
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Revenue Metrics */}
+        <div className="grid gap-4 md:grid-cols-2 mb-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Total Revenue</CardTitle>
+              <CardDescription>All-time revenue from subscriptions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-primary">
+                {formatCurrency(analytics?.totalRevenue)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue by Plan</CardTitle>
+              <CardDescription>Breakdown of revenue per subscription tier</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Intensive (3 months)</span>
+                  <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.intensive)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Balanced (6 months)</span>
+                  <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.balanced)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Standard (9 months)</span>
+                  <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.standard)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Relaxed (12 months)</span>
+                  <span className="text-sm font-bold">{formatCurrency(analytics?.revenueByPlan?.relaxed)}</span>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Users by Plan */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Active Users by Plan
+            </CardTitle>
+            <CardDescription>Distribution of active subscriptions across plans</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Intensive */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-medium">Intensive (€69 / 3 months)</span>
+                  <span className="text-sm font-bold">{analytics?.usersByPlan?.intensive || 0} users</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full"
+                    style={{
+                      width: `${((analytics?.usersByPlan?.intensive || 0) / (analytics?.activeUsers || 1)) * 100}%`,
+                    }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Balanced */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-medium">Balanced (€79 / 6 months)</span>
+                  <span className="text-sm font-bold">{analytics?.usersByPlan?.balanced || 0} users</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-600 h-2 rounded-full"
+                    style={{
+                      width: `${((analytics?.usersByPlan?.balanced || 0) / (analytics?.activeUsers || 1)) * 100}%`,
+                    }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Standard */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-medium">Standard (€95 / 9 months)</span>
+                  <span className="text-sm font-bold">{analytics?.usersByPlan?.standard || 0} users</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-orange-600 h-2 rounded-full"
+                    style={{
+                      width: `${((analytics?.usersByPlan?.standard || 0) / (analytics?.activeUsers || 1)) * 100}%`,
+                    }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Relaxed */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-medium">Relaxed (€119 / 12 months)</span>
+                  <span className="text-sm font-bold">{analytics?.usersByPlan?.relaxed || 0} users</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-purple-600 h-2 rounded-full"
+                    style={{
+                      width: `${((analytics?.usersByPlan?.relaxed || 0) / (analytics?.activeUsers || 1)) * 100}%`,
+                    }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
-

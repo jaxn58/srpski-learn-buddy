@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 import { AnimatedPage } from "@/components/AnimatedPage";
 import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
 import { useTranslation } from "react-i18next";
@@ -192,16 +192,14 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <Sidebar />
-      <AnimatedPage>
-      <div className="flex flex-1 w-full md:ml-64">
+    <AnimatedPage>
+      <div className="flex flex-1 w-full h-[calc(100vh-theme(spacing.16))]">
         <ChatSessionsSidebar 
           currentSessionId={currentSessionId}
           onSelectSession={handleSelectSession}
           onNewChat={handleNewChat}
         />
-        <div className="flex-1 w-full">
+        <div className="flex-1 w-full flex flex-col">
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container py-4">
           <div className="flex items-center gap-4">
@@ -298,8 +296,8 @@ export default function Chat() {
         </div>
       </header>
 
-      <main className="container py-6 max-w-4xl">
-        <div className="h-[calc(100vh-180px)] flex flex-col bg-card rounded-lg shadow-lg border">
+      <main className="container py-6 max-w-4xl flex-1 flex flex-col min-h-0">
+        <div className="flex flex-col bg-card rounded-lg shadow-lg border h-full">
           {/* Messages Area */}
           <div 
             ref={scrollRef}
@@ -416,7 +414,7 @@ export default function Chat() {
         </div>
 
         {/* Footer */}
-        <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
+        <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50 mt-auto">
           <div className="text-center text-sm text-muted-foreground">
             <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
           </div>
@@ -424,8 +422,6 @@ export default function Chat() {
       </main>
       </div>
       </div>
-      </AnimatedPage>
-    </div>
+    </AnimatedPage>
   );
 }
-

@@ -265,7 +265,7 @@ const resources = {
       "dashboard.pendingApproval.whatNext": "What happens next?",
       "dashboard.pendingApproval.review": "Our team will review your application within 24-48 hours",
       "dashboard.pendingApproval.email": "You'll receive an email at {{email}} once approved",
-      "dashboard.pendingApproval.access": "After approval, you'll have full access to Units 1-5",
+      "dashboard.pendingApproval.access": "After approval, you'll have full access to the first 3 units of Module 1 (Foundation)",
       "dashboard.pendingApproval.backHome": "Back to Home",
       "dashboard.pendingApproval.logout": "Logout",
       "dashboard.adminView": "All Modules (Admin View)",

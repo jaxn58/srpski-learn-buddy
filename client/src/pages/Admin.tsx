@@ -28,7 +28,7 @@ import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, Check
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 
 
 export default function Admin() {
@@ -212,297 +212,292 @@ export default function Admin() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 md:ml-64 w-full flex flex-col">
-        <main className="container py-8">
-        {/* Statistics Cards */}
-        <div className="grid gap-4 md:grid-cols-3 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.activeUsers || 0} von {stats?.totalUsers || 0} active</div>
-              <p className="text-xs text-muted-foreground">Last 7 days</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Units Completed</CardTitle>
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalProgress || 0}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Average Progress</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.avgCompletedUnits || 0}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* User Management */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              User Management 
-              <span className="text-sm font-normal text-muted-foreground">({stats?.totalUsers || 0} Total Users)</span>
-              {user.role === 'admin' && (
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
-              )}
-            </CardTitle>
-            <CardDescription>
-              Manage user roles and permissions
-              {user.role === 'admin' && " (View only - no edit permissions)"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('name')} className="h-8 px-2">
-                      Name <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('email')} className="h-8 px-2">
-                      Email <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('role')} className="h-8 px-2">
-                      Role <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isActive')} className="h-8 px-2">
-                      Status <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isBetaTester')} className="h-8 px-2">
-                      Beta Tester <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('subscription')} className="h-8 px-2">
-                      Subscription <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleUserSort('_lastModified')} className="h-8 px-2">
-                      Last Signed In <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedUsers?.map((u: any) => (
-                  <TableRow key={u._id}>
-                    <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
-                    <TableCell>{u.email || 'N/A'}</TableCell>
-                    <TableCell>
-                      {user.role === 'superadmin' && u._id !== user._id ? (
-                        <Select
-                          value={u.role}
-                          onValueChange={(value) => handleRoleChange(u._id, value as any)}
-                        >
-                          <SelectTrigger className="w-[130px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="student">Student</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="superadmin">Superadmin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          u.role === 'superadmin' ? 'bg-purple-100 text-purple-800' :
-                          u.role === 'admin' ? 'bg-blue-100 text-blue-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
-                          {u.role}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        u.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {u.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {u.isBetaTester ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                          ✨ Beta
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {u.subscription ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {u.subscription.planName || u.subscription.planType}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">None</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {u._lastModified ? new Date(u._lastModified).toLocaleDateString('de-DE') : 'Never'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {user.role === 'superadmin' && u._id !== user._id ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleToggleStatus(u._id, u.isActive)}>
-                              {u.isActive ? (
-                                <>
-                                  <Ban className="mr-2 h-4 w-4" />
-                                  Deactivate User
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle className="mr-2 h-4 w-4" />
-                                  Activate User
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleBetaTester(u._id, u.isBetaTester)}>
-                              {u.isBetaTester ? (
-                                <>
-                                  ✨ Remove Beta Badge
-                                </>
-                              ) : (
-                                <>
-                                  ✨ Add Beta Badge
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            {u.role === 'student' && (
-                              <DropdownMenuItem onClick={() => handleResetProgress(u._id)}>
-                                <RotateCcw className="mr-2 h-4 w-4" />
-                                Reset Progress
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={async () => {
-                                const confirmed = window.confirm(
-                                  "This will permanently delete the user account and all associated data (progress, vocabulary, chat history). Are you sure?"
-                                );
-                                if (!confirmed) return;
-                                await handleDeleteUser(u._id);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete User
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Student Progress Overview */}
+    <div className="container py-8">
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-3 mb-8">
         <Card>
-          <CardHeader>
-            <CardTitle>Student Progress</CardTitle>
-            <CardDescription>Overview of all student learning progress</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userName')} className="h-8 px-2">
-                      Student <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userEmail')} className="h-8 px-2">
-                      Email <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('currentWeek')} className="h-8 px-2">
-                      Current Week <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('currentUnit')} className="h-8 px-2">
-                      Current Unit <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('completedUnits')} className="h-8 px-2">
-                      Completed Units <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('learningDuration')} className="h-8 px-2">
-                      Duration <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('lastActivityAt')} className="h-8 px-2">
-                      Last Activity <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedProgress?.map((p: any) => (
-                  <TableRow key={p._id}>
-                    <TableCell className="font-medium">{p.userName}</TableCell>
-                    <TableCell>{p.userEmail}</TableCell>
-                    <TableCell>Week {p.currentWeek}</TableCell>
-                    <TableCell>Unit {p.currentUnit}</TableCell>
-                    <TableCell>{p.completedUnits?.length || 0} / 27</TableCell>
-                    <TableCell>{p.learningDuration} weeks</TableCell>
-                    <TableCell>
-                      {p.lastActivityAt 
-                        ? new Date(p.lastActivityAt).toLocaleDateString('de-DE')
-                        : 'Never'
-                      }
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="text-2xl font-bold">{stats?.activeUsers || 0} von {stats?.totalUsers || 0} active</div>
+            <p className="text-xs text-muted-foreground">Last 7 days</p>
           </CardContent>
         </Card>
-        </main>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Units Completed</CardTitle>
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.totalProgress || 0}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Average Progress</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.avgCompletedUnits || 0}</div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* User Management */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            User Management 
+            <span className="text-sm font-normal text-muted-foreground">({stats?.totalUsers || 0} Total Users)</span>
+            {user.role === 'admin' && (
+              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Manage user roles and permissions
+            {user.role === 'admin' && " (View only - no edit permissions)"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('name')} className="h-8 px-2">
+                    Name <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('email')} className="h-8 px-2">
+                    Email <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('role')} className="h-8 px-2">
+                    Role <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isActive')} className="h-8 px-2">
+                    Status <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isBetaTester')} className="h-8 px-2">
+                    Beta Tester <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('subscription')} className="h-8 px-2">
+                    Subscription <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('_lastModified')} className="h-8 px-2">
+                    Last Signed In <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedUsers?.map((u: any) => (
+                <TableRow key={u._id}>
+                  <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
+                  <TableCell>{u.email || 'N/A'}</TableCell>
+                  <TableCell>
+                    {user.role === 'superadmin' && u._id !== user._id ? (
+                      <Select
+                        value={u.role}
+                        onValueChange={(value) => handleRoleChange(u._id, value as any)}
+                      >
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="student">Student</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="superadmin">Superadmin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        u.role === 'superadmin' ? 'bg-purple-100 text-purple-800' :
+                        u.role === 'admin' ? 'bg-blue-100 text-blue-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                        {u.role}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      u.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {u.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {u.isBetaTester ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        ✨ Beta
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {u.subscription ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {u.subscription.planName || u.subscription.planType}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">None</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {u._lastModified ? new Date(u._lastModified).toLocaleDateString('de-DE') : 'Never'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {user.role === 'superadmin' && u._id !== user._id ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleToggleStatus(u._id, u.isActive)}>
+                            {u.isActive ? (
+                              <>
+                                <Ban className="mr-2 h-4 w-4" />
+                                Deactivate User
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                                Activate User
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleToggleBetaTester(u._id, u.isBetaTester)}>
+                            {u.isBetaTester ? (
+                              <>
+                                ✨ Remove Beta Badge
+                              </>
+                            ) : (
+                              <>
+                                ✨ Add Beta Badge
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          {u.role === 'student' && (
+                            <DropdownMenuItem onClick={() => handleResetProgress(u._id)}>
+                              <RotateCcw className="mr-2 h-4 w-4" />
+                              Reset Progress
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={async () => {
+                              const confirmed = window.confirm(
+                                "This will permanently delete the user account and all associated data (progress, vocabulary, chat history). Are you sure?"
+                              );
+                              if (!confirmed) return;
+                              await handleDeleteUser(u._id);
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete User
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Student Progress Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Student Progress</CardTitle>
+          <CardDescription>Overview of all student learning progress</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userName')} className="h-8 px-2">
+                    Student <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userEmail')} className="h-8 px-2">
+                    Email <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('currentWeek')} className="h-8 px-2">
+                    Current Week <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('currentUnit')} className="h-8 px-2">
+                    Current Unit <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('completedUnits')} className="h-8 px-2">
+                    Completed Units <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('learningDuration')} className="h-8 px-2">
+                    Duration <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('lastActivityAt')} className="h-8 px-2">
+                    Last Activity <ArrowUpDown className="ml-2 h-3 w-3" />
+                  </Button>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedProgress?.map((p: any) => (
+                <TableRow key={p._id}>
+                  <TableCell className="font-medium">{p.userName}</TableCell>
+                  <TableCell>{p.userEmail}</TableCell>
+                  <TableCell>Week {p.currentWeek}</TableCell>
+                  <TableCell>Unit {p.currentUnit}</TableCell>
+                  <TableCell>{p.completedUnits?.length || 0} / 27</TableCell>
+                  <TableCell>{p.learningDuration} weeks</TableCell>
+                  <TableCell>
+                    {p.lastActivityAt 
+                      ? new Date(p.lastActivityAt).toLocaleDateString('de-DE')
+                      : 'Never'
+                    }
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

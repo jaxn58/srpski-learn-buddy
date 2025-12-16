@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { FeedbackForm } from "@/components/FeedbackForm";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 
 import { useState, useEffect } from "react";
@@ -236,14 +236,7 @@ export default function Dashboard() {
         />
       )}
       
-      <div className="flex min-h-screen bg-background">
-      <Sidebar />
-
-      <div className="flex-1 md:ml-64 w-full">
       <AnimatedPage>
-      <main className="container py-8 w-full">
-
-
         {/* Beta Tester Benefits Banner */}
         {user.isBetaTester && showBetaBanner && (
           <div className="mb-6 border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-6">
@@ -530,10 +523,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      </main>
       </AnimatedPage>
-      </div>
-    </div>
     </>
   );
 }

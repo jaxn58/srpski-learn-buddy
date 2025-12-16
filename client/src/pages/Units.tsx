@@ -9,7 +9,6 @@ import { Link, useLocation } from "wouter";
 import { Lock, BookOpen, Star, ChevronDown } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Sidebar } from "@/components/Sidebar";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useEffect, useState, useMemo } from "react";
 
@@ -168,199 +167,194 @@ export default function Units() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 md:ml-64 w-full">
-        <AnimatedPage>
-        <div className="container py-10 space-y-8">
-          <div className="space-y-6">
-            {modules.map((module) => {
-              // Load units from database, fallback to static data if not available
-              let moduleUnits = unitsByModule[module.id] || [];
-              const hasDbUnits = moduleUnits.length > 0;
-              
-              // Fallback to static data if no database units found for this module
-              if (!hasDbUnits) {
-                const staticUnits = getUnitsForModule(module.id);
-                moduleUnits = staticUnits.map(unit => ({
-                  number: unit.number,
-                  title: unit.title,
-                  titleEnglish: unit.titleEnglish,
-                  titleGerman: unit.titleGerman,
-                  topics: unit.topics,
-                  topicsGerman: unit.topicsGerman,
-                }));
-              }
-              
-              // Calculate progress - use DB function if units from DB, otherwise static
-              const moduleProgress = hasDbUnits
-                ? getModuleProgressFromDB(module.id, completedUnits)
-                : getModuleProgress(module.id, completedUnits);
-              
-              // Check if module is locked (beta testers only have access to Module 1)
-              const isModuleLocked = !isAdmin && isBetaTester && module.number > 1;
-              
-              // Get module title and description based on language
-              const moduleTitle = i18n.language === "de" ? module.titleGerman : module.titleEnglish;
-              const moduleDescription = i18n.language === "de" ? module.descriptionGerman : module.description;
+    <AnimatedPage>
+      <div className="space-y-8">
+        <div className="space-y-6">
+          {modules.map((module) => {
+            // Load units from database, fallback to static data if not available
+            let moduleUnits = unitsByModule[module.id] || [];
+            const hasDbUnits = moduleUnits.length > 0;
+            
+            // Fallback to static data if no database units found for this module
+            if (!hasDbUnits) {
+              const staticUnits = getUnitsForModule(module.id);
+              moduleUnits = staticUnits.map(unit => ({
+                number: unit.number,
+                title: unit.title,
+                titleEnglish: unit.titleEnglish,
+                titleGerman: unit.titleGerman,
+                topics: unit.topics,
+                topicsGerman: unit.topicsGerman,
+              }));
+            }
+            
+            // Calculate progress - use DB function if units from DB, otherwise static
+            const moduleProgress = hasDbUnits
+              ? getModuleProgressFromDB(module.id, completedUnits)
+              : getModuleProgress(module.id, completedUnits);
+            
+            // Check if module is locked (beta testers only have access to Module 1)
+            const isModuleLocked = !isAdmin && isBetaTester && module.number > 1;
+            
+            // Get module title and description based on language
+            const moduleTitle = i18n.language === "de" ? module.titleGerman : module.titleEnglish;
+            const moduleDescription = i18n.language === "de" ? module.descriptionGerman : module.description;
 
-              return (
-                <Card 
-                  key={module.id} 
-                  id={`module-card-${module.id}`}
-                  className={isModuleLocked ? "opacity-60 border-dashed" : ""}
-                >
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <Badge variant="outline" className="text-lg px-3 py-1">
-                            {t("units.module", { number: module.number })}
+            return (
+              <Card 
+                key={module.id} 
+                id={`module-card-${module.id}`}
+                className={isModuleLocked ? "opacity-60 border-dashed" : ""}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Badge variant="outline" className="text-lg px-3 py-1">
+                          {t("units.module", { number: module.number })}
+                        </Badge>
+                        {isModuleLocked && (
+                          <Badge variant="outline" className="gap-1 text-gray-600">
+                            <Lock className="h-3 w-3" />
+                            {t("units.locked")}
                           </Badge>
-                          {isModuleLocked && (
-                            <Badge variant="outline" className="gap-1 text-gray-600">
-                              <Lock className="h-3 w-3" />
-                              {t("units.locked")}
-                            </Badge>
-                          )}
-                        </div>
-                        <CardTitle className="text-2xl mb-2">{moduleTitle}</CardTitle>
-                        <CardDescription className="text-base">
-                          {moduleDescription}
-                        </CardDescription>
+                        )}
                       </div>
+                      <CardTitle className="text-2xl mb-2">{moduleTitle}</CardTitle>
+                      <CardDescription className="text-base">
+                        {moduleDescription}
+                      </CardDescription>
                     </div>
-                    
-                    {/* Module Progress */}
-                    {!isModuleLocked && (
-                      <div className="mt-4 space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">
-                            {t("units.moduleProgress", { 
-                              completed: moduleProgress.completed, 
-                              total: moduleProgress.total 
-                            })}
-                          </span>
-                          <span className="font-semibold text-primary">
-                            {moduleProgress.percentage}%
-                          </span>
-                        </div>
-                        <Progress value={moduleProgress.percentage} />
-                      </div>
-                    )}
-                  </CardHeader>
+                  </div>
                   
-                  <CardContent>
-                    <Accordion 
-                      type="single" 
-                      collapsible 
-                      className="w-full"
-                      value={openModule === `module-${module.id}` ? `module-${module.id}` : undefined}
-                      onValueChange={(value) => {
-                        setOpenModule(value);
-                        // Update hash when accordion is opened/closed
-                        if (value === `module-${module.id}`) {
-                          window.history.replaceState(null, "", `#module-${module.id}`);
-                        } else if (openModule === `module-${module.id}`) {
-                          window.history.replaceState(null, "", location);
-                        }
-                      }}
-                    >
-                      <AccordionItem value={`module-${module.id}`} className="border-none">
-                        <AccordionTrigger className="hover:no-underline">
-                          <span className="text-sm font-medium text-muted-foreground">
-                            {t("units.lessons", { count: moduleUnits.length })}
-                          </span>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                            {moduleUnits.map((unit) => {
-                              const locked = !isAdmin && isBetaTester && unit.number > 3;
-                              const isCurrent = progress?.currentUnit === unit.number;
-                              const isCompleted = completedUnits.includes(unit.number);
-                              const isMastered = masteredUnits?.includes(unit.number);
-                              const topics =
-                                (i18n.language === "de" ? unit.topicsGerman : unit.topics) || [];
-                              const title =
-                                i18n.language === "de" ? unit.titleGerman : unit.titleEnglish;
+                  {/* Module Progress */}
+                  {!isModuleLocked && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {t("units.moduleProgress", { 
+                            completed: moduleProgress.completed, 
+                            total: moduleProgress.total 
+                          })}
+                        </span>
+                        <span className="font-semibold text-primary">
+                          {moduleProgress.percentage}%
+                        </span>
+                      </div>
+                      <Progress value={moduleProgress.percentage} />
+                    </div>
+                  )}
+                </CardHeader>
+                
+                <CardContent>
+                  <Accordion 
+                    type="single" 
+                    collapsible 
+                    className="w-full"
+                    value={openModule === `module-${module.id}` ? `module-${module.id}` : undefined}
+                    onValueChange={(value) => {
+                      setOpenModule(value);
+                      // Update hash when accordion is opened/closed
+                      if (value === `module-${module.id}`) {
+                        window.history.replaceState(null, "", `#module-${module.id}`);
+                      } else if (openModule === `module-${module.id}`) {
+                        window.history.replaceState(null, "", location);
+                      }
+                    }}
+                  >
+                    <AccordionItem value={`module-${module.id}`} className="border-none">
+                      <AccordionTrigger className="hover:no-underline">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          {t("units.lessons", { count: moduleUnits.length })}
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                          {moduleUnits.map((unit) => {
+                            const locked = !isAdmin && isBetaTester && unit.number > 3;
+                            const isCurrent = progress?.currentUnit === unit.number;
+                            const isCompleted = completedUnits.includes(unit.number);
+                            const isMastered = masteredUnits?.includes(unit.number);
+                            const topics =
+                              (i18n.language === "de" ? unit.topicsGerman : unit.topics) || [];
+                            const title =
+                              i18n.language === "de" ? unit.titleGerman : unit.titleEnglish;
 
-                              const CardWrapper = locked ? "div" : Link;
-                              const cardProps = locked
-                                ? {}
-                                : ({ href: `/unit/${unit.number}` } as any);
+                            const CardWrapper = locked ? "div" : Link;
+                            const cardProps = locked
+                              ? {}
+                              : ({ href: `/unit/${unit.number}` } as any);
 
-                              return (
-                                <CardWrapper key={unit.number} {...cardProps}>
-                                  <Card
-                                    className={`h-full transition-all ${
-                                      locked
-                                        ? "opacity-60 cursor-not-allowed border-dashed"
-                                        : "hover:shadow-lg hover:border-primary/30 cursor-pointer"
-                                    }`}
-                                  >
-                                    <CardHeader className="space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <Badge variant={isCurrent ? "default" : "outline"}>
-                                          {t("units.lesson", { number: unit.number })}
+                            return (
+                              <CardWrapper key={unit.number} {...cardProps}>
+                                <Card
+                                  className={`h-full transition-all ${
+                                    locked
+                                      ? "opacity-60 cursor-not-allowed border-dashed"
+                                      : "hover:shadow-lg hover:border-primary/30 cursor-pointer"
+                                  }`}
+                                >
+                                  <CardHeader className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant={isCurrent ? "default" : "outline"}>
+                                        {t("units.lesson", { number: unit.number })}
+                                      </Badge>
+                                      {isCompleted && !locked && (
+                                        <Badge className="bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm">
+                                          {t("dashboard.completedBadge")}
                                         </Badge>
-                                        {isCompleted && !locked && (
-                                          <Badge className="bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm">
-                                            {t("dashboard.completedBadge")}
-                                          </Badge>
-                                        )}
-                                        {isMastered && !locked && (
-                                          <Badge className="bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 shadow-sm">
-                                            <Star className="mr-1 h-3 w-3 text-white" fill="currentColor" strokeWidth={0} />
-                                            {t("dashboard.masteredBadge", "Mastered")}
-                                          </Badge>
-                                        )}
-                                        {isCurrent && !isCompleted && !locked && (
-                                          <Badge variant="default">{t("dashboard.currentLessonBadge")}</Badge>
-                                        )}
-                                        {locked && (
-                                          <Badge variant="outline" className="gap-1 text-gray-600">
-                                            <Lock className="h-3 w-3" />
-                                            {t("units.locked")}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <CardTitle className="text-lg">{title}</CardTitle>
-                                      <CardDescription className="text-sm text-muted-foreground">
-                                        {i18n.language === "de" ? unit.titleGerman : unit.titleEnglish}
-                                      </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-2">
-                                      <ul className="space-y-1 text-sm text-muted-foreground">
-                                        {topics.slice(0, 3).map((topic, idx) => (
-                                          <li key={idx} className="flex items-start gap-2">
-                                            <span className="text-primary mt-1">•</span>
-                                            <span>{topic}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                      {locked && (
-                                        <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
-                                          <BookOpen className="h-4 w-4 text-gray-500" />
-                                          <span>{t("units.unlockBeta")}</span>
-                                        </div>
                                       )}
-                                    </CardContent>
-                                  </Card>
-                                </CardWrapper>
-                              );
-                            })}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                                      {isMastered && !locked && (
+                                        <Badge className="bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 shadow-sm">
+                                          <Star className="mr-1 h-3 w-3 text-white" fill="currentColor" strokeWidth={0} />
+                                          {t("dashboard.masteredBadge", "Mastered")}
+                                        </Badge>
+                                      )}
+                                      {isCurrent && !isCompleted && !locked && (
+                                        <Badge variant="default">{t("dashboard.currentLessonBadge")}</Badge>
+                                      )}
+                                      {locked && (
+                                        <Badge variant="outline" className="gap-1 text-gray-600">
+                                          <Lock className="h-3 w-3" />
+                                          {t("units.locked")}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <CardTitle className="text-lg">{title}</CardTitle>
+                                    <CardDescription className="text-sm text-muted-foreground">
+                                      {i18n.language === "de" ? unit.titleGerman : unit.titleEnglish}
+                                    </CardDescription>
+                                  </CardHeader>
+                                  <CardContent className="space-y-2">
+                                    <ul className="space-y-1 text-sm text-muted-foreground">
+                                      {topics.slice(0, 3).map((topic, idx) => (
+                                        <li key={idx} className="flex items-start gap-2">
+                                          <span className="text-primary mt-1">•</span>
+                                          <span>{topic}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                    {locked && (
+                                      <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-2">
+                                        <BookOpen className="h-4 w-4 text-gray-500" />
+                                        <span>{t("units.unlockBeta")}</span>
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              </CardWrapper>
+                            );
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
-        </AnimatedPage>
       </div>
-    </div>
+    </AnimatedPage>
   );
 }

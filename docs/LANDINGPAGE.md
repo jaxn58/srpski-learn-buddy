@@ -63,7 +63,7 @@ Start today with your AI Learn Buddy
 1. **Hero** (existiert) - "Register for Beta – Gratis*"
 2. **Nach Features** (NEU) - "Start Free Beta Now"
 3. **Nach Pricing** (existiert) - "Register for Beta Test"
-4. **Nach Units** (NEU) - "Join Beta - Free Access to Units 1-5"
+4. **Nach Units** (NEU) - "Join Beta - Free Access to First 3 Units"
 5. **Floating Button** (NEU) - Rechts unten, sticky, immer sichtbar
 
 **Button-Design:**
@@ -464,7 +464,7 @@ text-gray-900 → text-foreground
       document.getElementById('beta-registration')?.scrollIntoView({ behavior: 'smooth' });
     }}
   >
-    Join Beta - Free Access to Units 1-5
+    Join Beta - Free Access to First 3 Units
   </Button>
   <p className="text-sm text-muted-foreground mt-3">
     No credit card required. Start learning immediately.

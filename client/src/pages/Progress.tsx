@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Link } from "wouter";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import {
@@ -89,10 +89,8 @@ export default function Progress() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50/50">
-      <Sidebar />
-      <div className="flex-1 md:ml-64 w-full">
-        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+    <div className="bg-slate-50/50 min-h-full">
+        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 mb-8">
           <div className="container py-4">
             <div className="flex items-center gap-4">
               <Link href="/dashboard">
@@ -110,7 +108,7 @@ export default function Progress() {
           </div>
         </header>
 
-        <main className="container py-8 max-w-7xl">
+        <div className="max-w-7xl mx-auto">
           <motion.div 
             variants={containerVariants}
             initial="hidden"
@@ -397,8 +395,7 @@ export default function Progress() {
           <footer className="mt-12 pt-8 border-t text-center text-sm text-muted-foreground">
             <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
           </footer>
-        </main>
-      </div>
+        </div>
     </div>
   );
 }

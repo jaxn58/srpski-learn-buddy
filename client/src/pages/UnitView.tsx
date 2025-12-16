@@ -10,7 +10,7 @@ import { COURSE_MODULES } from "@shared/data";
 import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronRight } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 import { AnimatedPage } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -140,9 +140,7 @@ export default function UnitView() {
 
   if (isLocked) {
     return (
-      <div className="flex min-h-screen bg-background">
-        <Sidebar />
-        <AnimatedPage>
+      <AnimatedPage>
         <div className="flex-1 p-8 flex items-center justify-center">
           <Card className="max-w-md border-yellow-200 bg-yellow-50">
             <CardHeader>
@@ -157,17 +155,13 @@ export default function UnitView() {
             </CardContent>
           </Card>
         </div>
-        </AnimatedPage>
-      </div>
+      </AnimatedPage>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <AnimatedPage>
-      <div className="flex-1 md:ml-64 w-full">
-        <header className="border-b bg-card sticky top-0 z-10">
+    <AnimatedPage>
+        <header className="border-b bg-card sticky top-0 z-10 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 mb-8">
           <div className="container py-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center text-sm text-muted-foreground">
@@ -202,7 +196,7 @@ export default function UnitView() {
           </div>
         </header>
 
-        <main className="container py-8 max-w-5xl">
+        <div className="max-w-5xl mx-auto">
           {/* Header Card */}
           <Card className="mb-6">
             <CardHeader>
@@ -352,9 +346,7 @@ export default function UnitView() {
               <InteractiveTest unitNumber={unitNumber} language={displayLanguage} />
             </TabsContent>
           </Tabs>
-        </main>
-      </div>
-      </AnimatedPage>
-    </div>
+        </div>
+    </AnimatedPage>
   );
 }

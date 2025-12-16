@@ -13,7 +13,7 @@ import { MessageSquare, Eye, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Sidebar } from "@/components/Sidebar";
+// Sidebar import removed
 
 
 type FeedbackSubmissionDoc = Doc<"feedbackSubmissions">;
@@ -34,7 +34,7 @@ export default function FeedbackManagement() {
 
   if (authLoading || submissionsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -42,7 +42,7 @@ export default function FeedbackManagement() {
 
   if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
@@ -112,181 +112,177 @@ export default function FeedbackManagement() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <div className="flex-1 md:ml-64 w-full flex flex-col">
-        <header className="border-b bg-card">
-          <div className="container py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-6 w-6 text-primary" />
-                <h1 className="text-xl font-bold">Feedback Management</h1>
-              </div>
-              <Link href="/admin">
-                <Button variant="outline" size="sm">
-                  Back to Admin Panel
-                </Button>
-              </Link>
+    <div className="flex flex-col h-full">
+      <header className="border-b bg-card">
+        <div className="container py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-6 w-6 text-primary" />
+              <h1 className="text-xl font-bold">Feedback Management</h1>
             </div>
+            <Link href="/admin">
+              <Button variant="outline" size="sm">
+                Back to Admin Panel
+              </Button>
+            </Link>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <main className="container py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              User Feedback & Feature Requests
-              {user.role === 'admin' && (
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
-              )}
-            </CardTitle>
-            <CardDescription>
-              Review and manage feedback submissions from users
-              {user.role === 'admin' && ' (View only - no edit permissions)'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
+      <div className="container py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            User Feedback & Feature Requests
+            {user.role === 'admin' && (
+              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Review and manage feedback submissions from users
+            {user.role === 'admin' && ' (View only - no edit permissions)'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Type</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Submitted</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {submissions?.length === 0 ? (
                 <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No feedback submissions yet
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {submissions?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No feedback submissions yet
+              ) : (
+                submissions?.map((feedback: FeedbackSubmissionDoc) => (
+                  <TableRow key={feedback._id}>
+                    <TableCell>
+                      <span className="text-lg">{getTypeIcon(feedback.type)}</span>
                     </TableCell>
-                  </TableRow>
-                ) : (
-                  submissions?.map((feedback: FeedbackSubmissionDoc) => (
-                    <TableRow key={feedback._id}>
-                      <TableCell>
-                        <span className="text-lg">{getTypeIcon(feedback.type)}</span>
-                      </TableCell>
-                      <TableCell className="font-medium">{feedback.title}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(feedback.status)}>
-                          {feedback.status.replace('_', ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString('de-DE') : 'N/A'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedFeedback(feedback);
-                                  setAdminNotes(feedback.adminNotes || '');
-                                  setCurrentStatus(feedback.status);
-                                }}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
-                              <DialogHeader>
-                                <DialogTitle>
-                                  {getTypeIcon(feedback.type)} {feedback.title}
-                                </DialogTitle>
-                                <DialogDescription>
-                                  Submitted on {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'N/A'}
-                                </DialogDescription>
-                              </DialogHeader>
-                              
-                              <div className="space-y-4">
-                                <div>
-                                  <h3 className="font-semibold mb-2">Description</h3>
-                                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                    {feedback.description}
-                                  </p>
-                                </div>
-
-                                {user.role === 'superadmin' ? (
-                                  <>
-                                    <div>
-                                      <h3 className="font-semibold mb-2">Status</h3>
-                                      <Select
-                                        value={currentStatus}
-                                        onValueChange={(value: FeedbackStatus) => setCurrentStatus(value)}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="new">New</SelectItem>
-                                          <SelectItem value="reviewed">Reviewed</SelectItem>
-                                          <SelectItem value="in_progress">In Progress</SelectItem>
-                                          <SelectItem value="completed">Completed</SelectItem>
-                                          <SelectItem value="rejected">Rejected</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-
-                                    <div>
-                                      <h3 className="font-semibold mb-2">Admin Notes</h3>
-                                      <Textarea
-                                        value={adminNotes}
-                                        onChange={(e) => setAdminNotes(e.target.value)}
-                                        placeholder="Add notes about this feedback..."
-                                        rows={4}
-                                      />
-                                      <Button
-                                        className="mt-2"
-                                        size="sm"
-                                        onClick={handleSaveChanges}
-                                      >
-                                        Save Changes
-                                      </Button>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <p className="text-sm text-blue-800">👁️ <strong>Read-Only Mode:</strong> You can view feedback but cannot edit status or notes.</p>
-                                  </div>
-                                )}
-
-                                <div className="border-t pt-4">
-                                  <h3 className="font-semibold mb-3">Comments & History</h3>
-                                  <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto mb-4">
-                                    <p className="text-sm text-muted-foreground text-center py-4">Comments feature coming soon...</p>
-                                  </div>
-                                </div>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-
-                          {user.role === 'superadmin' && (
+                    <TableCell className="font-medium">{feedback.title}</TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(feedback.status)}>
+                        {feedback.status.replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString('de-DE') : 'N/A'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleDelete(feedback._id)}
+                              onClick={() => {
+                                setSelectedFeedback(feedback);
+                                setAdminNotes(feedback.adminNotes || '');
+                                setCurrentStatus(feedback.status);
+                              }}
                             >
-                              <Trash2 className="h-4 w-4 text-red-600" />
+                              <Eye className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-        </main>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle>
+                                {getTypeIcon(feedback.type)} {feedback.title}
+                              </DialogTitle>
+                              <DialogDescription>
+                                Submitted on {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'N/A'}
+                              </DialogDescription>
+                            </DialogHeader>
+                            
+                            <div className="space-y-4">
+                              <div>
+                                <h3 className="font-semibold mb-2">Description</h3>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                  {feedback.description}
+                                </p>
+                              </div>
+
+                              {user.role === 'superadmin' ? (
+                                <>
+                                  <div>
+                                    <h3 className="font-semibold mb-2">Status</h3>
+                                    <Select
+                                      value={currentStatus}
+                                      onValueChange={(value: FeedbackStatus) => setCurrentStatus(value)}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="new">New</SelectItem>
+                                        <SelectItem value="reviewed">Reviewed</SelectItem>
+                                        <SelectItem value="in_progress">In Progress</SelectItem>
+                                        <SelectItem value="completed">Completed</SelectItem>
+                                        <SelectItem value="rejected">Rejected</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div>
+                                    <h3 className="font-semibold mb-2">Admin Notes</h3>
+                                    <Textarea
+                                      value={adminNotes}
+                                      onChange={(e) => setAdminNotes(e.target.value)}
+                                      placeholder="Add notes about this feedback..."
+                                      rows={4}
+                                    />
+                                    <Button
+                                      className="mt-2"
+                                      size="sm"
+                                      onClick={handleSaveChanges}
+                                    >
+                                      Save Changes
+                                    </Button>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                  <p className="text-sm text-blue-800">👁️ <strong>Read-Only Mode:</strong> You can view feedback but cannot edit status or notes.</p>
+                                </div>
+                              )}
+
+                              <div className="border-t pt-4">
+                                <h3 className="font-semibold mb-3">Comments & History</h3>
+                                <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto mb-4">
+                                  <p className="text-sm text-muted-foreground text-center py-4">Comments feature coming soon...</p>
+                                </div>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+
+                        {user.role === 'superadmin' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(feedback._id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       </div>
     </div>
   );
 }
-
