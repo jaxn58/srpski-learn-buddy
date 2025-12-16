@@ -35,27 +35,14 @@ import i18n from "./i18n";
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isLoaded } = useAuth();
   
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:36',message:'ProtectedRoute render',data:{isLoaded,currentPath:window.location.pathname,clerkReady:!!(window as any).Clerk},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C'})}).catch(()=>{});
-  }, [isLoaded]);
-  // #endregion
-  
   // Show loading while Clerk is initializing
   if (!isLoaded) {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:44',message:'Clerk not loaded yet',data:{currentPath:window.location.pathname},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
-  
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:53',message:'Clerk loaded, rendering children',data:{currentPath:window.location.pathname},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C'})}).catch(()=>{});
-  // #endregion
   
   return (
     <>

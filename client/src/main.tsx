@@ -83,17 +83,6 @@ function DynamicClerkProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // #region agent log
-  useEffect(() => {
-    console.log('[DEBUG] ClerkProvider mounted:', {
-      hasPublishableKey: !!CLERK_PUBLISHABLE_KEY,
-      hasLocale: !!locale,
-      currentLanguage: i18n.language,
-      hypothesisId: 'A,D'
-    });
-  }, [locale]);
-  // #endregion
-
   return (
     <ClerkProvider 
       publishableKey={CLERK_PUBLISHABLE_KEY}
