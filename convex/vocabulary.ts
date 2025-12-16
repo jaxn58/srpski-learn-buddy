@@ -47,9 +47,27 @@ export const upsertCourseVocabulary = mutation({
 // Get all course vocabulary (for frontend migration)
 export const getAllCourseVocabulary = query({
   handler: async (ctx) => {
-    return await ctx.db
+    const allVocab = await ctx.db
       .query("courseVocabulary")
       .collect();
+    
+    // #region agent log
+    const unit6Vocab = allVocab.filter(v => v.unitNumber === 6);
+    const unitCounts = allVocab.reduce((acc, v) => {
+      acc[v.unitNumber] = (acc[v.unitNumber] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+    // Note: Convex queries run server-side, so we can't use fetch here
+    // Logging will be done client-side in VocabularyList.tsx
+    // #endregion
+    
+    // Sort by unitNumber (ascending), then alphabetically by serbian
+    return allVocab.sort((a, b) => {
+      if (a.unitNumber !== b.unitNumber) {
+        return a.unitNumber - b.unitNumber;
+      }
+      return a.serbian.localeCompare(b.serbian);
+    });
   },
 });
 
@@ -109,7 +127,7 @@ export const getVocabularyWithProgress = query({
 
     // If no user, return vocabulary without progress
     if (!user) {
-      return courseVocab.map(word => ({
+      const result = courseVocab.map(word => ({
         _id: word._id,
         unitNumber: word.unitNumber,
         serbian: word.serbian,
@@ -125,6 +143,14 @@ export const getVocabularyWithProgress = query({
         translations: word.translations,
         progress: null, // No progress without user
       }));
+      
+      // Sort by unitNumber (ascending), then alphabetically by serbian
+      return result.sort((a, b) => {
+        if (a.unitNumber !== b.unitNumber) {
+          return a.unitNumber - b.unitNumber;
+        }
+        return a.serbian.localeCompare(b.serbian);
+      });
     }
 
     // Get user's vocabulary progress
@@ -139,7 +165,7 @@ export const getVocabularyWithProgress = query({
     );
 
     // Combine course vocabulary with progress
-    return courseVocab.map(word => ({
+    const result = courseVocab.map(word => ({
       _id: word._id,
       unitNumber: word.unitNumber,
       serbian: word.serbian,
@@ -164,6 +190,14 @@ export const getVocabularyWithProgress = query({
         lastAnsweredAt: progressMap.get(word._id)!.lastAnsweredAt,
       } : null,
     }));
+    
+    // Sort by unitNumber (ascending), then alphabetically by serbian
+    return result.sort((a, b) => {
+      if (a.unitNumber !== b.unitNumber) {
+        return a.unitNumber - b.unitNumber;
+      }
+      return a.serbian.localeCompare(b.serbian);
+    });
   },
 });
 
@@ -880,6 +914,30 @@ export const findCourseVocabularyBySerbianAndUnit = query({
         q.eq("unitNumber", args.unitNumber).eq("serbian", args.serbian)
       )
       .first();
+  },
+});
+
+// Find all courseVocabulary entries by serbian word (for debugging)
+// Returns all units where this word appears
+export const findVocabularyBySerbian = query({
+  args: {
+    serbian: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const allVocab = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_serbian", (q) => q.eq("serbian", args.serbian))
+      .collect();
+    
+    return allVocab.map(word => ({
+      _id: word._id,
+      unitNumber: word.unitNumber,
+      serbian: word.serbian,
+      en: word.en,
+      de: word.de,
+      gender: word.gender,
+      pronunciation: word.pronunciation,
+    }));
   },
 });
 

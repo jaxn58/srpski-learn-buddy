@@ -33,6 +33,19 @@ export default function Vocabulary() {
   // BETA: Force English for all users
   const userLanguage: SupportedLanguage = "en";
   
+  // Load all unit metadata for displaying unit titles
+  const allUnitsMetadata = useQuery(api.units.getAllUnitsMetadata, { language: userLanguage });
+  
+  // Create a map of unitNumber -> title for quick lookup
+  const unitTitlesMap = useMemo(() => {
+    if (!allUnitsMetadata) return new Map<number, string>();
+    const map = new Map<number, string>();
+    allUnitsMetadata.forEach(metadata => {
+      map.set(metadata.unitNumber, metadata.title);
+    });
+    return map;
+  }, [allUnitsMetadata]);
+  
   const [mode, setMode] = useState<'learn' | 'quiz'>('learn');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -280,7 +293,7 @@ export default function Vocabulary() {
       }
       
       // Map to format compatible with existing code
-      return vocab.map(word => ({
+      const mappedVocab = vocab.map(word => ({
         _id: word._id,
         serbian: word.serbian,
         serbianWord: word.serbian, // For compatibility
@@ -293,6 +306,14 @@ export default function Vocabulary() {
         // Include old translations array for backward compatibility during migration
         translations: word.translations || [],
       }));
+      
+      // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
+      return mappedVocab.sort((a, b) => {
+        if (a.unitNumber !== b.unitNumber) {
+          return a.unitNumber - b.unitNumber;
+        }
+        return a.serbian.localeCompare(b.serbian);
+      });
     }
     
     // NEW: Quiz Mode also uses database data
@@ -323,7 +344,7 @@ export default function Vocabulary() {
       });
       
       // Map to format compatible with existing code
-      return vocab.map(word => ({
+      const mappedVocab = vocab.map(word => ({
         _id: word._id,
         serbian: word.serbian,
         serbianWord: word.serbian, // For compatibility
@@ -336,6 +357,14 @@ export default function Vocabulary() {
         // Include old translations array for backward compatibility during migration
         translations: word.translations || [],
       }));
+      
+      // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
+      return mappedVocab.sort((a, b) => {
+        if (a.unitNumber !== b.unitNumber) {
+          return a.unitNumber - b.unitNumber;
+        }
+        return a.serbian.localeCompare(b.serbian);
+      });
     }
     
     // Database is the only source of truth - no fallback to hardcoded data

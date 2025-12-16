@@ -396,6 +396,123 @@ export const resetUserProgress = mutation({
   },
 });
 
+// Reset gamification system for a user (admin only)
+// Resets all XP, level, streak, badges, and progress data
+export const resetGamificationSystem = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    console.log(`[Reset Gamification] Starting reset for user: ${user.email || user.name || args.userId}`);
+
+    // 1. Reset user gamification fields
+    await ctx.db.patch(args.userId, {
+      totalXP: 0,
+      level: 1,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastActiveDate: undefined,
+    });
+    console.log(`[Reset Gamification] ✅ Reset user XP, level, and streak`);
+
+    // 2. Delete all user badges
+    const badges = await ctx.db
+      .query("userBadges")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const badge of badges) {
+      await ctx.db.delete(badge._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${badges.length} badges`);
+
+    // 3. Delete all vocabulary progress
+    const vocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const progress of vocabProgress) {
+      await ctx.db.delete(progress._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${vocabProgress.length} vocabulary progress entries`);
+
+    // 4. Delete all exercise question progress
+    const exerciseQuestionProgress = await ctx.db
+      .query("exerciseQuestionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const progress of exerciseQuestionProgress) {
+      await ctx.db.delete(progress._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${exerciseQuestionProgress.length} exercise question progress entries`);
+
+    // 5. Delete all question progress (interactive tests)
+    const questionProgress = await ctx.db
+      .query("questionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const progress of questionProgress) {
+      await ctx.db.delete(progress._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${questionProgress.length} question progress entries`);
+
+    // 6. Delete all vocabulary entries (old table - deprecated but still used)
+    const vocabulary = await ctx.db
+      .query("vocabulary")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const vocab of vocabulary) {
+      await ctx.db.delete(vocab._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${vocabulary.length} vocabulary entries (old table)`);
+
+    // Optional: Delete exercise completions (commented out - uncomment if needed)
+    // const exerciseCompletions = await ctx.db
+    //   .query("exerciseCompletions")
+    //   .withIndex("by_user", (q) => q.eq("userId", args.userId))
+    //   .collect();
+    // 
+    // for (const completion of exerciseCompletions) {
+    //   await ctx.db.delete(completion._id);
+    // }
+    // console.log(`[Reset Gamification] ✅ Deleted ${exerciseCompletions.length} exercise completions`);
+
+    // Optional: Delete quiz progress (commented out - uncomment if needed)
+    // const quizProgress = await ctx.db
+    //   .query("quizProgress")
+    //   .withIndex("by_user_unit", (q) => q.eq("userId", args.userId))
+    //   .collect();
+    // 
+    // for (const progress of quizProgress) {
+    //   await ctx.db.delete(progress._id);
+    // }
+    // console.log(`[Reset Gamification] ✅ Deleted ${quizProgress.length} quiz progress entries`);
+
+    console.log(`[Reset Gamification] ✅ Gamification system reset complete for user: ${user.email || user.name || args.userId}`);
+
+    return {
+      success: true,
+      badgesDeleted: badges.length,
+      vocabProgressDeleted: vocabProgress.length,
+      exerciseQuestionProgressDeleted: exerciseQuestionProgress.length,
+      questionProgressDeleted: questionProgress.length,
+      vocabularyDeleted: vocabulary.length,
+    };
+  },
+});
+
 // Reset all users to English (superadmin only) - BETA rollback
 export const resetAllUsersToEnglish = mutation({
   handler: async (ctx) => {

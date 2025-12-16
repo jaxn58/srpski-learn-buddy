@@ -1,5 +1,5 @@
 # Module 1: Ankommen (Arrival)
-## Unit 2: At the Konoba
+## Unit 3: At the Konoba
 
 **Base Language:** English
 **Target Language:** Serbian (Serbo-Croatian, with Montenegrin focus)
