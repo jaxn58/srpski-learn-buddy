@@ -320,6 +320,7 @@ export default function Chat() {
         </footer>
       </main>
       </div>
+      </div>
       </AnimatedPage>
     </div>
   );
