@@ -476,5 +476,24 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_name_updatedAt", ["name", "updatedAt"]),
+
+  // ============= SYSTEM BANNERS =============
+  systemBanners: defineTable({
+    message: v.string(), // Banner text (max 500 characters)
+    link: v.optional(v.string()), // Optional URL link
+    linkText: v.optional(v.string()), // Optional link text (default: "Mehr erfahren")
+    variant: v.union(
+      v.literal("info"),
+      v.literal("warning"),
+      v.literal("error"),
+      v.literal("success")
+    ), // Banner style
+    isActive: v.boolean(), // Only one banner can be active at a time
+    createdAt: v.number(), // Creation timestamp
+    updatedAt: v.number(), // Last update timestamp
+    createdBy: v.id("users"), // Admin who created the banner
+  })
+    .index("by_active", ["isActive"])
+    .index("by_created", ["createdAt"]),
 });
 

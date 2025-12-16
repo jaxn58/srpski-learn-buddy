@@ -10,6 +10,10 @@ http.route({
   path: "/clerk-webhook",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    // #region agent log
+    console.log(JSON.stringify({location:'http.ts:13',message:'Webhook received - ENTRY',data:{timestamp:new Date().toISOString(),headers:Object.fromEntries(request.headers.entries())},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'}));
+    // #endregion
+    
     const payloadString = await request.text();
     const headerPayload = request.headers;
 
@@ -38,11 +42,19 @@ http.route({
       }) as any;
 
       const eventType = evt.type;
+      
+      // #region agent log
+      console.log(JSON.stringify({location:'http.ts:43',message:'Webhook verified - event type',data:{eventType,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'}));
+      // #endregion
 
       if (eventType === "user.created") {
         const { id, email_addresses, first_name, last_name } = evt.data;
         const email = email_addresses[0]?.email_address;
         const name = `${first_name || ""} ${last_name || ""}`.trim();
+        
+        // #region agent log
+        console.log(JSON.stringify({location:'http.ts:51',message:'user.created event - BEFORE email send',data:{email,name,clerkId:id,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H3'}));
+        // #endregion
 
         if (email) {
           await ctx.runAction(api.email.sendBetaRegistrationAdminNotification, {
@@ -50,6 +62,10 @@ http.route({
             name: name || "Unknown Name",
             clerkId: id,
           });
+          
+          // #region agent log
+          console.log(JSON.stringify({location:'http.ts:60',message:'user.created event - AFTER email send',data:{email,name,clerkId:id,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H3'}));
+          // #endregion
         }
       }
 

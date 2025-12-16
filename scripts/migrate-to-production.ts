@@ -68,14 +68,15 @@ async function migrateData() {
   };
 
   try {
-    // 1. Migrate Module Metadata
-    console.log("📦 Step 1/5: Migrating Module Metadata...");
+    // 1. Migrate Module Metadata (Consolidated Structure)
+    console.log("📦 Step 1/5: Migrating Module Metadata (Consolidated)...");
     const devModules = await devClient.query(api.modules.getAllModulesConsolidated as any) as any[];
     stats.moduleMetadata.total = devModules?.length || 0;
     
     for (const module of devModules || []) {
       try {
-        await prodClient.mutation(api.modules.insertModuleMetadata as any, {
+        // Use consolidated structure mutation
+        await prodClient.mutation(api.modules.insertConsolidatedModuleMetadata as any, {
           slug: module.slug,
           moduleNumber: module.moduleNumber,
           titleEn: module.titleEn,
@@ -86,7 +87,7 @@ async function migrateData() {
         stats.moduleMetadata.migrated++;
         console.log(`  ✅ Module ${module.moduleNumber}: ${module.slug}`);
       } catch (e: any) {
-        if (e.message?.includes("already exists")) {
+        if (e.message?.includes("already exists") || e.message?.includes("duplicate")) {
           console.log(`  ⏭️  Module ${module.moduleNumber}: ${module.slug} (already exists)`);
           stats.moduleMetadata.migrated++;
         } else {
@@ -224,16 +225,34 @@ async function migrateData() {
         
         for (const word of vocab) {
           try {
-            await prodClient.mutation(api.vocabulary.insertCourseVocabulary as any, {
+            // Use upsertCourseVocabulary to handle both insert and update
+            await prodClient.mutation(api.vocabulary.upsertCourseVocabulary as any, {
               unitNumber: word.unitNumber,
               serbian: word.serbian,
-              en: word.en,
-              de: word.de,
-              enAlt: word.enAlt,
-              deAlt: word.deAlt,
+              translations: word.translations || [],
               gender: word.gender,
               pronunciation: word.pronunciation,
             });
+            
+            // Also update column-based translations if available
+            if (word.en || word.de) {
+              // Find the courseVocabulary ID first
+              const prodWord = await prodClient.query(api.vocabulary.findCourseVocabularyBySerbianAndUnit as any, {
+                serbian: word.serbian,
+                unitNumber: word.unitNumber,
+              });
+              
+              if (prodWord && prodWord._id) {
+                await prodClient.mutation(api.vocabulary.updateCourseVocabularyColumns as any, {
+                  courseVocabularyId: prodWord._id,
+                  en: word.en || "",
+                  de: word.de || "",
+                  enAlt: word.enAlt,
+                  deAlt: word.deAlt,
+                });
+              }
+            }
+            
             stats.courseVocabulary.migrated++;
           } catch (e: any) {
             if (e.message?.includes("already exists") || e.message?.includes("duplicate")) {
@@ -247,6 +266,9 @@ async function migrateData() {
         console.log(`  ✅ Unit ${unitNumber}: ${vocab.length} vocabulary items`);
       } catch (e: any) {
         // Unit might not have vocabulary, skip
+        if (!e.message?.includes("not found")) {
+          console.error(`  ⚠️  Unit ${unitNumber}: ${e.message}`);
+        }
       }
     }
 

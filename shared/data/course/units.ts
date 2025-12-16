@@ -31,73 +31,73 @@ export const COURSE_UNITS: Unit[] = [
     grammarFocus: ["Verb 'biti' (to be) - full conjugation", "Verb 'zvati se' (to be called)", "Noun gender"],
     vocabularyThemes: ["Introduction", "Countries", "Nationalities"]
   },
-  // Shifted units (old Units 2-5 → Units 3-6)
+  // Units 3-6: New content from learn-with.me
   {
     number: 3,
-    title: "U kafeu",
-    titleEnglish: "In the café",
-    titleGerman: "Im Café",
-    topics: ["Making simple orders", "Cardinal numbers"],
-    topicsGerman: ["Einfache Bestellungen aufgeben", "Kardinalzahlen"],
-    grammarFocus: ["Verb 'imati' (to have)", "Numbers 1-100"],
-    vocabularyThemes: ["Café", "Drinks", "Food", "Numbers"]
+    title: "U konoba",
+    titleEnglish: "At the Konoba",
+    titleGerman: "Wie lernt Steve Bond Serbisch?", // Note: German title from DB doesn't match English content
+    topics: ["Ordering food at a traditional restaurant", "Serbian cuisine"],
+    topicsGerman: ["Essen in einem traditionellen Restaurant bestellen", "Serbische Küche"],
+    grammarFocus: ["Food vocabulary", "Ordering phrases", "Polite requests"],
+    vocabularyThemes: ["Food", "Restaurant", "Serbian dishes"]
   },
   {
     number: 4,
-    title: "Kako Stiv Bond uči srpski?",
-    titleEnglish: "How is Steve Bond learning Serbian?",
-    titleGerman: "Wie lernt Steve Bond Serbisch?",
-    topics: ["Talk about learning language", "Television, newspapers, radio"],
-    topicsGerman: ["Über Sprachenlernen sprechen", "Fernsehen, Zeitungen, Radio"],
-    grammarFocus: ["Present tense verbs", "Locative case"],
-    vocabularyThemes: ["Learning", "Media", "Languages"]
+    title: "U banci",
+    titleEnglish: "At the Bank",
+    titleGerman: "Wo ist…?", // Note: German title from DB doesn't match English content
+    topics: ["Banking services", "Money exchange", "Financial transactions"],
+    topicsGerman: ["Bankdienstleistungen", "Geldwechsel", "Finanztransaktionen"],
+    grammarFocus: ["Banking vocabulary", "Numbers and currency", "Formal requests"],
+    vocabularyThemes: ["Banking", "Money", "Transactions"]
   },
   {
     number: 5,
-    title: "Gde je…?",
-    titleEnglish: "Where is…?",
-    titleGerman: "Wo ist…?",
-    topics: ["Places of interest", "Asking for and giving directions"],
-    topicsGerman: ["Sehenswürdigkeiten", "Nach dem Weg fragen und Wegbeschreibungen geben"],
-    grammarFocus: ["Verb 'ići' (to go)", "Prepositions 'u' and 'na' with locative", "Vocative case"],
-    vocabularyThemes: ["City places", "Directions", "Buildings"]
+    title: "Traženje smeštaja",
+    titleEnglish: "Finding a Place to Stay",
+    titleGerman: "Im Zimmer", // Note: German title from DB doesn't match English content
+    topics: ["Looking for accommodation", "Describing preferences", "Negotiating rent"],
+    topicsGerman: ["Unterkunft suchen", "Vorlieben beschreiben", "Miete verhandeln"],
+    grammarFocus: ["Accommodation vocabulary", "Expressing preferences", "Questions about facilities"],
+    vocabularyThemes: ["Accommodation", "Housing", "Facilities"]
   },
   {
     number: 6,
-    title: "U sobi",
-    titleEnglish: "In the room",
-    titleGerman: "Im Zimmer",
-    topics: ["Describe a room", "Hotel services and facilities"],
-    topicsGerman: ["Ein Zimmer beschreiben", "Hotelservice und Einrichtungen"],
-    grammarFocus: ["Ordinal numbers", "Verb 'moći' (can)", "Verbs ending with –eti and –ovati"],
-    vocabularyThemes: ["Room furniture", "Hotel", "Ordinal numbers"]
+    title: "Moj grad ili selo",
+    titleEnglish: "My Town or Village",
+    titleGerman: "Lebensmittel einkaufen", // Note: German title from DB doesn't match English content
+    topics: ["Describing your hometown", "Local landmarks", "Community life"],
+    topicsGerman: ["Heimatstadt beschreiben", "Lokale Sehenswürdigkeiten", "Gemeinschaftsleben"],
+    grammarFocus: ["Descriptive vocabulary", "Location expressions", "Community terms"],
+    vocabularyThemes: ["Town", "Village", "Community", "Landmarks"]
   },
-  // Unit 7 (old Unit 1 - kept as reference)
+  // Unit 7: Continuation of course
   {
     number: 7,
-    title: "Na aerodromu",
-    titleEnglish: "At the airport",
-    titleGerman: "Am Flughafen",
-    topics: ["Greetings and main phrases", "Gender of nouns", "Simple questions"],
-    topicsGerman: ["Begrüßungen und wichtige Phrasen", "Geschlecht von Substantiven", "Einfache Fragen"],
-    grammarFocus: ["Verb 'biti' (to be)", "Introduction to cases", "Possessives 'my', 'your'"],
-    vocabularyThemes: ["Airport", "Greetings", "Basic phrases"]
-  },
-  {
-    number: 8,
-    title: "Kupovina hrane",
-    titleEnglish: "Shopping for food",
-    titleGerman: "Lebensmittel einkaufen",
-    topics: ["Make purchases", "Deal with prices"],
-    topicsGerman: ["Einkäufe tätigen", "Mit Preisen umgehen"],
-    grammarFocus: ["Use of 'treba' (need)"],
-    vocabularyThemes: ["Food", "Shopping", "Prices"]
-  },
-  {
-    number: 9,
     title: "Dođite u goste",
     titleEnglish: "Come to my place",
     titleGerman: "Kommt zu mir nach Hause",
+    topics: ["Invitations", "Hospitality", "Social gatherings"],
+    topicsGerman: ["Einladungen", "Gastfreundschaft", "Gesellschaftliche Zusammenkünfte"],
+    grammarFocus: ["Imperative mood", "Invitation phrases", "Social expressions"],
+    vocabularyThemes: ["Invitations", "Hospitality", "Social life"]
+  },
+  {
+    number: 8,
+    title: "U restoranu",
+    titleEnglish: "In the restaurant",
+    titleGerman: "Im Restaurant",
+    topics: ["Dining out", "Menu reading", "Restaurant etiquette"],
+    topicsGerman: ["Auswärts essen", "Speisekarte lesen", "Restaurant-Etikette"],
+    grammarFocus: ["Restaurant vocabulary", "Ordering food", "Polite expressions"],
+    vocabularyThemes: ["Restaurant", "Food", "Dining"]
+  },
+  {
+    number: 9,
+    title: "Dnevna rutina",
+    titleEnglish: "Daily routine",
+    titleGerman: "Ein typischer Tag",
     topics: ["Receive guests", "Days of the week", "Tell the time"],
     topicsGerman: ["Gäste empfangen", "Wochentage", "Die Uhrzeit angeben"],
     grammarFocus: ["Time expressions", "Making appointments"],

@@ -6,6 +6,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { GlobalBanner } from "./components/GlobalBanner";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import WeekView from "./pages/WeekView";
@@ -145,6 +146,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <LanguageProvider defaultLanguage="en">
           <TooltipProvider>
+            <GlobalBanner />
             <Toaster />
             <Router />
           </TooltipProvider>

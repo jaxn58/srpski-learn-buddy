@@ -172,6 +172,10 @@ export const sendBetaRegistrationAdminNotification = action({
     clerkId: v.string(),
   },
   handler: async (ctx, args) => {
+    // #region agent log
+    console.log(JSON.stringify({location:'email.ts:175',message:'sendBetaRegistrationAdminNotification - ENTRY',data:{name:args.name,email:args.email,clerkId:args.clerkId,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'}));
+    // #endregion
+    
     // Send to the admin (configured as REPLY_TO_EMAIL or fallback)
     const adminEmail = process.env.RESEND_REPLY_TO_EMAIL || "hello@jacksenn.me";
     
@@ -180,7 +184,7 @@ export const sendBetaRegistrationAdminNotification = action({
       ? `https://dashboard.convex.dev/deployment/${process.env.VITE_CONVEX_URL.split('https://')[1].split('.convex.cloud')[0]}/data?table=users`
       : "https://dashboard.convex.dev";
 
-    return await ctx.runAction(api.email.sendEmail, {
+    const result = await ctx.runAction(api.email.sendEmail, {
       templateName: "beta-admin-notification",
       variables: {
         USER_NAME: args.name,
@@ -190,6 +194,12 @@ export const sendBetaRegistrationAdminNotification = action({
       },
       to: adminEmail,
     });
+    
+    // #region agent log
+    console.log(JSON.stringify({location:'email.ts:196',message:'sendBetaRegistrationAdminNotification - EXIT',data:{result,adminEmail,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'}));
+    // #endregion
+    
+    return result;
   },
 });
 

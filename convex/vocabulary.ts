@@ -1254,3 +1254,29 @@ export const deleteVocabularyProgress = mutation({
   },
 });
 
+// ============= CLEANUP OPERATIONS (DELETE) =============
+
+// Batch delete vocabulary by unit numbers (for cleanup scripts)
+export const batchDeleteVocabularyByUnits = mutation({
+  args: {
+    unitNumbers: v.array(v.number()),
+  },
+  handler: async (ctx, args) => {
+    let deleted = 0;
+    
+    for (const unitNumber of args.unitNumbers) {
+      const vocabEntries = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+        .collect();
+      
+      for (const entry of vocabEntries) {
+        await ctx.db.delete(entry._id);
+        deleted++;
+      }
+    }
+    
+    return { deleted };
+  },
+});
+

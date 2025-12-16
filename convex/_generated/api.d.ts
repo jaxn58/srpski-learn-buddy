@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as badges from "../badges.js";
+import type * as banners from "../banners.js";
 import type * as beta from "../beta.js";
 import type * as chat from "../chat.js";
 import type * as email from "../email.js";
@@ -36,6 +37,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   badges: typeof badges;
+  banners: typeof banners;
   beta: typeof beta;
   chat: typeof chat;
   email: typeof email;
