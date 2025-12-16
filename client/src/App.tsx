@@ -13,6 +13,7 @@ import WeekView from "./pages/WeekView";
 import UnitView from "./pages/UnitView";
 import Chat from "./pages/Chat";
 import Admin from "./pages/Admin";
+import AdminBanners from "./pages/AdminBanners";
 import FeedbackManagement from "./pages/FeedbackManagement";
 import Vocabulary from "./pages/Vocabulary";
 import VocabularyQuizRedirect from "./pages/VocabularyQuizRedirect";
@@ -113,6 +114,9 @@ function Router() {
       {/* Admin routes */}
       <Route path="/admin">
         {() => <Protected Component={Admin} />}
+      </Route>
+      <Route path="/admin/banners">
+        {() => <Protected Component={AdminBanners} />}
       </Route>
       <Route path="/admin/prompt">
         {() => <Protected Component={PromptAdmin} />}

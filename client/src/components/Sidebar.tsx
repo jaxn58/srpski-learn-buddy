@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus, Trophy, Star, Flame, Award, CreditCard, Mail, Layers, Sparkles } from "lucide-react";
+import { BookOpen, Home, TrendingUp, Brain, FileText, LogOut, Menu, X, ChevronLeft, ChevronRight, MessageSquare, Shield, Users, MessageCircle, UserPlus, Trophy, Star, Flame, Award, CreditCard, Mail, Layers, Sparkles, Megaphone } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { Link, useLocation } from "wouter";
@@ -92,6 +92,7 @@ export function Sidebar() {
 
   const adminItems: NavItem[] = [
     { label: t('sidebar.userManagement'), path: "/admin", icon: <Users className="h-4 w-4" /> },
+    { label: "Banner Management", path: "/admin/banners", icon: <Megaphone className="h-4 w-4" /> },
     { label: "Prompt Admin", path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
     { label: t('sidebar.feedback'), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
     { label: t('sidebar.emailTemplates'), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },

@@ -15,7 +15,9 @@ const variantIcons = {
 };
 
 export function GlobalBanner() {
-  const activeBanner = useQuery(api.banners.getActiveBanner);
+  // Check if banners API exists (might not be deployed yet)
+  const bannersApiExists = api.banners && api.banners.getActiveBanner;
+  const activeBanner = useQuery(bannersApiExists ? api.banners.getActiveBanner : null);
   const [isDismissed, setIsDismissed] = useState(false);
 
   // Check localStorage for dismissed state when banner changes
