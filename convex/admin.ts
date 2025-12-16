@@ -1,5 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
+import { VOCABULARY } from "../shared/data/vocabulary/words";
+import { UNIT_EXERCISES } from "./unitExercises";
 
 // Helper to get the current user and verify admin
 async function getAdminUser(ctx: QueryCtx | MutationCtx) {
@@ -17,6 +20,24 @@ async function getAdminUser(ctx: QueryCtx | MutationCtx) {
 
   return user;
 }
+
+export const getChatPrompt = query({
+  args: {
+    name: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const name = args.name || "default";
+    const prompt = await ctx.db
+      .query("chatPrompts")
+      .withIndex("by_name", (q) => q.eq("name", name))
+      .first();
+
+    return prompt || null;
+  },
+});
 
 // Get all users (admin only)
 export const getAllUsers = query({
@@ -372,6 +393,858 @@ export const resetUserProgress = mutation({
         uiLanguage: "en",
       });
     }
+  },
+});
+
+// Reset gamification system for a user (admin only)
+// Resets all XP, level, streak, badges, and progress data
+export const resetGamificationSystem = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    console.log(`[Reset Gamification] Starting reset for user: ${user.email || user.name || args.userId}`);
+
+    // 1. Reset user gamification fields
+    await ctx.db.patch(args.userId, {
+      totalXP: 0,
+      level: 1,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastActiveDate: undefined,
+    });
+    console.log(`[Reset Gamification] ✅ Reset user XP, level, and streak`);
+
+    // 2. Delete all user badges
+    const badges = await ctx.db
+      .query("userBadges")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const badge of badges) {
+      await ctx.db.delete(badge._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${badges.length} badges`);
+
+    // 3. Delete all vocabulary progress
+    const vocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const progress of vocabProgress) {
+      await ctx.db.delete(progress._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${vocabProgress.length} vocabulary progress entries`);
+
+    // 4. Delete all exercise question progress
+    const exerciseQuestionProgress = await ctx.db
+      .query("exerciseQuestionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const progress of exerciseQuestionProgress) {
+      await ctx.db.delete(progress._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${exerciseQuestionProgress.length} exercise question progress entries`);
+
+    // 5. Delete all question progress (interactive tests)
+    const questionProgress = await ctx.db
+      .query("questionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const progress of questionProgress) {
+      await ctx.db.delete(progress._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${questionProgress.length} question progress entries`);
+
+    // 6. Delete all vocabulary entries (old table - deprecated but still used)
+    const vocabulary = await ctx.db
+      .query("vocabulary")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    
+    for (const vocab of vocabulary) {
+      await ctx.db.delete(vocab._id);
+    }
+    console.log(`[Reset Gamification] ✅ Deleted ${vocabulary.length} vocabulary entries (old table)`);
+
+    // Optional: Delete exercise completions (commented out - uncomment if needed)
+    // const exerciseCompletions = await ctx.db
+    //   .query("exerciseCompletions")
+    //   .withIndex("by_user", (q) => q.eq("userId", args.userId))
+    //   .collect();
+    // 
+    // for (const completion of exerciseCompletions) {
+    //   await ctx.db.delete(completion._id);
+    // }
+    // console.log(`[Reset Gamification] ✅ Deleted ${exerciseCompletions.length} exercise completions`);
+
+    // Optional: Delete quiz progress (commented out - uncomment if needed)
+    // const quizProgress = await ctx.db
+    //   .query("quizProgress")
+    //   .withIndex("by_user_unit", (q) => q.eq("userId", args.userId))
+    //   .collect();
+    // 
+    // for (const progress of quizProgress) {
+    //   await ctx.db.delete(progress._id);
+    // }
+    // console.log(`[Reset Gamification] ✅ Deleted ${quizProgress.length} quiz progress entries`);
+
+    console.log(`[Reset Gamification] ✅ Gamification system reset complete for user: ${user.email || user.name || args.userId}`);
+
+    return {
+      success: true,
+      badgesDeleted: badges.length,
+      vocabProgressDeleted: vocabProgress.length,
+      exerciseQuestionProgressDeleted: exerciseQuestionProgress.length,
+      questionProgressDeleted: questionProgress.length,
+      vocabularyDeleted: vocabulary.length,
+    };
+  },
+});
+
+// Reset all users to English (superadmin only) - BETA rollback
+export const resetAllUsersToEnglish = mutation({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthorized");
+
+    const currentUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!currentUser || currentUser.role !== "superadmin") {
+      throw new Error("Only superadmins can reset user languages");
+    }
+
+    const allUsers = await ctx.db.query("users").collect();
+    let count = 0;
+
+    for (const user of allUsers) {
+      if (user.learningLanguage !== 'en') {
+        await ctx.db.patch(user._id, { learningLanguage: 'en' });
+        count++;
+      }
+    }
+
+    return { count, total: allUsers.length };
+  },
+});
+
+// Upsert chat prompt (admin/superadmin)
+export const updateChatPrompt = mutation({
+  args: {
+    name: v.optional(v.string()),
+    content: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const name = args.name || "default";
+    const existing = await ctx.db
+      .query("chatPrompts")
+      .withIndex("by_name", (q) => q.eq("name", name))
+      .first();
+
+    const payload = {
+      name,
+      content: args.content,
+      description: args.description,
+      updatedBy: admin._id as Id<"users">,
+      updatedAt: Date.now(),
+    };
+
+    // Append to history
+    await ctx.db.insert("chatPromptHistory", payload);
+
+    if (existing) {
+      await ctx.db.patch(existing._id, payload);
+      return { updated: true, created: false };
+    } else {
+      await ctx.db.insert("chatPrompts", payload);
+      return { updated: false, created: true };
+    }
+  },
+});
+
+// Alias for backward compatibility
+export const setChatPrompt = updateChatPrompt;
+
+// Chat prompt history (latest first, limited) with user info
+export const getChatPromptHistory = query({
+  args: {
+    name: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const name = args.name || "default";
+    const limit = args.limit && args.limit > 0 ? Math.min(args.limit, 50) : 20;
+    const history = await ctx.db
+      .query("chatPromptHistory")
+      .withIndex("by_name_updatedAt", (q) => q.eq("name", name))
+      .order("desc")
+      .take(limit);
+    
+    // Enrich with user info
+    const enrichedHistory = await Promise.all(
+      history.map(async (entry) => {
+        let userName = "Unknown";
+        if (entry.updatedBy) {
+          const user = await ctx.db.get(entry.updatedBy);
+          userName = user?.name || user?.email || "Unknown";
+        }
+        return {
+          ...entry,
+          updatedByName: userName,
+        };
+      })
+    );
+    
+    return enrichedHistory;
+  },
+});
+
+// Restore a specific version from history (superadmin only)
+export const restoreChatPromptVersion = mutation({
+  args: {
+    historyId: v.id("chatPromptHistory"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin || admin.role !== "superadmin") {
+      throw new Error("Unauthorized: Superadmin access required");
+    }
+
+    // Get the history entry
+    const historyEntry = await ctx.db.get(args.historyId);
+    if (!historyEntry) {
+      throw new Error("History entry not found");
+    }
+
+    // Get the current prompt
+    const existing = await ctx.db
+      .query("chatPrompts")
+      .withIndex("by_name", (q) => q.eq("name", historyEntry.name))
+      .first();
+
+    const payload = {
+      name: historyEntry.name,
+      content: historyEntry.content,
+      description: `Restored from version: ${new Date(historyEntry.updatedAt).toLocaleString()}`,
+      updatedBy: admin._id as Id<"users">,
+      updatedAt: Date.now(),
+    };
+
+    // Save to history
+    await ctx.db.insert("chatPromptHistory", payload);
+
+    // Update or create current prompt
+    if (existing) {
+      await ctx.db.patch(existing._id, payload);
+    } else {
+      await ctx.db.insert("chatPrompts", payload);
+    }
+
+    return { success: true };
+  },
+});
+
+// Delete a specific version from history (superadmin only)
+export const deleteChatPromptVersion = mutation({
+  args: {
+    historyId: v.id("chatPromptHistory"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin || admin.role !== "superadmin") {
+      throw new Error("Unauthorized: Superadmin access required");
+    }
+
+    const historyEntry = await ctx.db.get(args.historyId);
+    if (!historyEntry) {
+      throw new Error("History entry not found");
+    }
+
+    await ctx.db.delete(args.historyId);
+    return { success: true };
+  },
+});
+
+// Helper to get the current user (non-admin)
+async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .first();
+
+  return user;
+}
+
+// Mark Unit 1 as complete for current user
+// This mutation allows users to mark Unit 1 as complete without redoing all exercises
+export const markUnit1Complete = mutation({
+  handler: async (ctx) => {
+    console.log('[markUnit1Complete] Starting Unit 1 completion process');
+    
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      console.error('[markUnit1Complete] User not authenticated');
+      throw new Error("Not authenticated");
+    }
+
+    console.log('[markUnit1Complete] User found:', user._id);
+    if (user.role !== "superadmin") {
+      console.error('[markUnit1Complete] Unauthorized role:', user.role);
+      throw new Error("Unauthorized");
+    }
+
+    // Unit 1 vocabulary words (from shared/data/vocabulary/words.ts)
+    const unit1VocabWords = [
+      { serbian: "aerodrom", english: "airport" },
+      { serbian: "pasoš", english: "passport" },
+      { serbian: "karta", english: "ticket" },
+      { serbian: "prtljag", english: "luggage" },
+      { serbian: "dobar dan", english: "good day" },
+      { serbian: "dobro jutro", english: "good morning" },
+      { serbian: "dobro veče", english: "good evening" },
+      { serbian: "laku noć", english: "good night" },
+      { serbian: "hvala", english: "thank you" },
+      { serbian: "molim", english: "please" },
+      { serbian: "da", english: "yes" },
+      { serbian: "ne", english: "no" },
+      { serbian: "izvinite", english: "excuse me" },
+      { serbian: "zdravo", english: "hello" },
+      { serbian: "ćao", english: "bye" },
+      { serbian: "doviđenja", english: "goodbye" },
+      { serbian: "ja", english: "I" },
+      { serbian: "ti", english: "you (informal)" },
+      { serbian: "on", english: "he" },
+      { serbian: "ona", english: "she" },
+      { serbian: "ono", english: "it" },
+      { serbian: "biti", english: "to be" },
+      { serbian: "imati", english: "to have" },
+    ];
+
+    // 1. Process vocabulary: Set all Unit 1 vocab to Master status
+    console.log('[markUnit1Complete] Processing vocabulary...');
+    let vocabProcessed = 0;
+    const now = Date.now();
+
+    for (const vocabWord of unit1VocabWords) {
+      // Use .collect() instead of .first() to find ALL duplicates
+      const existingEntries = await ctx.db
+        .query("vocabulary")
+        .withIndex("by_user_unit", (q) =>
+          q.eq("userId", user._id).eq("unitNumber", 1)
+        )
+        .filter((q) => q.eq(q.field("serbianWord"), vocabWord.serbian))
+        .collect();
+
+      if (existingEntries.length > 0) {
+        // Sort by creation time to get the oldest entry (keep this one)
+        const sortedEntries = existingEntries.sort(
+          (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
+        );
+        const oldestEntry = sortedEntries[0];
+        const duplicates = sortedEntries.slice(1);
+
+        // Merge counts from duplicates into oldest entry
+        let mergedReviewCount = oldestEntry.reviewCount || 0;
+        let mergedCorrectCount = oldestEntry.correctAnswerCount || 0;
+
+        for (const dup of duplicates) {
+          mergedReviewCount += dup.reviewCount || 0;
+          mergedCorrectCount += dup.correctAnswerCount || 0;
+        }
+
+        // Update oldest entry to Master status with merged counts
+        await ctx.db.patch(oldestEntry._id, {
+          correctAnswerCount: Math.max(mergedCorrectCount, 3),
+          mastered: true,
+          reviewCount: Math.max(mergedReviewCount, 3),
+          lastReviewedAt: now,
+        });
+
+        // Delete duplicates immediately
+        for (const dup of duplicates) {
+          await ctx.db.delete(dup._id);
+        }
+        vocabProcessed++;
+      } else {
+        // Create new vocabulary entry with Master status
+        const newId = await ctx.db.insert("vocabulary", {
+          userId: user._id,
+          serbianWord: vocabWord.serbian,
+          englishTranslation: vocabWord.english,
+          unitNumber: 1,
+          mastered: true,
+          reviewCount: 3,
+          correctAnswerCount: 3,
+          incorrectAnswerCount: 0,
+          lastReviewedAt: now,
+        });
+
+        // Immediate cleanup check: verify no duplicates were created (race condition protection)
+        const verifyEntries = await ctx.db
+          .query("vocabulary")
+          .withIndex("by_user_unit", (q) =>
+            q.eq("userId", user._id).eq("unitNumber", 1)
+          )
+          .filter((q) => q.eq(q.field("serbianWord"), vocabWord.serbian))
+          .collect();
+
+        if (verifyEntries.length > 1) {
+          // Race condition detected! Clean up immediately
+          const sortedVerify = verifyEntries.sort(
+            (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
+          );
+          const keepEntry = sortedVerify[0];
+          const verifyDuplicates = sortedVerify.slice(1);
+
+          // Merge counts
+          let mergedReviewCount = keepEntry.reviewCount || 0;
+          let mergedCorrectCount = keepEntry.correctAnswerCount || 0;
+
+          for (const dup of verifyDuplicates) {
+            mergedReviewCount += dup.reviewCount || 0;
+            mergedCorrectCount += dup.correctAnswerCount || 0;
+          }
+
+          // Update kept entry
+          await ctx.db.patch(keepEntry._id, {
+            correctAnswerCount: Math.max(mergedCorrectCount, 3),
+            mastered: true,
+            reviewCount: Math.max(mergedReviewCount, 3),
+            lastReviewedAt: now,
+          });
+
+          // Delete duplicates
+          for (const dup of verifyDuplicates) {
+            await ctx.db.delete(dup._id);
+          }
+        }
+        vocabProcessed++;
+      }
+    }
+
+    console.log(`[markUnit1Complete] Processed ${vocabProcessed} vocabulary words`);
+
+    // 2. Create/update exercise completions for all 3 Unit 1 exercises
+    console.log('[markUnit1Complete] Processing exercises...');
+    const exercises = [
+      {
+        exerciseId: "unit1-biti-conjugation",
+        exerciseType: "fillInBlank",
+        score: 6,
+        totalQuestions: 6,
+        xpEarned: 16,
+      },
+      {
+        exerciseId: "unit1-basic-phrases",
+        exerciseType: "translation",
+        score: 5,
+        totalQuestions: 5,
+        xpEarned: 16,
+      },
+      {
+        exerciseId: "unit1-gender",
+        exerciseType: "fillInBlank",
+        score: 5,
+        totalQuestions: 5,
+        xpEarned: 16,
+      },
+    ];
+
+    let exercisesProcessed = 0;
+    let totalXPEarned = 0;
+
+    for (const exercise of exercises) {
+      // Check if exercise completion already exists
+      const existingCompletion = await ctx.db
+        .query("exerciseCompletions")
+        .withIndex("by_user_exercise", (q) =>
+          q.eq("userId", user._id)
+           .eq("exerciseId", exercise.exerciseId)
+           .eq("unitNumber", 1)
+        )
+        .first();
+
+      if (existingCompletion) {
+        // Update existing completion to perfect score
+        await ctx.db.patch(existingCompletion._id, {
+          score: exercise.score,
+          totalQuestions: exercise.totalQuestions,
+          xpEarned: exercise.xpEarned,
+        });
+        exercisesProcessed++;
+      } else {
+        // Create new exercise completion
+        await ctx.db.insert("exerciseCompletions", {
+          userId: user._id,
+          unitNumber: 1,
+          exerciseId: exercise.exerciseId,
+          score: exercise.score,
+          totalQuestions: exercise.totalQuestions,
+          xpEarned: exercise.xpEarned,
+        });
+        exercisesProcessed++;
+      }
+      totalXPEarned += exercise.xpEarned;
+    }
+
+    console.log(`[markUnit1Complete] Processed ${exercisesProcessed} exercises, total XP: ${totalXPEarned}`);
+
+    // 3. Update user progress: Mark Unit 1 as completed and set currentUnit to 2
+    console.log('[markUnit1Complete] Updating user progress...');
+    const progress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .first();
+
+    if (progress) {
+      const completedUnits = progress.completedUnits.includes(1)
+        ? progress.completedUnits
+        : [...progress.completedUnits, 1];
+      
+      await ctx.db.patch(progress._id, {
+        completedUnits,
+        currentUnit: Math.max(progress.currentUnit, 2),
+      });
+      console.log(`[markUnit1Complete] Updated progress: completedUnits=${completedUnits}, currentUnit=${Math.max(progress.currentUnit, 2)}`);
+    } else {
+      // Create new progress if it doesn't exist
+      await ctx.db.insert("userProgress", {
+        userId: user._id,
+        currentWeek: 1,
+        currentUnit: 2,
+        completedUnits: [1],
+        learningDuration: 12,
+        uiLanguage: "en",
+      });
+      console.log('[markUnit1Complete] Created new progress record');
+    }
+
+    // 4. Update user XP and level
+    console.log('[markUnit1Complete] Updating XP and level...');
+    const newTotalXP = user.totalXP + totalXPEarned;
+    const newLevel = Math.floor(newTotalXP / 300) + 1;
+
+    await ctx.db.patch(user._id, {
+      totalXP: newTotalXP,
+      level: newLevel,
+    });
+
+    console.log(`[markUnit1Complete] Updated XP: ${user.totalXP} → ${newTotalXP}, Level: ${user.level} → ${newLevel}`);
+
+    console.log('[markUnit1Complete] ✅ Unit 1 completion process finished successfully');
+
+    return {
+      success: true,
+      vocabProcessed,
+      exercisesProcessed,
+      xpEarned: totalXPEarned,
+      newTotalXP,
+      newLevel,
+    };
+  },
+});
+
+export const simulateUnitProgress = mutation({
+  args: {
+    automationKey: v.string(),
+    userId: v.id("users"),
+    unitNumber: v.number(),
+    targetStatus: v.union(v.literal("completed"), v.literal("mastered")),
+    simulatedQuestionCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const automationSecret = process.env.BOT_AUTOMATION_KEY;
+    if (!automationSecret) {
+      throw new Error("Automation key not configured on server");
+    }
+    if (args.automationKey !== automationSecret) {
+      throw new Error("Invalid automation key");
+    }
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const unitNumber = Math.max(1, args.unitNumber);
+    const now = Date.now();
+    const vocabTargetCount = args.targetStatus === "mastered" ? 3 : 1;
+    const vocabWords = VOCABULARY.filter((word) => word.unit === unitNumber);
+    let vocabProcessed = 0;
+
+    for (const word of vocabWords) {
+      // Use .collect() instead of .first() to find ALL duplicates
+      const existingEntries = await ctx.db
+        .query("vocabulary")
+        .withIndex("by_user_unit", (q) => q.eq("userId", args.userId).eq("unitNumber", unitNumber))
+        .filter((q) => q.eq(q.field("serbianWord"), word.serbian))
+        .collect();
+
+      const payload = {
+        userId: args.userId as Id<"users">,
+        serbianWord: word.serbian,
+        englishTranslation: word.translations?.en || word.translations?.de || "",
+        unitNumber,
+        mastered: vocabTargetCount >= 3,
+        reviewCount: vocabTargetCount,
+        correctAnswerCount: vocabTargetCount,
+        incorrectAnswerCount: 0,
+        lastReviewedAt: now,
+        lastAnsweredAt: now,
+      };
+
+      if (existingEntries.length > 0) {
+        // Sort by creation time to get the oldest entry (keep this one)
+        const sortedEntries = existingEntries.sort(
+          (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
+        );
+        const oldestEntry = sortedEntries[0];
+        const duplicates = sortedEntries.slice(1);
+
+        // Merge counts from duplicates into oldest entry
+        let mergedReviewCount = oldestEntry.reviewCount || 0;
+        let mergedCorrectCount = oldestEntry.correctAnswerCount || 0;
+        let mergedIncorrectCount = oldestEntry.incorrectAnswerCount || 0;
+
+        for (const dup of duplicates) {
+          mergedReviewCount += dup.reviewCount || 0;
+          mergedCorrectCount += dup.correctAnswerCount || 0;
+          mergedIncorrectCount += dup.incorrectAnswerCount || 0;
+        }
+
+        // Update oldest entry with merged counts + target values
+        await ctx.db.patch(oldestEntry._id, {
+          ...payload,
+          reviewCount: Math.max(mergedReviewCount, vocabTargetCount),
+          correctAnswerCount: Math.max(mergedCorrectCount, vocabTargetCount),
+          incorrectAnswerCount: mergedIncorrectCount,
+        });
+
+        // Delete duplicates immediately
+        for (const dup of duplicates) {
+          await ctx.db.delete(dup._id);
+        }
+        vocabProcessed++;
+      } else {
+        const newId = await ctx.db.insert("vocabulary", payload);
+
+        // Immediate cleanup check: verify no duplicates were created (race condition protection)
+        const verifyEntries = await ctx.db
+          .query("vocabulary")
+          .withIndex("by_user_unit", (q) => q.eq("userId", args.userId).eq("unitNumber", unitNumber))
+          .filter((q) => q.eq(q.field("serbianWord"), word.serbian))
+          .collect();
+
+        if (verifyEntries.length > 1) {
+          // Race condition detected! Clean up immediately
+          const sortedVerify = verifyEntries.sort(
+            (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
+          );
+          const keepEntry = sortedVerify[0];
+          const verifyDuplicates = sortedVerify.slice(1);
+
+          // Merge counts
+          let mergedReviewCount = keepEntry.reviewCount || 0;
+          let mergedCorrectCount = keepEntry.correctAnswerCount || 0;
+          let mergedIncorrectCount = keepEntry.incorrectAnswerCount || 0;
+
+          for (const dup of verifyDuplicates) {
+            mergedReviewCount += dup.reviewCount || 0;
+            mergedCorrectCount += dup.correctAnswerCount || 0;
+            mergedIncorrectCount += dup.incorrectAnswerCount || 0;
+          }
+
+          // Update kept entry
+          await ctx.db.patch(keepEntry._id, {
+            ...payload,
+            reviewCount: Math.max(mergedReviewCount, vocabTargetCount),
+            correctAnswerCount: Math.max(mergedCorrectCount, vocabTargetCount),
+            incorrectAnswerCount: mergedIncorrectCount,
+          });
+
+          // Delete duplicates
+          for (const dup of verifyDuplicates) {
+            await ctx.db.delete(dup._id);
+          }
+        }
+        vocabProcessed++;
+      }
+    }
+
+    const exerciseIds = UNIT_EXERCISES[unitNumber] || [];
+    const xpPerExercise = 16;
+    let exercisesProcessed = 0;
+
+    for (const exerciseId of exerciseIds) {
+      const completion = await ctx.db
+        .query("exerciseCompletions")
+        .withIndex("by_user_exercise", (q) =>
+          q.eq("userId", args.userId).eq("exerciseId", exerciseId).eq("unitNumber", unitNumber)
+        )
+        .first();
+
+      const completionPayload = {
+        userId: args.userId as Id<"users">,
+        unitNumber,
+        exerciseId,
+        score: 10,
+        totalQuestions: 10,
+        xpEarned: xpPerExercise,
+      };
+
+      if (completion) {
+        await ctx.db.patch(completion._id, completionPayload);
+      } else {
+        await ctx.db.insert("exerciseCompletions", completionPayload);
+      }
+      exercisesProcessed++;
+    }
+
+    if (args.targetStatus === "mastered") {
+      const questionCount =
+        args.simulatedQuestionCount && args.simulatedQuestionCount > 0
+          ? Math.min(args.simulatedQuestionCount, 20)
+          : 8;
+      for (const exerciseId of exerciseIds) {
+        for (let i = 1; i <= questionCount; i++) {
+          const questionId = `${exerciseId}-simulated-q${i}`;
+          const progressEntry = await ctx.db
+            .query("exerciseQuestionProgress")
+            .withIndex("by_user_question", (q) =>
+              q.eq("userId", args.userId).eq("exerciseId", exerciseId).eq("questionId", questionId)
+            )
+            .first();
+
+          const questionPayload = {
+            userId: args.userId as Id<"users">,
+            exerciseId,
+            questionId,
+            unitNumber,
+            correctAnswerCount: 3,
+            incorrectAnswerCount: 0,
+            mastered: true,
+            lastAnsweredAt: now,
+            lastReviewedAt: now,
+          };
+
+          if (progressEntry) {
+            await ctx.db.patch(progressEntry._id, questionPayload);
+          } else {
+            await ctx.db.insert("exerciseQuestionProgress", questionPayload);
+          }
+        }
+      }
+    }
+
+    const progress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .first();
+
+    const completedUnits = progress?.completedUnits || [];
+    const nextCompleted = completedUnits.includes(unitNumber)
+      ? completedUnits
+      : [...completedUnits, unitNumber].sort((a, b) => a - b);
+    const nextCurrentUnit = Math.max(progress?.currentUnit || 1, unitNumber + 1);
+
+    if (progress) {
+      await ctx.db.patch(progress._id, {
+        completedUnits: nextCompleted,
+        currentUnit: nextCurrentUnit,
+        lastActivityAt: now,
+      });
+    } else {
+      await ctx.db.insert("userProgress", {
+        userId: args.userId as Id<"users">,
+        currentWeek: 1,
+        currentUnit: nextCurrentUnit,
+        completedUnits: nextCompleted,
+        learningDuration: 12,
+        uiLanguage: "en",
+        lastActivityAt: now,
+      });
+    }
+
+    const xpEarned = exercisesProcessed * xpPerExercise;
+    const newTotalXP = user.totalXP + xpEarned;
+    const newLevel = Math.floor(newTotalXP / 300) + 1;
+
+    await ctx.db.patch(user._id, {
+      totalXP: newTotalXP,
+      level: newLevel,
+      lastActiveDate: now,
+    });
+
+    return {
+      success: true,
+      unitNumber,
+      mode: args.targetStatus,
+      vocabProcessed,
+      exercisesProcessed,
+      xpEarned,
+      totalXP: newTotalXP,
+      level: newLevel,
+    };
+  },
+});
+
+// ============= TEMPORARY CLEANUP FUNCTIONS (BETA ONLY) =============
+// These functions are used for beta cleanup scripts and should be removed after beta
+
+/**
+ * TEMPORARY: Get all users without auth (for cleanup scripts)
+ * TODO: Remove after beta phase
+ */
+export const getAllUsersTemp = query({
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    return users;
+  },
+});
+
+/**
+ * TEMPORARY: Update user language without auth (for cleanup scripts)
+ * TODO: Remove after beta phase
+ */
+export const updateUserLanguageTemp = mutation({
+  args: {
+    userId: v.id("users"),
+    learningLanguage: v.union(
+      v.literal("en"),
+      v.literal("de"),
+      v.literal("es"),
+      v.literal("fr")
+    ),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.userId, {
+      learningLanguage: args.learningLanguage,
+    });
+    return { success: true };
   },
 });
 

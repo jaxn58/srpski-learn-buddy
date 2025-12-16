@@ -55,7 +55,7 @@ export default function Admin() {
   // Sorting state for progress table
   const [progressSortField, setProgressSortField] = useState<string>('userName');
   const [progressSortDirection, setProgressSortDirection] = useState<'asc' | 'desc'>('asc');
-  
+
   // Sort users
   const sortedUsers = useMemo(() => {
     if (!users) return [];
@@ -214,7 +214,7 @@ export default function Admin() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 md:ml-64 w-full flex flex-col">
         <main className="container py-8">
         {/* Statistics Cards */}
         <div className="grid gap-4 md:grid-cols-3 mb-8">
@@ -231,11 +231,11 @@ export default function Admin() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Lessons Completed</CardTitle>
+              <CardTitle className="text-sm font-medium">Units Completed</CardTitle>
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalLessonsCompleted || 0}</div>
+              <div className="text-2xl font-bold">{stats?.totalProgress || 0}</div>
             </CardContent>
           </Card>
 

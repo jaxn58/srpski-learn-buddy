@@ -7,44 +7,46 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2, Globe } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { getUnitsForLanding, getTotalVocabularyCount, VOCABULARY } from "@shared/data";
-import { useState, useEffect } from "react";
+import { getModulesForLanding, getTotalVocabularyCount } from "@shared/data";
+import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
   const { t, i18n } = useTranslation();
   
-  // Language selection state
-  const [selectedLang, setSelectedLang] = useState<'en' | 'de'>('en');
-  
-  // Load preferred language on mount
+  // BETA: Force English for all users
   useEffect(() => {
-    const stored = localStorage.getItem('preferredLanguage');
-    if (stored === 'de') {
-      setSelectedLang('de');
-      i18n.changeLanguage('de');
-    }
+    i18n.changeLanguage('en');
+    localStorage.removeItem('preferredLanguage');
   }, [i18n]);
   
-  // Save language preference
-  const handleLanguageChange = (lang: 'en' | 'de') => {
-    setSelectedLang(lang);
-    localStorage.setItem('preferredLanguage', lang);
-    i18n.changeLanguage(lang);
-  };
+  // NEW: Fetch course vocabulary from database
+  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
   
-  // Generate units data for landing page
-  const UNITS_DATA = getUnitsForLanding(VOCABULARY);
-  const TOTAL_VOCABULARY = getTotalVocabularyCount(VOCABULARY);
+  // Generate modules data for landing page from database
+  const MODULES_DATA = useMemo(() => {
+    if (!courseVocabulary || courseVocabulary.length === 0) {
+      // FALLBACK: Return empty array if data not loaded yet
+      return [];
+    }
+    // Map courseVocabulary to format expected by getModulesForLanding
+    const vocabForLanding = courseVocabulary.map(word => ({ unit: word.unitNumber }));
+    return getModulesForLanding(vocabForLanding);
+  }, [courseVocabulary]);
+  
+  const TOTAL_VOCABULARY = useMemo(() => {
+    if (!courseVocabulary || courseVocabulary.length === 0) {
+      return 0;
+    }
+    // Map courseVocabulary to format expected by getTotalVocabularyCount
+    const vocabForCount = courseVocabulary.map(word => ({ unit: word.unitNumber }));
+    return getTotalVocabularyCount(vocabForCount);
+  }, [courseVocabulary]);
 
   if (loading) {
     return (
@@ -67,24 +69,6 @@ export default function Home() {
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Language Selector */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Globe className="h-4 w-4" />
-                  {selectedLang === 'en' ? '🇬🇧 English' : '🇩🇪 Deutsch'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleLanguageChange('en')}>
-                  🇬🇧 English
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleLanguageChange('de')}>
-                  🇩🇪 Deutsch
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            
           {isAuthenticated ? (
             <Link href="/dashboard">
                 <Button className="bg-primary hover:bg-primary/90">{t('home.header.dashboard')}</Button>
@@ -729,7 +713,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* All 27 Units Section */}
+      {/* Modules Section */}
       <section id="units" className="container py-20 bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center space-y-4 mb-12">
@@ -741,32 +725,35 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {UNITS_DATA.map((unit) => {
-              const currentLanguage = i18n.language;
-              const displayTitle = currentLanguage === 'de' ? unit.titleGerman : unit.titleEnglish;
-              const displayTopics = currentLanguage === 'de' ? unit.topicsGerman : unit.topics;
+            {MODULES_DATA.map((module) => {
+              // BETA: Always use English
+              const displayTitle = module.titleEnglish;
+              const displayDescription = module.description;
               
               return (
               <Card 
-                key={unit.number} 
+                key={module.id} 
                 className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-xl hover:scale-105 bg-white"
               >
                 <CardHeader>
                   <div className="flex-1">
-                      <div className="text-sm font-semibold text-primary mb-1">{t('home.units.unit', { number: unit.number })}</div>
+                      <div className="text-sm font-semibold text-primary mb-1">
+                        {t('home.units.module', { number: module.number })}
+                      </div>
                       <CardTitle className="text-lg">{displayTitle}</CardTitle>
-                    <p className="text-sm text-muted-foreground italic mt-1">{unit.title}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{displayDescription}</p>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-1 text-sm text-muted-foreground">
-                      {displayTopics.map((topic, idx) => (
-                      <li key={idx} className="flex items-start">
-                        <span className="text-primary mr-2">•</span>
-                        {topic}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <BookOpen className="h-4 w-4 text-primary" />
+                      <span>{t('home.units.lessons', { count: module.unitCount })}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {module.vocabCount}+ vocabulary words
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
               );
@@ -821,14 +808,8 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
-        <div className="text-center text-sm text-muted-foreground space-y-3">
-          <p className="text-xs italic">
-            {t('home.footer.gratis')}
-          </p>
-          <p>
-            {t('home.footer.structure')}
-          </p>
-          <p className="font-semibold">{t('home.footer.copyright')}</p>
+        <div className="text-center text-sm text-muted-foreground">
+          <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
         </div>
       </footer>
     </div>

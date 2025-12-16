@@ -6,410 +6,350 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { COURSE_UNITS } from "@shared/data";
-import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock } from "lucide-react";
+import { COURSE_MODULES } from "@shared/data";
+import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronRight } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
-import { InteractiveMarkdownContent } from "@/components/InteractiveMarkdownContent";
 import { Sidebar } from "@/components/Sidebar";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { InteractiveTest } from "@/components/InteractiveTest";
 
 export default function UnitView() {
   const { user, loading: authLoading } = useAuth();
   const { t, i18n } = useTranslation();
   const params = useParams();
   const unitNumber = parseInt(params.unitNumber || "1");
-
-  // Get unit from static course data
-  const unit = COURSE_UNITS.find(u => u.number === unitNumber);
-  // Get explanation from Convex
-  const explanation = useQuery(api.units.getExplanation, { unitNumber });
   
-  // All hooks must be called before any conditional returns
+  // Use user's learning language or fallback
+  const displayLanguage = user?.learningLanguage || (i18n.language === 'de' ? 'de' : 'en');
+
+  // Load Unit Metadata & Content from DB
+  const unitMetadata = useQuery(api.units.getUnitMetadata, { unitNumber, language: displayLanguage });
+  const content = useQuery(api.units.getUnitContentSections, { unitNumber, language: displayLanguage });
+  const vocabulary = useQuery(api.vocabulary.getCourseVocabularyByUnit, { unitNumber });
+
+  // Determine Module from unitMetadata
+  // Priority: 1. moduleMetadataId (new structure), 2. moduleId/slug (old structure), 3. COURSE_MODULES fallback
+  const moduleSlug = unitMetadata?.moduleId || COURSE_MODULES.find(m => m.units.includes(unitNumber))?.id;
+  
+  // Try to get module by slug (new consolidated structure)
+  const moduleMetadata = useQuery(api.modules.getModuleBySlug, 
+    moduleSlug ? { slug: moduleSlug } : "skip"
+  );
+  
+  // Fallback: Try old getModuleMetadata if new structure doesn't exist
+  const oldModuleMetadata = useQuery(api.modules.getModuleMetadata,
+    moduleSlug && !moduleMetadata ? { moduleId: moduleSlug, language: displayLanguage } : "skip"
+  );
+
+  const moduleTitle = React.useMemo(() => {
+    if (!moduleSlug) {
+      return undefined;
+    }
+
+    const sanitizeTitle = (rawTitle: string) => {
+      const parenthesesMatch = rawTitle.match(/\(([^)]+)\)/);
+      if (parenthesesMatch?.[1]) {
+        return parenthesesMatch[1].trim();
+      }
+      return rawTitle.trim();
+    };
+
+    // Use new consolidated structure if available
+    if (moduleMetadata) {
+      const title = displayLanguage === "de" ? moduleMetadata.titleDe : moduleMetadata.titleEn;
+      if (title) {
+        return sanitizeTitle(title);
+      }
+    }
+
+    // Fallback to old structure
+    if (oldModuleMetadata?.title) {
+      return sanitizeTitle(oldModuleMetadata.title);
+    }
+
+    // Final fallback to COURSE_MODULES
+    const fallbackModule = COURSE_MODULES.find((module) => module.id === moduleSlug);
+    return displayLanguage === "de" ? fallbackModule?.titleGerman : fallbackModule?.titleEnglish;
+  }, [moduleSlug, moduleMetadata, oldModuleMetadata, displayLanguage]);
+
+  // Progress hooks
   const progress = useQuery(api.progress.getUserProgress);
+  const masteryStatus = useQuery(api.progress.getUnitMasteryStatus, { unitNumber });
   const completeUnitMutation = useMutation(api.progress.completeUnit);
+  const markUnit1CompleteMutation = useMutation(api.admin.markUnit1Complete);
   const unitCompletionStatus = useQuery(api.progress.canCompleteUnit, { unitNumber });
   const [showSuccess, setShowSuccess] = React.useState(false);
   const [isCompleting, setIsCompleting] = React.useState(false);
-  
-  // Calculate derived values after hooks
-  const isLoading = explanation === undefined;
+  const [isMarkingComplete, setIsMarkingComplete] = React.useState(false);
+
+  // Derived values
+  const isLoading = unitMetadata === undefined || content === undefined;
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
-  
-  // Check if unit is locked for beta testers
-  const isLocked = user?.isBetaTester && unitNumber > 5;
-  const isBetaLockError = false; // Handled by isLocked
-  
-  // Callback and effect hooks
+  const isMastered = masteryStatus?.isMastered ?? false;
+  const isLocked = user?.isBetaTester && unitNumber > 6; // Module 1 Limit
+
+  const nextUnit = unitNumber < 27 ? unitNumber + 1 : null;
+  const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
+
+  // Handle completion
   const handleComplete = React.useCallback(async () => {
     setIsCompleting(true);
     try {
       await completeUnitMutation({ unitNumber });
       setShowSuccess(true);
+    } catch (error) {
+      console.error('Failed to complete unit:', error);
     } finally {
       setIsCompleting(false);
     }
   }, [completeUnitMutation, unitNumber]);
 
-  // Automatischer Abschluss wenn Bedingungen erfüllt sind
-  React.useEffect(() => {
-    if (
-      !isCompleted &&
-      unitCompletionStatus?.canComplete &&
-      !isCompleting &&
-      !showSuccess
-    ) {
-      handleComplete();
+  // Auto-complete if requirements met - TEMPORARILY DISABLED
+  // React.useEffect(() => {
+  //   if (!isCompleted && unitCompletionStatus?.canComplete && !isCompleting && !showSuccess) {
+  //     handleComplete();
+  //   }
+  // }, [isCompleted, unitCompletionStatus?.canComplete, isCompleting, showSuccess, handleComplete]);
+
+  // Handle manual Unit 1 completion (Admin)
+  const handleMarkUnit1Complete = async () => {
+    setIsMarkingComplete(true);
+    try {
+      await markUnit1CompleteMutation();
+      toast.success('Unit 1 marked as complete!');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      toast.error('Failed to mark Unit 1 as complete');
+    } finally {
+      setIsMarkingComplete(false);
     }
-  }, [isCompleted, unitCompletionStatus?.canComplete, isCompleting, showSuccess, handleComplete]);
-  
-  console.log('[UnitView] Debug:', { 
-    unitNumber, 
-    hasExplanation: !!explanation, 
-    isLoading,
-    userLanguage: user?.learningLanguage,
-    overviewLength: explanation?.overview?.length,
-    grammarLength: explanation?.grammarExplained?.length,
-    overviewPreview: explanation?.overview?.substring(0, 100),
-    hasOverviewGerman: !!(explanation as any)?.overviewGerman,
-    overviewGermanLength: (explanation as any)?.overviewGerman?.length
-  });
+  };
 
-  // Show loading while auth is loading
-  if (authLoading) {
+  if (authLoading || isLoading) {
     return <div className="min-h-screen flex items-center justify-center">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
     </div>;
   }
 
-  if (!user) {
-    window.location.href = "/";
-    return null;
+  if (!user || !unitMetadata) {
+    return <div className="min-h-screen flex items-center justify-center">Unit not found</div>;
   }
 
-  if (!unit) {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-    </div>;
-  }
-  
-  // Show locked message for beta testers trying to access Units 6-27
-  if (isLocked || isBetaLockError) {
+  if (isLocked) {
     return (
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <div className="flex-1">
-        <header className="border-b bg-card">
-          <div className="container py-4">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm">← {t('unit.backToDashboard')}</Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                <Lock className="h-6 w-6 text-gray-500" />
-                <h1 className="text-xl font-bold text-gray-600">{t('unit.locked', { number: unitNumber })}</h1>
-              </div>
-            </div>
-          </div>
-        </header>
-        <main className="container py-8 max-w-3xl">
-          <Card className="border-2 border-yellow-200 bg-yellow-50">
+        <div className="flex-1 p-8 flex items-center justify-center">
+          <Card className="max-w-md border-yellow-200 bg-yellow-50">
             <CardHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <Lock className="h-8 w-8 text-yellow-600" />
-                <CardTitle className="text-2xl">{t('unit.lockedTitle')}</CardTitle>
+              <div className="flex items-center gap-2 text-yellow-600">
+                <Lock className="h-6 w-6" />
+                <CardTitle>{t('unit.lockedTitle')}</CardTitle>
               </div>
-              <CardDescription className="text-base">
-                {t('unit.lockedDesc')}
-              </CardDescription>
+              <CardDescription>{t('unit.lockedDesc')}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-white rounded-lg p-4 border border-yellow-200">
-                <h3 className="font-semibold text-lg mb-2">{t('unit.betaBenefits')}</h3>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span>{t('unit.betaBenefit1')}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span>{t('unit.betaBenefit2')}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span>{t('unit.betaBenefit3')}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold">✓</span>
-                    <span>{t('unit.betaBenefit4')}</span>
-                  </li>
-                </ul>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p className="text-sm text-blue-900">
-                  <strong>{t('unit.whatsNext')}</strong> {t('unit.whatsNextDesc')}
-                </p>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <Link href="/dashboard">
-                  <Button variant="default">← {t('unit.backToDashboard')}</Button>
-                </Link>
-                <Link href="/feedback">
-                  <Button variant="outline">{t('unit.sendFeedback')}</Button>
-                </Link>
-              </div>
+            <CardContent>
+              <Link href="/dashboard"><Button>Back to Dashboard</Button></Link>
             </CardContent>
           </Card>
-        </main>
         </div>
       </div>
     );
   }
 
-  const nextUnit = unitNumber < 27 ? unitNumber + 1 : null;
-  const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
-
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1">
-      <header className="border-b bg-card">
-        <div className="container py-4">
-          <div className="flex items-center justify-between">
+      <div className="flex-1 md:ml-64 w-full">
+        <header className="border-b bg-card sticky top-0 z-10">
+          <div className="container py-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm">← {t('unit.backToDashboard')}</Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-6 w-6 text-primary" />
-                <h1 className="text-xl font-bold">{t('unit.unit', { number: unitNumber })}</h1>
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Link href="/dashboard" className="hover:text-foreground transition-colors">
+                  {t('sidebar.dashboard')}
+                </Link>
+                {moduleTitle && moduleSlug && (
+                  <>
+                    <ChevronRight className="h-4 w-4 mx-1" />
+                    <Link 
+                      href={`/units#module-${moduleSlug}`}
+                      className="font-medium text-foreground hover:text-primary transition-colors"
+                    >
+                      {moduleTitle}
+                    </Link>
+                  </>
+                )}
+                {unitMetadata && (
+                  <>
+                    <ChevronRight className="h-4 w-4 mx-1" />
+                    <span className="font-bold text-primary">
+                      {unitMetadata.title} <span className="font-normal text-muted-foreground">(Unit {unitNumber})</span>
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {prevUnit && (
-                <Link href={`/unit/${prevUnit}`}>
-                  <Button variant="outline" size="sm">{t('unit.previous')}</Button>
-                </Link>
-              )}
-              {nextUnit && (
-                <Link href={`/unit/${nextUnit}`}>
-                  <Button variant="outline" size="sm">{t('unit.next')}</Button>
-                </Link>
-              )}
+              {prevUnit && <Link href={`/unit/${prevUnit}`}><Button variant="outline" size="sm">{t('unit.previous')}</Button></Link>}
+              {nextUnit && <Link href={`/unit/${nextUnit}`}><Button variant="outline" size="sm">{t('unit.next')}</Button></Link>}
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="container py-8 max-w-5xl">
-        <div className="space-y-6">
-          {/* Unit Header */}
-          <Card>
+        <main className="container py-8 max-w-5xl">
+          {/* Header Card */}
+          <Card className="mb-6">
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle className="text-3xl mb-2">
-                    {i18n.language === 'de' ? unit.titleGerman : unit.titleEnglish}
-                  </CardTitle>
-                  <CardDescription className="text-lg">
-                    {unit.title}
-                  </CardDescription>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {t('unit.pageInCoursebook', { page: unit.page })}
-                  </p>
+                  <CardTitle className="text-3xl mb-2">{unitMetadata.title}</CardTitle>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {unitMetadata.topics?.map((topic: string, i: number) => (
+                      <Badge key={i} variant="secondary">{topic}</Badge>
+                    ))}
+                  </div>
                 </div>
-                {isCompleted && (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    <CheckCircle2 className="mr-1 h-4 w-4" />
-                    {t('unit.completed')}
-                  </Badge>
-                )}
+                <div className="flex gap-2">
+                  {/* {isCompleted && <Badge className="bg-green-600"><CheckCircle2 className="w-4 h-4 mr-1"/> Completed</Badge>} */}
+                  {isMastered && <Badge className="bg-amber-500"><Star className="w-4 h-4 mr-1"/> Mastered</Badge>}
+                </div>
               </div>
             </CardHeader>
           </Card>
 
-          {/* Success Message */}
-          {showSuccess && (
-            <Card className="bg-green-50 border-green-200">
-              <CardContent className="py-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-8 w-8 text-green-600" />
-                    <div>
-                      <h3 className="font-semibold text-green-900">{t('unit.unitCompleted')}</h3>
-                      <p className="text-sm text-green-700">{t('unit.unitCompletedDesc', { number: unitNumber })}</p>
-                    </div>
-                  </div>
-                  {nextUnit && (
-                    <Link href={`/unit/${nextUnit}`}>
-                      <Button>{t('unit.continueToUnit', { number: nextUnit })}</Button>
-                    </Link>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Main Content Tabs */}
+          {/* New 6-Tab Structure */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">{t('unit.unitOverview')}</TabsTrigger>
-              <TabsTrigger value="grammar">{t('unit.grammarExplained')}</TabsTrigger>
-              <TabsTrigger value="practice">{t('unit.practiceExamples')}</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
+              <TabsTrigger value="overview" className="gap-2"><Lightbulb className="w-4 h-4"/> Overview</TabsTrigger>
+              <TabsTrigger value="vocabulary" className="gap-2"><BookOpen className="w-4 h-4"/> Vocabulary</TabsTrigger>
+              <TabsTrigger value="grammar" className="gap-2"><Brain className="w-4 h-4"/> Grammar</TabsTrigger>
+              <TabsTrigger value="phrases" className="gap-2"><MessageSquare className="w-4 h-4"/> Phrases</TabsTrigger>
+              <TabsTrigger value="dialogues" className="gap-2"><Mic className="w-4 h-4"/> Dialogues</TabsTrigger>
+              <TabsTrigger value="test" className="gap-2"><PenTool className="w-4 h-4"/> Exercises</TabsTrigger>
             </TabsList>
 
-            {/* Overview Tab */}
-            <TabsContent value="overview" className="space-y-4 mt-6">
-              {explanation ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-primary" />
-                      {t('unit.unitOverview')}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <MarkdownContent content={explanation.overview} />
-                  </CardContent>
-                </Card>
-              ) : (
-                <>
-                  {/* Topics */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>{t('unit.lessonTopics')}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {(i18n.language === 'de' ? unit.topicsGerman : unit.topics).map((topic, idx) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            <span className="text-primary mt-1">•</span>
-                            <span>{topic}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-
-                  {/* Grammar Focus */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>{t('unit.grammarFocus')}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-2">
-                        {unit.grammarFocus.map((grammar, idx) => (
-                          <Badge key={idx} variant="secondary">
-                            {grammar}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Vocabulary Themes */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>{t('unit.vocabularyAreas')}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-2">
-                        {unit.vocabularyThemes.map((theme, idx) => (
-                          <Badge key={idx} variant="outline">
-                            {theme}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
-              )}
+            {/* 1. Overview */}
+            <TabsContent value="overview" className="mt-6">
+              <Card>
+                <CardContent className="pt-6">
+                  {content?.overview ? (
+                    <MarkdownContent content={content.overview} />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">No overview available.</p>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
-            {/* Grammar Tab */}
-            <TabsContent value="grammar" className="space-y-6 mt-6">
-              {explanation ? (
-                <Card>
-                  <CardContent className="pt-6">
-                    <MarkdownContent content={explanation.grammarExplained} />
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="py-12 text-center text-muted-foreground">
-                    <p>{t('unit.grammarComingSoon')}</p>
-                    <p className="text-sm mt-2">{t('unit.grammarComingSoonDesc')}</p>
-                  </CardContent>
-                </Card>
-              )}
+            {/* 2. Vocabulary */}
+            <TabsContent value="vocabulary" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Unit Vocabulary</CardTitle>
+                  <CardDescription>Master these words to complete the unit.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {vocabulary && vocabulary.length > 0 ? (
+                    <div className="space-y-2">
+                      {vocabulary.map((word: any, i: number) => {
+                        // NEW: Column-based translation access (consistent with moduleMetadata)
+                        // FALLBACK: Support old translations[] array during migration
+                        let displayTranslation: string;
+                        let altSuffix = "";
+                        let hasAlt = false;
+                        
+                        if (word.en && word.de) {
+                          // NEW: Column-based structure
+                          displayTranslation = displayLanguage === "de" ? word.de : word.en;
+                          const alt = displayLanguage === "de" ? word.deAlt : word.enAlt;
+                          hasAlt = Boolean(alt);
+                          altSuffix = hasAlt ? ` (alt: ${alt})` : "";
+                        } else if (word.translations && Array.isArray(word.translations)) {
+                          // FALLBACK: Old translations[] array structure
+                          const trans =
+                            word.translations.find((t: any) => t.language === displayLanguage) ||
+                            word.translations.find((t: any) => t.language === "en");
+                          hasAlt = Boolean(trans?.alt);
+                          altSuffix = hasAlt ? ` (alt: ${trans?.alt})` : "";
+                          displayTranslation = trans?.translation || "-";
+                        } else {
+                          displayTranslation = "-";
+                        }
+                        
+                        const displayWord = hasAlt ? `${word.serbian}*` : word.serbian;
+
+                        return (
+                          <div key={i} className="rounded-md border bg-muted/30 px-3 py-2">
+                            <div className="font-medium">{displayWord}</div>
+                            <div className="text-muted-foreground text-sm">
+                              {`${displayTranslation}${altSuffix}`}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : content?.vocabulary ? (
+                    <MarkdownContent content={content.vocabulary} />
+                  ) : (
+                    <p className="text-center py-8 text-muted-foreground">No vocabulary loaded.</p>
+                  )}
+                  <div className="mt-6 flex justify-end">
+                    <Link href={`/vocabulary?unit=${unitNumber}`}>
+                      <Button>Practice in Vocabulary Trainer</Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
-            {/* Practice Tab */}
-            <TabsContent value="practice" className="space-y-6 mt-6">
-              {explanation ? (
-                <Card>
-                  <CardContent className="pt-6">
-                    <InteractiveMarkdownContent content={explanation.practiceExamples} unitNumber={unit.number} />
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="py-12 text-center text-muted-foreground">
-                    <p>{t('unit.practiceComingSoon')}</p>
-                    <p className="text-sm mt-2">{t('unit.practiceComingSoonDesc')}</p>
-                  </CardContent>
-                </Card>
-              )}
+            {/* 3. Grammar */}
+            <TabsContent value="grammar" className="mt-6">
+              <Card>
+                <CardContent className="pt-6">
+                  {content?.grammar ? (
+                    <MarkdownContent content={content.grammar} />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">No grammar content available.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 4. Phrases */}
+            <TabsContent value="phrases" className="mt-6">
+              <Card>
+                <CardContent className="pt-6">
+                  {content?.phrases ? (
+                    <MarkdownContent content={content.phrases} />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">No phrases available.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 5. Dialogues */}
+            <TabsContent value="dialogues" className="mt-6">
+              <Card>
+                <CardContent className="pt-6">
+                  {content?.dialogues ? (
+                    <MarkdownContent content={content.dialogues} />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">No dialogues available.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 6. Interactive Test */}
+            <TabsContent value="test" className="mt-6">
+              <InteractiveTest unitNumber={unitNumber} language={displayLanguage} />
             </TabsContent>
           </Tabs>
-
-          {/* Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('unit.activities')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <Link href={`/vocabulary?unit=${unitNumber}`}>
-                  <Button variant="outline" className="w-full justify-start" size="lg">
-                    <BookOpen className="mr-2 h-5 w-5" />
-                    {t('unit.practiceVocab')}
-                  </Button>
-                </Link>
-                <Link href="/chat">
-                  <Button variant="outline" className="w-full justify-start" size="lg">
-                    <Brain className="mr-2 h-5 w-5" />
-                    {t('unit.chatWithProfessor')}
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Button entfernt - Abschluss erfolgt automatisch */}
-
-              {isCompleted && nextUnit && (
-                <Link href={`/unit/${nextUnit}`}>
-                  <Button className="w-full" size="lg">
-                    {t('unit.continueToUnit', { number: nextUnit })}
-                  </Button>
-                </Link>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Book Reference */}
-          {explanation?.bookReference && (
-            <Card className="bg-muted/50">
-              <CardContent className="py-4">
-                <p className="text-sm text-muted-foreground">
-                  📖 {explanation.bookReference}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </main>
+        </main>
       </div>
     </div>
   );
 }
-

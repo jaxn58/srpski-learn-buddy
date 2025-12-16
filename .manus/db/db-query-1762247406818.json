@@ -1,9 +1,0 @@
-{
-  "query": "UPDATE userProgress SET currentWeek = 1, currentUnit = 1 WHERE currentWeek IS NULL OR currentWeek = 0 OR currentUnit IS NULL OR currentUnit = 0;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute UPDATE userProgress SET currentWeek = 1, currentUnit = 1 WHERE currentWeek IS NULL OR currentWeek = 0 OR currentUnit IS NULL OR currentUnit = 0;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 53
-}

@@ -1,8 +1,0 @@
-{
-  "query": "UPDATE users SET isActive = true, isBetaTester = true WHERE email = 'look@jacksenn.com';",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3CSBV4gw7qiM5kJ.root --database LhzrTRSEfPXmCMRtryRobu --execute UPDATE users SET isActive = true, isBetaTester = true WHERE email = 'look@jacksenn.com';",
-  "returncode": 1,
-  "logs": [
-    "ERROR 8027 (HY000) at line 1: Information schema is out of date: schema failed to update in 1 lease, please make sure TiDB can connect to TiKV"
-  ]
-}

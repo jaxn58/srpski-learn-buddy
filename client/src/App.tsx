@@ -5,6 +5,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import WeekView from "./pages/WeekView";
@@ -12,16 +13,18 @@ import UnitView from "./pages/UnitView";
 import Chat from "./pages/Chat";
 import Admin from "./pages/Admin";
 import FeedbackManagement from "./pages/FeedbackManagement";
-import BetaRegistrations from "./pages/BetaRegistrations";
 import Vocabulary from "./pages/Vocabulary";
+import VocabularyQuizRedirect from "./pages/VocabularyQuizRedirect";
 import VocabularyList from "./pages/VocabularyList";
 import Progress from "./pages/Progress";
 import Feedback from "./pages/Feedback";
 import MySubscription from "./pages/MySubscription";
 import SubscriptionAnalytics from "./pages/SubscriptionAnalytics";
 import EmailTemplates from "./pages/EmailTemplates";
+import PromptAdmin from "./pages/PromptAdmin";
 import SignInPage from "./pages/SignIn";
 import SignUpPage from "./pages/SignUp";
+import Units from "./pages/Units";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";
 import { useQuery } from "convex/react";
@@ -76,6 +79,9 @@ function Router() {
       <Route path="/dashboard">
         {() => <Protected Component={Dashboard} />}
       </Route>
+      <Route path="/units">
+        {() => <Protected Component={Units} />}
+      </Route>
       <Route path="/week/:weekNumber">
         {() => <Protected Component={WeekView} />}
       </Route>
@@ -87,6 +93,9 @@ function Router() {
       </Route>
       <Route path="/vocabulary">
         {() => <Protected Component={Vocabulary} />}
+      </Route>
+      <Route path="/vocabulary-quiz">
+        {() => <Protected Component={VocabularyQuizRedirect} />}
       </Route>
       <Route path="/vocabulary-list">
         {() => <Protected Component={VocabularyList} />}
@@ -105,11 +114,11 @@ function Router() {
       <Route path="/admin">
         {() => <Protected Component={Admin} />}
       </Route>
+      <Route path="/admin/prompt">
+        {() => <Protected Component={PromptAdmin} />}
+      </Route>
       <Route path="/admin/feedback">
         {() => <Protected Component={FeedbackManagement} />}
-      </Route>
-      <Route path="/admin/beta-registrations">
-        {() => <Protected Component={BetaRegistrations} />}
       </Route>
       <Route path="/admin/subscription-analytics">
         {() => <Protected Component={SubscriptionAnalytics} />}
@@ -126,22 +135,21 @@ function Router() {
 }
 
 function App() {
-  // Auto-switch language based on user preference
-  const user = useQuery(api.users.me);
-  
+  // BETA: Force English for all users
   useEffect(() => {
-    if (user?.learningLanguage) {
-      i18n.changeLanguage(user.learningLanguage);
-    }
-  }, [user?.learningLanguage]);
+    i18n.changeLanguage('en');
+    localStorage.removeItem('preferredLanguage');
+  }, []); // Remove user dependency
 
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <LanguageProvider defaultLanguage="en">
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

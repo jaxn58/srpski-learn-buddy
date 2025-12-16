@@ -6,11 +6,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Doc } from "../../../convex/_generated/dataModel";
 import { Sidebar } from "@/components/Sidebar";
 import { MessageSquare } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+
+type FeedbackSubmissionDoc = Doc<"feedbackSubmissions">;
 
 export default function Feedback() {
   const { user, loading } = useAuth();
@@ -18,13 +21,13 @@ export default function Feedback() {
   const [feedback, setFeedback] = useState({ type: "other" as const, title: "", description: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitFeedbackMutation = useMutation(api.feedback.submit);
-  const mySubmissions = useQuery(api.feedback.getMySubmissions) ?? [];
+  const mySubmissions = (useQuery(api.feedback.getMySubmissions) ?? []) as FeedbackSubmissionDoc[];
 
   if (loading) {
     return (
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 md:ml-64 w-full flex items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
       </div>
@@ -35,7 +38,7 @@ export default function Feedback() {
     return (
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 md:ml-64 w-full flex items-center justify-center">
           <Card className="max-w-md">
             <CardHeader>
               <CardTitle>{t('feedback.loginRequired.title')}</CardTitle>
@@ -103,7 +106,7 @@ export default function Feedback() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex-1 md:ml-64 w-full">
         <main className="container py-12">
           <div className="max-w-2xl mx-auto">
             <div className="text-center space-y-4 mb-12">
@@ -227,8 +230,8 @@ export default function Feedback() {
               <div className="mt-16">
                 <h2 className="text-2xl font-bold mb-6">{t('feedback.history.title')}</h2>
                 <div className="space-y-4">
-                  {mySubmissions.map((submission) => (
-                    <Card key={submission.id} className="border-l-4 border-l-primary">
+                  {mySubmissions.map((submission: FeedbackSubmissionDoc) => (
+                    <Card key={submission._id} className="border-l-4 border-l-primary">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -244,6 +247,16 @@ export default function Feedback() {
                       </CardHeader>
                       <CardContent>
                         <p className="text-sm text-muted-foreground mb-3">{submission.description}</p>
+                        {submission.adminNotes && (
+                          <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                              {t('feedback.adminNote') || 'Admin Note'}:
+                            </p>
+                            <p className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
+                              {submission.adminNotes}
+                            </p>
+                          </div>
+                        )}
                         <p className="text-xs text-muted-foreground">
                           {t('feedback.submitted')}: {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString('de-DE', {
                             year: 'numeric',

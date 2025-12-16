@@ -1,21 +1,31 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress as ProgressBar } from "@/components/ui/progress";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, CheckCircle2, Clock, TrendingUp, Calendar, Award } from "lucide-react";
 import { Link } from "wouter";
-import { COURSE_WEEKS } from "@shared/data";
 import { Sidebar } from "@/components/Sidebar";
 import { useTranslation } from "react-i18next";
+import { motion } from "framer-motion";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from "recharts";
+import {
+  TrendingUp, Calendar, Award, Zap, Target,
+  BookOpen, Clock, CheckCircle2, Trophy, Flame
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress as ProgressBar } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { COURSE_WEEKS, COURSE_MODULES, getModuleProgress } from "@shared/data";
+
+const COLORS = ['#22c55e', '#ef4444']; // Green for Correct, Red for Incorrect
 
 export default function Progress() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const progress = useQuery(api.progress.getUserProgress);
-  const isLoading = progress === undefined;
+  const stats = useQuery(api.progress.getDashboardStats);
+  const isLoading = stats === undefined;
 
   if (!user) {
     window.location.href = "/";
@@ -24,287 +34,370 @@ export default function Progress() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  const completedUnits = progress?.completedUnits || [];
+  // Fallback data if no stats (should rarely happen for active users)
+  const completedUnits = stats?.completedUnits || [];
   const totalUnits = 27;
   const progressPercent = (completedUnits.length / totalUnits) * 100;
-  const currentWeek = progress?.currentWeek || 1;
-  const learningDuration = progress?.learningDuration || 12;
-  const totalWeeks = learningDuration;
-  const weekProgress = (currentWeek / totalWeeks) * 100;
+  
+  // Format dates for chart
+  const activityData = stats?.activityChart?.map(day => ({
+    name: new Date(day.date).toLocaleDateString(i18n.language === 'de' ? 'de-DE' : 'en-US', { weekday: 'short' }),
+    xp: day.xp,
+    fullDate: new Date(day.date).toLocaleDateString()
+  })) || [];
 
-  // Calculate estimated completion date
-  const startDate = progress?.startedAt ? new Date(progress.startedAt) : new Date();
-  const estimatedEndDate = new Date(startDate);
-  estimatedEndDate.setDate(estimatedEndDate.getDate() + (learningDuration * 7));
+  // Accuracy Data
+  const accuracyData = [
+    { name: t('progress.correct'), value: stats?.accuracyStats?.totalCorrect || 0 },
+    { name: t('progress.incorrect'), value: stats?.accuracyStats?.totalIncorrect || 0 },
+  ];
+  const hasAccuracyData = (stats?.accuracyStats?.totalAttempts || 0) > 0;
+
+  // Level Calculation (simple logic for display)
+  const nextLevelXP = (stats?.level || 1) * 1000; // Example: 1000 XP per level
+  const currentLevelXP = (stats?.totalXP || 0) % 1000;
+  const levelProgress = Math.min(100, (currentLevelXP / 1000) * 100);
 
   // Calculate days since start
-  const daysSinceStart = Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const startDate = stats?.creationTime ? new Date(stats.creationTime) : new Date();
+  const daysSinceStart = Math.max(1, Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
   
-  // Calculate average units per week
-  const weeksElapsed = Math.max(1, Math.floor(daysSinceStart / 7));
-  const avgUnitsPerWeek = (completedUnits.length / weeksElapsed).toFixed(1);
+  // Container Animation
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { 
+        staggerChildren: 0.1 
+      }
+    }
+  };
 
-  // Get current week info
-  const currentWeekInfo = COURSE_WEEKS.find(w => w.weekNumber === currentWeek);
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { 
+      y: 0, 
+      opacity: 1,
+      transition: { type: "spring", stiffness: 100 }
+    }
+  };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-slate-50/50">
       <Sidebar />
-      <div className="flex-1">
-      <header className="border-b bg-card">
-        <div className="container py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">{t('progress.backToDashboard')}</Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">{t('progress.title')}</h1>
+      <div className="flex-1 md:ml-64 w-full">
+        <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+          <div className="container py-4">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm" className="hover:bg-slate-100">
+                  ← {t('progress.backToDashboard')}
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-6 w-6 text-primary" />
+                <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+                  {t('progress.title')}
+                </h1>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="container py-8 max-w-6xl">
-        <div className="space-y-6">
-          {/* Overview Stats */}
-          <div className="grid md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('progress.totalProgress')}</CardTitle>
-                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
-                <p className="text-xs text-muted-foreground">{t('progress.unitsCompleted')}</p>
-                <ProgressBar value={progressPercent} className="mt-2" />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('progress.currentWeek')}</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{currentWeek}/{totalWeeks}</div>
-                <p className="text-xs text-muted-foreground">{t('progress.weekProgress')}</p>
-                <ProgressBar value={weekProgress} className="mt-2" />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('progress.learningPace')}</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{avgUnitsPerWeek}</div>
-                <p className="text-xs text-muted-foreground">{t('progress.unitsPerWeek')}</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('progress.daysActive')}</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{daysSinceStart}</div>
-                <p className="text-xs text-muted-foreground">{t('progress.sinceStarted')}</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Current Week Details */}
-          {currentWeekInfo && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('progress.week', { number: currentWeek })}: {i18n.language === 'de' && currentWeekInfo.titleGerman ? currentWeekInfo.titleGerman : currentWeekInfo.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+        <main className="container py-8 max-w-7xl">
+          <motion.div 
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="space-y-8"
+          >
+            {/* HERO SECTION: GAMIFICATION */}
+            <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* Level Card */}
+              <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white overflow-hidden relative border-none shadow-lg">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Trophy className="w-32 h-32" />
+                </div>
+                <CardContent className="p-6 relative z-10 flex items-center justify-between">
                   <div>
-                    <h4 className="font-semibold mb-2">{t('progress.learningObjectives')}</h4>
-                    <ul className="space-y-1">
-                      {(i18n.language === 'de' && currentWeekInfo.goalsGerman ? currentWeekInfo.goalsGerman : currentWeekInfo.goals)?.map((obj: string, idx: number) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm">
-                          <span className="text-primary mt-1">•</span>
-                          <span>{obj}</span>
-                        </li>
-                      )) || <li className="text-sm text-muted-foreground">{t('progress.noObjectives')}</li>}
-                    </ul>
+                    <div className="text-blue-100 text-sm font-medium mb-1">Current Level</div>
+                    <div className="text-4xl font-bold mb-2">Level {stats?.level || 1}</div>
+                    <div className="text-blue-100 text-sm mb-4">
+                      {Math.floor(stats?.totalXP || 0)} Total XP
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-blue-100">
+                        <span>Progress to Lvl {(stats?.level || 1) + 1}</span>
+                        <span>{Math.round(levelProgress)}%</span>
+                      </div>
+                      <div className="h-2 bg-black/20 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-white/90 rounded-full transition-all duration-1000 ease-out"
+                          style={{ width: `${levelProgress}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  <div className="h-20 w-20 rounded-full bg-white/10 flex items-center justify-center border-4 border-white/20">
+                    <Zap className="h-10 w-10 text-yellow-300 fill-yellow-300" />
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('progress.timeline')}</CardTitle>
-              <CardDescription>{t('progress.timelineDesc')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between text-sm">
+              {/* Streak Card */}
+              <Card className="bg-gradient-to-br from-orange-500 to-red-600 text-white overflow-hidden relative border-none shadow-lg">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Flame className="w-32 h-32" />
+                </div>
+                <CardContent className="p-6 relative z-10 flex items-center justify-between h-full">
                   <div>
-                    <div className="font-medium">{t('progress.started')}</div>
-                    <div className="text-muted-foreground">
-                      {startDate.toLocaleDateString('de-DE')}
+                    <div className="text-orange-100 text-sm font-medium mb-1">Winning Streak</div>
+                    <div className="text-4xl font-bold mb-2">{stats?.currentStreak || 0} Days</div>
+                    <div className="text-orange-100 text-sm">
+                      Keep it up! Practice daily to build your habit.
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-medium">{t('progress.estimatedCompletion')}</div>
-                    <div className="text-muted-foreground">
-                      {estimatedEndDate.toLocaleDateString('de-DE')}
+                  <div className="h-20 w-20 rounded-full bg-white/10 flex items-center justify-center border-4 border-white/20 animate-pulse">
+                    <Flame className="h-10 w-10 text-white fill-white" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Mastery Card */}
+              <Card className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6 flex flex-col justify-center h-full">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 bg-green-100 text-green-600 rounded-lg">
+                      <Target className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Course Mastery</div>
+                      <div className="text-2xl font-bold">
+                        {Math.round(progressPercent)}%
+                      </div>
                     </div>
                   </div>
-                </div>
-                <ProgressBar value={weekProgress} className="h-3" />
-                <div className="text-center text-sm text-muted-foreground">
-                  {t('progress.weeksRemaining', { count: totalWeeks - currentWeek })}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Units Completed</span>
+                      <span className="font-medium">{completedUnits.length} / {totalUnits}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Words Mastered</span>
+                      <span className="font-medium">{stats?.accuracyStats?.masteredVocab || 0}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Days Active</span>
+                      <span className="font-medium">{daysSinceStart}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Units Progress Grid */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('progress.unitsOverview')}</CardTitle>
-              <CardDescription>{t('progress.unitsOverviewDesc')}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-9 gap-2">
-                {Array.from({ length: totalUnits }, (_, i) => i + 1).map((unitNum) => {
-                  const isCompleted = completedUnits.includes(unitNum);
-                  const isCurrent = progress?.currentUnit === unitNum;
-                  
-                  return (
-                    <div
-                      key={unitNum}
-                      className={`
-                        aspect-square rounded-lg border-2 flex items-center justify-center font-semibold
-                        ${isCompleted 
-                          ? 'bg-green-50 border-green-500 text-green-700' 
-                          : isCurrent
-                          ? 'bg-blue-50 border-blue-500 text-blue-700'
-                          : 'bg-gray-50 border-gray-200 text-gray-400'
-                        }
-                      `}
-                    >
-                      {isCompleted ? (
-                        <CheckCircle2 className="h-5 w-5" />
-                      ) : (
-                        <span className="text-sm">{unitNum}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex gap-6 mt-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-green-50 border-2 border-green-500"></div>
-                  <span>{t('progress.completed')}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-blue-50 border-2 border-blue-500"></div>
-                  <span>{t('progress.current')}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-gray-50 border-2 border-gray-200"></div>
-                  <span>{t('progress.notStarted')}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </motion.div>
 
-          {/* Achievements */}
-          {completedUnits.length > 0 && (
-            <Card className="bg-primary/5 border-primary/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-primary" />
-                  {t('progress.achievements')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {completedUnits.length >= 1 && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <div className="text-3xl">🎯</div>
-                      <div>
-                        <div className="font-semibold">{t('progress.achievement.firstSteps')}</div>
-                        <div className="text-xs text-muted-foreground">{t('progress.achievement.firstSteps.desc')}</div>
-                      </div>
+            {/* CHARTS SECTION */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Activity Chart */}
+              <motion.div variants={itemVariants} className="lg:col-span-2">
+                <Card className="h-full">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      XP Activity (Last 7 Days)
+                    </CardTitle>
+                    <CardDescription>Your learning consistency over the past week</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={activityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                          <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#64748b', fontSize: 12 }}
+                            dy={10}
+                          />
+                          <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#64748b', fontSize: 12 }}
+                          />
+                          <RechartsTooltip 
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            cursor={{ fill: '#f1f5f9' }}
+                          />
+                          <Bar 
+                            dataKey="xp" 
+                            fill="#3b82f6" 
+                            radius={[4, 4, 0, 0]} 
+                            barSize={40}
+                            animationDuration={1500}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                  )}
-                  {completedUnits.length >= 5 && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <div className="text-3xl">🚀</div>
-                      <div>
-                        <div className="font-semibold">{t('progress.achievement.gettingStarted')}</div>
-                        <div className="text-xs text-muted-foreground">{t('progress.achievement.gettingStarted.desc')}</div>
-                      </div>
-                    </div>
-                  )}
-                  {completedUnits.length >= 10 && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <div className="text-3xl">⭐</div>
-                      <div>
-                        <div className="font-semibold">{t('progress.achievement.halfwayThere')}</div>
-                        <div className="text-xs text-muted-foreground">{t('progress.achievement.halfwayThere.desc')}</div>
-                      </div>
-                    </div>
-                  )}
-                  {completedUnits.length >= 20 && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <div className="text-3xl">🏆</div>
-                      <div>
-                        <div className="font-semibold">{t('progress.achievement.almostThere')}</div>
-                        <div className="text-xs text-muted-foreground">{t('progress.achievement.almostThere.desc')}</div>
-                      </div>
-                    </div>
-                  )}
-                  {completedUnits.length === 27 && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg">
-                      <div className="text-3xl">🎓</div>
-                      <div>
-                        <div className="font-semibold">{t('progress.achievement.courseMaster')}</div>
-                        <div className="text-xs text-muted-foreground">{t('progress.achievement.courseMaster.desc')}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  </CardContent>
+                </Card>
+              </motion.div>
 
-          {/* Study Tips */}
-          <Card className="bg-primary/5 border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">{t('progress.keepGoing')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm">
-                <li>{t('progress.tip1')}</li>
-                <li>{t('progress.tip2')}</li>
-                <li>{t('progress.tip3')}</li>
-                <li>{t('progress.tip4')}</li>
-                <li>{t('progress.tip5')}</li>
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+              {/* Accuracy Chart */}
+              <motion.div variants={itemVariants}>
+                <Card className="h-full">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5 text-primary" />
+                      Accuracy Rate
+                    </CardTitle>
+                    <CardDescription>Based on all your answers</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col items-center justify-center pt-0">
+                    {hasAccuracyData ? (
+                      <div className="h-[250px] w-full relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={accuracyData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={80}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              {accuracyData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip />
+                            <Legend verticalAlign="bottom" height={36} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[60%] text-center">
+                          <div className="text-3xl font-bold text-slate-800">
+                            {Math.round((accuracyData[0].value / (accuracyData[0].value + accuracyData[1].value)) * 100)}%
+                          </div>
+                          <div className="text-xs text-muted-foreground">Correct</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm text-center px-8">
+                        Not enough data yet. Complete some exercises to see your accuracy!
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
+
+            {/* MODULES OVERVIEW SECTION */}
+            <motion.div variants={itemVariants}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-primary" />
+                    {t('progress.unitsOverview')}
+                  </CardTitle>
+                  <CardDescription>{t('progress.unitsOverviewDesc')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {COURSE_MODULES.map((module) => {
+                      const moduleProgress = getModuleProgress(module.id, completedUnits);
+                      const moduleTitle = i18n.language === 'de' ? module.titleGerman : module.titleEnglish;
+                      
+                      return (
+                        <div key={module.id} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Badge variant="outline" className="text-sm bg-slate-50">
+                                {t('units.module', { number: module.number })}
+                              </Badge>
+                              <span className="font-semibold text-slate-700">{moduleTitle}</span>
+                            </div>
+                            <span className="text-sm text-muted-foreground">
+                              {t('progress.lessonsCompleted', { 
+                                completed: moduleProgress.completed, 
+                                total: moduleProgress.total 
+                              })}
+                            </span>
+                          </div>
+                          <ProgressBar value={moduleProgress.percentage} className="h-2" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Achievements Section */}
+            <motion.div variants={itemVariants}>
+              {completedUnits.length > 0 && (
+                <Card className="bg-gradient-to-r from-yellow-50 to-amber-50 border-amber-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-amber-800">
+                      <Award className="h-5 w-5 text-amber-600" />
+                      {t('progress.achievements')}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
+                      {/* First Steps */}
+                      <div className={`flex flex-col items-center p-4 rounded-xl border ${completedUnits.length >= 1 ? 'bg-white border-amber-100 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50 grayscale'}`}>
+                        <div className="text-4xl mb-2">🎯</div>
+                        <div className="font-bold text-sm text-center mb-1">{t('progress.achievement.firstSteps')}</div>
+                        <div className="text-xs text-muted-foreground text-center">{t('progress.achievement.firstSteps.desc')}</div>
+                      </div>
+
+                      {/* Getting Started */}
+                      <div className={`flex flex-col items-center p-4 rounded-xl border ${completedUnits.length >= 5 ? 'bg-white border-amber-100 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50 grayscale'}`}>
+                        <div className="text-4xl mb-2">🚀</div>
+                        <div className="font-bold text-sm text-center mb-1">{t('progress.achievement.gettingStarted')}</div>
+                        <div className="text-xs text-muted-foreground text-center">{t('progress.achievement.gettingStarted.desc')}</div>
+                      </div>
+
+                      {/* Halfway There */}
+                      <div className={`flex flex-col items-center p-4 rounded-xl border ${completedUnits.length >= 10 ? 'bg-white border-amber-100 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50 grayscale'}`}>
+                        <div className="text-4xl mb-2">⭐</div>
+                        <div className="font-bold text-sm text-center mb-1">{t('progress.achievement.halfwayThere')}</div>
+                        <div className="text-xs text-muted-foreground text-center">{t('progress.achievement.halfwayThere.desc')}</div>
+                      </div>
+
+                      {/* Almost There */}
+                      <div className={`flex flex-col items-center p-4 rounded-xl border ${completedUnits.length >= 20 ? 'bg-white border-amber-100 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50 grayscale'}`}>
+                        <div className="text-4xl mb-2">🏆</div>
+                        <div className="font-bold text-sm text-center mb-1">{t('progress.achievement.almostThere')}</div>
+                        <div className="text-xs text-muted-foreground text-center">{t('progress.achievement.almostThere.desc')}</div>
+                      </div>
+
+                      {/* Master */}
+                      <div className={`flex flex-col items-center p-4 rounded-xl border ${completedUnits.length === 27 ? 'bg-white border-amber-100 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-50 grayscale'}`}>
+                        <div className="text-4xl mb-2">🎓</div>
+                        <div className="font-bold text-sm text-center mb-1">{t('progress.achievement.courseMaster')}</div>
+                        <div className="text-xs text-muted-foreground text-center">{t('progress.achievement.courseMaster.desc')}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </motion.div>
+
+          </motion.div>
+
+          <footer className="mt-12 pt-8 border-t text-center text-sm text-muted-foreground">
+            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
+          </footer>
+        </main>
       </div>
     </div>
   );

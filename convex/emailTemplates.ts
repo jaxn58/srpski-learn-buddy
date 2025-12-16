@@ -1,16 +1,28 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx, internalMutation, action } from "./_generated/server";
-import { api } from "./_generated/api";
+import { mutation, query, QueryCtx, MutationCtx, internalMutation, action, ActionCtx } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 // Helper to get the current user and verify admin
-async function getAdminUser(ctx: QueryCtx | MutationCtx) {
+type AnyCtx = QueryCtx | MutationCtx | ActionCtx;
+type CtxWithDb = QueryCtx | MutationCtx;
+
+function hasDb(ctx: AnyCtx): ctx is CtxWithDb {
+  return "db" in ctx;
+}
+
+async function getAdminUser(ctx: AnyCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-    .first();
+  const user = hasDb(ctx)
+    ? await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+        .first()
+    : await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+        clerkId: identity.subject,
+      });
 
   if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
     return null;
@@ -20,14 +32,18 @@ async function getAdminUser(ctx: QueryCtx | MutationCtx) {
 }
 
 // Helper to get superadmin user
-async function getSuperadminUser(ctx: QueryCtx | MutationCtx) {
+async function getSuperadminUser(ctx: AnyCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-    .first();
+  const user = hasDb(ctx)
+    ? await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+        .first()
+    : await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+        clerkId: identity.subject,
+      });
 
   if (!user || user.role !== "superadmin") {
     return null;
@@ -50,6 +66,9 @@ export const getAll = query({
 export const getByName = query({
   args: { name: v.string() },
   handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
     return await ctx.db
       .query("emailTemplates")
       .withIndex("by_name", (q) => q.eq("name", args.name))
@@ -61,6 +80,9 @@ export const getByName = query({
 export const getById = query({
   args: { id: v.id("emailTemplates") },
   handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
     return await ctx.db.get(args.id);
   },
 });
@@ -185,9 +207,14 @@ export const setupTemplate = action({
     ),
     isActive: v.boolean(),
   },
-  handler: async (ctx, args) => {
-    // Call internal mutation (bypasses auth)
-    return await ctx.runMutation(api.emailTemplates.internalUpsert, args);
+  handler: async (ctx, args): Promise<{ id: Id<"emailTemplates"> }> => {
+    const superadmin = await getSuperadminUser(ctx);
+    if (!superadmin) {
+      throw new Error("Superadmin access required");
+    }
+
+    const id = await ctx.runMutation(internal.emailTemplates.internalUpsert, args);
+    return { id };
   },
 });
 

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Send, User, Brain, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
@@ -45,6 +46,10 @@ const markdownComponents = {
   hr: ({node, ...props}: any) => <hr className="my-4 border-border" {...props} />,
 };
 
+type ChatMessageDoc = Doc<"chatMessages">;
+type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
+type ChatSession = Doc<"chatSessions">;
+
 export default function Chat() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
@@ -53,30 +58,45 @@ export default function Chat() {
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
   
+  const formatMessageTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
+    return date.toLocaleTimeString('de-DE', options);
+  };
   const progress = useQuery(api.progress.getUserProgress);
   const createSessionMutation = useMutation(api.chat.createSession);
   const sendMessageAction = useAction(api.chat.sendMessage);
 
-  // Create initial session on mount
+  // Wähle den ersten vorhandenen Chat, wenn keiner selektiert ist oder der aktuelle nicht mehr existiert.
+  // Keine Auto-Erstellung eines neuen Chats bei leerer Liste.
   useEffect(() => {
-    if (!currentSessionId && !isCreatingSession) {
-      setIsCreatingSession(true);
-      createSessionMutation({ title: "New Chat" }).then(sessionId => {
-        setCurrentSessionId(sessionId as unknown as string);
-        setIsCreatingSession(false);
-      }).catch(() => setIsCreatingSession(false));
+    if (!sessions) return; // loading
+
+    const hasCurrent = currentSessionId && sessions.some((s) => (s._id as unknown as string) === currentSessionId);
+
+    if (sessions.length === 0) {
+      if (currentSessionId) {
+        setCurrentSessionId(null);
+      }
+      return;
     }
-  }, [currentSessionId, isCreatingSession, createSessionMutation]);
+
+    if (!hasCurrent) {
+      const latestSessionId = sessions[0]._id as unknown as string;
+      setCurrentSessionId(latestSessionId);
+    }
+  }, [sessions, currentSessionId]);
 
   // Fetch messages for current session - Convex handles reactivity automatically
   const sessionMessages = useQuery(
     api.chat.getMessages,
-    currentSessionId ? { sessionId: currentSessionId as any } : "skip"
+    currentSessionId ? { sessionId: currentSessionId as Id<"chatSessions"> } : "skip"
   );
 
   // Use Convex messages directly, with fallback to local state during loading
-  const messages = sessionMessages ?? [];
+  const messages = (sessionMessages ?? []) as ChatMessageDisplay[];
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -130,6 +150,7 @@ export default function Chat() {
     }
   };
 
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -146,12 +167,13 @@ export default function Chat() {
   return (
     <div className="flex min-h-screen bg-gradient-to-b from-background to-muted/20">
       <Sidebar />
-      <ChatSessionsSidebar 
-        currentSessionId={currentSessionId}
-        onSelectSession={handleSelectSession}
-        onNewChat={handleNewChat}
-      />
-      <div className="flex-1">
+      <div className="flex flex-1 w-full md:ml-64">
+        <ChatSessionsSidebar 
+          currentSessionId={currentSessionId}
+          onSelectSession={handleSelectSession}
+          onNewChat={handleNewChat}
+        />
+        <div className="flex-1 w-full">
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container py-4">
           <div className="flex items-center gap-4">
@@ -201,14 +223,14 @@ export default function Chat() {
               </div>
             )}
             
-            {messages.map((msg, idx) => (
+            {messages.map((msg: ChatMessageDisplay, idx: number) => (
               <div
                 key={idx}
                 className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-gradient-to-br from-blue-500 to-purple-600' : 'bg-primary'}`}>
-                  <AvatarFallback className="text-white text-xs">
-                    {msg.role === 'assistant' ? <Sparkles className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-gradient-to-br from-red-500 to-red-600' : 'bg-primary'}`}>
+                  <AvatarFallback className="text-white text-xs bg-transparent">
+                    {msg.role === 'assistant' ? <Brain className="h-4 w-4" /> : <User className="h-4 w-4" />}
                   </AvatarFallback>
                 </Avatar>
                 
@@ -234,7 +256,7 @@ export default function Chat() {
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-2">
-                    {new Date(msg._creationTime || msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatMessageTime(msg._creationTime || msg.createdAt || Date.now())}
                   </span>
                 </div>
               </div>
@@ -265,23 +287,38 @@ export default function Chat() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={t('chat.placeholder')}
+                placeholder={currentSessionId ? t('chat.placeholder') : t('chat.noSessionPlaceholder', 'Please start a new chat first')}
                 className="flex-1 rounded-full"
-                disabled={isSending}
+                disabled={isSending || !currentSessionId}
               />
               <Button
                 onClick={handleSend}
-                disabled={!message.trim() || isSending}
+                disabled={!message.trim() || isSending || !currentSessionId}
                 size="icon"
                 className="rounded-full h-10 w-10"
               >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+            {!currentSessionId && (
+              <div className="text-center mt-2">
+                <Button variant="link" size="sm" onClick={handleNewChat} className="text-primary">
+                  {t('chat.startNewChat', 'Start a new chat to begin')}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
+          <div className="text-center text-sm text-muted-foreground">
+            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
+          </div>
+        </footer>
       </main>
       </div>
+    </div>
     </div>
   );
 }

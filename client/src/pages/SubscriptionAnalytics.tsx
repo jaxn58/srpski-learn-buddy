@@ -5,11 +5,15 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { BarChart3, DollarSign, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { Redirect } from "wouter";
+import { useEffect } from "react";
 
 export default function SubscriptionAnalytics() {
   const { user, loading: authLoading } = useAuth();
   const analytics = useQuery(api.subscriptions.getAnalytics);
   const isLoading = analytics === undefined;
+  const runId = "sub-analytics-fix";
+
+  useEffect(() => {}, []);
 
   // Check if user is admin
   if (!authLoading && (!user || (user.role !== "admin" && user.role !== "superadmin"))) {
@@ -20,7 +24,7 @@ export default function SubscriptionAnalytics() {
     return (
       <div className="flex h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 md:ml-64 w-full flex items-center justify-center" data-subscription-analytics-main>
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
             <p className="mt-4 text-muted-foreground">Loading analytics...</p>
@@ -34,7 +38,7 @@ export default function SubscriptionAnalytics() {
     return (
       <div className="flex h-screen">
         <Sidebar />
-        <div className="flex-1 p-8">
+        <div className="flex-1 md:ml-64 w-full p-8" data-subscription-analytics-main>
           <div className="max-w-6xl mx-auto">
             <h1 className="text-3xl font-bold mb-6">Subscription Analytics</h1>
             <Card>
@@ -62,7 +66,7 @@ export default function SubscriptionAnalytics() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <div className="flex-1 p-8 overflow-y-auto">
+      <div className="flex-1 md:ml-64 w-full p-8 overflow-y-auto" data-subscription-analytics-main>
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-6">Subscription Analytics</h1>
 

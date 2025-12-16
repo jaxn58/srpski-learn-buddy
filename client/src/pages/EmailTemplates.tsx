@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Mail, Eye, Trash2, Edit, Plus, CheckCircle, XCircle, ArrowLeft, Code, Eye as EyeIcon } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -22,20 +23,22 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 type TemplateCategory = "transactional" | "subscription" | "marketing";
+type EmailTemplateDoc = Doc<"emailTemplates">;
 
 type ViewMode = "list" | "editor";
 
 export default function EmailTemplates() {
   const { user, loading: authLoading } = useAuth();
-  const templates = useQuery(api.emailTemplates.getAll);
+  const templates = useQuery(api.emailTemplates.getAll) as EmailTemplateDoc[] | undefined;
   const templatesLoading = templates === undefined;
+  const runId = "email-design-fix";
   
   const upsertMutation = useMutation(api.emailTemplates.upsert);
   const deleteMutation = useMutation(api.emailTemplates.remove);
   
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [editingTemplate, setEditingTemplate] = useState<any>(null);
-  const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplateDoc | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<EmailTemplateDoc | null>(null);
   const [previewVariables, setPreviewVariables] = useState<Record<string, string>>({});
   
   const [formData, setFormData] = useState({
@@ -73,7 +76,7 @@ export default function EmailTemplates() {
   // Update editor content when formData changes externally (but not from editor updates)
   useEffect(() => {
     if (editor && formData.htmlContent !== editor.getHTML()) {
-      editor.commands.setContent(formData.htmlContent, false);
+      editor.commands.setContent(formData.htmlContent);
     }
   }, [formData.htmlContent, editor]);
 
@@ -85,6 +88,7 @@ export default function EmailTemplates() {
       }
     };
   }, [editor]);
+
 
   // Auto-detect variables from content
   const detectedVariables = useMemo(() => {
@@ -157,7 +161,7 @@ export default function EmailTemplates() {
     );
   }
 
-  const handleEdit = (template: any) => {
+  const handleEdit = (template: EmailTemplateDoc) => {
     setEditingTemplate(template);
     setFormData({
       name: template.name,
@@ -231,18 +235,18 @@ export default function EmailTemplates() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: Id<"emailTemplates">) => {
     if (!confirm('Are you sure you want to delete this template? This action cannot be undone.')) return;
     
     try {
-      await deleteMutation({ id: id as any });
+      await deleteMutation({ id });
       toast.success('Template deleted successfully');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete template');
     }
   };
 
-  const handlePreview = (template: any) => {
+  const handlePreview = (template: EmailTemplateDoc) => {
     setPreviewTemplate(template);
     // Initialize preview variables with sample data
     const vars: Record<string, string> = {};
@@ -252,7 +256,7 @@ export default function EmailTemplates() {
     setPreviewVariables(vars);
   };
 
-  const getCategoryColor = (category: string) => {
+  const getCategoryColor = (category: TemplateCategory) => {
     switch (category) {
       case 'transactional': return 'bg-blue-100 text-blue-800';
       case 'subscription': return 'bg-green-100 text-green-800';
@@ -268,7 +272,7 @@ export default function EmailTemplates() {
     return (
       <div className="flex min-h-screen bg-background">
         <Sidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 md:ml-64 w-full flex flex-col">
           <header className="border-b bg-card">
             <div className="container py-4">
               <div className="flex items-center justify-between">
@@ -553,7 +557,7 @@ export default function EmailTemplates() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 md:ml-64 w-full flex flex-col">
         <header className="border-b bg-card">
           <div className="container py-4">
             <div className="flex items-center justify-between">
@@ -578,7 +582,7 @@ export default function EmailTemplates() {
           </div>
         </header>
 
-        <main className="container py-8">
+        <main className="container py-8" data-email-templates-main>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

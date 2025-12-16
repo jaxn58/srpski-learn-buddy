@@ -399,7 +399,7 @@ const resources = {
       "app.title": "Serbisch AI Tutor",
       "home.hero.title": "Lerne Serbisch mit deinem",
       "home.hero.titleHighlight": "persönlichen KI Lernbuddy",
-      "home.hero.subtitle": "Ein strukturierter Kurs basierend auf „Step by Step Serbian 1" – mit interaktiven Übungen, Vokabeltraining und intelligentem Konversationstraining.",
+      "home.hero.subtitle": "Ein strukturierter Kurs basierend auf „Serbian LearnBuddy" – mit interaktiven Übungen, Vokabeltraining und intelligentem Konversationstraining.",
       "home.cta.start": "Jetzt starten",
       "home.cta.learnMore": "Mehr erfahren",
       
@@ -493,21 +493,21 @@ const generateChatResponse = async (
   const systemPrompts = {
     en: `You are a friendly Serbian tutor for English-speaking learners.
          Explain grammar in English, but use Serbian examples.
-         The course material is based on "Step by Step Serbian 1".
+         The course material is based on "Serbian LearnBuddy".
          Be encouraging and patient. Use simple language.`,
          
     de: `Du bist ein freundlicher Serbisch-Tutor für deutschsprachige Lernende.
          Erkläre Grammatik auf Deutsch, aber verwende auch serbische Beispiele.
-         Das Kursmaterial basiert auf "Step by Step Serbian 1".
+         Das Kursmaterial basiert auf "Serbian LearnBuddy".
          Sei ermutigend und geduldig. Verwende einfache Sprache.`,
          
     es: `Eres un tutor amigable de serbio para estudiantes de habla hispana.
          Explica la gramática en español, pero usa ejemplos en serbio.
-         El material del curso se basa en "Step by Step Serbian 1".`,
+         El material del curso se basa en "Serbian LearnBuddy".`,
          
     fr: `Tu es un tuteur serbe sympathique pour les apprenants francophones.
          Explique la grammaire en français, mais utilise des exemples serbes.
-         Le matériel de cours est basé sur "Step by Step Serbian 1".`
+         Le matériel de cours est basé sur "Serbian LearnBuddy".`
   };
   
   const systemPrompt = systemPrompts[userLang];
@@ -749,7 +749,7 @@ translateVocabulary();
 - Serbisch Kurs
 - Serbisch für Anfänger
 - Serbisch Vokabeln
-- Step by Step Serbian auf Deutsch
+- Serbian LearnBuddy auf Deutsch
 - Serbisch AI Tutor
 - Serbisch Sprachkurs online
 
@@ -759,8 +759,8 @@ translateVocabulary();
 <!-- /de -->
 <html lang="de">
 <head>
-  <title>Serbisch lernen mit KI Tutor | Step by Step Serbian auf Deutsch</title>
-  <meta name="description" content="Lerne Serbisch strukturiert mit deinem persönlichen KI Lernbuddy. Basierend auf dem Kursbuch Step by Step Serbian 1. Vokabeln, Grammatik, Konversation." />
+  <title>Serbisch lernen mit KI Tutor | Serbian LearnBuddy auf Deutsch</title>
+  <meta name="description" content="Lerne Serbisch strukturiert mit deinem persönlichen KI Lernbuddy. Basierend auf dem Kursbuch Serbian LearnBuddy. Vokabeln, Grammatik, Konversation." />
   <link rel="alternate" hreflang="en" href="https://serbiantutor.com/en" />
   <link rel="alternate" hreflang="de" href="https://serbiantutor.com/de" />
   <link rel="alternate" hreflang="x-default" href="https://serbiantutor.com" />

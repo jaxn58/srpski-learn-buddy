@@ -2,19 +2,26 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { FillInBlankExercise, type FillInBlankQuestion } from './exercises/FillInBlank';
 import { TranslationExercise, type TranslationQuestion } from './exercises/TranslationExercise';
+import { GenderRecognitionExercise, type GenderRecognitionQuestion } from './exercises/GenderRecognition';
+import { NEW_UNIT1_EXERCISES } from './exercises/new-unit1-exercises';
+import { NEW_UNIT2_EXERCISES } from './exercises/new-unit2-exercises';
 import { UNIT2_EXERCISES } from './exercises/unit2-exercises';
 import { UNITS_3_5_EXERCISES } from './exercises/units-3-5-exercises';
 import { UNIT6_EXERCISES } from './exercises/unit6-exercises';
 import { UNITS_6_10_EXERCISES } from './exercises/units-6-10-exercises';
 import { UNITS_11_15_EXERCISES } from './exercises/units-11-15-exercises';
+import { UNITS_16_27_EXERCISES } from './exercises/units-16-27-exercises';
 
 // Exercise data definitions
 const EXERCISES: Record<string, any> = {
+  ...NEW_UNIT1_EXERCISES,
+  ...NEW_UNIT2_EXERCISES,
   ...UNIT2_EXERCISES,
   ...UNITS_3_5_EXERCISES,
   ...UNIT6_EXERCISES,
   ...UNITS_6_10_EXERCISES,
   ...UNITS_11_15_EXERCISES,
+  ...UNITS_16_27_EXERCISES,
   'unit1-biti-conjugation': {
     type: 'fillInBlank',
     title: 'Exercise 1: Fill in the Blanks (Verb "biti")',
@@ -96,41 +103,31 @@ const EXERCISES: Record<string, any> = {
     ] as TranslationQuestion[]
   },
   'unit1-gender': {
-    type: 'fillInBlank',
+    type: 'genderRecognition',
     title: 'Exercise 3: Gender Recognition',
-    instructions: 'Identify the gender of these nouns (masculine, feminine, or neuter):',
+    instructions: 'Identify the gender of these nouns:',
     questions: [
       {
         id: '1',
-        text: 'aerodrom (airport) - ____',
+        text: 'aerodrom (airport)',
         answer: 'masculine',
-        hint: 'Ends in a consonant'
       },
       {
         id: '2',
-        text: 'karta (ticket) - ____',
-        answer: 'feminine',
-        hint: 'Ends in -a'
+        text: 'pasoš (passport)',
+        answer: 'masculine',
       },
       {
         id: '3',
-        text: 'ime (name) - ____',
-        answer: 'neuter',
-        hint: 'Ends in -e'
+        text: 'karta (ticket)',
+        answer: 'feminine',
       },
       {
         id: '4',
-        text: 'student (student) - ____',
+        text: 'prtljag (luggage)',
         answer: 'masculine',
-        hint: 'Ends in a consonant'
       },
-      {
-        id: '5',
-        text: 'Srbija (Serbia) - ____',
-        answer: 'feminine',
-        hint: 'Ends in -a'
-      },
-    ] as FillInBlankQuestion[]
+    ] as GenderRecognitionQuestion[]
   },
 };
 
@@ -142,6 +139,7 @@ interface InteractiveMarkdownContentProps {
 export function InteractiveMarkdownContent({ content, unitNumber }: InteractiveMarkdownContentProps) {
   // Split content by exercise markers
   const parts = content.split(/(<InteractiveExercise[^>]*\/>)/g);
+  const markerMatches = Array.from(content.matchAll(/<InteractiveExercise[^>]*id="([^"]+)"[^>]*\/>/g));
 
   return (
     <div className="space-y-6">
@@ -172,6 +170,17 @@ export function InteractiveMarkdownContent({ content, unitNumber }: InteractiveM
           } else if (exerciseData.type === 'translation') {
             return (
               <TranslationExercise
+                key={index}
+                title={exerciseData.title}
+                instructions={exerciseData.instructions}
+                questions={exerciseData.questions}
+                exerciseId={id}
+                unitNumber={unitNumber}
+              />
+            );
+          } else if (exerciseData.type === 'genderRecognition') {
+            return (
+              <GenderRecognitionExercise
                 key={index}
                 title={exerciseData.title}
                 instructions={exerciseData.instructions}

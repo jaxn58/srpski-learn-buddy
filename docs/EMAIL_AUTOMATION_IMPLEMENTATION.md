@@ -34,40 +34,16 @@ This document provides technical implementation details for the automated email 
 
 ## Database Schema Extensions
 
-### Add Email Tracking Table
+**Note:** This document was written for MySQL/TiDB. The application now uses Convex as the database. Schema changes should be implemented in `convex/schema.ts` instead of SQL.
 
-```sql
-CREATE TABLE email_logs (
-  id VARCHAR(64) PRIMARY KEY,
-  user_id VARCHAR(64) NOT NULL,
-  email_type VARCHAR(50) NOT NULL,
-  sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  opened_at TIMESTAMP NULL,
-  clicked_at TIMESTAMP NULL,
-  status ENUM('sent', 'delivered', 'opened', 'clicked', 'bounced', 'failed') DEFAULT 'sent',
-  metadata JSON,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_user_email_type (user_id, email_type),
-  INDEX idx_sent_at (sent_at)
-);
+### Email Tracking Requirements
 
-CREATE TABLE email_preferences (
-  user_id VARCHAR(64) PRIMARY KEY,
-  marketing_emails BOOLEAN DEFAULT TRUE,
-  upgrade_reminders BOOLEAN DEFAULT TRUE,
-  expiration_warnings BOOLEAN DEFAULT TRUE,
-  progress_updates BOOLEAN DEFAULT TRUE,
-  unsubscribed_at TIMESTAMP NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-```
+The email automation system requires tracking:
+- Email logs (sent_at, opened_at, clicked_at, status)
+- Email preferences (marketing_emails, upgrade_reminders, etc.)
+- User email frequency cap (max 3 emails per week)
 
-### Extend Users Table
-
-```sql
-ALTER TABLE users ADD COLUMN last_email_sent TIMESTAMP NULL;
-ALTER TABLE users ADD COLUMN email_frequency_cap INT DEFAULT 3; -- Max emails per week
-```
+These should be implemented as Convex tables in `convex/schema.ts`.
 
 ---
 

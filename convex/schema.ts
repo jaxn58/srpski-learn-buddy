@@ -37,9 +37,13 @@ export default defineSchema({
     completedUnits: v.array(v.number()), // Array of completed unit numbers
     learningDuration: v.number(), // Duration in weeks: 12, 24, 36, 48
     uiLanguage: v.string(), // always "en"
+    lastActivityAt: v.optional(v.number()), // last activity timestamp
   }).index("by_user", ["userId"]),
 
-  // ============= VOCABULARY =============
+  // ============= VOCABULARY (DEPRECATED - Legacy User Progress) =============
+  // @deprecated This table is deprecated. Use vocabularyProgress instead.
+  // Migration: vocabulary → vocabularyProgress
+  // This table will be removed after migration is complete.
   vocabulary: defineTable({
     userId: v.id("users"),
     serbianWord: v.string(),
@@ -55,11 +59,63 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_unit", ["userId", "unitNumber"]),
 
+  // ============= VOCABULARY PROGRESS (NEW - User Progress with Foreign Key) =============
+  // Normalized user progress linked to courseVocabulary via Foreign Key
+  vocabularyProgress: defineTable({
+    userId: v.id("users"),
+    courseVocabularyId: v.id("courseVocabulary"), // Foreign Key zu eindeutiger Vokabel-ID
+    
+    // Nur Fortschritts-Daten (keine Redundanz!)
+    mastered: v.boolean(),
+    reviewCount: v.number(),
+    lastReviewedAt: v.optional(v.number()),
+    correctAnswerCount: v.number(),
+    incorrectAnswerCount: v.number(),
+    lastAnsweredAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_course_vocab", ["courseVocabularyId"])
+    .index("by_user_course_vocab", ["userId", "courseVocabularyId"]), // Unique constraint
+
+  // ============= EXERCISE QUESTION PROGRESS =============
+  exerciseQuestionProgress: defineTable({
+    userId: v.id("users"),
+    exerciseId: v.string(), // z.B. "unit1-biti-conjugation"
+    questionId: v.string(), // z.B. "unit1-biti-conjugation-q1"
+    unitNumber: v.number(),
+    correctAnswerCount: v.number(),
+    incorrectAnswerCount: v.number(),
+    mastered: v.boolean(),
+    lastAnsweredAt: v.optional(v.number()),
+    lastReviewedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_exercise", ["userId", "exerciseId"])
+    .index("by_user_question", ["userId", "exerciseId", "questionId"]),
+
+  // ============= INTERACTIVE TEST QUESTION PROGRESS (Mastery per Question) =============
+  questionProgress: defineTable({
+    userId: v.id("users"),
+    unitNumber: v.number(),
+    questionId: v.string(), // Stable question ID (e.g., "u1_trans_q1")
+    correctAttempts: v.number(), // Only correct answers count
+    isMastered: v.boolean(), // true after 3 correct attempts
+    totalXPEarned: v.number(), // Total XP earned from this question
+    lastAttemptAt: v.number(), // Timestamp of last attempt
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_unit", ["userId", "unitNumber"])
+    .index("by_user_question", ["userId", "questionId"]),
+
   // ============= CHAT SESSIONS =============
   chatSessions: defineTable({
     userId: v.id("users"),
     title: v.string(),
-  }).index("by_user", ["userId"]),
+    archived: v.optional(v.boolean()), // optional for backward compatibility
+    archivedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_archived", ["userId", "archived"]),
 
   // ============= CHAT MESSAGES =============
   chatMessages: defineTable({
@@ -72,6 +128,7 @@ export default defineSchema({
     .index("by_session", ["sessionId"])
     .index("by_user", ["userId"]),
 
+
   // ============= EXERCISE RESULTS =============
   exerciseResults: defineTable({
     userId: v.id("users"),
@@ -82,19 +139,161 @@ export default defineSchema({
     correctAnswers: v.number(),
   }).index("by_user", ["userId"]),
 
-  // ============= UNIT EXPLANATIONS (AI-generated content) =============
+  // ============= UNIT EXPLANATIONS (DEPRECATED - Legacy table) =============
+  // @deprecated This table is deprecated. Use unitContent instead.
+  // Migration: unitExplanations → unitContent
+  // This table will be removed after migration is complete.
   unitExplanations: defineTable({
     unitNumber: v.number(),
     overview: v.string(),
     grammarExplained: v.string(),
     practiceExamples: v.string(),
-    bookReference: v.optional(v.string()),
     // German translations (optional for backward compatibility)
     overviewGerman: v.optional(v.string()),
     grammarExplainedGerman: v.optional(v.string()),
     practiceExamplesGerman: v.optional(v.string()),
-    bookReferenceGerman: v.optional(v.string()),
   }).index("by_unit", ["unitNumber"]),
+
+  // ============= NEW CONTENT STRUCTURE METADATA =============
+  
+  // 1. Unit Metadata (Master-Table for Units, Multi-language)
+  // Primary Key: (unitNumber, language) - Composite Primary Key
+  // Foreign Key: moduleMetadataId → moduleMetadata._id (NEW: Real Foreign Key)
+  unitMetadata: defineTable({
+    unitNumber: v.number(), // Primary Key (composite with language)
+    language: v.string(), // "en", "de", "es", "fr" - Primary Key (composite with unitNumber)
+    title: v.string(), // Translated Title
+    topics: v.array(v.string()), // Array of Topics
+    grammarFocus: v.array(v.string()), // Array of Grammar Focus points
+    vocabularyThemes: v.array(v.string()), // Array of Vocabulary Themes
+    
+    // NEW: Real Foreign Key to moduleMetadata._id
+    moduleMetadataId: v.optional(v.id("moduleMetadata")), // Foreign Key to moduleMetadata._id
+    
+    // OLD: Deprecated - kept for backward compatibility during migration
+    moduleId: v.optional(v.string()), // Foreign Key to moduleMetadata.moduleId - DEPRECATED
+  })
+    .index("by_unit_lang", ["unitNumber", "language"]) // Composite Primary Key
+    .index("by_module", ["moduleId"]) // Old Foreign Key Index (deprecated)
+    .index("by_module_metadata", ["moduleMetadataId"]), // New Foreign Key Index
+
+  // 2. Module Metadata (Multi-language)
+  // NEW STRUCTURE: One row per module with multilingual columns
+  // OLD STRUCTURE: Multiple rows per module (one per language) - deprecated but kept for backward compatibility
+  moduleMetadata: defineTable({
+    // New multilingual structure (preferred)
+    titleDe: v.optional(v.string()),
+    titleEn: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
+    descriptionEn: v.optional(v.string()),
+    slug: v.optional(v.string()), // URL-friendly identifier (e.g., "foundation", "daily-life")
+    moduleNumber: v.optional(v.number()), // For sorting (1, 2, 3, etc.)
+    
+    // Old structure (deprecated - kept for backward compatibility during migration)
+    moduleId: v.optional(v.string()), // "foundation", "daily-life", etc. - DEPRECATED
+    language: v.optional(v.string()), // DEPRECATED
+    title: v.optional(v.string()), // DEPRECATED
+    description: v.optional(v.string()), // DEPRECATED
+  })
+    .index("by_module_lang", ["moduleId", "language"]) // Old index (deprecated)
+    .index("by_slug", ["slug"]), // New index for URL lookup
+
+  // 3. Week Metadata (Multi-language)
+  weekMetadata: defineTable({
+    weekNumber: v.number(),
+    language: v.string(),
+    title: v.string(),
+    goals: v.array(v.string()),
+    practiceActivities: v.array(v.string()),
+  }).index("by_week_lang", ["weekNumber", "language"]),
+
+  // 4. Vocabulary Translations (Multi-language)
+  vocabularyTranslations: defineTable({
+    vocabularyId: v.id("vocabulary"),
+    language: v.string(), // "en", "de", "es", "fr"
+    translation: v.string(),
+    alternatives: v.optional(v.array(v.string())),
+  }).index("by_vocab_lang", ["vocabularyId", "language"]),
+
+  // 5. Interactive Tests (Central Question DB for Gamification)
+  // Relational: Foreign Key to unitMetadata (unitNumber, language)
+  // Normalized: One row per question
+  unitInteractiveTests: defineTable({
+    unitNumber: v.number(), // Foreign Key to unitMetadata (composite with language)
+    language: v.string(), // Foreign Key to unitMetadata (composite with unitNumber)
+    category: v.string(), // "translation", "fillInBlank", "multipleChoice", "vocabularyMatching", "dialogueCompletion"
+    categoryInstructions: v.optional(v.string()), // Instructions for this category (e.g. "Translate the following sentences...")
+
+    // Gamification-IDs
+    questionId: v.string(), // Stable ID (e.g. "u1_trans_q1") for exerciseQuestionProgress - Unique identifier
+
+    questionType: v.string(), // "translation", "fillInBlank", "multipleChoice", "matching", "dialogue"
+    question: v.string(), // The Question/Task
+    correctAnswer: v.string(), // Correct Answer
+    acceptableAlternatives: v.optional(v.array(v.string())), // Alternative correct answers
+    options: v.optional(v.array(v.string())), // For Multiple Choice
+    hint: v.optional(v.string()), // Optional Hint
+    order: v.number(), // Order within category
+  })
+    .index("by_unit_lang_category", ["unitNumber", "language", "category"]) // Composite FK + category
+    .index("by_unit_lang", ["unitNumber", "language"]) // Foreign Key to unitMetadata
+    .index("by_question_id", ["questionId"]), // Unique for Gamification
+
+  // ============= UNIT CONTENT (Modern multi-language support) =============
+  // Relational: Foreign Key to unitMetadata (unitNumber, language)
+  // Normalized: One row per unit+language+contentType
+  // Supports: overview, grammar, phrases, dialogues, testIntroduction
+  unitContent: defineTable({
+    unitNumber: v.number(), // Foreign Key to unitMetadata (composite with language)
+    language: v.string(), // "en", "de", "es", "fr" - Foreign Key to unitMetadata (composite with unitNumber)
+    contentType: v.union(
+      v.literal("overview"),
+      v.literal("grammar"),
+      v.literal("phrases"),
+      v.literal("dialogues"),
+      v.literal("vocabulary"),
+      v.literal("testIntroduction"),
+      v.literal("practice") // TEMPORARY: For cleanup of legacy data in units 7-27. Remove after cleanup.
+    ), // Type-safe content type
+    content: v.string(), // The actual markdown content
+    version: v.optional(v.number()), // For content versioning
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_unit_lang_type", ["unitNumber", "language", "contentType"]) // Composite FK + contentType
+    .index("by_unit_lang", ["unitNumber", "language"]), // Foreign Key to unitMetadata
+
+  // ============= CENTRAL COURSE VOCABULARY (Master Data) =============
+  // Stores vocabulary definitions from Units (Markdown)
+  // Multi-language ready via column-based translations (preferred) or translations array (deprecated)
+  courseVocabulary: defineTable({
+    unitNumber: v.number(),
+    serbian: v.string(),
+    
+    // NEW: Column-based translations (preferred)
+    // Direct access: word.en, word.de, word.sr, etc.
+    en: v.optional(v.string()), // English translation
+    de: v.optional(v.string()), // German translation
+    sr: v.optional(v.string()), // Serbian (if different from serbian field)
+    es: v.optional(v.string()), // Spanish translation (future)
+    fr: v.optional(v.string()), // French translation (future)
+    enAlt: v.optional(v.string()), // Alternative English translation
+    deAlt: v.optional(v.string()), // Alternative German translation
+    
+    // OLD: Array-based translations (DEPRECATED - kept for backward compatibility during migration)
+    // @deprecated Use column-based translations (en, de, etc.) instead
+    translations: v.optional(v.array(v.object({
+      language: v.string(), // "en", "de", "es", "fr", etc.
+      translation: v.string(),
+      alt: v.optional(v.string()) // Optional Montenegrin variant or alternatives
+    }))),
+    
+    gender: v.optional(v.string()), // m, f, n
+    pronunciation: v.optional(v.string()),
+  })
+  .index("by_unit", ["unitNumber"])
+  .index("by_serbian", ["serbian"])
+  .index("by_unit_serbian", ["unitNumber", "serbian"]), // NEW: For finding by unit + serbian
 
   // ============= GAMIFICATION: EXERCISE COMPLETIONS =============
   exerciseCompletions: defineTable({
@@ -104,7 +303,9 @@ export default defineSchema({
     score: v.number(), // Number of correct answers
     totalQuestions: v.number(),
     xpEarned: v.number(),
-  }).index("by_user", ["userId"]),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_exercise", ["userId", "exerciseId", "unitNumber"]),
 
   // ============= GAMIFICATION: USER BADGES =============
   userBadges: defineTable({
@@ -141,6 +342,7 @@ export default defineSchema({
     ),
     adminNotes: v.optional(v.string()),
     reviewedAt: v.optional(v.number()),
+    submittedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"]),
@@ -225,7 +427,13 @@ export default defineSchema({
     currentIndex: v.number(), // Current position in quiz
     totalAttempts: v.number(), // How many times user took this quiz
     lastScore: v.number(), // Percentage from last attempt
-    incorrectWordIds: v.array(v.string()), // Array of word IDs answered incorrectly
+    
+    // OLD: Array of serbianWord strings (DEPRECATED - kept for backward compatibility)
+    incorrectWordIds: v.optional(v.array(v.string())), // serbianWord[] - DEPRECATED
+    
+    // NEW: Array of courseVocabulary IDs (preferred)
+    incorrectVocabularyIds: v.optional(v.array(v.id("courseVocabulary"))), // courseVocabularyId[]
+    
     lastAttemptAt: v.optional(v.number()), // timestamp
   }).index("by_user_unit", ["userId", "unitNumber"]),
 
@@ -248,5 +456,25 @@ export default defineSchema({
     .index("by_name", ["name"])
     .index("by_category", ["category"])
     .index("by_active", ["isActive"]),
+
+  // ============= CHAT PROMPTS (admin-managed) =============
+  chatPrompts: defineTable({
+    name: v.string(), // e.g., "default"
+    content: v.string(), // system prompt text
+    description: v.optional(v.string()), // optional description of changes
+    updatedBy: v.optional(v.id("users")),
+    updatedAt: v.number(),
+  })
+    .index("by_name", ["name"]),
+
+  // ============= CHAT PROMPT HISTORY =============
+  chatPromptHistory: defineTable({
+    name: v.string(), // e.g., "default"
+    content: v.string(), // system prompt text
+    description: v.optional(v.string()), // optional description of changes
+    updatedBy: v.optional(v.id("users")),
+    updatedAt: v.number(),
+  })
+    .index("by_name_updatedAt", ["name", "updatedAt"]),
 });
 
