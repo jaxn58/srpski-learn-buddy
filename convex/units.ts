@@ -139,8 +139,8 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     return true;
   }
 
-  // Fallback: Beta Tester Flag (Module 1: Units 1-6)
-  if (user.isBetaTester && unitNumber <= 6) {
+  // Fallback: Beta Tester Flag (first 3 units of Module 1)
+  if (user.isBetaTester && unitNumber <= 3) {
     return true;
   }
 
@@ -1281,6 +1281,111 @@ export const copyUnitData = mutation({
 
     console.log(`[copyUnitData] Copied:`, copied);
     return copied;
+  },
+});
+
+// ============= CLEANUP OPERATIONS (DELETE) =============
+
+// Delete unit metadata by ID (for cleanup scripts)
+export const deleteUnitMetadata = mutation({
+  args: {
+    metadataId: v.id("unitMetadata"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.metadataId);
+    return args.metadataId;
+  },
+});
+
+// Delete unit content by ID (for cleanup scripts)
+export const deleteUnitContent = mutation({
+  args: {
+    contentId: v.id("unitContent"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.contentId);
+    return args.contentId;
+  },
+});
+
+// Delete unit interactive test by ID (for cleanup scripts)
+export const deleteUnitInteractiveTest = mutation({
+  args: {
+    testId: v.id("unitInteractiveTests"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.testId);
+    return args.testId;
+  },
+});
+
+// Batch delete units (for cleanup scripts - deletes all data for specified units)
+// NO AUTH CHECK - for admin cleanup scripts only
+export const batchDeleteUnits = mutation({
+  args: {
+    unitNumbers: v.array(v.number()),
+  },
+  handler: async (ctx, args) => {
+    let deleted = {
+      metadata: 0,
+      content: 0,
+      tests: 0,
+    };
+
+    console.log(`[batchDeleteUnits] Deleting units: ${args.unitNumbers.join(", ")}`);
+
+    for (const unitNumber of args.unitNumbers) {
+      // Delete metadata (EN + DE)
+      for (const lang of ["en", "de"]) {
+        const metadata = await ctx.db
+          .query("unitMetadata")
+          .withIndex("by_unit_lang", (q) =>
+            q.eq("unitNumber", unitNumber).eq("language", lang)
+          )
+          .first();
+        
+        if (metadata) {
+          console.log(`[batchDeleteUnits] Deleting metadata: Unit ${unitNumber} (${lang}), ID: ${metadata._id}`);
+          await ctx.db.delete(metadata._id);
+          deleted.metadata++;
+        }
+      }
+
+      // Delete content (EN + DE)
+      for (const lang of ["en", "de"]) {
+        const contents = await ctx.db
+          .query("unitContent")
+          .withIndex("by_unit_lang", (q) =>
+            q.eq("unitNumber", unitNumber).eq("language", lang)
+          )
+          .collect();
+        
+        console.log(`[batchDeleteUnits] Found ${contents.length} content entries for Unit ${unitNumber} (${lang})`);
+        for (const content of contents) {
+          await ctx.db.delete(content._id);
+          deleted.content++;
+        }
+      }
+
+      // Delete tests (EN + DE)
+      for (const lang of ["en", "de"]) {
+        const tests = await ctx.db
+          .query("unitInteractiveTests")
+          .withIndex("by_unit_lang", (q) =>
+            q.eq("unitNumber", unitNumber).eq("language", lang)
+          )
+          .collect();
+        
+        console.log(`[batchDeleteUnits] Found ${tests.length} tests for Unit ${unitNumber} (${lang})`);
+        for (const test of tests) {
+          await ctx.db.delete(test._id);
+          deleted.tests++;
+        }
+      }
+    }
+
+    console.log(`[batchDeleteUnits] Total deleted: ${JSON.stringify(deleted)}`);
+    return deleted;
   },
 });
 

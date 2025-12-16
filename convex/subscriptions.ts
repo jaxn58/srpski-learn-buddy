@@ -44,9 +44,9 @@ export const getAccessibleUnits = query({
     }
 
     // Fallback: Check Beta Tester Flag (for backwards compatibility)
-    // Beta testers have access to Module 1 (Units 1-6)
+    // Beta testers have access to the first 3 units of Module 1
     if (user.isBetaTester) {
-      return { maxUnits: 6, isBeta: true };
+      return { maxUnits: 3, isBeta: true };
     }
 
     // Check if they have any paid subscription (full access to all 27 units)
@@ -71,12 +71,12 @@ export const getCurrent = query({
       .first();
 
     // Virtual Beta Subscription for Beta Testers without subscription
-    // Beta testers have access to Module 1 (Units 1-6)
+    // Beta testers have access to the first 3 units of Module 1
     if (!subscription && user.isBetaTester) {
       return {
         planType: "beta" as const,
         planName: "Beta Access",
-        maxAccessibleUnits: 6,
+        maxAccessibleUnits: 3,
         status: "active" as const,
         expiresAt: null,
         planDurationMonths: 0,

@@ -125,7 +125,7 @@ export default function Dashboard() {
   
   // Determine if user is beta tester
   const isBeta = user?.isBetaTester || accessibleUnits?.isBeta || false;
-  const totalUnits = isBeta ? 6 : (units?.length || 27);
+  const totalUnits = isBeta ? 3 : (units?.length || 27);
   const progressPercentage = (completedUnits.length / totalUnits) * 100;
   const learningDuration = progress?.learningDuration || 12;
   
@@ -408,7 +408,7 @@ export default function Dashboard() {
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
                     const isMastered = masteredUnits?.includes(unitNum);
-                    const isLocked = user.isBetaTester && unitNum > 6;
+                    const isLocked = user.isBetaTester && unitNum > 3;
 
                     if (isLocked) {
                       return (

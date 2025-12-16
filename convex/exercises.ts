@@ -38,8 +38,8 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     return true;
   }
 
-  // Fallback: Beta Tester Flag
-  if (user.isBetaTester && unitNumber <= 6) {
+  // Fallback: Beta Tester Flag (first 3 units of Module 1)
+  if (user.isBetaTester && unitNumber <= 3) {
     return true;
   }
 

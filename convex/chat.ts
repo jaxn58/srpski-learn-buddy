@@ -67,6 +67,94 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .first();
 }
 
+// Rate limiting configuration
+const RATE_LIMITS = {
+  beta: {
+    messagesPerMinute: 10,
+    messagesPerHour: 60,
+    maxMessageLength: 1500,
+  },
+  paid: {
+    messagesPerMinute: 20,
+    messagesPerHour: 200,
+    maxMessageLength: 3000,
+  },
+};
+
+// Check rate limits for chat messages
+async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string): Promise<{ allowed: boolean; reason?: string }> {
+  const now = Date.now();
+  const oneMinuteAgo = now - 60 * 1000;
+  const oneHourAgo = now - 60 * 60 * 1000;
+
+  // Get user and subscription to determine limits
+  const user = await ctx.db.get(userId);
+  if (!user) {
+    return { allowed: false, reason: "User not found" };
+  }
+
+  const subscription = await ctx.db
+    .query("userSubscriptions")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.eq(q.field("status"), "active"))
+    .first();
+
+  // Determine if user is paid (has active non-beta subscription)
+  const isPaidUser = subscription && subscription.planType !== "beta";
+  const limits = isPaidUser ? RATE_LIMITS.paid : RATE_LIMITS.beta;
+
+  // Check message length
+  if (message.length > limits.maxMessageLength) {
+    return {
+      allowed: false,
+      reason: `Message too long. Maximum ${limits.maxMessageLength} characters allowed.`,
+    };
+  }
+
+  // Count messages in the last minute
+  const recentMessages = await ctx.db
+    .query("chatMessages")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.gte(q.field("_creationTime"), oneMinuteAgo))
+    .collect();
+
+  if (recentMessages.length >= limits.messagesPerMinute) {
+    return {
+      allowed: false,
+      reason: `Rate limit exceeded. Maximum ${limits.messagesPerMinute} messages per minute allowed. Please wait a moment.`,
+    };
+  }
+
+  // Count messages in the last hour
+  const hourMessages = await ctx.db
+    .query("chatMessages")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.gte(q.field("_creationTime"), oneHourAgo))
+    .collect();
+
+  if (hourMessages.length >= limits.messagesPerHour) {
+    return {
+      allowed: false,
+      reason: `Rate limit exceeded. Maximum ${limits.messagesPerHour} messages per hour allowed. Please try again later.`,
+    };
+  }
+
+  // Check for duplicate spam (same message 3+ times in 5 minutes)
+  const fiveMinutesAgo = now - 5 * 60 * 1000;
+  const recentDuplicates = recentMessages.filter(
+    (m) => m.content === message && m._creationTime >= fiveMinutesAgo
+  );
+
+  if (recentDuplicates.length >= 3) {
+    return {
+      allowed: false,
+      reason: "Duplicate message detected. Please try a different message.",
+    };
+  }
+
+  return { allowed: true };
+}
+
 
 // Get all chat sessions for current user
 export const getSessions = query({
@@ -369,6 +457,31 @@ type ChatCompletionResponse = {
 };
 
 // AI Learn Buddy - Send message and get AI response
+// Internal mutation to check rate limits (called from action)
+export const checkMessageRateLimit = mutation({
+  args: {
+    sessionId: v.id("chatSessions"),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found");
+    }
+
+    // Check rate limits
+    const rateLimitResult = await checkRateLimit(ctx, user._id, args.message);
+    if (!rateLimitResult.allowed) {
+      throw new Error(rateLimitResult.reason || "Rate limit exceeded");
+    }
+
+    return { allowed: true };
+  },
+});
+
 export const sendMessage = action({
   args: {
     sessionId: v.id("chatSessions"),
@@ -379,6 +492,17 @@ export const sendMessage = action({
     const session = await ctx.runQuery(api.chat.getSessionById, { sessionId: args.sessionId });
     if (session?.archived) {
       throw new Error("Cannot send messages to an archived chat.");
+    }
+
+    // Check rate limits before proceeding
+    try {
+      await ctx.runMutation(api.chat.checkMessageRateLimit, {
+        sessionId: args.sessionId,
+        message: args.message,
+      });
+    } catch (error) {
+      // Rate limit error - throw it to the frontend
+      throw error;
     }
 
     // Get the API key from environment

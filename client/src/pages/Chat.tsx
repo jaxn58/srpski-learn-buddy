@@ -3,10 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, User, Brain, Sparkles } from "lucide-react";
+import { Send, User, Brain, Sparkles, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -138,7 +146,25 @@ export default function Chat() {
       });
     } catch (error: any) {
       console.error("Failed to send message:", error);
-      toast.error(error.message || t('chat.sendError'));
+      
+      // Handle rate limit errors with specific messages
+      const errorMessage = error.message || t('chat.sendError');
+      
+      if (errorMessage.includes('Rate limit exceeded')) {
+        if (errorMessage.includes('per minute')) {
+          toast.error(t('chat.rateLimit.perMinute'));
+        } else if (errorMessage.includes('per hour')) {
+          toast.error(t('chat.rateLimit.perHour'));
+        } else {
+          toast.error(errorMessage);
+        }
+      } else if (errorMessage.includes('Message too long')) {
+        toast.error(t('chat.rateLimit.messageLength'));
+      } else if (errorMessage.includes('Duplicate message')) {
+        toast.error(t('chat.rateLimit.duplicate'));
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsSending(false);
     }
@@ -191,6 +217,83 @@ export default function Chat() {
                 <p className="text-xs text-muted-foreground">{t('chat.subtitle')}</p>
               </div>
             </div>
+            
+            {/* Chat Usage Info Dialog */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Info className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t('chat.usage.title')}</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Info className="h-5 w-5 text-primary" />
+                    {t('chat.usage.title')}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {t('chat.usage.intro')}
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-6 py-4">
+                  {/* Tips Section */}
+                  <div className="space-y-4">
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                        1
+                      </div>
+                      <div>
+                        <h4 className="font-semibold mb-1">{t('chat.usage.tip1.title')}</h4>
+                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip1.desc')}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                        2
+                      </div>
+                      <div>
+                        <h4 className="font-semibold mb-1">{t('chat.usage.tip2.title')}</h4>
+                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip2.desc')}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                        3
+                      </div>
+                      <div>
+                        <h4 className="font-semibold mb-1">{t('chat.usage.tip3.title')}</h4>
+                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip3.desc')}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Fair Use Protection Section */}
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      {t('chat.usage.protection.title')}
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>{t('chat.usage.protection.beta')}</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>{t('chat.usage.protection.paid')}</span>
+                      </div>
+                      <p className="text-muted-foreground mt-3 italic">
+                        {t('chat.usage.protection.note')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </header>
