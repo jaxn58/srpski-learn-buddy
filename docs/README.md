@@ -45,6 +45,8 @@ pnpm install
    - (Optional) Enable social logins (Google, GitHub, etc.)
 3. Copy your API keys from the Clerk dashboard
 
+**Wichtig für Production-Deployment**: Wenn du auf Vercel deployst, solltest du Clerk Production Keys verwenden. Siehe [CLERK_PRODUCTION_MIGRATION.md](./CLERK_PRODUCTION_MIGRATION.md) für Details.
+
 ### **4. Configure Environment Variables**
 
 1. Copy the example environment file:
