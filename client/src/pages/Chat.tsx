@@ -21,7 +21,7 @@ import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 // Sidebar import removed
-import { AnimatedPage } from "@/components/AnimatedPage";
+import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
 import { useTranslation } from "react-i18next";
 
@@ -313,15 +313,21 @@ export default function Chat() {
                   <p className="text-muted-foreground mb-4">{t('chat.welcome.subtitle')}</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl">
-                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Explain the verb 'biti' to me")}>
-                    <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
-                  </Card>
-                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("What is the locative case?")}>
-                    <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
-                  </Card>
-                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Dobar dan! Kako ste?")}>
-                    <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
-                  </Card>
+                  <AnimatedItem>
+                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Explain the verb 'biti' to me")}>
+                      <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
+                    </Card>
+                  </AnimatedItem>
+                  <AnimatedItem>
+                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("What is the locative case?")}>
+                      <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
+                    </Card>
+                  </AnimatedItem>
+                  <AnimatedItem>
+                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Dobar dan! Kako ste?")}>
+                      <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
+                    </Card>
+                  </AnimatedItem>
                 </div>
               </div>
             )}

@@ -294,109 +294,120 @@ export default function Dashboard() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-8 items-stretch">
-          <Card className="h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('dashboard.totalProgress')}</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
-              <Progress value={progressPercentage} className="mt-2" />
-              <p className="text-xs text-muted-foreground mt-2">
-                {Math.round(progressPercentage)}% {t('dashboard.completed')}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t('dashboard.currentWeek')}</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{t('dashboard.week', { number: progress?.currentWeek })}</div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {currentWeek?.title}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Link href={progress?.currentUnit ? `/unit/${progress.currentUnit}` : "#"}>
-            <Card className={`h-full cursor-pointer hover:shadow-lg transition-shadow ${!progress?.currentUnit ? 'pointer-events-none opacity-60' : ''}`}>
+          <AnimatedItem>
+            <Card className="h-full">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('dashboard.currentLesson')}</CardTitle>
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">{t('dashboard.totalProgress')}</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                {(() => {
-                  const currentUnit = progress?.currentUnit;
-                  const unit = units?.find(u => u.unitNumber === currentUnit);
-                  return (
-                    <>
-                      <div className="text-2xl font-bold">
-                        {t('dashboard.unit', { number: currentUnit })}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {unit?.title}
-                      </p>
-                    </>
-                  );
-                })()}
+                <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
+                <Progress value={progressPercentage} className="mt-2" />
+                <p className="text-xs text-muted-foreground mt-2">
+                  {Math.round(progressPercentage)}% {t('dashboard.completed')}
+                </p>
               </CardContent>
             </Card>
-          </Link>
+          </AnimatedItem>
+
+          <AnimatedItem>
+            <Card className="h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{t('dashboard.currentWeek')}</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{t('dashboard.week', { number: progress?.currentWeek })}</div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {currentWeek?.title}
+                </p>
+              </CardContent>
+            </Card>
+          </AnimatedItem>
+
+          <AnimatedItem>
+            <Link href={progress?.currentUnit ? `/unit/${progress.currentUnit}` : "#"}>
+              <Card className={`h-full cursor-pointer hover:shadow-lg transition-shadow ${!progress?.currentUnit ? 'pointer-events-none opacity-60' : ''}`}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{t('dashboard.currentLesson')}</CardTitle>
+                  <BookOpen className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const currentUnit = progress?.currentUnit;
+                    const unit = units?.find(u => u.unitNumber === currentUnit);
+                    return (
+                      <>
+                        <div className="text-2xl font-bold">
+                          {t('dashboard.unit', { number: currentUnit })}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {unit?.title}
+                        </p>
+                      </>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </Link>
+          </AnimatedItem>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <BookOpen className="h-10 w-10 text-primary mb-2" />
-              <CardTitle>{t('dashboard.continueLesson')}</CardTitle>
-              <CardDescription>
-                {(() => {
-                  const unit = units?.find(u => u.unitNumber === progress?.currentUnit);
-                  return unit?.title;
-                })()}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href={`/unit/${progress?.currentUnit}`}>
-                <Button className="w-full">{t('dashboard.goToLesson')}</Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <AnimatedItem>
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <BookOpen className="h-10 w-10 text-primary mb-2" />
+                <CardTitle>{t('dashboard.continueLesson')}</CardTitle>
+                <CardDescription>
+                  {(() => {
+                    const unit = units?.find(u => u.unitNumber === progress?.currentUnit);
+                    return unit?.title;
+                  })()}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href={`/unit/${progress?.currentUnit}`}>
+                  <Button className="w-full">{t('dashboard.goToLesson')}</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </AnimatedItem>
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <Brain className="h-10 w-10 text-yellow-500 mb-2" />
-              <CardTitle>{t('dashboard.chatWithProfessor')}</CardTitle>
-              <CardDescription>
-                {t('dashboard.chatDesc')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/chat">
-                <Button className="w-full border-yellow-500 text-yellow-600 hover:bg-yellow-50 hover:border-yellow-600" variant="outline">{t('dashboard.openChat')}</Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <AnimatedItem>
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <Brain className="h-10 w-10 text-yellow-500 mb-2" />
+                <CardTitle>{t('dashboard.chatWithProfessor')}</CardTitle>
+                <CardDescription>
+                  {t('dashboard.chatDesc')}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/chat">
+                  <Button className="w-full border-yellow-500 text-yellow-600 hover:bg-yellow-50 hover:border-yellow-600" variant="outline">{t('dashboard.openChat')}</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </AnimatedItem>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('dashboard.week', { number: progress?.currentWeek })}: {i18n.language === 'de' && currentWeek?.titleGerman ? currentWeek.titleGerman : currentWeek?.title}</CardTitle>
-            <CardDescription>
-              {(i18n.language === 'de' && currentWeek?.goalsGerman ? currentWeek.goalsGerman : currentWeek?.goals)?.join(" • ")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-semibold mb-3 text-lg">
-                  {isAdmin ? t('dashboard.adminView') : t('dashboard.lessonsThisWeek')}
-                </h4>
-                <div className="grid gap-4">
-                  {visibleUnits?.map(unitNum => {
+        <AnimatedItem>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('dashboard.week', { number: progress?.currentWeek })}: {i18n.language === 'de' && currentWeek?.titleGerman ? currentWeek.titleGerman : currentWeek?.title}</CardTitle>
+              <CardDescription>
+                {(i18n.language === 'de' && currentWeek?.goalsGerman ? currentWeek.goalsGerman : currentWeek?.goals)?.join(" • ")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold mb-3 text-lg">
+                    {isAdmin ? t('dashboard.adminView') : t('dashboard.lessonsThisWeek')}
+                  </h4>
+                  <div className="grid gap-4">
+                    {visibleUnits?.map(unitNum => {
                     const unit = units?.find(u => u.number === unitNum);
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
@@ -523,6 +534,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        </AnimatedItem>
       </AnimatedPage>
     </>
   );

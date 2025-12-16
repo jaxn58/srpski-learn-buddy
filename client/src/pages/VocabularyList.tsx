@@ -9,7 +9,7 @@ import { Search, BookOpen, Filter, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo } from "react";
 // Sidebar import removed
-import { AnimatedPage } from "@/components/AnimatedPage";
+import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
@@ -176,14 +176,15 @@ export default function VocabularyList() {
 
       <div className="container mx-auto px-4 py-8">
         {/* Search and Filter */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>{t('vocabularyList.searchFilter')}</CardTitle>
-            <CardDescription>
-              {t('vocabularyList.searchFilter.desc', { count: courseVocabulary?.length || 0 })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <AnimatedItem>
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>{t('vocabularyList.searchFilter')}</CardTitle>
+              <CardDescription>
+                {t('vocabularyList.searchFilter.desc', { count: courseVocabulary?.length || 0 })}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -229,15 +230,17 @@ export default function VocabularyList() {
             </div>
           </CardContent>
         </Card>
+        </AnimatedItem>
 
         {/* Vocabulary List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {t('vocabularyList.unit', { number: selectedUnit })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <AnimatedItem>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {t('vocabularyList.unit', { number: selectedUnit })}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
             {filteredVocabulary.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredVocabulary.map((word, idx) => {
@@ -292,9 +295,11 @@ export default function VocabularyList() {
             )}
           </CardContent>
         </Card>
+        </AnimatedItem>
 
         {/* Quick Actions */}
-        <div className="mt-8 flex gap-4 justify-center">
+        <AnimatedItem>
+          <div className="mt-8 flex gap-4 justify-center">
           <Link href="/vocabulary">
             <Button variant="default">
               Practice Vocabulary
@@ -306,6 +311,7 @@ export default function VocabularyList() {
             </Button>
           </Link>
         </div>
+        </AnimatedItem>
       </div>
     </AnimatedPage>
   );

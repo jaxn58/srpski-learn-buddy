@@ -15,7 +15,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 // Types only - no hardcoded data imports
 import type { VocabWord, SupportedLanguage } from "@shared/data";
 // Sidebar import removed
-import { AnimatedPage } from "@/components/AnimatedPage";
+import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -765,41 +765,44 @@ export default function Vocabulary() {
 
       <div className="container py-8 max-w-4xl space-y-6">
         {/* Mode Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('vocabulary.practiceMode')}</CardTitle>
-            <CardDescription>{t('vocabulary.practiceMode.desc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Button
-                variant={mode === 'learn' ? 'default' : 'outline'}
-                onClick={() => { 
-                  setMode('learn'); 
-                  handleReset(); 
-                }}
-                className="flex-1"
-              >
-                📚 {t('vocabulary.learnMode')}
-              </Button>
-              <Button
-                variant={mode === 'quiz' ? 'default' : 'outline'}
-                onClick={() => { 
-                  setMode('quiz'); 
-                  handleReset(); 
-                }}
-                className="flex-1"
-              >
-                🎯 {t('vocabulary.quizMode')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <AnimatedItem>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('vocabulary.practiceMode')}</CardTitle>
+              <CardDescription>{t('vocabulary.practiceMode.desc')}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <Button
+                  variant={mode === 'learn' ? 'default' : 'outline'}
+                  onClick={() => { 
+                    setMode('learn'); 
+                    handleReset(); 
+                  }}
+                  className="flex-1"
+                >
+                  📚 {t('vocabulary.learnMode')}
+                </Button>
+                <Button
+                  variant={mode === 'quiz' ? 'default' : 'outline'}
+                  onClick={() => { 
+                    setMode('quiz'); 
+                    handleReset(); 
+                  }}
+                  className="flex-1"
+                >
+                  🎯 {t('vocabulary.quizMode')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </AnimatedItem>
 
         {/* Quiz Instructions */}
         {mode === 'quiz' && (
-          <Collapsible>
-            <Card className="bg-blue-50 border-blue-200">
+          <AnimatedItem>
+            <Collapsible>
+              <Card className="bg-blue-50 border-blue-200">
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer hover:bg-blue-100 transition-colors">
                   <CardTitle className="flex items-center justify-between">
@@ -846,58 +849,62 @@ export default function Vocabulary() {
               </CollapsibleContent>
             </Card>
           </Collapsible>
+          </AnimatedItem>
         )}
 
         {/* Unit Filter */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('vocabulary.filterByUnit')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={selectedUnit === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => { 
-                  setIsManualSelection(true); // Mark as manual selection
-                  setRecentQuizCompletion(false); // Reset quiz completion flag
-                  setSelectedUnit('all'); 
-                  handleReset(); 
-                }}
-              >
-                {t('vocabulary.allUnits')}
-              </Button>
-              {availableUnits.map(unit => {
-                const mastered = isUnitMastered(unit);
-                const isSelected = selectedUnit === unit;
-                return (
-                  <Button
-                    key={unit}
-                    variant={isSelected ? 'default' : 'outline'}
-                    size="sm"
-                    className={mastered && !isSelected ? 'bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500' : ''}
-                    onClick={() => { 
-                      setIsManualSelection(true); // Mark as manual selection
-                      setRecentQuizCompletion(false); // Reset quiz completion flag
-                      setSelectedUnit(unit); 
-                      handleReset(); 
-                    }}
-                  >
-                    {mastered && (
-                      <Star className="h-4 w-4 mr-1.5 text-white fill-white" />
-                    )}
-                    {t('vocabulary.unit', { number: unit })}
-                  </Button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        <AnimatedItem>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('vocabulary.filterByUnit')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={selectedUnit === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => { 
+                    setIsManualSelection(true); // Mark as manual selection
+                    setRecentQuizCompletion(false); // Reset quiz completion flag
+                    setSelectedUnit('all'); 
+                    handleReset(); 
+                  }}
+                >
+                  {t('vocabulary.allUnits')}
+                </Button>
+                {availableUnits.map(unit => {
+                  const mastered = isUnitMastered(unit);
+                  const isSelected = selectedUnit === unit;
+                  return (
+                    <Button
+                      key={unit}
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      className={mastered && !isSelected ? 'bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500' : ''}
+                      onClick={() => { 
+                        setIsManualSelection(true); // Mark as manual selection
+                        setRecentQuizCompletion(false); // Reset quiz completion flag
+                        setSelectedUnit(unit); 
+                        handleReset(); 
+                      }}
+                    >
+                      {mastered && (
+                        <Star className="h-4 w-4 mr-1.5 text-white fill-white" />
+                      )}
+                      {t('vocabulary.unit', { number: unit })}
+                    </Button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </AnimatedItem>
 
 
         {/* Progress */}
-        <Card>
-          <CardContent className="pt-6">
+        <AnimatedItem>
+          <Card>
+            <CardContent className="pt-6">
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>{t('vocabulary.progress')}</span>
@@ -1058,10 +1065,12 @@ export default function Vocabulary() {
             </div>
           </CardContent>
         </Card>
+        </AnimatedItem>
 
         {/* Flashcard */}
         {currentWord && (
-          <Card className="min-h-[400px] flex flex-col justify-center">
+          <AnimatedItem>
+            <Card className="min-h-[400px] flex flex-col justify-center">
             <CardContent className="text-center space-y-8 py-12">
               {/* Vokabel immer anzeigen (auch während Feedback) */}
               {/* Use answeredWord during feedback, otherwise use currentWord */}
@@ -1269,75 +1278,80 @@ export default function Vocabulary() {
               )}
             </CardContent>
           </Card>
+          </AnimatedItem>
         )}
 
         {/* Completed */}
         {currentIndex === filteredVocab.length - 1 && showAnswer && mode === 'quiz' && (
-          <Card className="bg-primary/5 border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-center">
-                🎉 {t('vocabulary.quizComplete')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center space-y-4">
-              <p className="text-2xl font-bold">
-                {t('vocabulary.score', { correct: score.correct, total: score.total })} ({Math.round((score.correct / score.total) * 100)}%)
-              </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm mb-2 text-yellow-800">
-                  Total XP Earned in this Session
+          <AnimatedItem>
+            <Card className="bg-primary/5 border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-center">
+                  🎉 {t('vocabulary.quizComplete')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-center space-y-4">
+                <p className="text-2xl font-bold">
+                  {t('vocabulary.score', { correct: score.correct, total: score.total })} ({Math.round((score.correct / score.total) * 100)}%)
                 </p>
-                <p className="text-3xl font-bold text-yellow-600">
-                  +{sessionXP} XP
-                </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Progressive XP based on word mastery levels
-                </p>
-              </div>
-              <div className="flex gap-4 justify-center flex-wrap">
-                <Button onClick={handleReset}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  {t('vocabulary.tryAgain')}
-                </Button>
-                <Button variant="outline" onClick={handleResetQuizProgress}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Reset Progress
-                </Button>
-                {/* Auto-advance to next unit */}
-                {selectedUnit !== 'all' && typeof selectedUnit === 'number' && selectedUnit < availableUnits[availableUnits.length - 1] && (
-                  <Link href={`/vocabulary?unit=${selectedUnit + 1}`}>
-                    <Button className="bg-green-600 hover:bg-green-700">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm mb-2 text-yellow-800">
+                    Total XP Earned in this Session
+                  </p>
+                  <p className="text-3xl font-bold text-yellow-600">
+                    +{sessionXP} XP
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Progressive XP based on word mastery levels
+                  </p>
+                </div>
+                <div className="flex gap-4 justify-center flex-wrap">
+                  <Button onClick={handleReset}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    {t('vocabulary.tryAgain')}
+                  </Button>
+                  <Button variant="outline" onClick={handleResetQuizProgress}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reset Progress
+                  </Button>
+                  {/* Auto-advance to next unit */}
+                  {selectedUnit !== 'all' && typeof selectedUnit === 'number' && selectedUnit < availableUnits[availableUnits.length - 1] && (
+                    <Link href={`/vocabulary?unit=${selectedUnit + 1}`}>
+                      <Button className="bg-green-600 hover:bg-green-700">
+                        <ArrowRight className="mr-2 h-4 w-4" />
+                        {t('vocabulary.continueToNextUnit', { next: selectedUnit + 1 })}
+                      </Button>
+                    </Link>
+                  )}
+                  <Link href="/dashboard">
+                    <Button variant="outline">
                       <ArrowRight className="mr-2 h-4 w-4" />
-                      {t('vocabulary.continueToNextUnit', { next: selectedUnit + 1 })}
+                      {t('vocabulary.backToDashboard')}
                     </Button>
                   </Link>
-                )}
-                <Link href="/dashboard">
-                  <Button variant="outline">
-                    <ArrowRight className="mr-2 h-4 w-4" />
-                    {t('vocabulary.backToDashboard')}
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </AnimatedItem>
         )}
 
         {/* Study Tips */}
-        <Card className="bg-primary/5 border-primary/20">
-          <CardHeader>
-            <CardTitle className="text-primary">{t('vocabulary.tips')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm">
-              <li>{t('vocabulary.tip1')}</li>
-              <li>{t('vocabulary.tip2')}</li>
-              <li>{t('vocabulary.tip3')}</li>
-              <li>{t('vocabulary.tip4')}</li>
-              <li>{t('vocabulary.tip5')}</li>
-            </ul>
-          </CardContent>
-        </Card>
+        <AnimatedItem>
+          <Card className="bg-primary/5 border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-primary">{t('vocabulary.tips')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-sm">
+                <li>{t('vocabulary.tip1')}</li>
+                <li>{t('vocabulary.tip2')}</li>
+                <li>{t('vocabulary.tip3')}</li>
+                <li>{t('vocabulary.tip4')}</li>
+                <li>{t('vocabulary.tip5')}</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </AnimatedItem>
       </div>
 
       <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">

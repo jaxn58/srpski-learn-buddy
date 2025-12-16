@@ -1,4 +1,4 @@
-import { AnimatedPage } from "@/components/AnimatedPage";
+import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 
 export default function WeekView() {
   return (

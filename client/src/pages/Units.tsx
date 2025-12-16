@@ -201,7 +201,8 @@ export default function Units() {
             const moduleDescription = i18n.language === "de" ? module.descriptionGerman : module.description;
 
             return (
-              <Card 
+              <AnimatedItem key={module.id}>
+                <Card 
                 key={module.id} 
                 id={`module-card-${module.id}`}
                 className={isModuleLocked ? "opacity-60 border-dashed" : ""}
@@ -351,6 +352,7 @@ export default function Units() {
                   </Accordion>
                 </CardContent>
               </Card>
+              </AnimatedItem>
             );
           })}
         </div>

@@ -11,7 +11,7 @@ import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mi
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 // Sidebar import removed
-import { AnimatedPage } from "@/components/AnimatedPage";
+import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { InteractiveTest } from "@/components/InteractiveTest";
@@ -198,28 +198,31 @@ export default function UnitView() {
 
         <div className="max-w-5xl mx-auto">
           {/* Header Card */}
-          <Card className="mb-6">
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-3xl mb-2">{unitMetadata.title}</CardTitle>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {unitMetadata.topics?.map((topic: string, i: number) => (
-                      <Badge key={i} variant="secondary">{topic}</Badge>
-                    ))}
+          <AnimatedItem>
+            <Card className="mb-6">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-3xl mb-2">{unitMetadata.title}</CardTitle>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {unitMetadata.topics?.map((topic: string, i: number) => (
+                        <Badge key={i} variant="secondary">{topic}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {/* {isCompleted && <Badge className="bg-green-600"><CheckCircle2 className="w-4 h-4 mr-1"/> Completed</Badge>} */}
+                    {isMastered && <Badge className="bg-amber-500"><Star className="w-4 h-4 mr-1"/> Mastered</Badge>}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {/* {isCompleted && <Badge className="bg-green-600"><CheckCircle2 className="w-4 h-4 mr-1"/> Completed</Badge>} */}
-                  {isMastered && <Badge className="bg-amber-500"><Star className="w-4 h-4 mr-1"/> Mastered</Badge>}
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
+              </CardHeader>
+            </Card>
+          </AnimatedItem>
 
           {/* New 6-Tab Structure */}
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
+          <AnimatedItem>
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
               <TabsTrigger value="overview" className="gap-2"><Lightbulb className="w-4 h-4"/> Overview</TabsTrigger>
               <TabsTrigger value="vocabulary" className="gap-2"><BookOpen className="w-4 h-4"/> Vocabulary</TabsTrigger>
               <TabsTrigger value="grammar" className="gap-2"><Brain className="w-4 h-4"/> Grammar</TabsTrigger>
@@ -346,6 +349,7 @@ export default function UnitView() {
               <InteractiveTest unitNumber={unitNumber} language={displayLanguage} />
             </TabsContent>
           </Tabs>
+          </AnimatedItem>
         </div>
     </AnimatedPage>
   );
