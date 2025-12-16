@@ -287,19 +287,26 @@ export default function Chat() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={t('chat.placeholder')}
+                placeholder={currentSessionId ? t('chat.placeholder') : t('chat.noSessionPlaceholder', 'Please start a new chat first')}
                 className="flex-1 rounded-full"
-                disabled={isSending}
+                disabled={isSending || !currentSessionId}
               />
               <Button
                 onClick={handleSend}
-                disabled={!message.trim() || isSending}
+                disabled={!message.trim() || isSending || !currentSessionId}
                 size="icon"
                 className="rounded-full h-10 w-10"
               >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+            {!currentSessionId && (
+              <div className="text-center mt-2">
+                <Button variant="link" size="sm" onClick={handleNewChat} className="text-primary">
+                  {t('chat.startNewChat', 'Start a new chat to begin')}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
