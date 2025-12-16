@@ -10,6 +10,7 @@ import { Lock, BookOpen, Star, ChevronDown } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Sidebar } from "@/components/Sidebar";
+import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useEffect, useState, useMemo } from "react";
 
 export default function Units() {
@@ -170,6 +171,7 @@ export default function Units() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 md:ml-64 w-full">
+        <AnimatedPage>
         <div className="container py-10 space-y-8">
           <div className="space-y-6">
             {modules.map((module) => {
@@ -357,6 +359,7 @@ export default function Units() {
             })}
           </div>
         </div>
+        </AnimatedPage>
       </div>
     </div>
   );

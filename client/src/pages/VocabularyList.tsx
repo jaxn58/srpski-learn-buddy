@@ -9,6 +9,7 @@ import { Search, BookOpen, Filter, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { AnimatedPage } from "@/components/AnimatedPage";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
@@ -155,6 +156,7 @@ export default function VocabularyList() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
+      <AnimatedPage>
       <div className="flex-1 md:ml-64 w-full">
       {/* Header */}
       <header className="border-b bg-card">
@@ -309,6 +311,7 @@ export default function VocabularyList() {
         </div>
       </div>
       </div>
+      </AnimatedPage>
     </div>
   );
 }

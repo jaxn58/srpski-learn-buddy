@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 // Types only - no hardcoded data imports
 import type { VocabWord, SupportedLanguage } from "@shared/data";
 import { Sidebar } from "@/components/Sidebar";
+import { AnimatedPage } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -749,6 +750,7 @@ export default function Vocabulary() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
+      <AnimatedPage>
       <div className="flex-1 md:ml-64 w-full">
       <header className="border-b bg-card">
         <div className="container py-4">
@@ -1350,6 +1352,7 @@ export default function Vocabulary() {
         </footer>
       </main>
       </div>
+      </AnimatedPage>
     </div>
   );
 }

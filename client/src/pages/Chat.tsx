@@ -13,6 +13,7 @@ import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Sidebar } from "@/components/Sidebar";
+import { AnimatedPage } from "@/components/AnimatedPage";
 import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
 import { useTranslation } from "react-i18next";
 
@@ -167,6 +168,7 @@ export default function Chat() {
   return (
     <div className="flex min-h-screen bg-gradient-to-b from-background to-muted/20">
       <Sidebar />
+      <AnimatedPage>
       <div className="flex flex-1 w-full md:ml-64">
         <ChatSessionsSidebar 
           currentSessionId={currentSessionId}
@@ -318,7 +320,7 @@ export default function Chat() {
         </footer>
       </main>
       </div>
-    </div>
+      </AnimatedPage>
     </div>
   );
 }
