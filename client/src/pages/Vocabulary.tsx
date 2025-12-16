@@ -12,7 +12,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useCallback, useMemo } from "react";
 
-import { VOCABULARY, getTranslation, getAlternatives, type VocabWord, type SupportedLanguage } from "@shared/data";
+// Types only - no hardcoded data imports
+import type { VocabWord, SupportedLanguage } from "@shared/data";
 import { Sidebar } from "@/components/Sidebar";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -94,6 +95,15 @@ export default function Vocabulary() {
       ? { unitNumber: undefined } // Load all units
       : "skip"
   ) as VocabularyProgressDoc[] | undefined;
+
+  // NEW: Fetch course vocabulary from database (for both Learn Mode and Quiz Mode)
+  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
+  const vocabWithProgress = useQuery(
+    api.vocabulary.getVocabularyWithProgress,
+    (mode === 'learn' || mode === 'quiz') 
+      ? { unitNumber: selectedUnit === 'all' ? undefined : selectedUnit } 
+      : "skip"
+  );
 
   const handleQuizComplete = async () => {
     const earnedXP = calculateXP(score.correct, score.total);
@@ -268,37 +278,84 @@ export default function Vocabulary() {
 
   // Filter vocabulary by unit and access
   const filteredVocab = useMemo(() => {
-    let vocab = selectedUnit === 'all' 
-      ? VOCABULARY 
-      : VOCABULARY.filter(v => v.unit === selectedUnit);
-    
-    // Beta/Subscription Beschränkung
-    if (accessInfo && accessInfo.maxUnits > 0) {
-      vocab = vocab.filter(v => v.unit <= accessInfo.maxUnits);
+    // NEW: Learn Mode uses database data
+    if (mode === 'learn' && courseVocabulary && courseVocabulary.length > 0) {
+      let vocab = selectedUnit === 'all'
+        ? courseVocabulary
+        : courseVocabulary.filter(v => v.unitNumber === selectedUnit);
+      
+      // Beta/Subscription Beschränkung
+      if (accessInfo && accessInfo.maxUnits > 0) {
+        vocab = vocab.filter(v => v.unitNumber <= accessInfo.maxUnits);
+      }
+      
+      // Map to format compatible with existing code
+      return vocab.map(word => ({
+        _id: word._id,
+        serbian: word.serbian,
+        serbianWord: word.serbian, // For compatibility
+        unit: word.unitNumber,
+        unitNumber: word.unitNumber,
+        en: word.en,
+        de: word.de,
+        enAlt: word.enAlt,
+        deAlt: word.deAlt,
+        // Include old translations array for backward compatibility during migration
+        translations: word.translations || [],
+      }));
     }
     
-    // In quiz mode, filter out mastered words (correctAnswerCount >= 3)
-    if (mode === 'quiz') {
+    // NEW: Quiz Mode also uses database data
+    if (mode === 'quiz' && courseVocabulary && courseVocabulary.length > 0) {
+      let vocab = selectedUnit === 'all'
+        ? courseVocabulary
+        : courseVocabulary.filter(v => v.unitNumber === selectedUnit);
+      
+      // Beta/Subscription Beschränkung
+      if (accessInfo && accessInfo.maxUnits > 0) {
+        vocab = vocab.filter(v => v.unitNumber <= accessInfo.maxUnits);
+      }
+      
+      // Filter out mastered words (correctAnswerCount >= 3)
       vocab = vocab.filter(word => {
-        // Check for optimistic update first
-        const optimisticKey = `${word.serbian}:${word.unit}`;
+        // NEW: Use courseVocabularyId for optimistic updates
+        const optimisticKey = word._id;
         const optimistic = optimisticProgress.get(optimisticKey);
         
-        // Find progress from database
-        const dbProgress = vocabProgressData?.find(
-          (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
-        );
+        // Find progress from vocabWithProgress (contains progress data)
+        const progress = vocabWithProgress?.find(p => p._id === word._id)?.progress;
         
         // Use optimistic count if available, otherwise use database count
-        const correctCount = optimistic?.correctAnswerCount ?? dbProgress?.correctAnswerCount ?? 0;
+        const correctCount = optimistic?.correctAnswerCount ?? progress?.correctAnswerCount ?? 0;
         
         // Show word if: not mastered (correctAnswerCount < 3)
         return correctCount < 3;
       });
+      
+      // Map to format compatible with existing code
+      return vocab.map(word => ({
+        _id: word._id,
+        serbian: word.serbian,
+        serbianWord: word.serbian, // For compatibility
+        unit: word.unitNumber,
+        unitNumber: word.unitNumber,
+        en: word.en,
+        de: word.de,
+        enAlt: word.enAlt,
+        deAlt: word.deAlt,
+        // Include old translations array for backward compatibility during migration
+        translations: word.translations || [],
+      }));
     }
     
-    return vocab;
-  }, [selectedUnit, accessInfo, mode, vocabProgressData, optimisticProgress]);
+    // Database is the only source of truth - no fallback to hardcoded data
+    if (!courseVocabulary || courseVocabulary.length === 0) {
+      console.error('[Vocabulary] No vocabulary data available from database');
+      return [];
+    }
+    
+    return [];
+  }, [selectedUnit, accessInfo, mode, vocabProgressData, optimisticProgress, courseVocabulary, vocabWithProgress]);
 
   const currentWord = filteredVocab[currentIndex];
   const progressPercent = filteredVocab.length > 0 ? ((currentIndex + 1) / filteredVocab.length) * 100 : 0;
@@ -310,14 +367,27 @@ export default function Vocabulary() {
     const wordToCheck = (showAnswer && answeredWord) ? answeredWord : currentWord;
     if (!wordToCheck) return null;
     
-    // Check for optimistic update first
-    const optimisticKey = `${wordToCheck.serbian}:${wordToCheck.unit}`;
+    // NEW: Use courseVocabularyId for optimistic updates (if available)
+    // FALLBACK: Use old serbian:unit format for backward compatibility
+    const optimisticKey = wordToCheck._id || `${wordToCheck.serbian}:${wordToCheck.unit}`;
     const optimistic = optimisticProgress.get(optimisticKey);
     
     // Find progress from database
-    const dbProgress = vocabProgressData?.find(
-      p => p.serbianWord === wordToCheck.serbian && p.unitNumber === wordToCheck.unit
-    );
+    // NEW: Try vocabWithProgress first (contains progress data)
+    let dbProgress = null;
+    if (wordToCheck._id && vocabWithProgress) {
+      const vocabProgress = vocabWithProgress.find(p => p._id === wordToCheck._id)?.progress;
+      if (vocabProgress) {
+        dbProgress = vocabProgress as any;
+      }
+    }
+    
+    // FALLBACK: Use old vocabProgressData structure
+    if (!dbProgress && vocabProgressData) {
+      dbProgress = vocabProgressData.find(
+        p => p.serbianWord === wordToCheck.serbian && p.unitNumber === wordToCheck.unit
+      );
+    }
     
     if (optimistic && dbProgress) {
       // Merge optimistic update with database data
@@ -339,7 +409,7 @@ export default function Vocabulary() {
     }
     
     return dbProgress || null;
-  }, [currentWord, answeredWord, showAnswer, vocabProgressData, optimisticProgress]);
+  }, [currentWord, answeredWord, showAnswer, vocabProgressData, vocabWithProgress, optimisticProgress]);
 
   // Reset currentIndex if it's out of bounds (e.g., after completing a quiz)
   useEffect(() => {
@@ -372,12 +442,45 @@ export default function Vocabulary() {
     
     // Store the current word IMMEDIATELY to prevent it from changing
     const wordToAnswer = currentWord;
-    const correctTranslationForWord = getTranslation(wordToAnswer, userLanguage);
     
+    // NEW: Support column-based translations (for both Learn Mode and Quiz Mode with database data)
+    // FALLBACK: Support old getTranslation/getAlternatives (for backward compatibility)
+    let correctTranslationForWord: string;
+    let alternatives: string[] = [];
+    
+    // Check if column-based translations exist AND have values
+    const hasColumnTranslations = wordToAnswer && 
+      ((wordToAnswer.en && wordToAnswer.en.trim()) || (wordToAnswer.de && wordToAnswer.de.trim()));
+    
+    if (hasColumnTranslations) {
+      // NEW: Column-based structure
+      correctTranslationForWord = userLanguage === "de" 
+        ? (wordToAnswer.de?.trim() || wordToAnswer.en?.trim() || "") 
+        : (wordToAnswer.en?.trim() || wordToAnswer.de?.trim() || "");
+      const alt = userLanguage === "de" ? wordToAnswer.deAlt : wordToAnswer.enAlt;
+      alternatives = alt && alt.trim() ? [alt.trim()] : [];
+    } else if (wordToAnswer && Array.isArray(wordToAnswer.translations)) {
+      // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
+      const translationObj = wordToAnswer.translations.find((t: any) => t.language === userLanguage) ||
+                            wordToAnswer.translations.find((t: any) => t.language === "en");
+      correctTranslationForWord = translationObj?.translation || "";
+      
+      // Find alternatives from translations array
+      const altTranslation = wordToAnswer.translations.find((t: any) => 
+        t.language === userLanguage && t.alt
+      );
+      alternatives = altTranslation?.alt ? [altTranslation.alt] : [];
+    } else {
+      // No fallback - database should always provide translations
+      console.error('[Vocabulary] No translation available for word:', wordToAnswer);
+      correctTranslationForWord = "";
+      alternatives = [];
+    }
+
     const userAnswerLower = userAnswer.trim().toLowerCase();
     const correctTranslation = correctTranslationForWord.toLowerCase();
-    const alternatives = getAlternatives(wordToAnswer, userLanguage).map(alt => alt.toLowerCase());
-    const correct = userAnswerLower === correctTranslation || alternatives.includes(userAnswerLower);
+    const alternativesLower = alternatives.map(alt => alt.toLowerCase());
+    const correct = userAnswerLower === correctTranslation || alternativesLower.includes(userAnswerLower);
     
     setIsCorrect(correct);
     setScore({ correct: score.correct + (correct ? 1 : 0), total: score.total + 1 });
@@ -389,7 +492,9 @@ export default function Vocabulary() {
     // Save answer to vocabulary tracking in quiz mode
     if (mode === 'quiz' && wordToAnswer) {
       // Optimistic update: Update local state immediately
-      const optimisticKey = `${wordToAnswer.serbian}:${wordToAnswer.unit}`;
+      // NEW: Use courseVocabularyId for optimistic key (if available)
+      // FALLBACK: Use old serbian:unit format for backward compatibility
+      const optimisticKey = wordToAnswer._id || `${wordToAnswer.serbian}:${wordToAnswer.unit}`;
       const currentProgress = currentWordProgress;
       const currentCorrectCount = currentProgress?.correctAnswerCount || 0;
       const currentIncorrectCount = currentProgress?.incorrectAnswerCount || 0;
@@ -426,9 +531,15 @@ export default function Vocabulary() {
         // Award XP to user immediately
         if (earnedXP > 0) {
           try {
+            // NEW: Use courseVocabularyId for exerciseId (if available)
+            // FALLBACK: Use old serbianWord format for backward compatibility
+            const exerciseId = wordToAnswer._id 
+              ? `vocab_word_${wordToAnswer._id}_${newCorrectCount}`
+              : `vocab_word_${wordToAnswer.serbian}_${newCorrectCount}`;
+            
             await addExerciseCompletionMutation({
-              unitNumber: wordToAnswer.unit,
-              exerciseId: `vocab_word_${wordToAnswer.serbian}_${newCorrectCount}`,
+              unitNumber: wordToAnswer.unit || wordToAnswer.unitNumber,
+              exerciseId,
               score: 1,
               totalQuestions: 1,
               xpEarned: earnedXP,
@@ -441,11 +552,21 @@ export default function Vocabulary() {
       
       // Save to database
       try {
-        await recordVocabularyAnswerMutation({
-          serbianWord: wordToAnswer.serbian,
-          unitNumber: wordToAnswer.unit,
-          isCorrect: correct,
-        });
+        // NEW: Use courseVocabularyId (preferred)
+        // FALLBACK: Use serbianWord + unitNumber for backward compatibility
+        if (wordToAnswer._id) {
+          await recordVocabularyAnswerMutation({
+            courseVocabularyId: wordToAnswer._id,
+            isCorrect: correct,
+          });
+        } else {
+          // FALLBACK: Old format
+          await recordVocabularyAnswerMutation({
+            serbianWord: wordToAnswer.serbian,
+            unitNumber: wordToAnswer.unit || wordToAnswer.unitNumber,
+            isCorrect: correct,
+          });
+        }
         // Convex will automatically revalidate the query, which will update vocabProgressData
         // The optimistic update will be replaced by the real data when it arrives
       } catch (e) {
@@ -552,22 +673,53 @@ export default function Vocabulary() {
   // Helper function to check if a unit is mastered
   // A unit is mastered when ALL vocabulary words in that unit have correctAnswerCount >= 3
   const isUnitMastered = (unitNumber: number): boolean => {
-    // Get all vocabulary words for this unit
-    const unitVocab = VOCABULARY.filter(v => v.unit === unitNumber);
+    // NEW: Use courseVocabulary from database (if available)
+    // FALLBACK: Use hardcoded VOCABULARY for backward compatibility
+    let unitVocab: Array<{ _id?: string; serbian: string; serbianWord: string; unit: number; unitNumber: number }> = [];
+    
+    if (courseVocabulary && courseVocabulary.length > 0) {
+      unitVocab = courseVocabulary
+        .filter(v => v.unitNumber === unitNumber)
+        .map(word => ({
+          _id: word._id,
+          serbian: word.serbian,
+          serbianWord: word.serbian,
+          unit: word.unitNumber,
+          unitNumber: word.unitNumber,
+        }));
+    } else {
+      // Database is the only source - no fallback
+      console.error('[Vocabulary] No vocabulary data available for unit mastery check');
+      return false;
+    }
+    
     if (unitVocab.length === 0) return false;
     
-    // Check if vocabProgressData is loaded
-    if (!vocabProgressData || vocabProgressData.length === 0) {
+    // Check if vocabProgressData or vocabWithProgress is loaded
+    if ((!vocabProgressData || vocabProgressData.length === 0) && 
+        (!vocabWithProgress || vocabWithProgress.length === 0)) {
       return false;
     }
     
     // Check if all words in the unit are mastered (correctAnswerCount >= 3)
     const allMastered = unitVocab.every(word => {
-      const progress = vocabProgressData.find(
-        (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
-      );
-      const correctCount = progress?.correctAnswerCount ?? 0;
-      return correctCount >= 3;
+      // NEW: Try vocabWithProgress first (contains progress data)
+      if (word._id && vocabWithProgress) {
+        const progress = vocabWithProgress.find(p => p._id === word._id)?.progress;
+        if (progress) {
+          return (progress.correctAnswerCount ?? 0) >= 3;
+        }
+      }
+      
+      // FALLBACK: Use old vocabProgressData structure
+      if (vocabProgressData) {
+        const progress = vocabProgressData.find(
+          (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
+        );
+        return (progress?.correctAnswerCount ?? 0) >= 3;
+      }
+      
+      return false;
     });
     
     return allMastered;
@@ -960,9 +1112,24 @@ export default function Vocabulary() {
                       {/* Übersetzung nur im Learn-Mode oder bei falscher Antwort anzeigen */}
                       {(mode === 'learn' || (showAnswer && isCorrect === false)) && (
                         <p className="text-2xl text-muted-foreground mt-4">
-                          {showAnswer && answeredWord 
-                            ? getTranslation(answeredWord, userLanguage)
-                            : getTranslation(displayWord, userLanguage)}
+                          {(() => {
+                            const word = showAnswer && answeredWord ? answeredWord : displayWord;
+                            // NEW: Support column-based translations (check if values exist)
+                            if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
+                              return userLanguage === "de" 
+                                ? (word.de?.trim() || word.en?.trim() || "") 
+                                : (word.en?.trim() || word.de?.trim() || "");
+                            }
+                            // FALLBACK: Database translations array structure
+                            if (word && Array.isArray(word.translations)) {
+                              const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
+                                                    word.translations.find((t: any) => t.language === "en");
+                              return translationObj?.translation || "";
+                            }
+                            // No fallback - database should always provide translations
+                            console.error('[Vocabulary] No translation available for display:', word);
+                            return "";
+                          })()}
                         </p>
                       )}
                     </div>
@@ -1056,7 +1223,24 @@ export default function Vocabulary() {
                               <>
                                 <div className="text-sm text-muted-foreground mt-2">{t('vocabulary.correctAnswer')}</div>
                                 <div className="font-medium text-green-600">
-                                  {currentCorrectTranslation || (answeredWord ? getTranslation(answeredWord, userLanguage) : getTranslation(currentWord, userLanguage))}
+                                  {currentCorrectTranslation || (() => {
+                                    const word = answeredWord || currentWord;
+                                    // NEW: Support column-based translations (check if values exist)
+                                    if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
+                                      return userLanguage === "de" 
+                                        ? (word.de?.trim() || word.en?.trim() || "") 
+                                        : (word.en?.trim() || word.de?.trim() || "");
+                                    }
+                                    // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
+                                    if (word && Array.isArray(word.translations)) {
+                                      const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
+                                                            word.translations.find((t: any) => t.language === "en");
+                                      return translationObj?.translation || "";
+                                    }
+                                    // No fallback - database should always provide translations
+                                    console.error('[Vocabulary] No translation available for correct answer display');
+                                    return "";
+                                  })()}
                                 </div>
                               </>
                             )}

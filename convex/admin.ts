@@ -633,27 +633,48 @@ export const markUnit1Complete = mutation({
     const now = Date.now();
 
     for (const vocabWord of unit1VocabWords) {
-      // Check if vocabulary already exists for this user
-      const existingVocab = await ctx.db
+      // Use .collect() instead of .first() to find ALL duplicates
+      const existingEntries = await ctx.db
         .query("vocabulary")
         .withIndex("by_user_unit", (q) =>
           q.eq("userId", user._id).eq("unitNumber", 1)
         )
         .filter((q) => q.eq(q.field("serbianWord"), vocabWord.serbian))
-        .first();
+        .collect();
 
-      if (existingVocab) {
-        // Update existing vocabulary to Master status
-        await ctx.db.patch(existingVocab._id, {
-          correctAnswerCount: 3,
+      if (existingEntries.length > 0) {
+        // Sort by creation time to get the oldest entry (keep this one)
+        const sortedEntries = existingEntries.sort(
+          (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
+        );
+        const oldestEntry = sortedEntries[0];
+        const duplicates = sortedEntries.slice(1);
+
+        // Merge counts from duplicates into oldest entry
+        let mergedReviewCount = oldestEntry.reviewCount || 0;
+        let mergedCorrectCount = oldestEntry.correctAnswerCount || 0;
+
+        for (const dup of duplicates) {
+          mergedReviewCount += dup.reviewCount || 0;
+          mergedCorrectCount += dup.correctAnswerCount || 0;
+        }
+
+        // Update oldest entry to Master status with merged counts
+        await ctx.db.patch(oldestEntry._id, {
+          correctAnswerCount: Math.max(mergedCorrectCount, 3),
           mastered: true,
-          reviewCount: 3,
+          reviewCount: Math.max(mergedReviewCount, 3),
           lastReviewedAt: now,
         });
+
+        // Delete duplicates immediately
+        for (const dup of duplicates) {
+          await ctx.db.delete(dup._id);
+        }
         vocabProcessed++;
       } else {
         // Create new vocabulary entry with Master status
-        await ctx.db.insert("vocabulary", {
+        const newId = await ctx.db.insert("vocabulary", {
           userId: user._id,
           serbianWord: vocabWord.serbian,
           englishTranslation: vocabWord.english,
@@ -664,6 +685,46 @@ export const markUnit1Complete = mutation({
           incorrectAnswerCount: 0,
           lastReviewedAt: now,
         });
+
+        // Immediate cleanup check: verify no duplicates were created (race condition protection)
+        const verifyEntries = await ctx.db
+          .query("vocabulary")
+          .withIndex("by_user_unit", (q) =>
+            q.eq("userId", user._id).eq("unitNumber", 1)
+          )
+          .filter((q) => q.eq(q.field("serbianWord"), vocabWord.serbian))
+          .collect();
+
+        if (verifyEntries.length > 1) {
+          // Race condition detected! Clean up immediately
+          const sortedVerify = verifyEntries.sort(
+            (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
+          );
+          const keepEntry = sortedVerify[0];
+          const verifyDuplicates = sortedVerify.slice(1);
+
+          // Merge counts
+          let mergedReviewCount = keepEntry.reviewCount || 0;
+          let mergedCorrectCount = keepEntry.correctAnswerCount || 0;
+
+          for (const dup of verifyDuplicates) {
+            mergedReviewCount += dup.reviewCount || 0;
+            mergedCorrectCount += dup.correctAnswerCount || 0;
+          }
+
+          // Update kept entry
+          await ctx.db.patch(keepEntry._id, {
+            correctAnswerCount: Math.max(mergedCorrectCount, 3),
+            mastered: true,
+            reviewCount: Math.max(mergedReviewCount, 3),
+            lastReviewedAt: now,
+          });
+
+          // Delete duplicates
+          for (const dup of verifyDuplicates) {
+            await ctx.db.delete(dup._id);
+          }
+        }
         vocabProcessed++;
       }
     }
@@ -819,11 +880,12 @@ export const simulateUnitProgress = mutation({
     let vocabProcessed = 0;
 
     for (const word of vocabWords) {
-      const existing = await ctx.db
+      // Use .collect() instead of .first() to find ALL duplicates
+      const existingEntries = await ctx.db
         .query("vocabulary")
         .withIndex("by_user_unit", (q) => q.eq("userId", args.userId).eq("unitNumber", unitNumber))
         .filter((q) => q.eq(q.field("serbianWord"), word.serbian))
-        .first();
+        .collect();
 
       const payload = {
         userId: args.userId as Id<"users">,
@@ -838,12 +900,82 @@ export const simulateUnitProgress = mutation({
         lastAnsweredAt: now,
       };
 
-      if (existing) {
-        await ctx.db.patch(existing._id, payload);
+      if (existingEntries.length > 0) {
+        // Sort by creation time to get the oldest entry (keep this one)
+        const sortedEntries = existingEntries.sort(
+          (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
+        );
+        const oldestEntry = sortedEntries[0];
+        const duplicates = sortedEntries.slice(1);
+
+        // Merge counts from duplicates into oldest entry
+        let mergedReviewCount = oldestEntry.reviewCount || 0;
+        let mergedCorrectCount = oldestEntry.correctAnswerCount || 0;
+        let mergedIncorrectCount = oldestEntry.incorrectAnswerCount || 0;
+
+        for (const dup of duplicates) {
+          mergedReviewCount += dup.reviewCount || 0;
+          mergedCorrectCount += dup.correctAnswerCount || 0;
+          mergedIncorrectCount += dup.incorrectAnswerCount || 0;
+        }
+
+        // Update oldest entry with merged counts + target values
+        await ctx.db.patch(oldestEntry._id, {
+          ...payload,
+          reviewCount: Math.max(mergedReviewCount, vocabTargetCount),
+          correctAnswerCount: Math.max(mergedCorrectCount, vocabTargetCount),
+          incorrectAnswerCount: mergedIncorrectCount,
+        });
+
+        // Delete duplicates immediately
+        for (const dup of duplicates) {
+          await ctx.db.delete(dup._id);
+        }
+        vocabProcessed++;
       } else {
-        await ctx.db.insert("vocabulary", payload);
+        const newId = await ctx.db.insert("vocabulary", payload);
+
+        // Immediate cleanup check: verify no duplicates were created (race condition protection)
+        const verifyEntries = await ctx.db
+          .query("vocabulary")
+          .withIndex("by_user_unit", (q) => q.eq("userId", args.userId).eq("unitNumber", unitNumber))
+          .filter((q) => q.eq(q.field("serbianWord"), word.serbian))
+          .collect();
+
+        if (verifyEntries.length > 1) {
+          // Race condition detected! Clean up immediately
+          const sortedVerify = verifyEntries.sort(
+            (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
+          );
+          const keepEntry = sortedVerify[0];
+          const verifyDuplicates = sortedVerify.slice(1);
+
+          // Merge counts
+          let mergedReviewCount = keepEntry.reviewCount || 0;
+          let mergedCorrectCount = keepEntry.correctAnswerCount || 0;
+          let mergedIncorrectCount = keepEntry.incorrectAnswerCount || 0;
+
+          for (const dup of verifyDuplicates) {
+            mergedReviewCount += dup.reviewCount || 0;
+            mergedCorrectCount += dup.correctAnswerCount || 0;
+            mergedIncorrectCount += dup.incorrectAnswerCount || 0;
+          }
+
+          // Update kept entry
+          await ctx.db.patch(keepEntry._id, {
+            ...payload,
+            reviewCount: Math.max(mergedReviewCount, vocabTargetCount),
+            correctAnswerCount: Math.max(mergedCorrectCount, vocabTargetCount),
+            incorrectAnswerCount: mergedIncorrectCount,
+          });
+
+          // Delete duplicates
+          for (const dup of verifyDuplicates) {
+            await ctx.db.delete(dup._id);
+          }
+        }
+        vocabProcessed++;
       }
-      vocabProcessed++;
     }
 
     const exerciseIds = UNIT_EXERCISES[unitNumber] || [];

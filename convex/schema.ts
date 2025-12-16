@@ -40,7 +40,10 @@ export default defineSchema({
     lastActivityAt: v.optional(v.number()), // last activity timestamp
   }).index("by_user", ["userId"]),
 
-  // ============= VOCABULARY =============
+  // ============= VOCABULARY (DEPRECATED - Legacy User Progress) =============
+  // @deprecated This table is deprecated. Use vocabularyProgress instead.
+  // Migration: vocabulary → vocabularyProgress
+  // This table will be removed after migration is complete.
   vocabulary: defineTable({
     userId: v.id("users"),
     serbianWord: v.string(),
@@ -55,6 +58,24 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_unit", ["userId", "unitNumber"]),
+
+  // ============= VOCABULARY PROGRESS (NEW - User Progress with Foreign Key) =============
+  // Normalized user progress linked to courseVocabulary via Foreign Key
+  vocabularyProgress: defineTable({
+    userId: v.id("users"),
+    courseVocabularyId: v.id("courseVocabulary"), // Foreign Key zu eindeutiger Vokabel-ID
+    
+    // Nur Fortschritts-Daten (keine Redundanz!)
+    mastered: v.boolean(),
+    reviewCount: v.number(),
+    lastReviewedAt: v.optional(v.number()),
+    correctAnswerCount: v.number(),
+    incorrectAnswerCount: v.number(),
+    lastAnsweredAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_course_vocab", ["courseVocabularyId"])
+    .index("by_user_course_vocab", ["userId", "courseVocabularyId"]), // Unique constraint
 
   // ============= EXERCISE QUESTION PROGRESS =============
   exerciseQuestionProgress: defineTable({
@@ -244,21 +265,35 @@ export default defineSchema({
 
   // ============= CENTRAL COURSE VOCABULARY (Master Data) =============
   // Stores vocabulary definitions from Units (Markdown)
-  // Multi-language ready via translations array
+  // Multi-language ready via column-based translations (preferred) or translations array (deprecated)
   courseVocabulary: defineTable({
     unitNumber: v.number(),
     serbian: v.string(),
-    // Flexible translations: [{lang: "en", text: "passport"}, {lang: "de", text: "Reisepass"}]
-    translations: v.array(v.object({
+    
+    // NEW: Column-based translations (preferred)
+    // Direct access: word.en, word.de, word.sr, etc.
+    en: v.optional(v.string()), // English translation
+    de: v.optional(v.string()), // German translation
+    sr: v.optional(v.string()), // Serbian (if different from serbian field)
+    es: v.optional(v.string()), // Spanish translation (future)
+    fr: v.optional(v.string()), // French translation (future)
+    enAlt: v.optional(v.string()), // Alternative English translation
+    deAlt: v.optional(v.string()), // Alternative German translation
+    
+    // OLD: Array-based translations (DEPRECATED - kept for backward compatibility during migration)
+    // @deprecated Use column-based translations (en, de, etc.) instead
+    translations: v.optional(v.array(v.object({
       language: v.string(), // "en", "de", "es", "fr", etc.
       translation: v.string(),
       alt: v.optional(v.string()) // Optional Montenegrin variant or alternatives
-    })),
+    }))),
+    
     gender: v.optional(v.string()), // m, f, n
     pronunciation: v.optional(v.string()),
   })
   .index("by_unit", ["unitNumber"])
-  .index("by_serbian", ["serbian"]),
+  .index("by_serbian", ["serbian"])
+  .index("by_unit_serbian", ["unitNumber", "serbian"]), // NEW: For finding by unit + serbian
 
   // ============= GAMIFICATION: EXERCISE COMPLETIONS =============
   exerciseCompletions: defineTable({
@@ -392,7 +427,13 @@ export default defineSchema({
     currentIndex: v.number(), // Current position in quiz
     totalAttempts: v.number(), // How many times user took this quiz
     lastScore: v.number(), // Percentage from last attempt
-    incorrectWordIds: v.array(v.string()), // Array of word IDs answered incorrectly
+    
+    // OLD: Array of serbianWord strings (DEPRECATED - kept for backward compatibility)
+    incorrectWordIds: v.optional(v.array(v.string())), // serbianWord[] - DEPRECATED
+    
+    // NEW: Array of courseVocabulary IDs (preferred)
+    incorrectVocabularyIds: v.optional(v.array(v.id("courseVocabulary"))), // courseVocabularyId[]
+    
     lastAttemptAt: v.optional(v.number()), // timestamp
   }).index("by_user_unit", ["userId", "unitNumber"]),
 

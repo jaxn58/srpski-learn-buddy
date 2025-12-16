@@ -254,15 +254,31 @@ export default function UnitView() {
                   {vocabulary && vocabulary.length > 0 ? (
                     <div className="space-y-2">
                       {vocabulary.map((word: any, i: number) => {
-                        // Find translation for display language
-                        const trans =
-                          word.translations.find((t: any) => t.language === displayLanguage) ||
-                          word.translations.find((t: any) => t.language === "en");
-
-                        const hasAlt = Boolean(trans?.alt);
+                        // NEW: Column-based translation access (consistent with moduleMetadata)
+                        // FALLBACK: Support old translations[] array during migration
+                        let displayTranslation: string;
+                        let altSuffix = "";
+                        let hasAlt = false;
+                        
+                        if (word.en && word.de) {
+                          // NEW: Column-based structure
+                          displayTranslation = displayLanguage === "de" ? word.de : word.en;
+                          const alt = displayLanguage === "de" ? word.deAlt : word.enAlt;
+                          hasAlt = Boolean(alt);
+                          altSuffix = hasAlt ? ` (alt: ${alt})` : "";
+                        } else if (word.translations && Array.isArray(word.translations)) {
+                          // FALLBACK: Old translations[] array structure
+                          const trans =
+                            word.translations.find((t: any) => t.language === displayLanguage) ||
+                            word.translations.find((t: any) => t.language === "en");
+                          hasAlt = Boolean(trans?.alt);
+                          altSuffix = hasAlt ? ` (alt: ${trans?.alt})` : "";
+                          displayTranslation = trans?.translation || "-";
+                        } else {
+                          displayTranslation = "-";
+                        }
+                        
                         const displayWord = hasAlt ? `${word.serbian}*` : word.serbian;
-                        const altSuffix = hasAlt ? ` (alt: ${trans?.alt})` : "";
-                        const displayTranslation = trans?.translation || "-";
 
                         return (
                           <div key={i} className="rounded-md border bg-muted/30 px-3 py-2">

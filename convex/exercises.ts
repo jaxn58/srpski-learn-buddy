@@ -293,12 +293,16 @@ export const getAllQuizProgress = query({
 });
 
 // Update quiz progress
+// Supports both formats: incorrectWordIds (serbianWord[]) and incorrectVocabularyIds (courseVocabularyId[])
 export const updateQuizProgress = mutation({
   args: {
     unitNumber: v.number(),
     currentIndex: v.number(),
     lastScore: v.optional(v.number()),
+    // OLD: Array of serbianWord strings (DEPRECATED - kept for backward compatibility)
     incorrectWordIds: v.optional(v.array(v.string())),
+    // NEW: Array of courseVocabulary IDs (preferred)
+    incorrectVocabularyIds: v.optional(v.array(v.id("courseVocabulary"))),
     incrementAttempts: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -312,16 +316,25 @@ export const updateQuizProgress = mutation({
       )
       .first();
 
+    const updates: Record<string, unknown> = {
+      currentIndex: args.currentIndex,
+      lastAttemptAt: Date.now(),
+    };
+
+    if (args.lastScore !== undefined) updates.lastScore = args.lastScore;
+    if (args.incrementAttempts) {
+      updates.totalAttempts = existing ? existing.totalAttempts + 1 : 1;
+    }
+
+    // Support both formats during migration
+    if (args.incorrectWordIds !== undefined) {
+      updates.incorrectWordIds = args.incorrectWordIds;
+    }
+    if (args.incorrectVocabularyIds !== undefined) {
+      updates.incorrectVocabularyIds = args.incorrectVocabularyIds;
+    }
+
     if (existing) {
-      const updates: Record<string, unknown> = {
-        currentIndex: args.currentIndex,
-        lastAttemptAt: Date.now(),
-      };
-
-      if (args.lastScore !== undefined) updates.lastScore = args.lastScore;
-      if (args.incorrectWordIds !== undefined) updates.incorrectWordIds = args.incorrectWordIds;
-      if (args.incrementAttempts) updates.totalAttempts = existing.totalAttempts + 1;
-
       await ctx.db.patch(existing._id, updates);
     } else {
       await ctx.db.insert("quizProgress", {
@@ -331,6 +344,7 @@ export const updateQuizProgress = mutation({
         totalAttempts: args.incrementAttempts ? 1 : 0,
         lastScore: args.lastScore ?? 0,
         incorrectWordIds: args.incorrectWordIds ?? [],
+        incorrectVocabularyIds: args.incorrectVocabularyIds ?? [],
         lastAttemptAt: Date.now(),
       });
     }
@@ -360,6 +374,7 @@ export const resetQuizProgress = mutation({
 });
 
 // Get incorrect words for a unit (for targeted practice)
+// Returns courseVocabularyId[] (NEW format) if available, falls back to serbianWord[] (OLD format)
 export const getIncorrectWords = query({
   args: {
     unitNumber: v.number(),
@@ -375,6 +390,12 @@ export const getIncorrectWords = query({
       )
       .first();
 
+    // Prefer NEW format (courseVocabularyId[])
+    if (progress?.incorrectVocabularyIds && progress.incorrectVocabularyIds.length > 0) {
+      return progress.incorrectVocabularyIds;
+    }
+
+    // FALLBACK: Return OLD format (serbianWord[])
     return progress?.incorrectWordIds ?? [];
   },
 });

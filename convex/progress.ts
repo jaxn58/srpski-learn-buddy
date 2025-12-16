@@ -392,12 +392,34 @@ export const getUnitMasteryStatus = query({
     }
 
     // Vocabulary mastery
-    const vocabEntries = await ctx.db
-      .query("vocabulary")
-      .withIndex("by_user_unit", (q) =>
-        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
-      )
+    // Try NEW structure first: vocabularyProgress + courseVocabulary JOIN
+    let vocabEntries: Array<{ mastered: boolean; correctAnswerCount: number }> = [];
+    
+    const vocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
+    
+    if (vocabProgress.length > 0) {
+      // NEW structure: Filter by unitNumber via courseVocabulary JOIN
+      for (const vp of vocabProgress) {
+        const courseVocab = await ctx.db.get(vp.courseVocabularyId);
+        if (courseVocab && courseVocab.unitNumber === args.unitNumber) {
+          vocabEntries.push({
+            mastered: vp.mastered,
+            correctAnswerCount: vp.correctAnswerCount,
+          });
+        }
+      }
+    } else {
+      // FALLBACK: Use old vocabulary table structure
+      vocabEntries = await ctx.db
+        .query("vocabulary")
+        .withIndex("by_user_unit", (q) =>
+          q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+        )
+        .collect();
+    }
 
     const vocabTotal = vocabEntries.length;
     const vocabMasteredCount = vocabEntries.filter(
@@ -448,11 +470,33 @@ export const getMasteredUnits = query({
     }
 
     try {
-      // Use take() instead of collect() to limit data and avoid potential memory issues
-      const vocabEntries = await ctx.db
-        .query("vocabulary")
+      // Try NEW structure first: vocabularyProgress + courseVocabulary JOIN
+      const vocabProgress = await ctx.db
+        .query("vocabularyProgress")
         .withIndex("by_user", (q) => q.eq("userId", user._id))
         .take(500); // Reduced limit
+
+      let vocabEntries: Array<{ unitNumber: number; mastered: boolean; correctAnswerCount: number }> = [];
+      
+      if (vocabProgress.length > 0) {
+        // NEW structure: Get unitNumber from courseVocabulary
+        for (const vp of vocabProgress) {
+          const courseVocab = await ctx.db.get(vp.courseVocabularyId);
+          if (courseVocab) {
+            vocabEntries.push({
+              unitNumber: courseVocab.unitNumber,
+              mastered: vp.mastered,
+              correctAnswerCount: vp.correctAnswerCount,
+            });
+          }
+        }
+      } else {
+        // FALLBACK: Use old vocabulary table structure
+        vocabEntries = await ctx.db
+          .query("vocabulary")
+          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .take(500); // Reduced limit
+      }
 
       const exerciseEntries = await ctx.db
         .query("exerciseQuestionProgress")

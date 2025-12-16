@@ -9,9 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { getModulesForLanding, getTotalVocabularyCount, VOCABULARY } from "@shared/data";
-import { useEffect } from "react";
+import { getModulesForLanding, getTotalVocabularyCount } from "@shared/data";
+import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
@@ -23,9 +25,28 @@ export default function Home() {
     localStorage.removeItem('preferredLanguage');
   }, [i18n]);
   
-  // Generate modules data for landing page
-  const MODULES_DATA = getModulesForLanding(VOCABULARY);
-  const TOTAL_VOCABULARY = getTotalVocabularyCount(VOCABULARY);
+  // NEW: Fetch course vocabulary from database
+  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
+  
+  // Generate modules data for landing page from database
+  const MODULES_DATA = useMemo(() => {
+    if (!courseVocabulary || courseVocabulary.length === 0) {
+      // FALLBACK: Return empty array if data not loaded yet
+      return [];
+    }
+    // Map courseVocabulary to format expected by getModulesForLanding
+    const vocabForLanding = courseVocabulary.map(word => ({ unit: word.unitNumber }));
+    return getModulesForLanding(vocabForLanding);
+  }, [courseVocabulary]);
+  
+  const TOTAL_VOCABULARY = useMemo(() => {
+    if (!courseVocabulary || courseVocabulary.length === 0) {
+      return 0;
+    }
+    // Map courseVocabulary to format expected by getTotalVocabularyCount
+    const vocabForCount = courseVocabulary.map(word => ({ unit: word.unitNumber }));
+    return getTotalVocabularyCount(vocabForCount);
+  }, [courseVocabulary]);
 
   if (loading) {
     return (

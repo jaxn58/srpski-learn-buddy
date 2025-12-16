@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { VOCABULARY, getTranslation, type SupportedLanguage } from "@shared/data";
+// Types only - no hardcoded data imports
+import type { SupportedLanguage } from "@shared/data";
 import { Search, BookOpen, Filter, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo } from "react";
@@ -29,6 +30,10 @@ export default function VocabularyList() {
 
   // Fetch vocabulary progress for all units
   const vocabProgressData = useQuery(api.vocabulary.getUserVocabularyProgress, {}) as VocabularyProgressDoc[] | undefined;
+  
+  // NEW: Fetch course vocabulary from database
+  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
+  const vocabWithProgress = useQuery(api.vocabulary.getVocabularyWithProgress, { unitNumber: selectedUnit });
 
   if (!user) {
     window.location.href = "/";
@@ -37,7 +42,27 @@ export default function VocabularyList() {
 
   // Filter and search vocabulary
   const filteredVocabulary = useMemo(() => {
-    let filtered = VOCABULARY;
+    // NEW: Use courseVocabulary from database (if available)
+    // FALLBACK: Use hardcoded VOCABULARY for backward compatibility
+    if (!courseVocabulary || courseVocabulary.length === 0) {
+      return [];
+    }
+    
+    let filtered = courseVocabulary
+      .filter(word => word.serbian) // Only include words with serbian field
+      .map(word => ({
+        _id: word._id,
+        serbian: word.serbian,
+        serbianWord: word.serbian, // For compatibility
+        unit: word.unitNumber,
+        unitNumber: word.unitNumber,
+        en: word.en,
+        de: word.de,
+        enAlt: word.enAlt,
+        deAlt: word.deAlt,
+        // Include old translations array for backward compatibility
+        translations: word.translations || [],
+      }));
 
     // Beta/Subscription Beschränkung
     if (accessInfo && accessInfo.maxUnits > 0) {
@@ -50,14 +75,22 @@ export default function VocabularyList() {
     // Search in Serbian or English
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(v => 
-        v.serbian.toLowerCase().includes(search) || 
-        getTranslation(v, userLanguage).toLowerCase().includes(search)
-      );
+      filtered = filtered.filter(v => {
+        // Check if serbian word exists before calling toLowerCase
+        const serbianMatch = v.serbian && v.serbian.toLowerCase().includes(search);
+        // NEW: Support column-based translations (check if values exist)
+        const translationMatch = (v.en && v.en.toLowerCase().includes(search)) || 
+                                 (v.de && v.de.toLowerCase().includes(search)) ||
+                                 // FALLBACK: Database translations array structure
+                                 (v.translations && Array.isArray(v.translations) && v.translations.some((t: any) => 
+                                   (t.translation && t.translation.toLowerCase().includes(search))
+                                 ));
+        return serbianMatch || translationMatch;
+      });
     }
 
     return filtered;
-  }, [searchTerm, selectedUnit, accessInfo]);
+  }, [searchTerm, selectedUnit, accessInfo, courseVocabulary, userLanguage]);
 
   // Units beschränken basierend auf Zugriff
   const units = accessInfo && accessInfo.maxUnits > 0
@@ -67,22 +100,41 @@ export default function VocabularyList() {
   // Helper function to check if a unit is mastered
   // A unit is mastered when ALL vocabulary words in that unit have correctAnswerCount >= 3
   const isUnitMastered = (unitNumber: number): boolean => {
+    // NEW: Use courseVocabulary from database (if available)
+    // FALLBACK: Return false if data not loaded
+    if (!courseVocabulary || courseVocabulary.length === 0) {
+      return false;
+    }
+    
     // Get all vocabulary words for this unit
-    const unitVocab = VOCABULARY.filter(v => v.unit === unitNumber);
+    const unitVocab = courseVocabulary.filter(v => v.unitNumber === unitNumber);
     if (unitVocab.length === 0) return false;
     
-    // Check if vocabProgressData is loaded
-    if (!vocabProgressData || vocabProgressData.length === 0) {
+    // Check if vocabProgressData or vocabWithProgress is loaded
+    if ((!vocabProgressData || vocabProgressData.length === 0) && 
+        (!vocabWithProgress || vocabWithProgress.length === 0)) {
       return false;
     }
     
     // Check if all words in the unit are mastered (correctAnswerCount >= 3)
     const allMastered = unitVocab.every(word => {
-      const progress = vocabProgressData.find(
-        (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
-      );
-      const correctCount = progress?.correctAnswerCount ?? 0;
-      return correctCount >= 3;
+      // NEW: Try vocabWithProgress first (contains progress data)
+      if (vocabWithProgress) {
+        const progress = vocabWithProgress.find(p => p._id === word._id)?.progress;
+        if (progress) {
+          return (progress.correctAnswerCount ?? 0) >= 3;
+        }
+      }
+      
+      // FALLBACK: Use old vocabProgressData structure
+      if (vocabProgressData) {
+        const progress = vocabProgressData.find(
+          (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unitNumber
+        );
+        return (progress?.correctAnswerCount ?? 0) >= 3;
+      }
+      
+      return false;
     });
     
     return allMastered;
@@ -117,7 +169,7 @@ export default function VocabularyList() {
           <CardHeader>
             <CardTitle>{t('vocabularyList.searchFilter')}</CardTitle>
             <CardDescription>
-              {t('vocabularyList.searchFilter.desc', { count: VOCABULARY.length })}
+              {t('vocabularyList.searchFilter.desc', { count: courseVocabulary?.length || 0 })}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -198,7 +250,25 @@ export default function VocabularyList() {
                             {wordProgress.correctAnswerCount || 0}/3
                           </Badge>
                         )}
-                        <span className="text-muted-foreground">{getTranslation(word, userLanguage)}</span>
+                        <span className="text-muted-foreground">
+                          {/* NEW: Support column-based translations (check if values exist) */}
+                          {(() => {
+                            if (word.en && word.en.trim() || word.de && word.de.trim()) {
+                              return userLanguage === "de" 
+                                ? (word.de?.trim() || word.en?.trim() || "") 
+                                : (word.en?.trim() || word.de?.trim() || "");
+                            }
+                            // FALLBACK: Database translations array structure
+                            if (word.translations && Array.isArray(word.translations)) {
+                              const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
+                                                    word.translations.find((t: any) => t.language === "en");
+                              return translationObj?.translation || "";
+                            }
+                            // No fallback - database should always provide translations
+                            console.error('[VocabularyList] No translation available:', word);
+                            return "";
+                          })()}
+                        </span>
                       </div>
                     </div>
                   );
