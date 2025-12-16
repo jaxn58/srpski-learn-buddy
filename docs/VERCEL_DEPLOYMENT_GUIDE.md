@@ -274,6 +274,57 @@ Während des Deployments kannst du:
 - Bei Fehlern die Logs analysieren
 - Die Deployment-URL testen
 
+### Schritt 2.5: Automatisches Deployment verstehen
+
+**Ja, Vercel deployt automatisch bei jedem Push auf GitHub!**
+
+Wenn dein Projekt mit Vercel verbunden ist (über Git Integration), wird automatisch bei jedem Push ein neues Deployment erstellt:
+
+#### Deployment-Verhalten nach Branch:
+
+1. **Production Branch** (meist `main` oder `master`):
+   - ✅ Automatisches **Production-Deployment**
+   - ✅ Wird auf deiner Production-URL veröffentlicht
+   - ✅ Beta-Schutz wird angewendet (falls konfiguriert)
+
+2. **Andere Branches** (z.B. `develop`, `feature/*`):
+   - ✅ Automatisches **Preview-Deployment**
+   - ✅ Erhält eine eindeutige Preview-URL (z.B. `deine-app-git-branch-name.vercel.app`)
+   - ✅ Ideal zum Testen von Features vor dem Merge
+
+3. **Pull Requests**:
+   - ✅ Automatisches **Preview-Deployment**
+   - ✅ Vercel kommentiert automatisch in der PR mit der Preview-URL
+   - ✅ Perfekt für Code-Reviews und Tests
+
+#### Automatisches Deployment deaktivieren (optional)
+
+Falls du das automatische Deployment für bestimmte Branches deaktivieren möchtest:
+
+1. Gehe zu **Settings** → **Git**
+2. Unter **Production Branch** kannst du den Branch ändern
+3. Unter **Ignored Build Step** kannst du einen Befehl hinzufügen, der bestimmt, ob gebaut werden soll
+
+Beispiel für `vercel.json`:
+```json
+{
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "develop": false
+    }
+  }
+}
+```
+
+#### Deployment-Status überwachen
+
+- **Vercel Dashboard**: Siehst du alle Deployments mit Status (Building, Ready, Error)
+- **GitHub Integration**: Vercel kommentiert automatisch in Commits/PRs mit Deployment-Status
+- **E-Mail-Benachrichtigungen**: Erhalte E-Mails bei erfolgreichen/fehlgeschlagenen Deployments (konfigurierbar in Settings)
+
+**Wichtig**: Nach dem ersten Deployment musst du nur noch zu GitHub pushen - Vercel übernimmt den Rest automatisch! 🚀
+
 ### Schritt 3: Domain konfigurieren (optional)
 
 1. Gehe zu **Settings** → **Domains**
