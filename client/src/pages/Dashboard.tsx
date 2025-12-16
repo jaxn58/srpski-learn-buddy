@@ -23,6 +23,12 @@ export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
   const { t, i18n } = useTranslation();
   
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Dashboard.tsx:23',message:'Dashboard component mounted',data:{hasUser:!!user,authLoading,hasAnimatedPageWrapper:true,clerkReady:!!(window as any).Clerk},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+  }, []);
+  // #endregion
+  
   // Use user's learning language or fallback to UI language or 'en'
   const displayLanguage = user?.learningLanguage || (i18n.language === 'de' ? 'de' : 'en');
   
