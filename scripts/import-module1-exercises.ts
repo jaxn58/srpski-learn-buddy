@@ -306,3 +306,4 @@ importExercises({ dryRun }).catch((error) => {
   console.error("❌ Exercise import failed:", error);
   process.exit(1);
 });
+
