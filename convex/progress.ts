@@ -665,3 +665,80 @@ export const getQuestionProgress = query({
   },
 });
 
+// Get aggregated dashboard stats for progress page
+export const getDashboardStats = query({
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return null;
+
+    // 1. Get User Progress (Units)
+    const userProgress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .first();
+
+    // 2. Get Daily Activity (Last 7 days for Chart)
+    const dailyActivities = await ctx.db
+      .query("dailyActivity")
+      .withIndex("by_user_date", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .take(7);
+
+    // 3. Get Vocabulary Stats for Accuracy Chart
+    const vocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    let totalCorrect = 0;
+    let totalIncorrect = 0;
+    let masteredCount = 0;
+
+    for (const vp of vocabProgress) {
+      totalCorrect += vp.correctAnswerCount || 0;
+      totalIncorrect += vp.incorrectAnswerCount || 0;
+      if (vp.mastered) masteredCount++;
+    }
+
+    // 4. Exercise Stats (optional, but good for accuracy)
+    const exerciseProgress = await ctx.db
+      .query("exerciseQuestionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    for (const ep of exerciseProgress) {
+      totalCorrect += ep.correctAnswerCount || 0;
+      totalIncorrect += ep.incorrectAnswerCount || 0;
+    }
+
+    return {
+      // Gamification
+      totalXP: user.totalXP || 0,
+      level: user.level || 1,
+      currentStreak: user.currentStreak || 0,
+      learningLanguage: user.learningLanguage || "en",
+
+      // Progress
+      completedUnits: userProgress?.completedUnits || [],
+      currentWeek: userProgress?.currentWeek || 1,
+      learningDuration: userProgress?.learningDuration || 12,
+      creationTime: userProgress?._creationTime || user._creationTime,
+
+      // Charts Data
+      activityChart: dailyActivities.reverse().map(a => ({
+        date: a.activityDate,
+        xp: a.xpEarned,
+        units: a.unitsCompleted,
+        exercises: a.exercisesCompleted
+      })),
+      
+      accuracyStats: {
+        totalCorrect,
+        totalIncorrect,
+        totalAttempts: totalCorrect + totalIncorrect,
+        masteredVocab: masteredCount,
+        totalVocabLearned: vocabProgress.length
+      }
+    };
+  }
+});
