@@ -67,6 +67,7 @@ export const getModuleMetadata = query({
 });
 
 // Get all modules metadata
+// DEPRECATED: Use getAllModulesConsolidated instead
 export const getAllModules = query({
   args: {
     language: v.optional(v.string()), // Default: "en"
@@ -91,6 +92,91 @@ export const getAllModules = query({
     // We can't sort here easily without module number in DB
     // For now, client will sort based on static config or we add moduleNumber to DB
     return allMetadata;
+  },
+});
+
+// ============= NEW CONSOLIDATED MODULE STRUCTURE =============
+
+// Insert consolidated module metadata (one row per module with multilingual columns)
+export const insertConsolidatedModuleMetadata = mutation({
+  args: {
+    titleDe: v.string(),
+    titleEn: v.string(),
+    descriptionDe: v.string(),
+    descriptionEn: v.string(),
+    slug: v.string(),
+    moduleNumber: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("moduleMetadata", {
+      titleDe: args.titleDe,
+      titleEn: args.titleEn,
+      descriptionDe: args.descriptionDe,
+      descriptionEn: args.descriptionEn,
+      slug: args.slug,
+      moduleNumber: args.moduleNumber,
+    });
+  },
+});
+
+// Update consolidated module metadata
+export const updateModuleMetadata = mutation({
+  args: {
+    moduleId: v.id("moduleMetadata"),
+    titleDe: v.optional(v.string()),
+    titleEn: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
+    descriptionEn: v.optional(v.string()),
+    slug: v.optional(v.string()),
+    moduleNumber: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { moduleId, ...updates } = args;
+    await ctx.db.patch(moduleId, updates);
+    return moduleId;
+  },
+});
+
+// Get module by ID (new structure)
+export const getModuleById = query({
+  args: {
+    moduleId: v.id("moduleMetadata"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.moduleId);
+  },
+});
+
+// Get module by slug (for URL compatibility)
+export const getModuleBySlug = query({
+  args: {
+    slug: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("moduleMetadata")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .first();
+  },
+});
+
+// Get all modules (consolidated structure)
+// Returns all modules with multilingual fields, sorted by moduleNumber
+export const getAllModulesConsolidated = query({
+  args: {},
+  handler: async (ctx) => {
+    // Fetch all modules that have the new structure (have slug field)
+    const allModules = await ctx.db
+      .query("moduleMetadata")
+      .filter((q) => q.neq(q.field("slug"), undefined))
+      .collect();
+    
+    // Sort by moduleNumber
+    return allModules.sort((a, b) => {
+      const numA = a.moduleNumber ?? 999;
+      const numB = b.moduleNumber ?? 999;
+      return numA - numB;
+    });
   },
 });
 

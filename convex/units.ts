@@ -259,6 +259,7 @@ export const getAllUnitsMetadata = query({
 });
 
 // Get all units for a specific module
+// DEPRECATED: Use getUnitsByModuleSlug or getUnitsByModuleId instead
 export const getUnitsByModule = query({
   args: {
     moduleId: v.string(),
@@ -283,6 +284,102 @@ export const getUnitsByModule = query({
     }
 
     return units.sort((a, b) => a.unitNumber - b.unitNumber);
+  },
+});
+
+// ============= NEW CONSOLIDATED MODULE STRUCTURE =============
+
+// Get all units for a specific module by moduleMetadataId (new structure)
+export const getUnitsByModuleId = query({
+  args: {
+    moduleMetadataId: v.id("moduleMetadata"),
+    language: v.optional(v.string()), // Default: "en"
+  },
+  handler: async (ctx, args) => {
+    const language = args.language || "en";
+    
+    const units = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_module_metadata", (q) => q.eq("moduleMetadataId", args.moduleMetadataId))
+      .filter((q) => q.eq(q.field("language"), language))
+      .collect();
+      
+    // If empty and not English, try fallback
+    if (units.length === 0 && language !== "en") {
+      return await ctx.db
+        .query("unitMetadata")
+        .withIndex("by_module_metadata", (q) => q.eq("moduleMetadataId", args.moduleMetadataId))
+        .filter((q) => q.eq(q.field("language"), "en"))
+        .collect();
+    }
+
+    return units.sort((a, b) => a.unitNumber - b.unitNumber);
+  },
+});
+
+// Get all units for a specific module by slug (for URL compatibility)
+export const getUnitsByModuleSlug = query({
+  args: {
+    slug: v.string(),
+    language: v.optional(v.string()), // Default: "en"
+  },
+  handler: async (ctx, args) => {
+    const language = args.language || "en";
+    
+    // First, find the module by slug
+    const module = await ctx.db
+      .query("moduleMetadata")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .first();
+    
+    if (!module) {
+      return [];
+    }
+    
+    // Then get units by moduleMetadataId
+    const units = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_module_metadata", (q) => q.eq("moduleMetadataId", module._id))
+      .filter((q) => q.eq(q.field("language"), language))
+      .collect();
+      
+    // If empty and not English, try fallback
+    if (units.length === 0 && language !== "en") {
+      return await ctx.db
+        .query("unitMetadata")
+        .withIndex("by_module_metadata", (q) => q.eq("moduleMetadataId", module._id))
+        .filter((q) => q.eq(q.field("language"), "en"))
+        .collect();
+    }
+
+    return units.sort((a, b) => a.unitNumber - b.unitNumber);
+  },
+});
+
+// Update moduleMetadataId for a unit metadata entry (for migration)
+export const updateUnitModuleMetadataId = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    moduleMetadataId: v.id("moduleMetadata"),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) =>
+        q.eq("unitNumber", args.unitNumber).eq("language", args.language)
+      )
+      .first();
+
+    if (!existing) {
+      throw new Error(`Unit metadata not found for unit ${args.unitNumber}, language ${args.language}`);
+    }
+
+    await ctx.db.patch(existing._id, {
+      moduleMetadataId: args.moduleMetadataId,
+    });
+
+    return existing._id;
   },
 });
 

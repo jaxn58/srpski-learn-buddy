@@ -21,7 +21,7 @@ export const COURSE_MODULES: Module[] = [
     titleGerman: "Die Ankunft",
     description: "Master the basics: greetings, numbers, directions, and essential vocabulary",
     descriptionGerman: "Grundlagen beherrschen: Begrüßungen, Zahlen, Wegbeschreibungen und wichtige Vokabeln",
-    units: [1, 2, 3, 4, 5, 6, 7, 8]
+    units: [1, 2, 3, 4, 5, 6]
   },
   {
     id: "daily-life",

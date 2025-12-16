@@ -137,7 +137,7 @@ export default defineSchema({
   
   // 1. Unit Metadata (Master-Table for Units, Multi-language)
   // Primary Key: (unitNumber, language) - Composite Primary Key
-  // Foreign Key: moduleId → moduleMetadata.moduleId
+  // Foreign Key: moduleMetadataId → moduleMetadata._id (NEW: Real Foreign Key)
   unitMetadata: defineTable({
     unitNumber: v.number(), // Primary Key (composite with language)
     language: v.string(), // "en", "de", "es", "fr" - Primary Key (composite with unitNumber)
@@ -145,18 +145,37 @@ export default defineSchema({
     topics: v.array(v.string()), // Array of Topics
     grammarFocus: v.array(v.string()), // Array of Grammar Focus points
     vocabularyThemes: v.array(v.string()), // Array of Vocabulary Themes
-    moduleId: v.optional(v.string()), // Foreign Key to moduleMetadata.moduleId
+    
+    // NEW: Real Foreign Key to moduleMetadata._id
+    moduleMetadataId: v.optional(v.id("moduleMetadata")), // Foreign Key to moduleMetadata._id
+    
+    // OLD: Deprecated - kept for backward compatibility during migration
+    moduleId: v.optional(v.string()), // Foreign Key to moduleMetadata.moduleId - DEPRECATED
   })
     .index("by_unit_lang", ["unitNumber", "language"]) // Composite Primary Key
-    .index("by_module", ["moduleId"]), // Foreign Key Index
+    .index("by_module", ["moduleId"]) // Old Foreign Key Index (deprecated)
+    .index("by_module_metadata", ["moduleMetadataId"]), // New Foreign Key Index
 
   // 2. Module Metadata (Multi-language)
+  // NEW STRUCTURE: One row per module with multilingual columns
+  // OLD STRUCTURE: Multiple rows per module (one per language) - deprecated but kept for backward compatibility
   moduleMetadata: defineTable({
-    moduleId: v.string(), // "foundation", "daily-life", etc.
-    language: v.string(),
-    title: v.string(),
-    description: v.string(),
-  }).index("by_module_lang", ["moduleId", "language"]),
+    // New multilingual structure (preferred)
+    titleDe: v.optional(v.string()),
+    titleEn: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
+    descriptionEn: v.optional(v.string()),
+    slug: v.optional(v.string()), // URL-friendly identifier (e.g., "foundation", "daily-life")
+    moduleNumber: v.optional(v.number()), // For sorting (1, 2, 3, etc.)
+    
+    // Old structure (deprecated - kept for backward compatibility during migration)
+    moduleId: v.optional(v.string()), // "foundation", "daily-life", etc. - DEPRECATED
+    language: v.optional(v.string()), // DEPRECATED
+    title: v.optional(v.string()), // DEPRECATED
+    description: v.optional(v.string()), // DEPRECATED
+  })
+    .index("by_module_lang", ["moduleId", "language"]) // Old index (deprecated)
+    .index("by_slug", ["slug"]), // New index for URL lookup
 
   // 3. Week Metadata (Multi-language)
   weekMetadata: defineTable({

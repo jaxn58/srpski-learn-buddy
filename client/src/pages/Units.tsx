@@ -10,7 +10,7 @@ import { Lock, BookOpen, Star, ChevronDown } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Sidebar } from "@/components/Sidebar";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 export default function Units() {
   const { user } = useAuth();
@@ -23,6 +23,9 @@ export default function Units() {
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const completedUnits = progress?.completedUnits || [];
 
+  // Load modules from database (new consolidated structure)
+  const dbModules = useQuery(api.modules.getAllModulesConsolidated);
+  
   // Extract module ID from hash (e.g., #module-foundation -> foundation)
   const hash = typeof window !== "undefined" ? window.location.hash : "";
   const moduleIdFromHash = hash.startsWith("#module-") ? hash.replace("#module-", "") : null;
@@ -31,6 +34,29 @@ export default function Units() {
   const [openModule, setOpenModule] = useState<string | undefined>(
     moduleIdFromHash ? `module-${moduleIdFromHash}` : undefined
   );
+
+  // Use DB modules if available, fallback to COURSE_MODULES
+  const modules = useMemo(() => {
+    if (dbModules && dbModules.length > 0) {
+      return dbModules.map((dbModule) => ({
+        id: dbModule.slug || "",
+        number: dbModule.moduleNumber || 0,
+        titleEnglish: dbModule.titleEn || "",
+        titleGerman: dbModule.titleDe || "",
+        description: dbModule.descriptionEn || "",
+        descriptionGerman: dbModule.descriptionDe || "",
+      }));
+    }
+    // Fallback to static COURSE_MODULES
+    return COURSE_MODULES.map((m) => ({
+      id: m.id,
+      number: m.number,
+      titleEnglish: m.titleEnglish,
+      titleGerman: m.titleGerman,
+      description: m.description,
+      descriptionGerman: m.descriptionGerman,
+    }));
+  }, [dbModules]);
 
   // Update open module when hash changes
   useEffect(() => {
@@ -71,7 +97,8 @@ export default function Units() {
           </header>
 
           <div className="space-y-6">
-            {COURSE_MODULES.map((module) => {
+            {modules.map((module) => {
+              // Use static unit data (can be enhanced later to load from DB)
               const moduleUnits = getUnitsForModule(module.id);
               const moduleProgress = getModuleProgress(module.id, completedUnits);
               

@@ -29,17 +29,22 @@ export default function UnitView() {
   const content = useQuery(api.units.getUnitContentSections, { unitNumber, language: displayLanguage });
   const vocabulary = useQuery(api.vocabulary.getCourseVocabularyByUnit, { unitNumber });
 
-  // Determine Module from unitMetadata (now includes moduleId)
-  // Fallback to COURSE_MODULES if moduleId is not yet set in DB (before migration)
-  const moduleId = unitMetadata?.moduleId || COURSE_MODULES.find(m => m.units.includes(unitNumber))?.id;
-  // Bis zur vollständigen Multi-Language-Unterstützung müssen Modulnamen überall auf Englisch bleiben.
-  const moduleLanguage = "en";
-  const moduleMetadata = useQuery(api.modules.getModuleMetadata, 
-    moduleId ? { moduleId, language: moduleLanguage } : "skip"
+  // Determine Module from unitMetadata
+  // Priority: 1. moduleMetadataId (new structure), 2. moduleId/slug (old structure), 3. COURSE_MODULES fallback
+  const moduleSlug = unitMetadata?.moduleId || COURSE_MODULES.find(m => m.units.includes(unitNumber))?.id;
+  
+  // Try to get module by slug (new consolidated structure)
+  const moduleMetadata = useQuery(api.modules.getModuleBySlug, 
+    moduleSlug ? { slug: moduleSlug } : "skip"
+  );
+  
+  // Fallback: Try old getModuleMetadata if new structure doesn't exist
+  const oldModuleMetadata = useQuery(api.modules.getModuleMetadata,
+    moduleSlug && !moduleMetadata ? { moduleId: moduleSlug, language: displayLanguage } : "skip"
   );
 
   const moduleTitle = React.useMemo(() => {
-    if (!moduleId) {
+    if (!moduleSlug) {
       return undefined;
     }
 
@@ -51,13 +56,23 @@ export default function UnitView() {
       return rawTitle.trim();
     };
 
-    if (moduleMetadata?.title) {
-      return sanitizeTitle(moduleMetadata.title);
+    // Use new consolidated structure if available
+    if (moduleMetadata) {
+      const title = displayLanguage === "de" ? moduleMetadata.titleDe : moduleMetadata.titleEn;
+      if (title) {
+        return sanitizeTitle(title);
+      }
     }
 
-    const fallbackModule = COURSE_MODULES.find((module) => module.id === moduleId);
-    return fallbackModule?.titleEnglish;
-  }, [moduleId, moduleMetadata?.title]);
+    // Fallback to old structure
+    if (oldModuleMetadata?.title) {
+      return sanitizeTitle(oldModuleMetadata.title);
+    }
+
+    // Final fallback to COURSE_MODULES
+    const fallbackModule = COURSE_MODULES.find((module) => module.id === moduleSlug);
+    return displayLanguage === "de" ? fallbackModule?.titleGerman : fallbackModule?.titleEnglish;
+  }, [moduleSlug, moduleMetadata, oldModuleMetadata, displayLanguage]);
 
   // Progress hooks
   const progress = useQuery(api.progress.getUserProgress);
@@ -155,11 +170,11 @@ export default function UnitView() {
                 <Link href="/dashboard" className="hover:text-foreground transition-colors">
                   {t('sidebar.dashboard')}
                 </Link>
-                {moduleTitle && moduleId && (
+                {moduleTitle && moduleSlug && (
                   <>
                     <ChevronRight className="h-4 w-4 mx-1" />
                     <Link 
-                      href={`/units#module-${moduleId}`}
+                      href={`/units#module-${moduleSlug}`}
                       className="font-medium text-foreground hover:text-primary transition-colors"
                     >
                       {moduleTitle}
