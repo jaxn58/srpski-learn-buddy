@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { FeedbackForm } from "@/components/FeedbackForm";
 import { Sidebar } from "@/components/Sidebar";
+import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 
 import { useState, useEffect } from "react";
 
@@ -239,6 +240,7 @@ export default function Dashboard() {
       <Sidebar />
 
       <div className="flex-1 md:ml-64 w-full">
+      <AnimatedPage>
       <main className="container py-8 w-full">
 
 
@@ -529,6 +531,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </main>
+      </AnimatedPage>
       </div>
     </div>
     </>

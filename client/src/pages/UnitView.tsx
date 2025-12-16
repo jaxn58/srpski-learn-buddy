@@ -11,6 +11,7 @@ import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mi
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { Sidebar } from "@/components/Sidebar";
+import { AnimatedPage } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { InteractiveTest } from "@/components/InteractiveTest";
@@ -141,6 +142,7 @@ export default function UnitView() {
     return (
       <div className="flex min-h-screen bg-background">
         <Sidebar />
+        <AnimatedPage>
         <div className="flex-1 p-8 flex items-center justify-center">
           <Card className="max-w-md border-yellow-200 bg-yellow-50">
             <CardHeader>
@@ -155,6 +157,7 @@ export default function UnitView() {
             </CardContent>
           </Card>
         </div>
+        </AnimatedPage>
       </div>
     );
   }
@@ -162,6 +165,7 @@ export default function UnitView() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
+      <AnimatedPage>
       <div className="flex-1 md:ml-64 w-full">
         <header className="border-b bg-card sticky top-0 z-10">
           <div className="container py-4 flex items-center justify-between">
@@ -350,6 +354,7 @@ export default function UnitView() {
           </Tabs>
         </main>
       </div>
+      </AnimatedPage>
     </div>
   );
 }
