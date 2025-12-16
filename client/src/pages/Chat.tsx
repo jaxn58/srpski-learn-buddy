@@ -61,6 +61,12 @@ export default function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
   
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Chat.tsx:65',message:'Chat component mounted',data:{hasUser:!!user,authLoading,hasAnimatedPageWrapper:true,clerkReady:!!(window as any).Clerk},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,D'})}).catch(()=>{});
+  }, []);
+  // #endregion
+  
   const formatMessageTime = (timestamp: number) => {
     const date = new Date(timestamp);
     const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
