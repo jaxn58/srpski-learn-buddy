@@ -1,0 +1,17 @@
+node_modules
+.git
+.vscode
+.idea
+*.log
+.env.local
+.env.*.local
+dist
+coverage
+.nyc_output
+docs
+scripts
+patches
+New Content
+.cursor
+*.md
+!README.md

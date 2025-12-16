@@ -138,7 +138,6 @@ export default function Vocabulary() {
         // Wait a moment to show completion, then HARD REDIRECT to next unit
         // Keep isManualSelection=true to prevent auto-select useEffect from triggering
         setTimeout(() => {
-          console.log(`🚀 Redirecting to unit ${nextUnit}`);
           // Reset flags before redirect so new page starts fresh
           setIsManualSelection(false);
           setRecentQuizCompletion(false);
@@ -209,20 +208,17 @@ export default function Vocabulary() {
     
     // Don't override manual unit selections - user chose this unit intentionally!
     if (isManualSelection) {
-      console.log('🖐️ Manual unit selection detected, skipping auto-redirect');
       return;
     }
     
     // Don't auto-redirect after quiz completion (let handleQuizComplete handle it)
     if (recentQuizCompletion) {
-      console.log('📝 Recent quiz completion detected, skipping auto-redirect');
       return;
     }
     
     // Don't override URL parameters
     const params = new URLSearchParams(window.location.search);
     if (params.get('unit')) {
-      console.log('📍 URL parameter detected, respecting manual unit selection');
       return;
     }
     
@@ -232,11 +228,9 @@ export default function Vocabulary() {
     
     if (selectedUnit !== 'all' && typeof selectedUnit === 'number') {
       const currentProgress = allQuizProgress.find((p: QuizProgressDoc) => p.unitNumber === selectedUnit);
-      console.log(`🔍 Checking unit ${selectedUnit}:`, currentProgress);
       
       // If current unit is 100% completed, we need to switch
       if (currentProgress && currentProgress.lastScore === 100 && currentProgress.totalAttempts > 0) {
-        console.log(`✅ Unit ${selectedUnit} is completed (100%)! Finding next...`);
         shouldSwitch = true;
         
         // Find next incomplete unit
@@ -244,7 +238,6 @@ export default function Vocabulary() {
           const progress = allQuizProgress.find((p: QuizProgressDoc) => p.unitNumber === i);
           if (!progress || progress.lastScore !== 100 || progress.totalAttempts === 0) {
             targetUnit = i;
-            console.log(`🎯 Found next incomplete unit: ${i}`);
             break;
           }
         }
@@ -252,7 +245,6 @@ export default function Vocabulary() {
         // All remaining units are also 100%? Loop back to first
         if (targetUnit === null) {
           targetUnit = availableUnits[0];
-          console.log(`🔄 All units completed, looping to unit ${targetUnit}`);
         }
       }
     }
@@ -260,13 +252,11 @@ export default function Vocabulary() {
     // If "all units" is selected, DON'T auto-switch - user chose "all" intentionally
     // Only switch away from completed individual units
     if (selectedUnit === 'all') {
-      console.log('📚 "All units" selected - respecting user choice, no auto-switch');
       return; // Don't interfere with "All units" selection
     }
     
     // Execute the switch with HARD REDIRECT
     if (shouldSwitch && targetUnit !== null && targetUnit !== selectedUnit) {
-      console.log(`🚀 REDIRECTING: ${selectedUnit} → ${targetUnit}`);
       window.location.href = `/vocabulary?unit=${targetUnit}`;
     }
   }, [mode, selectedUnit, availableUnits, allQuizProgress, isManualSelection, recentQuizCompletion]);

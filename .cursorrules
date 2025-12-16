@@ -5,6 +5,6 @@
 - NIEMALS Eigeninitiative beim Design - immer konsistent mit bestehenden Komponenten
 - Keine Eigeninitiative beim Anlegen von Dateien oder beim Ändern von Dateien. Alles muss immer in Rückfrage mit dem Benutzer geschehen.
 - Keine 'Quick & Dirty' Lösungen.
-- Verwende keine Emojis
+- Verwende keine Emojis im Agent Fenster
 - Die Inhalte für unsere App sollen dynamisch sein und nicht hardcoded aus der Datenbank gezogen werden. Du kannst mir ja Vorschläge machen, wenn es da irgendwo Probleme gibt.
 - Bis zu dem Zeitpunkt, wo die App multi-language fähig gemacht wird, oder sobald sie freigeschaltet ist als multi-language App, sollen alle Inhalte Englisch sein. Darauf ist zu achten.
