@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, action, QueryCtx, MutationCtx } from "./_generated/server";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 
 // ============= COURSE VOCABULARY (Master Data) =============
 
@@ -1363,6 +1364,31 @@ export const getVocabularyById = query({
   },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.vocabularyId);
+  },
+});
+
+// ============= CONVEX FILE STORAGE FOR AUDIO =============
+
+/**
+ * Generate an upload URL for audio files
+ * Used by the Vercel serverless function to upload generated audio
+ */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
+ * Get the public URL for a stored audio file
+ */
+export const getFileUrl = query({
+  args: {
+    storageId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
   },
 });
 

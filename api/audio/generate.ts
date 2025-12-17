@@ -2,7 +2,7 @@
  * Vercel Serverless Function for Audio Generation
  * 
  * This endpoint generates Serbian pronunciation audio using Google Cloud TTS
- * and uploads it to storage via Forge API.
+ * and uploads it to Convex File Storage.
  * 
  * POST /api/audio/generate
  * Body: { serbianWord: string, vocabularyId?: string, unitNumber?: number }
@@ -10,53 +10,52 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
+import { ConvexHttpClient } from 'convex/browser';
+import { api } from '../convex/_generated/api';
 
 const AUDIO_VERSION_TAG = "puck-v2";
 
 // Environment variables
 const ENV = {
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
-  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  convexUrl: process.env.VITE_CONVEX_URL ?? "",
 };
 
 /**
- * Upload audio buffer to storage via Forge API
+ * Upload audio buffer to Convex File Storage
  */
-async function uploadToStorage(
+async function uploadToConvex(
   storagePath: string,
   audioBuffer: Buffer,
   contentType: string
 ): Promise<{ url: string }> {
-  if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
-    throw new Error("Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY");
+  if (!ENV.convexUrl) {
+    throw new Error("VITE_CONVEX_URL is not configured");
   }
 
-  const baseUrl = ENV.forgeApiUrl.replace(/\/+$/, "");
-  const normalizedPath = storagePath.replace(/^\/+/, "");
-  
-  const uploadUrl = new URL("v1/storage/upload", `${baseUrl}/`);
-  uploadUrl.searchParams.set("path", normalizedPath);
+  const convex = new ConvexHttpClient(ENV.convexUrl);
 
+  // Generate upload URL from Convex
+  const uploadUrl = await convex.mutation(api.vocabulary.generateUploadUrl);
+
+  // Upload the audio file
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
-  const formData = new FormData();
-  formData.append("file", blob, normalizedPath.split("/").pop() ?? "file");
-
   const response = await fetch(uploadUrl, {
     method: "POST",
-    headers: { Authorization: `Bearer ${ENV.forgeApiKey}` },
-    body: formData,
+    headers: { "Content-Type": contentType },
+    body: blob,
   });
 
   if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
-    throw new Error(
-      `Storage upload failed (${response.status} ${response.statusText}): ${message}`
-    );
+    throw new Error(`Convex file upload failed: ${response.status} ${response.statusText}`);
   }
 
-  const { url } = await response.json();
-  return { url };
+  const { storageId } = await response.json();
+
+  // Get the public URL for the uploaded file
+  const fileUrl = await convex.query(api.vocabulary.getFileUrl, { storageId });
+
+  return { url: fileUrl };
 }
 
 /**
@@ -129,8 +128,8 @@ async function generateSerbianAudio(options: {
       storagePath = `audio/vocabulary/${sanitizedWord}-${voiceSuffix}.mp3`;
     }
 
-    // Upload to storage
-    const { url } = await uploadToStorage(storagePath, audioBuffer, 'audio/mpeg');
+    // Upload to Convex File Storage
+    const { url } = await uploadToConvex(storagePath, audioBuffer, 'audio/mpeg');
     return { url };
   } catch (error) {
     if (error instanceof Error) {
