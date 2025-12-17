@@ -157,10 +157,17 @@ export default function Vocabulary() {
 
       // 2. If not found, generate it via server endpoint
       if (!audioUrl) {
-        // Use Vite env var for server URL or fallback to relative path (proxy) or localhost
-        const serverUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+        // Use configured server URL if provided, otherwise fall back to same origin (works on Vercel)
+        const configuredServerUrl = import.meta.env.VITE_SERVER_URL?.replace(/\/$/, "");
+        const audioEndpoint = configuredServerUrl
+          ? `${configuredServerUrl}/api/audio/generate`
+          : "/api/audio/generate";
         
-        const response = await fetch(`${serverUrl}/api/audio/generate`, {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Vocabulary.tsx:161',message:'Audio generation - serverUrl check',data:{viteServerUrl:import.meta.env.VITE_SERVER_URL ?? null,endpoint:audioEndpoint,isProduction:import.meta.env.PROD,currentOrigin:typeof window !== 'undefined' ? window.location.origin : 'ssr'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
+        const response = await fetch(audioEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -172,8 +179,15 @@ export default function Vocabulary() {
           }),
         });
 
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Vocabulary.tsx:175',message:'Fetch response received',data:{ok:response.ok,status:response.status,statusText:response.statusText,url:response.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
         if (!response.ok) {
           const errorText = await response.text();
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Vocabulary.tsx:177',message:'Fetch failed - response not ok',data:{status:response.status,statusText:response.statusText,errorText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           throw new Error(`Audio generation failed: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
@@ -214,6 +228,9 @@ export default function Vocabulary() {
       }
     } catch (error) {
       console.error("Failed to get audio:", error);
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Vocabulary.tsx:215',message:'Audio generation error caught',data:{errorMessage:error instanceof Error ? error.message : String(error),errorName:error instanceof Error ? error.name : 'Unknown',isFailedFetch:error instanceof Error && error.message === 'Failed to fetch'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       setLoadingAudioId(null);
       // Optionally show toast error message
       // Show user-friendly error
