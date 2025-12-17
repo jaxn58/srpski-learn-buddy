@@ -222,16 +222,23 @@ export default function VocabularyList() {
         }).catch(err => console.error("Failed to save audio storageId to DB:", err));
       }
       
-      // 6. Generate fresh URL from storageId (via Convex storage.getUrl)
+      // 6. Generate fresh URL from storageId (direct API call)
       if (storageId) {
-        const audioUrl = await fetch(`${import.meta.env.VITE_CONVEX_URL}/api/query`, {
+        const response = await fetch(`${import.meta.env.VITE_CONVEX_URL}/api/query`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            path: "vocabulary:getVocabularyAudioUrl",
-            args: { vocabularyId: vocabularyId as any },
+            path: "vocabulary:getAudioUrlFromStorageId",
+            args: { storageId },
           }),
-        }).then(r => r.json()).then(r => r.value);
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to get audio URL: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        const audioUrl = result.value;
         
         if (!audioUrl) {
           throw new Error("Failed to generate audio URL from storageId");
