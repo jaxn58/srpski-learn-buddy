@@ -199,10 +199,14 @@ export default function Vocabulary() {
       }
       
       // 2. Sync with database in background
-      if (quizProgress) {
+      // Only reset index if quiz hasn't started yet (initial load)
+      if (quizProgress && !quizStarted) {
         setLastQuizProgress(quizProgress);
         // Always start at index 0 - filtered vocab handles showing only non-mastered words
         setCurrentIndex(0);
+      } else if (quizProgress) {
+        // Just update lastQuizProgress without resetting index if quiz is already in progress
+        setLastQuizProgress(quizProgress);
       }
       
       setQuizStarted(true);
@@ -210,7 +214,7 @@ export default function Vocabulary() {
     } else {
       setIsLoadingProgress(false);
     }
-  }, [mode, selectedUnit, user, quizProgress]);
+  }, [mode, selectedUnit, user, quizProgress, quizStarted]);
 
   // Read unit and mode parameters from URL and set them
   useEffect(() => {
@@ -1099,19 +1103,6 @@ export default function Vocabulary() {
                   Last attempt: {lastQuizProgress.lastScore}% ({lastQuizProgress.totalAttempts} attempts)
                 </div>
               )}
-              {/* Auto-advance setting for quiz mode */}
-              {mode === 'quiz' && (
-                <div className="flex items-center justify-between gap-2 pt-2 border-t mt-2">
-                  <label htmlFor="auto-advance" className="text-sm font-medium cursor-pointer">
-                    {t('vocabulary.autoAdvance') || 'Auto advance (2s)'}
-                  </label>
-                  <Switch
-                    id="auto-advance"
-                    checked={autoAdvance}
-                    onCheckedChange={handleAutoAdvanceChange}
-                  />
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -1265,6 +1256,19 @@ export default function Vocabulary() {
                           {t('vocabulary.submit')}
                         </Button>
                       </div>
+                      {/* Auto-advance setting for quiz mode */}
+                      {mode === 'quiz' && (
+                        <div className="flex items-center justify-between gap-2 pt-4 border-t">
+                          <p className="text-xs text-muted-foreground">
+                            Automatic switch to the next word after two seconds. Turn on and off.
+                          </p>
+                          <Switch
+                            id="auto-advance"
+                            checked={autoAdvance}
+                            onCheckedChange={handleAutoAdvanceChange}
+                          />
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="space-y-4">
@@ -1306,44 +1310,20 @@ export default function Vocabulary() {
                         </div>
                         <div className="text-center">
                           <div className="text-sm text-muted-foreground">{t('vocabulary.yourAnswer')}</div>
-                          <div className="font-medium">{userAnswer}</div>
+                          <div className="font-medium">
+                            {userAnswer}
+                            {/* Note direkt hinter der Antwort bei korrekter Antwort */}
+                            {isCorrect && (() => {
+                              const word = answeredWord || currentWord;
+                              const note = getNoteForLanguage(word, userLanguage);
+                              return note ? (
+                                <span className="text-muted-foreground italic text-[0.85rem] ml-2">
+                                  ({note})
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
                           {!isCorrect && (
-                            <>
-                              <div className="text-sm text-muted-foreground mt-2">{t('vocabulary.correctAnswer')}</div>
-                              <div className="font-medium text-green-600">
-                                {currentCorrectTranslation || (() => {
-                                  const word = answeredWord || currentWord;
-                                  // NEW: Support column-based translations (check if values exist)
-                                  if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
-                                    return userLanguage === "de" 
-                                      ? (word.de?.trim() || word.en?.trim() || "") 
-                                      : (word.en?.trim() || word.de?.trim() || "");
-                                  }
-                                  // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
-                                  if (word && Array.isArray(word.translations)) {
-                                    const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
-                                                          word.translations.find((t: any) => t.language === "en");
-                                    return translationObj?.translation || "";
-                                  }
-                                  // No fallback - database should always provide translations
-                                  console.error('[Vocabulary] No translation available for correct answer display');
-                                  return "";
-                                })()}
-                              </div>
-                              {/* Note anzeigen wenn vorhanden */}
-                              {(() => {
-                                const word = answeredWord || currentWord;
-                                const note = getNoteForLanguage(word, userLanguage);
-                                return note ? (
-                                  <div className="text-muted-foreground mt-2 italic text-[0.85rem]">
-                                    {note}
-                                  </div>
-                                ) : null;
-                              })()}
-                            </>
-                          )}
-                          {/* Übersetzung und Note auch bei korrekter Antwort anzeigen */}
-                          {isCorrect && (
                             <>
                               <div className="text-sm text-muted-foreground mt-2">{t('vocabulary.correctAnswer')}</div>
                               <div className="font-medium text-green-600">
@@ -1380,6 +1360,19 @@ export default function Vocabulary() {
                           )}
                         </div>
                       </div>
+                      {/* Auto-advance setting for quiz mode */}
+                      {mode === 'quiz' && (
+                        <div className="flex items-center justify-between gap-2 pt-4 border-t">
+                          <p className="text-xs text-muted-foreground">
+                            Automatic switch to the next word after two seconds. Turn on and off.
+                          </p>
+                          <Switch
+                            id="auto-advance"
+                            checked={autoAdvance}
+                            onCheckedChange={handleAutoAdvanceChange}
+                          />
+                        </div>
+                      )}
                       {/* Weiter-Button für Quiz-Modus */}
                       {mode === 'quiz' && showAnswer && currentIndex < filteredVocab.length - 1 && (
                         <div className="flex justify-center mt-4">
