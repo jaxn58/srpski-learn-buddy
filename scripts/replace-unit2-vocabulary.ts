@@ -25,13 +25,14 @@ const UNIT_NUMBER = 2;
 const MARKDOWN_FILE = path.join(
   process.cwd(),
   "New Content",
-  "learn-with.me-main",
-  "Unit-2-Who-Are-You-v7.md"
+  "Betta Deploy",
+  "Module 1_Unit2.md"
 );
 
 interface VocabularyWord {
   serbian: string;
   english: string;
+  notes?: string; // Notes from Notes column
   gender?: string; // "m" for masculine, "f" for feminine
 }
 
@@ -57,9 +58,14 @@ function parseMarkdownTable(content: string): VocabularyWord[] {
       continue;
     }
     
-    // Stop at Grammar section (## 3. Grammar) - we only want vocabulary
+    // Stop at Grammar section (## 3. Grammar) or after line 126 - we only want vocabulary
     if (line.startsWith("## 3. Grammar") || line.startsWith("## 3. Gramatika")) {
       inVocabularySection = false;
+      break;
+    }
+    
+    // Stop after line 126 (user specified end of vocabulary section)
+    if (i >= 125) { // Line numbers are 0-indexed, so line 126 is index 125
       break;
     }
     
@@ -110,12 +116,21 @@ function parseMarkdownTable(content: string): VocabularyWord[] {
           // Nationalities table: Extract masculine and feminine forms
           const masculine = cells[0]?.trim();
           const feminine = cells[1]?.trim();
-          const english = cells[2]?.trim();
+          let english = cells[2]?.trim();
+          
+          // Extract note from English if present (shouldn't be, but handle it)
+          let extractedNote: string | undefined = undefined;
+          const noteMatch = english?.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+          if (noteMatch) {
+            english = noteMatch[1].trim();
+            extractedNote = noteMatch[2].trim();
+          }
           
           if (masculine && english) {
             words.push({
               serbian: masculine,
-              english: english + " (m)",
+              english: english,
+              notes: extractedNote || "m",
               gender: "m",
             });
           }
@@ -123,7 +138,8 @@ function parseMarkdownTable(content: string): VocabularyWord[] {
           if (feminine && english) {
             words.push({
               serbian: feminine,
-              english: english + " (f)",
+              english: english,
+              notes: extractedNote || "f",
               gender: "f",
             });
           }
@@ -131,13 +147,29 @@ function parseMarkdownTable(content: string): VocabularyWord[] {
           // Regular vocabulary table
           let serbian = cells[0].trim();
           let english = cells[1].trim();
-          const notes = cells[2]?.trim();
+          const notesColumn = cells[2]?.trim(); // Notes from Notes column
           
           // Skip if empty or header row
           if (serbian && english && serbian !== "Serbian" && english !== "English" && 
-              serbian !== "Masculine" && serbian !== "Feminine") {
+              serbian !== "Masculine" && serbian !== "Feminine" && serbian !== "Notes") {
             // Clean up serbian (remove asterisks for Montenegro variants)
             serbian = serbian.replace(/\*$/, "").trim();
+            
+            // Extract note from English translation if it contains parentheses
+            let extractedNote: string | undefined = undefined;
+            const noteMatch = english.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+            if (noteMatch) {
+              english = noteMatch[1].trim();
+              extractedNote = noteMatch[2].trim();
+            }
+            
+            // Combine notes column with extracted note
+            let finalNotes: string | undefined = undefined;
+            if (notesColumn && extractedNote) {
+              finalNotes = `${notesColumn} (${extractedNote})`;
+            } else {
+              finalNotes = notesColumn || extractedNote || undefined;
+            }
             
             // Handle multiple entries separated by "/" (e.g., "Dobrodošao / Dobrodošla")
             if (serbian.includes("/")) {
@@ -146,11 +178,16 @@ function parseMarkdownTable(content: string): VocabularyWord[] {
               // Handle English translation
               let baseEnglish = english.trim();
               // Check if notes contain (m/f) OR if english itself contains (m/f)
-              const hasMfNote = notes?.includes("(m/f)") || english.includes("(m/f)");
+              const hasMfNote = finalNotes?.includes("(m/f)") || extractedNote === "m/f";
               
               if (hasMfNote) {
-                // Remove (m/f) from translation - handle various formats
-                baseEnglish = baseEnglish.replace(/\s*\(m\/f\)/gi, "").trim();
+                // Remove (m/f) from extracted note
+                if (extractedNote === "m/f") {
+                  extractedNote = undefined;
+                }
+                if (finalNotes?.includes("(m/f)")) {
+                  finalNotes = finalNotes.replace(/\s*\(m\/f\)/gi, "").trim();
+                }
               }
               
               // Add each part as separate entry
@@ -158,29 +195,41 @@ function parseMarkdownTable(content: string): VocabularyWord[] {
                 const cleanPart = part.replace(/\*\.?$/, "").trim();
                 
                 // Determine English translation for this part
-                let englishPart: string;
+                let englishPart: string = baseEnglish;
+                let partNotes: string | undefined = finalNotes;
+                let gender: string | undefined = undefined;
+                
                 if (hasMfNote) {
                   // First part gets (m), second gets (f)
-                  englishPart = idx === 0 ? `${baseEnglish} (m)` : `${baseEnglish} (f)`;
+                  if (idx === 0) {
+                    gender = "m";
+                    if (partNotes) {
+                      partNotes = `${partNotes} (m)`;
+                    } else {
+                      partNotes = "m";
+                    }
+                  } else {
+                    gender = "f";
+                    if (partNotes) {
+                      partNotes = `${partNotes} (f)`;
+                    } else {
+                      partNotes = "f";
+                    }
+                  }
                 } else {
-                  // Use same translation for both
-                  englishPart = baseEnglish;
+                  // Try to detect gender from notes
+                  if (finalNotes?.includes("(m)")) {
+                    gender = "m";
+                  } else if (finalNotes?.includes("(f)")) {
+                    gender = "f";
+                  }
                 }
                 
                 if (cleanPart && englishPart) {
-                  // Determine gender
-                  let gender: string | undefined = undefined;
-                  if (hasMfNote) {
-                    gender = idx === 0 ? "m" : "f";
-                  } else if (notes?.includes("(m)")) {
-                    gender = "m";
-                  } else if (notes?.includes("(f)")) {
-                    gender = "f";
-                  }
-                  
                   words.push({
                     serbian: cleanPart,
                     english: englishPart,
+                    notes: partNotes,
                     gender: gender,
                   });
                 }
@@ -189,15 +238,16 @@ function parseMarkdownTable(content: string): VocabularyWord[] {
               // Single entry
               // Try to detect gender from notes
               let gender: string | undefined = undefined;
-              if (notes?.includes("(m)")) {
+              if (finalNotes?.includes("(m)")) {
                 gender = "m";
-              } else if (notes?.includes("(f)")) {
+              } else if (finalNotes?.includes("(f)")) {
                 gender = "f";
               }
               
               words.push({
                 serbian: serbian,
                 english: english,
+                notes: finalNotes,
                 gender: gender,
               });
             }
@@ -267,23 +317,64 @@ async function replaceUnit2Vocabulary() {
   
   for (const word of words) {
     try {
-      // Split English translation if it contains "/" (for alt translations)
-      const englishParts = word.english.split("/").map(t => t.trim());
-      const primaryTranslation = englishParts[0];
-      const altTranslation = englishParts.length > 1 ? englishParts[1] : undefined;
+      // Extract note from English translation if it contains parentheses (e.g., "Hello (Informal)")
+      let primaryTranslation = word.english;
+      let extractedNote: string | undefined = undefined;
+      
+      // Check if translation contains note in parentheses
+      const noteMatch = primaryTranslation.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (noteMatch) {
+        primaryTranslation = noteMatch[1].trim();
+        extractedNote = noteMatch[2].trim();
+      }
+      
+      // Combine extracted note with notes column (prefer notes column if both exist)
+      // If both exist, combine them with a separator
+      let finalNote: string | undefined = undefined;
+      if (word.notes && extractedNote) {
+        // Both exist - combine them
+        finalNote = `${word.notes} (${extractedNote})`;
+      } else {
+        finalNote = word.notes || extractedNote || undefined;
+      }
+      
+      // Clean up final note (remove extra spaces, limit length)
+      if (finalNote) {
+        finalNote = finalNote.trim();
+        // Limit note length to 500 characters (reasonable limit)
+        if (finalNote.length > 500) {
+          finalNote = finalNote.substring(0, 497) + '...';
+        }
+      }
+      
+      // Split English translation if it contains "/" (e.g., "Please / You're welcome")
+      const englishTranslations = primaryTranslation.split("/").map(t => t.trim());
+      let mainTranslation = englishTranslations[0];
+      const altTranslation = englishTranslations.length > 1 ? englishTranslations[1] : undefined;
+      
+      // Ensure mainTranslation is not empty (fallback to serbian word if empty)
+      if (!mainTranslation || mainTranslation.trim().length === 0) {
+        mainTranslation = word.serbian;
+      }
       
       // Create translations array (for backward compatibility)
       const translations = [
         {
           language: "en",
-          translation: primaryTranslation,
+          translation: mainTranslation,
           alt: altTranslation,
         },
         {
           language: "de",
-          translation: primaryTranslation, // Use English as fallback for German
+          translation: mainTranslation, // Use English as fallback for German
         },
       ];
+      
+      // Prepare note fields (only include if not empty)
+      const noteFields: Record<string, string> = {};
+      if (finalNote && finalNote.trim().length > 0) {
+        noteFields.noteEn = finalNote.trim();
+      }
       
       // Import using upsertCourseVocabulary
       await client.mutation(api.vocabulary.upsertCourseVocabulary, {
@@ -292,18 +383,22 @@ async function replaceUnit2Vocabulary() {
         translations: translations,
         gender: word.gender, // Store gender in database
         pronunciation: undefined,
-        noteEn: word.notes || undefined,
-        noteDe: undefined,
-        noteSr: undefined,
-        noteEs: undefined,
-        noteFr: undefined,
+        ...noteFields,
       });
       
       successCount++;
-      console.log(`   ✅ ${word.serbian} → ${primaryTranslation}`);
+      console.log(`   ✅ ${word.serbian} → ${mainTranslation}${finalNote ? ` [Note: ${finalNote}]` : ''}`);
     } catch (error: any) {
-      console.error(`   ❌ Error importing "${word.serbian}": ${error.message}`);
       errorCount++;
+      console.error(`   ❌ Error importing "${word.serbian}":`, error.message || error);
+      console.error(`      English: "${word.english}"`);
+      console.error(`      Notes: "${word.notes || 'none'}"`);
+      if (extractedNote) {
+        console.error(`      Extracted note: "${extractedNote}"`);
+      }
+      if (finalNote) {
+        console.error(`      Final note: "${finalNote}"`);
+      }
     }
   }
   

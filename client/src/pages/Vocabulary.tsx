@@ -39,7 +39,6 @@ export default function Vocabulary() {
   const getNoteForLanguage = (word: any, language: SupportedLanguage): string | null => {
     if (!word) return null;
     if (language === "de") return word.noteDe || word.noteEn || null;
-    if (language === "sr") return word.noteSr || word.noteEn || null;
     if (language === "es") return word.noteEs || word.noteEn || null;
     if (language === "fr") return word.noteFr || word.noteEn || null;
     return word.noteEn || null;
@@ -52,7 +51,7 @@ export default function Vocabulary() {
   const unitTitlesMap = useMemo(() => {
     if (!allUnitsMetadata) return new Map<number, string>();
     const map = new Map<number, string>();
-    allUnitsMetadata.forEach(metadata => {
+    allUnitsMetadata.forEach((metadata: Doc<"unitMetadata">) => {
       map.set(metadata.unitNumber, metadata.title);
     });
     return map;
@@ -306,15 +305,15 @@ export default function Vocabulary() {
     if (mode === 'learn' && courseVocabulary && courseVocabulary.length > 0) {
       let vocab = selectedUnit === 'all'
         ? courseVocabulary
-        : courseVocabulary.filter(v => v.unitNumber === selectedUnit);
+        : courseVocabulary.filter((v: Doc<"courseVocabulary">) => v.unitNumber === selectedUnit);
       
       // Beta/Subscription Beschränkung
       if (accessInfo && accessInfo.maxUnits > 0) {
-        vocab = vocab.filter(v => v.unitNumber <= accessInfo.maxUnits);
+        vocab = vocab.filter((v: Doc<"courseVocabulary">) => v.unitNumber <= accessInfo.maxUnits);
       }
       
       // Map to format compatible with existing code
-      const mappedVocab = vocab.map(word => ({
+      const mappedVocab = vocab.map((word: Doc<"courseVocabulary">) => ({
         _id: word._id,
         serbian: word.serbian,
         serbianWord: word.serbian, // For compatibility
@@ -329,7 +328,7 @@ export default function Vocabulary() {
       }));
       
       // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
-      return mappedVocab.sort((a, b) => {
+      return mappedVocab.sort((a: { unitNumber: number; serbian: string }, b: { unitNumber: number; serbian: string }) => {
         if (a.unitNumber !== b.unitNumber) {
           return a.unitNumber - b.unitNumber;
         }
@@ -341,21 +340,21 @@ export default function Vocabulary() {
     if (mode === 'quiz' && courseVocabulary && courseVocabulary.length > 0) {
       let vocab = selectedUnit === 'all'
         ? courseVocabulary
-        : courseVocabulary.filter(v => v.unitNumber === selectedUnit);
+        : courseVocabulary.filter((v: Doc<"courseVocabulary">) => v.unitNumber === selectedUnit);
       
       // Beta/Subscription Beschränkung
       if (accessInfo && accessInfo.maxUnits > 0) {
-        vocab = vocab.filter(v => v.unitNumber <= accessInfo.maxUnits);
+        vocab = vocab.filter((v: Doc<"courseVocabulary">) => v.unitNumber <= accessInfo.maxUnits);
       }
       
       // Filter out mastered words (correctAnswerCount >= 3)
-      vocab = vocab.filter(word => {
+      vocab = vocab.filter((word: Doc<"courseVocabulary">) => {
         // NEW: Use courseVocabularyId for optimistic updates
         const optimisticKey = word._id;
         const optimistic = optimisticProgress.get(optimisticKey);
         
         // Find progress from vocabWithProgress (contains progress data)
-        const progress = vocabWithProgress?.find(p => p._id === word._id)?.progress;
+        const progress = vocabWithProgress?.find((p: { _id: string; progress: { correctAnswerCount: number } | null }) => p._id === word._id)?.progress;
         
         // Use optimistic count if available, otherwise use database count
         const correctCount = optimistic?.correctAnswerCount ?? progress?.correctAnswerCount ?? 0;
@@ -365,7 +364,7 @@ export default function Vocabulary() {
       });
       
       // Map to format compatible with existing code
-      const mappedVocab = vocab.map(word => ({
+      const mappedVocab = vocab.map((word: Doc<"courseVocabulary">) => ({
         _id: word._id,
         serbian: word.serbian,
         serbianWord: word.serbian, // For compatibility
@@ -380,7 +379,7 @@ export default function Vocabulary() {
       }));
       
       // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
-      return mappedVocab.sort((a, b) => {
+      return mappedVocab.sort((a: { unitNumber: number; serbian: string }, b: { unitNumber: number; serbian: string }) => {
         if (a.unitNumber !== b.unitNumber) {
           return a.unitNumber - b.unitNumber;
         }
@@ -416,7 +415,7 @@ export default function Vocabulary() {
     // NEW: Try vocabWithProgress first (contains progress data)
     let dbProgress = null;
     if (wordToCheck._id && vocabWithProgress) {
-      const vocabProgress = vocabWithProgress.find(p => p._id === wordToCheck._id)?.progress;
+      const vocabProgress = vocabWithProgress.find((p: { _id: string; progress: VocabularyProgressDoc | null }) => p._id === wordToCheck._id)?.progress;
       if (vocabProgress) {
         dbProgress = vocabProgress as any;
       }
@@ -519,10 +518,9 @@ export default function Vocabulary() {
     
     if (hasColumnTranslations) {
       // NEW: Column-based structure
-      correctTranslationForWord = userLanguage === "de" 
-        ? (wordToAnswer.de?.trim() || wordToAnswer.en?.trim() || "") 
-        : (wordToAnswer.en?.trim() || wordToAnswer.de?.trim() || "");
-      const alt = userLanguage === "de" ? wordToAnswer.deAlt : wordToAnswer.enAlt;
+      // BETA: Currently always English, but code prepared for future multi-language support
+      correctTranslationForWord = (wordToAnswer.en?.trim() || wordToAnswer.de?.trim() || "");
+      const alt = wordToAnswer.enAlt;
       alternatives = alt && alt.trim() ? [alt.trim()] : [];
     } else if (wordToAnswer && Array.isArray(wordToAnswer.translations)) {
       // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
@@ -740,8 +738,8 @@ export default function Vocabulary() {
     
     if (courseVocabulary && courseVocabulary.length > 0) {
       unitVocab = courseVocabulary
-        .filter(v => v.unitNumber === unitNumber)
-        .map(word => ({
+        .filter((v: Doc<"courseVocabulary">) => v.unitNumber === unitNumber)
+        .map((word: Doc<"courseVocabulary">) => ({
           _id: word._id,
           serbian: word.serbian,
           serbianWord: word.serbian,
@@ -766,7 +764,7 @@ export default function Vocabulary() {
     const allMastered = unitVocab.every(word => {
       // NEW: Try vocabWithProgress first (contains progress data)
       if (word._id && vocabWithProgress) {
-        const progress = vocabWithProgress.find(p => p._id === word._id)?.progress;
+        const progress = vocabWithProgress.find((p: { _id: string; progress: { correctAnswerCount: number } | null }) => p._id === word._id)?.progress;
         if (progress) {
           return (progress.correctAnswerCount ?? 0) >= 3;
         }
@@ -785,8 +783,6 @@ export default function Vocabulary() {
     
     return allMastered;
   };
-
-  const completedUnits = progress?.completedUnits || [];
 
   return (
     <AnimatedPage>
@@ -1183,10 +1179,9 @@ export default function Vocabulary() {
                           {(() => {
                             const word = showAnswer && answeredWord ? answeredWord : displayWord;
                             // NEW: Support column-based translations (check if values exist)
+                            // BETA: Currently always English, but code prepared for future multi-language support
                             if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
-                              return userLanguage === "de" 
-                                ? (word.de?.trim() || word.en?.trim() || "") 
-                                : (word.en?.trim() || word.de?.trim() || "");
+                              return (word.en?.trim() || word.de?.trim() || "");
                             }
                             // FALLBACK: Database translations array structure
                             if (word && Array.isArray(word.translations)) {
@@ -1330,10 +1325,9 @@ export default function Vocabulary() {
                                 {currentCorrectTranslation || (() => {
                                   const word = answeredWord || currentWord;
                                   // NEW: Support column-based translations (check if values exist)
+                                  // BETA: Currently always English, but code prepared for future multi-language support
                                   if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
-                                    return userLanguage === "de" 
-                                      ? (word.de?.trim() || word.en?.trim() || "") 
-                                      : (word.en?.trim() || word.de?.trim() || "");
+                                    return (word.en?.trim() || word.de?.trim() || "");
                                   }
                                   // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
                                   if (word && Array.isArray(word.translations)) {
@@ -1429,10 +1423,10 @@ export default function Vocabulary() {
                   </Button>
                   {/* Auto-advance to next unit */}
                   {selectedUnit !== 'all' && typeof selectedUnit === 'number' && selectedUnit < availableUnits[availableUnits.length - 1] && (
-                    <Link href={`/vocabulary?unit=${selectedUnit + 1}`}>
+                    <Link href={`/vocabulary?unit=${(selectedUnit as number) + 1}`}>
                       <Button className="bg-green-600 hover:bg-green-700">
                         <ArrowRight className="mr-2 h-4 w-4" />
-                        {t('vocabulary.continueToNextUnit', { next: selectedUnit + 1 })}
+                        {t('vocabulary.continueToNextUnit', { next: (selectedUnit as number) + 1 })}
                       </Button>
                     </Link>
                   )}
