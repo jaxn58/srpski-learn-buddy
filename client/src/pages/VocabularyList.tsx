@@ -181,11 +181,7 @@ export default function VocabularyList() {
         const audioEndpoint = configuredServerUrl
           ? `${configuredServerUrl}/api/audio/generate`
           : "/api/audio/generate";
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VocabularyList.tsx:180',message:'Audio generation - serverUrl check',data:{viteServerUrl:import.meta.env.VITE_SERVER_URL ?? null,endpoint:audioEndpoint,isProduction:import.meta.env.PROD,currentOrigin:typeof window !== 'undefined' ? window.location.origin : 'ssr'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
+
         const response = await fetch(audioEndpoint, {
           method: "POST",
           headers: {
@@ -198,15 +194,8 @@ export default function VocabularyList() {
           }),
         });
 
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VocabularyList.tsx:194',message:'Fetch response received',data:{ok:response.ok,status:response.status,statusText:response.statusText,url:response.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        
         if (!response.ok) {
           const errorText = await response.text();
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VocabularyList.tsx:196',message:'Fetch failed - response not ok',data:{status:response.status,statusText:response.statusText,errorText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           throw new Error(`Audio generation failed: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
@@ -247,9 +236,6 @@ export default function VocabularyList() {
       }
     } catch (error) {
       console.error("Failed to get audio:", error);
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VocabularyList.tsx:234',message:'Audio generation error caught',data:{errorMessage:error instanceof Error ? error.message : String(error),errorName:error instanceof Error ? error.name : 'Unknown',isFailedFetch:error instanceof Error && error.message === 'Failed to fetch'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       setLoadingAudioId(null);
       
       // Show user-friendly error

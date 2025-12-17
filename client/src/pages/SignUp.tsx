@@ -4,14 +4,6 @@ import { Link } from "wouter";
 import { useEffect } from "react";
 
 export default function SignUpPage() {
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignUp.tsx:9',message:'SignUpPage mounted',data:{timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-    return () => {
-      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SignUp.tsx:11',message:'SignUpPage unmounted',data:{timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-    };
-  }, []);
-  // #endregion
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50 flex flex-col">
