@@ -36,6 +36,7 @@ async function uploadToConvex(
   }
 
   // Call Convex mutation to generate upload URL
+  console.log('[DEBUG] Calling Convex mutation: vocabulary:generateUploadUrl');
   const uploadUrlResponse = await fetch(`${ENV.convexUrl}/api/mutation`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -46,12 +47,17 @@ async function uploadToConvex(
   });
 
   if (!uploadUrlResponse.ok) {
+    const errorText = await uploadUrlResponse.text();
+    console.log('[DEBUG] Upload URL response error:', uploadUrlResponse.status, errorText);
     throw new Error(`Failed to generate upload URL: ${uploadUrlResponse.status}`);
   }
 
-  const { value: uploadUrl } = await uploadUrlResponse.json();
+  const uploadUrlJson = await uploadUrlResponse.json();
+  console.log('[DEBUG] Upload URL response:', uploadUrlJson);
+  const { value: uploadUrl } = uploadUrlJson;
 
   // Upload the audio file to Convex storage
+  console.log('[DEBUG] Uploading file to Convex storage, size:', audioBuffer.length);
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
   const uploadResponse = await fetch(uploadUrl, {
     method: "POST",
@@ -60,12 +66,17 @@ async function uploadToConvex(
   });
 
   if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    console.log('[DEBUG] File upload error:', uploadResponse.status, errorText);
     throw new Error(`Convex file upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
   }
 
-  const { storageId } = await uploadResponse.json();
+  const uploadJson = await uploadResponse.json();
+  console.log('[DEBUG] Upload response:', uploadJson);
+  const { storageId } = uploadJson;
 
   // Get the public URL for the uploaded file
+  console.log('[DEBUG] Getting file URL for storageId:', storageId);
   const fileUrlResponse = await fetch(`${ENV.convexUrl}/api/query`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -76,10 +87,15 @@ async function uploadToConvex(
   });
 
   if (!fileUrlResponse.ok) {
+    const errorText = await fileUrlResponse.text();
+    console.log('[DEBUG] Get file URL error:', fileUrlResponse.status, errorText);
     throw new Error(`Failed to get file URL: ${fileUrlResponse.status}`);
   }
 
-  const { value: fileUrl } = await fileUrlResponse.json();
+  const fileUrlJson = await fileUrlResponse.json();
+  console.log('[DEBUG] File URL response:', fileUrlJson);
+  const { value: fileUrl } = fileUrlJson;
+  console.log('[DEBUG] Final file URL:', fileUrl);
 
   return { url: fileUrl };
 }
