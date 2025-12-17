@@ -46,8 +46,19 @@ export default function Progress() {
   const totalUnits = 27;
   const progressPercent = (completedUnits.length / totalUnits) * 100;
   
-  // Memoize modules list to prevent duplicate renders
-  const modulesList = useMemo(() => COURSE_MODULES, []);
+  // Memoize modules list and ensure uniqueness to prevent duplicate renders
+  const modulesList = useMemo(() => {
+    // Ensure unique modules by id (safety check)
+    const seen = new Set<string>();
+    return COURSE_MODULES.filter(module => {
+      if (seen.has(module.id)) {
+        console.warn(`Duplicate module detected: ${module.id}`);
+        return false;
+      }
+      seen.add(module.id);
+      return true;
+    });
+  }, []);
   
   // Format dates for chart
   const activityData = stats?.activityChart?.map(day => ({
