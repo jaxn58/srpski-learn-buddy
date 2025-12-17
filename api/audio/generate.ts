@@ -110,10 +110,18 @@ async function generateSerbianAudio(options: {
     );
   }
 
-  // Initialize TTS client
+  // Initialize TTS client with explicit config
   console.log('[DEBUG] Initializing TTS client with credentials');
+  console.log('[DEBUG] Service account email:', serviceAccountKey.client_email);
+  console.log('[DEBUG] Project ID:', serviceAccountKey.project_id);
+  
   const client = new TextToSpeechClient({
-    credentials: serviceAccountKey
+    credentials: serviceAccountKey,
+    projectId: serviceAccountKey.project_id,
+    // Explicitly set the API endpoint
+    apiEndpoint: 'texttospeech.googleapis.com',
+    // Disable retry for debugging
+    retry: false
   });
   console.log('[DEBUG] TTS client initialized');
 
