@@ -166,12 +166,59 @@ export const getAllModulesConsolidated = query({
   args: {},
   handler: async (ctx) => {
     // Fetch all modules that have the new structure (have slug field)
+    // Filter to only get unique modules (by slug) - take first occurrence per slug
     const allModules = await ctx.db
       .query("moduleMetadata")
       .filter((q) => q.neq(q.field("slug"), undefined))
       .collect();
     
-    // Sort by moduleNumber
+    // Deduplicate by slug - keep only one module per slug (prefer language-neutral or first found)
+    const uniqueBySlug = new Map<string, typeof allModules[0]>();
+    for (const module of allModules) {
+      const slug = module.slug;
+      if (slug && !uniqueBySlug.has(slug)) {
+        uniqueBySlug.set(slug, module);
+      }
+    }
+    
+    // Convert back to array and sort by moduleNumber
+    const uniqueModules = Array.from(uniqueBySlug.values());
+    const sorted = uniqueModules.sort((a, b) => {
+      const numA = a.moduleNumber ?? 999;
+      const numB = b.moduleNumber ?? 999;
+      return numA - numB;
+    });
+    
+    return sorted;
+  },
+});
+
+// DEBUG: Get all modules without deduplication (for debugging duplicates)
+// Only returns modules with slug field (new structure)
+export const getAllModulesRaw = query({
+  args: {},
+  handler: async (ctx) => {
+    const allModules = await ctx.db
+      .query("moduleMetadata")
+      .filter((q) => q.neq(q.field("slug"), undefined))
+      .collect();
+    
+    return allModules.sort((a, b) => {
+      const numA = a.moduleNumber ?? 999;
+      const numB = b.moduleNumber ?? 999;
+      return numA - numB;
+    });
+  },
+});
+
+// DEBUG: Get REALLY all modules (no filters at all)
+export const getAllModulesAbsolute = query({
+  args: {},
+  handler: async (ctx) => {
+    const allModules = await ctx.db
+      .query("moduleMetadata")
+      .collect();
+    
     return allModules.sort((a, b) => {
       const numA = a.moduleNumber ?? 999;
       const numB = b.moduleNumber ?? 999;
@@ -181,6 +228,15 @@ export const getAllModulesConsolidated = query({
 });
 
 // ============= CLEANUP UTILITIES =============
+
+// Delete a module by ID (for cleanup scripts - no auth required)
+export const deleteModuleById = mutation({
+  args: { id: v.id("moduleMetadata") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+    return { success: true };
+  },
+});
 
 // Remove legacy module entries with pattern "module-X" (cleanup migration - no auth required)
 export const removeLegacyModuleEntries = mutation({
