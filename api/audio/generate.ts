@@ -10,8 +10,6 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
-import { ConvexHttpClient } from 'convex/browser';
-import { api } from '../convex/_generated/api';
 
 const AUDIO_VERSION_TAG = "puck-v2";
 
@@ -33,27 +31,51 @@ async function uploadToConvex(
     throw new Error("VITE_CONVEX_URL is not configured");
   }
 
-  const convex = new ConvexHttpClient(ENV.convexUrl);
+  // Call Convex mutation to generate upload URL
+  const uploadUrlResponse = await fetch(`${ENV.convexUrl}/api/mutation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "vocabulary:generateUploadUrl",
+      args: {},
+    }),
+  });
 
-  // Generate upload URL from Convex
-  const uploadUrl = await convex.mutation(api.vocabulary.generateUploadUrl);
+  if (!uploadUrlResponse.ok) {
+    throw new Error(`Failed to generate upload URL: ${uploadUrlResponse.status}`);
+  }
 
-  // Upload the audio file
+  const { value: uploadUrl } = await uploadUrlResponse.json();
+
+  // Upload the audio file to Convex storage
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
-  const response = await fetch(uploadUrl, {
+  const uploadResponse = await fetch(uploadUrl, {
     method: "POST",
     headers: { "Content-Type": contentType },
     body: blob,
   });
 
-  if (!response.ok) {
-    throw new Error(`Convex file upload failed: ${response.status} ${response.statusText}`);
+  if (!uploadResponse.ok) {
+    throw new Error(`Convex file upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
   }
 
-  const { storageId } = await response.json();
+  const { storageId } = await uploadResponse.json();
 
   // Get the public URL for the uploaded file
-  const fileUrl = await convex.query(api.vocabulary.getFileUrl, { storageId });
+  const fileUrlResponse = await fetch(`${ENV.convexUrl}/api/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "vocabulary:getFileUrl",
+      args: { storageId },
+    }),
+  });
+
+  if (!fileUrlResponse.ok) {
+    throw new Error(`Failed to get file URL: ${fileUrlResponse.status}`);
+  }
+
+  const { value: fileUrl } = await fileUrlResponse.json();
 
   return { url: fileUrl };
 }
