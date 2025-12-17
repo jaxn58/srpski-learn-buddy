@@ -2,7 +2,7 @@
  * Vercel Serverless Function for Audio Generation
  * 
  * This endpoint generates Serbian pronunciation audio using Google Cloud TTS
- * and uploads it to S3 storage.
+ * and uploads it to storage via Forge API.
  * 
  * POST /api/audio/generate
  * Body: { serbianWord: string, vocabularyId?: string, unitNumber?: number }
@@ -10,7 +10,6 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 const AUDIO_VERSION_TAG = "puck-v2";
 
@@ -19,44 +18,44 @@ const ENV = {
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
-  awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
-  awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
-  awsBucketName: process.env.AWS_BUCKET_NAME ?? "",
-  awsRegion: process.env.AWS_REGION ?? "eu-central-1",
 };
 
 /**
- * Upload audio buffer to S3 storage
+ * Upload audio buffer to storage via Forge API
  */
-async function uploadToS3(
+async function uploadToStorage(
   storagePath: string,
   audioBuffer: Buffer,
   contentType: string
 ): Promise<{ url: string }> {
-  if (!ENV.awsAccessKeyId || !ENV.awsSecretAccessKey || !ENV.awsBucketName) {
-    throw new Error("AWS credentials not configured");
+  if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
+    throw new Error("Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY");
   }
 
-  const s3Client = new S3Client({
-    region: ENV.awsRegion,
-    credentials: {
-      accessKeyId: ENV.awsAccessKeyId,
-      secretAccessKey: ENV.awsSecretAccessKey,
-    },
+  const baseUrl = ENV.forgeApiUrl.replace(/\/+$/, "");
+  const normalizedPath = storagePath.replace(/^\/+/, "");
+  
+  const uploadUrl = new URL("v1/storage/upload", `${baseUrl}/`);
+  uploadUrl.searchParams.set("path", normalizedPath);
+
+  const blob = new Blob([audioBuffer], { type: contentType });
+  const formData = new FormData();
+  formData.append("file", blob, normalizedPath.split("/").pop() ?? "file");
+
+  const response = await fetch(uploadUrl, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ENV.forgeApiKey}` },
+    body: formData,
   });
 
-  const command = new PutObjectCommand({
-    Bucket: ENV.awsBucketName,
-    Key: storagePath,
-    Body: audioBuffer,
-    ContentType: contentType,
-    ACL: 'public-read',
-  });
+  if (!response.ok) {
+    const message = await response.text().catch(() => response.statusText);
+    throw new Error(
+      `Storage upload failed (${response.status} ${response.statusText}): ${message}`
+    );
+  }
 
-  await s3Client.send(command);
-
-  // Return public URL
-  const url = `https://${ENV.awsBucketName}.s3.${ENV.awsRegion}.amazonaws.com/${storagePath}`;
+  const { url } = await response.json();
   return { url };
 }
 
@@ -130,8 +129,8 @@ async function generateSerbianAudio(options: {
       storagePath = `audio/vocabulary/${sanitizedWord}-${voiceSuffix}.mp3`;
     }
 
-    // Upload to S3
-    const { url } = await uploadToS3(storagePath, audioBuffer, 'audio/mpeg');
+    // Upload to storage
+    const { url } = await uploadToStorage(storagePath, audioBuffer, 'audio/mpeg');
     return { url };
   } catch (error) {
     if (error instanceof Error) {
