@@ -201,9 +201,8 @@ export default function Units() {
             const moduleDescription = i18n.language === "de" ? module.descriptionGerman : module.description;
 
             return (
-              <AnimatedItem key={module.id}>
+              <AnimatedItem key={`module-${module.number}-${module.id}`}>
                 <Card 
-                key={module.id} 
                 id={`module-card-${module.id}`}
                 className={isModuleLocked ? "opacity-60 border-dashed" : ""}
               >

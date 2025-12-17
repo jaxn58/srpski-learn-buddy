@@ -314,7 +314,7 @@ export default function Progress() {
                       const moduleTitle = i18n.language === 'de' ? module.titleGerman : module.titleEnglish;
                       
                       return (
-                        <div key={module.id} className="space-y-2">
+                        <div key={`module-${module.number}-${module.id}`} className="space-y-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <Badge variant="outline" className="text-sm bg-slate-50">
