@@ -26,7 +26,7 @@ async function uploadToConvex(
   storagePath: string,
   audioBuffer: Buffer,
   contentType: string
-): Promise<{ url: string }> {
+): Promise<{ storageId: string }> {
   if (!ENV.convexUrl) {
     throw new Error("CONVEX_URL is not configured. Check Vercel environment variables.");
   }
@@ -61,23 +61,9 @@ async function uploadToConvex(
 
   const { storageId } = await uploadResponse.json();
 
-  // Get the public URL for the uploaded file
-  const fileUrlResponse = await fetch(`${ENV.convexUrl}/api/query`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: "vocabulary:getFileUrl",
-      args: { storageId },
-    }),
-  });
-
-  if (!fileUrlResponse.ok) {
-    throw new Error(`Failed to get file URL: ${fileUrlResponse.status}`);
-  }
-
-  const { value: fileUrl } = await fileUrlResponse.json();
-
-  return { url: fileUrl };
+  // Return storage ID instead of URL (URLs expire after 1h)
+  // Frontend will generate fresh URLs on-demand
+  return { storageId };
 }
 
 /**
@@ -87,7 +73,7 @@ async function generateSerbianAudio(options: {
   serbianWord: string;
   vocabularyId?: string;
   unitNumber?: number;
-}): Promise<{ url: string }> {
+}): Promise<{ storageId: string }> {
   if (!ENV.googleCloudServiceAccountKey) {
     throw new Error("GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY is not configured");
   }
@@ -153,8 +139,8 @@ async function generateSerbianAudio(options: {
     }
 
     // Upload to Convex File Storage
-    const { url } = await uploadToConvex(storagePath, audioBuffer, 'audio/mpeg');
-    return { url };
+    const { storageId } = await uploadToConvex(storagePath, audioBuffer, 'audio/mpeg');
+    return { storageId };
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Google Cloud TTS failed: ${error.message}`);
@@ -193,13 +179,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const { url } = await generateSerbianAudio({
+    const { storageId } = await generateSerbianAudio({
       serbianWord,
       vocabularyId,
       unitNumber,
     });
 
-    res.json({ success: true, audioUrl: url });
+    res.json({ success: true, storageId });
   } catch (error: any) {
     console.error('[Audio Generation] Error:', error);
     res.status(500).json({

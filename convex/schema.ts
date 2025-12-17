@@ -290,7 +290,8 @@ export default defineSchema({
     
     gender: v.optional(v.string()), // m, f, n
     pronunciation: v.optional(v.string()),
-    audioUrl: v.optional(v.string()), // S3 URL für generiertes Audio (Google TTS)
+    audioUrl: v.optional(v.string()), // @deprecated Use audioStorageId instead (URLs expire after 1h)
+    audioStorageId: v.optional(v.string()), // Convex Storage ID for permanent audio storage
     
     // Multi-language notes (e.g., "informal", "wird verwendet mit...")
     noteEn: v.optional(v.string()), // English note

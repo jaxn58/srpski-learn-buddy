@@ -23,6 +23,9 @@ export default function VocabularyList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUnit, setSelectedUnit] = useState<number>(1);
   
+  // Audio URL cache for fast repeated playback (stores storage IDs)
+  const [audioStorageCache, setAudioStorageCache] = useState<Record<string, string>>({});
+  
   // Get accessible units from Convex
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
   
@@ -51,7 +54,7 @@ export default function VocabularyList() {
   
   // Audio generation mutations/actions
   // We use direct fetch for generation to avoid Cloud->Localhost issues in dev
-  const updateVocabularyAudioUrl = useMutation(api.vocabulary.updateVocabularyAudioUrl);
+  const updateVocabularyAudioStorageId = useMutation(api.vocabulary.updateVocabularyAudioStorageId);
   
   // State for audio playback
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
@@ -165,17 +168,19 @@ export default function VocabularyList() {
     setLoadingAudioId(vocabularyId);
     
     try {
-      // 1. Check if we already have the audio URL in our local data
-      const word = courseVocabulary?.find(w => w._id === vocabularyId);
-      let audioUrl = word?.audioUrl;
+      // 1. Check cache first (fastest) - storageId
+      let storageId = audioStorageCache[vocabularyId];
       
-      // Force regeneration if URL is from old voice (doesn't contain current version)
-      if (audioUrl && !audioUrl.toLowerCase().includes('puck-v2')) {
-        audioUrl = undefined;
+      // 2. If not in cache, check database
+      if (!storageId) {
+        const word = courseVocabulary?.find(w => w._id === vocabularyId);
+        storageId = (word as any)?.audioStorageId;
       }
       
-      // 2. If not found, generate it via server endpoint
-      if (!audioUrl) {
+      // 3. If not found, generate it via server endpoint
+      if (!storageId) {
+        const word = courseVocabulary?.find(w => w._id === vocabularyId);
+        
         // Use configured server URL if provided, otherwise fall back to same origin (works on Vercel)
         const configuredServerUrl = import.meta.env.VITE_SERVER_URL?.replace(/\/$/, "");
         const audioEndpoint = configuredServerUrl
@@ -201,20 +206,37 @@ export default function VocabularyList() {
 
         const result = await response.json();
         
-        if (!result.success || !result.audioUrl) {
+        if (!result.success || !result.storageId) {
           throw new Error("Invalid response from audio generation endpoint");
         }
         
-        audioUrl = result.audioUrl;
+        storageId = result.storageId;
         
-        // 3. Save the new URL to database
-        await updateVocabularyAudioUrl({
+        // 4. Save to cache immediately for instant replay
+        setAudioStorageCache(prev => ({ ...prev, [vocabularyId]: storageId! }));
+        
+        // 5. Save the new storageId to database (async, don't wait)
+        updateVocabularyAudioStorageId({
           vocabularyId: vocabularyId as any,
-          audioUrl: audioUrl!,
-        });
+          audioStorageId: storageId!,
+        }).catch(err => console.error("Failed to save audio storageId to DB:", err));
       }
       
-      if (audioUrl) {
+      // 6. Generate fresh URL from storageId (via Convex storage.getUrl)
+      if (storageId) {
+        const audioUrl = await fetch(`${import.meta.env.VITE_CONVEX_URL}/api/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: "vocabulary:getVocabularyAudioUrl",
+            args: { vocabularyId: vocabularyId as any },
+          }),
+        }).then(r => r.json()).then(r => r.value);
+        
+        if (!audioUrl) {
+          throw new Error("Failed to generate audio URL from storageId");
+        }
+        
         const audio = new Audio(audioUrl);
         
         audio.onplay = () => {
@@ -234,6 +256,7 @@ export default function VocabularyList() {
         
         await audio.play();
       }
+    }
     } catch (error) {
       console.error("Failed to get audio:", error);
       setLoadingAudioId(null);

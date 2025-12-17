@@ -90,11 +90,14 @@ export default function Vocabulary() {
   
   // Audio generation mutations/actions
   // We use direct fetch for generation to avoid Cloud->Localhost issues in dev
-  const updateVocabularyAudioUrl = useMutation(api.vocabulary.updateVocabularyAudioUrl);
+  const updateVocabularyAudioStorageId = useMutation(api.vocabulary.updateVocabularyAudioStorageId);
   
   // State for audio playback
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
+  
+  // Audio storage ID cache for fast repeated playback
+  const [audioStorageCache, setAudioStorageCache] = useState<Record<string, string>>({});
 
   // Dynamically calculate available units based on access info
   const availableUnits = useMemo(() => {
@@ -123,6 +126,7 @@ export default function Vocabulary() {
   const resetQuizProgressMutation = useMutation(api.exercises.resetQuizProgress);
   const addExerciseCompletionMutation = useMutation(api.exercises.addCompletion);
   const recordVocabularyAnswerMutation = useMutation(api.vocabulary.recordVocabularyAnswer);
+  const updateVocabularyAudioStorageId = useMutation(api.vocabulary.updateVocabularyAudioStorageId);
   
   // Handle audio playback
   const handlePlayAudio = async (vocabularyId: string, serbianWord: string) => {
@@ -134,29 +138,28 @@ export default function Vocabulary() {
     setLoadingAudioId(vocabularyId);
     
     try {
-      // 1. Check if we already have the audio URL in our local data
-      // For Vocabulary page, we can check vocabWithProgress or courseVocabulary
+      // 1. Check cache first (fastest) - storageId
+      let storageId = audioStorageCache[vocabularyId];
+      
+      // 2. If not in cache, check database
       let word: any = null;
-      if (vocabWithProgress) {
-        word = vocabWithProgress.find((w: any) => w._id === vocabularyId);
-      }
-      
-      let audioUrl = word?.audioUrl;
-      
-      // If not in vocabWithProgress, check master list if available
-      if (!audioUrl && courseVocabulary) {
-        const masterWord = courseVocabulary.find((w: any) => w._id === vocabularyId);
-        audioUrl = masterWord?.audioUrl;
-        if (!word && masterWord) word = masterWord;
-      }
-
-      // Force regeneration if URL is from old voice (doesn't contain current version)
-      if (audioUrl && !audioUrl.toLowerCase().includes('puck-v2')) {
-        audioUrl = undefined;
+      if (!storageId) {
+        if (vocabWithProgress) {
+          word = vocabWithProgress.find((w: any) => w._id === vocabularyId);
+        }
+        
+        storageId = word?.audioStorageId;
+        
+        // If not in vocabWithProgress, check master list if available
+        if (!storageId && courseVocabulary) {
+          const masterWord = courseVocabulary.find((w: any) => w._id === vocabularyId);
+          storageId = masterWord?.audioStorageId;
+          if (!word && masterWord) word = masterWord;
+        }
       }
 
-      // 2. If not found, generate it via server endpoint
-      if (!audioUrl) {
+      // 3. If not found, generate it via server endpoint
+      if (!storageId) {
         // Use configured server URL if provided, otherwise fall back to same origin (works on Vercel)
         const configuredServerUrl = import.meta.env.VITE_SERVER_URL?.replace(/\/$/, "");
         const audioEndpoint = configuredServerUrl
@@ -182,20 +185,38 @@ export default function Vocabulary() {
 
         const result = await response.json();
         
-        if (!result.success || !result.audioUrl) {
+        if (!result.success || !result.storageId) {
           throw new Error("Invalid response from audio generation endpoint");
         }
         
-        audioUrl = result.audioUrl;
+        storageId = result.storageId;
         
-        // 3. Save the new URL to database
-        await updateVocabularyAudioUrl({
+        // 4. Save to cache immediately for instant replay
+        setAudioStorageCache(prev => ({ ...prev, [vocabularyId]: storageId! }));
+        
+        // 5. Save the new storageId to database (async, don't wait)
+        updateVocabularyAudioStorageId({
           vocabularyId: vocabularyId as any,
-          audioUrl: audioUrl!,
-        });
+          audioStorageId: storageId!,
+        }).catch(err => console.error("Failed to save audio storageId to DB:", err));
       }
       
-      if (audioUrl) {
+      // 6. Generate fresh URL from storageId
+      if (storageId) {
+        const audioUrl = await fetch(`${import.meta.env.VITE_CONVEX_URL}/api/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: "vocabulary:getVocabularyAudioUrl",
+            args: { vocabularyId: vocabularyId as any },
+          }),
+        }).then(r => r.json()).then(r => r.value);
+        
+        if (!audioUrl) {
+          throw new Error("Failed to generate audio URL from storageId");
+        }
+        
+        const audio = new Audio(audioUrl);
         const audio = new Audio(audioUrl);
         
         audio.onplay = () => {

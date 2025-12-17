@@ -19,7 +19,7 @@ export type GenerateSerbianAudioOptions = {
 };
 
 export type GenerateSerbianAudioResponse = {
-  url: string;
+  storageId: string;
 };
 
 /**
@@ -28,7 +28,7 @@ export type GenerateSerbianAudioResponse = {
 async function uploadToConvex(
   audioBuffer: Buffer,
   contentType: string
-): Promise<{ url: string }> {
+): Promise<{ storageId: string }> {
   const convexUrl = process.env.VITE_CONVEX_URL;
   
   if (!convexUrl) {
@@ -65,23 +65,8 @@ async function uploadToConvex(
 
   const { storageId } = await uploadResponse.json();
 
-  // Get the public URL for the uploaded file
-  const fileUrlResponse = await fetch(`${convexUrl}/api/query`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: "vocabulary:getFileUrl",
-      args: { storageId },
-    }),
-  });
-
-  if (!fileUrlResponse.ok) {
-    throw new Error(`Failed to get file URL: ${fileUrlResponse.status}`);
-  }
-
-  const { value: fileUrl } = await fileUrlResponse.json();
-
-  return { url: fileUrl };
+  // Return storage ID instead of URL (URLs expire after 1h)
+  return { storageId };
 }
 
 /**
@@ -138,9 +123,9 @@ export async function generateSerbianAudio(
     const audioBuffer = Buffer.from(response.audioContent as Uint8Array);
     
     // Upload to Convex File Storage
-    const { url } = await uploadToConvex(audioBuffer, 'audio/mpeg');
+    const { storageId } = await uploadToConvex(audioBuffer, 'audio/mpeg');
 
-    return { url };
+    return { storageId };
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Google Cloud TTS failed: ${error.message}`);

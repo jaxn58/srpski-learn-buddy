@@ -1325,7 +1325,21 @@ export const batchDeleteVocabularyByUnits = mutation({
 
 // ============= AUDIO GENERATION =============
 
-// Internal mutation to update vocabulary audio URL
+// Internal mutation to update vocabulary audio Storage ID
+export const updateVocabularyAudioStorageId = mutation({
+  args: {
+    vocabularyId: v.id("courseVocabulary"),
+    audioStorageId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.vocabularyId, {
+      audioStorageId: args.audioStorageId,
+      audioUrl: undefined, // Clear old URL (deprecated)
+    });
+  },
+});
+
+// @deprecated Use updateVocabularyAudioStorageId instead
 export const updateVocabularyAudioUrl = mutation({
   args: {
     vocabularyId: v.id("courseVocabulary"),
@@ -1338,7 +1352,30 @@ export const updateVocabularyAudioUrl = mutation({
   },
 });
 
-// Get vocabulary audio URL
+// Get vocabulary audio URL (generates fresh URL from storage ID)
+export const getVocabularyAudioUrl = query({
+  args: {
+    vocabularyId: v.id("courseVocabulary"),
+  },
+  handler: async (ctx, args) => {
+    const vocabulary = await ctx.db.get(args.vocabularyId);
+    if (!vocabulary) return null;
+
+    // Prefer storage ID (generates fresh URL that doesn't expire)
+    if (vocabulary.audioStorageId) {
+      return await ctx.storage.getUrl(vocabulary.audioStorageId);
+    }
+
+    // Fallback to old audioUrl (deprecated, may be expired)
+    if (vocabulary.audioUrl && vocabulary.audioUrl.toLowerCase().includes('puck-v2')) {
+      return vocabulary.audioUrl;
+    }
+
+    return null;
+  },
+});
+
+// @deprecated Use getVocabularyAudioUrl instead
 export const getVocabularyAudio = query({
   args: {
     vocabularyId: v.id("courseVocabulary"),
@@ -1352,7 +1389,7 @@ export const getVocabularyAudio = query({
     if (vocabulary.audioUrl && vocabulary.audioUrl.toLowerCase().includes('puck-v2')) {
       return vocabulary.audioUrl;
     }
-    
+
     return null;
   },
 });
