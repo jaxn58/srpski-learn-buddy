@@ -141,12 +141,19 @@ async function generateSerbianAudio(options: {
 
   try {
     // Generate audio
+    console.log('[DEBUG] About to call synthesizeSpeech with request:', JSON.stringify(request, null, 2));
+    console.log('[DEBUG] Client endpoint:', (client as any).apiEndpoint);
+    console.log('[DEBUG] Client projectId:', (client as any).projectId);
+    
     const [response] = await client.synthesizeSpeech(request);
-
+    
+    console.log('[DEBUG] synthesizeSpeech response received');
+    
     if (!response.audioContent) {
       throw new Error("No audio content received from Google Cloud TTS");
     }
 
+    console.log('[DEBUG] Audio content length:', response.audioContent.length);
     const audioBuffer = Buffer.from(response.audioContent as Uint8Array);
 
     // Generate storage path
