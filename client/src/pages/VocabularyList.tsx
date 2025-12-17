@@ -256,7 +256,6 @@ export default function VocabularyList() {
         
         await audio.play();
       }
-    }
     } catch (error) {
       console.error("Failed to get audio:", error);
       setLoadingAudioId(null);
