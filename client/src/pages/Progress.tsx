@@ -5,6 +5,7 @@ import { Link } from "wouter";
 // Sidebar import removed
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
+import { useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -44,6 +45,9 @@ export default function Progress() {
   const completedUnits = stats?.completedUnits || [];
   const totalUnits = 27;
   const progressPercent = (completedUnits.length / totalUnits) * 100;
+  
+  // Memoize modules list to prevent duplicate renders
+  const modulesList = useMemo(() => COURSE_MODULES, []);
   
   // Format dates for chart
   const activityData = stats?.activityChart?.map(day => ({
@@ -309,7 +313,7 @@ export default function Progress() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
-                    {COURSE_MODULES.map((module) => {
+                    {modulesList.map((module) => {
                       const moduleProgress = getModuleProgress(module.id, completedUnits);
                       const moduleTitle = i18n.language === 'de' ? module.titleGerman : module.titleEnglish;
                       
