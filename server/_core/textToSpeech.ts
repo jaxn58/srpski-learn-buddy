@@ -108,7 +108,9 @@ export async function generateSerbianAudio(
 
   // Initialize Text-to-Speech client with Service Account credentials
   const client = new TextToSpeechClient({
-    credentials: serviceAccountKey
+    credentials: serviceAccountKey,
+    projectId: serviceAccountKey.project_id,
+    apiEndpoint: 'texttospeech.googleapis.com',
   });
   
   // Configure TTS request for Serbian
