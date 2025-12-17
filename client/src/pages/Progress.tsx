@@ -5,7 +5,7 @@ import { Link } from "wouter";
 // Sidebar import removed
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -46,18 +46,23 @@ export default function Progress() {
   const totalUnits = 27;
   const progressPercent = (completedUnits.length / totalUnits) * 100;
   
-  // Memoize modules list and ensure uniqueness to prevent duplicate renders
+  // Debug: Track component lifecycle
+  useEffect(() => {
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:mount',message:'Progress component mounted',data:{timestamp:new Date().toISOString(),courseModulesLength:COURSE_MODULES.length,moduleIds:COURSE_MODULES.map(m=>m.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    return () => {
+      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:unmount',message:'Progress component unmounted',data:{timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    };
+  }, []);
+  
+  // Debug: Track render cycles
+  useEffect(() => {
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:render',message:'Progress component rendered',data:{timestamp:new Date().toISOString(),statsLoading:isLoading,completedUnitsLength:completedUnits.length,statsLevel:stats?.level},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+  });
+  
+  // Memoize modules list to prevent duplicate renders
   const modulesList = useMemo(() => {
-    // Ensure unique modules by id (safety check)
-    const seen = new Set<string>();
-    return COURSE_MODULES.filter(module => {
-      if (seen.has(module.id)) {
-        console.warn(`Duplicate module detected: ${module.id}`);
-        return false;
-      }
-      seen.add(module.id);
-      return true;
-    });
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:useMemo',message:'modulesList useMemo executed',data:{courseModulesLength:COURSE_MODULES.length,moduleIds:COURSE_MODULES.map(m=>m.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+    return COURSE_MODULES;
   }, []);
   
   // Format dates for chart
@@ -324,7 +329,8 @@ export default function Progress() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
-                    {modulesList.map((module) => {
+                    {modulesList.map((module, index) => {
+                      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:map',message:'Rendering module in map',data:{index,moduleId:module.id,moduleNumber:module.number,totalModules:modulesList.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
                       const moduleProgress = getModuleProgress(module.id, completedUnits);
                       const moduleTitle = i18n.language === 'de' ? module.titleGerman : module.titleEnglish;
                       
