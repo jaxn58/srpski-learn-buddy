@@ -126,7 +126,6 @@ export default function Vocabulary() {
   const resetQuizProgressMutation = useMutation(api.exercises.resetQuizProgress);
   const addExerciseCompletionMutation = useMutation(api.exercises.addCompletion);
   const recordVocabularyAnswerMutation = useMutation(api.vocabulary.recordVocabularyAnswer);
-  const updateVocabularyAudioStorageId = useMutation(api.vocabulary.updateVocabularyAudioStorageId);
   
   // Handle audio playback
   const handlePlayAudio = async (vocabularyId: string, serbianWord: string) => {
@@ -216,7 +215,6 @@ export default function Vocabulary() {
           throw new Error("Failed to generate audio URL from storageId");
         }
         
-        const audio = new Audio(audioUrl);
         const audio = new Audio(audioUrl);
         
         audio.onplay = () => {
