@@ -24,8 +24,8 @@ const UNIT_NUMBER = 1;
 const MARKDOWN_FILE = path.join(
   process.cwd(),
   "New Content",
-  "learn-with.me-main",
-  "Unit-1-First-Words-v7.md"
+  "Betta Deploy",
+  "Module 1_ Ankommen (Arrival).md"
 );
 
 interface VocabularyWord {
@@ -187,23 +187,64 @@ async function replaceUnit1Vocabulary() {
   
   for (const word of words) {
     try {
+      // Extract note from English translation if it contains parentheses (e.g., "Hello (Informal)")
+      let primaryTranslation = word.english;
+      let extractedNote: string | undefined = undefined;
+      
+      // Check if translation contains note in parentheses
+      const noteMatch = primaryTranslation.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (noteMatch) {
+        primaryTranslation = noteMatch[1].trim();
+        extractedNote = noteMatch[2].trim();
+      }
+      
+      // Combine extracted note with notes column (prefer notes column if both exist)
+      // If both exist, combine them with a separator
+      let finalNote: string | undefined = undefined;
+      if (word.notes && extractedNote) {
+        // Both exist - combine them
+        finalNote = `${word.notes} (${extractedNote})`;
+      } else {
+        finalNote = word.notes || extractedNote || undefined;
+      }
+      
+      // Clean up final note (remove extra spaces, limit length)
+      if (finalNote) {
+        finalNote = finalNote.trim();
+        // Limit note length to 500 characters (reasonable limit)
+        if (finalNote.length > 500) {
+          finalNote = finalNote.substring(0, 497) + '...';
+        }
+      }
+      
       // Split English translation if it contains "/" (e.g., "Please / You're welcome")
-      const englishTranslations = word.english.split("/").map(t => t.trim());
-      const primaryTranslation = englishTranslations[0];
+      const englishTranslations = primaryTranslation.split("/").map(t => t.trim());
+      let mainTranslation = englishTranslations[0];
       const altTranslation = englishTranslations.length > 1 ? englishTranslations[1] : undefined;
+      
+      // Ensure mainTranslation is not empty (fallback to serbian word if empty)
+      if (!mainTranslation || mainTranslation.trim().length === 0) {
+        mainTranslation = word.serbian;
+      }
       
       // Create translations array (for backward compatibility)
       const translations = [
         {
           language: "en",
-          translation: primaryTranslation,
+          translation: mainTranslation,
           alt: altTranslation,
         },
         {
           language: "de",
-          translation: primaryTranslation, // Use English as fallback for German
+          translation: mainTranslation, // Use English as fallback for German
         },
       ];
+      
+      // Prepare note fields (only include if not empty)
+      const noteFields: Record<string, string> = {};
+      if (finalNote && finalNote.trim().length > 0) {
+        noteFields.noteEn = finalNote.trim();
+      }
       
       // Import using upsertCourseVocabulary
       await client.mutation(api.vocabulary.upsertCourseVocabulary, {
@@ -212,13 +253,18 @@ async function replaceUnit1Vocabulary() {
         translations: translations,
         gender: undefined,
         pronunciation: undefined,
+        ...noteFields,
       });
       
       successCount++;
-      console.log(`   ✅ ${word.serbian} → ${primaryTranslation}`);
+      console.log(`   ✅ ${word.serbian} → ${mainTranslation}${finalNote ? ` [Note: ${finalNote}]` : ''}`);
     } catch (error: any) {
-      console.error(`   ❌ Error importing "${word.serbian}": ${error.message}`);
       errorCount++;
+      console.error(`   ❌ Error importing "${word.serbian}":`, error.message || error);
+      console.error(`      English: "${word.english}"`);
+      console.error(`      Notes: "${word.notes || 'none'}"`);
+      console.error(`      Extracted note: "${extractedNote || 'none'}"`);
+      console.error(`      Final note: "${finalNote || 'none'}"`);
     }
   }
   
@@ -233,21 +279,65 @@ async function replaceUnit1Vocabulary() {
     // Find matching word from import
     const importedWord = words.find(w => w.serbian === vocab.serbian);
     if (importedWord) {
-      const englishTranslations = importedWord.english.split("/").map(t => t.trim());
-      const primaryTranslation = englishTranslations[0];
+      // Extract note from English translation if it contains parentheses
+      let primaryTranslation = importedWord.english;
+      let extractedNote: string | undefined = undefined;
+      
+      const noteMatch = primaryTranslation.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (noteMatch) {
+        primaryTranslation = noteMatch[1].trim();
+        extractedNote = noteMatch[2].trim();
+      }
+      
+      // Combine extracted note with notes column (prefer notes column if both exist)
+      // If both exist, combine them with a separator
+      let finalNote: string | undefined = undefined;
+      if (importedWord.notes && extractedNote) {
+        // Both exist - combine them
+        finalNote = `${importedWord.notes} (${extractedNote})`;
+      } else {
+        finalNote = importedWord.notes || extractedNote || undefined;
+      }
+      
+      // Clean up final note (remove extra spaces, limit length)
+      if (finalNote) {
+        finalNote = finalNote.trim();
+        // Limit note length to 500 characters (reasonable limit)
+        if (finalNote.length > 500) {
+          finalNote = finalNote.substring(0, 497) + '...';
+        }
+      }
+      
+      // Split English translation if it contains "/"
+      const englishTranslations = primaryTranslation.split("/").map(t => t.trim());
+      let mainTranslation = englishTranslations[0];
       const altTranslation = englishTranslations.length > 1 ? englishTranslations[1] : undefined;
+      
+      // Ensure mainTranslation is not empty (fallback to serbian word if empty)
+      if (!mainTranslation || mainTranslation.trim().length === 0) {
+        mainTranslation = vocab.serbian;
+      }
+      
+      // Prepare note fields (only include if not empty)
+      const noteFields: Record<string, string> = {};
+      if (finalNote && finalNote.trim().length > 0) {
+        noteFields.noteEn = finalNote.trim();
+      }
       
       try {
         await client.mutation(api.vocabulary.updateCourseVocabularyColumns, {
           courseVocabularyId: vocab._id,
-          en: primaryTranslation,
-          de: primaryTranslation, // Use English as fallback for German
+          en: mainTranslation,
+          de: mainTranslation, // Use English as fallback for German
           enAlt: altTranslation,
           deAlt: undefined,
+          ...noteFields,
         });
         updateCount++;
       } catch (error: any) {
-        console.error(`   ❌ Error updating columns for "${vocab.serbian}": ${error.message}`);
+        console.error(`   ❌ Error updating columns for "${vocab.serbian}":`, error.message || error);
+        console.error(`      Translation: "${mainTranslation}"`);
+        console.error(`      Note: "${finalNote || 'none'}"`);
       }
     }
   }

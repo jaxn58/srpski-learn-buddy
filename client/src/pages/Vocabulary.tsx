@@ -9,6 +9,7 @@ import type { Doc } from "../../../convex/_generated/dataModel";
 import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useCallback, useMemo } from "react";
 
@@ -33,6 +34,16 @@ export default function Vocabulary() {
   
   // BETA: Force English for all users
   const userLanguage: SupportedLanguage = "en";
+  
+  // Helper function to get note for current language
+  const getNoteForLanguage = (word: any, language: SupportedLanguage): string | null => {
+    if (!word) return null;
+    if (language === "de") return word.noteDe || word.noteEn || null;
+    if (language === "sr") return word.noteSr || word.noteEn || null;
+    if (language === "es") return word.noteEs || word.noteEn || null;
+    if (language === "fr") return word.noteFr || word.noteEn || null;
+    return word.noteEn || null;
+  };
   
   // Load all unit metadata for displaying unit titles
   const allUnitsMetadata = useQuery(api.units.getAllUnitsMetadata, { language: userLanguage });
@@ -72,6 +83,11 @@ export default function Vocabulary() {
   const [sessionXP, setSessionXP] = useState(0);
   // Modal state for gamification explanation
   const [showGamificationModal, setShowGamificationModal] = useState(false);
+  // Auto-advance setting (load from localStorage)
+  const [autoAdvance, setAutoAdvance] = useState<boolean>(() => {
+    const saved = localStorage.getItem('vocab_quiz_auto_advance');
+    return saved === 'true';
+  });
 
   // Dynamically calculate available units based on access info
   const availableUnits = useMemo(() => {
@@ -457,6 +473,31 @@ export default function Vocabulary() {
     }
   };
 
+  // Handle moving to next word (used both manually and automatically)
+  const handleNextWord = useCallback(() => {
+    // Check if it's the last word
+    if (currentIndex >= filteredVocab.length - 1) {
+      // Last word - don't advance, show completion
+      return;
+    }
+    
+    // Reset state before moving to next word
+    setShowAnswer(false);
+    setUserAnswer('');
+    setIsCorrect(null);
+    setCurrentCorrectTranslation(null);
+    setAnsweredWord(null);
+    
+    // Move to next word
+    setCurrentIndex(prevIndex => prevIndex + 1);
+  }, [currentIndex, filteredVocab.length]);
+
+  // Handle auto-advance setting change
+  const handleAutoAdvanceChange = (checked: boolean) => {
+    setAutoAdvance(checked);
+    localStorage.setItem('vocab_quiz_auto_advance', checked.toString());
+  };
+
   const handleSubmitAnswer = async () => {
     if (!userAnswer.trim() || !currentWord) return;
     
@@ -644,17 +685,13 @@ export default function Vocabulary() {
       return;
     }
     
-    setTimeout(() => {
-      // Reset showAnswer BEFORE moving to next word to prevent showing translation of next word
-      setShowAnswer(false);
-      setUserAnswer('');
-      setIsCorrect(null);
-      setCurrentCorrectTranslation(null);
-      setAnsweredWord(null);
-      
-      // Then move to next word
-      setCurrentIndex(currentIndex + 1);
-    }, 2000);
+    // Only auto-advance if setting is enabled
+    if (autoAdvance) {
+      setTimeout(() => {
+        handleNextWord();
+      }, 2000);
+    }
+    // If autoAdvance is false, user will click "Weiter" button to continue
   };
 
   const handleReset = () => {
@@ -1062,6 +1099,19 @@ export default function Vocabulary() {
                   Last attempt: {lastQuizProgress.lastScore}% ({lastQuizProgress.totalAttempts} attempts)
                 </div>
               )}
+              {/* Auto-advance setting for quiz mode */}
+              {mode === 'quiz' && (
+                <div className="flex items-center justify-between gap-2 pt-2 border-t mt-2">
+                  <label htmlFor="auto-advance" className="text-sm font-medium cursor-pointer">
+                    {t('vocabulary.autoAdvance') || 'Auto advance (2s)'}
+                  </label>
+                  <Switch
+                    id="auto-advance"
+                    checked={autoAdvance}
+                    onCheckedChange={handleAutoAdvanceChange}
+                  />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1135,28 +1185,40 @@ export default function Vocabulary() {
                     })()}
                   </div>
                 )}
-                    {/* Übersetzung nur im Learn-Mode oder bei falscher Antwort anzeigen */}
-                    {(mode === 'learn' || (showAnswer && isCorrect === false)) && (
-                      <p className="text-2xl text-muted-foreground mt-4">
+                    {/* Übersetzung nur im Learn-Mode anzeigen (im Quiz-Modus wird sie im Feedback-Bereich angezeigt) */}
+                    {mode === 'learn' && (
+                      <>
+                        <p className="text-2xl text-muted-foreground mt-4">
+                          {(() => {
+                            const word = showAnswer && answeredWord ? answeredWord : displayWord;
+                            // NEW: Support column-based translations (check if values exist)
+                            if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
+                              return userLanguage === "de" 
+                                ? (word.de?.trim() || word.en?.trim() || "") 
+                                : (word.en?.trim() || word.de?.trim() || "");
+                            }
+                            // FALLBACK: Database translations array structure
+                            if (word && Array.isArray(word.translations)) {
+                              const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
+                                                    word.translations.find((t: any) => t.language === "en");
+                              return translationObj?.translation || "";
+                            }
+                            // No fallback - database should always provide translations
+                            console.error('[Vocabulary] No translation available for display:', word);
+                            return "";
+                          })()}
+                        </p>
+                        {/* Note anzeigen wenn vorhanden */}
                         {(() => {
                           const word = showAnswer && answeredWord ? answeredWord : displayWord;
-                          // NEW: Support column-based translations (check if values exist)
-                          if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
-                            return userLanguage === "de" 
-                              ? (word.de?.trim() || word.en?.trim() || "") 
-                              : (word.en?.trim() || word.de?.trim() || "");
-                          }
-                          // FALLBACK: Database translations array structure
-                          if (word && Array.isArray(word.translations)) {
-                            const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
-                                                  word.translations.find((t: any) => t.language === "en");
-                            return translationObj?.translation || "";
-                          }
-                          // No fallback - database should always provide translations
-                          console.error('[Vocabulary] No translation available for display:', word);
-                          return "";
+                          const note = getNoteForLanguage(word, userLanguage);
+                          return note ? (
+                            <p className="text-muted-foreground mt-2 italic text-[0.85rem]">
+                              {note}
+                            </p>
+                          ) : null;
                         })()}
-                      </p>
+                      </>
                     )}
                   </div>
                 );
@@ -1268,10 +1330,68 @@ export default function Vocabulary() {
                                   return "";
                                 })()}
                               </div>
+                              {/* Note anzeigen wenn vorhanden */}
+                              {(() => {
+                                const word = answeredWord || currentWord;
+                                const note = getNoteForLanguage(word, userLanguage);
+                                return note ? (
+                                  <div className="text-muted-foreground mt-2 italic text-[0.85rem]">
+                                    {note}
+                                  </div>
+                                ) : null;
+                              })()}
+                            </>
+                          )}
+                          {/* Übersetzung und Note auch bei korrekter Antwort anzeigen */}
+                          {isCorrect && (
+                            <>
+                              <div className="text-sm text-muted-foreground mt-2">{t('vocabulary.correctAnswer')}</div>
+                              <div className="font-medium text-green-600">
+                                {currentCorrectTranslation || (() => {
+                                  const word = answeredWord || currentWord;
+                                  // NEW: Support column-based translations (check if values exist)
+                                  if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
+                                    return userLanguage === "de" 
+                                      ? (word.de?.trim() || word.en?.trim() || "") 
+                                      : (word.en?.trim() || word.de?.trim() || "");
+                                  }
+                                  // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
+                                  if (word && Array.isArray(word.translations)) {
+                                    const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
+                                                          word.translations.find((t: any) => t.language === "en");
+                                    return translationObj?.translation || "";
+                                  }
+                                  // No fallback - database should always provide translations
+                                  console.error('[Vocabulary] No translation available for correct answer display');
+                                  return "";
+                                })()}
+                              </div>
+                              {/* Note anzeigen wenn vorhanden */}
+                              {(() => {
+                                const word = answeredWord || currentWord;
+                                const note = getNoteForLanguage(word, userLanguage);
+                                return note ? (
+                                  <div className="text-muted-foreground mt-2 italic text-[0.85rem]">
+                                    {note}
+                                  </div>
+                                ) : null;
+                              })()}
                             </>
                           )}
                         </div>
                       </div>
+                      {/* Weiter-Button für Quiz-Modus */}
+                      {mode === 'quiz' && showAnswer && currentIndex < filteredVocab.length - 1 && (
+                        <div className="flex justify-center mt-4">
+                          <Button
+                            onClick={handleNextWord}
+                            size="lg"
+                            className="min-w-[120px]"
+                          >
+                            {t('vocabulary.next')}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

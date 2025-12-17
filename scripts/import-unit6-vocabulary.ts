@@ -216,6 +216,11 @@ async function importUnit6Vocabulary() {
         translations: translations,
         gender: undefined,
         pronunciation: undefined,
+        noteEn: word.notes || undefined,
+        noteDe: undefined,
+        noteSr: undefined,
+        noteEs: undefined,
+        noteFr: undefined,
       });
       
       successCount++;
@@ -268,3 +273,5 @@ importUnit6Vocabulary().catch((error) => {
   console.error("Fatal error:", error);
   process.exit(1);
 });
+
+

@@ -433,7 +433,7 @@ function DashboardLayoutContent({
             )}
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
+          <SidebarFooter className="p-3 space-y-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -462,6 +462,14 @@ function DashboardLayoutContent({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Version Display */}
+            {!isCollapsed && (
+              <div className="px-2 py-1.5 text-center border-t pt-2 mt-2">
+                <p className="text-[10px] text-muted-foreground font-mono">
+                  v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : "1.0.0"}
+                </p>
+              </div>
+            )}
           </SidebarFooter>
         </Sidebar>
         <div

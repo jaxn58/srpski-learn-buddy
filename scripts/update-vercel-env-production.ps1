@@ -226,3 +226,5 @@ Write-Host ""
 Write-Host "Vollständige Anleitung: docs\CLERK_PRODUCTION_MIGRATION.md" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "✅ Fertig!" -ForegroundColor Green
+
+

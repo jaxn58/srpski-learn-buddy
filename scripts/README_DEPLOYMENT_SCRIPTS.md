@@ -146,3 +146,5 @@ Wenn du Scripts anpasst oder neue erstellst:
 - [CLERK_PRODUCTION_QUICK_START.md](../docs/CLERK_PRODUCTION_QUICK_START.md) - Schnellreferenz
 - [VERCEL_DEPLOYMENT_GUIDE.md](../docs/VERCEL_DEPLOYMENT_GUIDE.md) - Vercel Setup
 - [DEPLOYMENT_INDEX.md](../docs/DEPLOYMENT_INDEX.md) - Übersicht aller Guides
+
+

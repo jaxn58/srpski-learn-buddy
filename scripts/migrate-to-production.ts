@@ -46,7 +46,7 @@ interface MigrationStats {
   moduleMetadata: { total: number; migrated: number; };
   unitMetadata: { total: number; migrated: number; };
   unitContent: { total: number; migrated: number; };
-  unitInteractiveTests: { total: number; migrated: number; };
+  unitInteractiveTests: { total: number; migrated: number; skipped: number; protected: number; };
   courseVocabulary: { total: number; migrated: number; };
 }
 
@@ -63,9 +63,22 @@ async function migrateData() {
     moduleMetadata: { total: 0, migrated: 0 },
     unitMetadata: { total: 0, migrated: 0 },
     unitContent: { total: 0, migrated: 0 },
-    unitInteractiveTests: { total: 0, migrated: 0 },
+    unitInteractiveTests: { total: 0, migrated: 0, skipped: 0, protected: 0 },
     courseVocabulary: { total: 0, migrated: 0 },
   };
+
+  // Get all questionIds that have user progress in Production (to protect them)
+  console.log("🔒 Checking for questions with user progress in Production...");
+  let protectedQuestionIds: Set<string>;
+  try {
+    const questionIdsWithProgress = await prodClient.query(api.progress.getQuestionIdsWithProgress as any);
+    protectedQuestionIds = new Set(questionIdsWithProgress || []);
+    console.log(`   ✅ Found ${protectedQuestionIds.size} questions with user progress (will be protected)`);
+  } catch (e: any) {
+    console.warn(`   ⚠️  Could not check for protected questions: ${e.message}`);
+    console.warn(`   ⚠️  Proceeding without protection - this may overwrite user progress!`);
+    protectedQuestionIds = new Set();
+  }
 
   try {
     // 1. Migrate Module Metadata (Consolidated Structure)
@@ -168,8 +181,9 @@ async function migrateData() {
       }
     }
 
-    // 4. Migrate Interactive Tests
+    // 4. Migrate Interactive Tests (with protection for questions with user progress)
     console.log("\n🎯 Step 4/5: Migrating Interactive Tests...");
+    console.log(`   🔒 Protecting ${protectedQuestionIds.size} questions with user progress`);
     for (let unitNumber = 1; unitNumber <= 27; unitNumber++) {
       for (const lang of ["en", "de"]) {
         try {
@@ -181,6 +195,14 @@ async function migrateData() {
           if (!tests || tests.length === 0) continue;
           
           for (const test of tests) {
+            // Check if this question has user progress - if yes, skip to protect user data
+            if (protectedQuestionIds.has(test.questionId)) {
+              stats.unitInteractiveTests.protected++;
+              stats.unitInteractiveTests.skipped++;
+              console.log(`  🔒 Unit ${unitNumber} Test ${test.questionId}: Protected (has user progress)`);
+              continue;
+            }
+            
             try {
               await prodClient.mutation(api.units.insertUnitInteractiveTest as any, {
                 unitNumber: test.unitNumber,
@@ -206,7 +228,7 @@ async function migrateData() {
             }
           }
           stats.unitInteractiveTests.total += tests.length;
-          console.log(`  ✅ Unit ${unitNumber} (${lang}): ${tests.length} tests`);
+          console.log(`  ✅ Unit ${unitNumber} (${lang}): ${tests.length} tests (${stats.unitInteractiveTests.migrated} migrated, ${stats.unitInteractiveTests.protected} protected)`);
         } catch (e: any) {
           // Unit might not have tests, skip
         }
@@ -281,7 +303,7 @@ async function migrateData() {
     console.log(`  Modules:         ${stats.moduleMetadata.migrated}/${stats.moduleMetadata.total}`);
     console.log(`  Unit Metadata:   ${stats.unitMetadata.migrated}/${stats.unitMetadata.total}`);
     console.log(`  Unit Content:    ${stats.unitContent.migrated}/${stats.unitContent.total}`);
-    console.log(`  Tests:           ${stats.unitInteractiveTests.migrated}/${stats.unitInteractiveTests.total}`);
+    console.log(`  Tests:           ${stats.unitInteractiveTests.migrated}/${stats.unitInteractiveTests.total} (${stats.unitInteractiveTests.protected} protected)`);
     console.log(`  Vocabulary:      ${stats.courseVocabulary.migrated}/${stats.courseVocabulary.total}`);
     console.log("");
     console.log("🎉 Your Production database is now populated!");
@@ -304,3 +326,5 @@ migrateData()
     console.error("Fatal error:", error);
     process.exit(1);
   });
+
+

@@ -248,45 +248,61 @@ export default function UnitView() {
             <TabsContent value="vocabulary" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Unit Vocabulary</CardTitle>
+                  <h2 className="text-2xl font-semibold">Unit Vocabulary</h2>
                   <CardDescription>Master these words to complete the unit.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {vocabulary && vocabulary.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       {vocabulary.map((word: any, i: number) => {
                         // NEW: Column-based translation access (consistent with moduleMetadata)
                         // FALLBACK: Support old translations[] array during migration
                         let displayTranslation: string;
-                        let altSuffix = "";
-                        let hasAlt = false;
+                        let altTranslation: string | undefined = undefined;
                         
                         if (word.en && word.de) {
                           // NEW: Column-based structure
                           displayTranslation = displayLanguage === "de" ? word.de : word.en;
-                          const alt = displayLanguage === "de" ? word.deAlt : word.enAlt;
-                          hasAlt = Boolean(alt);
-                          altSuffix = hasAlt ? ` (alt: ${alt})` : "";
+                          altTranslation = displayLanguage === "de" ? word.deAlt : word.enAlt;
                         } else if (word.translations && Array.isArray(word.translations)) {
                           // FALLBACK: Old translations[] array structure
                           const trans =
                             word.translations.find((t: any) => t.language === displayLanguage) ||
                             word.translations.find((t: any) => t.language === "en");
-                          hasAlt = Boolean(trans?.alt);
-                          altSuffix = hasAlt ? ` (alt: ${trans?.alt})` : "";
                           displayTranslation = trans?.translation || "-";
+                          altTranslation = trans?.alt;
                         } else {
                           displayTranslation = "-";
                         }
                         
-                        const displayWord = hasAlt ? `${word.serbian}*` : word.serbian;
-
+                        // Get note for current language
+                        let displayNote: string | null = null;
+                        if (displayLanguage === "de") {
+                          displayNote = word.noteDe || word.noteEn || null;
+                        } else if (displayLanguage === "sr") {
+                          displayNote = word.noteSr || word.noteEn || null;
+                        } else if (displayLanguage === "es") {
+                          displayNote = word.noteEs || word.noteEn || null;
+                        } else if (displayLanguage === "fr") {
+                          displayNote = word.noteFr || word.noteEn || null;
+                        } else {
+                          displayNote = word.noteEn || null;
+                        }
+                        
                         return (
-                          <div key={i} className="rounded-md border bg-muted/30 px-3 py-2">
-                            <div className="font-medium">{displayWord}</div>
-                            <div className="text-muted-foreground text-sm">
-                              {`${displayTranslation}${altSuffix}`}
-                            </div>
+                          <div key={i}>
+                            <span className="font-medium">{word.serbian}</span>
+                            <span> - </span>
+                            {altTranslation && altTranslation.trim() ? (
+                              <span>
+                                {displayTranslation} / {altTranslation}
+                              </span>
+                            ) : (
+                              <span>{displayTranslation}</span>
+                            )}
+                            {displayNote && displayNote.trim() && (
+                              <span className="text-muted-foreground italic text-[0.85rem]"> ({displayNote})</span>
+                            )}
                           </div>
                         );
                       })}

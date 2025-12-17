@@ -97,3 +97,5 @@ Bei Problemen:
 2. Prüfe Vercel Build-Logs
 3. Prüfe Browser-Konsole
 4. Kontaktiere Clerk Support
+
+

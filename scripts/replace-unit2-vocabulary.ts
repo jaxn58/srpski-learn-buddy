@@ -292,6 +292,11 @@ async function replaceUnit2Vocabulary() {
         translations: translations,
         gender: word.gender, // Store gender in database
         pronunciation: undefined,
+        noteEn: word.notes || undefined,
+        noteDe: undefined,
+        noteSr: undefined,
+        noteEs: undefined,
+        noteFr: undefined,
       });
       
       successCount++;

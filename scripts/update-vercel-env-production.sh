@@ -243,3 +243,5 @@ echo ""
 echo -e "${CYAN}Vollständige Anleitung: docs/CLERK_PRODUCTION_MIGRATION.md${NC}"
 echo ""
 echo -e "${GREEN}✅ Fertig!${NC}"
+
+

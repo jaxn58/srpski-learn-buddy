@@ -66,6 +66,43 @@ Diese Seite gibt dir einen Überblick über alle verfügbaren Deployment-Guides 
 
 ### 3. Convex Backend
 
+#### [DEVELOPMENT_PRODUCTION_WORKFLOW.md](./DEVELOPMENT_PRODUCTION_WORKFLOW.md)
+**Umfang**: Vollständiger Guide für Development vs. Production Workflow
+
+**Inhalt**:
+- Grundprinzip der zwei Convex Deployments
+- Täglicher Development-Workflow
+- Deployment nach Production
+- Daten-Migration (Units, Vocabulary, Email-Templates)
+- Schutz-Mechanismus für Fragen mit User-Fortschritt
+- App-Versionierung
+- Troubleshooting
+- Checklisten und Best Practices
+
+**Wann verwenden**: 
+- Als Referenz für den täglichen Workflow
+- Bei Fragen zur Datenbank-Trennung
+- Vor und nach Deployments
+- Bei Daten-Migrationen
+
+---
+
+#### [POST_BETA_MIGRATION_PLAN.md](./POST_BETA_MIGRATION_PLAN.md)
+**Umfang**: Plan für Migration nach Ende des Beta-Tests
+
+**Inhalt**:
+- Strategien für Content-Updates ohne Datenverlust
+- Content-Versionierung
+- Fortschritt-Migration
+- Checklisten und Best Practices
+
+**Wann verwenden**: 
+- Vor Ende des Beta-Tests
+- Bei größeren Content-Updates während Beta
+- Planung der Post-Beta Migration
+
+---
+
 #### [README.md](./README.md) (Abschnitt "Set Up Convex")
 **Umfang**: Convex Setup für lokale Entwicklung und Production
 
@@ -211,6 +248,8 @@ chmod +x scripts/update-vercel-env-production.sh
 | CORS-Fehler | Allowed Origins in Clerk fehlt | [CLERK_PRODUCTION_MIGRATION.md](./CLERK_PRODUCTION_MIGRATION.md#phase-3-clerk-allowed-origins-konfigurieren) |
 | Convex-Verbindung fehlgeschlagen | `VITE_CONVEX_URL` falsch oder fehlt | [VERCEL_DEPLOYMENT_GUIDE.md](./VERCEL_DEPLOYMENT_GUIDE.md#troubleshooting) |
 | User nicht gefunden | Development vs. Production User-DB | [CLERK_PRODUCTION_MIGRATION.md](./CLERK_PRODUCTION_MIGRATION.md#wichtig-zu-wissen) |
+| Falsches Deployment wird verwendet | Environment Variables prüfen | [DEVELOPMENT_PRODUCTION_WORKFLOW.md](./DEVELOPMENT_PRODUCTION_WORKFLOW.md#troubleshooting) |
+| Production-Datenbank ist leer | Migration nicht durchgeführt | [DEVELOPMENT_PRODUCTION_WORKFLOW.md](./DEVELOPMENT_PRODUCTION_WORKFLOW.md#daten-migration) |
 
 ---
 
@@ -236,5 +275,8 @@ Bei Problemen:
 Diese Dokumentation wird regelmäßig aktualisiert. Letzte Änderung: 2024-12-16
 
 **Änderungshistorie**:
+- 2024-12-17: Development vs. Production Workflow Guide hinzugefügt
 - 2024-12-16: Clerk Production Migration Guide hinzugefügt
 - 2024-12-16: Deployment Index erstellt
+
+

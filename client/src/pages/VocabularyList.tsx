@@ -29,6 +29,16 @@ export default function VocabularyList() {
   // BETA: Force English for all users
   const userLanguage: SupportedLanguage = "en";
 
+  // Helper function to get note for current language
+  const getNoteForLanguage = (word: any, language: SupportedLanguage): string | null => {
+    if (!word) return null;
+    if (language === "de") return word.noteDe || word.noteEn || null;
+    if (language === "sr") return word.noteSr || word.noteEn || null;
+    if (language === "es") return word.noteEs || word.noteEn || null;
+    if (language === "fr") return word.noteFr || word.noteEn || null;
+    return word.noteEn || null;
+  };
+
   // Fetch vocabulary progress for all units
   const vocabProgressData = useQuery(api.vocabulary.getUserVocabularyProgress, {}) as VocabularyProgressDoc[] | undefined;
   
@@ -71,6 +81,11 @@ export default function VocabularyList() {
         de: word.de,
         enAlt: word.enAlt,
         deAlt: word.deAlt,
+        noteEn: word.noteEn,
+        noteDe: word.noteDe,
+        noteSr: word.noteSr,
+        noteEs: word.noteEs,
+        noteFr: word.noteFr,
         // Include old translations array for backward compatibility
         translations: word.translations || [],
       }));
@@ -242,47 +257,54 @@ export default function VocabularyList() {
             </CardHeader>
             <CardContent>
             {filteredVocabulary.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="space-y-1">
                 {filteredVocabulary.map((word, idx) => {
                   const wordProgress = vocabProgressData?.find(
                     (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
                   );
+                  
+                  // Get translation
+                  let displayTranslation: string = "";
+                  let altTranslation: string | undefined = undefined;
+                  
+                  if (word.en && word.en.trim() || word.de && word.de.trim()) {
+                    displayTranslation = userLanguage === "de" 
+                      ? (word.de?.trim() || word.en?.trim() || "") 
+                      : (word.en?.trim() || word.de?.trim() || "");
+                    altTranslation = userLanguage === "de" ? word.deAlt : word.enAlt;
+                  } else if (word.translations && Array.isArray(word.translations)) {
+                    const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
+                                          word.translations.find((t: any) => t.language === "en");
+                    displayTranslation = translationObj?.translation || "";
+                    altTranslation = translationObj?.alt;
+                  }
+                  
+                  // Get note
+                  const note = getNoteForLanguage(word, userLanguage);
+                  
                   return (
-                    <div
-                      key={idx}
-                      className="flex justify-between items-center p-3 rounded-lg border bg-card hover:bg-accent transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        {wordProgress?.mastered && (
-                          <span className="text-yellow-500" title="Mastered!">⭐</span>
-                        )}
+                    <div key={idx} className="flex items-center gap-2">
+                      {wordProgress?.mastered && (
+                        <span className="text-yellow-500" title="Mastered!">⭐</span>
+                      )}
+                      {wordProgress && (wordProgress.correctAnswerCount || 0) > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          {wordProgress.correctAnswerCount || 0}/3
+                        </Badge>
+                      )}
+                      <div>
                         <span className="font-medium">{word.serbian}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {wordProgress && (wordProgress.correctAnswerCount || 0) > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            {wordProgress.correctAnswerCount || 0}/3
-                          </Badge>
+                        <span> - </span>
+                        {altTranslation && altTranslation.trim() ? (
+                          <span>
+                            {displayTranslation} / {altTranslation}
+                          </span>
+                        ) : (
+                          <span>{displayTranslation}</span>
                         )}
-                        <span className="text-muted-foreground">
-                          {/* NEW: Support column-based translations (check if values exist) */}
-                          {(() => {
-                            if (word.en && word.en.trim() || word.de && word.de.trim()) {
-                              return userLanguage === "de" 
-                                ? (word.de?.trim() || word.en?.trim() || "") 
-                                : (word.en?.trim() || word.de?.trim() || "");
-                            }
-                            // FALLBACK: Database translations array structure
-                            if (word.translations && Array.isArray(word.translations)) {
-                              const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
-                                                    word.translations.find((t: any) => t.language === "en");
-                              return translationObj?.translation || "";
-                            }
-                            // No fallback - database should always provide translations
-                            console.error('[VocabularyList] No translation available:', word);
-                            return "";
-                          })()}
-                        </span>
+                        {note && note.trim() && (
+                          <span className="text-muted-foreground italic text-[0.85rem]"> ({note})</span>
+                        )}
                       </div>
                     </div>
                   );

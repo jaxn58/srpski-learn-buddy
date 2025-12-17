@@ -16,6 +16,11 @@ export const upsertCourseVocabulary = mutation({
     })),
     gender: v.optional(v.string()),
     pronunciation: v.optional(v.string()),
+    noteEn: v.optional(v.string()),
+    noteDe: v.optional(v.string()),
+    noteSr: v.optional(v.string()),
+    noteEs: v.optional(v.string()),
+    noteFr: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Check if word already exists in this unit
@@ -26,21 +31,37 @@ export const upsertCourseVocabulary = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
+      const updates: Record<string, unknown> = {
         translations: args.translations, // Overwrite translations (source of truth is Markdown)
         gender: args.gender,
         pronunciation: args.pronunciation,
-      });
+      };
+      
+      if (args.noteEn !== undefined) updates.noteEn = args.noteEn;
+      if (args.noteDe !== undefined) updates.noteDe = args.noteDe;
+      if (args.noteSr !== undefined) updates.noteSr = args.noteSr;
+      if (args.noteEs !== undefined) updates.noteEs = args.noteEs;
+      if (args.noteFr !== undefined) updates.noteFr = args.noteFr;
+      
+      await ctx.db.patch(existing._id, updates);
       return existing._id;
     }
 
-    return await ctx.db.insert("courseVocabulary", {
+    const insertData: Record<string, unknown> = {
       unitNumber: args.unitNumber,
       serbian: args.serbian,
       translations: args.translations,
       gender: args.gender,
       pronunciation: args.pronunciation,
-    });
+    };
+    
+    if (args.noteEn !== undefined) insertData.noteEn = args.noteEn;
+    if (args.noteDe !== undefined) insertData.noteDe = args.noteDe;
+    if (args.noteSr !== undefined) insertData.noteSr = args.noteSr;
+    if (args.noteEs !== undefined) insertData.noteEs = args.noteEs;
+    if (args.noteFr !== undefined) insertData.noteFr = args.noteFr;
+
+    return await ctx.db.insert("courseVocabulary", insertData);
   },
 });
 
@@ -140,6 +161,11 @@ export const getVocabularyWithProgress = query({
         deAlt: word.deAlt,
         gender: word.gender,
         pronunciation: word.pronunciation,
+        noteEn: word.noteEn,
+        noteDe: word.noteDe,
+        noteSr: word.noteSr,
+        noteEs: word.noteEs,
+        noteFr: word.noteFr,
         translations: word.translations,
         progress: null, // No progress without user
       }));
@@ -178,6 +204,11 @@ export const getVocabularyWithProgress = query({
       deAlt: word.deAlt,
       gender: word.gender,
       pronunciation: word.pronunciation,
+      noteEn: word.noteEn,
+      noteDe: word.noteDe,
+      noteSr: word.noteSr,
+      noteEs: word.noteEs,
+      noteFr: word.noteFr,
       // Include old translations array for backward compatibility
       translations: word.translations,
       // Progress data (or null if no progress)
@@ -883,6 +914,11 @@ export const updateCourseVocabularyColumns = mutation({
     fr: v.optional(v.string()),
     enAlt: v.optional(v.string()),
     deAlt: v.optional(v.string()),
+    noteEn: v.optional(v.string()),
+    noteDe: v.optional(v.string()),
+    noteSr: v.optional(v.string()),
+    noteEs: v.optional(v.string()),
+    noteFr: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const updates: Record<string, unknown> = {
@@ -895,6 +931,11 @@ export const updateCourseVocabularyColumns = mutation({
     if (args.fr !== undefined) updates.fr = args.fr;
     if (args.enAlt !== undefined) updates.enAlt = args.enAlt;
     if (args.deAlt !== undefined) updates.deAlt = args.deAlt;
+    if (args.noteEn !== undefined) updates.noteEn = args.noteEn;
+    if (args.noteDe !== undefined) updates.noteDe = args.noteDe;
+    if (args.noteSr !== undefined) updates.noteSr = args.noteSr;
+    if (args.noteEs !== undefined) updates.noteEs = args.noteEs;
+    if (args.noteFr !== undefined) updates.noteFr = args.noteFr;
     
     await ctx.db.patch(args.courseVocabularyId, updates);
     return args.courseVocabularyId;

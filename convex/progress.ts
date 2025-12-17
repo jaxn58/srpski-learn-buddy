@@ -742,3 +742,29 @@ export const getDashboardStats = query({
     };
   }
 });
+
+// Check if a questionId has any user progress (for migration safety)
+// This is an internal query that can be called from migration scripts
+export const hasQuestionProgress = query({
+  args: {
+    questionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Check if any user has progress for this question
+    const progress = await ctx.db
+      .query("questionProgress")
+      .withIndex("by_user_question", (q) => q.eq("questionId", args.questionId))
+      .first();
+    
+    return progress !== null;
+  },
+});
+
+// Get all questionIds that have user progress (for migration safety)
+export const getQuestionIdsWithProgress = query({
+  handler: async (ctx) => {
+    const allProgress = await ctx.db.query("questionProgress").collect();
+    const questionIds = new Set(allProgress.map(p => p.questionId));
+    return Array.from(questionIds);
+  },
+});

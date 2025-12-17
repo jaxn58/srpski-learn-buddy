@@ -1,6 +1,6 @@
 {
   "name": "serbian-ai-tutor",
-  "version": "1.0.0",
+  "version": "BETA 1.0.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -14,6 +14,7 @@
     "test": "vitest run",
     "migrate:email-templates": "tsx scripts/migrate-email-templates.ts",
     "sync:email-templates": "tsx scripts/sync-email-templates-to-production.ts",
+    "migrate:production": "tsx scripts/migrate-to-production.ts",
     "generate:pronunciation-audio": "tsx scripts/generate-pronunciation-audio.ts",
     "export:units": "tsx scripts/export-unit-contents.ts",
     "compare:book": "tsx scripts/compare-with-book.ts",

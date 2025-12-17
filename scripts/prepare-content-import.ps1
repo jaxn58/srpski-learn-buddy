@@ -35,3 +35,5 @@ foreach ($table in $tables) {
 
 Write-Host ""
 Write-Host "All files prepared!" -ForegroundColor Green
+
+

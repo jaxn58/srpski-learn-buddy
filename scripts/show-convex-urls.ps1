@@ -40,3 +40,5 @@ if (Test-Path "convex.json") {
 
 Write-Host "💡 Tipp: Die Dev-URL findest du auch im Terminal wo 'npx convex dev' läuft" -ForegroundColor Cyan
 Write-Host "💡 Oder im Convex Dashboard: https://dashboard.convex.dev" -ForegroundColor Cyan
+
+

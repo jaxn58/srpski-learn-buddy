@@ -290,6 +290,13 @@ export default defineSchema({
     
     gender: v.optional(v.string()), // m, f, n
     pronunciation: v.optional(v.string()),
+    
+    // Multi-language notes (e.g., "informal", "wird verwendet mit...")
+    noteEn: v.optional(v.string()), // English note
+    noteDe: v.optional(v.string()), // German note
+    noteSr: v.optional(v.string()), // Serbian note
+    noteEs: v.optional(v.string()), // Spanish note (future)
+    noteFr: v.optional(v.string()), // French note (future)
   })
   .index("by_unit", ["unitNumber"])
   .index("by_serbian", ["serbian"])
