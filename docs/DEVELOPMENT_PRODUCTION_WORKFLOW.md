@@ -6,13 +6,54 @@
 
 ## 📋 Inhaltsverzeichnis
 
-1. [Grundprinzip](#grundprinzip)
-2. [Erste Einrichtung](#erste-einrichtung)
-3. [Täglicher Development-Workflow](#täglicher-development-workflow)
-4. [Deployment nach Production](#deployment-nach-production)
-5. [Daten-Migration](#daten-migration)
-6. [Troubleshooting](#troubleshooting)
-7. [Checklisten](#checklisten)
+1. [⚠️ Kritische Deployment-Regel](#kritische-deployment-regel)
+2. [Grundprinzip](#grundprinzip)
+3. [Erste Einrichtung](#erste-einrichtung)
+4. [Täglicher Development-Workflow](#täglicher-development-workflow)
+5. [Deployment nach Production](#deployment-nach-production)
+6. [Daten-Migration](#daten-migration)
+7. [Troubleshooting](#troubleshooting)
+8. [Checklisten](#checklisten)
+
+---
+
+## ⚠️ Kritische Deployment-Regel
+
+**Wenn du Convex-Funktionen änderst oder neue hinzufügst (mutations, queries, actions):**
+
+```bash
+# 1. Convex ZUERST auf Production deployen
+npx convex deploy --yes
+
+# 2. DANN Vercel/Frontend deployen
+vercel --prod --yes
+```
+
+### Warum ist diese Reihenfolge wichtig?
+
+- ❌ **Falsche Reihenfolge:** Vercel zuerst → Frontend ruft neue Convex-Funktionen auf, die noch nicht existieren → **Server Error**
+- ✅ **Richtige Reihenfolge:** Convex zuerst → Funktionen sind verfügbar → Frontend kann sie nutzen
+
+### Beispiel-Fehler bei falscher Reihenfolge:
+
+```json
+{
+  "status": "error",
+  "errorMessage": "[Request ID: xxx] Server Error"
+}
+```
+
+oder
+
+```
+Failed to parse URL from undefined
+```
+
+### Betroffene Dateien:
+
+- Jede Änderung in `convex/*.ts` (außer reine Type-Definitionen)
+- Neue `mutation`, `query`, `action` Exporte
+- Neue Convex Storage-Funktionen (z.B. `generateUploadUrl`)
 
 ---
 
