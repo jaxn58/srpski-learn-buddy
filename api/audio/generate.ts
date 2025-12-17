@@ -27,8 +27,12 @@ async function uploadToConvex(
   audioBuffer: Buffer,
   contentType: string
 ): Promise<{ url: string }> {
+  console.log('[DEBUG] ENV.convexUrl:', ENV.convexUrl);
+  console.log('[DEBUG] process.env.CONVEX_URL:', process.env.CONVEX_URL);
+  console.log('[DEBUG] process.env.VITE_CONVEX_URL:', process.env.VITE_CONVEX_URL);
+  
   if (!ENV.convexUrl) {
-    throw new Error("VITE_CONVEX_URL is not configured");
+    throw new Error("CONVEX_URL is not configured. Check Vercel environment variables.");
   }
 
   // Call Convex mutation to generate upload URL
@@ -93,9 +97,13 @@ async function generateSerbianAudio(options: {
   }
 
   // Parse Service Account JSON
+  console.log('[DEBUG] googleCloudServiceAccountKey length:', ENV.googleCloudServiceAccountKey?.length);
+  console.log('[DEBUG] googleCloudServiceAccountKey first 50 chars:', ENV.googleCloudServiceAccountKey?.substring(0, 50));
+  
   let serviceAccountKey;
   try {
     serviceAccountKey = JSON.parse(ENV.googleCloudServiceAccountKey);
+    console.log('[DEBUG] Parsed serviceAccountKey keys:', Object.keys(serviceAccountKey));
   } catch (error) {
     throw new Error(
       `Failed to parse GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY: ${error instanceof Error ? error.message : "Invalid JSON"}`
@@ -103,9 +111,11 @@ async function generateSerbianAudio(options: {
   }
 
   // Initialize TTS client
+  console.log('[DEBUG] Initializing TTS client with credentials');
   const client = new TextToSpeechClient({
     credentials: serviceAccountKey
   });
+  console.log('[DEBUG] TTS client initialized');
 
   // Configure TTS request
   const request = {
