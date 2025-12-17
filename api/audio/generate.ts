@@ -16,7 +16,7 @@ const AUDIO_VERSION_TAG = "puck-v2";
 // Environment variables
 const ENV = {
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
-  convexUrl: process.env.VITE_CONVEX_URL ?? "",
+  convexUrl: process.env.CONVEX_URL ?? process.env.VITE_CONVEX_URL ?? "",
 };
 
 /**
