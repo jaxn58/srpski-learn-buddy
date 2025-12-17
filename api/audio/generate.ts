@@ -38,7 +38,7 @@ async function uploadToStorage(
   const uploadUrl = new URL("v1/storage/upload", `${baseUrl}/`);
   uploadUrl.searchParams.set("path", normalizedPath);
 
-  const blob = new Blob([audioBuffer], { type: contentType });
+  const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
   const formData = new FormData();
   formData.append("file", blob, normalizedPath.split("/").pop() ?? "file");
 
