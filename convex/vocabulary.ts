@@ -1418,7 +1418,19 @@ export const generateUploadUrl = mutation({
 });
 
 /**
- * Get the public URL for a stored audio file
+ * Get the public URL for a stored audio file (from storageId directly)
+ */
+export const getAudioUrlFromStorageId = query({
+  args: {
+    storageId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+/**
+ * @deprecated Use getAudioUrlFromStorageId instead
  */
 export const getFileUrl = query({
   args: {
