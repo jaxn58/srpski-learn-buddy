@@ -8,10 +8,7 @@
  *   });
  */
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
-import { storagePut } from "server/storage";
 import { ENV } from "./env";
-import fs from "fs";
-import path from "path";
 
 const AUDIO_VERSION_TAG = "puck-v2";
 
@@ -26,8 +23,70 @@ export type GenerateSerbianAudioResponse = {
 };
 
 /**
+ * Upload audio buffer to Convex File Storage
+ */
+async function uploadToConvex(
+  audioBuffer: Buffer,
+  contentType: string
+): Promise<{ url: string }> {
+  const convexUrl = process.env.VITE_CONVEX_URL;
+  
+  if (!convexUrl) {
+    throw new Error("VITE_CONVEX_URL is not configured");
+  }
+
+  // Call Convex mutation to generate upload URL
+  const uploadUrlResponse = await fetch(`${convexUrl}/api/mutation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "vocabulary:generateUploadUrl",
+      args: {},
+    }),
+  });
+
+  if (!uploadUrlResponse.ok) {
+    throw new Error(`Failed to generate upload URL: ${uploadUrlResponse.status}`);
+  }
+
+  const { value: uploadUrl } = await uploadUrlResponse.json();
+
+  // Upload the audio file to Convex storage
+  const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: { "Content-Type": contentType },
+    body: blob,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`Convex file upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+  }
+
+  const { storageId } = await uploadResponse.json();
+
+  // Get the public URL for the uploaded file
+  const fileUrlResponse = await fetch(`${convexUrl}/api/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "vocabulary:getFileUrl",
+      args: { storageId },
+    }),
+  });
+
+  if (!fileUrlResponse.ok) {
+    throw new Error(`Failed to get file URL: ${fileUrlResponse.status}`);
+  }
+
+  const { value: fileUrl } = await fileUrlResponse.json();
+
+  return { url: fileUrl };
+}
+
+/**
  * Generates Serbian audio using Google Cloud Text-to-Speech API
- * and uploads it to S3 storage
+ * and uploads it to Convex File Storage
  */
 export async function generateSerbianAudio(
   options: GenerateSerbianAudioOptions
@@ -76,55 +135,8 @@ export async function generateSerbianAudio(
 
     const audioBuffer = Buffer.from(response.audioContent as Uint8Array);
     
-    // Generate S3 storage path
-    // Pattern: audio/vocabulary/{unitNumber}/{vocabularyId}-{voiceName}.mp3
-    // Including voice name in path ensures we generate new files when voice changes
-    const voiceBase = request.voice.name.split('-').pop()?.toLowerCase() || 'default';
-    const voiceSuffix = `${voiceBase}-${AUDIO_VERSION_TAG}`;
-    
-    let storagePath: string;
-    let sanitizedWord: string | undefined;
-    if (options.unitNumber !== undefined && options.vocabularyId) {
-      storagePath = `audio/vocabulary/unit-${options.unitNumber}/${options.vocabularyId}-${voiceSuffix}.mp3`;
-    } else if (options.vocabularyId) {
-      storagePath = `audio/vocabulary/${options.vocabularyId}-${voiceSuffix}.mp3`;
-    } else {
-      // Fallback: use sanitized serbian word as filename
-      sanitizedWord = options.serbianWord
-        .toLowerCase()
-        .replace(/[^a-z0-9čćđšž]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-      storagePath = `audio/vocabulary/${sanitizedWord}-${voiceSuffix}.mp3`;
-    }
-    
-    // Try S3 Upload if configured
-    if (ENV.forgeApiUrl && ENV.forgeApiKey) {
-      try {
-        const { url } = await storagePut(
-          storagePath,
-          audioBuffer,
-          'audio/mpeg'
-        );
-        return { url };
-      } catch (e) {
-        console.warn("S3 upload failed, falling back to local storage:", e);
-      }
-    }
-
-    // Fallback: Local storage (for development)
-    // Save to client/public/audio/vocabulary/...
-    const publicDir = path.resolve(process.cwd(), "client/public");
-    const fullPath = path.join(publicDir, storagePath);
-    
-    // Ensure directory exists
-    await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
-    
-    // Write file
-    await fs.promises.writeFile(fullPath, audioBuffer);
-    
-    // Return relative URL (accessible via Vite dev server)
-    const url = "/" + storagePath;
+    // Upload to Convex File Storage
+    const { url } = await uploadToConvex(audioBuffer, 'audio/mpeg');
 
     return { url };
   } catch (error) {
