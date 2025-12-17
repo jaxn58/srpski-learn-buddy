@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star } from "lucide-react";
+import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star, Volume2, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
@@ -87,6 +87,14 @@ export default function Vocabulary() {
     const saved = localStorage.getItem('vocab_quiz_auto_advance');
     return saved === 'true';
   });
+  
+  // Audio generation mutations/actions
+  // We use direct fetch for generation to avoid Cloud->Localhost issues in dev
+  const updateVocabularyAudioUrl = useMutation(api.vocabulary.updateVocabularyAudioUrl);
+  
+  // State for audio playback
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
 
   // Dynamically calculate available units based on access info
   const availableUnits = useMemo(() => {
@@ -115,6 +123,107 @@ export default function Vocabulary() {
   const resetQuizProgressMutation = useMutation(api.exercises.resetQuizProgress);
   const addExerciseCompletionMutation = useMutation(api.exercises.addCompletion);
   const recordVocabularyAnswerMutation = useMutation(api.vocabulary.recordVocabularyAnswer);
+  
+  // Handle audio playback
+  const handlePlayAudio = async (vocabularyId: string, serbianWord: string) => {
+    // Prevent multiple simultaneous requests
+    if (loadingAudioId || playingAudioId === vocabularyId) {
+      return;
+    }
+
+    setLoadingAudioId(vocabularyId);
+    
+    try {
+      // 1. Check if we already have the audio URL in our local data
+      // For Vocabulary page, we can check vocabWithProgress or courseVocabulary
+      let word: any = null;
+      if (vocabWithProgress) {
+        word = vocabWithProgress.find((w: any) => w._id === vocabularyId);
+      }
+      
+      let audioUrl = word?.audioUrl;
+      
+      // If not in vocabWithProgress, check master list if available
+      if (!audioUrl && courseVocabulary) {
+        const masterWord = courseVocabulary.find((w: any) => w._id === vocabularyId);
+        audioUrl = masterWord?.audioUrl;
+        if (!word && masterWord) word = masterWord;
+      }
+
+      // Force regeneration if URL is from old voice (doesn't contain current version)
+      if (audioUrl && !audioUrl.toLowerCase().includes('puck-v2')) {
+        audioUrl = undefined;
+      }
+
+      // 2. If not found, generate it via server endpoint
+      if (!audioUrl) {
+        // Use Vite env var for server URL or fallback to relative path (proxy) or localhost
+        const serverUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+        
+        const response = await fetch(`${serverUrl}/api/audio/generate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            serbianWord,
+            vocabularyId,
+            unitNumber: word?.unitNumber,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Audio generation failed: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        
+        if (!result.success || !result.audioUrl) {
+          throw new Error("Invalid response from audio generation endpoint");
+        }
+        
+        audioUrl = result.audioUrl;
+        
+        // 3. Save the new URL to database
+        await updateVocabularyAudioUrl({
+          vocabularyId: vocabularyId as any,
+          audioUrl: audioUrl!,
+        });
+      }
+      
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        
+        audio.onplay = () => {
+          setPlayingAudioId(vocabularyId);
+          setLoadingAudioId(null);
+        };
+        
+        audio.onended = () => {
+          setPlayingAudioId(null);
+        };
+        
+        audio.onerror = (e) => {
+          setLoadingAudioId(null);
+          setPlayingAudioId(null);
+          console.error("Audio playback failed", e);
+        };
+        
+        await audio.play();
+      }
+    } catch (error) {
+      console.error("Failed to get audio:", error);
+      setLoadingAudioId(null);
+      // Optionally show toast error message
+      // Show user-friendly error
+      const errorMessage = error instanceof Error && error.message === "Failed to fetch" 
+        ? "Server not reachable. Please ensuring 'pnpm dev:server' is running."
+        : "Failed to generate audio. Please try again.";
+        
+      alert(errorMessage);
+    }
+  };
 
   // Fetch vocabulary progress for filtering (both quiz and learn mode)
   // Load ALL units for mastery checking, not just selected unit
@@ -1103,7 +1212,6 @@ export default function Vocabulary() {
           </CardContent>
         </Card>
         </AnimatedItem>
-
         {/* Flashcard */}
         {currentWord && (
           <AnimatedItem>
@@ -1122,9 +1230,27 @@ export default function Vocabulary() {
                         {t('vocabulary.unit', { number: displayWord.unit })}
                       </Badge>
                     </div>
-                    <h2 className="text-5xl font-bold mb-2">
-                      {displayWord.serbian}
-                    </h2>
+                    <div className="flex items-center justify-center gap-3 mb-2">
+                      <h2 className="text-5xl font-bold">
+                        {displayWord.serbian}
+                      </h2>
+                      {displayWord._id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-10 w-10 p-0"
+                          onClick={() => handlePlayAudio(displayWord._id!, displayWord.serbian)}
+                          disabled={loadingAudioId === displayWord._id}
+                          title={loadingAudioId === displayWord._id ? "Generating audio..." : "Play pronunciation"}
+                        >
+                          {loadingAudioId === displayWord._id ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          ) : (
+                            <Volume2 className={`h-5 w-5 ${playingAudioId === displayWord._id ? "text-primary" : ""}`} />
+                          )}
+                        </Button>
+                      )}
+                    </div>
                 {/* Progress indicator with numbers or star */}
                 {(mode === 'quiz' || mode === 'learn') && (
                   <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">

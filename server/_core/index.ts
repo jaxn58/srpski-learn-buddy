@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import cors from "cors";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { clerkMiddleware } from "@clerk/express";
 import { appRouter } from "../routers";
@@ -34,6 +35,7 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(cors());
   
   // Email sending is now handled by Convex Actions (convex/email.ts)
   // The Express endpoint has been removed
@@ -48,6 +50,35 @@ async function startServer() {
       res.json({ success: true });
     } catch (error: any) {
       console.error("[Paddle Webhook] Error:", error);
+      res.status(500).json({
+        success: false,
+        error: error?.message || "Internal server error",
+      });
+    }
+  });
+
+  // Audio generation endpoint for Google Cloud TTS
+  app.post("/api/audio/generate", async (req, res) => {
+    try {
+      const { generateSerbianAudio } = await import("./textToSpeech");
+      const { serbianWord, vocabularyId, unitNumber } = req.body;
+
+      if (!serbianWord || typeof serbianWord !== "string") {
+        return res.status(400).json({
+          success: false,
+          error: "serbianWord is required and must be a string",
+        });
+      }
+
+      const { url } = await generateSerbianAudio({
+        serbianWord,
+        vocabularyId,
+        unitNumber,
+      });
+
+      res.json({ success: true, audioUrl: url });
+    } catch (error: any) {
+      console.error("[Audio Generation] Error:", error);
       res.status(500).json({
         success: false,
         error: error?.message || "Internal server error",

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, action, QueryCtx, MutationCtx } from "./_generated/server";
+import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 // ============= COURSE VOCABULARY (Master Data) =============
@@ -1318,6 +1319,50 @@ export const batchDeleteVocabularyByUnits = mutation({
     }
     
     return { deleted };
+  },
+});
+
+// ============= AUDIO GENERATION =============
+
+// Internal mutation to update vocabulary audio URL
+export const updateVocabularyAudioUrl = mutation({
+  args: {
+    vocabularyId: v.id("courseVocabulary"),
+    audioUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.vocabularyId, {
+      audioUrl: args.audioUrl,
+    });
+  },
+});
+
+// Get vocabulary audio URL
+export const getVocabularyAudio = query({
+  args: {
+    vocabularyId: v.id("courseVocabulary"),
+  },
+  handler: async (ctx, args) => {
+    const vocabulary = await ctx.db.get(args.vocabularyId);
+    if (!vocabulary) return null;
+
+    // Check if URL exists and contains current voice version
+    // This forces regeneration for old audio files
+    if (vocabulary.audioUrl && vocabulary.audioUrl.toLowerCase().includes('puck-v2')) {
+      return vocabulary.audioUrl;
+    }
+    
+    return null;
+  },
+});
+
+// Helper query to get vocabulary by ID (for audio generation)
+export const getVocabularyById = query({
+  args: {
+    vocabularyId: v.id("courseVocabulary"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.vocabularyId);
   },
 });
 

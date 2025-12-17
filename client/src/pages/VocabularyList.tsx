@@ -5,12 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 // Types only - no hardcoded data imports
 import type { SupportedLanguage } from "@shared/data";
-import { Search, BookOpen, Filter, Star } from "lucide-react";
+import { Search, BookOpen, Filter, Star, Volume2, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
-import { useQuery } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { useTranslation } from "react-i18next";
@@ -45,6 +45,17 @@ export default function VocabularyList() {
   // NEW: Fetch course vocabulary from database
   const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
   const vocabWithProgress = useQuery(api.vocabulary.getVocabularyWithProgress, { unitNumber: selectedUnit });
+  
+  // NEW: Fetch available unit numbers dynamically from database
+  const availableUnitNumbers = useQuery(api.vocabulary.getAvailableUnitNumbers);
+  
+  // Audio generation mutations/actions
+  // We use direct fetch for generation to avoid Cloud->Localhost issues in dev
+  const updateVocabularyAudioUrl = useMutation(api.vocabulary.updateVocabularyAudioUrl);
+  
+  // State for audio playback
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
 
   if (!user) {
     window.location.href = "/";
@@ -120,10 +131,118 @@ export default function VocabularyList() {
     return filtered;
   }, [searchTerm, selectedUnit, accessInfo, courseVocabulary, userLanguage]);
 
-  // Units beschränken basierend auf Zugriff
-  const units = accessInfo && accessInfo.maxUnits > 0
-    ? Array.from({ length: Math.min(27, accessInfo.maxUnits) }, (_, i) => i + 1)
-    : Array.from({ length: 27 }, (_, i) => i + 1);
+  // Units dynamisch aus Datenbank laden und basierend auf Zugriff beschränken
+  const units = useMemo(() => {
+    // Fallback: Wenn keine Units aus DB geladen, leeres Array zurückgeben
+    if (!availableUnitNumbers || availableUnitNumbers.length === 0) {
+      return [];
+    }
+    
+    // Units basierend auf Zugriff filtern
+    if (accessInfo && accessInfo.maxUnits > 0) {
+      return availableUnitNumbers.filter(unit => unit <= accessInfo.maxUnits);
+    }
+    
+    // Alle verfügbaren Units zurückgeben
+    return availableUnitNumbers;
+  }, [availableUnitNumbers, accessInfo]);
+  
+  // Sicherstellen, dass selectedUnit gültig ist, wenn Units geladen werden
+  useEffect(() => {
+    if (units.length > 0 && !units.includes(selectedUnit)) {
+      // Wenn die ausgewählte Unit nicht mehr verfügbar ist, zur ersten verfügbaren Unit wechseln
+      setSelectedUnit(units[0]);
+    }
+  }, [units, selectedUnit]);
+
+  // Handle audio playback
+  const handlePlayAudio = async (vocabularyId: string, serbianWord: string) => {
+    // Prevent multiple simultaneous requests
+    if (loadingAudioId || playingAudioId === vocabularyId) {
+      return;
+    }
+
+    setLoadingAudioId(vocabularyId);
+    
+    try {
+      // 1. Check if we already have the audio URL in our local data
+      const word = courseVocabulary?.find(w => w._id === vocabularyId);
+      let audioUrl = word?.audioUrl;
+      
+      // Force regeneration if URL is from old voice (doesn't contain current version)
+      if (audioUrl && !audioUrl.toLowerCase().includes('puck-v2')) {
+        audioUrl = undefined;
+      }
+      
+      // 2. If not found, generate it via server endpoint
+      if (!audioUrl) {
+        // Use Vite env var for server URL or fallback to relative path (proxy) or localhost
+        const serverUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+        
+        const response = await fetch(`${serverUrl}/api/audio/generate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            serbianWord,
+            vocabularyId,
+            unitNumber: word?.unitNumber,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Audio generation failed: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        
+        if (!result.success || !result.audioUrl) {
+          throw new Error("Invalid response from audio generation endpoint");
+        }
+        
+        audioUrl = result.audioUrl;
+        
+        // 3. Save the new URL to database
+        await updateVocabularyAudioUrl({
+          vocabularyId: vocabularyId as any,
+          audioUrl: audioUrl!,
+        });
+      }
+      
+      if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        
+        audio.onplay = () => {
+          setPlayingAudioId(vocabularyId);
+          setLoadingAudioId(null);
+        };
+        
+        audio.onended = () => {
+          setPlayingAudioId(null);
+        };
+        
+        audio.onerror = (e) => {
+          setLoadingAudioId(null);
+          setPlayingAudioId(null);
+          console.error("Audio playback failed", e);
+        };
+        
+        await audio.play();
+      }
+    } catch (error) {
+      console.error("Failed to get audio:", error);
+      setLoadingAudioId(null);
+      
+      // Show user-friendly error
+      const errorMessage = error instanceof Error && error.message === "Failed to fetch" 
+        ? "Server not reachable. Please ensuring 'pnpm dev:server' is running."
+        : "Failed to generate audio. Please try again.";
+        
+      alert(errorMessage); // Simple alert for now, could be toast
+    }
+  };
 
   // Helper function to check if a unit is mastered
   // A unit is mastered when ALL vocabulary words in that unit have correctAnswerCount >= 3
@@ -282,6 +401,9 @@ export default function VocabularyList() {
                   // Get note
                   const note = getNoteForLanguage(word, userLanguage);
                   
+                  const isPlaying = playingAudioId === word._id;
+                  const isLoading = loadingAudioId === word._id;
+                  
                   return (
                     <div key={idx} className="flex items-center gap-2">
                       {wordProgress?.mastered && (
@@ -292,6 +414,20 @@ export default function VocabularyList() {
                           {wordProgress.correctAnswerCount || 0}/3
                         </Badge>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => handlePlayAudio(word._id, word.serbian)}
+                        disabled={isLoading}
+                        title={isLoading ? "Generating audio..." : "Play pronunciation"}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Volume2 className={`h-4 w-4 ${isPlaying ? "text-primary" : ""}`} />
+                        )}
+                      </Button>
                       <div>
                         <span className="font-medium">{word.serbian}</span>
                         <span> - </span>

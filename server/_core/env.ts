@@ -26,6 +26,9 @@ export const ENV = {
   paddleProductBalanced: process.env.PADDLE_PRODUCT_BALANCED ?? "",
   paddleProductStandard: process.env.PADDLE_PRODUCT_STANDARD ?? "",
   paddleProductRelaxed: process.env.PADDLE_PRODUCT_RELAXED ?? "",
+
+  // Google Cloud Text-to-Speech
+  googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
 };
 
 // Validate required environment variables
