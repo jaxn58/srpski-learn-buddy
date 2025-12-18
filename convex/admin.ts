@@ -1254,3 +1254,42 @@ export const updateUserLanguageTemp = mutation({
   },
 });
 
+/**
+ * TEMPORARY: Get all userProgress without auth (for migration scripts)
+ * TODO: Remove after migration
+ */
+export const getAllUserProgressTemp = query({
+  handler: async (ctx) => {
+    const allProgress = await ctx.db.query("userProgress").collect();
+    return allProgress;
+  },
+});
+
+/**
+ * TEMPORARY: Remove currentWeek field from userProgress (for migration)
+ * TODO: Remove after migration
+ */
+export const removeCurrentWeekFromProgress = mutation({
+  args: {
+    progressId: v.id("userProgress"),
+  },
+  handler: async (ctx, args) => {
+    const progress = await ctx.db.get(args.progressId);
+    if (!progress) {
+      throw new Error("Progress not found");
+    }
+
+    // Replace the entire document without currentWeek
+    await ctx.db.replace(args.progressId, {
+      userId: progress.userId,
+      currentUnit: progress.currentUnit,
+      completedUnits: progress.completedUnits,
+      learningDuration: progress.learningDuration,
+      uiLanguage: progress.uiLanguage,
+      lastActivityAt: progress.lastActivityAt,
+    });
+
+    return { success: true };
+  },
+});
+
