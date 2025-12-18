@@ -115,37 +115,14 @@ async function generateSerbianAudio(options: {
   };
 
   try {
-    // #region agent log
-    console.log('[TTS] Generating audio', { 
-      word: options.serbianWord,
-      wordLength: options.serbianWord.length,
-      voice: request.voice.name,
-      speakingRate: request.audioConfig.speakingRate
-    });
-    // #endregion
-
     // Generate audio
     const [response] = await client.synthesizeSpeech(request);
-    
-    // #region agent log
-    console.log('[TTS] Audio generated', { 
-      hasAudioContent: !!response.audioContent,
-      audioContentLength: response.audioContent?.length
-    });
-    // #endregion
     
     if (!response.audioContent) {
       throw new Error("No audio content received from Google Cloud TTS");
     }
 
     const audioBuffer = Buffer.from(response.audioContent as Uint8Array);
-    
-    // #region agent log
-    console.log('[TTS] Audio buffer created', { 
-      bufferSize: audioBuffer.length,
-      bufferSizeKB: (audioBuffer.length / 1024).toFixed(2)
-    });
-    // #endregion
 
     // Generate storage path
     const voiceBase = request.voice.name.split('-').pop()?.toLowerCase() || 'default';
@@ -167,22 +144,7 @@ async function generateSerbianAudio(options: {
     }
 
     // Upload to Convex File Storage
-    // #region agent log
-    console.log('[TTS] Uploading to Convex', { 
-      storagePath,
-      bufferSize: audioBuffer.length
-    });
-    // #endregion
-    
     const { storageId } = await uploadToConvex(storagePath, audioBuffer, 'audio/mpeg');
-    
-    // #region agent log
-    console.log('[TTS] Upload successful', { 
-      storageId,
-      word: options.serbianWord
-    });
-    // #endregion
-    
     return { storageId };
   } catch (error) {
     if (error instanceof Error) {

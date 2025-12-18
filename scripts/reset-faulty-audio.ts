@@ -37,9 +37,6 @@ async function promptUser(question: string): Promise<boolean> {
 async function resetFaultyAudio() {
   console.log("🔍 Fetching all vocabulary...");
   
-  // #region agent log
-  log('reset-faulty-audio.ts:60', 'Script started', {}, 'H1');
-  // #endregion
 
   const vocabulary = (await client.query(
     api.vocabulary.getAllCourseVocabulary
@@ -47,9 +44,6 @@ async function resetFaultyAudio() {
 
   console.log(`✅ Found ${vocabulary.length} vocabulary items.\n`);
 
-  // #region agent log
-  log('reset-faulty-audio.ts:70', 'Vocabulary fetched', { totalCount: vocabulary.length }, 'H1');
-  // #endregion
 
   // Categorize vocabulary
   const withStorageId = vocabulary.filter((w) => w.audioStorageId);
@@ -65,13 +59,6 @@ async function resetFaultyAudio() {
   console.log(`  ⚠️  With old audioUrl only: ${withOldAudioUrl.length}`);
   console.log(`  ❌ Without audio: ${withoutAudio.length}\n`);
 
-  // #region agent log
-  log('reset-faulty-audio.ts:89', 'Audio categorization', {
-    withStorageId: withStorageId.length,
-    withOldAudioUrl: withOldAudioUrl.length,
-    withoutAudio: withoutAudio.length,
-  }, 'H1');
-  // #endregion
 
   // Interactive mode: Let user specify which words to reset
   console.log("🎯 Reset Options:");
@@ -90,10 +77,7 @@ async function resetFaultyAudio() {
   rl.question("Choose an option (1-6): ", async (choice) => {
     rl.close();
 
-    // #region agent log
-    log('reset-faulty-audio.ts:115', 'User chose option', { choice }, 'H1');
-    // #endregion
-
+  
     try {
       switch (choice) {
         case "1":
@@ -118,10 +102,7 @@ async function resetFaultyAudio() {
           console.log("❌ Invalid option");
       }
     } catch (error) {
-      // #region agent log
-      log('reset-faulty-audio.ts:143', 'Error in script', { error: String(error) }, 'H1');
-      // #endregion
-      console.error("❌ Error:", error);
+          console.error("❌ Error:", error);
     }
   });
 }
@@ -135,10 +116,7 @@ async function resetBySerbian(vocabulary: VocabularyWord[]) {
   rl.question("Enter serbian word to reset: ", async (serbian) => {
     rl.close();
 
-    // #region agent log
-    log('reset-faulty-audio.ts:162', 'Searching for serbian word', { serbian }, 'H3');
-    // #endregion
-
+  
     const matches = vocabulary.filter((w) => w.serbian.toLowerCase() === serbian.toLowerCase());
 
     if (matches.length === 0) {
@@ -158,14 +136,7 @@ async function resetBySerbian(vocabulary: VocabularyWord[]) {
       );
     });
 
-    // #region agent log
-    log('reset-faulty-audio.ts:185', 'Found matches for serbian word', {
-      serbian,
-      matchCount: matches.length,
-      matches: matches.map(m => ({ id: m._id, unit: m.unitNumber })),
-    }, 'H3');
-    // #endregion
-
+  
     const confirm = await promptUser(
       `\nReset audio for ${matches.length} word(s)?`
     );
@@ -176,25 +147,12 @@ async function resetBySerbian(vocabulary: VocabularyWord[]) {
     }
 
     for (const word of matches) {
-      // #region agent log
-      log('reset-faulty-audio.ts:203', 'Resetting word audio', {
-        vocabularyId: word._id,
-        serbian: word.serbian,
-        unitNumber: word.unitNumber,
-      }, 'H3');
-      // #endregion
-
+    
       await client.mutation(api.vocabulary.resetVocabularyAudio, {
         vocabularyId: word._id as any,
       });
 
-      // #region agent log
-      log('reset-faulty-audio.ts:215', 'Word audio reset complete', {
-        vocabularyId: word._id,
-        serbian: word.serbian,
-      }, 'H3');
-      // #endregion
-
+    
       console.log(`  ✅ Reset: ${word.serbian} (Unit ${word.unitNumber})`);
     }
 
@@ -211,25 +169,16 @@ async function resetById() {
   rl.question("Enter vocabulary ID: ", async (id) => {
     rl.close();
 
-    // #region agent log
-    log('reset-faulty-audio.ts:239', 'Resetting by ID', { vocabularyId: id }, 'H1');
-    // #endregion
-
+  
     try {
       const result = await client.mutation(api.vocabulary.resetVocabularyAudio, {
         vocabularyId: id as any,
       });
 
-      // #region agent log
-      log('reset-faulty-audio.ts:249', 'Reset by ID successful', { result }, 'H1');
-      // #endregion
-
+    
       console.log(`✅ Successfully reset audio for: ${result.serbian} (Unit ${result.unitNumber})`);
     } catch (error) {
-      // #region agent log
-      log('reset-faulty-audio.ts:256', 'Reset by ID failed', { vocabularyId: id, error: String(error) }, 'H1');
-      // #endregion
-      console.error("❌ Error:", error);
+          console.error("❌ Error:", error);
     }
   });
 }
@@ -249,10 +198,7 @@ async function resetByUnit(vocabulary: VocabularyWord[]) {
       return;
     }
 
-    // #region agent log
-    log('reset-faulty-audio.ts:280', 'Filtering by unit', { unitNumber }, 'H1');
-    // #endregion
-
+  
     const unitWords = vocabulary.filter((w) => w.unitNumber === unitNumber);
 
     if (unitWords.length === 0) {
@@ -266,13 +212,7 @@ async function resetByUnit(vocabulary: VocabularyWord[]) {
       console.log(`  ${i + 1}. ${w.serbian} (Storage ID: ${w.audioStorageId || "none"})`);
     });
 
-    // #region agent log
-    log('reset-faulty-audio.ts:299', 'Found words in unit', {
-      unitNumber,
-      wordCount: unitWords.length,
-    }, 'H1');
-    // #endregion
-
+  
     const confirm = await promptUser(
       `\nReset audio for all ${unitWords.length} words in unit ${unitNumber}?`
     );
@@ -287,35 +227,16 @@ async function resetByUnit(vocabulary: VocabularyWord[]) {
 
     for (const word of unitWords) {
       try {
-        // #region agent log
-        log('reset-faulty-audio.ts:320', 'Resetting unit word', {
-          vocabularyId: word._id,
-          serbian: word.serbian,
-        }, 'H1');
-        // #endregion
-
+      
         await client.mutation(api.vocabulary.resetVocabularyAudio, {
           vocabularyId: word._id as any,
         });
 
-        // #region agent log
-        log('reset-faulty-audio.ts:331', 'Unit word reset complete', {
-          vocabularyId: word._id,
-          serbian: word.serbian,
-        }, 'H1');
-        // #endregion
-
+      
         successCount++;
         console.log(`  ✅ Reset: ${word.serbian}`);
       } catch (error) {
-        // #region agent log
-        log('reset-faulty-audio.ts:342', 'Unit word reset failed', {
-          vocabularyId: word._id,
-          serbian: word.serbian,
-          error: String(error),
-        }, 'H1');
-        // #endregion
-
+      
         errorCount++;
         console.error(`  ❌ Failed: ${word.serbian} - ${error}`);
       }
@@ -339,11 +260,6 @@ async function resetOldAudioUrls(words: VocabularyWord[]) {
     console.log(`  ${i + 1}. ${w.serbian} (Unit ${w.unitNumber})`);
   });
 
-  // #region agent log
-  log('reset-faulty-audio.ts:377', 'Found words with old audioUrl', {
-    count: words.length,
-  }, 'H4');
-  // #endregion
 
   const confirm = await promptUser(
     `\nReset audio for all ${words.length} words to force migration to Storage?`
@@ -359,36 +275,16 @@ async function resetOldAudioUrls(words: VocabularyWord[]) {
 
   for (const word of words) {
     try {
-      // #region agent log
-      log('reset-faulty-audio.ts:398', 'Resetting old audioUrl word', {
-        vocabularyId: word._id,
-        serbian: word.serbian,
-        oldAudioUrl: word.audioUrl,
-      }, 'H4');
-      // #endregion
-
+    
       await client.mutation(api.vocabulary.resetVocabularyAudio, {
         vocabularyId: word._id as any,
       });
 
-      // #region agent log
-      log('reset-faulty-audio.ts:410', 'Old audioUrl word reset complete', {
-        vocabularyId: word._id,
-        serbian: word.serbian,
-      }, 'H4');
-      // #endregion
-
+    
       successCount++;
       console.log(`  ✅ Reset: ${word.serbian} (Unit ${word.unitNumber})`);
     } catch (error) {
-      // #region agent log
-      log('reset-faulty-audio.ts:421', 'Old audioUrl word reset failed', {
-        vocabularyId: word._id,
-        serbian: word.serbian,
-        error: String(error),
-      }, 'H4');
-      // #endregion
-
+    
       errorCount++;
       console.error(`  ❌ Failed: ${word.serbian} - ${error}`);
     }
@@ -416,15 +312,6 @@ function listWordsWithoutAudio(words: VocabularyWord[]) {
     byUnit.get(w.unitNumber)!.push(w);
   });
 
-  // #region agent log
-  log('reset-faulty-audio.ts:459', 'Words without audio', {
-    totalCount: words.length,
-    unitCounts: Array.from(byUnit.entries()).map(([unit, words]) => ({
-      unit,
-      count: words.length,
-    })),
-  }, 'H1');
-  // #endregion
 
   const sortedUnits = Array.from(byUnit.keys()).sort((a, b) => a - b);
 
@@ -439,9 +326,6 @@ function listWordsWithoutAudio(words: VocabularyWord[]) {
 }
 
 resetFaultyAudio().catch((error) => {
-  // #region agent log
-  log('reset-faulty-audio.ts:485', 'Fatal script error', { error: String(error) }, 'H1');
-  // #endregion
   console.error("❌ Fatal error:", error);
   process.exit(1);
 });

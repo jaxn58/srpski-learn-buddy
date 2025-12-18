@@ -1353,86 +1353,29 @@ export const resetVocabularyAudio = mutation({
     adminSecret: v.optional(v.string()), // Optional: for script-based access
   },
   handler: async (ctx, args) => {
-    // #region agent log
-    console.log('[resetVocabularyAudio] Entry', { vocabularyId: args.vocabularyId, hasAdminSecret: !!args.adminSecret });
-    // #endregion
-
     // Check if using admin secret (for scripts)
     if (args.adminSecret) {
       const expectedSecret = process.env.ADMIN_SECRET;
-      
-      // #region agent log
-      console.log('[resetVocabularyAudio] Admin secret check', { 
-        hasExpectedSecret: !!expectedSecret,
-        expectedSecretLength: expectedSecret?.length,
-        providedSecretLength: args.adminSecret.length,
-        secretsMatch: expectedSecret === args.adminSecret
-      });
-      // #endregion
-
       if (!expectedSecret || args.adminSecret !== expectedSecret) {
-        // #region agent log
-        console.error('[resetVocabularyAudio] Admin secret validation failed', {
-          hasExpectedSecret: !!expectedSecret,
-          secretsMatch: expectedSecret === args.adminSecret
-        });
-        // #endregion
         throw new Error("Invalid admin secret");
       }
-      
-      // #region agent log
-      console.log('[resetVocabularyAudio] Admin secret validated successfully');
-      // #endregion
     } else {
-      // #region agent log
-      console.log('[resetVocabularyAudio] Using regular auth check');
-      // #endregion
-      
       // Regular auth check
       const user = await getCurrentUser(ctx);
       if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
-        // #region agent log
-        console.error('[resetVocabularyAudio] Unauthorized', { hasUser: !!user, role: user?.role });
-        // #endregion
         throw new Error("Unauthorized");
       }
     }
 
-    // #region agent log
-    console.log('[resetVocabularyAudio] Fetching vocabulary');
-    // #endregion
-
     const vocabulary = await ctx.db.get(args.vocabularyId);
     if (!vocabulary) {
-      // #region agent log
-      console.error('[resetVocabularyAudio] Vocabulary not found', { vocabularyId: args.vocabularyId });
-      // #endregion
       throw new Error("Vocabulary not found");
     }
-
-    // #region agent log
-    console.log('[resetVocabularyAudio] Vocabulary found', { 
-      serbian: vocabulary.serbian,
-      unitNumber: vocabulary.unitNumber,
-      hasAudioStorageId: !!vocabulary.audioStorageId
-    });
-    // #endregion
-
-    // #region agent log
-    console.log('[resetVocabularyAudio] Patching vocabulary');
-    // #endregion
 
     await ctx.db.patch(args.vocabularyId, {
       audioStorageId: undefined,
       audioUrl: undefined,
     });
-
-    // #region agent log
-    console.log('[resetVocabularyAudio] Success', { 
-      vocabularyId: args.vocabularyId,
-      serbian: vocabulary.serbian
-    });
-    // #endregion
 
     return {
       success: true,
