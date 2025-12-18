@@ -50,7 +50,7 @@ export default defineConfig({
     // Proxy API requests to local Express server (for TTS and other backend functions)
     proxy: {
       '/api': {
-        target: process.env.VITE_SERVER_URL || 'http://localhost:3001',
+        target: process.env.VITE_SERVER_URL || 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },

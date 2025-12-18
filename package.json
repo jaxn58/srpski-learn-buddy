@@ -22,7 +22,13 @@
     "migrate:new-units": "tsx scripts/migrate-new-units-1-2.ts",
     "migrate:all-units": "tsx scripts/migrate-unit-content-new-structure.ts",
     "cleanup:vocabulary": "tsx scripts/cleanup-vocabulary-units-1-6.ts",
-    "cleanup:practice": "tsx scripts/cleanup-invalid-practice-content.ts"
+    "cleanup:practice": "tsx scripts/cleanup-invalid-practice-content.ts",
+    "reset:audio": "tsx scripts/reset-faulty-audio.ts",
+    "reset:audio:prod": "tsx scripts/reset-production-audio.ts",
+    "sync:audio": "tsx scripts/sync-audio-from-production.ts",
+    "generate:audio": "tsx scripts/generate-missing-audio.ts",
+    "check:audio": "tsx scripts/check-audio-file.ts",
+    "compare:audio": "tsx scripts/compare-audio-dev-prod.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
