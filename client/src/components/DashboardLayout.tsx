@@ -56,6 +56,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
+import { FloatingChatButton } from "./FloatingChatButton";
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -501,6 +502,7 @@ function DashboardLayoutContent({
           {children}
         </main>
       </SidebarInset>
+      <FloatingChatButton />
     </>
   );
 }

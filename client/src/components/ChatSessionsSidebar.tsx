@@ -96,7 +96,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
       <div className="p-4 border-b space-y-2">
         <Button 
           onClick={onNewChat} 
-          className="w-full"
+          className="w-full bg-primary hover:bg-primary/90 text-white"
           size="sm"
         >
           <MessageSquarePlus className="h-4 w-4 mr-2" />

@@ -575,6 +575,10 @@ const resources = {
       "chat.usage.protection.beta": "Beta testers: 10 messages per minute, 60 per hour",
       "chat.usage.protection.paid": "Premium users: 20 messages per minute, 200 per hour",
       "chat.usage.protection.note": "These limits help us maintain quality service for everyone while preventing misuse.",
+      "chat.floatingButton.text": "Can I help you?",
+      "chat.modal.title": "AI Learn Buddy",
+      "chat.modal.subtitle": "Get instant help!",
+      "chat.startNewChat": "Start a new chat to begin",
       
       // Sidebar
       "sidebar.dashboard": "Dashboard",
@@ -1147,6 +1151,10 @@ const resources = {
       "chat.usage.protection.beta": "Beta-Tester: 10 Nachrichten pro Minute, 60 pro Stunde",
       "chat.usage.protection.paid": "Premium-Nutzer: 20 Nachrichten pro Minute, 200 pro Stunde",
       "chat.usage.protection.note": "Diese Limits helfen uns, einen qualitativ hochwertigen Service für alle aufrechtzuerhalten und Missbrauch zu verhindern.",
+      "chat.floatingButton.text": "Kann ich dir helfen?",
+      "chat.modal.title": "KI Lernbuddy",
+      "chat.modal.subtitle": "Schnelle Hilfe gefällig?",
+      "chat.startNewChat": "Starte einen neuen Chat, um zu beginnen",
       
       // Sidebar
       "sidebar.dashboard": "Dashboard",

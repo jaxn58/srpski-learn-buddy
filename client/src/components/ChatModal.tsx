@@ -9,23 +9,18 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, User, Brain, Sparkles, Info } from "lucide-react";
+import { Send, User, Brain, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-// Sidebar import removed
-import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
-import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
 import { useTranslation } from "react-i18next";
 
-// Custom Markdown components for clean rendering
+// Custom Markdown components for clean rendering (same as Chat.tsx)
 const markdownComponents = {
   p: ({node, ...props}: any) => <p className="mb-3 leading-relaxed" {...props} />,
   ul: ({node, ...props}: any) => <ul className="list-disc list-outside ml-4 mb-3 space-y-1.5" {...props} />,
@@ -59,12 +54,16 @@ type ChatMessageDoc = Doc<"chatMessages">;
 type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
 type ChatSession = Doc<"chatSessions">;
 
-export default function Chat() {
-  const { user, loading: authLoading } = useAuth();
+interface ChatModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function ChatModal({ isOpen, onClose }: ChatModalProps) {
+  const { user } = useAuth();
   const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -75,39 +74,44 @@ export default function Chat() {
     const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
     return date.toLocaleTimeString('de-DE', options);
   };
+  
   const progress = useQuery(api.progress.getUserProgress);
   const createSessionMutation = useMutation(api.chat.createSession);
   const sendMessageAction = useAction(api.chat.sendMessage);
 
-  // Wähle den ersten vorhandenen Chat, wenn keiner selektiert ist oder der aktuelle nicht mehr existiert.
-  // Keine Auto-Erstellung eines neuen Chats bei leerer Liste.
+  // Auto-select first session or create new one if none exists
   useEffect(() => {
-    if (!sessions) return; // loading
-
-    const hasCurrent = currentSessionId && sessions.some((s) => (s._id as unknown as string) === currentSessionId);
+    if (!sessions || !isOpen) return;
 
     if (sessions.length === 0) {
-      if (currentSessionId) {
-        setCurrentSessionId(null);
-      }
+      // No sessions exist, will create one when user sends first message
+      setCurrentSessionId(null);
       return;
     }
 
-    if (!hasCurrent) {
+    // If no current session selected, select the latest one
+    if (!currentSessionId) {
       const latestSessionId = sessions[0]._id as unknown as string;
       setCurrentSessionId(latestSessionId);
+    } else {
+      // Check if current session still exists
+      const hasCurrent = sessions.some((s) => (s._id as unknown as string) === currentSessionId);
+      if (!hasCurrent) {
+        const latestSessionId = sessions[0]._id as unknown as string;
+        setCurrentSessionId(latestSessionId);
+      }
     }
-  }, [sessions, currentSessionId]);
+  }, [sessions, currentSessionId, isOpen]);
 
-  // Fetch messages for current session - Convex handles reactivity automatically
+  // Fetch messages for current session
   const sessionMessages = useQuery(
     api.chat.getMessages,
     currentSessionId ? { sessionId: currentSessionId as Id<"chatSessions"> } : "skip"
   );
 
-  // Use Convex messages directly, with fallback to local state during loading
   const messages = (sessionMessages ?? []) as ChatMessageDisplay[];
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -116,7 +120,7 @@ export default function Chat() {
 
   // Fokus zurück auf Input setzen, wenn isSending von true zu false wechselt
   useEffect(() => {
-    if (!isSending && inputRef.current) {
+    if (!isSending && inputRef.current && isOpen) {
       // Verwende requestAnimationFrame für bessere Timing-Kontrolle
       requestAnimationFrame(() => {
         setTimeout(() => {
@@ -126,7 +130,7 @@ export default function Chat() {
         }, 10);
       });
     }
-  }, [isSending]);
+  }, [isSending, isOpen]);
 
   const handleNewChat = async () => {
     try {
@@ -139,30 +143,35 @@ export default function Chat() {
     }
   };
 
-  const handleSelectSession = async (sessionId: string) => {
-    setCurrentSessionId(sessionId);
-    // Messages will be loaded automatically via useQuery
-  };
-
   const handleSend = async () => {
-    if (!message.trim() || isSending || !currentSessionId) return;
+    if (!message.trim() || isSending) return;
+
+    // Create session if none exists
+    let sessionIdToUse = currentSessionId;
+    if (!sessionIdToUse) {
+      try {
+        sessionIdToUse = await createSessionMutation({ title: t('chat.newChat') }) as unknown as string;
+        setCurrentSessionId(sessionIdToUse);
+      } catch (error) {
+        console.error("Failed to create session:", error);
+        toast.error(t('chat.newChatError'));
+        return;
+      }
+    }
 
     const messageToSend = message;
     setMessage("");
     setIsSending(true);
 
     try {
-      // Call AI action - it saves the user message and gets AI response
-      // Messages will be updated automatically via the sessionMessages query
       await sendMessageAction({
-        sessionId: currentSessionId as any,
+        sessionId: sessionIdToUse as any,
         message: messageToSend,
         unitContext: progress?.currentUnit,
       });
     } catch (error: any) {
       console.error("Failed to send message:", error);
       
-      // Handle rate limit errors with specific messages
       const errorMessage = error.message || t('chat.sendError');
       
       if (errorMessage.includes('Rate limit exceeded')) {
@@ -196,134 +205,33 @@ export default function Chat() {
     }
   };
 
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   if (!user) {
-    window.location.href = "/";
     return null;
   }
 
   return (
-    <AnimatedPage>
-      <div className="flex flex-1 w-full h-[calc(100vh-theme(spacing.16))]">
-        <ChatSessionsSidebar 
-          currentSessionId={currentSessionId}
-          onSelectSession={handleSelectSession}
-          onNewChat={handleNewChat}
-        />
-        <div className="flex-1 w-full flex flex-col">
-      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">{t('chat.back')}</Button>
-            </Link>
-            <div className="flex items-center gap-3 flex-1">
-              <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
-                <Brain className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold">{t('chat.title')}</h1>
-                <p className="text-xs text-muted-foreground">{t('chat.subtitle')}</p>
-              </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
+              <Brain className="h-6 w-6 text-white" />
             </div>
-            
-            {/* Chat Usage Info Dialog */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Info className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t('chat.usage.title')}</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Info className="h-5 w-5 text-primary" />
-                    {t('chat.usage.title')}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {t('chat.usage.intro')}
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-6 py-4">
-                  {/* Tips Section */}
-                  <div className="space-y-4">
-                    <div className="flex gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                        1
-                      </div>
-                      <div>
-                        <h4 className="font-semibold mb-1">{t('chat.usage.tip1.title')}</h4>
-                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip1.desc')}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                        2
-                      </div>
-                      <div>
-                        <h4 className="font-semibold mb-1">{t('chat.usage.tip2.title')}</h4>
-                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip2.desc')}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                        3
-                      </div>
-                      <div>
-                        <h4 className="font-semibold mb-1">{t('chat.usage.tip3.title')}</h4>
-                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip3.desc')}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Fair Use Protection Section */}
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      {t('chat.usage.protection.title')}
-                    </h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>{t('chat.usage.protection.beta')}</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>{t('chat.usage.protection.paid')}</span>
-                      </div>
-                      <p className="text-muted-foreground mt-3 italic">
-                        {t('chat.usage.protection.note')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <div className="flex-1">
+              <DialogTitle>{t('chat.modal.title')}</DialogTitle>
+              <DialogDescription>{t('chat.modal.subtitle')}</DialogDescription>
+            </div>
           </div>
-        </div>
-      </header>
+        </DialogHeader>
 
-      <main className="container py-6 max-w-4xl flex-1 flex flex-col min-h-0">
-        <div className="flex flex-col bg-card rounded-lg shadow-lg border h-full">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Messages Area */}
           <div 
             ref={scrollRef}
             className="flex-1 overflow-y-auto p-6 space-y-4"
           >
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
+              <div className="flex flex-col items-center justify-center h-full text-center space-y-6 py-12">
                 <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center">
                   <Brain className="h-12 w-12 text-white" />
                 </div>
@@ -332,21 +240,15 @@ export default function Chat() {
                   <p className="text-muted-foreground mb-4">{t('chat.welcome.subtitle')}</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl">
-                  <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Explain the verb 'biti' to me")}>
-                      <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
-                    </Card>
-                  </AnimatedItem>
-                  <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("What is the locative case?")}>
-                      <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
-                    </Card>
-                  </AnimatedItem>
-                  <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Dobar dan! Kako ste?")}>
-                      <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
-                    </Card>
-                  </AnimatedItem>
+                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Explain the verb 'biti' to me")}>
+                    <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
+                  </Card>
+                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("What is the locative case?")}>
+                    <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
+                  </Card>
+                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Dobar dan! Kako ste?")}>
+                    <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
+                  </Card>
                 </div>
               </div>
             )}
@@ -416,13 +318,13 @@ export default function Chat() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={currentSessionId ? t('chat.placeholder') : t('chat.noSessionPlaceholder', 'Please start a new chat first')}
+                placeholder={t('chat.placeholder')}
                 className="flex-1 rounded-full"
-                disabled={isSending || !currentSessionId}
+                disabled={isSending}
               />
               <Button
                 onClick={handleSend}
-                disabled={!message.trim() || isSending || !currentSessionId}
+                disabled={!message.trim() || isSending}
                 size="icon"
                 className="rounded-full h-10 w-10"
               >
@@ -438,16 +340,7 @@ export default function Chat() {
             )}
           </div>
         </div>
-
-        {/* Footer */}
-        <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50 mt-auto">
-          <div className="text-center text-sm text-muted-foreground">
-            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
-          </div>
-        </footer>
-      </main>
-      </div>
-      </div>
-    </AnimatedPage>
+      </DialogContent>
+    </Dialog>
   );
 }
