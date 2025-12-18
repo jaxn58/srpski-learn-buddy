@@ -330,34 +330,40 @@ export default function Vocabulary() {
     if (mode === 'quiz' && user) {
       setIsLoadingProgress(true);
       
-      // 1. Load from localStorage immediately
-      const storageKey = getStorageKey();
-      const savedProgress = localStorage.getItem(storageKey);
-      
-      if (savedProgress) {
-        try {
-          const progress = JSON.parse(savedProgress);
-          // Reset to 0 when restarting - filtered vocab will show only non-mastered words
+      // ONLY load progress on initial load (when quiz hasn't started yet)
+      // This prevents resetting currentIndex on every quizProgress update
+      if (!quizStarted) {
+        // 1. Load from localStorage immediately
+        const storageKey = getStorageKey();
+        const savedProgress = localStorage.getItem(storageKey);
+        
+        if (savedProgress) {
+          try {
+            const progress = JSON.parse(savedProgress);
+            // Reset to 0 when restarting - filtered vocab will show only non-mastered words
+            setCurrentIndex(0);
+            setScore(progress.score || { correct: 0, total: 0 });
+            setLastQuizProgress(progress);
+          } catch (e) {
+            console.error('Failed to parse quiz progress from localStorage', e);
+          }
+        }
+        
+        // 2. Sync with database in background (initial load only)
+        if (quizProgress) {
+          setLastQuizProgress(quizProgress);
+          // Always start at index 0 - filtered vocab handles showing only non-mastered words
           setCurrentIndex(0);
-          setScore(progress.score || { correct: 0, total: 0 });
-          setLastQuizProgress(progress);
-        } catch (e) {
-          console.error('Failed to parse quiz progress from localStorage', e);
+        }
+        
+        setQuizStarted(true);
+      } else {
+        // Quiz already started - just update lastQuizProgress without touching currentIndex
+        if (quizProgress) {
+          setLastQuizProgress(quizProgress);
         }
       }
       
-      // 2. Sync with database in background
-      // Only reset index if quiz hasn't started yet (initial load)
-      if (quizProgress && !quizStarted) {
-        setLastQuizProgress(quizProgress);
-        // Always start at index 0 - filtered vocab handles showing only non-mastered words
-        setCurrentIndex(0);
-      } else if (quizProgress) {
-        // Just update lastQuizProgress without resetting index if quiz is already in progress
-        setLastQuizProgress(quizProgress);
-      }
-      
-      setQuizStarted(true);
       setIsLoadingProgress(false);
     } else {
       setIsLoadingProgress(false);
@@ -625,7 +631,7 @@ export default function Vocabulary() {
     }
   };
 
-  // Handle moving to next word (used both manually and automatically)
+  // Handle moving to next word (used for manual "Weiter" button click AND auto-advance)
   const handleNextWord = useCallback(() => {
     // Check if it's the last word
     if (currentIndex >= filteredVocab.length - 1) {
@@ -633,14 +639,14 @@ export default function Vocabulary() {
       return;
     }
     
-    // Reset state before moving to next word
+    // Reset UI state to show next word
     setShowAnswer(false);
     setUserAnswer('');
     setIsCorrect(null);
     setCurrentCorrectTranslation(null);
     setAnsweredWord(null);
     
-    // Move to next word
+    // Increment index to move to next word
     setCurrentIndex(prevIndex => prevIndex + 1);
   }, [currentIndex, filteredVocab.length]);
 
@@ -653,8 +659,10 @@ export default function Vocabulary() {
   const handleSubmitAnswer = async () => {
     if (!userAnswer.trim() || !currentWord) return;
     
-    // Store the current word IMMEDIATELY to prevent it from changing
+    // Store the current word AND current index IMMEDIATELY to prevent them from changing
     const wordToAnswer = currentWord;
+    const currentIndexSnapshot = currentIndex;
+    const filteredVocabLengthSnapshot = filteredVocab.length;
     
     // NEW: Support column-based translations (for both Learn Mode and Quiz Mode with database data)
     // FALLBACK: Support old getTranslation/getAlternatives (for backward compatibility)
@@ -779,6 +787,7 @@ export default function Vocabulary() {
             isCorrect: correct,
           });
         }
+        
         // Convex will automatically revalidate the query, which will update vocabProgressData
         // The optimistic update will be replaced by the real data when it arrives
       } catch (e) {
@@ -824,8 +833,8 @@ export default function Vocabulary() {
       }
     }
     
-    // Check if this was the last word
-    const isLastWord = currentIndex === filteredVocab.length - 1;
+    // Check if this was the last word (use snapshot to avoid race conditions)
+    const isLastWord = currentIndexSnapshot === filteredVocabLengthSnapshot - 1;
     
     if (isLastWord) {
       // Don't reset showAnswer - keep it true to show complete screen
@@ -836,7 +845,10 @@ export default function Vocabulary() {
       return;
     }
     
-    // Only auto-advance if setting is enabled
+    // DON'T increment index here - let handleNextWord do it when user clicks "Weiter"
+    // This prevents race conditions with filteredVocab changes
+    
+    // Only auto-advance if setting is enabled (reset UI state AND increment index after delay)
     if (autoAdvance) {
       setTimeout(() => {
         handleNextWord();
