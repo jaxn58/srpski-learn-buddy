@@ -373,3 +373,4 @@ pnpm migrate:production
 ---
 
 **Letzte Aktualisierung:** Dezember 2025
+

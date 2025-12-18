@@ -37,3 +37,4 @@ try {
     }
     Write-Host "All servers stopped." -ForegroundColor Green
 }
+

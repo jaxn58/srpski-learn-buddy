@@ -9,7 +9,6 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
-import WeekView from "./pages/WeekView";
 import UnitView from "./pages/UnitView";
 import Chat from "./pages/Chat";
 import Admin from "./pages/Admin";
@@ -83,9 +82,6 @@ function Router() {
       </Route>
       <Route path="/units">
         {() => <Protected Component={Units} />}
-      </Route>
-      <Route path="/week/:weekNumber">
-        {() => <Protected Component={WeekView} />}
       </Route>
       <Route path="/unit/:unitNumber">
         {() => <Protected Component={UnitView} />}

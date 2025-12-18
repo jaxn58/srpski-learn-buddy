@@ -32,7 +32,6 @@ export default defineSchema({
   // ============= USER PROGRESS =============
   userProgress: defineTable({
     userId: v.id("users"),
-    currentWeek: v.number(),
     currentUnit: v.number(),
     completedUnits: v.array(v.number()), // Array of completed unit numbers
     learningDuration: v.number(), // Duration in weeks: 12, 24, 36, 48
@@ -198,16 +197,7 @@ export default defineSchema({
     .index("by_module_lang", ["moduleId", "language"]) // Old index (deprecated)
     .index("by_slug", ["slug"]), // New index for URL lookup
 
-  // 3. Week Metadata (Multi-language)
-  weekMetadata: defineTable({
-    weekNumber: v.number(),
-    language: v.string(),
-    title: v.string(),
-    goals: v.array(v.string()),
-    practiceActivities: v.array(v.string()),
-  }).index("by_week_lang", ["weekNumber", "language"]),
-
-  // 4. Vocabulary Translations (Multi-language)
+  // 3. Vocabulary Translations (Multi-language)
   vocabularyTranslations: defineTable({
     vocabularyId: v.id("vocabulary"),
     language: v.string(), // "en", "de", "es", "fr"

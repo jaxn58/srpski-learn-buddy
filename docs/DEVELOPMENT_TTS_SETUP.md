@@ -134,3 +134,4 @@ VITE_CONVEX_URL=https://reminiscent-panda-57.convex.cloud
 
 ## Datum
 18. Dezember 2024
+

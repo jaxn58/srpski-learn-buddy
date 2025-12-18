@@ -6,7 +6,6 @@
 // Course data
 export * from "./course/units";
 export * from "./course/modules";
-export * from "./course/weeks";
 export * from "./course/revisions";
 
 // Vocabulary data

@@ -42,7 +42,6 @@ export const getUserProgress = query({
 // Update user progress
 export const updateProgress = mutation({
   args: {
-    currentWeek: v.optional(v.number()),
     currentUnit: v.optional(v.number()),
     learningDuration: v.optional(v.number()),
     uiLanguage: v.optional(v.string()),
@@ -60,7 +59,6 @@ export const updateProgress = mutation({
       // Create new progress
       await ctx.db.insert("userProgress", {
         userId: user._id,
-        currentWeek: args.currentWeek ?? 1,
         currentUnit: args.currentUnit ?? 1,
         completedUnits: [],
         learningDuration: args.learningDuration ?? 12,
@@ -69,7 +67,6 @@ export const updateProgress = mutation({
     } else {
       // Update existing progress
       const updates: Record<string, unknown> = {};
-      if (args.currentWeek !== undefined) updates.currentWeek = args.currentWeek;
       if (args.currentUnit !== undefined) updates.currentUnit = args.currentUnit;
       if (args.learningDuration !== undefined) updates.learningDuration = args.learningDuration;
       if (args.uiLanguage !== undefined) updates.uiLanguage = args.uiLanguage;
@@ -720,7 +717,6 @@ export const getDashboardStats = query({
 
       // Progress
       completedUnits: userProgress?.completedUnits || [],
-      currentWeek: userProgress?.currentWeek || 1,
       learningDuration: userProgress?.learningDuration || 12,
       creationTime: userProgress?._creationTime || user._creationTime,
 

@@ -383,7 +383,6 @@ export const resetUserProgress = mutation({
 
     if (progress) {
       await ctx.db.patch(progress._id, {
-        currentWeek: 1,
         currentUnit: 1,
         completedUnits: [],
       });
@@ -391,7 +390,6 @@ export const resetUserProgress = mutation({
       // Create initial progress if it doesn't exist
       await ctx.db.insert("userProgress", {
         userId: args.userId,
-        currentWeek: 1,
         currentUnit: 1,
         completedUnits: [],
         learningDuration: 12,
@@ -944,7 +942,6 @@ export const markUnit1Complete = mutation({
       // Create new progress if it doesn't exist
       await ctx.db.insert("userProgress", {
         userId: user._id,
-        currentWeek: 1,
         currentUnit: 2,
         completedUnits: [1],
         learningDuration: 12,
@@ -1190,7 +1187,6 @@ export const simulateUnitProgress = mutation({
     } else {
       await ctx.db.insert("userProgress", {
         userId: args.userId as Id<"users">,
-        currentWeek: 1,
         currentUnit: nextCurrentUnit,
         completedUnits: nextCompleted,
         learningDuration: 12,

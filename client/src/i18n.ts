@@ -232,12 +232,12 @@ const resources = {
       "dashboard.chatWithProfessor": "AI Learn Buddy",
       "dashboard.chatDesc": "Get explanations and examples from course material",
       "dashboard.openChat": "Open Chat",
-      "dashboard.lessonsThisWeek": "Units this week:",
       "dashboard.practiceActivities": "Practice Activities:",
       "dashboard.practiceVocab": "Practice Vocabulary",
       "dashboard.viewProgress": "View Progress",
       "dashboard.goToLesson": "Go to Unit",
-      "dashboard.week": "Week {{number}}",
+      "dashboard.allUnits": "All Units",
+      "dashboard.allUnitsDesc": "Continue your learning journey",
       "dashboard.unit": "Unit {{number}}",
       "dashboard.module": "Module {{number}}",
       "dashboard.lesson": "Unit {{number}}",
@@ -269,6 +269,7 @@ const resources = {
       "dashboard.pendingApproval.backHome": "Back to Home",
       "dashboard.pendingApproval.logout": "Logout",
       "dashboard.adminView": "All Modules (Admin View)",
+      "dashboard.adminViewDesc": "All available course modules",
       
       // Unit View
       "unit.backToDashboard": "Back to Dashboard",
@@ -816,9 +817,9 @@ const resources = {
       
       // Dashboard
       "dashboard.welcome": "Willkommen zurück, {{name}}!",
-      "dashboard.weekProgress": "Du bist in Woche {{current}} von {{total}}. Weiter so!",
+      "dashboard.betaProgress": "Du bist im Beta. Mach weiter, hab Spaß und hilf dabei, die App zu verbessern.",
+      "dashboard.progressMessage": "Du hast {{completed}} von {{total}} Einheiten abgeschlossen. Weiter so!",
       "dashboard.totalProgress": "Gesamtfortschritt",
-      "dashboard.currentWeek": "Aktuelle Woche",
       "dashboard.currentLesson": "Aktuelle Einheit",
       "dashboard.completed": "abgeschlossen",
       "dashboard.continueLesson": "Aktuelle Einheit fortsetzen",
@@ -859,6 +860,7 @@ const resources = {
       "dashboard.pendingApproval.backHome": "Zur Startseite",
       "dashboard.pendingApproval.logout": "Abmelden",
       "dashboard.adminView": "Alle Einheiten (Admin-Ansicht)",
+      "dashboard.adminViewDesc": "Alle verfügbaren Kursmodule",
       
       // Unit View
       "unit.backToDashboard": "Zurück zum Dashboard",

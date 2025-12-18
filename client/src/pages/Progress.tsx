@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress as ProgressBar } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { COURSE_WEEKS, COURSE_MODULES, getModuleProgress } from "@shared/data";
+import { COURSE_MODULES, getModuleProgress } from "@shared/data";
 
 const COLORS = ['#22c55e', '#ef4444']; // Green for Correct, Red for Incorrect
 

@@ -7,8 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { COURSE_WEEKS } from "@shared/data"; // Keep for unit mapping
-import { BookOpen, Brain, Calendar, MessageSquare, TrendingUp, Clock, Home, Lock, Star } from "lucide-react";
+import { BookOpen, Brain, MessageSquare, TrendingUp, Clock, Home, Lock, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -33,7 +32,6 @@ export default function Dashboard() {
   
   // Load dynamic data from DB instead of static files
   const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
-  const weeks = useQuery(api.weeks.getAllWeeks, { language: displayLanguage });
   
   const syncUserMutation = useMutation(api.users.syncUser);
   
@@ -116,10 +114,6 @@ export default function Dashboard() {
     setShowOnboarding(false);
   };
 
-  // Find current week metadata from DB
-  const currentWeek = weeks?.find(w => w.weekNumber === progress?.currentWeek);
-  // Get static week config for unit mapping
-  const staticCurrentWeek = COURSE_WEEKS.find(w => w.weekNumber === progress?.currentWeek);
   
   const completedUnits = progress?.completedUnits || [];
   
@@ -139,7 +133,8 @@ export default function Dashboard() {
     ? (accessibleUnits as any).accessibleUnits
     : [];
     
-  const displayUnits = isAdmin ? units?.map(u => u.unitNumber) : staticCurrentWeek?.units;
+  // For non-admin users, show accessible units. For admins, show all units.
+  const displayUnits = isAdmin ? units?.map(u => u.unitNumber) : rawAccessible;
   const visibleUnits = Array.from(
     new Set(
       [
@@ -164,7 +159,6 @@ export default function Dashboard() {
     completedUnits.length,
     visibleUnits?.length,
     totalUnits,
-    currentWeek?.weekNumber,
     isBeta,
     accessibleCount,
     learningDuration,
@@ -289,11 +283,11 @@ export default function Dashboard() {
             {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Learner' })}
           </h2>
           <p className="text-muted-foreground">
-            {isBeta ? t('dashboard.betaProgress') : t('dashboard.weekProgress', { current: progress?.currentWeek, total: learningDuration })}
+            {isBeta ? t('dashboard.betaProgress') : t('dashboard.progressMessage', { completed: completedUnits.length, total: totalUnits })}
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-8 items-stretch">
+        <div className="grid md:grid-cols-2 gap-6 mb-8 items-stretch">
           <AnimatedItem>
             <Card className="h-full">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -305,21 +299,6 @@ export default function Dashboard() {
                 <Progress value={progressPercentage} className="mt-2" />
                 <p className="text-xs text-muted-foreground mt-2">
                   {Math.round(progressPercentage)}% {t('dashboard.completed')}
-                </p>
-              </CardContent>
-            </Card>
-          </AnimatedItem>
-
-          <AnimatedItem>
-            <Card className="h-full">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('dashboard.currentWeek')}</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{t('dashboard.week', { number: progress?.currentWeek })}</div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {currentWeek?.title}
                 </p>
               </CardContent>
             </Card>
@@ -392,21 +371,21 @@ export default function Dashboard() {
           </AnimatedItem>
         </div>
 
+        {/* Modules List Card */}
         <AnimatedItem>
           <Card>
             <CardHeader>
-              <CardTitle>{t('dashboard.week', { number: progress?.currentWeek })}: {i18n.language === 'de' && currentWeek?.titleGerman ? currentWeek.titleGerman : currentWeek?.title}</CardTitle>
-              <CardDescription>
-                {(i18n.language === 'de' && currentWeek?.goalsGerman ? currentWeek.goalsGerman : currentWeek?.goals)?.join(" • ")}
+              <CardTitle className="text-xl">
+                {isAdmin ? t('dashboard.adminView') : t('dashboard.allUnits', 'All Units')}
+              </CardTitle>
+              <CardDescription className="text-base mt-2">
+                {isAdmin
+                  ? t('dashboard.adminViewDesc', 'All available course modules')
+                  : t('dashboard.allUnitsDesc', 'Continue your learning journey')}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold mb-3 text-lg">
-                    {isAdmin ? t('dashboard.adminView') : t('dashboard.lessonsThisWeek')}
-                  </h4>
-                  <div className="grid gap-4">
+              <div className="grid gap-5">
                     {visibleUnits?.map(unitNum => {
                     const unit = units?.find(u => u.number === unitNum);
                     const isCompleted = completedUnits.includes(unitNum);
@@ -456,17 +435,17 @@ export default function Dashboard() {
 
                     return (
                       <Link key={unitNum} href={`/unit/${unitNum}`}>
-                        <Card className={`transition-all hover:shadow-md ${
-                          isCurrent ? 'border-primary ring-2 ring-primary/20' : 
+                        <Card className={`transition-all hover:shadow-lg hover:scale-[1.01] ${
+                          isCurrent ? 'border-primary ring-2 ring-primary/20 shadow-md' : 
                           isMastered ? 'border-amber-400 bg-amber-50/60' :
                           isCompleted ? 'border-[color:var(--brand-blue-soft-border)] bg-[color:var(--brand-blue-soft)]' : 
                           'hover:border-primary/50'
                         }`}>
-                          <CardContent className="p-5">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Badge variant={isCurrent ? 'default' : 'outline'}>
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between gap-6">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                                  <Badge variant={isCurrent ? 'default' : 'outline'} className="text-sm">
                                     {t('dashboard.unit', { number: unitNum })}
                                   </Badge>
                                   {isCompleted && (
@@ -484,14 +463,14 @@ export default function Dashboard() {
                                     <span className="text-primary text-sm font-medium">{t('dashboard.currentLessonBadge')}</span>
                                   )}
                                 </div>
-                                <div className="font-semibold text-lg mb-1">
+                                <div className="font-semibold text-xl mb-2 leading-tight">
                                   {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
                                 </div>
-                                <div className="text-sm text-muted-foreground mb-3">
+                                <div className="text-sm text-muted-foreground mb-4 leading-relaxed">
                                   {unit?.title}
                                 </div>
                                 {unit?.topics && unit.topics.length > 0 && (
-                                  <div className="flex flex-wrap gap-1.5">
+                                  <div className="flex flex-wrap gap-2 mt-4">
                                     {(i18n.language === 'de' ? unit.topicsGerman : unit.topics).slice(0, 3).map((topic, idx) => (
                                       <Badge key={idx} variant="outline" className="text-xs">
                                         {topic}
@@ -505,7 +484,7 @@ export default function Dashboard() {
                                   </div>
                                 )}
                               </div>
-                              <div className="text-right">
+                              <div className="flex-shrink-0">
                                 <Button 
                                   variant={isCurrent ? 'default' : 'outline'} 
                                   size="sm"
@@ -520,20 +499,9 @@ export default function Dashboard() {
                       </Link>
                     );
                   })}
-                </div>
               </div>
-
-              <div>
-                <h4 className="font-semibold mb-2">{t('dashboard.practiceActivities')}</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  {(i18n.language === 'de' && currentWeek?.practiceActivitiesGerman ? currentWeek.practiceActivitiesGerman : currentWeek?.practiceActivities)?.map((activity, idx) => (
-                    <li key={idx}>• {activity}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
         </AnimatedItem>
       </AnimatedPage>
     </>

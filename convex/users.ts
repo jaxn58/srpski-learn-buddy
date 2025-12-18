@@ -203,7 +203,6 @@ export const syncUser = mutation({
       // Create initial user progress
       await ctx.db.insert("userProgress", {
         userId,
-        currentWeek: 1,
         currentUnit: 1,
         completedUnits: [],
         learningDuration: 12,

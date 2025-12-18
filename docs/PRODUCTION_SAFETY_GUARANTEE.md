@@ -159,3 +159,4 @@ git diff --name-only | grep -E "^(api/|vercel.json)"
 
 ## Datum
 18. Dezember 2024
+
