@@ -24,8 +24,7 @@ export default function SignUpPage() {
       {/* Sign Up Form */}
       <div className="flex-1 flex items-center justify-center p-4">
         <SignUp
-          routing="path"
-          path="/sign-up"
+          routing="virtual"
           signInUrl="/sign-in"
           fallbackRedirectUrl="/dashboard"
           appearance={{

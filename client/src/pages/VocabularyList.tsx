@@ -70,18 +70,9 @@ export default function VocabularyList() {
     // NEW: Use courseVocabulary from database (if available)
     // FALLBACK: Use hardcoded VOCABULARY for backward compatibility
     if (!courseVocabulary || courseVocabulary.length === 0) {
-      console.log('[VocabularyList] No courseVocabulary data available');
+      // This is expected during initial load
       return [];
     }
-    
-    // DEBUG: Log vocabulary statistics
-    const unitCounts = courseVocabulary.reduce((acc, word) => {
-      acc[word.unitNumber] = (acc[word.unitNumber] || 0) + 1;
-      return acc;
-    }, {} as Record<number, number>);
-    console.log('[VocabularyList] Vocabulary by unit:', unitCounts);
-    console.log(`[VocabularyList] Selected unit: ${selectedUnit}`);
-    console.log(`[VocabularyList] Unit ${selectedUnit} vocabulary count:`, unitCounts[selectedUnit] || 0);
     
     let filtered = courseVocabulary
       .filter(word => word.serbian) // Only include words with serbian field

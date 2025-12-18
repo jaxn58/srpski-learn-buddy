@@ -84,3 +84,5 @@ Write-Host "Schreibe Index-Datei..." -ForegroundColor Yellow
 Write-Host "Index-Datei erstellt: $outputFile" -ForegroundColor Green
 Write-Host ""
 Write-Host "Die Datei enthält $($planFiles.Count) Plan-Links." -ForegroundColor Cyan
+
+

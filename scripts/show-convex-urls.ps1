@@ -42,3 +42,5 @@ Write-Host "💡 Tipp: Die Dev-URL findest du auch im Terminal wo 'npx convex de
 Write-Host "💡 Oder im Convex Dashboard: https://dashboard.convex.dev" -ForegroundColor Cyan
 
 
+
+

@@ -74,16 +74,6 @@ export const getAllCourseVocabulary = query({
       .query("courseVocabulary")
       .collect();
     
-    // #region agent log
-    const unit6Vocab = allVocab.filter(v => v.unitNumber === 6);
-    const unitCounts = allVocab.reduce((acc, v) => {
-      acc[v.unitNumber] = (acc[v.unitNumber] || 0) + 1;
-      return acc;
-    }, {} as Record<number, number>);
-    // Note: Convex queries run server-side, so we can't use fetch here
-    // Logging will be done client-side in VocabularyList.tsx
-    // #endregion
-    
     // Sort by unitNumber (ascending), then alphabetically by serbian
     return allVocab.sort((a, b) => {
       if (a.unitNumber !== b.unitNumber) {
@@ -95,14 +85,31 @@ export const getAllCourseVocabulary = query({
 });
 
 // Helper: Get all unique unitNumbers that have vocabulary (for testing)
+// IMPORTANT: Only returns units that have BOTH vocabulary AND unitMetadata
 export const getAvailableUnitNumbers = query({
   handler: async (ctx) => {
+    // Get all vocabulary
     const allVocab = await ctx.db
       .query("courseVocabulary")
       .collect();
     
-    const unitNumbers = new Set(allVocab.map(v => v.unitNumber));
-    return Array.from(unitNumbers).sort((a, b) => a - b);
+    // Get all unit metadata (to verify units are properly configured)
+    const allMetadata = await ctx.db
+      .query("unitMetadata")
+      .filter((q) => q.eq(q.field("language"), "en")) // Only check English metadata
+      .collect();
+    
+    // Get unit numbers from vocabulary
+    const vocabUnitNumbers = new Set(allVocab.map(v => v.unitNumber));
+    
+    // Get unit numbers from metadata
+    const metadataUnitNumbers = new Set(allMetadata.map(m => m.unitNumber));
+    
+    // Only return units that have BOTH vocabulary AND metadata
+    const validUnits = Array.from(vocabUnitNumbers).filter(unit => metadataUnitNumbers.has(unit));
+    const result = validUnits.sort((a, b) => a - b);
+    
+    return result;
   },
 });
 

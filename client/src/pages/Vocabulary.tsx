@@ -99,13 +99,24 @@ export default function Vocabulary() {
   // Audio storage ID cache for fast repeated playback
   const [audioStorageCache, setAudioStorageCache] = useState<Record<string, string>>({});
 
+  // NEW: Fetch available unit numbers dynamically from database (only units with vocabulary AND metadata)
+  const availableUnitNumbers = useQuery(api.vocabulary.getAvailableUnitNumbers);
+  
   // Dynamically calculate available units based on access info
   const availableUnits = useMemo(() => {
-    if (accessInfo && accessInfo.maxUnits > 0) {
-      return Array.from({ length: Math.min(27, accessInfo.maxUnits) }, (_, i) => i + 1);
+    // Fallback: If no units from DB loaded, return empty array
+    if (!availableUnitNumbers || availableUnitNumbers.length === 0) {
+      return [];
     }
-    return Array.from({ length: 27 }, (_, i) => i + 1);
-  }, [accessInfo]);
+    
+    // Filter units based on access
+    if (accessInfo && accessInfo.maxUnits > 0) {
+      return availableUnitNumbers.filter(unit => unit <= accessInfo.maxUnits);
+    }
+    
+    // Return all available units from database
+    return availableUnitNumbers;
+  }, [availableUnitNumbers, accessInfo]);
 
   // localStorage key for quiz progress
   const getStorageKey = () => `quiz_progress_${selectedUnit === 'all' ? 0 : selectedUnit}_${user?._id || 'guest'}`;
@@ -527,7 +538,7 @@ export default function Vocabulary() {
     
     // Database is the only source of truth - no fallback to hardcoded data
     if (!courseVocabulary || courseVocabulary.length === 0) {
-      console.error('[Vocabulary] No vocabulary data available from database');
+      // This is expected during initial load - don't log as error
       return [];
     }
     
@@ -886,7 +897,7 @@ export default function Vocabulary() {
         }));
     } else {
       // Database is the only source - no fallback
-      console.error('[Vocabulary] No vocabulary data available for unit mastery check');
+      // This is expected during initial load - don't log as error
       return false;
     }
     

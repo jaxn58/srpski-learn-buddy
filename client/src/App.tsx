@@ -27,7 +27,7 @@ import SignInPage from "./pages/SignIn";
 import SignUpPage from "./pages/SignUp";
 import Units from "./pages/Units";
 import { Loader2 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import i18n from "./i18n";
@@ -141,7 +141,7 @@ function App() {
   useEffect(() => {
     i18n.changeLanguage('en');
     localStorage.removeItem('preferredLanguage');
-  }, []); // Remove user dependency
+  }, []);
 
   return (
     <ErrorBoundary>

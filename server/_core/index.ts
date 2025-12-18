@@ -70,13 +70,13 @@ async function startServer() {
         });
       }
 
-      const { url } = await generateSerbianAudio({
+      const { storageId } = await generateSerbianAudio({
         serbianWord,
         vocabularyId,
         unitNumber,
       });
 
-      res.json({ success: true, audioUrl: url });
+      res.json({ success: true, storageId });
     } catch (error: any) {
       console.error("[Audio Generation] Error:", error);
       res.status(500).json({
@@ -107,7 +107,8 @@ async function startServer() {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
+  // Use port 3001 for development (to match Vite proxy configuration)
+  const preferredPort = parseInt(process.env.PORT || "3001");
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
