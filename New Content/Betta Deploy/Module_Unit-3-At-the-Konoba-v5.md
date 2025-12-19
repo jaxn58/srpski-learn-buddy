@@ -196,10 +196,10 @@ We agree completely: practice is the key to confidence! We have significantly ex
 | I want one coffee. | Želim jednu kafu. |
 | Two beers, please. | Dva piva, molim. |
 | The bill, please. | Molim vas, račun. |
-| The food is ukusna. / Hrana je ukusna. |
+| The food is delicious. | Hrana je ukusna. |
 | I don't want water. | Neću vodu. |
 | One glass of wine, please. | Jedno vino, molim. |
-| We want fish. | Mi hoćemo ribu. / Mi hoćemo ribu. / Mi hoćemo ribu. |
+| We want fish. | Mi hoćemo ribu. |
 | I will have a salad. | Ja ću salatu. |
 | That's enough, thank you. | Dovoljno, hvala. |
 | Excuse me, waiter! | Izvinite, konobar! |
@@ -210,16 +210,16 @@ We agree completely: practice is the key to confidence! We have significantly ex
 
 | Sentence | Answer (for database) |
 | :--- | :--- |
-| Ja ___ jednu kafu. (II want one coffee. | ću |
-| Mi ___ meso. (WWe want meat. | hoćemo |
-| Ti ___ salatu? (Do yYou want a salad? | hoćeš |
-| Oni ___ pivo. (TThey don't want beer. | neće |
-| Vi ___ jelovnik? (DDo you want the menu? | hoćete |
-| Ona ___ ribu. (She wants fish. | hoćee |
-| Ja ___ hleb. (II don't want bread. | neću / neću / neću |
-| Mi ___ još vode. (WWe want more water. | hoćemo |
-| On ___ slatko. (HHe wants dessert. | hoće |
-| Ja ___ račun. (II want the bill. | ću |
+| Ja ___ jednu kafu. (I want one coffee.) | ću |
+| Mi ___ meso. (We want meat.) | hoćemo |
+| Ti ___ salatu? (Do you want a salad?) | hoćeš |
+| Oni ___ pivo. (They don't want beer.) | neće |
+| Vi ___ jelovnik? (Do you want the menu?) | hoćete |
+| Ona ___ ribu. (She wants fish.) | hoće |
+| Ja ___ hleb. (I don't want bread.) | neću |
+| Mi ___ još vode. (We want more water.) | hoćemo |
+| On ___ slatko. (He wants dessert.) | hoće |
+| Ja ___ račun. (I want the bill.) | ću |
 
 ### Exercise 3: Multiple Choice (Numbers and Gender Agreement - 10 Items)
 

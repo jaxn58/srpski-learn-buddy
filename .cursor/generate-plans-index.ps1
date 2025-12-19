@@ -18,12 +18,16 @@ if (-not (Test-Path $plansDir)) {
 Write-Host "Suche Plan-Dateien..." -ForegroundColor Yellow
 $planFiles = Get-ChildItem -Path $plansDir -Filter "*.plan.md" | Sort-Object Name
 
-if ($planFiles.Count -eq 0) {
+# Ensure array handling: when Get-ChildItem returns exactly one item, it's not an array
+$planFilesArray = @($planFiles)
+$planCount = $planFilesArray.Count
+
+if ($planCount -eq 0) {
     Write-Host "Keine Plan-Dateien gefunden!" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "Gefunden: $($planFiles.Count) Pläne" -ForegroundColor Green
+Write-Host "Gefunden: $planCount Pläne" -ForegroundColor Green
 Write-Host ""
 
 # Markdown-Inhalt erstellen
@@ -34,7 +38,7 @@ Diese Datei enthält Links zu allen gespeicherten Cursor-Plänen.
 
 **Letzte Aktualisierung:** $(Get-Date -Format "dd.MM.yyyy HH:mm")
 
-**Anzahl Pläne:** $($planFiles.Count)
+**Anzahl Pläne:** $planCount
 
 ---
 
@@ -83,7 +87,7 @@ Write-Host "Schreibe Index-Datei..." -ForegroundColor Yellow
 
 Write-Host "Index-Datei erstellt: $outputFile" -ForegroundColor Green
 Write-Host ""
-Write-Host "Die Datei enthält $($planFiles.Count) Plan-Links." -ForegroundColor Cyan
+Write-Host "Die Datei enthält $planCount Plan-Links." -ForegroundColor Cyan
 
 
 

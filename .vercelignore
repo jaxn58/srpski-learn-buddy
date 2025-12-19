@@ -9,9 +9,11 @@ dist
 coverage
 .nyc_output
 docs
-scripts
 patches
 New Content
 .cursor
+# Exclude all markdown files except README.md
 *.md
 !README.md
+# Note: scripts directory is needed for build/deployment
+# Note: docs directory excluded as it's documentation only
