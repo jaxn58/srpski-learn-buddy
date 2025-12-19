@@ -26,6 +26,12 @@ export default function Progress() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   const stats = useQuery(api.progress.getDashboardStats);
+  
+  // Memoize modules list to prevent duplicate renders - MUST be before early returns
+  const modulesList = useMemo(() => {
+    return COURSE_MODULES;
+  }, []);
+
   const isLoading = stats === undefined;
 
   if (!user) {
@@ -45,25 +51,6 @@ export default function Progress() {
   const completedUnits = stats?.completedUnits || [];
   const totalUnits = 27;
   const progressPercent = (completedUnits.length / totalUnits) * 100;
-  
-  // Debug: Track component lifecycle
-  useEffect(() => {
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:mount',message:'Progress component mounted',data:{timestamp:new Date().toISOString(),courseModulesLength:COURSE_MODULES.length,moduleIds:COURSE_MODULES.map(m=>m.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    return () => {
-      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:unmount',message:'Progress component unmounted',data:{timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    };
-  }, []);
-  
-  // Debug: Track render cycles
-  useEffect(() => {
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:render',message:'Progress component rendered',data:{timestamp:new Date().toISOString(),statsLoading:isLoading,completedUnitsLength:completedUnits.length,statsLevel:stats?.level},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-  });
-  
-  // Memoize modules list to prevent duplicate renders
-  const modulesList = useMemo(() => {
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:useMemo',message:'modulesList useMemo executed',data:{courseModulesLength:COURSE_MODULES.length,moduleIds:COURSE_MODULES.map(m=>m.id)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    return COURSE_MODULES;
-  }, []);
   
   // Format dates for chart
   const activityData = stats?.activityChart?.map(day => ({
@@ -138,8 +125,8 @@ export default function Progress() {
             {/* HERO SECTION: GAMIFICATION */}
             <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
-              {/* Level Card */}
-              <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white overflow-hidden relative border-none shadow-lg">
+              {/* Level Card - Serbian Blue */}
+              <Card className="bg-serbian-blue text-white overflow-hidden relative border-none shadow-lg">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <Trophy className="w-32 h-32" />
                 </div>
@@ -169,8 +156,8 @@ export default function Progress() {
                 </CardContent>
               </Card>
 
-              {/* Streak Card */}
-              <Card className="bg-gradient-to-br from-orange-500 to-red-600 text-white overflow-hidden relative border-none shadow-lg">
+              {/* Streak Card - Serbian Red */}
+              <Card className="bg-serbian-red text-white overflow-hidden relative border-none shadow-lg">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <Flame className="w-32 h-32" />
                 </div>
@@ -330,7 +317,6 @@ export default function Progress() {
                 <CardContent>
                   <div className="space-y-6">
                     {modulesList.map((module, index) => {
-                      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Progress.tsx:map',message:'Rendering module in map',data:{index,moduleId:module.id,moduleNumber:module.number,totalModules:modulesList.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
                       const moduleProgress = getModuleProgress(module.id, completedUnits);
                       const moduleTitle = i18n.language === 'de' ? module.titleGerman : module.titleEnglish;
                       

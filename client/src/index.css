@@ -44,6 +44,12 @@
 
 :root {
   /* Serbian flag colors: Red, Blue, White, Gold */
+  /* Exact hex values from Serbian flag with gradient support */
+  --serbian-blue-from: #0C4076; /* Dark Serbian blue */
+  --serbian-blue-to: #1a5a9e; /* Light Serbian blue */
+  --serbian-red-from: #C6363C; /* Serbian red */
+  --serbian-red-to: #a82329; /* Dark Serbian red */
+  
   --primary: oklch(0.50 0.24 15); /* Serbian red */
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.45 0.18 250); /* Royal blue from flag */
@@ -140,6 +146,17 @@
 }
 
 @layer components {
+  /**
+   * Serbian flag color gradients for consistent branding
+   */
+  .bg-serbian-blue {
+    background: linear-gradient(to bottom right, var(--serbian-blue-from), var(--serbian-blue-to));
+  }
+  
+  .bg-serbian-red {
+    background: linear-gradient(to bottom right, var(--serbian-red-from), var(--serbian-red-to));
+  }
+  
   /**
    * Custom container utility that centers content and adds responsive padding.
    *

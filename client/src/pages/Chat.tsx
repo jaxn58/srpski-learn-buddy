@@ -226,7 +226,7 @@ export default function Chat() {
               <Button variant="ghost" size="sm">{t('chat.back')}</Button>
             </Link>
             <div className="flex items-center gap-3 flex-1">
-              <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
+              <div className="h-10 w-10 rounded-full bg-serbian-red flex items-center justify-center">
                 <Brain className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -324,7 +324,7 @@ export default function Chat() {
           >
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
-                <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center">
+                <div className="h-20 w-20 rounded-full bg-serbian-red flex items-center justify-center">
                   <Brain className="h-12 w-12 text-white" />
                 </div>
                 <div>
@@ -356,7 +356,7 @@ export default function Chat() {
                 key={idx}
                 className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-primary' : 'bg-primary'}`}>
+                <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-serbian-blue' : 'bg-serbian-blue'}`}>
                   <AvatarFallback className="text-white text-xs bg-transparent">
                     {msg.role === 'assistant' ? <Brain className="h-5 w-5 text-white" /> : <User className="h-4 w-4" />}
                   </AvatarFallback>
@@ -366,7 +366,7 @@ export default function Chat() {
                   <div
                     className={`rounded-2xl px-4 py-3 text-sm ${
                       msg.role === 'user'
-                        ? 'bg-primary text-primary-foreground rounded-br-none'
+                        ? 'bg-serbian-blue text-white rounded-br-none'
                         : 'bg-muted text-foreground rounded-bl-none'
                     }`}
                   >
@@ -392,7 +392,7 @@ export default function Chat() {
             
             {isSending && (
               <div className="flex gap-3">
-                <Avatar className="h-8 w-8 flex-shrink-0 bg-gradient-to-br from-blue-500 to-purple-600">
+                <Avatar className="h-8 w-8 flex-shrink-0 bg-serbian-blue">
                   <AvatarFallback className="text-white text-xs">
                     <Sparkles className="h-4 w-4" />
                   </AvatarFallback>

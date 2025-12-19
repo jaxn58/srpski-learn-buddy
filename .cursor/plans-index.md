@@ -2,9 +2,9 @@
 
 Diese Datei enthÃ¤lt Links zu allen gespeicherten Cursor-PlÃ¤nen.
 
-**Letzte Aktualisierung:** 17.12.2025 18:26
+**Letzte Aktualisierung:** 18.12.2025 22:07
 
-**Anzahl PlÃ¤ne:** 82
+**Anzahl PlÃ¤ne:** 93
 
 ---
 
@@ -30,6 +30,12 @@ Diese Datei enthÃ¤lt Links zu allen gespeicherten Cursor-PlÃ¤nen.
 - [Clerk Production Setup](file:///C:/Users/look/.cursor/plans/clerk_production_setup_d665dc2f.plan.md)
 - [Content-Struktur Konsolidierung](file:///C:/Users/look/.cursor/plans/content-struktur_konsolidierung_0665e82c.plan.md)
 - [Convex Migration Final Cleanup](file:///C:/Users/look/.cursor/plans/convex_migration_final_cleanup_09e73583.plan.md)
+- [Convex und Vercel Deployment](file:///C:/Users/look/.cursor/plans/convex_und_vercel_deployment_08db342f.plan.md)
+- [Convex und Vercel Deployment](file:///C:/Users/look/.cursor/plans/convex_und_vercel_deployment_2b156ca2.plan.md)
+- [Convex und Vercel Deployment](file:///C:/Users/look/.cursor/plans/convex_und_vercel_deployment_42db688f.plan.md)
+- [Convex und Vercel Deployment](file:///C:/Users/look/.cursor/plans/convex_und_vercel_deployment_65b8c89f.plan.md)
+- [Convex und Vercel Deployment](file:///C:/Users/look/.cursor/plans/convex_und_vercel_deployment_7f86f5a0.plan.md)
+- [Convex und Vercel Deployment](file:///C:/Users/look/.cursor/plans/convex_und_vercel_deployment_9d68a698.plan.md)
 - [Cursor CLI Permissions Fix](file:///C:/Users/look/.cursor/plans/cursor_cli_permissions_fix_a548cc78.plan.md)
 - [Dashboard-Links-und-Units-Uebersicht](file:///C:/Users/look/.cursor/plans/dashboard-links-und-units-uebersicht_9be9979e.plan.md)
 - [Debug Unit Not Found](file:///C:/Users/look/.cursor/plans/debug_unit_not_found_444c455d.plan.md)
@@ -40,6 +46,10 @@ Diese Datei enthÃ¤lt Links zu allen gespeicherten Cursor-PlÃ¤nen.
 - [Fix Breadcrumb Module Name](file:///C:/Users/look/.cursor/plans/fix_breadcrumb_module_name_ceb6a07b.plan.md)
 - [Fix Gemini Model Name 404 Error](file:///C:/Users/look/.cursor/plans/fix_gemini_model_name_404_error_09a829bc.plan.md)
 - [Fix markUnit1Complete Mutation Deployment Issue](file:///C:/Users/look/.cursor/plans/fix_markunit1complete_mutation_deployment_issue_7df176bf.plan.md)
+- [Floating Chat Button mit Modal](file:///C:/Users/look/.cursor/plans/floating_chat_button_mit_modal_112ff5d3.plan.md)
+- [Floating Chat Button mit Modal](file:///C:/Users/look/.cursor/plans/floating_chat_button_mit_modal_34d0de35.plan.md)
+- [Floating Chat Button mit Modal](file:///C:/Users/look/.cursor/plans/floating_chat_button_mit_modal_428466d8.plan.md)
+- [Floating Chat Button mit Modal](file:///C:/Users/look/.cursor/plans/floating_chat_button_mit_modal_47c1904b.plan.md)
 - [Gamification UI Verbesserungen](file:///C:/Users/look/.cursor/plans/gamification_ui_verbesserungen_c54a82a9.plan.md)
 - [Git Shortcuts PowerShell Fix](file:///C:/Users/look/.cursor/plans/git_shortcuts_powershell_fix_d6f7aab8.plan.md)
 - [GitHub Repository Setup](file:///C:/Users/look/.cursor/plans/github_repository_setup_4148426e.plan.md)
@@ -78,6 +88,7 @@ Diese Datei enthÃ¤lt Links zu allen gespeicherten Cursor-PlÃ¤nen.
 - [units-page-overview_38c8b5f3.plan.md](file:///C:/Users/look/.cursor/plans/units-page-overview_38c8b5f3.plan.md)
 - [Unit-Ãœbersetzungen und Abschluss-Logik](file:///C:/Users/look/.cursor/plans/unit-übersetzungen_und_abschluss-logik_eabf4468.plan.md)
 - [unit-vocab-migration](file:///C:/Users/look/.cursor/plans/unit-vocab-migration_b51652a0.plan.md)
+- [Versionsverwaltung & Changelog System](file:///C:/Users/look/.cursor/plans/versionsverwaltung_&_changelog_system_b043d103.plan.md)
 - [Vocabulary Note Fields Implementation](file:///C:/Users/look/.cursor/plans/vocabulary_note_fields_implementation_ba474e77.plan.md)
 - [Vocabulary Quiz Mastered Badge](file:///C:/Users/look/.cursor/plans/vocabulary_quiz_mastered_badge_ebedc6bd.plan.md)
 - [Vocabulary Schema Refactoring](file:///C:/Users/look/.cursor/plans/vocabulary_schema_refactoring_04603657.plan.md)
