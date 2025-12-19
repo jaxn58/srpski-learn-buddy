@@ -34,7 +34,7 @@ export function FloatingChatButton() {
         <Button
           onClick={() => setIsOpen(true)}
           size="lg"
-          className="h-14 px-6 rounded-full shadow-2xl bg-primary hover:bg-primary/90 text-white font-semibold gap-3 transition-all hover:scale-105"
+          className="h-14 px-6 rounded-full shadow-2xl bg-serbian-red hover:bg-serbian-red/90 text-white font-semibold gap-3 transition-all hover:scale-105"
         >
           <Brain className="text-white" style={{ width: '28px', height: '28px' }} />
           <span 
