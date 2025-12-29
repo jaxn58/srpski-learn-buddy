@@ -475,5 +475,48 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_name_updatedAt", ["name", "updatedAt"]),
+
+  // ============= APP VERSIONS =============
+  appVersions: defineTable({
+    version: v.string(), // Semantic Version (e.g., "1.0.0")
+    major: v.number(),
+    minor: v.number(),
+    patch: v.number(),
+    environment: v.union(
+      v.literal("beta"),
+      v.literal("production"),
+      v.literal("staging")
+    ),
+    releaseDate: v.number(), // timestamp
+    isCurrent: v.boolean(), // Only one version per environment can be current
+    deploymentCommit: v.optional(v.string()), // Git commit hash
+    deploymentBranch: v.optional(v.string()), // Git branch name
+  })
+    .index("by_environment", ["environment"])
+    .index("by_version", ["version"])
+    .index("by_current", ["environment", "isCurrent"]),
+
+  // ============= CHANGELOG ENTRIES =============
+  changelogEntries: defineTable({
+    versionId: v.id("appVersions"), // Foreign Key to appVersions
+    category: v.union(
+      v.literal("added"),
+      v.literal("changed"),
+      v.literal("fixed"),
+      v.literal("removed")
+    ),
+    title: v.string(), // Short description
+    description: v.optional(v.string()), // Detailed description
+    language: v.union(
+      v.literal("en"),
+      v.literal("de")
+    ), // Multi-language support
+    createdBy: v.id("users"), // Foreign Key to users
+    createdAt: v.number(), // timestamp
+    order: v.number(), // Sort order within version
+  })
+    .index("by_version", ["versionId"])
+    .index("by_category", ["category"])
+    .index("by_language", ["language"]),
 });
 

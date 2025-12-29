@@ -22,6 +22,8 @@ import MySubscription from "./pages/MySubscription";
 import SubscriptionAnalytics from "./pages/SubscriptionAnalytics";
 import EmailTemplates from "./pages/EmailTemplates";
 import PromptAdmin from "./pages/PromptAdmin";
+import ChangelogAdmin from "./pages/ChangelogAdmin";
+import Changelog from "./pages/Changelog";
 import SignInPage from "./pages/SignIn";
 import SignUpPage from "./pages/SignUp";
 import Units from "./pages/Units";
@@ -112,6 +114,9 @@ function Router() {
       <Route path="/admin/prompt">
         {() => <Protected Component={PromptAdmin} />}
       </Route>
+      <Route path="/admin/changelog">
+        {() => <Protected Component={ChangelogAdmin} />}
+      </Route>
       <Route path="/admin/feedback">
         {() => <Protected Component={FeedbackManagement} />}
       </Route>
@@ -124,6 +129,9 @@ function Router() {
       <Route path="/admin">
         {() => <Protected Component={Admin} />}
       </Route>
+      
+      {/* Public Changelog */}
+      <Route path="/changelog" component={Changelog} />
       
       {/* 404 */}
       <Route path="/404" component={NotFound} />

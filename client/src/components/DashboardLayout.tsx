@@ -47,7 +47,8 @@ import {
   Star,
   Flame,
   Award,
-  Shield
+  Shield,
+  ScrollText
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
@@ -186,6 +187,7 @@ function DashboardLayoutContent({
   const adminItems: NavItem[] = [
     { label: t('sidebar.userManagement'), path: "/admin", icon: <Users className="h-4 w-4" /> },
     { label: "Prompt Admin", path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+    { label: "Changelog", path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
     { label: t('sidebar.feedback'), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
     { label: t('sidebar.emailTemplates'), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
     { label: t('sidebar.subscriptionAnalytics'), path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
@@ -465,11 +467,16 @@ function DashboardLayoutContent({
             </DropdownMenu>
             {/* Version Display */}
             {!isCollapsed && (
-              <div className="px-2 py-1.5 text-center border-t pt-2 mt-2">
-                <p className="text-[10px] text-muted-foreground font-mono">
-                  v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : "1.0.0"}
-                </p>
-              </div>
+              <Link href="/changelog">
+                <div className="px-2 py-1.5 text-center border-t pt-2 mt-2 hover:bg-accent/50 rounded-md transition-colors cursor-pointer">
+                  <p className="text-[10px] text-muted-foreground font-mono hover:text-foreground transition-colors">
+                    v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : "1.0.0"} Beta
+                  </p>
+                  <p className="text-[9px] text-muted-foreground/70 mt-0.5">
+                    View Changelog
+                  </p>
+                </div>
+              </Link>
             )}
           </SidebarFooter>
         </Sidebar>
