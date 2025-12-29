@@ -139,7 +139,7 @@ export default function Chat() {
     }
   };
 
-  const handleSelectSession = async (sessionId: string) => {
+  const handleSelectSession = async (sessionId: string | null) => {
     setCurrentSessionId(sessionId);
     // Messages will be loaded automatically via useQuery
   };

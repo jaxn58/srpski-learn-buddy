@@ -7,10 +7,20 @@ import type { Doc } from "../../../convex/_generated/dataModel";
 import { MessageSquarePlus, MessageSquare, Trash, Archive, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ChatSessionsSidebarProps {
   currentSessionId: string | null;
-  onSelectSession: (sessionId: string) => void;
+  onSelectSession: (sessionId: string | null) => void;
   onNewChat: () => void;
 }
 
@@ -23,68 +33,54 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
   const archiveSessionMutation = useMutation(api.chat.archiveSession);
   const unarchiveSessionMutation = useMutation(api.chat.unarchiveSession);
   const deleteArchivedMutation = useMutation(api.chat.deleteArchivedSession);
-  const bulkDeleteMutation = useMutation(api.chat.bulkDeleteNewChats);
-  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const handleDelete = useCallback((sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     
-    // Sofortiges visuelles Feedback ohne Blockierung
-    startTransition(() => {
-      if (!confirm("Chat archivieren? Anschließend kann er endgültig gelöscht werden.")) return;
-      
-      // Optimistisches UI-Update
-      setProcessingIds(prev => new Set(prev).add(sessionId));
-      
-      // Asynchrone Operation ohne UI-Blockierung
-      archiveSessionMutation({ sessionId: sessionId as any })
-        .then(() => {
-          // If archiving current session, trigger new chat
-          if (sessionId === currentSessionId) {
-            onNewChat();
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to archive session:", error);
-          toast.error("Konnte Chat nicht archivieren.");
-        })
-        .finally(() => {
-          setProcessingIds(prev => {
-            const next = new Set(prev);
-            next.delete(sessionId);
-            return next;
-          });
+    // Non-blocking confirmation dialog
+    setConfirmDialog({
+      open: true,
+      title: "Archive chat?",
+      description: "The chat will be archived and can be permanently deleted afterwards.",
+      onConfirm: () => {
+        // Sofortiges visuelles Feedback ohne Blockierung
+        startTransition(() => {
+          // Optimistisches UI-Update
+          setProcessingIds(prev => new Set(prev).add(sessionId));
+          
+          // Asynchrone Operation ohne UI-Blockierung
+          archiveSessionMutation({ sessionId: sessionId as any })
+            .then(() => {
+              // If archiving current session, clear selection instead of creating new chat
+              if (sessionId === currentSessionId) {
+                onSelectSession(null);
+              }
+            })
+            .catch((error) => {
+              console.error("Failed to archive session:", error);
+              toast.error("Could not archive chat.");
+            })
+            .finally(() => {
+              setProcessingIds(prev => {
+                const next = new Set(prev);
+                next.delete(sessionId);
+                return next;
+              });
+            });
         });
-    });
-  }, [archiveSessionMutation, currentSessionId, onNewChat]);
-
-  const handleBulkDeleteNewChats = useCallback(() => {
-    startTransition(() => {
-      const newChatCount = sessions?.filter((session: ChatSession) => session.title === "New Chat").length || 0;
-      if (newChatCount === 0) {
-        toast.info("No empty chats to delete.");
-        return;
       }
-      
-      if (!confirm(`Delete all ${newChatCount} empty chat${newChatCount > 1 ? 's' : ''}? This cannot be undone.`)) return;
-      
-      setBulkDeleting(true);
-      bulkDeleteMutation({})
-        .then((result) => {
-          toast.success(`Successfully deleted ${result.deletedCount} empty chat${result.deletedCount > 1 ? 's' : ''}.`);
-        })
-        .catch((error) => {
-          console.error("Failed to bulk delete:", error);
-          toast.error("Failed to delete empty chats. Please try again.");
-        })
-        .finally(() => {
-          setBulkDeleting(false);
-        });
     });
-  }, [sessions, bulkDeleteMutation]);
+  }, [archiveSessionMutation, currentSessionId, onSelectSession]);
+
 
   const handleSelect = useCallback((sessionId: string) => {
     startTransition(() => {
@@ -93,16 +89,31 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
   }, [onSelectSession]);
 
   const handleUnarchive = useCallback((sessionId: string) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:95',message:'handleUnarchive START',data:{sessionId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
     startTransition(() => {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:99',message:'BEFORE setProcessingIds',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       setProcessingIds(prev => new Set(prev).add(sessionId));
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:103',message:'AFTER setProcessingIds',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       
       unarchiveSessionMutation({ sessionId: sessionId as any })
         .then(() => {
-          toast.success("Chat reaktiviert.");
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:109',message:'BEFORE toast.success',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+          // #endregion
+          toast.success("Chat restored.");
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:113',message:'AFTER toast.success',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+          // #endregion
         })
         .catch((error) => {
           console.error("Failed to unarchive session:", error);
-          toast.error("Konnte Chat nicht reaktivieren.");
+          toast.error("Could not restore chat.");
         })
         .finally(() => {
           setProcessingIds(prev => {
@@ -115,26 +126,33 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
   }, [unarchiveSessionMutation]);
 
   const handleDeleteArchived = useCallback((sessionId: string) => {
-    startTransition(() => {
-      if (!confirm("Diesen archivierten Chat endgültig löschen?")) return;
+    // Non-blocking confirmation dialog
+    setConfirmDialog({
+      open: true,
+      title: "Delete archived chat?",
+      description: "This archived chat will be permanently deleted. This action cannot be undone.",
+      onConfirm: () => {
+        startTransition(() => {
       
-      setProcessingIds(prev => new Set(prev).add(sessionId));
-      
-      deleteArchivedMutation({ sessionId: sessionId as any })
-        .then(() => {
-          toast.success("Archivierter Chat gelöscht.");
-        })
-        .catch((error) => {
-          console.error("Failed to delete archived session:", error);
-          toast.error("Konnte archivierten Chat nicht löschen.");
-        })
-        .finally(() => {
-          setProcessingIds(prev => {
-            const next = new Set(prev);
-            next.delete(sessionId);
-            return next;
-          });
+          setProcessingIds(prev => new Set(prev).add(sessionId));
+          
+          deleteArchivedMutation({ sessionId: sessionId as any })
+            .then(() => {
+              toast.success("Archived chat deleted.");
+            })
+            .catch((error) => {
+              console.error("Failed to delete archived session:", error);
+              toast.error("Could not delete archived chat.");
+            })
+            .finally(() => {
+              setProcessingIds(prev => {
+                const next = new Set(prev);
+                next.delete(sessionId);
+                return next;
+              });
+            });
         });
+      }
     });
   }, [deleteArchivedMutation]);
 
@@ -150,18 +168,6 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           New Chat
         </Button>
         
-        {sessions?.some((session: ChatSession) => session.title === "New Chat") && (
-          <Button 
-            onClick={handleBulkDeleteNewChats}
-            variant="outline"
-            className="w-full text-xs"
-            size="sm"
-            disabled={bulkDeleting}
-          >
-            <Trash className="h-3 w-3 mr-2" />
-            Clear Empty Chats ({sessions.filter((session: ChatSession) => session.title === "New Chat").length})
-          </Button>
-        )}
 
         <Button
           onClick={() => setShowArchived((s) => !s)}
@@ -170,7 +176,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           size="sm"
         >
           <Archive className="h-3 w-3 mr-2" />
-          {showArchived ? "Archiv ausblenden" : "Archiv anzeigen"}
+          {showArchived ? "Hide Archive" : "Show Archive"}
         </Button>
       </div>
 
@@ -216,8 +222,8 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                 )}
                 onClick={(e) => handleDelete(session._id, e)}
                 disabled={processingIds.has(session._id)}
-                title="Archivieren"
-                aria-label="Chat archivieren"
+                title="Archive"
+                aria-label="Archive chat"
               >
                 <Archive className="h-3 w-3" />
               </Button>
@@ -226,12 +232,12 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
 
           {showArchived && (
             <div className="mt-4 border-t pt-3 space-y-2">
-              <div className="text-xs font-semibold text-muted-foreground px-2">Archiviert</div>
+              <div className="text-xs font-semibold text-muted-foreground px-2">Archived</div>
               {archivedSessions === undefined && (
                 <div className="text-sm text-muted-foreground text-center py-2">Loading...</div>
               )}
               {archivedSessions !== undefined && archivedSessions.length === 0 && (
-                <div className="text-sm text-muted-foreground text-center py-2">Keine archivierten Chats</div>
+                <div className="text-sm text-muted-foreground text-center py-2">No archived chats</div>
               )}
               {archivedSessions?.map((session: ChatSession) => (
                 <div
@@ -257,8 +263,8 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                       )}
                       onClick={() => handleUnarchive(session._id)}
                       disabled={processingIds.has(session._id)}
-                      title="Reaktivieren"
-                      aria-label="Chat reaktivieren"
+                      title="Restore"
+                      aria-label="Restore chat"
                     >
                       <RotateCcw className="h-3 w-3" />
                     </Button>
@@ -271,8 +277,8 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                       )}
                       onClick={() => handleDeleteArchived(session._id)}
                       disabled={processingIds.has(session._id)}
-                      title="Endgültig löschen"
-                      aria-label="Chat endgültig löschen"
+                      title="Delete permanently"
+                      aria-label="Delete chat permanently"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -283,6 +289,29 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           )}
         </div>
       </ScrollArea>
+
+      {/* Non-blocking confirmation dialog */}
+      <AlertDialog open={confirmDialog?.open || false} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialog?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDialog(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                confirmDialog?.onConfirm();
+                setConfirmDialog(null);
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
