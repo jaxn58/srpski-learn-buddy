@@ -15,6 +15,9 @@ build/
 .env.production.local
 .env.production
 .env.vercel-production
+.env.vercel.production
+.env.vercel.validation
+.env.vercel.*
 
 # Cursor generated files
 .cursor/plans-index.md
