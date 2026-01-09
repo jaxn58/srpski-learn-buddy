@@ -15,6 +15,7 @@ import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { FeedbackForm } from "@/components/FeedbackForm";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
+import { logger } from "@/lib/logger";
 
 import { useState, useEffect } from "react";
 
@@ -35,18 +36,18 @@ export default function Dashboard() {
   
   const syncUserMutation = useMutation(api.users.syncUser);
   
-  // Debug: Log user object to check isBetaTester
+  // Debug: Log user object to check isBetaTester (only in development)
   useEffect(() => {
     if (user) {
-      console.log('[Dashboard] User object:', user);
-      console.log('[Dashboard] isBetaTester:', user.isBetaTester);
+      logger.debug('[Dashboard] User object:', user);
+      logger.debug('[Dashboard] isBetaTester:', user.isBetaTester);
     }
   }, [user]);
 
   // Explicit sync check: If Clerk user exists but Convex user doesn't, trigger sync
   useEffect(() => {
     if (clerkUser && !authLoading && !user) {
-      console.log('[Dashboard] Clerk user exists but Convex user not found, triggering sync...', {
+      logger.log('[Dashboard] Clerk user exists but Convex user not found, triggering sync...', {
         clerkId: clerkUser.id,
         email: clerkUser.emailAddresses?.[0]?.emailAddress,
       });
@@ -55,10 +56,10 @@ export default function Dashboard() {
       const timeoutId = setTimeout(() => {
         syncUserMutation({ learningLanguage: 'en' })
           .then(() => {
-            console.log('[Dashboard] Manual sync successful');
+            logger.log('[Dashboard] Manual sync successful');
           })
           .catch((error) => {
-            console.error('[Dashboard] Manual sync failed:', error);
+            logger.error('[Dashboard] Manual sync failed:', error);
           });
       }, 3000); // Wait 3 seconds to give useAuth hook a chance first
 

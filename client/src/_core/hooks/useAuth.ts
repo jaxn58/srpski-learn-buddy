@@ -2,6 +2,7 @@ import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useMemo, useEffect, useRef } from "react";
+import { logger } from "@/lib/logger";
 
 /**
  * BETA: Force English for all users
@@ -43,17 +44,17 @@ export function useAuth() {
 
     syncAttemptedRef.current = true;
     
-    console.log("[useAuth] Triggering syncUser for Clerk user", {
+    logger.log("[useAuth] Triggering syncUser for Clerk user", {
       clerkId: clerkUser?.id,
       email: clerkUser?.primaryEmailAddress?.emailAddress,
     });
 
     syncUser({ learningLanguage: "en" })
       .then(() => {
-        console.log("[useAuth] User sync successful");
+        logger.log("[useAuth] User sync successful");
       })
       .catch((error) => {
-        console.error("[useAuth] Failed to sync user:", error);
+        logger.error("[useAuth] Failed to sync user:", error);
         syncAttemptedRef.current = false;
       });
   }, [isSignedIn, clerkLoaded, clerkUser, syncUser]);

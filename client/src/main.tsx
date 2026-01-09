@@ -9,6 +9,7 @@ import App from "./App";
 import "./index.css";
 import i18n from "./i18n";
 
+// Note: Logger is not available yet (module not loaded), so we use direct console for this bootstrap code
 // WebAuthn Polyfill: Fix "Cannot assign to read only property 'get'" in Clerk
 // This patches the CredentialsContainer API to make it writable
 if (typeof window !== 'undefined' && navigator.credentials) {
