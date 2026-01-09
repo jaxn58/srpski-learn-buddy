@@ -42,6 +42,15 @@ if ($profileContent -and $profileContent.Contains($sourceLine)) {
         Write-Host "Installation abgebrochen" -ForegroundColor Gray
         exit 0
     }
+    
+    # Bei Neuinstallation: Alte Eintraege entfernen
+    Write-Host "Entferne alte Eintraege..." -ForegroundColor Yellow
+    $lines = Get-Content $profilePath
+    $newLines = $lines | Where-Object { 
+        $_ -ne $sourceLine -and 
+        $_ -ne "# Git-Kurzbefehle laden" 
+    }
+    Set-Content -Path $profilePath -Value $newLines
 }
 
 # Funktionen zum Profil hinzufuegen

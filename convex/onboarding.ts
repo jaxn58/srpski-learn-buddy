@@ -297,9 +297,12 @@ export const toggleStepActive = mutation({
 });
 
 /**
+ * DEPRECATED: This function is for V1 row-based schema only
  * Reorder onboarding steps
  * Takes an array of step IDs in the desired order and updates their stepNumber accordingly
  * Admin only
+ * 
+ * @deprecated Use manual stepNumber updates via updateOnboardingStepV2 instead
  */
 export const reorderOnboardingSteps = mutation({
   args: {
@@ -331,7 +334,9 @@ export const reorderOnboardingSteps = mutation({
         continue;
       }
 
-      if (step.language !== args.language) {
+      // DEPRECATED: language field no longer exists in column-based schema
+      // This function should not be used anymore
+      if (step.language && step.language !== args.language) {
         throw new Error(`Step ${stepId} does not belong to language ${args.language}`);
       }
 
