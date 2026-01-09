@@ -185,23 +185,6 @@ function DashboardLayoutContent({
     return env.charAt(0).toUpperCase() + env.slice(1);
   }, [currentAppVersion]);
 
-  // #region agent log - footer version source (debug mode)
-  useEffect(() => {
-    const runId = "footer-version-pre-fix";
-    if (currentAppVersion === undefined) {
-      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId,hypothesisId:'H1',location:'DashboardLayout.tsx:currentAppVersion',message:'currentAppVersion loading (undefined)',data:{},timestamp:Date.now()})}).catch(()=>{});
-      return;
-    }
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId,hypothesisId:'H1',location:'DashboardLayout.tsx:currentAppVersion',message:'currentAppVersion resolved',data:{hasVersion:Boolean(currentAppVersion),version:currentAppVersion?.version,environment:currentAppVersion?.environment},timestamp:Date.now()})}).catch(()=>{});
-  }, [currentAppVersion]);
-
-  useEffect(() => {
-    const runId = "footer-version-pre-fix";
-    const usingFallback = !(currentAppVersion && typeof currentAppVersion.version === "string");
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId,hypothesisId:'H2',location:'DashboardLayout.tsx:displayedAppVersion',message:'displayed version computed',data:{usingFallback,displayedAppVersion,displayedReleaseChannel},timestamp:Date.now()})}).catch(()=>{});
-  }, [currentAppVersion, displayedAppVersion, displayedReleaseChannel]);
-  // #endregion
-
   const navItems: NavItem[] = [
     { label: t('sidebar.dashboard'), path: "/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { label: t('sidebar.units'), path: "/units", icon: <Layers className="h-5 w-5" /> },
