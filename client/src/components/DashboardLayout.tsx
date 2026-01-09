@@ -50,7 +50,7 @@ import {
   Shield,
   ScrollText
 } from "lucide-react";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { useTranslation } from "react-i18next";
@@ -168,6 +168,39 @@ function DashboardLayoutContent({
   const userBadges = useQuery(api.badges.getUserBadges);
   const badgeCount = useQuery(api.badges.getBadgeCount);
   const badgeData = badgeCount !== undefined ? { count: badgeCount } : undefined;
+
+  // Source of truth for displayed version: Convex appVersions (not package.json)
+  const currentAppVersion = useQuery(api.versions.getCurrentVersion, { environment: "beta" });
+
+  const displayedAppVersion = useMemo(() => {
+    if (currentAppVersion && typeof currentAppVersion.version === "string") {
+      return currentAppVersion.version;
+    }
+    // Fallback only if Convex is still loading or no version exists yet
+    return typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.0";
+  }, [currentAppVersion]);
+
+  const displayedReleaseChannel = useMemo(() => {
+    const env = currentAppVersion?.environment ?? "beta";
+    return env.charAt(0).toUpperCase() + env.slice(1);
+  }, [currentAppVersion]);
+
+  // #region agent log - footer version source (debug mode)
+  useEffect(() => {
+    const runId = "footer-version-pre-fix";
+    if (currentAppVersion === undefined) {
+      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId,hypothesisId:'H1',location:'DashboardLayout.tsx:currentAppVersion',message:'currentAppVersion loading (undefined)',data:{},timestamp:Date.now()})}).catch(()=>{});
+      return;
+    }
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId,hypothesisId:'H1',location:'DashboardLayout.tsx:currentAppVersion',message:'currentAppVersion resolved',data:{hasVersion:Boolean(currentAppVersion),version:currentAppVersion?.version,environment:currentAppVersion?.environment},timestamp:Date.now()})}).catch(()=>{});
+  }, [currentAppVersion]);
+
+  useEffect(() => {
+    const runId = "footer-version-pre-fix";
+    const usingFallback = !(currentAppVersion && typeof currentAppVersion.version === "string");
+    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId,hypothesisId:'H2',location:'DashboardLayout.tsx:displayedAppVersion',message:'displayed version computed',data:{usingFallback,displayedAppVersion,displayedReleaseChannel},timestamp:Date.now()})}).catch(()=>{});
+  }, [currentAppVersion, displayedAppVersion, displayedReleaseChannel]);
+  // #endregion
 
   const navItems: NavItem[] = [
     { label: t('sidebar.dashboard'), path: "/dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
@@ -470,7 +503,7 @@ function DashboardLayoutContent({
               <Link href="/changelog">
                 <div className="px-2 py-1.5 text-center border-t pt-2 mt-2 hover:bg-accent/50 rounded-md transition-colors cursor-pointer">
                   <p className="text-[10px] text-muted-foreground font-mono hover:text-foreground transition-colors">
-                    v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : "1.0.0"} Beta
+                    v{displayedAppVersion} {displayedReleaseChannel}
                   </p>
                   <p className="text-[9px] text-muted-foreground/70 mt-0.5">
                     View Changelog
