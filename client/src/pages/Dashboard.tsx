@@ -47,7 +47,7 @@ export default function Dashboard() {
   // Explicit sync check: If Clerk user exists but Convex user doesn't, trigger sync
   useEffect(() => {
     if (clerkUser && !authLoading && !user) {
-      logger.log('[Dashboard] Clerk user exists but Convex user not found, triggering sync...', {
+      logger.debug('[Dashboard] Clerk user exists but Convex user not found, triggering sync...', {
         clerkId: clerkUser.id,
         email: clerkUser.emailAddresses?.[0]?.emailAddress,
       });
@@ -56,7 +56,7 @@ export default function Dashboard() {
       const timeoutId = setTimeout(() => {
         syncUserMutation({ learningLanguage: 'en' })
           .then(() => {
-            logger.log('[Dashboard] Manual sync successful');
+            logger.debug('[Dashboard] Manual sync successful');
           })
           .catch((error) => {
             logger.error('[Dashboard] Manual sync failed:', error);
