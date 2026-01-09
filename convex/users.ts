@@ -106,7 +106,7 @@ export const syncUser = mutation({
       throw error;
     }
 
-    // Check if user already exists
+    // Check if user already exists by Clerk ID
     const existing = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
@@ -172,6 +172,28 @@ export const syncUser = mutation({
       shouldBeBetaTester,
       learningLanguage: args.learningLanguage || "en",
     });
+
+    // SECURITY: Check if email is already registered (prevent duplicate accounts)
+    if (identity.email) {
+      const existingByEmail = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", identity.email))
+        .first();
+
+      if (existingByEmail) {
+        const error = new Error(
+          `Email ${identity.email} is already registered. ` +
+          `Please use the existing account or contact support.`
+        );
+        console.error('[syncUser] Duplicate email detected:', {
+          existingUserId: existingByEmail._id,
+          existingClerkId: existingByEmail.clerkId,
+          attemptedClerkId: identity.subject,
+          email: identity.email,
+        });
+        throw error;
+      }
+    }
 
     // User's learning language (default to English if not provided)
     const userLanguage = args.learningLanguage || "en";
