@@ -43,16 +43,8 @@ export function useAuth() {
     }
 
     syncAttemptedRef.current = true;
-    
-    logger.log("[useAuth] Triggering syncUser for Clerk user", {
-      clerkId: clerkUser?.id,
-      email: clerkUser?.primaryEmailAddress?.emailAddress,
-    });
 
     syncUser({ learningLanguage: "en" })
-      .then(() => {
-        logger.log("[useAuth] User sync successful");
-      })
       .catch((error) => {
         logger.error("[useAuth] Failed to sync user:", error);
         syncAttemptedRef.current = false;

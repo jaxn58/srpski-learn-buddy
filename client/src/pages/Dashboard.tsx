@@ -35,29 +35,13 @@ export default function Dashboard() {
   const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
   
   const syncUserMutation = useMutation(api.users.syncUser);
-  
-  // Debug: Log user object to check isBetaTester (only in development)
-  useEffect(() => {
-    if (user) {
-      logger.debug('[Dashboard] User object:', user);
-      logger.debug('[Dashboard] isBetaTester:', user.isBetaTester);
-    }
-  }, [user]);
 
   // Explicit sync check: If Clerk user exists but Convex user doesn't, trigger sync
   useEffect(() => {
     if (clerkUser && !authLoading && !user) {
-      logger.debug('[Dashboard] Clerk user exists but Convex user not found, triggering sync...', {
-        clerkId: clerkUser.id,
-        email: clerkUser.emailAddresses?.[0]?.emailAddress,
-      });
-      
       // Wait a moment to let useAuth hook handle it first, then retry if needed
       const timeoutId = setTimeout(() => {
         syncUserMutation({ learningLanguage: 'en' })
-          .then(() => {
-            logger.debug('[Dashboard] Manual sync successful');
-          })
           .catch((error) => {
             logger.error('[Dashboard] Manual sync failed:', error);
           });
