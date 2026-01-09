@@ -1,10 +1,8 @@
 import { SignUp } from "@clerk/clerk-react";
 import { BookOpen } from "lucide-react";
 import { Link } from "wouter";
-import { useEffect } from "react";
 
 export default function SignUpPage() {
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50 flex flex-col">
       {/* Header */}
@@ -26,7 +24,7 @@ export default function SignUpPage() {
         <SignUp
           routing="virtual"
           signInUrl="/sign-in"
-          fallbackRedirectUrl="/dashboard"
+          afterSignUpUrl="/dashboard"
           appearance={{
             elements: {
               rootBox: "mx-auto",
@@ -42,4 +40,3 @@ export default function SignUpPage() {
     </div>
   );
 }
-

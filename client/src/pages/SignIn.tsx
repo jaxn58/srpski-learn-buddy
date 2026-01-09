@@ -24,7 +24,7 @@ export default function SignInPage() {
         <SignIn
           routing="virtual"
           signUpUrl="/sign-up"
-          fallbackRedirectUrl="/dashboard"
+          afterSignInUrl="/dashboard"
           appearance={{
             elements: {
               rootBox: "mx-auto",
@@ -40,4 +40,3 @@ export default function SignInPage() {
     </div>
   );
 }
-
