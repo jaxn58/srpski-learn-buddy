@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress as ProgressBar } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { COURSE_MODULES, getModuleProgress } from "@shared/data";
 
 const COLORS = ['#22c55e', '#ef4444']; // Green for Correct, Red for Incorrect
 
@@ -27,10 +26,25 @@ export default function Progress() {
   const { t, i18n } = useTranslation();
   const stats = useQuery(api.progress.getDashboardStats);
   
+  // Load modules and units from database
+  const dbModules = useQuery(api.modules.getAllModulesConsolidated);
+  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" });
+  
   // Memoize modules list to prevent duplicate renders - MUST be before early returns
   const modulesList = useMemo(() => {
-    return COURSE_MODULES;
-  }, []);
+    if (!dbModules || dbModules.length === 0) {
+      return [];
+    }
+    return dbModules.map((module) => ({
+      id: module.slug || "",
+      number: module.moduleNumber || 0,
+      titleEnglish: module.titleEn || "",
+      titleGerman: module.titleDe || "",
+      units: (dbUnitsEn || [])
+        .filter(unit => unit.moduleId === module.slug)
+        .map(unit => unit.unitNumber),
+    }));
+  }, [dbModules, dbUnitsEn]);
 
   const isLoading = stats === undefined;
 
@@ -317,7 +331,12 @@ export default function Progress() {
                 <CardContent>
                   <div className="space-y-6">
                     {modulesList.map((module, index) => {
-                      const moduleProgress = getModuleProgress(module.id, completedUnits);
+                      // Calculate module progress
+                      const completed = module.units.filter(unitNum => completedUnits.includes(unitNum)).length;
+                      const total = module.units.length;
+                      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+                      const moduleProgress = { completed, total, percentage };
+                      
                       const moduleTitle = i18n.language === 'de' ? module.titleGerman : module.titleEnglish;
                       
                       return (

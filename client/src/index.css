@@ -156,6 +156,108 @@
   .bg-serbian-red {
     background: linear-gradient(to bottom right, var(--serbian-red-from), var(--serbian-red-to));
   }
+
+  /**
+   * TipTap Editor Styles
+   */
+  .ProseMirror {
+    @apply outline-none;
+  }
+
+  .ProseMirror p.is-editor-empty:first-child::before {
+    color: var(--muted-foreground);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .ProseMirror h1 {
+    @apply text-2xl font-bold mb-3;
+  }
+
+  .ProseMirror h2 {
+    @apply text-xl font-bold mb-2;
+  }
+
+  .ProseMirror h3 {
+    @apply text-lg font-bold mb-2;
+  }
+
+  .ProseMirror ul,
+  .ProseMirror ol {
+    @apply pl-6 mb-3;
+  }
+
+  .ProseMirror ul {
+    @apply list-disc;
+  }
+
+  .ProseMirror ol {
+    @apply list-decimal;
+  }
+
+  .ProseMirror li {
+    @apply mb-1;
+  }
+
+  .ProseMirror p {
+    @apply mb-3;
+  }
+
+  .ProseMirror code {
+    @apply bg-muted px-1.5 py-0.5 rounded text-sm;
+  }
+
+  .ProseMirror blockquote {
+    @apply border-l-4 border-muted-foreground/20 pl-4 italic my-3;
+  }
+
+  /* Callout and InfoBox styling in editor */
+  .ProseMirror div[class*="bg-blue-50"] {
+    @apply p-4 border rounded-lg my-3;
+    background-color: #eff6ff !important;
+    border-color: #bfdbfe !important;
+  }
+
+  .ProseMirror div[class*="bg-green-50"] {
+    @apply p-4 border rounded-lg my-3;
+    background-color: #f0fdf4 !important;
+    border-color: #bbf7d0 !important;
+  }
+
+  .ProseMirror div[class*="bg-red-50"] {
+    @apply p-4 border rounded-lg my-3;
+    background-color: #fef2f2 !important;
+    border-color: #fecaca !important;
+  }
+
+  .ProseMirror div[class*="p-3 border rounded-lg"] {
+    @apply p-3 border rounded-lg my-2;
+  }
+
+  /* Onboarding content styling (for preview) */
+  .onboarding-content div[class*="bg-blue-50"] {
+    @apply p-4 border rounded-lg my-3;
+    background-color: #eff6ff !important;
+    border-color: #bfdbfe !important;
+  }
+
+  .onboarding-content div[class*="bg-green-50"] {
+    @apply p-4 border rounded-lg my-3;
+    background-color: #f0fdf4 !important;
+    border-color: #bbf7d0 !important;
+  }
+
+  .onboarding-content div[class*="bg-red-50"] {
+    @apply p-4 border rounded-lg my-3;
+    background-color: #fef2f2 !important;
+    border-color: #fecaca !important;
+  }
+
+  .onboarding-content div[class*="p-3 border rounded-lg"] {
+    @apply p-3 border rounded-lg my-2;
+  }
   
   /**
    * Custom container utility that centers content and adds responsive padding.

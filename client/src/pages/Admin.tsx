@@ -47,6 +47,12 @@ export default function Admin() {
   const resetProgressMutation = useMutation(api.admin.resetUserProgress);
   
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    userId: string;
+  } | null>(null);
   
   // Sorting state for users table
   const [usersSortField, setUsersSortField] = useState<string>('name');
@@ -406,12 +412,13 @@ export default function Admin() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600"
-                            onClick={async () => {
-                              const confirmed = window.confirm(
-                                "This will permanently delete the user account and all associated data (progress, vocabulary, chat history). Are you sure?"
-                              );
-                              if (!confirmed) return;
-                              await handleDeleteUser(u._id);
+                            onClick={() => {
+                              setConfirmDialog({
+                                open: true,
+                                title: "Delete User Account",
+                                description: "This will permanently delete the user account and all associated data (progress, vocabulary, chat history). Are you sure?",
+                                userId: u._id
+                              });
                             }}
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
@@ -498,6 +505,39 @@ export default function Admin() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog 
+        open={confirmDialog?.open ?? false} 
+        onOpenChange={(open) => {
+          if (!open) setConfirmDialog(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDialog(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={async () => {
+                if (confirmDialog?.userId) {
+                  await handleDeleteUser(confirmDialog.userId);
+                }
+                setConfirmDialog(null);
+              }}
+            >
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

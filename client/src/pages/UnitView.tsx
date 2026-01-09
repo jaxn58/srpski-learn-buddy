@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { COURSE_MODULES } from "@shared/data";
 import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronRight } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
@@ -31,8 +30,7 @@ export default function UnitView() {
   const vocabulary = useQuery(api.vocabulary.getCourseVocabularyByUnit, { unitNumber });
 
   // Determine Module from unitMetadata
-  // Priority: 1. moduleMetadataId (new structure), 2. moduleId/slug (old structure), 3. COURSE_MODULES fallback
-  const moduleSlug = unitMetadata?.moduleId || COURSE_MODULES.find(m => m.units.includes(unitNumber))?.id;
+  const moduleSlug = unitMetadata?.moduleId;
   
   // Try to get module by slug (new consolidated structure)
   const moduleMetadata = useQuery(api.modules.getModuleBySlug, 
@@ -70,9 +68,7 @@ export default function UnitView() {
       return sanitizeTitle(oldModuleMetadata.title);
     }
 
-    // Final fallback to COURSE_MODULES
-    const fallbackModule = COURSE_MODULES.find((module) => module.id === moduleSlug);
-    return displayLanguage === "de" ? fallbackModule?.titleGerman : fallbackModule?.titleEnglish;
+    return undefined;
   }, [moduleSlug, moduleMetadata, oldModuleMetadata, displayLanguage]);
 
   // Progress hooks

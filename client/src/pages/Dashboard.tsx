@@ -79,22 +79,20 @@ export default function Dashboard() {
     }
   };
   
-  // Show onboarding for new users (created within last 24 hours)
+  // Show onboarding automatically unless user has explicitly disabled it
   useEffect(() => {
     if (user) {
-      const createdDate = new Date(user._creationTime);
-      const daysSinceCreation = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
-      const hasSeenOnboarding = localStorage.getItem(`onboarding_seen_${user._id}`);
+      const isDisabled = localStorage.getItem(`onboarding_disabled_${user._id}`);
       
-      if (daysSinceCreation < 1 && !hasSeenOnboarding) {
+      if (!isDisabled) {
         setShowOnboarding(true);
       }
     }
   }, [user]);
   
-  const handleCloseOnboarding = () => {
-    if (user) {
-      localStorage.setItem(`onboarding_seen_${user._id}`, 'true');
+  const handleCloseOnboarding = (disableAutoShow: boolean = false) => {
+    if (user && disableAutoShow) {
+      localStorage.setItem(`onboarding_disabled_${user._id}`, 'true');
     }
     setShowOnboarding(false);
   };

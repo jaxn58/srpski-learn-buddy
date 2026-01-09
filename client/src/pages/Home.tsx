@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { getModulesForLanding, getTotalVocabularyCount } from "@shared/data";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
@@ -25,27 +24,55 @@ export default function Home() {
     localStorage.removeItem('preferredLanguage');
   }, [i18n]);
   
-  // NEW: Fetch course vocabulary from database
+  // Fetch data from database
   const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
+  const dbModules = useQuery(api.modules.getAllModulesConsolidated);
+  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" });
   
   // Generate modules data for landing page from database
   const MODULES_DATA = useMemo(() => {
-    if (!courseVocabulary || courseVocabulary.length === 0) {
-      // FALLBACK: Return empty array if data not loaded yet
+    if (!dbModules || dbModules.length === 0 || !courseVocabulary) {
       return [];
     }
-    // Map courseVocabulary to format expected by getModulesForLanding
-    const vocabForLanding = courseVocabulary.map(word => ({ unit: word.unitNumber }));
-    return getModulesForLanding(vocabForLanding);
-  }, [courseVocabulary]);
+    
+    // Count vocabulary per unit
+    const vocabCounts = courseVocabulary.reduce((acc, word) => {
+      acc[word.unitNumber] = (acc[word.unitNumber] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+    
+    // Count units per module
+    const unitCounts = (dbUnitsEn || []).reduce((acc, unit) => {
+      const moduleId = unit.moduleId;
+      if (moduleId) {
+        acc[moduleId] = (acc[moduleId] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return dbModules.map((module) => {
+      // Calculate total vocabulary for this module by summing units
+      const moduleUnits = (dbUnitsEn || []).filter(u => u.moduleId === module.slug);
+      const vocabCount = moduleUnits.reduce((sum, unit) => {
+        return sum + (vocabCounts[unit.unitNumber] || 0);
+      }, 0);
+      
+      return {
+        id: module.slug || "",
+        number: module.moduleNumber || 0,
+        title: module.titleEn || "",
+        titleEnglish: module.titleEn || "",
+        titleGerman: module.titleDe || "",
+        description: module.descriptionEn || "",
+        descriptionGerman: module.descriptionDe || "",
+        unitCount: unitCounts[module.slug || ""] || 0,
+        vocabCount: vocabCount,
+      };
+    });
+  }, [dbModules, courseVocabulary, dbUnitsEn]);
   
   const TOTAL_VOCABULARY = useMemo(() => {
-    if (!courseVocabulary || courseVocabulary.length === 0) {
-      return 0;
-    }
-    // Map courseVocabulary to format expected by getTotalVocabularyCount
-    const vocabForCount = courseVocabulary.map(word => ({ unit: word.unitNumber }));
-    return getTotalVocabularyCount(vocabForCount);
+    return courseVocabulary?.length || 0;
   }, [courseVocabulary]);
 
   if (loading) {

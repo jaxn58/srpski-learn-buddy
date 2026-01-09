@@ -48,7 +48,8 @@ import {
   Flame,
   Award,
   Shield,
-  ScrollText
+  ScrollText,
+  Presentation
 } from "lucide-react";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
@@ -204,6 +205,7 @@ function DashboardLayoutContent({
     { label: t('sidebar.userManagement'), path: "/admin", icon: <Users className="h-4 w-4" /> },
     { label: "Prompt Admin", path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
     { label: "Changelog", path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
+    { label: "Onboarding", path: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
     { label: t('sidebar.feedback'), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
     { label: t('sidebar.emailTemplates'), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
     { label: t('sidebar.subscriptionAnalytics'), path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
