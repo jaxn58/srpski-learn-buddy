@@ -38,7 +38,7 @@ export default function Changelog() {
 
   if (changelogHistory === undefined) {
     return (
-      <div className="container mx-auto py-12 space-y-8">
+      <div className="container mx-auto py-8 space-y-8">
         <div className="space-y-4">
           <Skeleton className="h-12 w-64" />
           <Skeleton className="h-6 w-96" />
@@ -61,22 +61,20 @@ export default function Changelog() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50">
-      {/* Header */}
-      <header className="container py-6 border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <BookOpen className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Changelog</h1>
-            <p className="text-muted-foreground">
-              What's new in Serbian AI Tutor
-            </p>
-          </div>
+    <div className="container mx-auto py-8 space-y-8 max-w-4xl">
+      {/* Page Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <BookOpen className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-3xl font-bold">Changelog</h1>
+          <p className="text-muted-foreground">
+            What's new in Serbian AI Tutor
+          </p>
         </div>
-      </header>
+      </div>
 
       {/* Changelog Content */}
-      <div className="container mx-auto py-12 space-y-8 max-w-4xl">
+      <div className="space-y-8">
         {changelogHistory.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
@@ -222,13 +220,6 @@ export default function Changelog() {
           ))
         )}
       </div>
-
-      {/* Footer */}
-      <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50 mt-12">
-        <div className="text-center text-sm text-muted-foreground">
-          <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
-        </div>
-      </footer>
     </div>
   );
 }

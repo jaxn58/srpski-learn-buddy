@@ -130,8 +130,10 @@ function Router() {
         {() => <Protected Component={Admin} />}
       </Route>
       
-      {/* Public Changelog */}
-      <Route path="/changelog" component={Changelog} />
+      {/* Changelog - Protected with Sidebar */}
+      <Route path="/changelog">
+        {() => <Protected Component={Changelog} />}
+      </Route>
       
       {/* 404 */}
       <Route path="/404" component={NotFound} />
