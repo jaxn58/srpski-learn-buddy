@@ -1,11 +1,10 @@
 /**
- * Central export file for all course data
- * Import from '@shared/data' for easy access to all data structures
+ * Central export file for shared data types
+ * NOTE: Course units and modules are now loaded from database only.
+ * Import from '@shared/data' for types and vocabulary data.
  */
 
-// Course data
-export * from "./course/units";
-export * from "./course/modules";
+// Course data (types only - data comes from DB)
 export * from "./course/revisions";
 
 // Vocabulary data

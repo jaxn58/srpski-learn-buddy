@@ -24,6 +24,19 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 - Vorerst benutzen wir aber nur **Englisch**.
 - Bis zu dem Zeitpunkt, wo die App multi-language fähig gemacht wird, oder sobald sie freigeschaltet ist als multi-language App, sollen **alle Inhalte Englisch sein**. Darauf ist zu achten.
 
+### Schema-Design & Konsistenz
+- **IMMER zuerst bestehende Tabellen und Patterns analysieren**, bevor neue Tabellen erstellt werden
+- **Bestehende Patterns verwenden** - nicht neu erfinden!
+- Zwei Multilanguage-Ansätze im Projekt:
+  1. **Spalten-basiert** (bevorzugt): `titleEn`, `titleDe`, `contentEn`, `contentDe` etc.
+     - Verwendet bei: `moduleMetadata`, `courseVocabulary`
+     - Vorteil: Weniger Einträge, einfacher zu verwalten
+  2. **Zeilen-basiert**: Separate Einträge pro Sprache mit `language`-Feld
+     - Verwendet bei: `unitMetadata`, `unitContent`, `unitInteractiveTests`
+     - Vorteil: Flexibler für viele Sprachen
+- **Vor der Implementierung**: Prüfe welches Pattern im bestehenden Schema verwendet wird und halte dich daran
+- **Keine neuen Patterns erfinden** ohne vorherige Absprache
+
 ## XP System
 
 ### Regeln
@@ -119,6 +132,7 @@ pnpm sync:email-templates
 ### Wichtige Workflow-Regeln
 
 **✅ DO's:**
+- **VOR JEDEM Production-Deployment: User explizit fragen "Soll ich jetzt auf Production deployen?"**
 - Immer erst lokal entwickeln gegen Dev-Environment
 - Testen auf Dev bevor nach Production deployed wird
 - Commit-Messages sollten klar sein (conventional commits)
@@ -127,6 +141,8 @@ pnpm sync:email-templates
 - Convex Functions ZUERST deployen, dann Frontend
 
 **❌ DON'Ts:**
+- **NIEMALS `npx convex deploy` ausführen ohne VORHER explizit zu fragen!**
+- **NIEMALS `vercel --prod` ausführen ohne VORHER explizit zu fragen!**
 - **NIEMALS direkt auf Production entwickeln**
 - **NIEMALS Production-Datenbank für Tests verwenden**
 - **NIEMALS Production-API-Keys lokal verwenden**
@@ -147,6 +163,9 @@ pnpm sync:email-templates
 
 ## Wichtige Warnungen & Verbote
 
+- ❌ **NIEMALS NIEMALS NIEMALS auf Production deployen ohne EXPLIZITE Zustimmung des Users!**
+- ❌ **IMMER VORHER FRAGEN bevor `npx convex deploy` ausgeführt wird!**
+- ❌ **KEIN automatisches Deployment - IMMER erst fragen: "Soll ich jetzt auf Production deployen?"**
 - ❌ Keine Eigeninitiative bei Dateien oder Design-Änderungen ohne Rückfrage
 - ❌ Keine Quick & Dirty Lösungen
 - ❌ Keine Emojis im Agent Fenster

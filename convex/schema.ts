@@ -518,5 +518,47 @@ export default defineSchema({
     .index("by_version", ["versionId"])
     .index("by_category", ["category"])
     .index("by_language", ["language"]),
+
+  // ============= ONBOARDING STEPS =============
+  // Admin-managed onboarding flow with multi-language support
+  // NEW STRUCTURE: Column-based multilanguage (preferred)
+  // OLD STRUCTURE: Row-based with language field (deprecated - for migration)
+  onboardingSteps: defineTable({
+    stepNumber: v.number(), // Order of the step (1, 2, 3, 4...)
+    
+    // NEW: Column-based multilanguage (preferred)
+    titleEn: v.optional(v.string()),
+    titleDe: v.optional(v.string()),
+    titleEs: v.optional(v.string()),
+    titleFr: v.optional(v.string()),
+    
+    descriptionEn: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
+    descriptionEs: v.optional(v.string()),
+    descriptionFr: v.optional(v.string()),
+    
+    contentEn: v.optional(v.string()),
+    contentDe: v.optional(v.string()),
+    contentEs: v.optional(v.string()),
+    contentFr: v.optional(v.string()),
+    
+    icon: v.string(), // Lucide icon name (e.g., "BookOpen", "Trophy", "Brain")
+    isActive: v.boolean(), // Whether this step is currently active
+    backgroundColor: v.optional(v.string()), // Optional custom background color
+    
+    // OLD: Row-based (DEPRECATED - kept for backward compatibility during migration)
+    language: v.optional(v.string()), // "en", "de", "es", "fr" - DEPRECATED
+    title: v.optional(v.string()), // DEPRECATED - use titleEn, titleDe, etc.
+    description: v.optional(v.string()), // DEPRECATED - use descriptionEn, descriptionDe, etc.
+    content: v.optional(v.string()), // DEPRECATED - use contentEn, contentDe, etc.
+    
+    createdAt: v.number(), // timestamp
+    updatedAt: v.number(), // timestamp
+    createdBy: v.optional(v.id("users")), // Admin who created this step
+    updatedBy: v.optional(v.id("users")), // Admin who last updated this step
+  })
+    .index("by_language", ["language"]) // OLD: for migration compatibility
+    .index("by_language_active", ["language", "isActive", "stepNumber"]) // OLD: for migration
+    .index("by_step_number", ["stepNumber"]), // NEW: primary index
 });
 

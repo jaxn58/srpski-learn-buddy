@@ -245,9 +245,16 @@ export const getAllUnitsMetadata = query({
       .query("unitMetadata")
       .filter((q) => q.eq(q.field("language"), language))
       .collect();
+    
+    // #region agent log
+    console.log(`[getAllUnitsMetadata] language=${language}, found=${allMetadata.length} units, unitNumbers=[${allMetadata.map(u=>u.unitNumber).join(',')}]`);
+    // #endregion
       
     // If empty and not English, try fallback
     if (allMetadata.length === 0 && language !== "en") {
+      // #region agent log
+      console.log(`[getAllUnitsMetadata] Empty for ${language}, falling back to EN`);
+      // #endregion
       return await ctx.db
         .query("unitMetadata")
         .filter((q) => q.eq(q.field("language"), "en"))
