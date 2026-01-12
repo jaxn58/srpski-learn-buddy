@@ -10,6 +10,12 @@ import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 const packageJson = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "package.json"), "utf-8"));
 const appVersion = packageJson.version || "1.0.0";
 
+// Debug: Log environment variables at build time
+console.log('=== BUILD TIME DEBUG ===');
+console.log('VITE_WAITLIST_MODE:', process.env.VITE_WAITLIST_MODE);
+console.log('All VITE_ vars:', Object.keys(process.env).filter(k => k.startsWith('VITE_')));
+console.log('======================');
+
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
 
 export default defineConfig({
