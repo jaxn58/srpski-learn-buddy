@@ -82,20 +82,20 @@ CLERK_SECRET_KEY=sk_test_...
 CLERK_JWT_ISSUER_DOMAIN=https://enabled-chow-3.clerk.accounts.dev
 
 # Admin
-ADMIN_SECRET=kcVXfLiuzmAJZGhOydRITBgYMUbe9wqr
+ADMIN_SECRET=<development-secret>
 
 # AI/LLM
-GEMINI_API_KEY=AIzaSyAbVkoPs_cGO7ZGsitBFihF5uejPT4bCzw
+GEMINI_API_KEY=<development-key>
 
 # Email
-RESEND_API_KEY=re_UwZ5RfBp_H7xV6RqKyk3AYzZaW7VoXPEC
+RESEND_API_KEY=<development-key>
 
 # Beta Mode
 BETA_MODE=on
-BOT_AUTOMATION_KEY=irgendeinLangerZufallsstring123
+BOT_AUTOMATION_KEY=<development-key>
 
 # Clerk Webhook
-CLERK_WEBHOOK_SECRET=whsec_khphdmIp8/nJ91uPuS0emfE8UmLx9Rx4
+CLERK_WEBHOOK_SECRET=<development-secret>
 ```
 
 #### Production (Vercel Environment Variables)

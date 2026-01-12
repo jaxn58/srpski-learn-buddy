@@ -139,6 +139,7 @@ pnpm sync:email-templates
 - Breaking Changes vorher dokumentieren
 - Database Migrations erst auf Dev testen
 - Convex Functions ZUERST deployen, dann Frontend
+- **IMMER nur Platzhalter für Secrets verwenden** (z.B. `<development-key>`, `...`, `pk_test_...`)
 
 **❌ DON'Ts:**
 - **NIEMALS `npx convex deploy` ausführen ohne VORHER explizit zu fragen!**
@@ -149,6 +150,7 @@ pnpm sync:email-templates
 - **NIEMALS ungetestete Änderungen deployen**
 - **NIEMALS Schema-Änderungen ohne Backup**
 - **NIEMALS Frontend vor Convex Functions deployen**
+- **NIEMALS echte Secrets, API Keys oder Passwörter in Dateien schreiben, die ins Git-Repository kommen!**
 
 ### Environment Variables
 
@@ -161,11 +163,49 @@ pnpm sync:email-templates
 - `VITE_CONVEX_URL=https://fleet-labrador-324.convex.cloud`
 - Clerk Production Keys (`pk_live_...`, `sk_live_...`)
 
+### Secrets & API Keys - KRITISCH!
+
+**🚨 ABSOLUTE REGEL: NIEMALS echte Secrets in Dateien schreiben, die ins Git-Repository kommen!**
+
+- **NIEMALS** echte API Keys, Secrets, Passwörter oder Tokens in Dokumentationsdateien schreiben
+- **NIEMALS** echte Secrets in Code-Beispiele oder Konfigurationsdateien schreiben
+- **NIEMALS** echte Secrets in Markdown-Dateien (.md) schreiben
+- **NIEMALS** echte Secrets in TypeScript/JavaScript-Dateien schreiben (außer .env.local, die in .gitignore ist)
+
+**Erlaubt sind nur:**
+- Platzhalter wie `<development-key>`, `<production-secret>`, `...`, `pk_test_...`, `sk_live_...`
+- Generische Beispiele ohne echte Werte
+- Verweise auf Environment Variables ohne die tatsächlichen Werte
+
+**Wo gehören echte Secrets hin?**
+- Lokal: Nur in `.env.local` (die in `.gitignore` ist)
+- Production: Nur in Convex Dashboard oder Vercel Environment Variables
+- **NIEMALS** in Dateien, die ins Git-Repository gepusht werden
+
+**Beispiel für Dokumentation:**
+```bash
+# ✅ RICHTIG:
+GEMINI_API_KEY=<development-key>
+ADMIN_SECRET=<production-secret>
+RESEND_API_KEY=re_...
+
+# ❌ FALSCH:
+GEMINI_API_KEY=AIzaSyAbVkoPs_cGO7ZGsitBFihF5uejPT4bCzw
+ADMIN_SECRET=kcVXfLiuzmAJZGhOydRITBgYMUbe9wqr
+RESEND_API_KEY=re_UwZ5RfBp_H7xV6RqKyk3AYzZaW7VoXPEC
+```
+
+**Vor jedem Schreiben in Dateien prüfen:**
+- Enthält diese Datei echte Secrets?
+- Kommt diese Datei ins Git-Repository?
+- Wenn ja: Nur Platzhalter verwenden!
+
 ## Wichtige Warnungen & Verbote
 
 - ❌ **NIEMALS NIEMALS NIEMALS auf Production deployen ohne EXPLIZITE Zustimmung des Users!**
 - ❌ **IMMER VORHER FRAGEN bevor `npx convex deploy` ausgeführt wird!**
 - ❌ **KEIN automatisches Deployment - IMMER erst fragen: "Soll ich jetzt auf Production deployen?"**
+- ❌ **NIEMALS NIEMALS NIEMALS echte Secrets, API Keys oder Passwörter in Dateien schreiben, die ins Git-Repository kommen!**
 - ❌ Keine Eigeninitiative bei Dateien oder Design-Änderungen ohne Rückfrage
 - ❌ Keine Quick & Dirty Lösungen
 - ❌ Keine Emojis im Agent Fenster
