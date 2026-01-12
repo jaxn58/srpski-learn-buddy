@@ -12,20 +12,12 @@ if (!CONVEX_URL) {
 }
 
 // #region agent log
-const logEndpoint = 'http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363';
 function log(location: string, message: string, data: any, hypothesisId: string) {
-  fetch(logEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      hypothesisId,
-    }),
-  }).catch(() => {});
+  // Removed hardcoded localhost telemetry. Keep signature so existing calls remain harmless.
+  void location;
+  void message;
+  void data;
+  void hypothesisId;
 }
 // #endregion
 

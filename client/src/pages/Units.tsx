@@ -40,16 +40,10 @@ export default function Units() {
 
   // Use DB modules only
   const modules = useMemo(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Units.tsx:43',message:'modules computation',data:{dbModulesExists:!!dbModules,dbModulesLength:dbModules?.length||0,dbModules:dbModules},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'DB-ONLY'})}).catch(()=>{});
-    // #endregion
     if (!dbModules || dbModules.length === 0) {
       return [];
     }
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Units.tsx:45',message:'using DB modules',data:{count:dbModules.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'DB-ONLY'})}).catch(()=>{});
-    // #endregion
     return dbModules.map((dbModule) => ({
       id: dbModule.slug || "",
       number: dbModule.moduleNumber || 0,
@@ -63,9 +57,6 @@ export default function Units() {
 
   // Map units by module slug/moduleId
   const unitsByModule = useMemo(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Units.tsx:68',message:'unitsByModule computation start',data:{dbUnitsEnExists:!!dbUnitsEn,dbUnitsEnLength:dbUnitsEn?.length||0,unitNumbers:dbUnitsEn?.map(u=>u.unitNumber)||[]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C,E'})}).catch(()=>{});
-    // #endregion
     const result: Record<string, Array<{
       number: number;
       title: string;
@@ -77,9 +68,6 @@ export default function Units() {
 
     // If no database units available, return empty (will use fallback)
     if (!dbUnitsEn || dbUnitsEn.length === 0) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Units.tsx:79',message:'NO DB UNITS - returning empty',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
-      // #endregion
       return result;
     }
 
@@ -133,9 +121,6 @@ export default function Units() {
       result[moduleSlug].sort((a, b) => a.number - b.number);
     });
 
-    // #region agent log
-    const unitsPerModule=Object.keys(result).reduce((acc,key)=>({...acc,[key]:result[key].map(u=>u.number)}),{});fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Units.tsx:147',message:'unitsByModule FINAL RESULT',data:{unitsPerModule,totalUnits:dbUnitsEn.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B,C'})}).catch(()=>{});
-    // #endregion
     return result;
   }, [dbUnitsEn, dbUnitsDe, dbModules]);
 
@@ -179,10 +164,6 @@ export default function Units() {
           {modules.map((module) => {
             // Load units from database only
             const moduleUnits = unitsByModule[module.id] || [];
-            
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Units.tsx:193',message:'MODULE unit lookup',data:{moduleId:module.id,moduleNumber:module.number,dbUnitsCount:moduleUnits.length,unitNumbers:moduleUnits.map(u=>u.number)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'DB-ONLY'})}).catch(()=>{});
-            // #endregion
             
             // Skip module if no units exist yet (Modules 2-5 will be empty until content is created)
             if (moduleUnits.length === 0) {

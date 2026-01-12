@@ -695,6 +695,48 @@ export const deleteChatPromptVersion = mutation({
   },
 });
 
+// Seed initial chat prompt (for migrations, requires ADMIN_SECRET)
+export const seedChatPrompt = mutation({
+  args: {
+    name: v.string(),
+    content: v.string(),
+    description: v.optional(v.string()),
+    adminSecret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Verify admin secret from environment
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Invalid admin secret");
+    }
+
+    const name = args.name;
+    const existing = await ctx.db
+      .query("chatPrompts")
+      .withIndex("by_name", (q) => q.eq("name", name))
+      .first();
+
+    const payload = {
+      name,
+      content: args.content,
+      description: args.description,
+      updatedBy: undefined, // No user for migration
+      updatedAt: Date.now(),
+    };
+
+    // Add to history
+    await ctx.db.insert("chatPromptHistory", payload);
+
+    if (existing) {
+      await ctx.db.patch(existing._id, payload);
+      return { updated: true, created: false, message: "Prompt updated successfully" };
+    } else {
+      await ctx.db.insert("chatPrompts", payload);
+      return { updated: false, created: true, message: "Prompt created successfully" };
+    }
+  },
+});
+
 // Helper to get the current user (non-admin)
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();

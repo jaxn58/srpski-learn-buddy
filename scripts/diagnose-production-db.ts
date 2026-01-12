@@ -18,23 +18,14 @@ dotenv.config({ path: ".env.local" });
 const DEV_CONVEX_URL = process.env.VITE_CONVEX_URL;
 const PROD_CONVEX_URL = process.env.VITE_CONVEX_URL_PRODUCTION;
 const LOG_PATH = "d:\\DEVELOPMENT\\Cursor\\srpski-tutor-en\\.cursor\\debug.log";
-const SERVER_ENDPOINT = "http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363";
 
 // #region agent log
 function log(location: string, message: string, data: any = {}) {
-  fetch(SERVER_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'diagnosis',
-      hypothesisId: 'db-comparison'
-    })
-  }).catch(() => {});
+  // Removed hardcoded localhost telemetry. Keep signature so existing calls remain harmless.
+  void LOG_PATH;
+  void location;
+  void message;
+  void data;
 }
 // #endregion
 

@@ -29,7 +29,8 @@
     "generate:audio": "tsx scripts/generate-missing-audio.ts",
     "check:audio": "tsx scripts/check-audio-file.ts",
     "compare:audio": "tsx scripts/compare-audio-dev-prod.ts",
-    "test:backup": "tsx scripts/test-backup.ts"
+    "test:backup": "tsx scripts/test-backup.ts",
+    "migrate:prompt": "tsx scripts/migrate-prompt-to-production.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

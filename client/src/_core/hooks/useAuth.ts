@@ -1,5 +1,5 @@
 import { useUser, useAuth as useClerkAuth } from "@clerk/clerk-react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useMemo, useEffect, useRef } from "react";
 import { logger } from "@/lib/logger";
@@ -18,7 +18,7 @@ function detectPreferredLanguage(): "en" {
  */
 export function useAuth() {
   const { user: clerkUser, isLoaded: clerkLoaded, isSignedIn } = useUser();
-  const { signOut } = useClerkAuth();
+  const { signOut, sessionId } = useClerkAuth();
 
   // Fetch full user data from Convex (includes role, isBetaTester, etc.)
   const dbUser = useQuery(api.users.me);
@@ -27,6 +27,7 @@ export function useAuth() {
   
   // Mutation to sync user from Clerk to Convex
   const syncUser = useMutation(api.users.syncUser);
+  const enforceSingleSession = useAction(api.users.enforceSingleSession);
 
   // Track if we've already attempted to sync to avoid multiple attempts.
   const syncAttemptedRef = useRef(false);
@@ -45,11 +46,17 @@ export function useAuth() {
     syncAttemptedRef.current = true;
 
     syncUser({ learningLanguage: "en" })
+      .then(async () => {
+        // Optional fallback: ensure single-session enforcement even if webhook delivery is delayed.
+        if (sessionId) {
+          await enforceSingleSession({ sessionId });
+        }
+      })
       .catch((error) => {
         logger.error("[useAuth] Failed to sync user:", error);
         syncAttemptedRef.current = false;
       });
-  }, [isSignedIn, clerkLoaded, clerkUser, syncUser]);
+  }, [isSignedIn, clerkLoaded, clerkUser, syncUser, sessionId, enforceSingleSession]);
 
   const state = useMemo(() => {
     // Store user info for Manus runtime compatibility

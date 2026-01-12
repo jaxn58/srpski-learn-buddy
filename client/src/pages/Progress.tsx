@@ -63,8 +63,9 @@ export default function Progress() {
 
   // Fallback data if no stats (should rarely happen for active users)
   const completedUnits = stats?.completedUnits || [];
-  const totalUnits = 27;
-  const progressPercent = (completedUnits.length / totalUnits) * 100;
+  // Use dynamic total units from database instead of hardcoded value
+  const totalUnits = dbUnitsEn?.length || 27; // Fallback to 27 only if DB is not loaded
+  const progressPercent = totalUnits > 0 ? (completedUnits.length / totalUnits) * 100 : 0;
   
   // Format dates for chart
   const activityData = stats?.activityChart?.map(day => ({
@@ -116,7 +117,7 @@ export default function Progress() {
             <div className="flex items-center gap-4">
               <Link href="/dashboard">
                 <Button variant="ghost" size="sm" className="hover:bg-slate-100">
-                  ← {t('progress.backToDashboard')}
+                  {t('progress.backToDashboard')}
                 </Button>
               </Link>
               <div className="flex items-center gap-2">
@@ -235,36 +236,46 @@ export default function Progress() {
                     <CardDescription>Your learning consistency over the past week</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={activityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis 
-                            dataKey="name" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fill: '#64748b', fontSize: 12 }}
-                            dy={10}
-                          />
-                          <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fill: '#64748b', fontSize: 12 }}
-                          />
-                          <RechartsTooltip 
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                            cursor={{ fill: '#f1f5f9' }}
-                          />
-                          <Bar 
-                            dataKey="xp" 
-                            fill="#3b82f6" 
-                            radius={[4, 4, 0, 0]} 
-                            barSize={40}
-                            animationDuration={1500}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    {activityData.length === 0 ? (
+                      <div className="h-[300px] w-full flex flex-col items-center justify-center text-center px-4">
+                        <Calendar className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                        <p className="text-sm text-muted-foreground font-medium mb-2">No Activity Yet</p>
+                        <p className="text-xs text-muted-foreground max-w-xs">
+                          Complete units and exercises to see your XP activity over time
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={activityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                            <XAxis 
+                              dataKey="name" 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fill: '#64748b', fontSize: 12 }}
+                              dy={10}
+                            />
+                            <YAxis 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fill: '#64748b', fontSize: 12 }}
+                            />
+                            <RechartsTooltip 
+                              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                              cursor={{ fill: '#f1f5f9' }}
+                            />
+                            <Bar 
+                              dataKey="xp" 
+                              fill="#3b82f6" 
+                              radius={[4, 4, 0, 0]} 
+                              barSize={40}
+                              animationDuration={1500}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>

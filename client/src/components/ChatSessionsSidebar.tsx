@@ -89,27 +89,12 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
   }, [onSelectSession]);
 
   const handleUnarchive = useCallback((sessionId: string) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:95',message:'handleUnarchive START',data:{sessionId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
     startTransition(() => {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:99',message:'BEFORE setProcessingIds',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       setProcessingIds(prev => new Set(prev).add(sessionId));
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:103',message:'AFTER setProcessingIds',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
-      
+
       unarchiveSessionMutation({ sessionId: sessionId as any })
         .then(() => {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:109',message:'BEFORE toast.success',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-          // #endregion
           toast.success("Chat restored.");
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ChatSessionsSidebar.tsx:113',message:'AFTER toast.success',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-          // #endregion
         })
         .catch((error) => {
           console.error("Failed to unarchive session:", error);

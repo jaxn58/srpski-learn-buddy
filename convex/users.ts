@@ -1,11 +1,16 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation, action, QueryCtx, MutationCtx, internalQuery } from "./_generated/server";
+import { mutation, query, internalMutation, action, QueryCtx, MutationCtx, internalQuery, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
 
 type UserDoc = Doc<"users">;
 type FixUserNameResult = { success: boolean; userId: Id<"users">; name: string };
 type UpdateXpResult = { totalXP: number; level: number };
+
+function isProductionDeployment() {
+  // Keep in sync with other production checks in the codebase (e.g. convex/backup.ts)
+  return process.env.CONVEX_CLOUD_URL?.includes("fleet-labrador-324") === true;
+}
 
 // Helper to get the current user from Clerk identity
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -672,6 +677,133 @@ export const internalGetUserByClerkId = internalQuery({
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
       .first();
+  },
+});
+
+
+/**
+ * Optional client fallback: run after sign-in to ensure enforcement even if webhook delivery is delayed.
+ * Production-only; skips superadmin.
+ */
+export const enforceSingleSession = action({
+  args: {
+    sessionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    if (!isProductionDeployment()) {
+      console.log("[enforceSingleSession] Skipping: not production");
+      return { skipped: true, reason: "not_production" };
+    }
+
+    const dbUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (dbUser?.role === "superadmin") {
+      console.log("[enforceSingleSession] Skipping: user is superadmin");
+      return { skipped: true, reason: "superadmin" };
+    }
+
+    // Revoke all other active sessions for this user
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (!clerkSecretKey) {
+      console.warn("[enforceSingleSession] CLERK_SECRET_KEY not set - skipping");
+      return { skipped: true, reason: "missing_clerk_secret_key" };
+    }
+
+    const clerkUserId = identity.subject;
+    const revokedSessionIds: string[] = [];
+    let offset = 0;
+    const limit = 100;
+
+    try {
+      // Paginate through all active sessions
+      while (true) {
+        const listResp = await fetch(
+          `https://api.clerk.com/v1/sessions?user_id=${clerkUserId}&status=active&limit=${limit}&offset=${offset}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${clerkSecretKey}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (!listResp.ok) {
+          const errorText = await listResp.text().catch(() => "<failed_to_read_body>");
+          console.error("[enforceSingleSession] Failed to list sessions", {
+            clerkUserId,
+            status: listResp.status,
+            errorText,
+          });
+          break;
+        }
+
+        const listJson = await listResp.json();
+        const sessions: any[] = Array.isArray(listJson)
+          ? listJson
+          : Array.isArray(listJson?.data)
+            ? listJson.data
+            : [];
+
+        // Revoke all sessions except the current one
+        for (const session of sessions) {
+          const sid: string | undefined = session?.id;
+          if (!sid) continue;
+          if (sid === args.sessionId) continue; // Keep the current session
+
+          const revokeResp = await fetch(
+            `https://api.clerk.com/v1/sessions/${sid}/revoke`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${clerkSecretKey}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (!revokeResp.ok) {
+            const errorText = await revokeResp.text().catch(() => "<failed_to_read_body>");
+            console.error("[enforceSingleSession] Failed to revoke session", {
+              sessionId: sid,
+              status: revokeResp.status,
+              errorText,
+            });
+            continue;
+          }
+
+          revokedSessionIds.push(sid);
+        }
+
+        // Check if there are more sessions to fetch
+        if (sessions.length < limit) {
+          break;
+        }
+
+        offset += sessions.length;
+      }
+
+      console.log("[enforceSingleSession] Successfully revoked sessions", {
+        clerkUserId,
+        sessionId: args.sessionId,
+        revokedCount: revokedSessionIds.length,
+      });
+
+      return { skipped: false, revokedCount: revokedSessionIds.length, revokedSessionIds };
+    } catch (error) {
+      console.error("[enforceSingleSession] Error revoking sessions", {
+        clerkUserId,
+        sessionId: args.sessionId,
+        error: String(error),
+      });
+      return { skipped: true, reason: "error", error: String(error) };
+    }
   },
 });
 
