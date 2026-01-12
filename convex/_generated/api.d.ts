@@ -9,9 +9,12 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as backup from "../backup.js";
+import type * as backupAdmin from "../backupAdmin.js";
 import type * as badges from "../badges.js";
 import type * as beta from "../beta.js";
 import type * as chat from "../chat.js";
+import type * as crons from "../crons.js";
 import type * as debug_index from "../debug_index.js";
 import type * as email from "../email.js";
 import type * as emailTemplates from "../emailTemplates.js";
@@ -37,9 +40,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  backup: typeof backup;
+  backupAdmin: typeof backupAdmin;
   badges: typeof badges;
   beta: typeof beta;
   chat: typeof chat;
+  crons: typeof crons;
   debug_index: typeof debug_index;
   email: typeof email;
   emailTemplates: typeof emailTemplates;

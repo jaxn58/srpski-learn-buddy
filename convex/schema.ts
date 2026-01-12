@@ -560,5 +560,28 @@ export default defineSchema({
     .index("by_language", ["language"]) // OLD: for migration compatibility
     .index("by_language_active", ["language", "isActive", "stepNumber"]) // OLD: for migration
     .index("by_step_number", ["stepNumber"]), // NEW: primary index
+
+  // ============= BACKUP METADATA =============
+  // Tracks automated database backups stored in Convex Storage
+  backupMetadata: defineTable({
+    storageId: v.string(), // Convex Storage ID
+    timestamp: v.number(), // Backup creation timestamp
+    environment: v.union(
+      v.literal("production"),
+      v.literal("development")
+    ),
+    tableCount: v.number(), // Number of tables backed up
+    totalRecords: v.number(), // Total records in backup
+    size: v.number(), // Backup size in bytes
+    status: v.union(
+      v.literal("completed"),
+      v.literal("failed"),
+      v.literal("in_progress")
+    ),
+    errorMessage: v.optional(v.string()),
+  })
+    .index("by_timestamp", ["timestamp"])
+    .index("by_environment", ["environment"])
+    .index("by_status", ["status"]),
 });
 
