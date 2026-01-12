@@ -19,8 +19,8 @@ build/
 .env.vercel.validation
 .env.vercel.*
 
-# Cursor generated files
-.cursor/plans-index.md
+# Cursor / IDE generated files
+.cursor/
 
 # IDE and editor files
 .vscode/
