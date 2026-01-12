@@ -1,0 +1,172 @@
+import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2, Mail, Check } from "lucide-react";
+import { toast } from "sonner";
+
+interface WaitlistModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const joinWaitlist = useMutation(api.waitlist.join);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await joinWaitlist({
+        email,
+        name: name.trim() || undefined,
+      });
+
+      setIsSuccess(true);
+      toast.success("Check your email to confirm your registration!");
+    } catch (error: any) {
+      console.error("[WaitlistModal] Error joining waitlist:", error);
+      toast.error(error.message || "Failed to join waitlist. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setName("");
+    setEmail("");
+    setIsSuccess(false);
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold text-center">
+            Join the Waitlist
+          </DialogTitle>
+          <DialogDescription className="text-center">
+            Be the first to know when Serbian AI Tutor Beta launches
+          </DialogDescription>
+        </DialogHeader>
+
+        {!isSuccess ? (
+          <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name (optional)</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">
+                  Email <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your.email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
+
+            <div className="bg-muted p-4 rounded-lg text-sm text-muted-foreground">
+              <p>
+                By joining the waitlist, you agree to receive email updates about the Serbian AI Tutor Beta launch.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || !email}
+                className="flex-1 bg-primary hover:bg-primary/90"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Joining...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Join Waitlist
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="py-8 text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="rounded-full bg-green-100 p-3">
+                <Check className="h-8 w-8 text-green-600" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold">Check Your Email!</h3>
+              <p className="text-muted-foreground">
+                We've sent a confirmation link to <strong>{email}</strong>
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Please click the link in the email to complete your registration.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleClose}
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              Got it!
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

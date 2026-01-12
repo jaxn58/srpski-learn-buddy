@@ -184,20 +184,23 @@ http.route({
         const email = email_addresses[0]?.email_address;
         const name = `${first_name || ""} ${last_name || ""}`.trim();
         
-        // #region agent log
-        console.log(JSON.stringify({location:'http.ts:51',message:'user.created event - BEFORE email send',data:{email,name,clerkId:id,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H3'}));
-        // #endregion
+        console.log("[Clerk Webhook] user.created - Sending emails", {
+          email,
+          name,
+          clerkId: id,
+        });
 
         if (email) {
-          await ctx.runAction(api.email.sendBetaRegistrationAdminNotification, {
-            email,
-            name: name || "Unknown Name",
-            clerkId: id,
-          });
-          
-          // #region agent log
-          console.log(JSON.stringify({location:'http.ts:60',message:'user.created event - AFTER email send',data:{email,name,clerkId:id,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H3'}));
-          // #endregion
+          // Send welcome email to user (immediate access)
+          try {
+            await ctx.runAction(api.email.sendBetaRegistrationEmail, {
+              email,
+              name: name || "New User",
+            });
+            console.log("[Clerk Webhook] ✅ User welcome email sent to", email);
+          } catch (error) {
+            console.error("[Clerk Webhook] ❌ Failed to send welcome email:", error);
+          }
         }
       }
 

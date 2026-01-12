@@ -1,8 +1,11 @@
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 // Write relative to script location
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const LOG_FILE = path.join(__dirname, "gemini-result.txt");
 fs.writeFileSync(LOG_FILE, ""); // Clear file
 

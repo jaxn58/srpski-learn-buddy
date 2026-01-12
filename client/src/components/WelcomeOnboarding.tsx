@@ -77,7 +77,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
             variant="ghost"
             size="sm"
             className="absolute top-4 right-4"
-            onClick={onClose}
+            onClick={() => onClose()}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -96,7 +96,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
               Start learning Serbian with our interactive platform. Complete units, earn XP, and track your progress!
             </p>
             
-            <Button onClick={onClose} className="w-full">
+            <Button onClick={() => onClose()} className="w-full">
               Get Started!
             </Button>
           </CardContent>

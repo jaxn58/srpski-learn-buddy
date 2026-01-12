@@ -583,5 +583,23 @@ export default defineSchema({
     .index("by_timestamp", ["timestamp"])
     .index("by_environment", ["environment"])
     .index("by_status", ["status"]),
+
+  // ============= WAITLIST =============
+  waitlist: defineTable({
+    email: v.string(),
+    name: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),      // Email versendet, wartet auf Bestätigung
+      v.literal("confirmed"),     // User hat Opt-In bestätigt
+      v.literal("notified")       // User wurde über Beta-Launch benachrichtigt
+    ),
+    confirmationToken: v.string(), // UUID für Bestätigungslink
+    createdAt: v.number(),
+    confirmedAt: v.optional(v.number()),
+    notifiedAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_status", ["status"])
+    .index("by_token", ["confirmationToken"]),
 });
 

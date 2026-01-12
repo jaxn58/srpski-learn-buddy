@@ -9,14 +9,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { WaitlistModal } from "@/components/WaitlistModal";
 
 export default function Home() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const { t, i18n } = useTranslation();
+  
+  // Waitlist modal state
+  const [isWaitlistModalOpen, setIsWaitlistModalOpen] = useState(false);
+  
+  // Environment checks
+  const isWaitlistMode = import.meta.env.VITE_WAITLIST_MODE === 'on';
+  const isSuperadmin = user?.role === 'superadmin';
+  
+  // Show waitlist only if: waitlist mode is ON AND user is NOT a superadmin (or not logged in)
+  const showWaitlist = isWaitlistMode && !isSuperadmin;
+  const showBetaRegistration = !isWaitlistMode || isSuperadmin;
   
   // BETA: Force English for all users
   useEffect(() => {
@@ -101,11 +113,22 @@ export default function Home() {
                 <Button className="bg-primary hover:bg-primary/90">{t('home.header.dashboard')}</Button>
             </Link>
           ) : (
-            <Link href="/sign-in">
-              <Button className="bg-primary hover:bg-primary/90">
-                  {t('home.header.login')}
-              </Button>
-            </Link>
+            <>
+              {showWaitlist ? (
+                <Button 
+                  className="bg-primary hover:bg-primary/90"
+                  onClick={() => setIsWaitlistModalOpen(true)}
+                >
+                  Join Waitlist
+                </Button>
+              ) : (
+                <Link href="/sign-in">
+                  <Button className="bg-primary hover:bg-primary/90">
+                      {t('home.header.login')}
+                  </Button>
+                </Link>
+              )}
+            </>
           )}
           </div>
         </div>
@@ -132,15 +155,25 @@ export default function Home() {
             dangerouslySetInnerHTML={{ __html: t('home.hero.description', { count: TOTAL_VOCABULARY }) }}
           />
           <div className="flex gap-4 justify-center pt-4">
-            <Button 
-              size="lg" 
-              className="bg-primary hover:bg-primary/90 text-lg px-8"
-              onClick={() => {
-                document.getElementById('beta-registration')?.scrollIntoView({ behavior: 'smooth' });
-              }}
-            >
-              {t('home.hero.ctaPrimary')}
-            </Button>
+            {showWaitlist ? (
+              <Button 
+                size="lg" 
+                className="bg-primary hover:bg-primary/90 text-lg px-8"
+                onClick={() => setIsWaitlistModalOpen(true)}
+              >
+                Join Waitlist
+              </Button>
+            ) : (
+              <Button 
+                size="lg" 
+                className="bg-primary hover:bg-primary/90 text-lg px-8"
+                onClick={() => {
+                  document.getElementById('beta-registration')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              >
+                {t('home.hero.ctaPrimary')}
+              </Button>
+            )}
             <Button size="lg" variant="outline" asChild className="text-lg px-8">
               <a href="#units">{t('home.hero.ctaSecondary')}</a>
             </Button>
@@ -203,6 +236,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Pricing, FAQ & Beta Banner Section - Hide during waitlist mode */}
+      {!showWaitlist && (
+      <>
       {/* Flexible Duration Section */}
       <section className="container py-20">
         <div className="max-w-4xl mx-auto text-center space-y-8">
@@ -739,6 +775,8 @@ export default function Home() {
           </Card>
         </div>
       </section>
+      </>
+      )}
 
       {/* Modules Section */}
       <section id="units" className="container py-20 bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
@@ -789,49 +827,51 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Beta Registration / Sign Up Section */}
-      <section id="beta-registration" className="container py-20">
-        <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
-          <CardHeader className="text-center bg-gradient-to-r from-red-50 via-white to-blue-50">
-            <div className="inline-block px-4 py-2 bg-accent/30 rounded-full text-primary font-bold mb-4 border-2 border-accent">
-              {t('home.beta.discount')}
-            </div>
-            <CardTitle className="text-3xl">
-              {t('home.beta.title')}
-            </CardTitle>
-            <CardDescription className="text-lg">
-              {t('home.beta.subtitle')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            {!isAuthenticated ? (
-              <div className="space-y-4 flex flex-col items-center">
-                <SignUp
-                  routing="virtual"
-                  signInUrl="/sign-in"
-                />
-                <p className="text-sm text-center text-muted-foreground max-w-xl">
-                  {t('home.beta.signupNote')}
-                </p>
+      {/* Beta Registration / Sign Up Section - Only show if not in waitlist mode OR user is superadmin */}
+      {showBetaRegistration && (
+        <section id="beta-registration" className="container py-20">
+          <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
+            <CardHeader className="text-center bg-gradient-to-r from-red-50 via-white to-blue-50">
+              <div className="inline-block px-4 py-2 bg-accent/30 rounded-full text-primary font-bold mb-4 border-2 border-accent">
+                {t('home.beta.discount')}
               </div>
-            ) : (
-              <div className="space-y-4 text-center">
-                <p className="text-lg font-semibold">
-                  {t('home.beta.authenticated')}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {t('home.beta.authenticatedDesc')}
-                </p>
-                <Link href="/dashboard">
-                  <Button className="bg-primary hover:bg-primary/90 text-lg">
-                    {t('home.beta.dashboard')}
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+              <CardTitle className="text-3xl">
+                {t('home.beta.title')}
+              </CardTitle>
+              <CardDescription className="text-lg">
+                {t('home.beta.subtitle')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {!isAuthenticated ? (
+                <div className="space-y-4 flex flex-col items-center">
+                  <SignUp
+                    routing="virtual"
+                    signInUrl="/sign-in"
+                  />
+                  <p className="text-sm text-center text-muted-foreground max-w-xl">
+                    {t('home.beta.signupNote')}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4 text-center">
+                  <p className="text-lg font-semibold">
+                    {t('home.beta.authenticated')}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('home.beta.authenticatedDesc')}
+                  </p>
+                  <Link href="/dashboard">
+                    <Button className="bg-primary hover:bg-primary/90 text-lg">
+                      {t('home.beta.dashboard')}
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
@@ -839,6 +879,12 @@ export default function Home() {
           <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
         </div>
       </footer>
+
+      {/* Waitlist Modal */}
+      <WaitlistModal 
+        isOpen={isWaitlistModalOpen} 
+        onClose={() => setIsWaitlistModalOpen(false)} 
+      />
     </div>
   );
 }

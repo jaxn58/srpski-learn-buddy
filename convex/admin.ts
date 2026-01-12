@@ -1390,3 +1390,60 @@ export const triggerBackupNow = mutation({
     return { success: true, message: "Backup triggered" };
   },
 });
+
+// Upsert email template (for migrations, requires ADMIN_SECRET)
+export const adminUpsertEmailTemplate = mutation({
+  args: {
+    adminSecret: v.string(),
+    name: v.string(),
+    subject: v.string(),
+    htmlContent: v.string(),
+    description: v.optional(v.string()),
+    variables: v.array(v.string()),
+    category: v.union(
+      v.literal("transactional"),
+      v.literal("subscription"),
+      v.literal("marketing")
+    ),
+    isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    // Verify admin secret from environment
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Invalid admin secret");
+    }
+
+    const existing = await ctx.db
+      .query("emailTemplates")
+      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .first();
+
+    if (existing) {
+      // Update
+      await ctx.db.patch(existing._id, {
+        subject: args.subject,
+        htmlContent: args.htmlContent,
+        description: args.description,
+        variables: args.variables,
+        category: args.category,
+        isActive: args.isActive,
+        updatedAt: Date.now(),
+      });
+      return existing._id;
+    } else {
+      // Create
+      return await ctx.db.insert("emailTemplates", {
+        name: args.name,
+        subject: args.subject,
+        htmlContent: args.htmlContent,
+        description: args.description,
+        variables: args.variables,
+        category: args.category,
+        isActive: args.isActive,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});

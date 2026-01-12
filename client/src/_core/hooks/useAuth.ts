@@ -49,7 +49,11 @@ export function useAuth() {
       .then(async () => {
         // Optional fallback: ensure single-session enforcement even if webhook delivery is delayed.
         if (sessionId) {
-          await enforceSingleSession({ sessionId });
+          try {
+            await enforceSingleSession({ sessionId });
+          } catch (error) {
+            logger.error("[useAuth] Failed to enforce single session:", error);
+          }
         }
       })
       .catch((error) => {

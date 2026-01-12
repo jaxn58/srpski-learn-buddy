@@ -88,27 +88,6 @@ export const sendBetaRegistrationEmail = action({
   },
 });
 
-/**
- * Send user activation email (convenience wrapper)
- */
-export const sendUserActivationEmail = action({
-  args: {
-    name: v.string(),
-    email: v.string(),
-    loginUrl: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.runAction(api.email.sendEmail, {
-      templateName: "user-activation",
-      variables: {
-        USER_NAME: args.name,
-        USER_EMAIL: args.email,
-        LOGIN_URL: args.loginUrl,
-      },
-      to: args.email,
-    });
-  },
-});
 
 /**
  * Send feedback confirmation email (convenience wrapper)
@@ -162,46 +141,6 @@ export const sendFeedbackAdminNotificationEmail = action({
   },
 });
 
-/**
- * Send beta registration admin notification
- */
-export const sendBetaRegistrationAdminNotification = action({
-  args: {
-    name: v.string(),
-    email: v.string(),
-    clerkId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // #region agent log
-    console.log(JSON.stringify({location:'email.ts:175',message:'sendBetaRegistrationAdminNotification - ENTRY',data:{name:args.name,email:args.email,clerkId:args.clerkId,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'}));
-    // #endregion
-    
-    // Send to the admin (configured as REPLY_TO_EMAIL or fallback)
-    const adminEmail = process.env.RESEND_REPLY_TO_EMAIL || "hello@jacksenn.me";
-    
-    // Admin dashboard URL
-    const adminUrl = process.env.VITE_CONVEX_URL 
-      ? `https://dashboard.convex.dev/deployment/${process.env.VITE_CONVEX_URL.split('https://')[1].split('.convex.cloud')[0]}/data?table=users`
-      : "https://dashboard.convex.dev";
-
-    const result = await ctx.runAction(api.email.sendEmail, {
-      templateName: "beta-admin-notification",
-      variables: {
-        USER_NAME: args.name,
-        USER_EMAIL: args.email,
-        CLERK_ID: args.clerkId,
-        ADMIN_URL: adminUrl,
-      },
-      to: adminEmail,
-    });
-    
-    // #region agent log
-    console.log(JSON.stringify({location:'email.ts:196',message:'sendBetaRegistrationAdminNotification - EXIT',data:{result,adminEmail,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'}));
-    // #endregion
-    
-    return result;
-  },
-});
 
 
 

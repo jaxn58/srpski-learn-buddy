@@ -212,7 +212,7 @@ export const syncUser = mutation({
         loginMethod: "clerk",
         role: "student",
         learningLanguage: userLanguage,
-        isActive: false, // New users are inactive by default and must be approved by admin
+        isActive: true, // New users are immediately active and have access to beta
         // During beta mode, mark new users automatically as beta testers
         isBetaTester: shouldBeBetaTester,
         totalXP: 0,

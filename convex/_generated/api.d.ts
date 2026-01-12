@@ -12,7 +12,6 @@ import type * as admin from "../admin.js";
 import type * as backup from "../backup.js";
 import type * as backupAdmin from "../backupAdmin.js";
 import type * as badges from "../badges.js";
-import type * as beta from "../beta.js";
 import type * as chat from "../chat.js";
 import type * as crons from "../crons.js";
 import type * as debug_index from "../debug_index.js";
@@ -31,6 +30,7 @@ import type * as units from "../units.js";
 import type * as users from "../users.js";
 import type * as versions from "../versions.js";
 import type * as vocabulary from "../vocabulary.js";
+import type * as waitlist from "../waitlist.js";
 
 import type {
   ApiFromModules,
@@ -43,7 +43,6 @@ declare const fullApi: ApiFromModules<{
   backup: typeof backup;
   backupAdmin: typeof backupAdmin;
   badges: typeof badges;
-  beta: typeof beta;
   chat: typeof chat;
   crons: typeof crons;
   debug_index: typeof debug_index;
@@ -62,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   versions: typeof versions;
   vocabulary: typeof vocabulary;
+  waitlist: typeof waitlist;
 }>;
 
 /**

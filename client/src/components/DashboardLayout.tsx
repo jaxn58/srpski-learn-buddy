@@ -209,6 +209,7 @@ function DashboardLayoutContent({
     { label: "Onboarding", path: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
     { label: t('sidebar.feedback'), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
     { label: t('sidebar.emailTemplates'), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
+    { label: "Waitlist", path: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
     { label: t('sidebar.subscriptionAnalytics'), path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
     { label: "Database Backups", path: "/admin/backup", icon: <Database className="h-4 w-4" /> },
   ];

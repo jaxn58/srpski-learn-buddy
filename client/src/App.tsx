@@ -29,6 +29,8 @@ import Changelog from "./pages/Changelog";
 import SignInPage from "./pages/SignIn";
 import SignUpPage from "./pages/SignUp";
 import Units from "./pages/Units";
+import WaitlistConfirm from "./pages/WaitlistConfirm";
+import AdminWaitlist from "./pages/AdminWaitlist";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -74,6 +76,7 @@ function Router() {
     <Switch>
       {/* Public routes */}
       <Route path="/" component={Home} />
+      <Route path="/waitlist/confirm" component={WaitlistConfirm} />
       {/* Clerk auth routes - use wildcard to catch all sub-routes like /sign-in/factor-one */}
       <Route path="/sign-in/:rest*" component={SignInPage} />
       <Route path="/sign-in" component={SignInPage} />
@@ -133,6 +136,9 @@ function Router() {
       </Route>
       <Route path="/admin/backup">
         {() => <Protected Component={BackupManagement} />}
+      </Route>
+      <Route path="/admin/waitlist">
+        {() => <Protected Component={AdminWaitlist} />}
       </Route>
       <Route path="/admin">
         {() => <Protected Component={Admin} />}

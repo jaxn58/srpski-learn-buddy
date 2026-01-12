@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, Brain, MessageSquare, TrendingUp, Clock, Home, Lock, Star } from "lucide-react";
+import { BookOpen, Brain, MessageSquare, TrendingUp, Home, Lock, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -157,52 +157,7 @@ export default function Dashboard() {
     );
   }
 
-  // Show pending approval overlay for inactive users
-  if (!user.isActive) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-2xl w-full border-2 border-yellow-200 bg-yellow-50">
-          <CardHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <Clock className="h-8 w-8 text-yellow-600" />
-              <CardTitle className="text-2xl">{t('dashboard.pendingApproval.title')}</CardTitle>
-            </div>
-            <CardDescription className="text-base">
-              {t('dashboard.pendingApproval.desc')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-white rounded-lg p-4 border border-yellow-200">
-              <h3 className="font-semibold mb-2">{t('dashboard.pendingApproval.whatNext')}</h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-0.5">•</span>
-                  <span>{t('dashboard.pendingApproval.review')}</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-0.5">•</span>
-                  <span dangerouslySetInnerHTML={{ __html: t('dashboard.pendingApproval.email', { email: user.email }) }} />
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-yellow-600 mt-0.5">•</span>
-                  <span>{t('dashboard.pendingApproval.access')}</span>
-                </li>
-              </ul>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={() => window.location.href = '/'} variant="outline" className="flex-1">
-                <Home className="mr-2 h-4 w-4" />
-                {t('dashboard.pendingApproval.backHome')}
-              </Button>
-              <Button onClick={logout} variant="ghost" className="flex-1">
-                {t('dashboard.pendingApproval.logout')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // All users now have immediate access - no pending approval needed
 
   return (
     <>
