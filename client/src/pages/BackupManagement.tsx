@@ -93,18 +93,29 @@ export default function BackupManagement() {
     try {
       setDownloadingBackupId(backupId);
       
-      // Get the download URL from Convex (using mutation instead of query for event handler compatibility)
+      // Get the download URL from Convex
       const url = await getBackupUrlMutation({ backupId });
       
       if (url) {
-        // Create a temporary link element to trigger download
+        // Fetch the file content first (to work around CORS download restrictions)
+        // This is necessary because Convex Storage URLs are cross-origin
+        const response = await fetch(url);
+        const blob = await response.blob();
+        
+        // Create a local blob URL (same-origin) for download
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Create link with blob URL and trigger download
         const link = document.createElement('a');
-        link.href = url;
+        link.href = blobUrl;
         link.download = `backup-${backupId}.json`;
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        
+        // Clean up blob URL after download
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
         
         toast.success("Download started", {
           description: "The backup file is being downloaded."
