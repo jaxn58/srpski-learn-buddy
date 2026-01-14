@@ -114,20 +114,20 @@ export default function Home() {
             </Link>
           ) : (
             <>
-              {showWaitlist ? (
+              {showWaitlist && (
                 <Button 
-                  className="bg-primary hover:bg-primary/90"
+                  variant="outline"
+                  className="border-primary text-primary hover:bg-primary/10"
                   onClick={() => setIsWaitlistModalOpen(true)}
                 >
                   Join Waitlist
                 </Button>
-              ) : (
-                <Link href="/sign-in">
-                  <Button className="bg-primary hover:bg-primary/90">
-                      {t('home.header.login')}
-                  </Button>
-                </Link>
               )}
+              <Link href="/sign-in">
+                <Button className="bg-primary hover:bg-primary/90">
+                    {t('home.header.login')}
+                </Button>
+              </Link>
             </>
           )}
           </div>
@@ -155,24 +155,36 @@ export default function Home() {
             dangerouslySetInnerHTML={{ __html: t('home.hero.description', { count: TOTAL_VOCABULARY }) }}
           />
           <div className="flex gap-4 justify-center pt-4">
-            {showWaitlist ? (
-              <Button 
-                size="lg" 
-                className="bg-primary hover:bg-primary/90 text-lg px-8"
-                onClick={() => setIsWaitlistModalOpen(true)}
-              >
-                Join Waitlist
-              </Button>
+            {!isAuthenticated ? (
+              <>
+                {showWaitlist && (
+                  <Button 
+                    size="lg" 
+                    className="bg-primary hover:bg-primary/90 text-lg px-8"
+                    onClick={() => setIsWaitlistModalOpen(true)}
+                  >
+                    Join Waitlist
+                  </Button>
+                )}
+                <Link href="/sign-in">
+                  <Button 
+                    size="lg" 
+                    variant={showWaitlist ? "outline" : "default"}
+                    className={showWaitlist ? "text-lg px-8 border-primary text-primary hover:bg-primary/10" : "bg-primary hover:bg-primary/90 text-lg px-8"}
+                  >
+                    {t('home.header.login')}
+                  </Button>
+                </Link>
+              </>
             ) : (
-              <Button 
-                size="lg" 
-                className="bg-primary hover:bg-primary/90 text-lg px-8"
-                onClick={() => {
-                  document.getElementById('beta-registration')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-              >
-                {t('home.hero.ctaPrimary')}
-              </Button>
+              <Link href="/dashboard">
+                <Button 
+                  size="lg" 
+                  className="bg-primary hover:bg-primary/90 text-lg px-8"
+                >
+                  {t('home.header.dashboard')}
+                </Button>
+              </Link>
             )}
             <Button size="lg" variant="outline" asChild className="text-lg px-8">
               <a href="#units">{t('home.hero.ctaSecondary')}</a>
