@@ -223,3 +223,17 @@ export const notifyAll = mutation({
     };
   },
 });
+
+// Remove waitlist entry (admin only)
+export const remove = mutation({
+  args: {
+    waitlistId: v.id("waitlist"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized - Admin access required");
+
+    await ctx.db.delete(args.waitlistId);
+    return { success: true };
+  },
+});

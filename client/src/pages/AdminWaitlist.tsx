@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import type { Doc } from "../../../convex/_generated/dataModel";
-import { Mail, Users, CheckCircle, Clock, Bell, Loader2, Download } from "lucide-react";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
+import { Mail, Users, CheckCircle, Clock, Bell, Loader2, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -28,8 +28,10 @@ export default function AdminWaitlist() {
   const waitlistEntries = useQuery(api.waitlist.getAll) as WaitlistEntry[] | undefined;
   const stats = useQuery(api.waitlist.getStats);
   const notifyAllMutation = useMutation(api.waitlist.notifyAll);
+  const removeMutation = useMutation(api.waitlist.remove);
 
   const [isNotifying, setIsNotifying] = useState(false);
+  const [deletingId, setDeletingId] = useState<Id<"waitlist"> | null>(null);
 
   // Check if user is admin
   if (authLoading) {
@@ -65,6 +67,19 @@ export default function AdminWaitlist() {
       toast.error(error.message || "Failed to notify users");
     } finally {
       setIsNotifying(false);
+    }
+  };
+
+  const handleDelete = async (waitlistId: Id<"waitlist">, email: string) => {
+    setDeletingId(waitlistId);
+    try {
+      await removeMutation({ waitlistId });
+      toast.success(`Successfully deleted ${email}`);
+    } catch (error: any) {
+      console.error("[AdminWaitlist] Error deleting entry:", error);
+      toast.error(error.message || "Failed to delete entry");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -242,6 +257,7 @@ export default function AdminWaitlist() {
                     <TableHead>Created</TableHead>
                     <TableHead>Confirmed</TableHead>
                     <TableHead>Notified</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -258,6 +274,42 @@ export default function AdminWaitlist() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {entry.notifiedAt ? new Date(entry.notifiedAt).toLocaleDateString() : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={deletingId === entry._id}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              {deletingId === entry._id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Waitlist Entry?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete <strong>{entry.email}</strong> from the waitlist?
+                                This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(entry._id, entry.email)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Yes, Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </TableCell>
                     </TableRow>
                   ))}
