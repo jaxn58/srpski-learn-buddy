@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
-import { api } from "./_generated/api";
+import { mutation, query, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
+import { api, internal } from "./_generated/api";
 
 // Helper to get the current user and verify admin
 async function getAdminUser(ctx: QueryCtx | MutationCtx) {
@@ -24,6 +24,7 @@ export const join = mutation({
   args: {
     email: v.string(),
     name: v.optional(v.string()),
+    wantsWaitlistUpdates: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Validate email format
@@ -46,8 +47,14 @@ export const join = mutation({
       
       // If pending, resend confirmation email
       if (existing.status === "pending") {
+        // Update preference if provided
+        if (args.wantsWaitlistUpdates !== undefined) {
+          await ctx.db.patch(existing._id, {
+            wantsWaitlistUpdates: args.wantsWaitlistUpdates,
+          });
+        }
         // Schedule email to be sent
-        await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+        await ctx.scheduler.runAfter(0, internal.email.sendEmail, {
           templateName: "waitlist-opt-in",
           variables: {
             USER_NAME: existing.name || "there",
@@ -68,6 +75,7 @@ export const join = mutation({
     const waitlistId = await ctx.db.insert("waitlist", {
       email: args.email,
       name: args.name,
+      wantsWaitlistUpdates: args.wantsWaitlistUpdates ?? false,
       status: "pending",
       confirmationToken,
       createdAt: Date.now(),
@@ -75,7 +83,7 @@ export const join = mutation({
 
     // Send opt-in email
     try {
-      await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+      await ctx.scheduler.runAfter(0, internal.email.sendEmail, {
         templateName: "waitlist-opt-in",
         variables: {
           USER_NAME: args.name || "there",
@@ -121,7 +129,7 @@ export const confirm = mutation({
 
     // Send confirmation email
     try {
-      await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+      await ctx.scheduler.runAfter(0, internal.email.sendEmail, {
         templateName: "waitlist-confirmed",
         variables: {
           USER_NAME: entry.name || "there",
@@ -131,6 +139,26 @@ export const confirm = mutation({
       });
     } catch (error) {
       console.error("[Waitlist] Failed to send confirmation email:", error);
+    }
+
+    // Sync to newsletter contacts
+    try {
+      await ctx.scheduler.runAfter(0, internal.newsletter.syncWaitlistToNewsletter, {
+        waitlistId: entry._id,
+      });
+    } catch (error) {
+      console.error("[Waitlist] Failed to sync to newsletter:", error);
+    }
+
+    // If user requested waitlist updates, trigger Double Opt-In email
+    if (entry.wantsWaitlistUpdates) {
+      try {
+        await ctx.scheduler.runAfter(0, internal.newsletter.requestWaitlistUpdatesDoubleOptIn, {
+          waitlistId: entry._id,
+        });
+      } catch (error) {
+        console.error("[Waitlist] Failed to request DOI for waitlist updates:", error);
+      }
     }
 
     return { success: true, email: entry.email };
@@ -193,7 +221,7 @@ export const notifyAll = mutation({
     // Send beta launch email to all confirmed users
     for (const entry of confirmed) {
       try {
-        await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+        await ctx.scheduler.runAfter(0, internal.email.sendEmail, {
           templateName: "waitlist-beta-launch",
           variables: {
             USER_NAME: entry.name || "there",
@@ -235,5 +263,15 @@ export const remove = mutation({
 
     await ctx.db.delete(args.waitlistId);
     return { success: true };
+  },
+});
+
+// Internal query to get all waitlist entries (for migrations)
+export const internalGetAll = internalQuery({
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("waitlist")
+      .order("desc")
+      .collect();
   },
 });

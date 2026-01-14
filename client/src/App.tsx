@@ -31,6 +31,7 @@ import SignUpPage from "./pages/SignUp";
 import Units from "./pages/Units";
 import WaitlistConfirm from "./pages/WaitlistConfirm";
 import AdminWaitlist from "./pages/AdminWaitlist";
+import Newsletter from "./pages/Newsletter";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -139,6 +140,9 @@ function Router() {
       </Route>
       <Route path="/admin/waitlist">
         {() => <Protected Component={AdminWaitlist} />}
+      </Route>
+      <Route path="/admin/newsletter">
+        {() => <Protected Component={Newsletter} />}
       </Route>
       <Route path="/admin">
         {() => <Protected Component={Admin} />}

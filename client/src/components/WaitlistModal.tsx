@@ -4,6 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ interface WaitlistModalProps {
 export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [wantsWaitlistUpdates, setWantsWaitlistUpdates] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -43,6 +45,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
       await joinWaitlist({
         email,
         name: name.trim() || undefined,
+        wantsWaitlistUpdates,
       });
 
       setIsSuccess(true);
@@ -58,6 +61,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
   const handleClose = () => {
     setName("");
     setEmail("");
+    setWantsWaitlistUpdates(false);
     setIsSuccess(false);
     onClose();
   };
@@ -105,10 +109,23 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
               </div>
             </div>
 
-            <div className="bg-muted p-4 rounded-lg text-sm text-muted-foreground">
-              <p>
-                By joining the waitlist, you agree to receive email updates about the Serbian AI Tutor Beta launch.
-              </p>
+            <div className="space-y-2 rounded-lg border bg-muted/40 p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="waitlistUpdates"
+                  checked={wantsWaitlistUpdates}
+                  onCheckedChange={(checked) => setWantsWaitlistUpdates(checked === true)}
+                  disabled={isSubmitting}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="waitlistUpdates" className="cursor-pointer leading-snug">
+                    I’d like behind-the-scenes updates: the idea, the story, and progress toward the beta.
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Double opt-in required. If unchecked, we’ll only notify you at beta launch.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3">

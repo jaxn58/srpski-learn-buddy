@@ -1447,3 +1447,41 @@ export const adminUpsertEmailTemplate = mutation({
     }
   },
 });
+
+// Upsert email signature (for migrations, requires ADMIN_SECRET)
+export const adminUpsertEmailSignature = mutation({
+  args: {
+    adminSecret: v.string(),
+    category: v.union(v.literal("transactional"), v.literal("subscription"), v.literal("marketing")),
+    htmlContent: v.string(),
+    isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Invalid admin secret");
+    }
+
+    const existing = await ctx.db
+      .query("emailSignatures")
+      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        htmlContent: args.htmlContent,
+        isActive: args.isActive,
+        updatedAt: Date.now(),
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("emailSignatures", {
+      category: args.category,
+      htmlContent: args.htmlContent,
+      isActive: args.isActive,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});

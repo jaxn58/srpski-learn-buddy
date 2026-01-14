@@ -16,6 +16,22 @@ function getResendClient(): Resend {
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@mail.jacksenn.me';
 const REPLY_TO_EMAIL = process.env.RESEND_REPLY_TO_EMAIL || 'hello@jacksenn.me';
 
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|tr)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 export interface SendEmailOptions {
   to: string;
   subject: string;
@@ -45,6 +61,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
       to: options.to,
       subject: options.subject,
       html: options.html,
+      text: htmlToText(options.html),
       replyTo: options.replyTo || REPLY_TO_EMAIL,
     });
 

@@ -193,7 +193,7 @@ http.route({
         if (email) {
           // Send welcome email to user (immediate access)
           try {
-            await ctx.runAction(api.email.sendBetaRegistrationEmail, {
+            await ctx.runAction(internal.email.sendBetaRegistrationEmail, {
               email,
               name: name || "New User",
             });
@@ -208,6 +208,321 @@ http.route({
     } catch (err) {
       console.error("Error processing webhook:", err);
       return new Response("Error occured", { status: 400 });
+    }
+  }),
+});
+
+// ============= NEWSLETTER ENDPOINTS =============
+
+// Resend webhook endpoint for email events
+http.route({
+  path: "/newsletter/webhook/resend",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const payload = await request.json();
+      const eventType = payload.type;
+      const messageId = payload.data?.email_id || payload.data?.message_id;
+
+      if (!messageId) {
+        console.warn("[Newsletter Webhook] Missing message_id in payload");
+        return new Response("OK", { status: 200 });
+      }
+
+      console.log(`[Newsletter Webhook] Received ${eventType} for message ${messageId}`);
+
+      // Find email log by Resend message ID
+      const emailLog = await ctx.runQuery(api.newsletter.getEmailLogByResendId, {
+        resendMessageId: messageId,
+      });
+
+      if (!emailLog) {
+        console.warn(`[Newsletter Webhook] Email log not found for message ${messageId}`);
+        return new Response("OK", { status: 200 });
+      }
+
+      // Update email log based on event type
+      switch (eventType) {
+        case "email.delivered":
+          await ctx.runMutation(api.newsletter.updateEmailLogFromWebhook, {
+            emailLogId: emailLog._id,
+            status: "delivered",
+            deliveredAt: Date.now(),
+          });
+          break;
+
+        case "email.opened":
+          await ctx.runMutation(api.newsletter.updateEmailLogFromWebhook, {
+            emailLogId: emailLog._id,
+            status: "opened",
+            openedAt: emailLog.openedAt || Date.now(),
+            openedCount: emailLog.openedCount + 1,
+            lastOpenedAt: Date.now(),
+          });
+          break;
+
+        case "email.bounced":
+          await ctx.runMutation(api.newsletter.updateEmailLogFromWebhook, {
+            emailLogId: emailLog._id,
+            status: "bounced",
+          });
+          break;
+
+        case "email.complained":
+          // User marked as spam - unsubscribe them
+          await ctx.runMutation(api.newsletter.unsubscribeContact, {
+            contactId: emailLog.contactId,
+          });
+          await ctx.runMutation(api.newsletter.updateEmailLogFromWebhook, {
+            emailLogId: emailLog._id,
+            status: "bounced",
+          });
+          console.log(`[Newsletter Webhook] Unsubscribed ${emailLog.email} due to spam complaint`);
+          break;
+
+        default:
+          console.log(`[Newsletter Webhook] Unhandled event type: ${eventType}`);
+      }
+
+      return new Response("OK", { status: 200 });
+    } catch (error: any) {
+      console.error("[Newsletter Webhook] Error:", error);
+      return new Response("Error", { status: 500 });
+    }
+  }),
+});
+
+// Link tracking endpoint
+http.route({
+  path: "/newsletter/track/:token",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const token = new URL(request.url).pathname.split("/").pop();
+
+    if (!token) {
+      return new Response("Invalid tracking token", { status: 400 });
+    }
+
+    try {
+      // Get link click data
+      const linkClick = await ctx.runQuery(api.newsletter.getLinkClickByToken, {
+        token,
+      });
+
+      if (!linkClick) {
+        return new Response("Link not found", { status: 404 });
+      }
+
+      // Record the click
+      const userAgent = request.headers.get("user-agent") || undefined;
+      const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
+                        request.headers.get("x-real-ip") || undefined;
+      const referer = request.headers.get("referer") || undefined;
+
+      await ctx.runMutation(api.newsletter.recordLinkClick, {
+        linkClickId: linkClick._id,
+        userAgent,
+        ipAddress,
+        referer,
+      });
+
+      // Redirect to original URL
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: linkClick.originalUrl,
+        },
+      });
+    } catch (error: any) {
+      console.error("[Newsletter] Track error:", error);
+      return new Response("Error tracking link", { status: 500 });
+    }
+  }),
+});
+
+// Double opt-in confirmation endpoint
+http.route({
+  path: "/newsletter/optin/confirm",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const token = url.searchParams.get("token");
+
+    if (!token) {
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+          <head>
+            <title>Invalid Link</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 50px auto; padding: 20px; text-align: center; }
+              h1 { color: #dc2626; }
+            </style>
+          </head>
+          <body>
+            <h1>Invalid Confirmation Link</h1>
+            <p>This confirmation link is invalid or has expired.</p>
+          </body>
+        </html>`,
+        { status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
+    }
+
+    try {
+      const result = await ctx.runMutation(api.newsletter.confirmDoubleOptIn, { token });
+      const appUrl = process.env.VITE_APP_URL || "https://learn-with.me";
+
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+          <head>
+            <title>Subscription Confirmed</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 50px auto; padding: 20px; text-align: center; }
+              h1 { color: #16a34a; }
+              a { color: #2563eb; text-decoration: none; }
+            </style>
+          </head>
+          <body>
+            <h1>You're in!</h1>
+            <p>Your subscription has been confirmed for <strong>${result.email}</strong>.</p>
+            <p><a href="${appUrl}">Return to the app</a></p>
+          </body>
+        </html>`,
+        { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
+    } catch (error: any) {
+      console.error("[Newsletter DOI] Confirm error:", error);
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+          <head>
+            <title>Confirmation Failed</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 50px auto; padding: 20px; text-align: center; }
+              h1 { color: #dc2626; }
+            </style>
+          </head>
+          <body>
+            <h1>Confirmation Failed</h1>
+            <p>${error?.message || "Something went wrong while confirming your subscription."}</p>
+          </body>
+        </html>`,
+        { status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
+    }
+  }),
+});
+
+// Unsubscribe endpoint
+http.route({
+  path: "/newsletter/unsubscribe",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const token = url.searchParams.get("token");
+
+    if (!token) {
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+          <head>
+            <title>Invalid Link</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+              h1 { color: #dc2626; }
+            </style>
+          </head>
+          <body>
+            <h1>Invalid Unsubscribe Link</h1>
+            <p>This unsubscribe link is invalid or has expired.</p>
+          </body>
+        </html>`,
+        { status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
+    }
+
+    try {
+      const contact = await ctx.runQuery(api.newsletter.getContactByUnsubscribeToken, {
+        token,
+      });
+
+      if (!contact) {
+        return new Response(
+          `<!DOCTYPE html>
+          <html>
+            <head>
+              <title>Invalid Link</title>
+              <meta charset="utf-8">
+              <style>
+                body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+                h1 { color: #dc2626; }
+              </style>
+            </head>
+            <body>
+              <h1>Invalid Unsubscribe Link</h1>
+              <p>This unsubscribe link is invalid or has expired.</p>
+            </body>
+          </html>`,
+          { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } }
+        );
+      }
+
+      // Unsubscribe the contact
+      await ctx.runMutation(api.newsletter.unsubscribeContact, {
+        contactId: contact._id,
+      });
+
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+          <head>
+            <title>Unsubscribed</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+              h1 { color: #16a34a; }
+              p { color: #4b5563; line-height: 1.6; }
+              a { color: #2563eb; text-decoration: none; }
+              a:hover { text-decoration: underline; }
+            </style>
+          </head>
+          <body>
+            <h1>✓ Successfully Unsubscribed</h1>
+            <p>You have been unsubscribed from our newsletter.</p>
+            <p>You will no longer receive marketing emails from Serbian AI Tutor.</p>
+            <p style="margin-top: 40px;">
+              <a href="https://learn-with.me">Return to Homepage</a>
+            </p>
+          </body>
+        </html>`,
+        { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
+    } catch (error: any) {
+      console.error("[Newsletter] Unsubscribe error:", error);
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+          <head>
+            <title>Error</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+              h1 { color: #dc2626; }
+            </style>
+          </head>
+          <body>
+            <h1>Error</h1>
+            <p>An error occurred while processing your request.</p>
+          </body>
+        </html>`,
+        { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
     }
   }),
 });

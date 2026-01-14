@@ -250,9 +250,21 @@ export const render = query({
       throw new Error(`Template "${args.templateName}" is not active`);
     }
 
-    let renderedHtml = template.htmlContent;
-    let renderedSubject = template.subject;
     const vars = args.variables || {};
+
+    // Inject signature via placeholder (per category) before variable replacement,
+    // so signature HTML can also use template variables like {{USER_EMAIL}}.
+    let renderedHtml = template.htmlContent;
+    if (renderedHtml.includes("{{EMAIL_SIGNATURE}}")) {
+      const signature = await ctx.db
+        .query("emailSignatures")
+        .withIndex("by_category", (q) => q.eq("category", template.category))
+        .first();
+      const signatureHtml = signature && signature.isActive ? signature.htmlContent : "";
+      renderedHtml = renderedHtml.replace(/\{\{EMAIL_SIGNATURE\}\}/g, signatureHtml);
+    }
+
+    let renderedSubject = template.subject;
 
     // Replace all {{VARIABLE}} with values
     for (const [key, value] of Object.entries(vars)) {
@@ -266,6 +278,83 @@ export const render = query({
       subject: renderedSubject,
       html: renderedHtml,
     };
+  },
+});
+
+// ============= SIGNATURE MANAGEMENT (per category) =============
+
+export const getAllSignatures = query({
+  handler: async (ctx) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+    return await ctx.db.query("emailSignatures").collect();
+  },
+});
+
+export const getSignatureByCategory = query({
+  args: {
+    category: v.union(v.literal("transactional"), v.literal("subscription"), v.literal("marketing")),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+    return await ctx.db
+      .query("emailSignatures")
+      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .first();
+  },
+});
+
+export const upsertSignature = mutation({
+  args: {
+    category: v.union(v.literal("transactional"), v.literal("subscription"), v.literal("marketing")),
+    htmlContent: v.string(),
+    isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const superadmin = await getSuperadminUser(ctx);
+    if (!superadmin) throw new Error("Superadmin access required");
+
+    const existing = await ctx.db
+      .query("emailSignatures")
+      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        htmlContent: args.htmlContent,
+        isActive: args.isActive,
+        updatedAt: Date.now(),
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("emailSignatures", {
+      category: args.category,
+      htmlContent: args.htmlContent,
+      isActive: args.isActive,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const removeSignature = mutation({
+  args: {
+    category: v.union(v.literal("transactional"), v.literal("subscription"), v.literal("marketing")),
+  },
+  handler: async (ctx, args) => {
+    const superadmin = await getSuperadminUser(ctx);
+    if (!superadmin) throw new Error("Superadmin access required");
+
+    const existing = await ctx.db
+      .query("emailSignatures")
+      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .first();
+
+    if (!existing) return { success: true, deleted: false };
+    await ctx.db.delete(existing._id);
+    return { success: true, deleted: true };
   },
 });
 

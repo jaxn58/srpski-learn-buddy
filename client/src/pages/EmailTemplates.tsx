@@ -7,25 +7,111 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery, useMutation } from "convex/react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Mail, Eye, Trash2, Edit, Plus, CheckCircle, XCircle, ArrowLeft, Code, Eye as EyeIcon } from "lucide-react";
+import { Mail, Eye, Trash2, Edit, Plus, CheckCircle, XCircle, ArrowLeft, Code, Eye as EyeIcon, MoreHorizontal, Copy, AlertTriangle, Type } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 // Sidebar import removed
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 type TemplateCategory = "transactional" | "subscription" | "marketing";
 type EmailTemplateDoc = Doc<"emailTemplates">;
 
 type ViewMode = "list" | "editor";
+type SignatureCategory = "transactional" | "subscription" | "marketing";
+type ContentTab = "wysiwyg" | "code" | "emailPreview";
+
+const SIGNATURE_FOOTER_BLOCK = `\n<div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;">\n  {{EMAIL_SIGNATURE}}\n</div>\n`;
+
+const EMAIL_SNIPPETS = [
+  {
+    key: "button",
+    label: "Button (email-safe)",
+    html: `<a href="{{LINK_URL}}" style="display:inline-block;background:#C41E3A;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:4px;font-weight:bold;">{{LINK_TEXT}}</a>`,
+  },
+  {
+    key: "divider",
+    label: "Divider",
+    html: `<hr style="border:0;border-top:1px solid #eeeeee;margin:20px 0;" />`,
+  },
+  {
+    key: "container",
+    label: "600px container table",
+    html: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:20px 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;">
+        <tr>
+          <td style="padding:20px;">
+            <!-- content -->
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`,
+  },
+] as const;
+
+function getVariableDescription(variable: string): string {
+  // Short, high-signal descriptions (English UI copy to match existing admin UI).
+  switch (variable) {
+    case "EMAIL_SIGNATURE":
+      return "Inserts the category signature (transactional/subscription/marketing) at this position.";
+    case "USER_NAME":
+      return "Recipient's display name.";
+    case "USER_EMAIL":
+      return "Recipient's email address.";
+    case "ADMIN_EMAIL":
+      return "Admin/support email address (used in admin notifications).";
+    case "ADMIN_URL":
+      return "Link to the admin area.";
+    case "SIGNUP_URL":
+      return "Link to the sign-up page.";
+    case "LOGIN_URL":
+      return "Link to the login page.";
+    case "CLERK_ID":
+      return "Clerk user id (internal identifier from authentication).";
+    case "CONFIRM_LINK":
+      return "Double opt-in confirmation link (newsletter).";
+    case "CONFIRMATION_LINK":
+      return "Confirmation link (waitlist confirmation).";
+    case "BETA_LAUNCH_NOTE":
+      return "Optional note shown when a user did not opt into updates (waitlist).";
+    case "FEEDBACK_TYPE":
+      return "Feedback category/type selected by the user.";
+    case "FEEDBACK_TITLE":
+      return "Feedback title/summary.";
+    case "FEEDBACK_DESCRIPTION":
+      return "Full feedback text/details.";
+    case "LINK_URL":
+      return "URL for an email button/snippet link.";
+    case "LINK_TEXT":
+      return "Visible label text for an email button/snippet link.";
+    default: {
+      if (variable.endsWith("_URL")) return "A URL used in this email flow.";
+      if (variable.endsWith("_EMAIL")) return "An email address used in this email flow.";
+      return "Variable used by this email flow.";
+    }
+  }
+}
 
 export default function EmailTemplates() {
   const { user, loading: authLoading } = useAuth();
@@ -35,11 +121,29 @@ export default function EmailTemplates() {
   
   const upsertMutation = useMutation(api.emailTemplates.upsert);
   const deleteMutation = useMutation(api.emailTemplates.remove);
+  const upsertSignatureMutation = useMutation(api.emailTemplates.upsertSignature);
+  const removeSignatureMutation = useMutation(api.emailTemplates.removeSignature);
+  const sendTestEmailAction = useAction(api.email.sendTestEmail);
   
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplateDoc | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<EmailTemplateDoc | null>(null);
   const [previewVariables, setPreviewVariables] = useState<Record<string, string>>({});
+  const [signaturesOpen, setSignaturesOpen] = useState(false);
+  const [testEmailOpen, setTestEmailOpen] = useState(false);
+  const [testToEmail, setTestToEmail] = useState("");
+  const [testVariables, setTestVariables] = useState<Record<string, string>>({});
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [contentTab, setContentTab] = useState<ContentTab>("wysiwyg");
+  const [variableSearch, setVariableSearch] = useState("");
+
+  const subjectInputRef = useRef<HTMLInputElement | null>(null);
+  const codeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [signatureForm, setSignatureForm] = useState<Record<SignatureCategory, { htmlContent: string; isActive: boolean }>>({
+    transactional: { htmlContent: "", isActive: true },
+    subscription: { htmlContent: "", isActive: true },
+    marketing: { htmlContent: "", isActive: true },
+  });
   
   const [formData, setFormData] = useState({
     name: "",
@@ -50,6 +154,29 @@ export default function EmailTemplates() {
     isActive: true,
     variables: [] as string[],
   });
+
+  const signatures = useQuery(api.emailTemplates.getAllSignatures) as any[] | undefined;
+  const signatureForCategory = useQuery(api.emailTemplates.getSignatureByCategory, {
+    category: formData.category as SignatureCategory,
+  }) as any | undefined;
+
+  useEffect(() => {
+    if (!signatures) return;
+    const next: Record<SignatureCategory, { htmlContent: string; isActive: boolean }> = {
+      transactional: { htmlContent: "", isActive: true },
+      subscription: { htmlContent: "", isActive: true },
+      marketing: { htmlContent: "", isActive: true },
+    };
+    for (const s of signatures) {
+      if (s?.category && s.category in next) {
+        next[s.category as SignatureCategory] = {
+          htmlContent: s.htmlContent || "",
+          isActive: s.isActive ?? true,
+        };
+      }
+    }
+    setSignatureForm(next);
+  }, [signatures]);
 
   // Tiptap editor instance
   const editor = useEditor({
@@ -110,6 +237,10 @@ export default function EmailTemplates() {
     return Array.from(foundVariables);
   }, [formData.subject, formData.htmlContent]);
 
+  const testVariableKeys = useMemo(() => {
+    return detectedVariables.filter((v) => v !== "EMAIL_SIGNATURE").sort();
+  }, [detectedVariables]);
+
   // Update preview variables when new variables are detected
   useEffect(() => {
     setPreviewVariables(prev => {
@@ -129,11 +260,66 @@ export default function EmailTemplates() {
     let html = formData.htmlContent;
     // Replace variables with sample data
     Object.keys(previewVariables).forEach(key => {
+      if (key === "EMAIL_SIGNATURE") return;
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
       html = html.replace(regex, previewVariables[key]);
     });
+    const signatureHtml = signatureForCategory?.isActive ? signatureForCategory?.htmlContent : "";
+    html = html.replace(/\{\{EMAIL_SIGNATURE\}\}/g, signatureHtml || "");
     return html;
-  }, [formData.htmlContent, previewVariables]);
+  }, [formData.htmlContent, previewVariables, signatureForCategory]);
+
+  const availableVariables = useMemo(() => {
+    const set = new Set<string>();
+    (templates || [])
+      .filter((t) => t.category === formData.category)
+      .forEach((t) => {
+      (t.variables || []).forEach((v: string) => set.add(v));
+    });
+    // Hide internal helper placeholder from "available" list; we handle it separately.
+    set.delete("EMAIL_SIGNATURE");
+    return Array.from(set).sort();
+  }, [templates, formData.category]);
+
+  const filteredAvailableVariables = useMemo(() => {
+    const q = variableSearch.trim().toLowerCase();
+    if (!q) return availableVariables;
+    return availableVariables.filter((v) => v.toLowerCase().includes(q));
+  }, [availableVariables, variableSearch]);
+
+  const hasSignaturePlaceholder = (formData.htmlContent || "").includes("{{EMAIL_SIGNATURE}}");
+
+  const variableInfo = useMemo(() => {
+    const getExample = (v: string) => {
+      // Prefer current preview values if present.
+      const fromPreview = previewVariables[v];
+      if (fromPreview) return fromPreview;
+
+      // Best-effort fallbacks.
+      if (v === "USER_EMAIL") return user?.email || "you@example.com";
+      if (v === "USER_NAME") return user?.name || "Friend";
+      if (v.endsWith("_URL")) return "https://example.com/path";
+      if (v.endsWith("_EMAIL")) return "support@example.com";
+      if (v === "CLERK_ID") return "user_test_clerk_id";
+      if (v.includes("CONFIRM")) return "https://example.com/confirm?token=<token>";
+      return `Sample ${v.replace(/_/g, " ")}`;
+    };
+
+    return (v: string) => ({
+      description: getVariableDescription(v),
+      example: getExample(v),
+    });
+  }, [previewVariables, user?.email, user?.name]);
+
+  const previewSubject = useMemo(() => {
+    if (!formData.subject) return "";
+    let subject = formData.subject;
+    Object.keys(previewVariables).forEach((key) => {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+      subject = subject.replace(regex, previewVariables[key]);
+    });
+    return subject;
+  }, [formData.subject, previewVariables]);
 
   if (authLoading || templatesLoading) {
     return (
@@ -186,7 +372,7 @@ export default function EmailTemplates() {
     setFormData({
       name: "",
       subject: "",
-      htmlContent: "",
+      htmlContent: `<div>\n  <!-- Footer (auto-injected) -->\n  <div style=\"margin-top:16px;padding-top:12px;border-top:1px solid #eee;\">\n    {{EMAIL_SIGNATURE}}\n  </div>\n</div>`,
       description: "",
       category: "transactional",
       isActive: true,
@@ -195,6 +381,203 @@ export default function EmailTemplates() {
     setPreviewVariables({});
     setViewMode("editor");
   };
+
+  const buildDefaultTestVariables = () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+    const next: Record<string, string> = {};
+    testVariableKeys.forEach((k) => {
+      next[k] = previewVariables[k] || `Sample ${k.replace(/_/g, " ")}`;
+    });
+
+    // User defaults
+    if (user?.email) next.USER_EMAIL = next.USER_EMAIL || user.email;
+    if (user?.name) next.USER_NAME = next.USER_NAME || user.name;
+
+    // Common URL defaults (best-effort)
+    if (origin) {
+      if (next.SIGNUP_URL !== undefined) next.SIGNUP_URL = next.SIGNUP_URL || `${origin}/sign-up`;
+      if (next.LOGIN_URL !== undefined) next.LOGIN_URL = next.LOGIN_URL || `${origin}/sign-in`;
+      if (next.ADMIN_URL !== undefined) next.ADMIN_URL = next.ADMIN_URL || `${origin}/admin`;
+      if (next.CONFIRM_LINK !== undefined) next.CONFIRM_LINK = next.CONFIRM_LINK || `${origin}/newsletter/optin/confirm?token=<test-token>`;
+      if (next.CONFIRMATION_LINK !== undefined) next.CONFIRMATION_LINK = next.CONFIRMATION_LINK || `${origin}/waitlist/confirm?token=<test-token>`;
+    }
+
+    if (next.CLERK_ID !== undefined) next.CLERK_ID = next.CLERK_ID || "user_test_clerk_id";
+
+    return next;
+  };
+
+  const openTestEmailDialog = () => {
+    setTestToEmail(user?.email || "");
+    setTestVariables(buildDefaultTestVariables());
+    setTestEmailOpen(true);
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!formData.name) {
+      toast.error("Please save the template first (Template Name is required).");
+      return;
+    }
+    if (!testToEmail || !testToEmail.includes("@")) {
+      toast.error("Please enter a valid recipient email.");
+      return;
+    }
+
+    setIsSendingTestEmail(true);
+    try {
+      const vars: Record<string, string | number> = { ...testVariables };
+      // Prefer the chosen recipient for USER_EMAIL if present
+      vars.USER_EMAIL = testToEmail;
+
+      const result = await sendTestEmailAction({
+        templateName: formData.name,
+        to: testToEmail,
+        variables: vars,
+      });
+
+      if (result?.success) {
+        toast.success("Test email sent. Check your inbox.");
+        setTestEmailOpen(false);
+      } else {
+        toast.error(result?.error || "Failed to send test email");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send test email");
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
+  const handleSaveAndSendTestEmail = async () => {
+    // Save first, then immediately send using defaults (single-click flow).
+    if (!formData.name || !formData.subject || !formData.htmlContent) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (!user?.email) {
+      toast.error("No admin email found for test send.");
+      return;
+    }
+
+    setIsSendingTestEmail(true);
+    try {
+      // Recompute variables like in handleSave
+      const variableRegex = /\{\{(\w+)\}\}/g;
+      const foundVariables = new Set<string>();
+      let match;
+
+      while ((match = variableRegex.exec(formData.subject)) !== null) {
+        foundVariables.add(match[1]);
+      }
+      while ((match = variableRegex.exec(formData.htmlContent)) !== null) {
+        foundVariables.add(match[1]);
+      }
+
+      const variables = Array.from(foundVariables);
+
+      await upsertMutation({
+        name: formData.name,
+        subject: formData.subject,
+        htmlContent: formData.htmlContent,
+        description: formData.description || undefined,
+        category: formData.category,
+        isActive: formData.isActive,
+        variables,
+      });
+
+      const defaultVars = buildDefaultTestVariables();
+      const to = testToEmail || user.email;
+
+      const vars: Record<string, string | number> = { ...defaultVars };
+      vars.USER_EMAIL = to;
+
+      const result = await sendTestEmailAction({
+        templateName: formData.name,
+        to,
+        variables: vars,
+      });
+
+      if (result?.success) {
+        toast.success("Saved and sent test email. Check your inbox.");
+      } else {
+        toast.error(result?.error || "Failed to send test email");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save & send test email");
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
+  function insertBeforeClosingBody(html: string, snippet: string) {
+    const idx = html.toLowerCase().lastIndexOf("</body>");
+    if (idx === -1) return html + snippet;
+    return html.slice(0, idx) + snippet + html.slice(idx);
+  }
+
+  function insertTextAtCursor(el: HTMLInputElement | HTMLTextAreaElement, text: string) {
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const next = el.value.slice(0, start) + text + el.value.slice(end);
+    const nextPos = start + text.length;
+    return { next, nextPos };
+  }
+
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Copy failed (clipboard permission?)");
+    }
+  }
+
+  function insertVariableIntoSubject(variable: string) {
+    const token = `{{${variable}}}`;
+    const el = subjectInputRef.current;
+    if (!el) {
+      setFormData((prev) => ({ ...prev, subject: `${prev.subject}${token}` }));
+      return;
+    }
+    const { next, nextPos } = insertTextAtCursor(el, token);
+    setFormData((prev) => ({ ...prev, subject: next }));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(nextPos, nextPos);
+    });
+  }
+
+  function insertTextIntoHtmlContent(text: string) {
+    if (contentTab === "wysiwyg" && editor) {
+      editor.chain().focus().insertContent(text).run();
+      return;
+    }
+
+    if (contentTab === "code") {
+      const el = codeTextareaRef.current;
+      if (el) {
+        const { next, nextPos } = insertTextAtCursor(el, text);
+        setFormData((prev) => ({ ...prev, htmlContent: next }));
+        requestAnimationFrame(() => {
+          el.focus();
+          el.setSelectionRange(nextPos, nextPos);
+        });
+        return;
+      }
+    }
+
+    // Fallback: append
+    setFormData((prev) => ({ ...prev, htmlContent: `${prev.htmlContent}${text}` }));
+  }
+
+  function insertSignatureFooter() {
+    if (hasSignaturePlaceholder) return;
+    const next = insertBeforeClosingBody(formData.htmlContent || "", SIGNATURE_FOOTER_BLOCK);
+    setFormData((prev) => ({ ...prev, htmlContent: next }));
+    toast.success("Inserted signature placeholder");
+  }
 
   const handleSave = async () => {
     if (!formData.name || !formData.subject || !formData.htmlContent) {
@@ -243,6 +626,30 @@ export default function EmailTemplates() {
       toast.success('Template deleted successfully');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete template');
+    }
+  };
+
+  const handleSaveSignature = async (category: SignatureCategory) => {
+    try {
+      const data = signatureForm[category];
+      await upsertSignatureMutation({
+        category,
+        htmlContent: data.htmlContent,
+        isActive: data.isActive,
+      });
+      toast.success(`Signature saved: ${category}`);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save signature");
+    }
+  };
+
+  const handleDeleteSignature = async (category: SignatureCategory) => {
+    if (!confirm(`Delete signature for "${category}"?`)) return;
+    try {
+      await removeSignatureMutation({ category });
+      toast.success(`Signature deleted: ${category}`);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete signature");
     }
   };
 
@@ -297,6 +704,21 @@ export default function EmailTemplates() {
                   <Button variant="outline" onClick={() => setViewMode("list")}>
                     Cancel
                   </Button>
+                  {isSuperadmin && (
+                    <Button variant="outline" onClick={openTestEmailDialog}>
+                      Send Test Email
+                    </Button>
+                  )}
+                  {isSuperadmin && (
+                    <Button
+                      variant="outline"
+                      onClick={handleSaveAndSendTestEmail}
+                      disabled={isSendingTestEmail}
+                      title="Saves the template first, then sends a test email with default variables"
+                    >
+                      Save & Send Test Email
+                    </Button>
+                  )}
                   <Button onClick={handleSave}>
                     {editingTemplate ? "Update Template" : "Create Template"}
                   </Button>
@@ -305,12 +727,68 @@ export default function EmailTemplates() {
             </div>
           </header>
 
-          <main className="flex-1 overflow-hidden">
-            <PanelGroup direction="horizontal" className="h-full">
-              {/* Left Panel: Form */}
-              <Panel defaultSize={50} minSize={30}>
-                <div className="h-full overflow-y-auto p-6">
-                  <div className="max-w-4xl mx-auto space-y-6">
+          <Dialog open={testEmailOpen} onOpenChange={setTestEmailOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Send Test Email</DialogTitle>
+                <DialogDescription>
+                  This sends the <strong>saved</strong> version of the template (as it would be delivered), including signature injection.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Recipient</Label>
+                  <Input
+                    value={testToEmail}
+                    onChange={(e) => setTestToEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Tip: If you changed the template, click “Update/Create Template” first to test the latest version.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Variables</Label>
+                  {testVariableKeys.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No variables detected in this template.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {testVariableKeys.map((k) => (
+                        <div key={k} className="space-y-1">
+                          <Label className="text-xs">{`{{${k}}}`}</Label>
+                          <Input
+                            value={testVariables[k] || ""}
+                            onChange={(e) =>
+                              setTestVariables((prev) => ({
+                                ...prev,
+                                [k]: e.target.value,
+                              }))
+                            }
+                            placeholder={`Value for ${k}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setTestEmailOpen(false)} disabled={isSendingTestEmail}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSendTestEmail} disabled={isSendingTestEmail}>
+                    {isSendingTestEmail ? "Sending..." : "Send"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <main className="flex-1 overflow-y-auto">
+            <div className="container py-6">
+              <div className="max-w-4xl mx-auto space-y-6">
                     <Card>
                       <CardHeader>
                         <CardTitle>Template Details</CardTitle>
@@ -363,6 +841,7 @@ export default function EmailTemplates() {
                           <Label htmlFor="subject">Email Subject *</Label>
                           <Input
                             id="subject"
+                            ref={subjectInputRef}
                             value={formData.subject}
                             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                             placeholder="e.g., Welcome to Serbian AI Tutor!"
@@ -387,11 +866,182 @@ export default function EmailTemplates() {
                       <CardHeader>
                         <CardTitle>HTML Content *</CardTitle>
                         <CardDescription>
-                          Use the WYSIWYG editor below or switch to code view to edit HTML directly
+                          Use the editor below to write content. Use "Email Preview" to see a more realistic email rendering.
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <Tabs defaultValue="wysiwyg" className="w-full">
+                        {!hasSignaturePlaceholder && (
+                          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-amber-900">
+                                  Signature placeholder is missing
+                                </p>
+                                <p className="text-sm text-amber-900/80 mt-1">
+                                  This template will <strong>not</strong> include the category signature unless you insert{" "}
+                                  <code>{"{{EMAIL_SIGNATURE}}"}</code>.
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <Button size="sm" onClick={insertSignatureFooter}>
+                                    Insert signature footer
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => copyToClipboard("{{EMAIL_SIGNATURE}}")}
+                                  >
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Copy placeholder
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mb-4">
+                          <Accordion type="multiple" defaultValue={["variables"]} className="w-full">
+                            <AccordionItem value="variables">
+                              <AccordionTrigger className="text-sm">
+                                Variable Library ({filteredAvailableVariables.length})
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <Card className="mt-3">
+                                  <CardContent className="space-y-3 pt-6">
+                                    <div className="flex flex-col gap-2">
+                                      <Label>Search</Label>
+                                      <Input
+                                        value={variableSearch}
+                                        onChange={(e) => setVariableSearch(e.target.value)}
+                                        placeholder="e.g., USER_EMAIL"
+                                      />
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Badge
+                                            variant="secondary"
+                                            className="cursor-pointer select-none"
+                                            onClick={() => insertTextIntoHtmlContent("{{EMAIL_SIGNATURE}}")}
+                                          >
+                                            {"{{EMAIL_SIGNATURE}}"}
+                                          </Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-sm">
+                                          <div className="text-sm font-medium">{"{{EMAIL_SIGNATURE}}"}</div>
+                                          <div className="text-xs text-muted-foreground mt-1">
+                                            {variableInfo("EMAIL_SIGNATURE").description}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                      {filteredAvailableVariables.slice(0, 24).map((v) => {
+                                        const info = variableInfo(v);
+                                        return (
+                                          <div key={v} className="flex items-center gap-1">
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Badge
+                                                  variant="outline"
+                                                  className="cursor-pointer select-none"
+                                                  onClick={() => insertTextIntoHtmlContent(`{{${v}}}`)}
+                                                >
+                                                  {`{{${v}}}`}
+                                                </Badge>
+                                              </TooltipTrigger>
+                                              <TooltipContent className="max-w-sm">
+                                                <div className="text-sm font-medium">{`{{${v}}}`}</div>
+                                                <div className="text-xs text-muted-foreground mt-1">{info.description}</div>
+                                                <div className="text-xs mt-2">
+                                                  <span className="text-muted-foreground">Example:</span>{" "}
+                                                  <span className="font-mono">{info.example}</span>
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-7 w-7"
+                                                  onClick={() => insertVariableIntoSubject(v)}
+                                                >
+                                                  <Type className="h-4 w-4" />
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>Insert into subject</TooltipContent>
+                                            </Tooltip>
+
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-7 w-7"
+                                                  onClick={() => copyToClipboard(`{{${v}}}`)}
+                                                >
+                                                  <Copy className="h-4 w-4" />
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>Copy placeholder</TooltipContent>
+                                            </Tooltip>
+                                          </div>
+                                        );
+                                      })}
+                                      {filteredAvailableVariables.length > 24 && (
+                                        <Badge variant="secondary">+{filteredAvailableVariables.length - 24} more</Badge>
+                                      )}
+                                    </div>
+
+                                    <p className="text-xs text-muted-foreground">
+                                      Tip: Variables depend on the email flow. Use the template’s variables (or detected variables) as the source of truth.
+                                    </p>
+                                  </CardContent>
+                                </Card>
+                              </AccordionContent>
+                            </AccordionItem>
+
+                            <AccordionItem value="snippets">
+                              <AccordionTrigger className="text-sm">
+                                Email-safe snippets ({EMAIL_SNIPPETS.length})
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <Card className="mt-3">
+                                  <CardContent className="space-y-2 pt-6">
+                                    {EMAIL_SNIPPETS.map((s) => (
+                                      <div key={s.key} className="flex items-center justify-between gap-2">
+                                        <div className="text-sm">{s.label}</div>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => copyToClipboard(s.html)}
+                                          >
+                                            <Copy className="h-4 w-4 mr-2" />
+                                            Copy
+                                          </Button>
+                                          <Button type="button" size="sm" onClick={() => insertTextIntoHtmlContent(s.html)}>
+                                            Insert
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </CardContent>
+                                </Card>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        </div>
+
+                        <Tabs value={contentTab} onValueChange={(v) => setContentTab(v as ContentTab)} className="w-full">
                           <TabsList>
                             <TabsTrigger value="wysiwyg">
                               <EyeIcon className="h-4 w-4 mr-2" />
@@ -400,6 +1050,10 @@ export default function EmailTemplates() {
                             <TabsTrigger value="code">
                               <Code className="h-4 w-4 mr-2" />
                               HTML Code
+                            </TabsTrigger>
+                            <TabsTrigger value="emailPreview">
+                              <Mail className="h-4 w-4 mr-2" />
+                              Email Preview
                             </TabsTrigger>
                           </TabsList>
                           <TabsContent value="wysiwyg" className="mt-4">
@@ -482,6 +1136,7 @@ export default function EmailTemplates() {
                           </TabsContent>
                           <TabsContent value="code" className="mt-4">
                             <textarea
+                              ref={codeTextareaRef}
                               value={formData.htmlContent}
                               onChange={(e) => setFormData({ ...formData, htmlContent: e.target.value })}
                               className="w-full h-[400px] font-mono text-sm border rounded-lg p-4 resize-none"
@@ -491,41 +1146,53 @@ export default function EmailTemplates() {
                               Edit HTML directly. Use {`{{VARIABLE_NAME}}`} for dynamic content.
                             </p>
                           </TabsContent>
+                          <TabsContent value="emailPreview" className="mt-4 space-y-4">
+                            <div>
+                              <Label>Subject (preview)</Label>
+                              <div className="mt-1 p-2 bg-white border rounded text-sm font-medium">
+                                {previewSubject || formData.subject || "(No subject)"}
+                              </div>
+                            </div>
+
+                            <div>
+                              <Label>Email Preview (isolated)</Label>
+                              <div className="mt-2 rounded-lg border bg-gray-50 p-4">
+                                <div className="mx-auto w-full max-w-[680px]">
+                                  <iframe
+                                    title="Email preview"
+                                    className="w-full h-[720px] bg-white rounded-lg border"
+                                    sandbox="allow-same-origin"
+                                    srcDoc={`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { margin: 0; padding: 0; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }
+      .email-canvas { max-width: 600px; margin: 0 auto; padding: 16px; }
+      img { max-width: 100%; height: auto; }
+      a { color: #2563eb; }
+      table { border-collapse: collapse; }
+    </style>
+  </head>
+  <body>
+    <div class="email-canvas">
+      ${(previewHtml || formData.htmlContent || "<p>Start typing to see preview...</p>").replace(/`/g, "\\`")}
+    </div>
+  </body>
+</html>`}
+                                  />
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                Note: Email clients differ. This preview isolates your HTML from the app styling and shows a typical 600px email width.
+                              </p>
+                            </div>
+                          </TabsContent>
                         </Tabs>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-              </Panel>
 
-              {/* Resize Handle */}
-              <PanelResizeHandle className="w-2 bg-border hover:bg-primary/20 transition-colors" />
-
-              {/* Right Panel: Preview */}
-              <Panel defaultSize={50} minSize={30}>
-                <div className="h-full overflow-y-auto p-6 bg-gray-50">
-                  <div className="max-w-4xl mx-auto">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Live Preview</CardTitle>
-                        <CardDescription>See how your email will look</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <Label>Subject</Label>
-                          <div className="mt-1 p-2 bg-white border rounded text-sm font-medium">
-                            {formData.subject || "(No subject)"}
-                          </div>
-                        </div>
-                        <div>
-                          <Label>HTML Preview</Label>
-                          <div 
-                            className="border rounded-lg p-4 mt-2 bg-white min-h-[500px]"
-                            dangerouslySetInnerHTML={{ __html: previewHtml || formData.htmlContent || "<p>Start typing to see preview...</p>" }}
-                          />
-                        </div>
                         {detectedVariables.length > 0 && (
-                          <div>
+                          <div className="mt-6">
                             <Label>Detected Variables</Label>
                             <div className="flex flex-wrap gap-2 mt-2">
                               {detectedVariables.map((v: string) => (
@@ -541,10 +1208,8 @@ export default function EmailTemplates() {
                         )}
                       </CardContent>
                     </Card>
-                  </div>
-                </div>
-              </Panel>
-            </PanelGroup>
+              </div>
+            </div>
           </main>
       </div>
     );
@@ -567,6 +1232,11 @@ export default function EmailTemplates() {
                     Create Template
                   </Button>
                 )}
+                {isSuperadmin && (
+                  <Button variant="outline" onClick={() => setSignaturesOpen(true)}>
+                    Signatures
+                  </Button>
+                )}
                 <Link href="/admin">
                   <Button variant="outline" size="sm">
                     Back to Admin Panel
@@ -576,6 +1246,97 @@ export default function EmailTemplates() {
             </div>
           </div>
         </header>
+
+        <Dialog open={signaturesOpen} onOpenChange={setSignaturesOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Email Signatures</DialogTitle>
+              <DialogDescription>
+                One signature per category. Insert <code>{"{{EMAIL_SIGNATURE}}"}</code> in templates to inject it.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Tabs defaultValue="transactional" className="w-full">
+              <TabsList>
+                <TabsTrigger value="transactional">Transactional</TabsTrigger>
+                <TabsTrigger value="subscription">Subscription</TabsTrigger>
+                <TabsTrigger value="marketing">Marketing</TabsTrigger>
+              </TabsList>
+
+              {(["transactional", "subscription", "marketing"] as const).map((category) => (
+                <TabsContent key={category} value={category} className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`${category}-active`}
+                        checked={signatureForm[category].isActive}
+                        onCheckedChange={(checked) =>
+                          setSignatureForm((prev) => ({
+                            ...prev,
+                            [category]: { ...prev[category], isActive: checked },
+                          }))
+                        }
+                      />
+                      <Label htmlFor={`${category}-active`}>Signature is active</Label>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => handleDeleteSignature(category)}>
+                        Delete
+                      </Button>
+                      <Button onClick={() => handleSaveSignature(category)}>Save</Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Signature HTML</Label>
+                    <Textarea
+                      value={signatureForm[category].htmlContent}
+                      onChange={(e) =>
+                        setSignatureForm((prev) => ({
+                          ...prev,
+                          [category]: { ...prev[category], htmlContent: e.target.value },
+                        }))
+                      }
+                      className="mt-2 min-h-[220px] font-mono text-sm"
+                      placeholder="<p style=&quot;font-size:12px;color:#666&quot;>...</p>"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Preview</Label>
+                    <div className="mt-2 rounded-lg border bg-gray-50 p-4">
+                      <div className="mx-auto w-full max-w-[680px]">
+                        <iframe
+                          title={`Signature preview ${category}`}
+                          className="w-full h-[260px] bg-white rounded-lg border"
+                          sandbox="allow-same-origin"
+                          srcDoc={`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { margin: 0; padding: 0; background: #ffffff; color: #111827; font-family: Arial, sans-serif; }
+      .email-canvas { max-width: 600px; margin: 0 auto; padding: 16px; }
+      a { color: #2563eb; }
+    </style>
+  </head>
+  <body>
+    <div class="email-canvas">
+      ${signatureForm[category].htmlContent || "<p style='color:#666;font-size:12px'>(empty)</p>"}
+    </div>
+  </body>
+</html>`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </DialogContent>
+        </Dialog>
 
         <main className="container py-8" data-email-templates-main>
           <Card>
@@ -604,153 +1365,166 @@ export default function EmailTemplates() {
                   )}
                 </div>
               ) : (
+                <>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Variables</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Updated</TableHead>
+                      <TableHead className="w-[220px]">Meta</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {templates?.map((template) => (
                       <TableRow key={template._id}>
-                        <TableCell className="font-medium">{template.name}</TableCell>
-                        <TableCell>
-                          <Badge className={getCategoryColor(template.category)}>
-                            {template.category}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">{template.subject}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {template.variables?.slice(0, 3).map((v: string) => (
-                              <Badge key={v} variant="outline" className="text-xs">
-                                {v}
-                              </Badge>
-                            ))}
-                            {template.variables && template.variables.length > 3 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{template.variables.length - 3}
-                              </Badge>
+                        <TableCell className="py-2">
+                          <div className="space-y-1">
+                            <div className="font-medium">{template.name}</div>
+                            <div className="text-xs text-muted-foreground truncate max-w-[520px]" title={template.subject}>
+                              {template.subject}
+                            </div>
+                            {template.variables && template.variables.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {template.variables.slice(0, 2).map((v: string) => (
+                                  <Badge key={v} variant="outline" className="text-[10px] px-1.5 py-0.5">
+                                    {v}
+                                  </Badge>
+                                ))}
+                                {template.variables.length > 2 && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+                                    +{template.variables.length - 2}
+                                  </Badge>
+                                )}
+                              </div>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          {template.isActive ? (
-                            <Badge className="bg-green-100 text-green-800">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Active
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-100 text-gray-800">
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Inactive
-                            </Badge>
-                          )}
+                        <TableCell className="py-2 align-top">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex flex-wrap gap-2">
+                              <Badge className={getCategoryColor(template.category)}>
+                                {template.category}
+                              </Badge>
+                              {template.isActive ? (
+                                <Badge className="bg-green-100 text-green-800">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Active
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-gray-100 text-gray-800">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Inactive
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Updated: {template.updatedAt ? new Date(template.updatedAt).toLocaleDateString('de-DE') : 'N/A'}
+                            </div>
+                          </div>
                         </TableCell>
-                        <TableCell>
-                          {template.updatedAt ? new Date(template.updatedAt).toLocaleDateString('de-DE') : 'N/A'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handlePreview(template)}
-                                >
-                                  <Eye className="h-4 w-4" />
+                        <TableCell className="py-2 text-right">
+                          <div className="flex justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Actions">
+                                  <MoreHorizontal className="h-4 w-4" />
                                 </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                                <DialogHeader>
-                                  <DialogTitle>{template.name}</DialogTitle>
-                                  <DialogDescription>
-                                    {template.description || "Email template preview"}
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <Tabs defaultValue="preview" className="w-full">
-                                  <TabsList>
-                                    <TabsTrigger value="preview">Preview</TabsTrigger>
-                                    <TabsTrigger value="source">Source Code</TabsTrigger>
-                                    <TabsTrigger value="variables">Variables</TabsTrigger>
-                                  </TabsList>
-                                  <TabsContent value="preview" className="space-y-4">
-                                    <div>
-                                      <Label>Subject</Label>
-                                      <p className="text-sm font-medium mt-1">{template.subject}</p>
-                                    </div>
-                                    <div>
-                                      <Label>HTML Preview</Label>
-                                      <div 
-                                        className="border rounded-lg p-4 mt-2 bg-white"
-                                        dangerouslySetInnerHTML={{ __html: template.htmlContent }}
-                                      />
-                                    </div>
-                                  </TabsContent>
-                                  <TabsContent value="source" className="space-y-4">
-                                    <div>
-                                      <Label>Subject</Label>
-                                      <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
-                                        {template.subject}
-                                      </pre>
-                                    </div>
-                                    <div>
-                                      <Label>HTML Content</Label>
-                                      <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto max-h-96">
-                                        {template.htmlContent}
-                                      </pre>
-                                    </div>
-                                  </TabsContent>
-                                  <TabsContent value="variables" className="space-y-4">
-                                    <div>
-                                      <Label>Available Variables</Label>
-                                      <div className="flex flex-wrap gap-2 mt-2">
-                                        {template.variables?.map((v: string) => (
-                                          <Badge key={v} variant="outline">
-                                            {`{{${v}}}`}
-                                          </Badge>
-                                        ))}
-                                        {(!template.variables || template.variables.length === 0) && (
-                                          <p className="text-sm text-muted-foreground">No variables defined</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </TabsContent>
-                                </Tabs>
-                              </DialogContent>
-                            </Dialog>
-
-                            {isSuperadmin && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEdit(template)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDelete(template._id)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </>
-                            )}
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="min-w-[180px]">
+                                <DropdownMenuItem onClick={() => handlePreview(template)}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Preview
+                                </DropdownMenuItem>
+                                {isSuperadmin && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleEdit(template)}>
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleDelete(template._id)}
+                                      className="text-red-600 focus:text-red-600"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+
+                {/* Global Preview Dialog */}
+                <Dialog open={!!previewTemplate} onOpenChange={(open) => !open && setPreviewTemplate(null)}>
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    {previewTemplate && (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>{previewTemplate.name}</DialogTitle>
+                          <DialogDescription>
+                            {previewTemplate.description || "Email template preview"}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <Tabs defaultValue="preview" className="w-full">
+                          <TabsList>
+                            <TabsTrigger value="preview">Preview</TabsTrigger>
+                            <TabsTrigger value="source">Source Code</TabsTrigger>
+                            <TabsTrigger value="variables">Variables</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="preview" className="space-y-4">
+                            <div>
+                              <Label>Subject</Label>
+                              <p className="text-sm font-medium mt-1">{previewTemplate.subject}</p>
+                            </div>
+                            <div>
+                              <Label>HTML Preview</Label>
+                              <div
+                                className="border rounded-lg p-4 mt-2 bg-white"
+                                dangerouslySetInnerHTML={{ __html: previewTemplate.htmlContent }}
+                              />
+                            </div>
+                          </TabsContent>
+                          <TabsContent value="source" className="space-y-4">
+                            <div>
+                              <Label>Subject</Label>
+                              <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
+                                {previewTemplate.subject}
+                              </pre>
+                            </div>
+                            <div>
+                              <Label>HTML Content</Label>
+                              <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto max-h-96">
+                                {previewTemplate.htmlContent}
+                              </pre>
+                            </div>
+                          </TabsContent>
+                          <TabsContent value="variables" className="space-y-4">
+                            <div>
+                              <Label>Available Variables</Label>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {previewTemplate.variables?.map((v: string) => (
+                                  <Badge key={v} variant="outline">
+                                    {`{{${v}}}`}
+                                  </Badge>
+                                ))}
+                                {(!previewTemplate.variables || previewTemplate.variables.length === 0) && (
+                                  <p className="text-sm text-muted-foreground">No variables defined</p>
+                                )}
+                              </div>
+                            </div>
+                          </TabsContent>
+                        </Tabs>
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
+                </>
               )}
             </CardContent>
           </Card>

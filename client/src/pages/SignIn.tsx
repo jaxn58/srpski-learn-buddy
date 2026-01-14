@@ -3,9 +3,6 @@ import { BookOpen } from "lucide-react";
 import { Link } from "wouter";
 
 export default function SignInPage() {
-  // Check if waitlist mode is active
-  const isWaitlistMode = import.meta.env.VITE_WAITLIST_MODE === "true";
-  
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50 flex flex-col">
       {/* Header */}
@@ -26,7 +23,6 @@ export default function SignInPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <SignIn
           routing="virtual"
-          signUpUrl={isWaitlistMode ? undefined : "/sign-up"}
           afterSignInUrl="/dashboard"
           appearance={{
             elements: {
@@ -36,13 +32,6 @@ export default function SignInPage() {
               headerSubtitle: "text-muted-foreground",
               formButtonPrimary: "bg-primary hover:bg-primary/90",
               footerActionLink: "text-primary hover:text-primary/90",
-              // Hide footer with "Sign up" link during waitlist mode
-              footer: isWaitlistMode ? { display: "none" } : {},
-              // Hide social buttons (Google, etc.) during waitlist mode to prevent sign-up bypass
-              socialButtonsBlockButton: isWaitlistMode ? { display: "none" } : {},
-              socialButtonsBlockButtonText: isWaitlistMode ? { display: "none" } : {},
-              dividerRow: isWaitlistMode ? { display: "none" } : {},
-              dividerText: isWaitlistMode ? { display: "none" } : {},
             },
           }}
         />

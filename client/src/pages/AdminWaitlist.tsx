@@ -89,11 +89,12 @@ export default function AdminWaitlist() {
       return;
     }
 
-    const headers = ["Email", "Name", "Status", "Created At", "Confirmed At", "Notified At"];
+    const headers = ["Email", "Name", "Status", "Wants Waitlist Updates", "Created At", "Confirmed At", "Notified At"];
     const rows = waitlistEntries.map((entry) => [
       entry.email,
       entry.name || "",
       entry.status,
+      entry.wantsWaitlistUpdates ? "yes" : "no",
       new Date(entry.createdAt).toLocaleString(),
       entry.confirmedAt ? new Date(entry.confirmedAt).toLocaleString() : "",
       entry.notifiedAt ? new Date(entry.notifiedAt).toLocaleString() : "",
@@ -254,6 +255,7 @@ export default function AdminWaitlist() {
                     <TableHead>Email</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Updates</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Confirmed</TableHead>
                     <TableHead>Notified</TableHead>
@@ -266,6 +268,15 @@ export default function AdminWaitlist() {
                       <TableCell className="font-medium">{entry.email}</TableCell>
                       <TableCell>{entry.name || "-"}</TableCell>
                       <TableCell>{getStatusBadge(entry.status)}</TableCell>
+                      <TableCell>
+                        {entry.wantsWaitlistUpdates ? (
+                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+                            Yes
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">No</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(entry.createdAt).toLocaleDateString()}
                       </TableCell>

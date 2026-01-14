@@ -241,6 +241,16 @@ export const syncUser = mutation({
         userId,
       });
 
+      // Sync to newsletter contacts (opt-in required, not auto-subscribed)
+      try {
+        await ctx.scheduler.runAfter(0, internal.newsletter.syncUserToNewsletter, {
+          userId,
+          autoSubscribe: false, // User must manually subscribe to newsletter
+        });
+      } catch (error) {
+        console.error('[syncUser] Failed to sync to newsletter:', error);
+      }
+
       return userId;
     } catch (error) {
       console.error('[syncUser] Failed to create user:', {
