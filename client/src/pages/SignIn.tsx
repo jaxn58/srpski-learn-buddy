@@ -36,6 +36,13 @@ export default function SignInPage() {
               headerSubtitle: "text-muted-foreground",
               formButtonPrimary: "bg-primary hover:bg-primary/90",
               footerActionLink: "text-primary hover:text-primary/90",
+              // Hide footer with "Sign up" link during waitlist mode
+              footer: isWaitlistMode ? { display: "none" } : {},
+              // Hide social buttons (Google, etc.) during waitlist mode to prevent sign-up bypass
+              socialButtonsBlockButton: isWaitlistMode ? { display: "none" } : {},
+              socialButtonsBlockButtonText: isWaitlistMode ? { display: "none" } : {},
+              dividerRow: isWaitlistMode ? { display: "none" } : {},
+              dividerText: isWaitlistMode ? { display: "none" } : {},
             },
           }}
         />
