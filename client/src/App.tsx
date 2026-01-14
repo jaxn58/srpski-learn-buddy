@@ -32,6 +32,7 @@ import Units from "./pages/Units";
 import WaitlistConfirm from "./pages/WaitlistConfirm";
 import AdminWaitlist from "./pages/AdminWaitlist";
 import Newsletter from "./pages/Newsletter";
+import NewsletterUnsubscribe from "./pages/NewsletterUnsubscribe";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -78,6 +79,7 @@ function Router() {
       {/* Public routes */}
       <Route path="/" component={Home} />
       <Route path="/waitlist/confirm" component={WaitlistConfirm} />
+      <Route path="/newsletter/unsubscribe" component={NewsletterUnsubscribe} />
       {/* Clerk auth routes - use wildcard to catch all sub-routes like /sign-in/factor-one */}
       <Route path="/sign-in/:rest*" component={SignInPage} />
       <Route path="/sign-in" component={SignInPage} />

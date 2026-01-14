@@ -457,6 +457,37 @@ export const unsubscribeContact = mutation({
 });
 
 /**
+ * Unsubscribe by token (public). This is safer than exposing contact IDs.
+ * Used by the public unsubscribe UI and the one-click unsubscribe HTTP endpoint.
+ */
+export const unsubscribeByToken = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const contact = await ctx.db
+      .query("newsletterContacts")
+      .withIndex("by_unsubscribe_token", (q) => q.eq("unsubscribeToken", args.token))
+      .first();
+
+    if (!contact) {
+      throw new Error("Invalid unsubscribe link");
+    }
+
+    if (!contact.subscribed) {
+      return { success: true, alreadyUnsubscribed: true };
+    }
+
+    await ctx.db.patch(contact._id, {
+      subscribed: false,
+      unsubscribedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    console.log(`[Newsletter] Contact unsubscribed (token): ${contact.email}`);
+    return { success: true, alreadyUnsubscribed: false };
+  },
+});
+
+/**
  * Manually add contact (admin only)
  */
 export const addContact = mutation({
@@ -864,6 +895,7 @@ export const sendEmailBatch = internalAction({
     const resend = new Resend(process.env.RESEND_API_KEY);
     const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@mail.jacksenn.me";
     const baseUrl = process.env.VITE_APP_URL || "https://learn-with.me";
+    const oneClickBaseUrl = (process.env.CONVEX_CLOUD_URL || "").trim() || baseUrl;
 
     let successCount = 0;
     let errorCount = 0;
@@ -908,13 +940,16 @@ export const sendEmailBatch = internalAction({
         html = await transformLinksInHtml(html, args.campaignId, contact._id, emailLogId, baseUrl);
 
         // Send email via Resend
+        const oneClickUnsubscribeUrl = `${oneClickBaseUrl.replace(/\/$/, "")}/newsletter/unsubscribe?token=${contact.unsubscribeToken}`;
         const { data, error } = await resend.emails.send({
           from: `Serbian AI Tutor <${FROM_EMAIL}>`,
           to: contact.email,
           subject: subject,
           html: html,
           headers: {
-            "List-Unsubscribe": `<${baseUrl}/newsletter/unsubscribe?token=${contact.unsubscribeToken}>`,
+            // One-click unsubscribe must hit a server endpoint (email clients won't execute JS).
+            // Vercel rewrites all non-/api routes to the SPA, so we point this to Convex HTTP Actions.
+            "List-Unsubscribe": `<${oneClickUnsubscribeUrl}>`,
             "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
           },
         });

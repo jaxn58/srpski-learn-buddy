@@ -426,103 +426,66 @@ http.route({
     const url = new URL(request.url);
     const token = url.searchParams.get("token");
 
+    // IMPORTANT:
+    // Do NOT unsubscribe on GET. Email clients/link scanners may prefetch.
+    // We redirect to the frontend confirm UI which requires an explicit click.
+    const appUrl = process.env.VITE_APP_URL || "https://learn-with.me";
+    const destination = new URL("/newsletter/unsubscribe", appUrl);
+    if (token) destination.searchParams.set("token", token);
+
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: destination.toString(),
+      },
+    });
+  }),
+});
+
+// One-click unsubscribe endpoint (List-Unsubscribe=One-Click)
+http.route({
+  path: "/newsletter/unsubscribe",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    let token = url.searchParams.get("token") || "";
+
+    // Some email clients send a POST with a form body. Token may be only in query.
     if (!token) {
-      return new Response(
-        `<!DOCTYPE html>
-        <html>
-          <head>
-            <title>Invalid Link</title>
-            <meta charset="utf-8">
-            <style>
-              body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-              h1 { color: #dc2626; }
-            </style>
-          </head>
-          <body>
-            <h1>Invalid Unsubscribe Link</h1>
-            <p>This unsubscribe link is invalid or has expired.</p>
-          </body>
-        </html>`,
-        { status: 400, headers: { "Content-Type": "text/html; charset=utf-8" } }
-      );
+      try {
+        const contentType = request.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const body = await request.json();
+          token = String(body?.token || "");
+        } else {
+          const text = await request.text();
+          const params = new URLSearchParams(text);
+          token = params.get("token") || "";
+        }
+      } catch {
+        // ignore parsing errors
+      }
+    }
+
+    if (!token) {
+      return new Response(JSON.stringify({ success: false, error: "missing_token" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
     }
 
     try {
-      const contact = await ctx.runQuery(api.newsletter.getContactByUnsubscribeToken, {
-        token,
+      const result = await ctx.runMutation(api.newsletter.unsubscribeByToken, { token });
+      return new Response(JSON.stringify({ success: true, ...result }), {
+        status: 200,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
       });
-
-      if (!contact) {
-        return new Response(
-          `<!DOCTYPE html>
-          <html>
-            <head>
-              <title>Invalid Link</title>
-              <meta charset="utf-8">
-              <style>
-                body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-                h1 { color: #dc2626; }
-              </style>
-            </head>
-            <body>
-              <h1>Invalid Unsubscribe Link</h1>
-              <p>This unsubscribe link is invalid or has expired.</p>
-            </body>
-          </html>`,
-          { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } }
-        );
-      }
-
-      // Unsubscribe the contact
-      await ctx.runMutation(api.newsletter.unsubscribeContact, {
-        contactId: contact._id,
-      });
-
-      return new Response(
-        `<!DOCTYPE html>
-        <html>
-          <head>
-            <title>Unsubscribed</title>
-            <meta charset="utf-8">
-            <style>
-              body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-              h1 { color: #16a34a; }
-              p { color: #4b5563; line-height: 1.6; }
-              a { color: #2563eb; text-decoration: none; }
-              a:hover { text-decoration: underline; }
-            </style>
-          </head>
-          <body>
-            <h1>✓ Successfully Unsubscribed</h1>
-            <p>You have been unsubscribed from our newsletter.</p>
-            <p>You will no longer receive marketing emails from Serbian AI Tutor.</p>
-            <p style="margin-top: 40px;">
-              <a href="https://learn-with.me">Return to Homepage</a>
-            </p>
-          </body>
-        </html>`,
-        { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }
-      );
     } catch (error: any) {
-      console.error("[Newsletter] Unsubscribe error:", error);
-      return new Response(
-        `<!DOCTYPE html>
-        <html>
-          <head>
-            <title>Error</title>
-            <meta charset="utf-8">
-            <style>
-              body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-              h1 { color: #dc2626; }
-            </style>
-          </head>
-          <body>
-            <h1>Error</h1>
-            <p>An error occurred while processing your request.</p>
-          </body>
-        </html>`,
-        { status: 500, headers: { "Content-Type": "text/html; charset=utf-8" } }
-      );
+      console.error("[Newsletter] One-click unsubscribe error:", error);
+      return new Response(JSON.stringify({ success: false, error: "failed" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
     }
   }),
 });
