@@ -895,7 +895,12 @@ export const sendEmailBatch = internalAction({
     const resend = new Resend(process.env.RESEND_API_KEY);
     const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@mail.jacksenn.me";
     const baseUrl = process.env.VITE_APP_URL || "https://learn-with.me";
-    const oneClickBaseUrl = (process.env.CONVEX_CLOUD_URL || "").trim() || baseUrl;
+    // Convex HTTP actions are served from the `*.convex.site` domain.
+    // We prefer CONVEX_SITE_URL when available, otherwise derive it from CONVEX_CLOUD_URL.
+    const oneClickBaseUrl =
+      (process.env.CONVEX_SITE_URL || "").trim() ||
+      (process.env.CONVEX_CLOUD_URL || "").trim().replace(/\\.convex\\.cloud\\b/g, ".convex.site") ||
+      baseUrl;
 
     let successCount = 0;
     let errorCount = 0;
