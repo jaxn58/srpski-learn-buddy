@@ -52,6 +52,7 @@ export default function NewsletterUnsubscribe() {
 
   const isInvalidToken = token && contact === null;
   const isAlreadyUnsubscribed = token && contact && contact.subscribed === false;
+  const disableUnsubscribe = !token || isInvalidToken || isAlreadyUnsubscribed;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50 flex items-center justify-center p-4">
@@ -123,9 +124,9 @@ export default function NewsletterUnsubscribe() {
               <Button
                 className="w-full bg-destructive hover:bg-destructive/90"
                 onClick={handleUnsubscribe}
-                disabled={!token || isInvalidToken}
+                disabled={disableUnsubscribe}
               >
-                Unsubscribe
+                {isAlreadyUnsubscribed ? "Already unsubscribed" : "Unsubscribe"}
               </Button>
             </>
           )}

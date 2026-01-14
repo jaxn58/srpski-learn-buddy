@@ -105,6 +105,21 @@ if (campaign.testMode || process.env.NEWSLETTER_TEST_MODE === "true") {
 GET /newsletter/unsubscribe?token={unsubscribeToken}
 ```
 
+**Wichtig (Security/UX):**
+- `GET /newsletter/unsubscribe` **unsubscribt nicht mehr direkt**, sondern **redirectet** auf die Frontend-Confirm-UI:
+  - `https://learn-with.me/newsletter/unsubscribe?token=...`
+- Das verhindert „accidental unsubscribe“ durch Email-Scanner/Prefetching.
+
+**One-Click-Unsubscribe (RFC 8058 / List-Unsubscribe=One-Click):**
+```
+POST /newsletter/unsubscribe?token={unsubscribeToken}
+```
+
+**Hinweis zur Domain (Vercel Rewrites):**
+- Auf `learn-with.me` rewritet Vercel alle non-`/api/*` Requests zur SPA (`/index.html`).
+- Deshalb muss der **One-Click** Endpoint auf die **Convex HTTP Actions Domain** zeigen (`*.convex.site`), nicht auf `learn-with.me`.
+- Der Link im Email-Body kann weiterhin `learn-with.me/newsletter/unsubscribe?...` sein (besseres UX/Branding).
+
 **Link Tracking:**
 ```
 GET /newsletter/track/{trackingToken}
@@ -122,6 +137,7 @@ POST /newsletter/webhook/resend
 - `newsletter.getContactByEmail` - Kontakt per Email (Admin)
 - `newsletter.addContact` - Manuell Kontakt hinzufügen (Admin)
 - `newsletter.unsubscribeContact` - Kontakt abmelden
+- `newsletter.unsubscribeByToken` - Kontakt per Unsubscribe-Token abmelden (Public, für UI/One-Click)
 
 **Campaign Management:**
 - `newsletter.createCampaign` - Campaign erstellen (Admin)

@@ -271,6 +271,39 @@ pnpm migrate:newsletter
 
 ---
 
+## Test-Phase 3.1: Unsubscribe Flow (Confirm UI) (5 Minuten)
+
+> Ziel: Sicherstellen, dass **kein Auto-Unsubscribe** passiert und dass der User eine **Confirm-Seite** sieht.
+
+### ✅ Schritt 10a: Unsubscribe-Link in einer echten Email prüfen
+
+1. Sende dir selbst eine Email mit `{{UNSUBSCRIBE_LINK}}` (z.B.:
+   - **Email Templates → Send Test Email**, oder
+   - Newsletter-Campaign im **Test Mode**)
+2. Öffne die Email und klicke auf den **Unsubscribe** Link
+3. **Erwartet:**
+   - Es öffnet sich `https://learn-with.me/newsletter/unsubscribe?token=...`
+   - Du siehst eine **Confirm-Seite** mit Button **Unsubscribe**
+   - **Wichtig:** Es passiert noch **keine** Abmeldung, bevor du klickst
+
+### ✅ Schritt 10b: Confirm-Klick durchführen
+
+1. Klicke auf **Unsubscribe**
+2. **Erwartet:**
+   - Success-Message („You're Unsubscribed“)
+3. Gehe zurück ins Admin Panel → Newsletter → Contacts
+4. Suche die Email-Adresse
+5. **Erwartet:**
+   - Kontakt ist jetzt **Unsubscribed**
+   - `unsubscribedAt` ist gesetzt
+
+### ✅ Optional (Advanced): One-Click-Unsubscribe Header (RFC 8058)
+
+> Hinweis: One-Click läuft über die Convex HTTP Actions Domain `*.convex.site` (nicht `*.convex.cloud` und nicht `learn-with.me`).  
+> Das ist notwendig wegen Vercel SPA-Rewrites.
+
+---
+
 ## Test-Phase 4: Campaign versenden (10 Minuten)
 
 ### ✅ Schritt 11: Campaign versenden
