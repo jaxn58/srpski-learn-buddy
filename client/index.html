@@ -1,6 +1,71 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- Early WebAuthn Debug + Polyfill: must run BEFORE any auth widgets/scripts -->
+    <script>
+      (function () {
+        // Capture the exact origin of the "CredentialsContainer get is read-only" error (PII-free).
+        // This is temporary debug instrumentation and will be removed after verification.
+        window.addEventListener(
+          "error",
+          function (event) {
+            try {
+              const msg = String(event && event.message ? event.message : "");
+              if (!msg.includes("Cannot assign to read only property") || !msg.includes("CredentialsContainer")) return;
+              console.log("[WebAuthn Debug] Captured error", {
+                message: msg,
+                filename: event && event.filename ? String(event.filename) : null,
+                lineno: event && typeof event.lineno === "number" ? event.lineno : null,
+                colno: event && typeof event.colno === "number" ? event.colno : null,
+                stack:
+                  event && event.error && event.error.stack
+                    ? String(event.error.stack).split("\n").slice(0, 6).join("\n")
+                    : null,
+              });
+            } catch (_) {}
+          },
+          true
+        );
+
+        // Fix read-only Credentials API in production (best-effort).
+        if (typeof navigator !== "undefined" && navigator.credentials) {
+          try {
+            const originalGet = navigator.credentials.get;
+            const originalCreate = navigator.credentials.create;
+            const originalStore = navigator.credentials.store;
+            const originalPreventSilentAccess = navigator.credentials.preventSilentAccess;
+
+            const credentialsProxy = {
+              get: function (...args) {
+                return originalGet.apply(navigator.credentials, args);
+              },
+              create: function (...args) {
+                return originalCreate.apply(navigator.credentials, args);
+              },
+              store: function (...args) {
+                return originalStore ? originalStore.apply(navigator.credentials, args) : Promise.resolve();
+              },
+              preventSilentAccess: function (...args) {
+                return originalPreventSilentAccess
+                  ? originalPreventSilentAccess.apply(navigator.credentials, args)
+                  : Promise.resolve();
+              },
+            };
+
+            Object.defineProperty(navigator, "credentials", {
+              value: credentialsProxy,
+              writable: true,
+              configurable: true,
+              enumerable: true,
+            });
+
+            console.log("[WebAuthn Polyfill] Successfully patched Credentials API");
+          } catch (e) {
+            console.warn("[WebAuthn Polyfill] Could not patch Credentials API:", e);
+          }
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
@@ -10,49 +75,6 @@
     <link rel="apple-touch-icon" href="/favicon.png" />
     <title>Serbian AI Tutor</title>
     
-    <!-- Early WebAuthn Polyfill: Must run BEFORE Clerk loads -->
-    <script>
-      // Fix read-only Credentials API in production
-      (function() {
-        if (typeof navigator !== 'undefined' && navigator.credentials) {
-          try {
-            // Save original methods
-            const originalGet = navigator.credentials.get;
-            const originalCreate = navigator.credentials.create;
-            const originalStore = navigator.credentials.store;
-            const originalPreventSilentAccess = navigator.credentials.preventSilentAccess;
-            
-            // Create a wrappable CredentialsContainer proxy
-            const credentialsProxy = {
-              get: function(...args) {
-                return originalGet.apply(navigator.credentials, args);
-              },
-              create: function(...args) {
-                return originalCreate.apply(navigator.credentials, args);
-              },
-              store: function(...args) {
-                return originalStore ? originalStore.apply(navigator.credentials, args) : Promise.resolve();
-              },
-              preventSilentAccess: function(...args) {
-                return originalPreventSilentAccess ? originalPreventSilentAccess.apply(navigator.credentials, args) : Promise.resolve();
-              }
-            };
-            
-            // Replace navigator.credentials with wrappable proxy
-            Object.defineProperty(navigator, 'credentials', {
-              value: credentialsProxy,
-              writable: true,
-              configurable: true,
-              enumerable: true
-            });
-            
-            console.log('[WebAuthn Polyfill] Successfully patched Credentials API');
-          } catch (e) {
-            console.warn('[WebAuthn Polyfill] Could not patch Credentials API:', e);
-          }
-        }
-      })();
-    </script>
   </head>
 
   <body>
