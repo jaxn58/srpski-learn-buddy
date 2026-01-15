@@ -256,7 +256,8 @@ export default function Profile() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              className="sr-only"
+              className="absolute w-0 h-0 opacity-0 pointer-events-none"
+              tabIndex={-1}
               onChange={(e) => handleAvatarFileSelected(e.target.files?.[0] ?? null)}
               disabled={saving}
             />
