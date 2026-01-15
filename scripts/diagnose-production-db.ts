@@ -19,16 +19,6 @@ const DEV_CONVEX_URL = process.env.VITE_CONVEX_URL;
 const PROD_CONVEX_URL = process.env.VITE_CONVEX_URL_PRODUCTION;
 const LOG_PATH = "d:\\DEVELOPMENT\\Cursor\\srpski-tutor-en\\.cursor\\debug.log";
 
-// #region agent log
-function log(location: string, message: string, data: any = {}) {
-  // Removed hardcoded localhost telemetry. Keep signature so existing calls remain harmless.
-  void LOG_PATH;
-  void location;
-  void message;
-  void data;
-}
-// #endregion
-
 if (!DEV_CONVEX_URL) {
   console.error("❌ VITE_CONVEX_URL not found in .env.local");
   console.error("This should be your Development Convex URL");
@@ -94,12 +84,6 @@ async function countTableEntries(client: ConvexHttpClient, queryFn: any, args: a
     }
     return 0;
   } catch (error: any) {
-    // #region agent log
-    log('diagnose-production-db.ts:countTableEntries', 'Error counting entries', { 
-      error: error.message,
-      args 
-    });
-    // #endregion
     return 0;
   }
 }
@@ -112,13 +96,6 @@ async function diagnoseDatabase() {
   console.log(`📍 Development:  ${DEV_CONVEX_URL}`);
   console.log(`📍 Production:   ${PROD_CONVEX_URL}`);
   console.log("");
-
-  // #region agent log
-  log('diagnose-production-db.ts:start', 'Starting database diagnosis', {
-    devUrl: DEV_CONVEX_URL,
-    prodUrl: PROD_CONVEX_URL
-  });
-  // #endregion
 
   const report: DiagnosisReport = {
     tableComparisons: [],
@@ -146,10 +123,6 @@ async function diagnoseDatabase() {
 
   console.log("📊 Step 1/5: Comparing Content Tables...\n");
 
-  // #region agent log
-  log('diagnose-production-db.ts:step1', 'Comparing content tables', {});
-  // #endregion
-
   // 1. Module Metadata (Consolidated Structure)
   try {
     const devModules = await devClient.query(api.modules.getAllModulesConsolidated as any) as any[];
@@ -158,27 +131,13 @@ async function diagnoseDatabase() {
     report.contentTables.moduleMetadata.dev = devModules?.length || 0;
     report.contentTables.moduleMetadata.prod = prodModules?.length || 0;
 
-    // #region agent log
-    log('diagnose-production-db.ts:moduleMetadata', 'Module metadata comparison', {
-      devCount: report.contentTables.moduleMetadata.dev,
-      prodCount: report.contentTables.moduleMetadata.prod,
-      devModules: devModules?.map(m => ({ slug: m.slug, moduleNumber: m.moduleNumber })),
-      prodModules: prodModules?.map(m => ({ slug: m.slug, moduleNumber: m.moduleNumber }))
-    });
-    // #endregion
-
     console.log(`  📦 moduleMetadata (consolidated):`);
     console.log(`     Dev:  ${report.contentTables.moduleMetadata.dev} entries`);
     console.log(`     Prod: ${report.contentTables.moduleMetadata.prod} entries`);
     console.log(`     Diff: ${report.contentTables.moduleMetadata.dev - report.contentTables.moduleMetadata.prod}`);
   } catch (error: any) {
     console.error(`  ❌ moduleMetadata: ${error.message}`);
-    // #region agent log
-    log('diagnose-production-db.ts:moduleMetadata:error', 'Error comparing moduleMetadata', { 
-      error: error.message 
-    });
-    // #endregion
-  }
+    }
 
   // 2. Unit Metadata (EN + DE)
   try {
@@ -190,29 +149,13 @@ async function diagnoseDatabase() {
     report.contentTables.unitMetadata.dev = (devUnitsEn?.length || 0) + (devUnitsDe?.length || 0);
     report.contentTables.unitMetadata.prod = (prodUnitsEn?.length || 0) + (prodUnitsDe?.length || 0);
 
-    // #region agent log
-    log('diagnose-production-db.ts:unitMetadata', 'Unit metadata comparison', {
-      devEnCount: devUnitsEn?.length || 0,
-      devDeCount: devUnitsDe?.length || 0,
-      prodEnCount: prodUnitsEn?.length || 0,
-      prodDeCount: prodUnitsDe?.length || 0,
-      devUnits: devUnitsEn?.map(u => ({ unitNumber: u.unitNumber, title: u.title, moduleId: u.moduleId })),
-      prodUnits: prodUnitsEn?.map(u => ({ unitNumber: u.unitNumber, title: u.title, moduleId: u.moduleId }))
-    });
-    // #endregion
-
     console.log(`  📝 unitMetadata (EN + DE):`);
     console.log(`     Dev:  ${report.contentTables.unitMetadata.dev} entries (EN: ${devUnitsEn?.length || 0}, DE: ${devUnitsDe?.length || 0})`);
     console.log(`     Prod: ${report.contentTables.unitMetadata.prod} entries (EN: ${prodUnitsEn?.length || 0}, DE: ${prodUnitsDe?.length || 0})`);
     console.log(`     Diff: ${report.contentTables.unitMetadata.dev - report.contentTables.unitMetadata.prod}`);
   } catch (error: any) {
     console.error(`  ❌ unitMetadata: ${error.message}`);
-    // #region agent log
-    log('diagnose-production-db.ts:unitMetadata:error', 'Error comparing unitMetadata', { 
-      error: error.message 
-    });
-    // #endregion
-  }
+    }
 
   // 3. Unit Content
   let devContentCount = 0;
@@ -240,13 +183,6 @@ async function diagnoseDatabase() {
   
   report.contentTables.unitContent.dev = devContentCount;
   report.contentTables.unitContent.prod = prodContentCount;
-
-  // #region agent log
-  log('diagnose-production-db.ts:unitContent', 'Unit content comparison', {
-    devCount: devContentCount,
-    prodCount: prodContentCount
-  });
-  // #endregion
 
   console.log(`  📄 unitContent:`);
   console.log(`     Dev:  ${report.contentTables.unitContent.dev} entries`);
@@ -280,13 +216,6 @@ async function diagnoseDatabase() {
   report.contentTables.unitInteractiveTests.dev = devTestsCount;
   report.contentTables.unitInteractiveTests.prod = prodTestsCount;
 
-  // #region agent log
-  log('diagnose-production-db.ts:unitInteractiveTests', 'Interactive tests comparison', {
-    devCount: devTestsCount,
-    prodCount: prodTestsCount
-  });
-  // #endregion
-
   console.log(`  🎯 unitInteractiveTests:`);
   console.log(`     Dev:  ${report.contentTables.unitInteractiveTests.dev} entries`);
   console.log(`     Prod: ${report.contentTables.unitInteractiveTests.prod} entries`);
@@ -300,43 +229,21 @@ async function diagnoseDatabase() {
     report.contentTables.courseVocabulary.dev = devVocab?.length || 0;
     report.contentTables.courseVocabulary.prod = prodVocab?.length || 0;
 
-    // #region agent log
-    log('diagnose-production-db.ts:courseVocabulary', 'Course vocabulary comparison', {
-      devCount: report.contentTables.courseVocabulary.dev,
-      prodCount: report.contentTables.courseVocabulary.prod,
-      devSample: devVocab?.slice(0, 5).map(v => ({ unitNumber: v.unitNumber, serbian: v.serbian })),
-      prodSample: prodVocab?.slice(0, 5).map(v => ({ unitNumber: v.unitNumber, serbian: v.serbian }))
-    });
-    // #endregion
-
     console.log(`  📚 courseVocabulary:`);
     console.log(`     Dev:  ${report.contentTables.courseVocabulary.dev} entries`);
     console.log(`     Prod: ${report.contentTables.courseVocabulary.prod} entries`);
     console.log(`     Diff: ${report.contentTables.courseVocabulary.dev - report.contentTables.courseVocabulary.prod}`);
   } catch (error: any) {
     console.error(`  ❌ courseVocabulary: ${error.message}`);
-    // #region agent log
-    log('diagnose-production-db.ts:courseVocabulary:error', 'Error comparing courseVocabulary', { 
-      error: error.message 
-    });
-    // #endregion
-  }
+    }
 
   console.log("\n📊 Step 2/5: Comparing User Tables...\n");
-
-  // #region agent log
-  log('diagnose-production-db.ts:step2', 'Comparing user tables', {});
-  // #endregion
 
   // Note: User tables are expected to be different (separate user bases)
   // But we still want to know the counts for reference
   console.log("  ℹ️  Note: User tables are expected to differ (separate user bases)\n");
 
   console.log("\n📊 Step 3/5: Checking Foreign Key Integrity in Production...\n");
-
-  // #region agent log
-  log('diagnose-production-db.ts:step3', 'Checking foreign key integrity', {});
-  // #endregion
 
   // Check if unitMetadata references valid modules
   try {
@@ -349,13 +256,7 @@ async function diagnoseDatabase() {
         const moduleExists = prodModules?.some(m => m.slug === unit.moduleId);
         if (!moduleExists) {
           invalidModuleRefs++;
-          // #region agent log
-          log('diagnose-production-db.ts:foreignKey:invalidModule', 'Invalid module reference', {
-            unitNumber: unit.unitNumber,
-            moduleId: unit.moduleId
-          });
-          // #endregion
-        }
+          }
       }
     }
     
@@ -371,18 +272,9 @@ async function diagnoseDatabase() {
     }
   } catch (error: any) {
     console.error(`  ❌ Error checking unitMetadata FK: ${error.message}`);
-    // #region agent log
-    log('diagnose-production-db.ts:foreignKey:error', 'Error checking foreign keys', { 
-      error: error.message 
-    });
-    // #endregion
-  }
+    }
 
   console.log("\n📊 Step 4/5: Checking for Duplicates in Production...\n");
-
-  // #region agent log
-  log('diagnose-production-db.ts:step4', 'Checking for duplicates', {});
-  // #endregion
 
   // Check for duplicate questionIds in unitInteractiveTests
   try {
@@ -414,30 +306,14 @@ async function diagnoseDatabase() {
         count: duplicateCount
       });
       console.log(`  ❌ unitInteractiveTests: ${duplicateCount} duplicate questionIds found`);
-      // #region agent log
-      log('diagnose-production-db.ts:duplicates:tests', 'Duplicate test questions', {
-        duplicateCount,
-        totalIds: allQuestionIds.length,
-        uniqueIds: uniqueIds.size
-      });
-      // #endregion
-    } else {
+      } else {
       console.log(`  ✅ unitInteractiveTests: No duplicate questionIds`);
     }
   } catch (error: any) {
     console.error(`  ❌ Error checking duplicates: ${error.message}`);
-    // #region agent log
-    log('diagnose-production-db.ts:duplicates:error', 'Error checking duplicates', { 
-      error: error.message 
-    });
-    // #endregion
-  }
+    }
 
   console.log("\n📊 Step 5/5: Generating Summary Report...\n");
-
-  // #region agent log
-  log('diagnose-production-db.ts:step5', 'Generating summary report', { report });
-  // #endregion
 
   // Print Summary
   console.log("\n========================================");
@@ -487,14 +363,6 @@ async function diagnoseDatabase() {
   console.log(`Total Foreign Key Issues:  ${totalFKIssues}`);
   console.log(`Total Duplicate Issues:    ${totalDuplicates}`);
 
-  // #region agent log
-  log('diagnose-production-db.ts:conclusion', 'Diagnosis complete', {
-    totalContentDiff,
-    totalFKIssues,
-    totalDuplicates
-  });
-  // #endregion
-
   if (totalContentDiff === 0 && totalFKIssues === 0 && totalDuplicates === 0) {
     console.log("\n✅ Production database is consistent with Development!");
   } else {
@@ -519,9 +387,6 @@ diagnoseDatabase()
   .then(() => process.exit(0))
   .catch((error) => {
     console.error("❌ Diagnosis failed:", error);
-    // #region agent log
-    log('diagnose-production-db.ts:fatal', 'Fatal error', { error: error.message });
-    // #endregion
     process.exit(1);
   });
 

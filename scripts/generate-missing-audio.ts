@@ -11,16 +11,6 @@ if (!CONVEX_URL) {
   process.exit(1);
 }
 
-// #region agent log
-function log(location: string, message: string, data: any, hypothesisId: string) {
-  // Removed hardcoded localhost telemetry. Keep signature so existing calls remain harmless.
-  void location;
-  void message;
-  void data;
-  void hypothesisId;
-}
-// #endregion
-
 const client = new ConvexHttpClient(CONVEX_URL);
 
 interface VocabularyWord {
@@ -47,14 +37,6 @@ async function promptUser(question: string): Promise<boolean> {
 
 async function generateAudio(word: VocabularyWord): Promise<{ success: boolean; storageId?: string; error?: string }> {
   try {
-    // #region agent log
-    log('generate-missing-audio.ts:63', 'Generating audio', {
-      serbian: word.serbian,
-      vocabularyId: word._id,
-      unitNumber: word.unitNumber,
-    }, 'H9');
-    // #endregion
-
     const response = await fetch(`${EXPRESS_SERVER_URL}/api/audio/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,32 +49,14 @@ async function generateAudio(word: VocabularyWord): Promise<{ success: boolean; 
 
     if (!response.ok) {
       const errorText = await response.text();
-      // #region agent log
-      log('generate-missing-audio.ts:83', 'Audio generation failed (HTTP error)', {
-        status: response.status,
-        statusText: response.statusText,
-        errorText,
-      }, 'H9');
-      // #endregion
       return { success: false, error: `HTTP ${response.status}: ${errorText}` };
     }
 
     const result = await response.json();
 
     if (!result.success) {
-      // #region agent log
-      log('generate-missing-audio.ts:95', 'Audio generation failed (API error)', {
-        error: result.error,
-      }, 'H9');
-      // #endregion
       return { success: false, error: result.error };
     }
-
-    // #region agent log
-    log('generate-missing-audio.ts:103', 'Audio generated successfully', {
-      storageId: result.storageId,
-    }, 'H9');
-    // #endregion
 
     // Update vocabulary with new storageId
     await client.mutation(api.vocabulary.updateVocabularyAudioStorageId, {
@@ -100,20 +64,8 @@ async function generateAudio(word: VocabularyWord): Promise<{ success: boolean; 
       audioStorageId: result.storageId,
     });
 
-    // #region agent log
-    log('generate-missing-audio.ts:116', 'Audio storageId updated in DB', {
-      vocabularyId: word._id,
-      storageId: result.storageId,
-    }, 'H9');
-    // #endregion
-
     return { success: true, storageId: result.storageId };
   } catch (error) {
-    // #region agent log
-    log('generate-missing-audio.ts:126', 'Audio generation exception', {
-      error: String(error),
-    }, 'H9');
-    // #endregion
     return { success: false, error: String(error) };
   }
 }
@@ -121,22 +73,11 @@ async function generateAudio(word: VocabularyWord): Promise<{ success: boolean; 
 async function generateMissingAudio() {
   console.log("🔍 Fetching vocabulary...");
   
-  // #region agent log
-  log('generate-missing-audio.ts:139', 'Script started', {
-    convexUrl: CONVEX_URL,
-    expressServerUrl: EXPRESS_SERVER_URL,
-  }, 'H9');
-  // #endregion
-
   const vocabulary = (await client.query(
     api.vocabulary.getAllCourseVocabulary
   )) as VocabularyWord[];
 
   console.log(`✅ Found ${vocabulary.length} vocabulary items.\n`);
-
-  // #region agent log
-  log('generate-missing-audio.ts:152', 'Vocabulary fetched', { totalCount: vocabulary.length }, 'H9');
-  // #endregion
 
   // Find words without audio
   const withoutAudio = vocabulary.filter(
@@ -149,12 +90,6 @@ async function generateMissingAudio() {
   }
 
   console.log(`📊 Found ${withoutAudio.length} words without audio\n`);
-
-  // #region agent log
-  log('generate-missing-audio.ts:168', 'Words without audio', {
-    count: withoutAudio.length,
-  }, 'H9');
-  // #endregion
 
   // Group by unit
   const byUnit = new Map<number, VocabularyWord[]>();
@@ -226,19 +161,9 @@ async function generateMissingAudio() {
     });
   }
 
-  // #region agent log
-  log('generate-missing-audio.ts:251', 'Generation complete', {
-    successCount,
-    errorCount,
-    errors,
-  }, 'H9');
-  // #endregion
-}
+  }
 
 generateMissingAudio().catch((error) => {
-  // #region agent log
-  log('generate-missing-audio.ts:261', 'Fatal error', { error: String(error) }, 'H9');
-  // #endregion
   console.error("❌ Fatal error:", error);
   process.exit(1);
 });

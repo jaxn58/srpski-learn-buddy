@@ -2,16 +2,6 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
 import "dotenv/config";
 
-// #region agent log
-function log(location: string, message: string, data: any, hypothesisId: string) {
-  // Removed hardcoded localhost telemetry. Keep signature so existing calls remain harmless.
-  void location;
-  void message;
-  void data;
-  void hypothesisId;
-}
-// #endregion
-
 // Production and Development Convex URLs
 const PROD_CONVEX_URL = "https://fleet-labrador-324.convex.cloud";
 const DEV_CONVEX_URL = process.env.VITE_CONVEX_URL || process.env.CONVEX_URL;
@@ -24,13 +14,6 @@ if (!DEV_CONVEX_URL) {
 console.log("🔄 Audio Sync Configuration:");
 console.log(`  📦 Production DB: ${PROD_CONVEX_URL}`);
 console.log(`  🔧 Development DB: ${DEV_CONVEX_URL}\n`);
-
-// #region agent log
-log('sync-audio-from-production.ts:40', 'Script started', {
-  prodUrl: PROD_CONVEX_URL,
-  devUrl: DEV_CONVEX_URL,
-}, 'H6');
-// #endregion
 
 const prodClient = new ConvexHttpClient(PROD_CONVEX_URL);
 const devClient = new ConvexHttpClient(DEV_CONVEX_URL);
@@ -46,21 +29,11 @@ interface VocabularyWord {
 async function syncAudioFromProduction() {
   console.log("🔍 Fetching vocabulary from Production...");
   
-  // #region agent log
-  log('sync-audio-from-production.ts:63', 'Fetching production vocabulary', {}, 'H7');
-  // #endregion
-
   const prodVocabulary = (await prodClient.query(
     api.vocabulary.getAllCourseVocabulary
   )) as VocabularyWord[];
 
   console.log(`✅ Found ${prodVocabulary.length} words in Production\n`);
-
-  // #region agent log
-  log('sync-audio-from-production.ts:73', 'Production vocabulary fetched', {
-    totalCount: prodVocabulary.length,
-  }, 'H7');
-  // #endregion
 
   console.log("🔍 Fetching vocabulary from Development...");
 
@@ -70,12 +43,6 @@ async function syncAudioFromProduction() {
 
   console.log(`✅ Found ${devVocabulary.length} words in Development\n`);
 
-  // #region agent log
-  log('sync-audio-from-production.ts:87', 'Development vocabulary fetched', {
-    totalCount: devVocabulary.length,
-  }, 'H6');
-  // #endregion
-
   // Analyze audio status
   const prodWithAudio = prodVocabulary.filter((w) => w.audioStorageId || w.audioUrl);
   const devWithAudio = devVocabulary.filter((w) => w.audioStorageId || w.audioUrl);
@@ -83,19 +50,6 @@ async function syncAudioFromProduction() {
   console.log("📊 Audio Status:");
   console.log(`  Production: ${prodWithAudio.length}/${prodVocabulary.length} words with audio`);
   console.log(`  Development: ${devWithAudio.length}/${devVocabulary.length} words with audio\n`);
-
-  // #region agent log
-  log('sync-audio-from-production.ts:103', 'Audio status comparison', {
-    production: {
-      total: prodVocabulary.length,
-      withAudio: prodWithAudio.length,
-    },
-    development: {
-      total: devVocabulary.length,
-      withAudio: devWithAudio.length,
-    },
-  }, 'H6');
-  // #endregion
 
   // Create a map of serbian word -> production audio data
   const prodAudioMap = new Map<string, { audioStorageId?: string; audioUrl?: string }>();
@@ -117,13 +71,6 @@ async function syncAudioFromProduction() {
   console.log("  1. Use 'pnpm reset:audio' to clear Development audio references");
   console.log("  2. Test audio generation in Development by playing a word");
   console.log("  3. Audio will be generated automatically on-demand\n");
-
-  // #region agent log
-  log('sync-audio-from-production.ts:139', 'Sync analysis complete', {
-    prodAudioMapSize: prodAudioMap.size,
-    cannotCopyFiles: true,
-  }, 'H8');
-  // #endregion
 
   // Show words that have audio in Production but not in Development
   console.log("🔍 Words with audio in Production but missing in Development:\n");
@@ -169,16 +116,6 @@ async function syncAudioFromProduction() {
     console.log();
   }
 
-  // #region agent log
-  log('sync-audio-from-production.ts:191', 'Missing words analysis', {
-    missingCount,
-    unitCounts: Array.from(byUnit.entries()).map(([unit, words]) => ({
-      unit,
-      count: words.length,
-    })),
-  }, 'H9');
-  // #endregion
-
   console.log(`\n📊 Summary:`);
   console.log(`  Total words missing audio in Development: ${missingCount}`);
   console.log(`\n💡 Next Steps:`);
@@ -189,9 +126,6 @@ async function syncAudioFromProduction() {
 }
 
 syncAudioFromProduction().catch((error) => {
-  // #region agent log
-  log('sync-audio-from-production.ts:213', 'Fatal error', { error: String(error) }, 'H6');
-  // #endregion
   console.error("❌ Fatal error:", error);
   process.exit(1);
 });
