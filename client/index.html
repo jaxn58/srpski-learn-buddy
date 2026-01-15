@@ -4,6 +4,31 @@
     <!-- Early WebAuthn Debug + Polyfill: must run BEFORE any auth widgets/scripts -->
     <script>
       (function () {
+        // Send debug events to Convex HTTP action so we can inspect in Convex logs (PII-free).
+        // This avoids relying on console visibility and works even when logs are filtered.
+        const CONVEX_SITE =
+          location.hostname === "localhost" || location.hostname === "127.0.0.1"
+            ? "https://reminiscent-panda-57.convex.site"
+            : "https://fleet-labrador-324.convex.site";
+
+        function sendToConvex(payload) {
+          try {
+            const body = JSON.stringify(payload);
+            const url = CONVEX_SITE + "/client-debug/webauthn";
+            if (navigator.sendBeacon) {
+              navigator.sendBeacon(url, body);
+              return;
+            }
+            fetch(url, {
+              method: "POST",
+              mode: "no-cors",
+              keepalive: true,
+              headers: { "Content-Type": "text/plain;charset=UTF-8" },
+              body,
+            }).catch(() => {});
+          } catch (_) {}
+        }
+
         // Capture the exact origin of the "CredentialsContainer get is read-only" error (PII-free).
         // This is temporary debug instrumentation and will be removed after verification.
         try {
@@ -17,7 +42,8 @@
                   if (el.tagName === "SCRIPT") {
                     const src = el.getAttribute("src") || "";
                     if (src && src.toLowerCase().includes("webauthn")) {
-                      console.log("[WebAuthn Debug] Script inserted", { src });
+                      console.error("[WebAuthn Debug] Script inserted", { src });
+                      sendToConvex({ kind: "script_inserted", src, path: location.pathname, ts: Date.now() });
                     }
                   }
                 } catch (_) {}
@@ -37,7 +63,7 @@
                 (msg.includes("Cannot assign to read only property") && msg.includes("CredentialsContainer")) ||
                 filename.toLowerCase().includes("webauthn");
               if (!looksRelevant) return;
-              console.log("[WebAuthn Debug] Captured error", {
+              console.error("[WebAuthn Debug] Captured error", {
                 message: msg,
                 filename: filename || null,
                 lineno: event && typeof event.lineno === "number" ? event.lineno : null,
@@ -47,10 +73,31 @@
                     ? String(event.error.stack).split("\n").slice(0, 6).join("\n")
                     : null,
               });
+              sendToConvex({
+                kind: "error",
+                message: msg,
+                filename: filename || null,
+                lineno: event && typeof event.lineno === "number" ? event.lineno : null,
+                colno: event && typeof event.colno === "number" ? event.colno : null,
+                stack:
+                  event && event.error && event.error.stack
+                    ? String(event.error.stack).split("\n").slice(0, 6).join("\n")
+                    : null,
+                path: location.pathname,
+                ts: Date.now(),
+              });
             } catch (_) {}
           },
           true
         );
+
+        // Always send a startup ping so we can confirm the script actually ran.
+        sendToConvex({
+          kind: "startup",
+          path: location.pathname,
+          hasNavigatorCredentials: typeof navigator !== "undefined" && Boolean(navigator.credentials),
+          ts: Date.now(),
+        });
 
         // Fix read-only Credentials API in production (best-effort).
         if (typeof navigator !== "undefined" && navigator.credentials) {
@@ -85,8 +132,15 @@
             });
 
             console.log("[WebAuthn Polyfill] Successfully patched Credentials API");
+            sendToConvex({ kind: "polyfill_ok", path: location.pathname, ts: Date.now() });
           } catch (e) {
             console.warn("[WebAuthn Polyfill] Could not patch Credentials API:", e);
+            sendToConvex({
+              kind: "polyfill_fail",
+              message: String(e && e.message ? e.message : e),
+              path: location.pathname,
+              ts: Date.now(),
+            });
           }
         }
       })();

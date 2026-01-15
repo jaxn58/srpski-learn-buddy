@@ -666,4 +666,63 @@ http.route({
   }),
 });
 
+// ============= CLIENT DEBUG LOGGING (temporary) =============
+// Purpose: capture early frontend WebAuthn errors (e.g. injected webauthn.js) into Convex logs.
+// Security: do NOT include PII; keep payload small; remove after fix is confirmed.
+http.route({
+  path: "/client-debug/webauthn",
+  method: "OPTIONS",
+  handler: httpAction(async (_ctx, request) => {
+    const origin = request.headers.get("origin") ?? "*";
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "content-type",
+      },
+    });
+  }),
+});
+
+http.route({
+  path: "/client-debug/webauthn",
+  method: "POST",
+  handler: httpAction(async (_ctx, request) => {
+    const origin = request.headers.get("origin") ?? "";
+    const referer = request.headers.get("referer") ?? "";
+    const ua = request.headers.get("user-agent") ?? "";
+
+    const raw = await request.text();
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+
+    // PII-free logging only
+    console.log("[client-debug][webauthn]", {
+      origin,
+      referer,
+      uaPrefix: ua.slice(0, 40),
+      rawLen: raw.length,
+      kind: parsed?.kind ?? null,
+      filename: parsed?.filename ?? null,
+      src: parsed?.src ?? null,
+      message: typeof parsed?.message === "string" ? parsed.message.slice(0, 200) : null,
+      path: parsed?.path ?? null,
+      ts: parsed?.ts ?? null,
+    });
+
+    return new Response("OK", {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Access-Control-Allow-Origin": origin || "*",
+      },
+    });
+  }),
+});
+
 export default http;
