@@ -39,17 +39,11 @@
 
 **Test 3.1: App lädt ohne Fehler**
 
-**Erwartete Console-Ausgabe:**
-```
-[WebAuthn Polyfill] Successfully patched Credentials API
-```
-
 **Keine Clerk-Fehler!** (früher: "Failed to load Clerk")
 
 **Ergebnis:**
 - [ ] App lädt erfolgreich
 - [ ] Keine JavaScript-Fehler
-- [ ] Console zeigt WebAuthn Polyfill Erfolg
 - [ ] Fehler gefunden: _______________
 
 ---

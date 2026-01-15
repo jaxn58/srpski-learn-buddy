@@ -36,11 +36,6 @@
 2. Öffne Browser DevTools (F12) → Console Tab
 3. Prüfe auf JavaScript-Fehler
 
-**Erwartete Ausgabe (keine Fehler):**
-```
-[WebAuthn Polyfill] Successfully patched Credentials API
-```
-
 **Keine Clerk-Fehler mehr!** (vorher: "Failed to load Clerk")
 
 ### Schritt 3: Registrierung testen
