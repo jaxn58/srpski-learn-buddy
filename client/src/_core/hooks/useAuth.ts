@@ -50,7 +50,7 @@ export function useAuth() {
         logger.error("[useAuth] Failed to sync user:", error);
         syncAttemptedRef.current = false;
       });
-  }, [isSignedIn, clerkLoaded, clerkUser, syncUser, sessionId, enforceSingleSession]);
+  }, [isSignedIn, clerkLoaded, clerkUser, syncUser]);
 
   // Optional fallback: ensure single-session enforcement even if webhook delivery is delayed.
   // Important: wait until dbUser is loaded so Convex auth identity is definitely available.
