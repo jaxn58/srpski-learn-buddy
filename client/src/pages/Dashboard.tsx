@@ -227,10 +227,10 @@ export default function Dashboard() {
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <AnimatedItem>
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
+        <div className="grid md:grid-cols-2 gap-6 mb-8 items-stretch">
+          <AnimatedItem className="h-full">
+            <Card className="hover:shadow-lg transition-shadow h-full flex flex-col">
+              <CardHeader className="flex-1">
                 <BookOpen className="h-10 w-10 text-primary mb-2" />
                 <CardTitle>
                   {currentUnitActivity?.hasActivity ? t('dashboard.continueLesson') : t('dashboard.startNextLesson')}
@@ -247,7 +247,7 @@ export default function Dashboard() {
                   })()}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="mt-auto">
                 <Link href={`/unit/${progress?.currentUnit}`}>
                   <Button className="w-full">
                     {currentUnitActivity?.hasActivity ? t('dashboard.goToLesson') : t('dashboard.startLesson')}
@@ -257,16 +257,16 @@ export default function Dashboard() {
             </Card>
           </AnimatedItem>
 
-          <AnimatedItem>
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
+          <AnimatedItem className="h-full">
+            <Card className="hover:shadow-lg transition-shadow h-full flex flex-col">
+              <CardHeader className="flex-1">
                 <Brain className="h-10 w-10 text-yellow-500 mb-2" />
                 <CardTitle>{t('dashboard.chatWithProfessor')}</CardTitle>
                 <CardDescription>
                   {t('dashboard.chatDesc')}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="mt-auto">
                 <Link href="/chat">
                   <Button className="w-full border-yellow-500 text-yellow-600 hover:bg-yellow-50 hover:border-yellow-600" variant="outline">{t('dashboard.openChat')}</Button>
                 </Link>
