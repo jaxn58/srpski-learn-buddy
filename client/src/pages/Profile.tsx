@@ -256,7 +256,7 @@ export default function Profile() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              className="hidden"
+              className="sr-only"
               onChange={(e) => handleAvatarFileSelected(e.target.files?.[0] ?? null)}
               disabled={saving}
             />
