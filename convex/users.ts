@@ -854,7 +854,12 @@ export const enforceSingleSession = action({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Do not throw here: on initial load, Clerk may be ready while Convex auth token
+    // hasn't propagated yet. Throwing would spam the client with "Server Error".
+    if (!identity) {
+      console.log("[enforceSingleSession] Skipping: no identity");
+      return { skipped: true, reason: "no_identity" as const };
+    }
 
     if (!isProductionDeployment()) {
       console.log("[enforceSingleSession] Skipping: not production");

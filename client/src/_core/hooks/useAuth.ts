@@ -31,6 +31,8 @@ export function useAuth() {
 
   // Track if we've already attempted to sync to avoid multiple attempts.
   const syncAttemptedRef = useRef(false);
+  // Track if we've already attempted to enforce sessions for the current Clerk session.
+  const enforceAttemptedSessionRef = useRef<string | null>(null);
 
   // Always attempt to sync once the Clerk user is available.
   useEffect(() => {
@@ -46,21 +48,36 @@ export function useAuth() {
     syncAttemptedRef.current = true;
 
     syncUser({ learningLanguage: "en" })
-      .then(async () => {
-        // Optional fallback: ensure single-session enforcement even if webhook delivery is delayed.
-        if (sessionId) {
-          try {
-            await enforceSingleSession({ sessionId });
-          } catch (error) {
-            logger.error("[useAuth] Failed to enforce single session:", error);
-          }
-        }
-      })
       .catch((error) => {
         logger.error("[useAuth] Failed to sync user:", error);
         syncAttemptedRef.current = false;
       });
   }, [isSignedIn, clerkLoaded, clerkUser, syncUser, sessionId, enforceSingleSession]);
+
+  // Optional fallback: ensure single-session enforcement even if webhook delivery is delayed.
+  // Important: wait until dbUser is loaded so Convex auth identity is definitely available.
+  useEffect(() => {
+    if (!isSignedIn || !clerkLoaded || !sessionId) {
+      enforceAttemptedSessionRef.current = null;
+      return;
+    }
+
+    // Wait for Convex user to be resolved; this implies Convex auth identity is ready.
+    if (!dbUser) return;
+
+    // Skip superadmin to avoid unnecessary Clerk API calls.
+    if (dbUser.role === "superadmin") {
+      enforceAttemptedSessionRef.current = sessionId;
+      return;
+    }
+
+    if (enforceAttemptedSessionRef.current === sessionId) return;
+    enforceAttemptedSessionRef.current = sessionId;
+
+    enforceSingleSession({ sessionId }).catch((error) => {
+      logger.error("[useAuth] Failed to enforce single session:", error);
+    });
+  }, [isSignedIn, clerkLoaded, sessionId, dbUser, enforceSingleSession]);
 
   const state = useMemo(() => {
     // Store user info for Manus runtime compatibility
