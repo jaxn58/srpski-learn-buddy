@@ -25,6 +25,7 @@ import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Mail, Eye, Trash2, Edit, Plus, CheckCircle, XCircle, ArrowLeft, Code, Eye as EyeIcon, MoreHorizontal, Copy, AlertTriangle, Type } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { formatDateEU } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef } from "react";
 // Sidebar import removed
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -1418,7 +1419,7 @@ export default function EmailTemplates() {
                               )}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Updated: {template.updatedAt ? new Date(template.updatedAt).toLocaleDateString('de-DE') : 'N/A'}
+                              Updated: {template.updatedAt ? formatDateEU(template.updatedAt) : "N/A"}
                             </div>
                           </div>
                         </TableCell>

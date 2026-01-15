@@ -12,6 +12,7 @@ import { MessageSquare } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { formatDateTimeEU } from "@/lib/utils";
 
 type FeedbackSubmissionDoc = Doc<"feedbackSubmissions">;
 
@@ -249,13 +250,7 @@ export default function Feedback() {
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {t('feedback.submitted')}: {submission.submittedAt ? new Date(submission.submittedAt).toLocaleDateString('de-DE', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      }) : 'Unknown'}
+                      {t("feedback.submitted")}: {submission.submittedAt ? formatDateTimeEU(submission.submittedAt) : "Unknown"}
                     </p>
                   </CardContent>
                 </Card>

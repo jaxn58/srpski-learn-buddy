@@ -27,6 +27,7 @@ import { api } from "../../../convex/_generated/api";
 import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus, Mail, ArrowUpDown } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { formatDateEU } from "@/lib/utils";
 import { useState, useMemo } from "react";
 // Sidebar import removed
 
@@ -366,7 +367,7 @@ export default function Admin() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {u._lastModified ? new Date(u._lastModified).toLocaleDateString('de-DE') : 'Never'}
+                    {u._lastModified ? formatDateEU(u._lastModified) : "Never"}
                   </TableCell>
                   <TableCell className="text-right">
                     {user.role === 'superadmin' && u._id !== user._id ? (
@@ -495,8 +496,8 @@ export default function Admin() {
                   <TableCell>{p.learningDuration} weeks</TableCell>
                   <TableCell>
                     {p.lastActivityAt 
-                      ? new Date(p.lastActivityAt).toLocaleDateString('de-DE')
-                      : 'Never'
+                      ? formatDateEU(p.lastActivityAt)
+                      : "Never"
                     }
                   </TableCell>
                 </TableRow>

@@ -51,7 +51,11 @@ import {
   ScrollText,
   Presentation,
   Database,
-  Send
+  Send,
+  CheckCircle2,
+  Footprints,
+  Flag,
+  Zap
 } from "lucide-react";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
@@ -67,38 +71,69 @@ const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
 
-// Badge helper functions
-const getBadgeIcon = (badgeId: string) => {
-  const icons: Record<string, string> = {
-    'first_steps': '🎓',
-    'airport_navigator': '✈️',
-    'week_warrior': '🏆',
-    'cafe_regular': '☕',
-    'vocabulary_master': '📚',
+// Badge helper functions (compact, readable, no random medal emojis)
+type BadgeTone = "units" | "streak" | "xp" | "level" | "misc";
+type BadgeMeta = { short: string; name: string; description: string; tone: BadgeTone };
+
+const getBadgeMeta = (badgeId: string): BadgeMeta => {
+  const metas: Record<string, BadgeMeta> = {
+    first_steps: { short: "FS", name: "First Steps", description: "Complete your first exercise", tone: "units" },
+    unit_complete: { short: "UC", name: "Unit Complete", description: "Finish your first unit", tone: "units" },
+    five_units: { short: "U5", name: "Getting Started", description: "Complete 5 units", tone: "units" },
+    ten_units: { short: "U10", name: "Serious Progress", description: "Complete 10 units", tone: "units" },
+
+    streak_3: { short: "S3", name: "Streak Starter", description: "Maintain a 3-day streak", tone: "streak" },
+    streak_7: { short: "S7", name: "Week Warrior", description: "Maintain a 7-day streak", tone: "streak" },
+    streak_30: { short: "S30", name: "Unbreakable", description: "Maintain a 30-day streak", tone: "streak" },
+
+    xp_100: { short: "XP1", name: "XP Collector", description: "Reach 100 XP", tone: "xp" },
+    xp_500: { short: "XP5", name: "XP Grinder", description: "Reach 500 XP", tone: "xp" },
+    xp_1000: { short: "XP10", name: "XP Legend", description: "Reach 1,000 XP", tone: "xp" },
+    xp_2000: { short: "XP20", name: "XP Milestone", description: "Reach 2,000 XP", tone: "xp" },
+    xp_5000: { short: "XP50", name: "XP Machine", description: "Reach 5,000 XP", tone: "xp" },
+    xp_10000: { short: "XP100", name: "XP Beast", description: "Reach 10,000 XP", tone: "xp" },
+    xp_20000: { short: "XP200", name: "XP Titan", description: "Reach 20,000 XP", tone: "xp" },
+    xp_50000: { short: "XP500", name: "XP Mythic", description: "Reach 50,000 XP", tone: "xp" },
+
+    level_5: { short: "L5", name: "Level 5", description: "Reach Level 5", tone: "level" },
+    level_10: { short: "L10", name: "Level 10", description: "Reach Level 10", tone: "level" },
+    level_15: { short: "L15", name: "Level 15", description: "Reach Level 15", tone: "level" },
+    level_20: { short: "L20", name: "Level 20", description: "Reach Level 20", tone: "level" },
+    level_25: { short: "L25", name: "Level 25", description: "Reach Level 25", tone: "level" },
   };
-  return icons[badgeId] || '🏅';
+
+  return metas[badgeId] ?? { short: "★", name: "Achievement", description: "Unlocked achievement", tone: "misc" };
 };
 
-const getBadgeName = (badgeId: string) => {
-  const names: Record<string, string> = {
-    'first_steps': 'First Steps',
-    'airport_navigator': 'Airport Navigator',
-    'week_warrior': 'Week Warrior',
-    'cafe_regular': 'Cafe Regular',
-    'vocabulary_master': 'Vocabulary Master',
-  };
-  return names[badgeId] || 'Achievement';
+type BadgeIconComponent = React.ComponentType<{ className?: string }>;
+
+const getBadgeIcon = (badgeId: string): BadgeIconComponent => {
+  if (badgeId === "first_steps") return Footprints;
+  if (badgeId === "unit_complete") return CheckCircle2;
+  if (badgeId === "five_units") return Flag;
+  if (badgeId === "ten_units") return Trophy;
+  if (badgeId.startsWith("streak_")) return Flame;
+  if (badgeId.startsWith("xp_")) return Zap;
+  if (badgeId.startsWith("level_")) return Star;
+  return Award;
 };
 
-const getBadgeDescription = (badgeId: string) => {
-  const descriptions: Record<string, string> = {
-    'first_steps': 'Complete your first unit',
-    'airport_navigator': 'Master Unit 1: At the Airport',
-    'week_warrior': 'Complete your first week',
-    'cafe_regular': 'Master cafe-related vocabulary',
-    'vocabulary_master': 'Complete 100 vocabulary exercises',
-  };
-  return descriptions[badgeId] || 'Unlocked achievement';
+const badgeToneClass = (tone: BadgeTone) => {
+  if (tone === "units")
+    return "bg-[color:var(--brand-blue-soft)] text-[color:var(--brand-blue-strong-text)] border-[color:var(--brand-blue-soft-border)]";
+  if (tone === "streak") return "bg-red-50 text-red-700 border-red-200";
+  if (tone === "xp") return "bg-amber-50 text-amber-800 border-amber-200";
+  if (tone === "level") return "bg-purple-50 text-purple-700 border-purple-200";
+  return "bg-slate-50 text-slate-700 border-slate-200";
+};
+
+const badgeToneMiniEmblemClass = (tone: BadgeTone) => {
+  // Mini emblem for the sidebar profile: recognisable icon > text code.
+  if (tone === "units") return "bg-serbian-blue text-white border-white/15";
+  if (tone === "streak") return "bg-serbian-red text-white border-white/15";
+  if (tone === "xp") return "bg-gradient-to-br from-amber-400 to-amber-600 text-white border-white/20";
+  if (tone === "level") return "bg-gradient-to-br from-purple-500 to-indigo-600 text-white border-white/20";
+  return "bg-gradient-to-br from-slate-500 to-slate-700 text-white border-white/15";
 };
 
 interface NavItem {
@@ -350,26 +385,48 @@ function DashboardLayoutContent({
                         )}
                       </div>
                       
-                      {/* Achievement Badge Icons */}
-                      {userBadges && userBadges.length > 0 && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {userBadges.map((badge: any) => (
-                            <Tooltip key={badge.id}>
-                              <TooltipTrigger asChild>
-                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-[10px] font-bold cursor-help shadow-sm hover:scale-110 transition-transform">
-                                  {getBadgeIcon(badge.badgeId)}
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="max-w-xs">
-                                <div className="space-y-1">
-                                  <p className="font-semibold">{getBadgeName(badge.badgeId)}</p>
-                                  <p className="text-xs text-gray-500">{getBadgeDescription(badge.badgeId)}</p>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          ))}
-                        </div>
-                      )}
+                      {/* Compact Achievement Badges (show a few; tooltip shows details) */}
+                      {(() => {
+                        if (!userBadges || userBadges.length === 0) return null;
+                        const sorted = [...userBadges].sort(
+                          (a: any, b: any) => (b._creationTime ?? 0) - (a._creationTime ?? 0)
+                        );
+                        const visible = sorted.slice(0, 5);
+                        const extra = Math.max(0, sorted.length - visible.length);
+                        return (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {visible.map((badge: any, idx: number) => {
+                              const meta = getBadgeMeta(badge.badgeId);
+                              const Icon = getBadgeIcon(badge.badgeId);
+                              return (
+                                <Tooltip key={badge._id ?? `${badge.badgeId}-${idx}`}>
+                                  <TooltipTrigger asChild>
+                                    <div
+                                      className={cn(
+                                        "relative h-6 w-6 rounded-full border cursor-help shadow-sm hover:shadow transition-shadow flex items-center justify-center",
+                                        badgeToneMiniEmblemClass(meta.tone)
+                                      )}
+                                    >
+                                      <Icon className="h-3.5 w-3.5" />
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs">
+                                    <div className="space-y-1">
+                                      <p className="font-semibold">{meta.name}</p>
+                                      <p className="text-xs text-gray-500">{meta.description}</p>
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                            {extra > 0 && (
+                              <div className="h-6 min-w-6 px-1.5 rounded-full border bg-slate-50 text-slate-700 text-[10px] font-semibold shadow-sm flex items-center justify-center">
+                                +{extra}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                   
@@ -390,7 +447,9 @@ function DashboardLayoutContent({
                               <Trophy className="h-3 w-3 text-yellow-600" />
                               <span className="text-[10px] font-medium text-gray-600">{t('sidebar.level')}</span>
                             </div>
-                            <span className="text-sm font-bold text-gray-900">{currentLevel}</span>
+                            <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-amber-500 text-white text-xs font-extrabold">
+                              {currentLevel}
+                            </span>
                           </div>
                           <Progress value={levelProgress} className="h-1" />
                         </div>
@@ -411,7 +470,7 @@ function DashboardLayoutContent({
                               <Flame className="h-3 w-3 text-orange-600" />
                               <span className="text-[10px] font-medium text-gray-600">{t('sidebar.streak')}</span>
                             </div>
-                            <span className="text-sm font-bold text-gray-900">{user.currentStreak || 0} 🔥</span>
+                            <span className="text-sm font-bold text-gray-900">{user.currentStreak || 0}</span>
                           </div>
                         </div>
                       </div>

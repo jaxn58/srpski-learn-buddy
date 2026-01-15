@@ -931,7 +931,11 @@ export const getDailyActivity = query({
     if (!user) return [];
 
     const daysToFetch = args.days ?? 30;
-    const startDate = Date.now() - daysToFetch * 24 * 60 * 60 * 1000;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const endOfToday = new Date();
+    endOfToday.setHours(0, 0, 0, 0);
+    // Inclusive window: "last N days" should include the earliest day fully (midnight boundary).
+    const startDate = endOfToday.getTime() - (Math.max(1, daysToFetch) - 1) * dayMs;
 
     return await ctx.db
       .query("dailyActivity")

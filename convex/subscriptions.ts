@@ -16,11 +16,12 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 
 // Subscription plans
 const SUBSCRIPTION_PLANS = [
+  // NOTE: Prices are in cents (EUR).
   { id: "beta", name: "Beta Access", months: 0, price: 0, unitsPerWeek: 0 },
-  { id: "intensive", name: "Intensive", months: 3, price: 29, unitsPerWeek: 3 },
-  { id: "balanced", name: "Balanced", months: 6, price: 49, unitsPerWeek: 2 },
-  { id: "standard", name: "Standard", months: 9, price: 69, unitsPerWeek: 1.5 },
-  { id: "relaxed", name: "Relaxed", months: 12, price: 89, unitsPerWeek: 1 },
+  { id: "intensive", name: "Intensive", months: 3, price: 6900, unitsPerWeek: 3 },
+  { id: "balanced", name: "Balanced", months: 6, price: 7900, unitsPerWeek: 2 },
+  { id: "standard", name: "Standard", months: 9, price: 9500, unitsPerWeek: 1.5 },
+  { id: "relaxed", name: "Relaxed", months: 12, price: 11900, unitsPerWeek: 1 },
 ];
 
 // Get accessible units for current user based on subscription
@@ -125,6 +126,23 @@ export const getPlans = query({
   },
 });
 
+// Beta discount status for the current user (computed server-side using BETA_END_DATE)
+export const getBetaDiscountStatus = query({
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      return { betaEnded: false, eligible: false, usedAt: null as number | null };
+    }
+
+    const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
+    const betaEnded = Number.isFinite(betaEndTs) ? Date.now() > betaEndTs : false;
+    const usedAt = user.betaDiscountUsedAt ?? null;
+    const eligible = betaEnded && user.isBetaTester === true && usedAt === null;
+
+    return { betaEnded, eligible, usedAt };
+  },
+});
+
 // Calculate upgrade cost
 export const calculateUpgradeCost = mutation({
   args: {
@@ -191,17 +209,18 @@ export const getAnalytics = query({
 
     const activeCount = allSubscriptions.filter(s => s.status === "active").length;
     const cancelledCount = allSubscriptions.filter(s => s.status === "cancelled").length;
+    // Monetary values are stored in cents.
     const totalRevenue = allHistory
       .filter(h => h.cost)
-      .reduce((sum, h) => sum + (h.cost || 0), 0) * 100; // Convert to cents
+      .reduce((sum, h) => sum + (h.cost || 0), 0);
 
     // Calculate MRR (Monthly Recurring Revenue) from active subscriptions
     const mrr = allSubscriptions
       .filter(s => s.status === "active")
       .reduce((sum, s) => {
-        // Calculate monthly price from plan price and duration
-        const monthlyPrice = s.planPrice / s.planDurationMonths;
-        return sum + (monthlyPrice * 100); // Convert to cents
+        // Monthly recurring revenue in cents.
+        const monthlyPriceCents = Math.round(s.planPrice / s.planDurationMonths);
+        return sum + monthlyPriceCents;
       }, 0);
 
     // Calculate churn rate (cancelled / total)
@@ -217,16 +236,16 @@ export const getAnalytics = query({
     const revenueByPlan = {
       intensive: allHistory
         .filter(h => h.newPlanType === "intensive" && h.cost)
-        .reduce((sum, h) => sum + (h.cost || 0) * 100, 0),
+        .reduce((sum, h) => sum + (h.cost || 0), 0),
       balanced: allHistory
         .filter(h => h.newPlanType === "balanced" && h.cost)
-        .reduce((sum, h) => sum + (h.cost || 0) * 100, 0),
+        .reduce((sum, h) => sum + (h.cost || 0), 0),
       standard: allHistory
         .filter(h => h.newPlanType === "standard" && h.cost)
-        .reduce((sum, h) => sum + (h.cost || 0) * 100, 0),
+        .reduce((sum, h) => sum + (h.cost || 0), 0),
       relaxed: allHistory
         .filter(h => h.newPlanType === "relaxed" && h.cost)
-        .reduce((sum, h) => sum + (h.cost || 0) * 100, 0),
+        .reduce((sum, h) => sum + (h.cost || 0), 0),
     };
 
     // Count by plan type
@@ -418,6 +437,271 @@ export const toggleAutoRenew = mutation({
     });
 
     return !subscription.autoRenew;
+  },
+});
+
+function parseMoneyToCents(input: unknown): number | null {
+  if (typeof input === "number" && Number.isFinite(input)) {
+    return Math.round(input * 100);
+  }
+  if (typeof input === "string") {
+    const n = Number.parseFloat(input);
+    if (!Number.isFinite(n)) return null;
+    return Math.round(n * 100);
+  }
+  return null;
+}
+
+function getPaddlePriceMapFromEnv() {
+  const normal = {
+    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE || "").trim(),
+    balanced: (process.env.PADDLE_PRODUCT_BALANCED || "").trim(),
+    standard: (process.env.PADDLE_PRODUCT_STANDARD || "").trim(),
+    relaxed: (process.env.PADDLE_PRODUCT_RELAXED || "").trim(),
+  } as const;
+
+  const beta50 = {
+    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_BETA50 || "").trim(),
+    balanced: (process.env.PADDLE_PRODUCT_BALANCED_BETA50 || "").trim(),
+    standard: (process.env.PADDLE_PRODUCT_STANDARD_BETA50 || "").trim(),
+    relaxed: (process.env.PADDLE_PRODUCT_RELAXED_BETA50 || "").trim(),
+  } as const;
+
+  const monthsByPlan = {
+    intensive: 3,
+    balanced: 6,
+    standard: 9,
+    relaxed: 12,
+  } as const;
+
+  const map = new Map<
+    string,
+    { planType: keyof typeof monthsByPlan; planDurationMonths: number; isBeta50: boolean }
+  >();
+
+  for (const plan of Object.keys(monthsByPlan) as Array<keyof typeof monthsByPlan>) {
+    if (normal[plan]) {
+      map.set(normal[plan], { planType: plan, planDurationMonths: monthsByPlan[plan], isBeta50: false });
+    }
+    if (beta50[plan]) {
+      map.set(beta50[plan], { planType: plan, planDurationMonths: monthsByPlan[plan], isBeta50: true });
+    }
+  }
+
+  return map;
+}
+
+// ===== Paddle webhook helpers (internal) =====
+// Applies a prepaid Paddle purchase to our subscription tables.
+export const internalApplyPaddlePrepaidPurchase = internalMutation({
+  args: {
+    paddleEventId: v.string(),
+    clerkId: v.string(),
+    planType: v.union(
+      v.literal("intensive"),
+      v.literal("balanced"),
+      v.literal("standard"),
+      v.literal("relaxed")
+    ),
+    planDurationMonths: v.number(),
+    planPriceCents: v.number(),
+    priceId: v.string(),
+    transactionId: v.optional(v.string()),
+    isBeta50: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+    if (!user) {
+      throw new Error(`User not found for clerkId=${args.clerkId}`);
+    }
+
+    // Enforce one-time beta discount usage (no expiry), only after beta ends.
+    if (args.isBeta50) {
+      const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
+      const betaEnded = Number.isFinite(betaEndTs) ? now > betaEndTs : false;
+
+      if (!betaEnded) {
+        throw new Error("beta_discount_not_active");
+      }
+      if (user.isBetaTester !== true) {
+        throw new Error("beta_discount_not_eligible");
+      }
+      if (user.betaDiscountUsedAt !== undefined) {
+        throw new Error("beta_discount_already_used");
+      }
+
+      await ctx.db.patch(user._id, { betaDiscountUsedAt: now });
+    }
+
+    const existing = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .first();
+
+    const baseStart = existing?.expiresAt && existing.expiresAt > now ? existing.expiresAt : now;
+    const expiresAt = baseStart + args.planDurationMonths * 30 * 24 * 60 * 60 * 1000;
+
+    const maxAccessibleUnits = 27;
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        planType: args.planType,
+        planDurationMonths: args.planDurationMonths,
+        planPrice: args.planPriceCents,
+        expiresAt,
+        status: "active",
+        autoRenew: false,
+        cancelledAt: undefined,
+        maxAccessibleUnits,
+      });
+
+      await ctx.db.insert("subscriptionHistory", {
+        userId: user._id,
+        action: existing.planType === args.planType ? "renewed" : "upgraded",
+        previousPlanType: existing.planType,
+        newPlanType: args.planType,
+        previousExpiresAt: existing.expiresAt,
+        newExpiresAt: expiresAt,
+        cost: args.planPriceCents,
+        notes: `paddle_event:${args.paddleEventId}${args.transactionId ? ` tx:${args.transactionId}` : ""}`,
+      });
+
+      return { subscriptionId: existing._id, userId: user._id };
+    }
+
+    const subscriptionId = await ctx.db.insert("userSubscriptions", {
+      userId: user._id,
+      planType: args.planType,
+      planDurationMonths: args.planDurationMonths,
+      planPrice: args.planPriceCents,
+      expiresAt,
+      status: "active",
+      autoRenew: false,
+      maxAccessibleUnits,
+    });
+
+    await ctx.db.insert("subscriptionHistory", {
+      userId: user._id,
+      action: "purchased",
+      newPlanType: args.planType,
+      newExpiresAt: expiresAt,
+      cost: args.planPriceCents,
+      notes: `paddle_event:${args.paddleEventId}${args.transactionId ? ` tx:${args.transactionId}` : ""}`,
+    });
+
+    return { subscriptionId, userId: user._id };
+  },
+});
+
+// Receives a verified Paddle webhook payload and applies side effects in an idempotent way.
+export const internalProcessPaddleWebhook = internalMutation({
+  args: {
+    rawBody: v.string(),
+    receivedAt: v.number(),
+    environment: v.optional(v.union(v.literal("sandbox"), v.literal("production"))),
+  },
+  handler: async (ctx, args) => {
+    let evt: any;
+    try {
+      evt = JSON.parse(args.rawBody);
+    } catch {
+      throw new Error("invalid_json");
+    }
+
+    const eventId: string =
+      evt?.event_id ?? evt?.eventId ?? evt?.id ?? evt?.notification_id ?? evt?.notificationId ?? "";
+    const eventType: string = evt?.event_type ?? evt?.eventType ?? evt?.type ?? "";
+
+    if (!eventId || !eventType) {
+      throw new Error("missing_event_id_or_type");
+    }
+
+    const already = await ctx.db
+      .query("paddleWebhookEvents")
+      .withIndex("by_event_id", (q) => q.eq("eventId", eventId))
+      .first();
+    if (already) {
+      return { status: "duplicate" as const };
+    }
+
+    const occurredAtStr: string | undefined = evt?.occurred_at ?? evt?.occurredAt;
+    const occurredAt = occurredAtStr ? Date.parse(occurredAtStr) : undefined;
+
+    // Best-effort extraction (kept denormalized for debugging).
+    const data = evt?.data ?? {};
+    const transactionId: string | undefined =
+      data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.transaction?.id;
+    const firstItem = Array.isArray(data?.items) ? data.items[0] : undefined;
+    const priceId: string | undefined =
+      firstItem?.price_id ??
+      firstItem?.priceId ??
+      firstItem?.price?.id ??
+      data?.price_id ??
+      data?.priceId ??
+      data?.price?.id;
+    const customData = data?.custom_data ?? data?.customData ?? {};
+    const clerkId: string | undefined =
+      customData?.clerkId ??
+      customData?.clerk_id ??
+      customData?.userId ??
+      customData?.user_id ??
+      customData?.clerk_user_id;
+
+    const eventDocId = await ctx.db.insert("paddleWebhookEvents", {
+      eventId,
+      eventType,
+      receivedAt: args.receivedAt,
+      occurredAt: Number.isFinite(occurredAt) ? occurredAt : undefined,
+      processedAt: undefined,
+      rawPayload: args.rawBody,
+      clerkId,
+      priceId,
+      transactionId,
+      environment: args.environment,
+    });
+
+    if (!eventType.startsWith("transaction.")) {
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "ignored" as const };
+    }
+
+    if (!clerkId || !priceId) {
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "ignored" as const };
+    }
+
+    const mapping = getPaddlePriceMapFromEnv().get(priceId);
+    if (!mapping) {
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "ignored" as const };
+    }
+
+    const amountCandidate =
+      data?.totals?.total ??
+      data?.details?.totals?.total ??
+      data?.amount?.total ??
+      data?.total ??
+      firstItem?.totals?.total;
+    const planPriceCents = parseMoneyToCents(amountCandidate) ?? 0;
+
+    await ctx.runMutation(internal.subscriptions.internalApplyPaddlePrepaidPurchase, {
+      paddleEventId: eventId,
+      clerkId,
+      planType: mapping.planType,
+      planDurationMonths: mapping.planDurationMonths,
+      planPriceCents,
+      priceId,
+      transactionId,
+      isBeta50: mapping.isBeta50,
+    });
+
+    await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+    return { status: "applied" as const };
   },
 });
 

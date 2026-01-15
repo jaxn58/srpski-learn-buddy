@@ -1,13 +1,12 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, Brain, MessageSquare, TrendingUp, Home, Lock, Star } from "lucide-react";
+import { BookOpen, Brain, MessageSquare, Home, Lock, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -30,6 +29,12 @@ export default function Dashboard() {
   const progressLoading = progress === undefined;
   const accessibleUnits = useQuery(api.subscriptions.getAccessibleUnits);
   const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
+  
+  // Check if user has started the current unit (for Current vs Next Unit label)
+  const currentUnitActivity = useQuery(
+    api.progress.hasUnitActivity,
+    progress?.currentUnit ? { unitNumber: progress.currentUnit } : "skip"
+  );
   
   // Load dynamic data from DB instead of static files
   const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
@@ -220,54 +225,6 @@ export default function Dashboard() {
           <h2 className="text-3xl font-bold mb-2">
             {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Learner' })}
           </h2>
-          <p className="text-muted-foreground">
-            {isBeta ? t('dashboard.betaProgress') : t('dashboard.progressMessage', { completed: completedUnits.length, total: totalUnits })}
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6 mb-8 items-stretch">
-          <AnimatedItem>
-            <Card className="h-full">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{t('dashboard.totalProgress')}</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{completedUnits.length}/{totalUnits}</div>
-                <Progress value={progressPercentage} className="mt-2" />
-                <p className="text-xs text-muted-foreground mt-2">
-                  {Math.round(progressPercentage)}% {t('dashboard.completed')}
-                </p>
-              </CardContent>
-            </Card>
-          </AnimatedItem>
-
-          <AnimatedItem>
-            <Link href={progress?.currentUnit ? `/unit/${progress.currentUnit}` : "#"}>
-              <Card className={`h-full cursor-pointer hover:shadow-lg transition-shadow ${!progress?.currentUnit ? 'pointer-events-none opacity-60' : ''}`}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">{t('dashboard.currentLesson')}</CardTitle>
-                  <BookOpen className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  {(() => {
-                    const currentUnit = progress?.currentUnit;
-                    const unit = units?.find(u => u.unitNumber === currentUnit);
-                    return (
-                      <>
-                        <div className="text-2xl font-bold">
-                          {t('dashboard.unit', { number: currentUnit })}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {unit?.title}
-                        </p>
-                      </>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
-            </Link>
-          </AnimatedItem>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -275,17 +232,26 @@ export default function Dashboard() {
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <BookOpen className="h-10 w-10 text-primary mb-2" />
-                <CardTitle>{t('dashboard.continueLesson')}</CardTitle>
+                <CardTitle>
+                  {currentUnitActivity?.hasActivity ? t('dashboard.continueLesson') : t('dashboard.startNextLesson')}
+                </CardTitle>
                 <CardDescription>
                   {(() => {
                     const unit = units?.find(u => u.unitNumber === progress?.currentUnit);
-                    return unit?.title;
+                    return (
+                      <>
+                        <span className="font-semibold">{t('dashboard.unit', { number: progress?.currentUnit })}</span>
+                        {unit?.title && <span> - {unit.title}</span>}
+                      </>
+                    );
                   })()}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Link href={`/unit/${progress?.currentUnit}`}>
-                  <Button className="w-full">{t('dashboard.goToLesson')}</Button>
+                  <Button className="w-full">
+                    {currentUnitActivity?.hasActivity ? t('dashboard.goToLesson') : t('dashboard.startLesson')}
+                  </Button>
                 </Link>
               </CardContent>
             </Card>

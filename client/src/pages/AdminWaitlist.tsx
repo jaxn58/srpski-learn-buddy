@@ -20,6 +20,7 @@ import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Mail, Users, CheckCircle, Clock, Bell, Loader2, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import { formatDateEU, formatDateTimeEU } from "@/lib/utils";
 
 type WaitlistEntry = Doc<"waitlist">;
 
@@ -95,9 +96,9 @@ export default function AdminWaitlist() {
       entry.name || "",
       entry.status,
       entry.wantsWaitlistUpdates ? "yes" : "no",
-      new Date(entry.createdAt).toLocaleString(),
-      entry.confirmedAt ? new Date(entry.confirmedAt).toLocaleString() : "",
-      entry.notifiedAt ? new Date(entry.notifiedAt).toLocaleString() : "",
+      formatDateTimeEU(entry.createdAt),
+      entry.confirmedAt ? formatDateTimeEU(entry.confirmedAt) : "",
+      entry.notifiedAt ? formatDateTimeEU(entry.notifiedAt) : "",
     ]);
 
     const csvContent = [
@@ -278,13 +279,13 @@ export default function AdminWaitlist() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {new Date(entry.createdAt).toLocaleDateString()}
+                        {formatDateEU(entry.createdAt)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {entry.confirmedAt ? new Date(entry.confirmedAt).toLocaleDateString() : "-"}
+                        {entry.confirmedAt ? formatDateEU(entry.confirmedAt) : "-"}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {entry.notifiedAt ? new Date(entry.notifiedAt).toLocaleDateString() : "-"}
+                        {entry.notifiedAt ? formatDateEU(entry.notifiedAt) : "-"}
                       </TableCell>
                       <TableCell className="text-right">
                         <AlertDialog>

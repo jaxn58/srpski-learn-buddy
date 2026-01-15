@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { formatDateTimeEU } from "@/lib/utils";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -291,13 +292,7 @@ export default function PromptAdmin() {
                           {promptHistory.map((version: any) => (
                             <TableRow key={version._id}>
                               <TableCell className="font-medium">
-                                {new Date(version.updatedAt).toLocaleString('de-DE', {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
+                                {formatDateTimeEU(version.updatedAt)}
                               </TableCell>
                               <TableCell>{version.updatedByName}</TableCell>
                               <TableCell>
@@ -356,7 +351,7 @@ export default function PromptAdmin() {
             <DialogDescription>
               {previewVersion && (
                 <>
-                  Saved on {new Date(previewVersion.updatedAt).toLocaleString('de-DE')} by {previewVersion.updatedByName}
+                  Saved on {formatDateTimeEU(previewVersion.updatedAt)} by {previewVersion.updatedByName}
                 </>
               )}
             </DialogDescription>

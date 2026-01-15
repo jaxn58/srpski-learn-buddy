@@ -26,6 +26,7 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 }
 
 // Get user progress
+// Automatically corrects currentUnit if it doesn't match completedUnits
 export const getUserProgress = query({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
@@ -35,6 +36,24 @@ export const getUserProgress = query({
       .query("userProgress")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .first();
+
+    if (!progress) return null;
+
+    // Calculate the correct currentUnit based on completedUnits
+    // currentUnit should be max(completedUnits) + 1, or 1 if no units completed
+    const completedUnits = progress.completedUnits || [];
+    const maxCompleted = completedUnits.length > 0 
+      ? Math.max(...completedUnits) 
+      : 0;
+    const correctCurrentUnit = maxCompleted + 1;
+
+    // Return corrected progress (don't modify DB in query, just return corrected value)
+    if (progress.currentUnit !== correctCurrentUnit) {
+      return {
+        ...progress,
+        currentUnit: correctCurrentUnit,
+      };
+    }
 
     return progress;
   },
@@ -677,25 +696,125 @@ export const getDashboardStats = query({
     const user = await getCurrentUser(ctx);
     if (!user) return null;
 
+    const dayMs = 24 * 60 * 60 * 1000;
+    const startOfDay = (ts: number) => {
+      const d = new Date(ts);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+    const todayStart = startOfDay(Date.now());
+    const window7Start = todayStart - 6 * dayMs;
+    const window30Start = todayStart - 29 * dayMs;
+    const windowAllStart = todayStart - (3650 - 1) * dayMs;
+
     // 1. Get User Progress (Units)
     const userProgress = await ctx.db
       .query("userProgress")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .first();
 
-    // 2. Get Daily Activity (Last 7 days for Chart)
-    const dailyActivities = await ctx.db
+    // 2. Get Daily Activity (Last 7 days for Chart / Weekly XP)
+    const dailyActivities7 = await ctx.db
       .query("dailyActivity")
       .withIndex("by_user_date", (q) => q.eq("userId", user._id))
-      .order("desc")
-      .take(7);
+      .filter((q) => q.gte(q.field("activityDate"), window7Start))
+      .collect();
+    // Ensure chronological order for chart payload.
+    dailyActivities7.sort((a, b) => (a.activityDate ?? 0) - (b.activityDate ?? 0));
 
     // 2b. Activity stats (Last 30 days)
     const dailyActivities30 = await ctx.db
       .query("dailyActivity")
       .withIndex("by_user_date", (q) => q.eq("userId", user._id))
-      .order("desc")
-      .take(30);
+      .filter((q) => q.gte(q.field("activityDate"), window30Start))
+      .collect();
+
+    // Active Days: a day counts if user earned XP OR sent at least one Learn Buddy message that day.
+    const activeDaySet30 = new Set<number>();
+    for (const a of dailyActivities30) {
+      if ((a.xpEarned ?? 0) > 0) activeDaySet30.add(startOfDay(a.activityDate));
+    }
+    const chatMessages30 = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("role"), "user"))
+      .filter((q) => q.gte(q.field("_creationTime"), window30Start))
+      .collect();
+    for (const m of chatMessages30) {
+      activeDaySet30.add(startOfDay(m._creationTime));
+    }
+    const activeDays30d = activeDaySet30.size;
+
+    // Weekly goal/progress (must stay consistent with Active Days definition):
+    // - XP this week: sum of dailyActivity.xpEarned in last 7 days
+    // - Active days this week: union of (xpEarned>0) OR (>=1 chat message with role=user) in last 7 days
+    const activeDaySet7 = new Set<number>();
+    for (const a of dailyActivities7) {
+      if ((a.xpEarned ?? 0) > 0) activeDaySet7.add(startOfDay(a.activityDate));
+    }
+    const chatMessages7 = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("role"), "user"))
+      .filter((q) => q.gte(q.field("_creationTime"), window7Start))
+      .collect();
+    for (const m of chatMessages7) {
+      activeDaySet7.add(startOfDay(m._creationTime));
+    }
+    const weeklyProgress = {
+      windowDays: 7,
+      activeDays: activeDaySet7.size,
+      xpSum: dailyActivities7.reduce((sum, a) => sum + (a.xpEarned ?? 0), 0),
+    };
+    const weeklyGoal = {
+      windowDays: 7,
+      activeDaysTarget: 3,
+      xpTarget: 150,
+    };
+
+    // Active Days (for streaks): look back up to 10 years to avoid missing legacy rows.
+    const activeDaySetAll = new Set<number>();
+    const dailyActivitiesAll = await ctx.db
+      .query("dailyActivity")
+      .withIndex("by_user_date", (q) => q.eq("userId", user._id))
+      .filter((q) => q.gte(q.field("activityDate"), windowAllStart))
+      .collect();
+    for (const a of dailyActivitiesAll) {
+      if ((a.xpEarned ?? 0) > 0) activeDaySetAll.add(startOfDay(a.activityDate));
+    }
+    const chatMessagesAll = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("role"), "user"))
+      .filter((q) => q.gte(q.field("_creationTime"), windowAllStart))
+      .collect();
+    for (const m of chatMessagesAll) {
+      activeDaySetAll.add(startOfDay(m._creationTime));
+    }
+
+    const activeDaysSorted = Array.from(activeDaySetAll).sort((a, b) => a - b);
+    const lastActiveDay = activeDaysSorted.length > 0 ? activeDaysSorted[activeDaysSorted.length - 1] : null;
+    const streakEnd = activeDaySetAll.has(todayStart) ? todayStart : lastActiveDay;
+    let activeDaysCurrentStreak = 0;
+    if (streakEnd !== null) {
+      for (let d = streakEnd; activeDaySetAll.has(d); d -= dayMs) {
+        activeDaysCurrentStreak += 1;
+      }
+    }
+
+    let activeDaysLongestStreak = 0;
+    if (activeDaysSorted.length > 0) {
+      let run = 1;
+      activeDaysLongestStreak = 1;
+      for (let i = 1; i < activeDaysSorted.length; i++) {
+        if (activeDaysSorted[i] - activeDaysSorted[i - 1] === dayMs) {
+          run += 1;
+        } else {
+          run = 1;
+        }
+        if (run > activeDaysLongestStreak) activeDaysLongestStreak = run;
+      }
+    }
 
     // 3. Get Vocabulary Stats for Accuracy Chart
     const vocabProgress = await ctx.db
@@ -742,6 +861,11 @@ export const getDashboardStats = query({
       totalXP: user.totalXP || 0,
       level: user.level || 1,
       currentStreak: user.currentStreak || 0,
+      activeDaysCurrentStreak,
+      activeDaysLongestStreak,
+      activeDays30d,
+      weeklyGoal,
+      weeklyProgress,
       learningLanguage: user.learningLanguage || "en",
 
       // Progress
@@ -750,7 +874,7 @@ export const getDashboardStats = query({
       creationTime: userProgress?._creationTime || user._creationTime,
 
       // Charts Data
-      activityChart: dailyActivities.reverse().map(a => ({
+      activityChart: dailyActivities7.map(a => ({
         date: a.activityDate,
         xp: a.xpEarned,
         units: a.unitsCompleted,
@@ -758,7 +882,7 @@ export const getDashboardStats = query({
       })),
       activityStats30d: (() => {
         const windowDays = 30;
-        const activeDays = dailyActivities30.length;
+        const activeDays = activeDays30d;
         const xpSum = dailyActivities30.reduce((sum, a) => sum + (a.xpEarned ?? 0), 0);
         const avgXpPerActiveDay = activeDays > 0 ? xpSum / activeDays : 0;
         const activeDaysPerWeek = activeDays / (windowDays / 7);
@@ -793,6 +917,216 @@ export const getDashboardStats = query({
   }
 });
 
+// Backfill dailyActivity for legacy users (best-effort, runs once per user)
+// Strategy:
+// - If the user has NO dailyActivity entries: reconstruct best-effort from legacy sources.
+// - If the user already has some dailyActivity: reconcile missing XP so Lifetime can match totalXP.
+export const backfillDailyActivityForCurrentUser = mutation({
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const startOfDay = (ts: number) => {
+      const d = new Date(ts);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+
+    const totalXP = user.totalXP ?? 0;
+
+    const existingAny = await ctx.db
+      .query("dailyActivity")
+      .withIndex("by_user_date", (q) => q.eq("userId", user._id))
+      .first();
+    if (existingAny) {
+      // Reconcile: if totalXP is greater than the sum of dailyActivity, add the missing XP as a single synthetic entry.
+      const all = await ctx.db
+        .query("dailyActivity")
+        .withIndex("by_user_date", (q) => q.eq("userId", user._id))
+        .collect();
+      const sum = all.reduce((s, a) => s + (a.xpEarned ?? 0), 0);
+      const delta = totalXP - sum; // + => missing, - => overcount
+      if (delta === 0) {
+        return { skipped: true, reason: "already_consistent" as const, sumDailyActivity: sum, totalXP };
+      }
+      if (delta < 0) {
+        // dailyActivity overcounts vs totalXP → subtract the extra, prioritizing "synthetic-looking" rows.
+        let extra = -delta;
+        const isSyntheticLike = (a: any) => (a.unitsCompleted ?? 0) === 0 && (a.exercisesCompleted ?? 0) === 0;
+        const candidates = [...all].sort((a: any, b: any) => {
+          const sa = isSyntheticLike(a) ? 1 : 0;
+          const sb = isSyntheticLike(b) ? 1 : 0;
+          if (sa !== sb) return sb - sa;
+          return (b.xpEarned ?? 0) - (a.xpEarned ?? 0);
+        });
+
+        let patched = 0;
+        let deleted = 0;
+        for (const a of candidates) {
+          if (extra <= 0) break;
+          const xp = a.xpEarned ?? 0;
+          if (xp <= 0) continue;
+          const take = Math.min(extra, xp);
+          const next = xp - take;
+          if (next <= 0) {
+            await ctx.db.delete(a._id);
+            deleted += 1;
+          } else {
+            await ctx.db.patch(a._id, { xpEarned: next });
+            patched += 1;
+          }
+          extra -= take;
+        }
+
+        return {
+          skipped: false,
+          reconciledExtraXp: -delta,
+          patched,
+          deleted,
+          sumDailyActivity: sum,
+          totalXP,
+          remainingExtra: extra,
+        };
+      }
+
+      const day = startOfDay(user.lastActiveDate ?? user._creationTime);
+      const existingDay = all.find((a) => a.activityDate === day);
+      if (existingDay) {
+        await ctx.db.patch(existingDay._id, {
+          xpEarned: (existingDay.xpEarned ?? 0) + delta,
+        });
+      } else {
+        await ctx.db.insert("dailyActivity", {
+          userId: user._id,
+          activityDate: day,
+          unitsCompleted: 0,
+          exercisesCompleted: 0,
+          xpEarned: delta,
+        });
+      }
+
+      return { skipped: false, reconciledMissingXp: delta, day, sumDailyActivity: sum, totalXP };
+    }
+
+    const agg = new Map<number, { xp: number; units: number; exercises: number }>();
+    const add = (ts: number | undefined | null, xp: number, units: number, exercises: number) => {
+      if (!ts || xp <= 0) return;
+      const day = startOfDay(ts);
+      const prev = agg.get(day) ?? { xp: 0, units: 0, exercises: 0 };
+      agg.set(day, { xp: prev.xp + xp, units: prev.units + units, exercises: prev.exercises + exercises });
+    };
+
+    // 1) exerciseCompletions: most reliable historic XP source (has xpEarned + _creationTime)
+    const completions = await ctx.db
+      .query("exerciseCompletions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+    for (const c of completions) {
+      add(c._creationTime, c.xpEarned ?? 0, 0, 1);
+    }
+
+    // 2) interactive test questionProgress: totalXPEarned is cumulative per question; attribute to lastAttemptAt
+    const questionProgress = await ctx.db
+      .query("questionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+    for (const p of questionProgress) {
+      add(p.lastAttemptAt, p.totalXPEarned ?? 0, 0, 1);
+    }
+
+    // 3) exerciseQuestionProgress: derive max XP per question from correctAnswerCount (10/5/3)
+    const exerciseQuestionProgress = await ctx.db
+      .query("exerciseQuestionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+    for (const p of exerciseQuestionProgress) {
+      const n = Math.min(Math.max(p.correctAnswerCount ?? 0, 0), 3);
+      const xpForQuestion = n === 0 ? 0 : n === 1 ? 10 : n === 2 ? 15 : 18;
+      add(p.lastAnsweredAt ?? p.lastReviewedAt ?? p._creationTime, xpForQuestion, 0, 1);
+    }
+
+    // 4) If still nothing, bail early
+    if (agg.size === 0) {
+      // As a last-resort fallback for legacy users:
+      // If the user has totalXP but we cannot reconstruct timestamps, write a single synthetic day
+      // so the Lifetime chart is not empty.
+      if (totalXP <= 0) {
+        return { skipped: true, reason: "no_legacy_sources" as const };
+      }
+      const day = startOfDay(user.lastActiveDate ?? user._creationTime);
+      await ctx.db.insert("dailyActivity", {
+        userId: user._id,
+        activityDate: day,
+        unitsCompleted: 0,
+        exercisesCompleted: 0,
+        xpEarned: totalXP,
+      });
+      return { skipped: false, daysWritten: 1, xpSum: totalXP, synthetic: true as const };
+    }
+
+    // If our reconstruction overcounts vs canonical totalXP, reduce the largest buckets first
+    // so the resulting sum cannot exceed totalXP.
+    if (totalXP > 0) {
+      const sumAgg = Array.from(agg.values()).reduce((s, v) => s + (v.xp ?? 0), 0);
+      if (sumAgg > totalXP) {
+        let extra = sumAgg - totalXP;
+        const entries = Array.from(agg.entries()).sort((a, b) => (b[1].xp ?? 0) - (a[1].xp ?? 0));
+        for (const [day, v] of entries) {
+          if (extra <= 0) break;
+          const xp = v.xp ?? 0;
+          if (xp <= 0) continue;
+          const take = Math.min(extra, xp);
+          agg.set(day, { ...v, xp: xp - take });
+          extra -= take;
+        }
+      }
+    }
+
+    // Write dailyActivity rows
+    let daysWritten = 0;
+    let xpSum = 0;
+    for (const [day, v] of agg.entries()) {
+      if (v.xp <= 0) continue;
+      await ctx.db.insert("dailyActivity", {
+        userId: user._id,
+        activityDate: day,
+        unitsCompleted: v.units,
+        exercisesCompleted: v.exercises,
+        xpEarned: v.xp,
+      });
+      daysWritten += 1;
+      xpSum += v.xp;
+    }
+
+    // Reconcile any remaining missing XP (e.g., if legacy sources undercount).
+    if (totalXP > 0 && xpSum < totalXP) {
+      const missing = totalXP - xpSum;
+      const day = startOfDay(user.lastActiveDate ?? user._creationTime);
+      // If the reconstruction already wrote that day, patch it; else insert.
+      const existing = await ctx.db
+        .query("dailyActivity")
+        .withIndex("by_user_date", (q) => q.eq("userId", user._id).eq("activityDate", day))
+        .first();
+      if (existing) {
+        await ctx.db.patch(existing._id, { xpEarned: (existing.xpEarned ?? 0) + missing });
+      } else {
+        await ctx.db.insert("dailyActivity", {
+          userId: user._id,
+          activityDate: day,
+          unitsCompleted: 0,
+          exercisesCompleted: 0,
+          xpEarned: missing,
+        });
+        daysWritten += 1;
+      }
+      xpSum += missing;
+      return { skipped: false, daysWritten, xpSum, reconciledMissingXp: missing };
+    }
+
+    return { skipped: false, daysWritten, xpSum };
+  },
+});
+
 // Check if a questionId has any user progress (for migration safety)
 // This is an internal query that can be called from migration scripts
 export const hasQuestionProgress = query({
@@ -816,5 +1150,77 @@ export const getQuestionIdsWithProgress = query({
     const allProgress = await ctx.db.query("questionProgress").collect();
     const questionIds = new Set(allProgress.map(p => p.questionId));
     return Array.from(questionIds);
+  },
+});
+
+// Check if user has any activity in a specific unit (vocabulary, exercises, questions)
+// Returns true if user has started working on the unit, false if not yet started
+export const hasUnitActivity = query({
+  args: { unitNumber: v.number() },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      return { hasActivity: false };
+    }
+
+    // 1. Check exerciseCompletions - user has done exercises in this unit
+    const exerciseCompletion = await ctx.db
+      .query("exerciseCompletions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("unitNumber"), args.unitNumber))
+      .first();
+    
+    if (exerciseCompletion) {
+      return { hasActivity: true };
+    }
+
+    // 2. Check questionProgress - user has answered questions in this unit
+    const questionProg = await ctx.db
+      .query("questionProgress")
+      .withIndex("by_user_unit", (q) => 
+        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+      )
+      .first();
+    
+    if (questionProg) {
+      return { hasActivity: true };
+    }
+
+    // 3. Check vocabularyProgress via courseVocabulary join
+    // First get all courseVocabulary IDs for this unit
+    const courseVocabForUnit = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+    
+    if (courseVocabForUnit.length > 0) {
+      // Check if user has any progress for these vocabulary items
+      for (const vocab of courseVocabForUnit) {
+        const vocabProgress = await ctx.db
+          .query("vocabularyProgress")
+          .withIndex("by_user_course_vocab", (q) => 
+            q.eq("userId", user._id).eq("courseVocabularyId", vocab._id)
+          )
+          .first();
+        
+        if (vocabProgress) {
+          return { hasActivity: true };
+        }
+      }
+    }
+
+    // 4. Also check legacy vocabulary table (for backward compatibility)
+    const legacyVocab = await ctx.db
+      .query("vocabulary")
+      .withIndex("by_user_unit", (q) => 
+        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
+      )
+      .first();
+    
+    if (legacyVocab) {
+      return { hasActivity: true };
+    }
+
+    return { hasActivity: false };
   },
 });

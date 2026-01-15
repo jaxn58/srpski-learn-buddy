@@ -11,6 +11,123 @@ function isProductionDeployment() {
   return process.env.CONVEX_CLOUD_URL?.includes("fleet-labrador-324") === true;
 }
 
+function parsePaddleSignatureHeader(header: string): { timestamp: string; signatureHex: string } | null {
+  // Paddle docs describe a `Paddle-Signature` header similar to: "t=1700000000;h1=<hex>"
+  const parts = header
+    .split(";")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const kv = new Map<string, string>();
+  for (const p of parts) {
+    const idx = p.indexOf("=");
+    if (idx === -1) continue;
+    const k = p.slice(0, idx).trim();
+    const v = p.slice(idx + 1).trim();
+    if (k && v) kv.set(k, v);
+  }
+
+  const timestamp = kv.get("t") ?? kv.get("ts") ?? kv.get("timestamp");
+  const signatureHex = kv.get("h1") ?? kv.get("sig") ?? kv.get("signature");
+  if (!timestamp || !signatureHex) return null;
+  return { timestamp, signatureHex };
+}
+
+function toHex(bytes: ArrayBuffer): string {
+  return Array.from(new Uint8Array(bytes))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  const aa = a.toLowerCase();
+  const bb = b.toLowerCase();
+  if (aa.length !== bb.length) return false;
+  let out = 0;
+  for (let i = 0; i < aa.length; i++) {
+    out |= aa.charCodeAt(i) ^ bb.charCodeAt(i);
+  }
+  return out === 0;
+}
+
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const keyData = enc.encode(secret);
+  const msg = enc.encode(message);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, msg);
+  return toHex(sig);
+}
+
+async function verifyPaddleSignature(args: {
+  header: string;
+  secret: string;
+  rawBody: string;
+}): Promise<boolean> {
+  const parsed = parsePaddleSignatureHeader(args.header);
+  if (!parsed) return false;
+  const signedPayload = `${parsed.timestamp}:${args.rawBody}`;
+  const expected = await hmacSha256Hex(args.secret, signedPayload);
+  return timingSafeEqualHex(expected, parsed.signatureHex);
+}
+
+function parseMoneyToCents(input: unknown): number | null {
+  if (typeof input === "number" && Number.isFinite(input)) {
+    // Ambiguous without docs; assume major units and convert to cents.
+    return Math.round(input * 100);
+  }
+  if (typeof input === "string") {
+    const n = Number.parseFloat(input);
+    if (!Number.isFinite(n)) return null;
+    return Math.round(n * 100);
+  }
+  return null;
+}
+
+function getPaddlePriceMapFromEnv() {
+  const normal = {
+    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE || "").trim(),
+    balanced: (process.env.PADDLE_PRODUCT_BALANCED || "").trim(),
+    standard: (process.env.PADDLE_PRODUCT_STANDARD || "").trim(),
+    relaxed: (process.env.PADDLE_PRODUCT_RELAXED || "").trim(),
+  } as const;
+
+  const beta50 = {
+    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_BETA50 || "").trim(),
+    balanced: (process.env.PADDLE_PRODUCT_BALANCED_BETA50 || "").trim(),
+    standard: (process.env.PADDLE_PRODUCT_STANDARD_BETA50 || "").trim(),
+    relaxed: (process.env.PADDLE_PRODUCT_RELAXED_BETA50 || "").trim(),
+  } as const;
+
+  const monthsByPlan = {
+    intensive: 3,
+    balanced: 6,
+    standard: 9,
+    relaxed: 12,
+  } as const;
+
+  const map = new Map<
+    string,
+    { planType: keyof typeof monthsByPlan; planDurationMonths: number; isBeta50: boolean }
+  >();
+
+  for (const plan of Object.keys(monthsByPlan) as Array<keyof typeof monthsByPlan>) {
+    if (normal[plan]) {
+      map.set(normal[plan], { planType: plan, planDurationMonths: monthsByPlan[plan], isBeta50: false });
+    }
+    if (beta50[plan]) {
+      map.set(beta50[plan], { planType: plan, planDurationMonths: monthsByPlan[plan], isBeta50: true });
+    }
+  }
+
+  return map;
+}
 http.route({
   path: "/clerk-webhook",
   method: "POST",
@@ -486,6 +603,65 @@ http.route({
         status: 500,
         headers: { "Content-Type": "application/json; charset=utf-8" },
       });
+    }
+  }),
+});
+
+// ============= PADDLE BILLING WEBHOOK =============
+http.route({
+  path: "/paddle/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const receivedAt = Date.now();
+
+    const rawBody = await request.text();
+    const sigHeader = request.headers.get("Paddle-Signature") ?? request.headers.get("paddle-signature");
+    if (!sigHeader) {
+      return new Response("Missing Paddle-Signature", { status: 400 });
+    }
+
+    const secret = process.env.PADDLE_WEBHOOK_SECRET;
+    if (!secret) {
+      console.error("[Paddle] PADDLE_WEBHOOK_SECRET not configured");
+      return new Response("Server configuration error", { status: 500 });
+    }
+
+    const valid = await verifyPaddleSignature({ header: sigHeader, secret, rawBody });
+    if (!valid) {
+      console.warn("[Paddle] Invalid webhook signature");
+      return new Response("Invalid signature", { status: 401 });
+    }
+
+    const environment =
+      (process.env.PADDLE_ENVIRONMENT || process.env.VITE_PADDLE_ENVIRONMENT || "").trim() === "production"
+        ? "production"
+        : "sandbox";
+
+    try {
+      await ctx.runMutation(internal.subscriptions.internalProcessPaddleWebhook, {
+        rawBody,
+        receivedAt,
+        environment,
+      });
+      return new Response("OK", { status: 200 });
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[Paddle] Failed to process webhook", { msg });
+
+      // Non-retryable enforcement failures: acknowledge to stop retries.
+      if (
+        msg.includes("beta_discount_") ||
+        msg.includes("not_eligible") ||
+        msg.includes("already_used") ||
+        msg.includes("not_active") ||
+        msg.includes("missing_event_id_or_type") ||
+        msg.includes("invalid_json")
+      ) {
+        return new Response("OK", { status: 200 });
+      }
+
+      // Retryable/unknown failure: return 500 so Paddle can retry.
+      return new Response("Failed", { status: 500 });
     }
   }),
 });

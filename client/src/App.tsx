@@ -35,6 +35,7 @@ import Newsletter from "./pages/Newsletter";
 import NewsletterUnsubscribe from "./pages/NewsletterUnsubscribe";
 import NewsletterOptInConfirm from "./pages/NewsletterOptInConfirm";
 import Profile from "./pages/Profile";
+import Terms from "./pages/Terms";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -80,6 +81,7 @@ function Router() {
     <Switch>
       {/* Public routes */}
       <Route path="/" component={Home} />
+      <Route path="/terms" component={Terms} />
       <Route path="/waitlist/confirm" component={WaitlistConfirm} />
       <Route path="/newsletter/optin/confirm" component={NewsletterOptInConfirm} />
       <Route path="/newsletter/unsubscribe" component={NewsletterUnsubscribe} />

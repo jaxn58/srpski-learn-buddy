@@ -76,7 +76,9 @@ Add the following variables to enable Paddle Sandbox payments:
 - `PADDLE_WEBHOOK_SECRET` – Secret used to verify incoming webhooks.
 - `PADDLE_PRODUCT_INTENSIVE`, `PADDLE_PRODUCT_BALANCED`, `PADDLE_PRODUCT_STANDARD`, `PADDLE_PRODUCT_RELAXED` – Same price IDs for backend validation.
 
-Configure your Paddle Dashboard webhook to point to `https://<your-domain>/api/paddle/webhook` (during local development you can tunnel to `http://localhost:3000/api/paddle/webhook` via `ngrok`).
+Configure your Paddle Dashboard webhook to point to the Convex HTTP Actions domain (not `learn-with.me` due to SPA rewrites):
+- Dev: `https://reminiscent-panda-57.convex.site/paddle/webhook`
+- Prod: `https://fleet-labrador-324.convex.site/paddle/webhook`
 
 ### **5. Set Up Convex**
 

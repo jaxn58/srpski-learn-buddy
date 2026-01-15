@@ -7,12 +7,14 @@ import { initializePaddle, Paddle } from "@paddle/paddle-js";
 
 let paddleInstance: Paddle | null = null;
 
+type CheckoutOpenOptions = Parameters<Paddle["Checkout"]["open"]>[0];
+
 /**
  * Check if Paddle is configured with valid credentials
  */
 export function hasPaddleConfig(): boolean {
-  const vendorId = import.meta.env.VITE_PADDLE_VENDOR_ID;
-  return !!vendorId && vendorId !== "";
+  const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
+  return !!token && token !== "";
 }
 
 /**
@@ -25,21 +27,22 @@ export async function initPaddle(): Promise<Paddle | null> {
   }
 
   if (!hasPaddleConfig()) {
-    console.warn("[Paddle] Vendor ID not configured");
+    console.warn("[Paddle] Client token not configured");
     return null;
   }
 
   try {
-    const vendorId = import.meta.env.VITE_PADDLE_VENDOR_ID;
+    const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
     const environment =
       import.meta.env.VITE_PADDLE_ENVIRONMENT === "production"
         ? "production"
         : "sandbox";
 
-    paddleInstance = await initializePaddle({
-      environment,
-      token: vendorId,
-    });
+    paddleInstance =
+      (await initializePaddle({
+        environment,
+        token,
+      })) ?? null;
 
     console.log("[Paddle] Initialized successfully");
     return paddleInstance;
@@ -53,12 +56,7 @@ export async function initPaddle(): Promise<Paddle | null> {
  * Open Paddle checkout overlay
  */
 export async function openCheckout(config: {
-  items: Array<{ priceId: string; quantity?: number }>;
-  customer?: {
-    email?: string;
-  };
-  customData?: Record<string, unknown>;
-}): Promise<void> {
+} & CheckoutOpenOptions): Promise<void> {
   const paddle = paddleInstance || (await initPaddle());
 
   if (!paddle) {

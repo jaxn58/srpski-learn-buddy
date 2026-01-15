@@ -12,6 +12,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { toast } from "sonner";
+import { formatDateEU } from "@/lib/utils";
 
 export default function Newsletter() {
   const [activeTab, setActiveTab] = useState("campaigns");
@@ -307,7 +308,7 @@ function CampaignsTab() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Created</p>
-                    <p className="font-medium">{new Date(campaign.createdAt).toLocaleDateString()}</p>
+                    <p className="font-medium">{formatDateEU(campaign.createdAt)}</p>
                   </div>
                 </div>
                 {campaign.description && (
@@ -483,10 +484,10 @@ function ContactsTab() {
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {contact.subscribed ? (
-                      <span>Subscribed {new Date(contact.subscribedAt).toLocaleDateString()}</span>
+                      <span>Subscribed {formatDateEU(contact.subscribedAt)}</span>
                     ) : (
                       contact.unsubscribedAt && (
-                        <span>Unsubscribed {new Date(contact.unsubscribedAt).toLocaleDateString()}</span>
+                        <span>Unsubscribed {formatDateEU(contact.unsubscribedAt)}</span>
                       )
                     )}
                   </div>

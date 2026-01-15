@@ -12,6 +12,7 @@ import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { MessageSquare, Eye, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { formatDateEU, formatDateTimeEU } from "@/lib/utils";
 import { useState } from "react";
 // Sidebar import removed
 
@@ -174,7 +175,7 @@ export default function FeedbackManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString('de-DE') : 'N/A'}
+                      {feedback.submittedAt ? formatDateEU(feedback.submittedAt) : "N/A"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -198,7 +199,7 @@ export default function FeedbackManagement() {
                                 {getTypeIcon(feedback.type)} {feedback.title}
                               </DialogTitle>
                               <DialogDescription>
-                                Submitted on {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'N/A'}
+                                Submitted on {feedback.submittedAt ? formatDateTimeEU(feedback.submittedAt) : "N/A"}
                               </DialogDescription>
                             </DialogHeader>
                             

@@ -32,6 +32,11 @@ export default defineSchema({
     publicAvatarStorageId: v.optional(v.string()),
     // Privacy guardrail: default OFF (treat undefined as false)
     leaderboardPublicEnabled: v.optional(v.boolean()),
+
+    // ===== Paddle / Billing =====
+    // Tracks one-time 50% beta discount usage after beta ends.
+    // If set, the user already consumed the beta discount.
+    betaDiscountUsedAt: v.optional(v.number()), // timestamp
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])
@@ -428,6 +433,27 @@ export default defineSchema({
     cost: v.optional(v.number()), // in cents
     notes: v.optional(v.string()),
   }).index("by_user", ["userId"]),
+
+  // ============= PADDLE WEBHOOK EVENTS (Idempotency / Audit) =============
+  // Stores received webhook events so we can safely ignore duplicates and debug issues.
+  paddleWebhookEvents: defineTable({
+    eventId: v.string(), // unique id from Paddle (idempotency key)
+    eventType: v.string(),
+    receivedAt: v.number(), // timestamp when our endpoint received the event
+    occurredAt: v.optional(v.number()), // timestamp when Paddle says it occurred (if provided)
+    processedAt: v.optional(v.number()), // timestamp when we applied side effects
+
+    // Raw JSON payload for debugging/audit (stringified to keep schema simple)
+    rawPayload: v.string(),
+
+    // Useful extracted fields (optional)
+    clerkId: v.optional(v.string()),
+    priceId: v.optional(v.string()),
+    transactionId: v.optional(v.string()),
+    environment: v.optional(v.union(v.literal("sandbox"), v.literal("production"))),
+  })
+    .index("by_event_id", ["eventId"])
+    .index("by_type", ["eventType"]),
 
   // ============= QUIZ PROGRESS =============
   quizProgress: defineTable({

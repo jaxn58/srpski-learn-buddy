@@ -3,10 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import cors from "cors";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { clerkMiddleware } from "@clerk/express";
-import { appRouter } from "../routers";
-import { createPaddleContext } from "./paddleContext";
 import { serveStatic, setupVite } from "./vite";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -40,22 +37,9 @@ async function startServer() {
   // Email sending is now handled by Convex Actions (convex/email.ts)
   // The Express endpoint has been removed
   
-  // Paddle webhook endpoint (must be BEFORE Clerk middleware)
-  app.post("/api/paddle/webhook", async (req, res) => {
-    try {
-      const caller = appRouter.createCaller(
-        await createPaddleContext({ req, res } as any)
-      );
-      await caller.paddle.webhook(req.body);
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("[Paddle Webhook] Error:", error);
-      res.status(500).json({
-        success: false,
-        error: error?.message || "Internal server error",
-      });
-    }
-  });
+  // Paddle Billing webhook is handled by Convex HTTP actions:
+  // - Dev:  https://reminiscent-panda-57.convex.site/paddle/webhook
+  // - Prod: https://fleet-labrador-324.convex.site/paddle/webhook
 
   // Audio generation endpoint for Google Cloud TTS
   app.post("/api/audio/generate", async (req, res) => {
@@ -89,16 +73,6 @@ async function startServer() {
   // Clerk middleware for authentication (protects routes after this point)
   // Note: Currently only used for potential future protected routes
   app.use(clerkMiddleware());
-  
-  // tRPC API (only for Paddle webhook - will be migrated to Convex HTTP Action later)
-  // This is the only remaining tRPC usage
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext: createPaddleContext,
-    })
-  );
   
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {

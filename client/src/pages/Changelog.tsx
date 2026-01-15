@@ -2,6 +2,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatDateEU } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { BookOpen } from "lucide-react";
@@ -95,11 +96,7 @@ export default function Changelog() {
                     <CardDescription className="text-base mt-1">
                       <span className="capitalize">{version.environment}</span>
                       {" • "}
-                      {new Date(version.releaseDate).toLocaleDateString(undefined, {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
+                      {formatDateEU(version.releaseDate)}
                     </CardDescription>
                   </div>
                   {version.isCurrent && (

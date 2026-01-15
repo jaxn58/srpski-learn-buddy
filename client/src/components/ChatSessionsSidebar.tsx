@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { MessageSquarePlus, MessageSquare, Trash, Archive, RotateCcw, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatDateEU } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -195,7 +195,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                   {session.title}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(session._creationTime).toLocaleDateString()}
+                  {formatDateEU(session._creationTime)}
                 </p>
               </div>
               <Button
@@ -235,7 +235,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                       {session.title}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(session._creationTime).toLocaleDateString()}
+                      {formatDateEU(session._creationTime)}
                     </p>
                   </div>
                   <div className="flex gap-1">

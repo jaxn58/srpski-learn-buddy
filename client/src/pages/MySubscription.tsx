@@ -10,12 +10,13 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { hasPaddleConfig, initPaddle, openCheckout } from "@/lib/paddle";
+import { formatDateEU } from "@/lib/utils";
 
 type SubscriptionPlan = {
   id: "beta" | "intensive" | "balanced" | "standard" | "relaxed";
   name: string;
   months: number;
-  price: number;
+  price: number; // cents
   unitsPerWeek: number;
 };
 
@@ -29,6 +30,10 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   // Fetch subscription data from Convex
   const subscription = useQuery(api.subscriptions.getCurrent);
   const subLoading = subscription === undefined;
+
+  const betaDiscountStatus = useQuery(api.subscriptions.getBetaDiscountStatus);
+  const betaEnded = betaDiscountStatus?.betaEnded === true;
+  const betaDiscountEligible = betaDiscountStatus?.eligible === true;
   
   const daysRemaining = useQuery(
     api.subscriptions.getDaysRemaining,
@@ -88,7 +93,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
   const [isCalculating, setIsCalculating] = useState(false);
 
-  const productIdMap = useMemo(
+  const priceIdMap = useMemo(
     () => ({
       beta: "",
       intensive: import.meta.env.VITE_PADDLE_PRODUCT_INTENSIVE || "",
@@ -99,6 +104,22 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
     []
   );
 
+  const beta50PriceIdMap = useMemo(
+    () => ({
+      beta: "",
+      intensive: import.meta.env.VITE_PADDLE_PRODUCT_INTENSIVE_BETA50 || "",
+      balanced: import.meta.env.VITE_PADDLE_PRODUCT_BALANCED_BETA50 || "",
+      standard: import.meta.env.VITE_PADDLE_PRODUCT_STANDARD_BETA50 || "",
+      relaxed: import.meta.env.VITE_PADDLE_PRODUCT_RELAXED_BETA50 || "",
+    }),
+    []
+  );
+
+  const formatCurrency = (cents: number) => {
+    const euros = cents / 100;
+    return `€${euros.toFixed(2)}`;
+  };
+
   useEffect(() => {
     if (!paddleConfigured) {
       return;
@@ -106,7 +127,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
     initPaddle().then((instance) => {
       if (!instance) {
-        toast.error("Paddle konnte nicht initialisiert werden.");
+        toast.error("Paddle could not be initialized.");
         return;
       }
 
@@ -114,17 +135,47 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
     });
   }, [paddleConfigured]);
 
+  const handlePurchase = async (planId: Exclude<SubscriptionPlan["id"], "beta">, useBetaPrice: boolean) => {
+    if (!user) return;
+
+    if (!paddleConfigured) {
+      toast.error("Paddle is not configured.");
+      return;
+    }
+
+    const priceId = (useBetaPrice ? beta50PriceIdMap : priceIdMap)[planId];
+    if (!priceId) {
+      toast.error("No Paddle Price ID configured for this plan.");
+      return;
+    }
+
+    try {
+      await openCheckout({
+        items: [{ priceId, quantity: 1 }],
+        customer: user.email ? { email: user.email } : undefined,
+        customData: {
+          clerkId: user.clerkId,
+          planType: planId,
+          source: "my_subscription",
+          beta50: useBetaPrice,
+        },
+      });
+    } catch (error: any) {
+      toast.error(t("subscription.upgradeError", { error: error.message }));
+    }
+  };
+
   const handleUpgrade = async (newPlan: string) => {
     if (!subscription || !user) return;
 
     if (!paddleConfigured) {
-      toast.error("Paddle ist nicht konfiguriert.");
+      toast.error("Paddle is not configured.");
       return;
     }
 
-    const productId = productIdMap[newPlan as keyof typeof productIdMap];
-    if (!productId) {
-      toast.error("Für diesen Plan wurde keine Paddle Product ID hinterlegt.");
+    const priceId = priceIdMap[newPlan as keyof typeof priceIdMap];
+    if (!priceId) {
+      toast.error("No Paddle Price ID configured for this plan.");
       return;
     }
 
@@ -136,21 +187,21 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       });
 
       if (result?.cost) {
-        toast.info(t('subscription.upgradeCost', { cost: result.cost }));
+        toast.info(t("subscription.upgradeCost", { cost: formatCurrency(result.cost) }));
       }
 
       await openCheckout({
-        productId,
-        userId: user.clerkId || String(user._id),
-        userEmail: user.email || "",
-        metadata: {
+        items: [{ priceId, quantity: 1 }],
+        customer: user.email ? { email: user.email } : undefined,
+        customData: {
+          clerkId: user.clerkId,
           planType: newPlan,
           previousPlan: subscriptionPlan || subscription.planType,
-          upgradeCost: result?.cost ?? 0,
+          upgradeCostCents: result?.cost ?? 0,
         },
       });
     } catch (error: any) {
-      toast.error(t('subscription.upgradeError', { error: error.message }));
+      toast.error(t("subscription.upgradeError", { error: error.message }));
     } finally {
       setIsCalculating(false);
     }
@@ -189,6 +240,8 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   if (!subscription) {
     // Check if user is Beta Tester
     if (user?.isBetaTester) {
+      // During beta (or if beta end date isn't configured), show the beta access card only.
+      if (!betaEnded) {
       return (
         <div className={containerClass}>
           <div className={innerClass}>
@@ -248,6 +301,75 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
           </div>
         </div>
       );
+      }
+
+      // After beta: allow purchase (with one-time beta discount if eligible).
+      return (
+        <div className={containerClass}>
+          <div className={innerClass}>
+            {!embedded && <h1 className="text-3xl font-bold mb-6">{t("subscription.title")}</h1>}
+            <Card className="mb-6 border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
+              <CardHeader>
+                <CardTitle className="text-2xl">{t("subscription.betaAccess")}</CardTitle>
+                <CardDescription>{t("subscription.betaAccess.desc")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  <strong>Beta ended.</strong> Thanks for participating.
+                </p>
+                {betaDiscountEligible ? (
+                  <p>
+                    <strong>Special offer:</strong> You can use a one-time 50% discount on your first purchase.
+                  </p>
+                ) : (
+                  <p>You can now choose a plan to continue.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {availablePlans && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("subscription.viewPlans")}</CardTitle>
+                  <CardDescription>Choose a plan to unlock all units.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {availablePlans
+                      .filter((p) => p.id !== "beta")
+                      .map((plan) => {
+                        const isBetaPrice = betaDiscountEligible;
+                        const displayPrice = isBetaPrice ? Math.round(plan.price / 2) : plan.price;
+                        return (
+                          <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
+                            <CardHeader>
+                              <CardTitle className="capitalize">{plan.name}</CardTitle>
+                              <CardDescription>{plan.months} months</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="text-3xl font-bold text-primary">
+                                {formatCurrency(displayPrice)}
+                                {isBetaPrice ? <span className="text-sm text-muted-foreground"> (Beta 50%)</span> : null}
+                              </div>
+                              <Button
+                                onClick={() => handlePurchase(plan.id as any, isBetaPrice)}
+                                disabled={!paddleReady}
+                                className="w-full"
+                              >
+                                <CreditCard className="h-4 w-4 mr-2" />
+                                Continue with {plan.name}
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      );
     }
     
     // No subscription and not Beta Tester
@@ -275,6 +397,75 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
   // Special handling for Beta subscriptions
   if (normalizedPlan === "beta") {
+    // Beta plan returned as a virtual subscription for beta testers.
+    if (betaEnded && user?.isBetaTester) {
+      return (
+        <div className={containerClass}>
+          <div className={innerClass}>
+            {!embedded && <h1 className="text-3xl font-bold mb-6">{t("subscription.title")}</h1>}
+
+            <Card className="mb-6 border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
+              <CardHeader>
+                <CardTitle className="text-2xl">{t("subscription.betaAccess")}</CardTitle>
+                <CardDescription>{t("subscription.betaAccess.desc")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  <strong>Beta ended.</strong> You can now purchase a plan.
+                </p>
+                {betaDiscountEligible ? (
+                  <p>
+                    <strong>Special offer:</strong> One-time 50% discount available.
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {availablePlans && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("subscription.viewPlans")}</CardTitle>
+                  <CardDescription>Choose a plan to unlock all units.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {availablePlans
+                      .filter((p) => p.id !== "beta")
+                      .map((plan) => {
+                        const isBetaPrice = betaDiscountEligible;
+                        const displayPrice = isBetaPrice ? Math.round(plan.price / 2) : plan.price;
+                        return (
+                          <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
+                            <CardHeader>
+                              <CardTitle className="capitalize">{plan.name}</CardTitle>
+                              <CardDescription>{plan.months} months</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="text-3xl font-bold text-primary">
+                                {formatCurrency(displayPrice)}
+                                {isBetaPrice ? <span className="text-sm text-muted-foreground"> (Beta 50%)</span> : null}
+                              </div>
+                              <Button
+                                onClick={() => handlePurchase(plan.id as any, isBetaPrice)}
+                                disabled={!paddleReady}
+                                className="w-full"
+                              >
+                                <CreditCard className="h-4 w-4 mr-2" />
+                                Continue with {plan.name}
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className={containerClass}>
         <div className={innerClass}>
@@ -360,9 +551,13 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold text-primary">
-                  €{normalizedPlan === "intensive" ? "69" : 
-                     normalizedPlan === "balanced" ? "79" : 
-                     normalizedPlan === "standard" ? "95" : "119"}
+                  {(() => {
+                    const cents =
+                      typeof (subscription as any)?.planPrice === "number"
+                        ? (subscription as any).planPrice
+                        : availablePlans?.find((p) => p.id === normalizedPlan)?.price ?? 0;
+                    return formatCurrency(cents);
+                  })()}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {planDuration} {t('subscription.days')}
@@ -396,11 +591,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                 <div className="font-semibold">{t('subscription.expiresOn')}</div>
                 <div className="text-sm text-muted-foreground">
                   {subscriptionEndsAt
-                    ? new Date(subscriptionEndsAt).toLocaleDateString("de-DE", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      })
+                    ? formatDateEU(subscriptionEndsAt)
                     : t('subscription.noSubscription')}
                 </div>
               </div>
@@ -447,7 +638,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                         <CardDescription>{plan.months} {t('subscription.days')}</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div className="text-3xl font-bold text-primary">€{plan.price}</div>
+                        <div className="text-3xl font-bold text-primary">{formatCurrency(plan.price)}</div>
                         <ul className="space-y-2 text-sm">
                           <li className="flex items-center gap-2">
                             <Check className="h-4 w-4 text-green-600" />

@@ -253,8 +253,8 @@ export default function Home() {
       <>
       {/* Flexible Duration Section */}
       <section className="container py-20">
-        <div className="max-w-4xl mx-auto text-center space-y-8">
-          <div className="space-y-4">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <div className="text-center space-y-4">
             <h3 className="text-4xl font-bold">{t('home.pricing.title')}</h3>
             <p 
               className="text-xl text-muted-foreground" 
@@ -266,8 +266,8 @@ export default function Home() {
           <div className="grid md:grid-cols-4 gap-6 mt-12">
             {/* Intensive Plan */}
             <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
-              <CardHeader className="text-center pb-4">
-                <Sparkles className="h-12 w-12 text-primary mb-3 mx-auto" />
+              <CardHeader className="text-left pb-4">
+                <Sparkles className="h-12 w-12 text-primary mb-3" />
                 <CardTitle className="text-2xl mb-2">{t('home.pricing.intensive.title')}</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.intensive.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.intensive.audience')}</p>
@@ -276,7 +276,7 @@ export default function Home() {
                   <div className="text-xs text-muted-foreground">{t('home.pricing.intensive.payment')}</div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 text-left">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -302,14 +302,14 @@ export default function Home() {
                 <Button className="w-full" disabled>
                   {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
               </CardContent>
             </Card>
 
             {/* Balanced Plan */}
             <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
-              <CardHeader className="text-center pb-4">
-                <Target className="h-12 w-12 text-primary mb-3 mx-auto" />
+              <CardHeader className="text-left pb-4">
+                <Target className="h-12 w-12 text-primary mb-3" />
                 <CardTitle className="text-2xl mb-2">{t('home.pricing.balanced.title')}</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.balanced.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.balanced.audience')}</p>
@@ -318,7 +318,7 @@ export default function Home() {
                   <div className="text-xs text-muted-foreground">{t('home.pricing.balanced.payment')}</div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 text-left">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -344,7 +344,7 @@ export default function Home() {
                 <Button className="w-full" disabled>
                   {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
               </CardContent>
             </Card>
 
@@ -353,8 +353,8 @@ export default function Home() {
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
                 <span className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">{t('home.pricing.standard.badge')}</span>
               </div>
-              <CardHeader className="text-center pb-4 pt-8">
-                <BookOpen className="h-12 w-12 text-primary mb-3 mx-auto" />
+              <CardHeader className="text-left pb-4 pt-8">
+                <BookOpen className="h-12 w-12 text-primary mb-3" />
                 <CardTitle className="text-2xl mb-2">{t('home.pricing.standard.title')}</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.standard.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.standard.audience')}</p>
@@ -363,7 +363,7 @@ export default function Home() {
                   <div className="text-xs text-muted-foreground">{t('home.pricing.standard.payment')}</div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 text-left">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -389,14 +389,14 @@ export default function Home() {
                 <Button className="w-full bg-primary" disabled>
                   {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
               </CardContent>
             </Card>
 
             {/* Relaxed Plan */}
             <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
-              <CardHeader className="text-center pb-4">
-                <Clock className="h-12 w-12 text-primary mb-3 mx-auto" />
+              <CardHeader className="text-left pb-4">
+                <Clock className="h-12 w-12 text-primary mb-3" />
                 <CardTitle className="text-2xl mb-2">{t('home.pricing.relaxed.title')}</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.relaxed.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.relaxed.audience')}</p>
@@ -405,7 +405,7 @@ export default function Home() {
                   <div className="text-xs text-muted-foreground">{t('home.pricing.relaxed.payment')}</div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 text-left">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -431,7 +431,7 @@ export default function Home() {
                 <Button className="w-full" disabled>
                   {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-center text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
               </CardContent>
             </Card>
           </div>
@@ -685,11 +685,11 @@ export default function Home() {
                       <p className="font-semibold text-gray-900">{t('home.faq.q8.intensive.title')}</p>
                       <p className="text-sm">{t('home.faq.q8.intensive.desc')}</p>
                     </div>
-                    <div className="bg-blue-50 p-3 rounded-lg border-2 border-primary">
+                    <div className="bg-blue-50 p-3 rounded-lg">
                       <p className="font-semibold text-gray-900">{t('home.faq.q8.balanced.title')}</p>
                       <p className="text-sm">{t('home.faq.q8.balanced.desc')}</p>
                     </div>
-                    <div className="bg-green-50 p-3 rounded-lg">
+                    <div className="bg-green-50 p-3 rounded-lg border-2 border-primary">
                       <p className="font-semibold text-gray-900">{t('home.faq.q8.standard.title')}</p>
                       <p className="text-sm">{t('home.faq.q8.standard.desc')}</p>
                     </div>
