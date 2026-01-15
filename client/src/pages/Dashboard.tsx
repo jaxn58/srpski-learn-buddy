@@ -29,11 +29,15 @@ export default function Dashboard() {
   const progressLoading = progress === undefined;
   const accessibleUnits = useQuery(api.subscriptions.getAccessibleUnits);
   const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
+  const safeCurrentUnit =
+    typeof progress?.currentUnit === "number" && Number.isFinite(progress.currentUnit) && progress.currentUnit > 0
+      ? progress.currentUnit
+      : 1;
   
   // Check if user has started the current unit (for Current vs Next Unit label)
   const currentUnitActivity = useQuery(
     api.progress.hasUnitActivity,
-    progress?.currentUnit ? { unitNumber: progress.currentUnit } : "skip"
+    progressLoading ? "skip" : { unitNumber: safeCurrentUnit }
   );
   
   // Load dynamic data from DB instead of static files
@@ -237,10 +241,10 @@ export default function Dashboard() {
                 </CardTitle>
                 <CardDescription>
                   {(() => {
-                    const unit = units?.find(u => u.unitNumber === progress?.currentUnit);
+                    const unit = units?.find(u => u.unitNumber === safeCurrentUnit);
                     return (
                       <>
-                        <span className="font-semibold">{t('dashboard.unit', { number: progress?.currentUnit })}</span>
+                        <span className="font-semibold">{t('dashboard.unit', { number: safeCurrentUnit })}</span>
                         {unit?.title && <span> - {unit.title}</span>}
                       </>
                     );
@@ -248,7 +252,7 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="mt-auto">
-                <Link href={`/unit/${progress?.currentUnit}`}>
+                <Link href={`/unit/${safeCurrentUnit}`}>
                   <Button className="w-full">
                     {currentUnitActivity?.hasActivity ? t('dashboard.goToLesson') : t('dashboard.startLesson')}
                   </Button>

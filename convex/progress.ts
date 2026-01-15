@@ -39,13 +39,23 @@ export const getUserProgress = query({
 
     if (!progress) return null;
 
-    // Calculate the correct currentUnit based on completedUnits
-    // currentUnit should be max(completedUnits) + 1, or 1 if no units completed
-    const completedUnits = progress.completedUnits || [];
-    const maxCompleted = completedUnits.length > 0 
-      ? Math.max(...completedUnits) 
-      : 0;
-    const correctCurrentUnit = maxCompleted + 1;
+    // Calculate the correct currentUnit based on completedUnits.
+    // We must never skip ahead on non-consecutive completion data (e.g. [1,5] must yield 2, not 6).
+    // Rule: currentUnit is the first missing unit in the sequence starting from 1.
+    const completedUnitsRaw = progress.completedUnits || [];
+    const completedUnits = Array.from(
+      new Set(completedUnitsRaw.filter((n) => Number.isInteger(n) && n > 0))
+    ).sort((a, b) => a - b);
+
+    let correctCurrentUnit = 1;
+    for (const unit of completedUnits) {
+      if (unit === correctCurrentUnit) {
+        correctCurrentUnit += 1;
+        continue;
+      }
+      if (unit > correctCurrentUnit) break;
+      // unit < correctCurrentUnit: duplicate/out-of-order -> ignore
+    }
 
     // Return corrected progress (don't modify DB in query, just return corrected value)
     if (progress.currentUnit !== correctCurrentUnit) {
