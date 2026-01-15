@@ -20,7 +20,7 @@ import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Mail, Users, CheckCircle, Clock, Bell, Loader2, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
-import { formatDateEU, formatDateTimeEU } from "@/lib/utils";
+import { formatDateEU, formatDateTimeEU, formatTimeEU } from "@/lib/utils";
 
 type WaitlistEntry = Doc<"waitlist">;
 
@@ -279,10 +279,22 @@ export default function AdminWaitlist() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {formatDateEU(entry.createdAt)}
+                        <div>{formatDateEU(entry.createdAt)}</div>
+                        <div className="text-xs text-muted-foreground/80">
+                          {formatTimeEU(entry.createdAt)}
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {entry.confirmedAt ? formatDateEU(entry.confirmedAt) : "-"}
+                        {entry.confirmedAt ? (
+                          <>
+                            <div>{formatDateEU(entry.confirmedAt)}</div>
+                            <div className="text-xs text-muted-foreground/80">
+                              {formatTimeEU(entry.confirmedAt)}
+                            </div>
+                          </>
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {entry.notifiedAt ? formatDateEU(entry.notifiedAt) : "-"}

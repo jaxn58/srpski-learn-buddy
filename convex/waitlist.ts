@@ -64,7 +64,11 @@ export const join = mutation({
           to: existing.email,
         });
         
-        return { success: true, message: "Confirmation email resent" };
+        return {
+          success: true,
+          message: "Confirmation email resent",
+          createdAt: existing.createdAt,
+        };
       }
     }
 
@@ -72,13 +76,14 @@ export const join = mutation({
     const confirmationToken = crypto.randomUUID();
 
     // Insert into waitlist
+    const createdAt = Date.now();
     const waitlistId = await ctx.db.insert("waitlist", {
       email: args.email,
       name: args.name,
       wantsWaitlistUpdates: args.wantsWaitlistUpdates ?? false,
       status: "pending",
       confirmationToken,
-      createdAt: Date.now(),
+      createdAt,
     });
 
     // Send opt-in email
@@ -97,7 +102,7 @@ export const join = mutation({
       // Don't throw - registration should succeed even if email fails
     }
 
-    return { success: true, waitlistId };
+    return { success: true, waitlistId, createdAt };
   },
 });
 
@@ -118,13 +123,20 @@ export const confirm = mutation({
     }
 
     if (entry.status === "confirmed") {
-      return { success: true, message: "Already confirmed" };
+      return {
+        success: true,
+        message: "Already confirmed",
+        email: entry.email,
+        createdAt: entry.createdAt,
+        confirmedAt: entry.confirmedAt ?? null,
+      };
     }
 
     // Update status to confirmed
+    const confirmedAt = Date.now();
     await ctx.db.patch(entry._id, {
       status: "confirmed",
-      confirmedAt: Date.now(),
+      confirmedAt,
     });
 
     // Send confirmation email
@@ -161,7 +173,7 @@ export const confirm = mutation({
       }
     }
 
-    return { success: true, email: entry.email };
+    return { success: true, email: entry.email, createdAt: entry.createdAt, confirmedAt };
   },
 });
 

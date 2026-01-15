@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Mail, Check } from "lucide-react";
 import { toast } from "sonner";
+import { formatDateEU, formatTimeEU } from "@/lib/utils";
 
 interface WaitlistModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
   const [wantsWaitlistUpdates, setWantsWaitlistUpdates] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [createdAt, setCreatedAt] = useState<number | null>(null);
 
   const joinWaitlist = useMutation(api.waitlist.join);
 
@@ -42,13 +44,14 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
     setIsSubmitting(true);
 
     try {
-      await joinWaitlist({
+      const result = await joinWaitlist({
         email,
         name: name.trim() || undefined,
         wantsWaitlistUpdates,
       });
 
       setIsSuccess(true);
+      setCreatedAt(result?.createdAt ?? null);
       toast.success("Check your email to confirm your registration!");
     } catch (error: any) {
       console.error("[WaitlistModal] Error joining waitlist:", error);
@@ -63,6 +66,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
     setEmail("");
     setWantsWaitlistUpdates(false);
     setIsSuccess(false);
+    setCreatedAt(null);
     onClose();
   };
 
@@ -173,6 +177,13 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
               <p className="text-sm text-muted-foreground">
                 Please click the link in the email to complete your registration.
               </p>
+              {createdAt && (
+                <div className="pt-2 text-xs text-muted-foreground">
+                  <div>Created</div>
+                  <div className="text-sm text-foreground">{formatDateEU(createdAt)}</div>
+                  <div className="text-xs text-muted-foreground/80">{formatTimeEU(createdAt)}</div>
+                </div>
+              )}
             </div>
 
             <Button

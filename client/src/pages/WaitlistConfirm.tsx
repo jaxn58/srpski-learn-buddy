@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, XCircle, Loader2, Home } from "lucide-react";
 import { Link } from "wouter";
+import { formatDateEU, formatTimeEU } from "@/lib/utils";
 
 export default function WaitlistConfirm() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [email, setEmail] = useState("");
+  const [createdAt, setCreatedAt] = useState<number | null>(null);
+  const [confirmedAt, setConfirmedAt] = useState<number | null>(null);
 
   const confirmWaitlist = useMutation(api.waitlist.confirm);
 
@@ -28,6 +31,8 @@ export default function WaitlistConfirm() {
       try {
         const result = await confirmWaitlist({ token });
         setEmail(result.email || "");
+        setCreatedAt(result.createdAt ?? null);
+        setConfirmedAt(result.confirmedAt ?? null);
         setStatus("success");
       } catch (error: any) {
         console.error("[WaitlistConfirm] Error confirming:", error);
@@ -84,6 +89,24 @@ export default function WaitlistConfirm() {
                 <p className="text-sm text-green-700">
                   We'll notify you as soon as the Serbian AI Tutor Beta launches!
                 </p>
+                {(createdAt || confirmedAt) && (
+                  <div className="pt-2 text-xs text-green-700 space-y-2">
+                    {createdAt && (
+                      <div>
+                        <div>Created</div>
+                        <div className="text-sm text-green-800">{formatDateEU(createdAt)}</div>
+                        <div className="text-xs text-green-700/80">{formatTimeEU(createdAt)}</div>
+                      </div>
+                    )}
+                    {confirmedAt && (
+                      <div>
+                        <div>Confirmed</div>
+                        <div className="text-sm text-green-800">{formatDateEU(confirmedAt)}</div>
+                        <div className="text-xs text-green-700/80">{formatTimeEU(confirmedAt)}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2 text-sm text-muted-foreground">
