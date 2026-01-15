@@ -29,47 +29,18 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 // Get current authenticated user
 export const me = query({
   handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
     try {
-      const identity = await ctx.auth.getUserIdentity();
-      if (!identity) {
-        console.log('[users.me] No identity found - user not authenticated');
-        return null;
-      }
-
-      console.log('[users.me] Looking up user with Clerk ID:', {
-        clerkId: identity.subject,
-        email: identity.email,
-        name: identity.name,
-      });
-
       const user = await ctx.db
         .query("users")
         .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
         .first();
-
-      if (!user) {
-        console.log('[users.me] User not found in database:', {
-          clerkId: identity.subject,
-          email: identity.email,
-        });
-        return null;
-      }
-
-      console.log('[users.me] Found user:', {
-        userId: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        clerkId: user.clerkId,
-      });
-
-      return user;
+      return user ?? null;
     } catch (error) {
-      console.error('[users.me] Error fetching user:', {
+      console.error("[users.me] Error fetching user", {
         error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
       });
-      // Return null instead of throwing to allow sync to proceed
       return null;
     }
   },
@@ -87,29 +58,14 @@ export const syncUser = mutation({
     ))
   },
   handler: async (ctx, args) => {
-    console.log('[syncUser] Starting user sync...', {
-      learningLanguage: args.learningLanguage,
-    });
-
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      const error = new Error("Not authenticated - no identity found");
-      console.error('[syncUser] Authentication failed:', error);
-      throw error;
+      throw new Error("Not authenticated");
     }
 
-    console.log('[syncUser] Identity retrieved:', {
-      subject: identity.subject,
-      name: identity.name,
-      email: identity.email,
-      issuer: identity.issuer,
-    });
-
     // Validate identity.subject (Clerk ID)
-    if (!identity.subject || typeof identity.subject !== 'string') {
-      const error = new Error(`Invalid Clerk ID: ${identity.subject}`);
-      console.error('[syncUser] Invalid Clerk ID:', error);
-      throw error;
+    if (!identity.subject || typeof identity.subject !== "string") {
+      throw new Error("Invalid Clerk ID");
     }
 
     // Check if user already exists by Clerk ID
@@ -119,13 +75,6 @@ export const syncUser = mutation({
       .first();
 
     if (existing) {
-      console.log('[syncUser] User already exists, updating lastActiveDate:', {
-        userId: existing._id,
-        clerkId: identity.subject,
-        email: existing.email,
-        currentRole: existing.role,
-      });
-      
       // Special case: Ensure hello@jacksenn.me is always superadmin
       const updates: any = {
         lastActiveDate: Date.now(),
@@ -133,16 +82,10 @@ export const syncUser = mutation({
       
       // BETA FIX: Update learningLanguage if provided and different from current
       if (args.learningLanguage && args.learningLanguage !== existing.learningLanguage) {
-        console.log('[syncUser] Updating learningLanguage:', {
-          userId: existing._id,
-          from: existing.learningLanguage,
-          to: args.learningLanguage,
-        });
         updates.learningLanguage = args.learningLanguage;
       }
       
       if (existing.email === "hello@jacksenn.me" && existing.role !== "superadmin") {
-        console.log('[syncUser] Upgrading hello@jacksenn.me to superadmin');
         updates.role = "superadmin";
         updates.isActive = true;
         updates.isBetaTester = true;
@@ -170,15 +113,6 @@ export const syncUser = mutation({
     const shouldBeBetaTester =
       betaMode && (!betaEnd || now <= betaEnd);
 
-    console.log('[syncUser] Creating new user:', {
-      clerkId: identity.subject,
-      name: identity.name,
-      email: identity.email,
-      betaMode,
-      shouldBeBetaTester,
-      learningLanguage: args.learningLanguage || "en",
-    });
-
     // SECURITY: Check if email is already registered (prevent duplicate accounts)
     if (identity.email) {
       const existingByEmail = await ctx.db
@@ -191,12 +125,6 @@ export const syncUser = mutation({
           `Email ${identity.email} is already registered. ` +
           `Please use the existing account or contact support.`
         );
-        console.error('[syncUser] Duplicate email detected:', {
-          existingUserId: existingByEmail._id,
-          existingClerkId: existingByEmail.clerkId,
-          attemptedClerkId: identity.subject,
-          email: identity.email,
-        });
         throw error;
       }
     }
@@ -223,11 +151,6 @@ export const syncUser = mutation({
         lastActiveDate: Date.now(),
       });
 
-      console.log('[syncUser] User created successfully:', {
-        userId,
-        clerkId: identity.subject,
-      });
-
       // Create initial user progress
       await ctx.db.insert("userProgress", {
         userId,
@@ -238,28 +161,16 @@ export const syncUser = mutation({
         lastActivityAt: Date.now(),
       });
 
-      console.log('[syncUser] User progress created successfully:', {
-        userId,
-      });
-
       // Sync to newsletter contacts (opt-in required, not auto-subscribed)
       try {
         await ctx.scheduler.runAfter(0, internal.newsletter.syncUserToNewsletter, {
           userId,
           autoSubscribe: false, // User must manually subscribe to newsletter
         });
-      } catch (error) {
-        console.error('[syncUser] Failed to sync to newsletter:', error);
-      }
+      } catch {}
 
       return userId;
     } catch (error) {
-      console.error('[syncUser] Failed to create user:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        clerkId: identity.subject,
-        email: identity.email,
-      });
       throw error;
     }
   },
@@ -820,7 +731,6 @@ export const updateXPByClerkId = action({
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`[Convex] updateXPByClerkId action failed:`, {
-        clerkId: args.clerkId,
         xpToAdd: args.xpToAdd,
         error: errorMsg,
         stack: error instanceof Error ? error.stack : undefined,
@@ -857,12 +767,10 @@ export const enforceSingleSession = action({
     // Do not throw here: on initial load, Clerk may be ready while Convex auth token
     // hasn't propagated yet. Throwing would spam the client with "Server Error".
     if (!identity) {
-      console.log("[enforceSingleSession] Skipping: no identity");
       return { skipped: true, reason: "no_identity" as const };
     }
 
     if (!isProductionDeployment()) {
-      console.log("[enforceSingleSession] Skipping: not production");
       return { skipped: true, reason: "not_production" };
     }
 
@@ -872,7 +780,6 @@ export const enforceSingleSession = action({
     });
 
     if (dbUser?.role === "superadmin") {
-      console.log("[enforceSingleSession] Skipping: user is superadmin");
       return { skipped: true, reason: "superadmin" };
     }
 
@@ -905,9 +812,8 @@ export const enforceSingleSession = action({
         if (!listResp.ok) {
           const errorText = await listResp.text().catch(() => "<failed_to_read_body>");
           console.error("[enforceSingleSession] Failed to list sessions", {
-            clerkUserId,
             status: listResp.status,
-            errorText,
+            errorText: String(errorText).slice(0, 200),
           });
           break;
         }
@@ -939,9 +845,8 @@ export const enforceSingleSession = action({
           if (!revokeResp.ok) {
             const errorText = await revokeResp.text().catch(() => "<failed_to_read_body>");
             console.error("[enforceSingleSession] Failed to revoke session", {
-              sessionId: sid,
               status: revokeResp.status,
-              errorText,
+              errorText: String(errorText).slice(0, 200),
             });
             continue;
           }
@@ -957,17 +862,9 @@ export const enforceSingleSession = action({
         offset += sessions.length;
       }
 
-      console.log("[enforceSingleSession] Successfully revoked sessions", {
-        clerkUserId,
-        sessionId: args.sessionId,
-        revokedCount: revokedSessionIds.length,
-      });
-
       return { skipped: false, revokedCount: revokedSessionIds.length, revokedSessionIds };
     } catch (error) {
       console.error("[enforceSingleSession] Error revoking sessions", {
-        clerkUserId,
-        sessionId: args.sessionId,
         error: String(error),
       });
       return { skipped: true, reason: "error", error: String(error) };

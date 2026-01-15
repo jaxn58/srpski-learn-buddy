@@ -132,10 +132,6 @@ http.route({
   path: "/clerk-webhook",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    // #region agent log
-    console.log(JSON.stringify({location:'http.ts:13',message:'Webhook received - ENTRY',data:{timestamp:new Date().toISOString(),headers:Object.fromEntries(request.headers.entries())},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'}));
-    // #endregion
-    
     const payloadString = await request.text();
     const headerPayload = request.headers;
 
@@ -164,10 +160,6 @@ http.route({
       }) as any;
 
       const eventType = evt.type;
-      
-      // #region agent log
-      console.log(JSON.stringify({location:'http.ts:43',message:'Webhook verified - event type',data:{eventType,timestamp:new Date().toISOString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'}));
-      // #endregion
 
       if (eventType === "session.created") {
         // NOTE: We enforce single-device sessions in production by revoking all other active sessions
@@ -663,65 +655,6 @@ http.route({
       // Retryable/unknown failure: return 500 so Paddle can retry.
       return new Response("Failed", { status: 500 });
     }
-  }),
-});
-
-// ============= CLIENT DEBUG LOGGING (temporary) =============
-// Purpose: capture early frontend WebAuthn errors (e.g. injected webauthn.js) into Convex logs.
-// Security: do NOT include PII; keep payload small; remove after fix is confirmed.
-http.route({
-  path: "/client-debug/webauthn",
-  method: "OPTIONS",
-  handler: httpAction(async (_ctx, request) => {
-    const origin = request.headers.get("origin") ?? "*";
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "content-type",
-      },
-    });
-  }),
-});
-
-http.route({
-  path: "/client-debug/webauthn",
-  method: "POST",
-  handler: httpAction(async (_ctx, request) => {
-    const origin = request.headers.get("origin") ?? "";
-    const referer = request.headers.get("referer") ?? "";
-    const ua = request.headers.get("user-agent") ?? "";
-
-    const raw = await request.text();
-    let parsed: any = null;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      parsed = null;
-    }
-
-    // PII-free logging only
-    console.log("[client-debug][webauthn]", {
-      origin,
-      referer,
-      uaPrefix: ua.slice(0, 40),
-      rawLen: raw.length,
-      kind: parsed?.kind ?? null,
-      filename: parsed?.filename ?? null,
-      src: parsed?.src ?? null,
-      message: typeof parsed?.message === "string" ? parsed.message.slice(0, 200) : null,
-      path: parsed?.path ?? null,
-      ts: parsed?.ts ?? null,
-    });
-
-    return new Response("OK", {
-      status: 200,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Access-Control-Allow-Origin": origin || "*",
-      },
-    });
   }),
 });
 

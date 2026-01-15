@@ -22,8 +22,6 @@ export function useAuth() {
 
   // Fetch full user data from Convex (includes role, isBetaTester, etc.)
   const dbUser = useQuery(api.users.me);
-  // Beobachte dbUser, keine Debug-Logs mehr
-  useEffect(() => {}, [dbUser]);
   
   // Mutation to sync user from Clerk to Convex
   const syncUser = useMutation(api.users.syncUser);

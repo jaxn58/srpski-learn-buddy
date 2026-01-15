@@ -9,41 +9,6 @@ import App from "./App";
 import "./index.css";
 import i18n from "./i18n";
 
-// Note: Logger is not available yet (module not loaded), so we use direct console for this bootstrap code
-// WebAuthn Polyfill: Fix "Cannot assign to read only property 'get'" in Clerk
-// This patches the CredentialsContainer API to make it writable
-if (typeof window !== 'undefined' && navigator.credentials) {
-  try {
-    const originalGet = navigator.credentials.get.bind(navigator.credentials);
-    const descriptorNav = Object.getOwnPropertyDescriptor(navigator, 'credentials');
-    const descriptorCreds = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator.credentials), 'get');
-    
-    // Make navigator.credentials writable if it's readonly
-    if (descriptorNav && !descriptorNav.writable) {
-      Object.defineProperty(navigator, 'credentials', {
-        value: navigator.credentials,
-        writable: true,
-        configurable: true,
-        enumerable: true
-      });
-    }
-    
-    // Make credentials.get writable if it's readonly
-    if (descriptorCreds && !descriptorCreds.writable) {
-      Object.defineProperty(navigator.credentials, 'get', {
-        value: originalGet,
-        writable: true,
-        configurable: true,
-        enumerable: true
-      });
-    }
-    
-    console.log('[WebAuthn Polyfill] Successfully patched Credentials API');
-  } catch (e) {
-    console.error('[WebAuthn Polyfill] Failed to patch:', e);
-  }
-}
-
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const CONVEX_URL = import.meta.env.VITE_CONVEX_URL;
 
