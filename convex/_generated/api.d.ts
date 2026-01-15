@@ -20,6 +20,7 @@ import type * as emailTemplates from "../emailTemplates.js";
 import type * as exercises from "../exercises.js";
 import type * as feedback from "../feedback.js";
 import type * as http from "../http.js";
+import type * as leaderboard from "../leaderboard.js";
 import type * as modules from "../modules.js";
 import type * as newsletter from "../newsletter.js";
 import type * as onboarding from "../onboarding.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   exercises: typeof exercises;
   feedback: typeof feedback;
   http: typeof http;
+  leaderboard: typeof leaderboard;
   modules: typeof modules;
   newsletter: typeof newsletter;
   onboarding: typeof onboarding;

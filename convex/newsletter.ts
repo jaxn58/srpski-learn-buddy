@@ -34,6 +34,16 @@ async function getAdminUser(ctx: AnyCtx) {
   return user;
 }
 
+async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+
+  return await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .first();
+}
+
 // Detect environment (dev vs prod)
 function getEnvironment(): "dev" | "prod" {
   return process.env.CONVEX_CLOUD_URL?.includes("fleet-labrador-324") 
@@ -322,6 +332,88 @@ export const requestCommunityUpdatesDoubleOptIn = mutation({
       console.error("[Newsletter DOI] Failed to send community updates opt-in email:", error);
       throw new Error("Failed to send opt-in email");
     }
+  },
+});
+
+/**
+ * Get current user's community updates subscription status (for Profile UI).
+ * - subscribed=true: already confirmed
+ * - pending=true: opt-in requested but not confirmed yet
+ */
+export const getMyCommunityUpdatesStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || !user.email) {
+      throw new Error("Not authenticated");
+    }
+
+    const contact = await ctx.db
+      .query("newsletterContacts")
+      .withIndex("by_email", (q) => q.eq("email", user.email!))
+      .first();
+
+    if (!contact) {
+      return {
+        email: user.email,
+        subscribed: false,
+        pending: false,
+        optInRequestedAt: null as number | null,
+        optInConfirmedAt: null as number | null,
+      };
+    }
+
+    const pending =
+      contact.subscribed !== true &&
+      contact.optInPurpose === "community_updates" &&
+      typeof contact.optInToken === "string" &&
+      contact.optInToken.length > 0;
+
+    return {
+      email: contact.email,
+      subscribed: contact.subscribed === true,
+      pending,
+      optInRequestedAt: contact.optInRequestedAt ?? null,
+      optInConfirmedAt: contact.optInConfirmedAt ?? null,
+    };
+  },
+});
+
+/**
+ * Unsubscribe the current user (no token required, authenticated).
+ * Also clears any pending opt-in request.
+ */
+export const unsubscribeMyCommunityUpdates = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || !user.email) {
+      throw new Error("Not authenticated");
+    }
+
+    const contact = await ctx.db
+      .query("newsletterContacts")
+      .withIndex("by_email", (q) => q.eq("email", user.email!))
+      .first();
+
+    if (!contact) {
+      return { success: true, alreadyUnsubscribed: true };
+    }
+
+    const nextTags = (contact.tags || []).filter((t) => t !== "community");
+
+    await ctx.db.patch(contact._id, {
+      subscribed: false,
+      unsubscribedAt: Date.now(),
+      // Cancel any pending DOI request
+      optInToken: undefined,
+      optInPurpose: undefined,
+      optInRequestedAt: undefined,
+      updatedAt: Date.now(),
+      tags: nextTags,
+    });
+
+    return { success: true, alreadyUnsubscribed: contact.subscribed !== true };
   },
 });
 

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation, action, QueryCtx, MutationCtx, internalQuery, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
+import { upsertDailyActivityByUserId } from "./units";
 
 type UserDoc = Doc<"users">;
 type FixUserNameResult = { success: boolean; userId: Id<"users">; name: string };
@@ -288,6 +289,146 @@ export const updateLearningLanguage = mutation({
   },
 });
 
+// Update public profile fields used for the Leaderboard (nickname/avatar + opt-in)
+export const updatePublicProfile = mutation({
+  args: {
+    publicNickname: v.optional(v.string()),
+    publicAvatarUrl: v.optional(v.string()),
+    leaderboardPublicEnabled: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const updates: Record<string, unknown> = {};
+
+    // Normalize nickname
+    if (args.publicNickname !== undefined) {
+      const nickname = args.publicNickname.trim().replace(/\s+/g, " ");
+      if (nickname.length === 0) {
+        updates.publicNickname = undefined;
+      } else {
+        if (nickname.length < 2 || nickname.length > 32) {
+          throw new Error("Nickname must be between 2 and 32 characters.");
+        }
+        updates.publicNickname = nickname;
+      }
+    }
+
+    // Normalize avatar URL (optional: manual override; uploads use storageId)
+    if (args.publicAvatarUrl !== undefined) {
+      const url = args.publicAvatarUrl.trim();
+      if (url.length === 0) {
+        // Clearing the manual URL should NOT delete an uploaded avatar.
+        updates.publicAvatarUrl = undefined;
+      } else {
+        let parsed: URL;
+        try {
+          parsed = new URL(url);
+        } catch {
+          throw new Error("Avatar URL must be a valid URL.");
+        }
+        if (parsed.protocol !== "https:") {
+          throw new Error("Avatar URL must start with https://");
+        }
+        // Manual URL overrides uploaded avatar
+        updates.publicAvatarUrl = url;
+        updates.publicAvatarStorageId = undefined;
+      }
+    }
+
+    // Opt-in toggle (default OFF: treat undefined as false)
+    if (args.leaderboardPublicEnabled !== undefined) {
+      updates.leaderboardPublicEnabled = args.leaderboardPublicEnabled;
+    }
+
+    // If enabling public display, require nickname + avatar
+    const nextNickname = (updates.publicNickname as string | undefined) ?? user.publicNickname;
+    const nextAvatarUrl =
+      (updates.publicAvatarUrl as string | undefined) ?? user.publicAvatarUrl;
+    const nextAvatarStorageId = user.publicAvatarStorageId ?? null;
+    const nextEnabled =
+      (updates.leaderboardPublicEnabled as boolean | undefined) ??
+      user.leaderboardPublicEnabled ??
+      false;
+
+    if (nextEnabled) {
+      if (!nextNickname || nextNickname.trim().length < 2) {
+        throw new Error("Please set a nickname before enabling public Leaderboard display.");
+      }
+      const hasAvatar =
+        (nextAvatarUrl && nextAvatarUrl.trim().length > 0) || Boolean(nextAvatarStorageId);
+      if (!hasAvatar) {
+        throw new Error("Please set an avatar before enabling public Leaderboard display.");
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return {
+        publicNickname: user.publicNickname ?? null,
+        publicAvatarUrl: user.publicAvatarUrl ?? null,
+        leaderboardPublicEnabled: user.leaderboardPublicEnabled ?? false,
+      };
+    }
+
+    await ctx.db.patch(user._id, updates);
+
+    return {
+      publicNickname: nextNickname ?? null,
+      publicAvatarUrl: nextAvatarUrl ?? null,
+      leaderboardPublicEnabled: nextEnabled,
+    };
+  },
+});
+
+// Get a fresh URL for the currently stored public avatar (storageId preferred)
+export const getMyPublicAvatarUrl = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    if (user.publicAvatarStorageId) {
+      const url = await ctx.storage.getUrl(user.publicAvatarStorageId);
+      return { storageId: user.publicAvatarStorageId, url };
+    }
+
+    return { storageId: null, url: user.publicAvatarUrl ?? null };
+  },
+});
+
+// Avatar upload: generate a Convex Storage upload URL
+export const generateAvatarUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// Avatar upload: store storageId on user and return a fresh URL (URLs expire)
+export const setPublicAvatarFromUpload = mutation({
+  args: { storageId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const url = await ctx.storage.getUrl(args.storageId);
+    if (!url) {
+      throw new Error("Failed to resolve uploaded avatar URL.");
+    }
+
+    await ctx.db.patch(user._id, {
+      publicAvatarStorageId: args.storageId,
+      // Keep URL field as manual override only; uploaded avatars use storageId.
+      publicAvatarUrl: undefined,
+    });
+
+    return { storageId: args.storageId, url };
+  },
+});
+
 // Get all users (admin only)
 export const getAllUsers = query({
   handler: async (ctx) => {
@@ -386,6 +527,12 @@ export const updateUserXP = mutation({
       level: newLevel,
       lastActiveDate: Date.now(),
     });
+
+    if (args.xpToAdd > 0) {
+      await upsertDailyActivityByUserId(ctx, user._id, {
+        xpEarned: args.xpToAdd,
+      });
+    }
 
     return { totalXP: newTotalXP, level: newLevel };
   },
@@ -640,6 +787,12 @@ export const internalUpdateXPByClerkId = internalMutation({
       level: newLevel,
       lastActiveDate: Date.now(),
     });
+
+    if (args.xpToAdd > 0) {
+      await upsertDailyActivityByUserId(ctx, user._id, {
+        xpEarned: args.xpToAdd,
+      });
+    }
 
     const result = { totalXP: newTotalXP, level: newLevel };
     console.log(`[Convex] Successfully updated user XP:`, result);

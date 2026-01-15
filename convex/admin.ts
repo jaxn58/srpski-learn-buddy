@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { VOCABULARY } from "../shared/data/vocabulary/words";
 import { UNIT_EXERCISES } from "./unitExercises";
+import { upsertDailyActivityByUserId } from "./units";
 
 // Helper to get the current user and verify admin
 async function getAdminUser(ctx: QueryCtx | MutationCtx) {
@@ -1003,6 +1004,14 @@ export const markUnit1Complete = mutation({
       level: newLevel,
     });
 
+    if (totalXPEarned > 0) {
+      await upsertDailyActivityByUserId(ctx, user._id, {
+        xpEarned: totalXPEarned,
+        exercisesCompleted: exercisesProcessed,
+        unitsCompleted: 1,
+      });
+    }
+
     console.log(`[markUnit1Complete] Updated XP: ${user.totalXP} → ${newTotalXP}, Level: ${user.level} → ${newLevel}`);
 
     console.log('[markUnit1Complete] ✅ Unit 1 completion process finished successfully');
@@ -1247,6 +1256,14 @@ export const simulateUnitProgress = mutation({
       level: newLevel,
       lastActiveDate: now,
     });
+
+    if (xpEarned > 0) {
+      await upsertDailyActivityByUserId(ctx, user._id, {
+        xpEarned,
+        exercisesCompleted: exercisesProcessed,
+        unitsCompleted: 1,
+      });
+    }
 
     return {
       success: true,

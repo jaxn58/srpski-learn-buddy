@@ -35,14 +35,14 @@ export default function Progress() {
     if (!dbModules || dbModules.length === 0) {
       return [];
     }
-    return dbModules.map((module) => ({
+    return dbModules.map((module: any) => ({
       id: module.slug || "",
       number: module.moduleNumber || 0,
       titleEnglish: module.titleEn || "",
       titleGerman: module.titleDe || "",
       units: (dbUnitsEn || [])
-        .filter(unit => unit.moduleId === module.slug)
-        .map(unit => unit.unitNumber),
+        .filter((unit: any) => unit.moduleId === module.slug)
+        .map((unit: any) => unit.unitNumber),
     }));
   }, [dbModules, dbUnitsEn]);
 
@@ -68,7 +68,7 @@ export default function Progress() {
   const progressPercent = totalUnits > 0 ? (completedUnits.length / totalUnits) * 100 : 0;
   
   // Format dates for chart
-  const activityData = stats?.activityChart?.map(day => ({
+  const activityData = stats?.activityChart?.map((day: any) => ({
     name: new Date(day.date).toLocaleDateString(i18n.language === 'de' ? 'de-DE' : 'en-US', { weekday: 'short' }),
     xp: day.xp,
     fullDate: new Date(day.date).toLocaleDateString()
@@ -80,6 +80,23 @@ export default function Progress() {
     { name: t('progress.incorrect'), value: stats?.accuracyStats?.totalIncorrect || 0 },
   ];
   const hasAccuracyData = (stats?.accuracyStats?.totalAttempts || 0) > 0;
+
+  const masteryEfficiency = stats?.masteryQuality?.masteredEfficiency;
+  const masteryEfficiencyLabel =
+    masteryEfficiency === null || masteryEfficiency === undefined
+      ? "—"
+      : `${Math.round(masteryEfficiency * 100)}%`;
+
+  const activity30 = stats?.activityStats30d;
+  const activeDays30 = activity30?.activeDays ?? 0;
+  const activeDaysPerWeek30 =
+    activity30?.activeDaysPerWeek !== undefined
+      ? Math.round(activity30.activeDaysPerWeek * 10) / 10
+      : null;
+  const avgXpPerActiveDay30 =
+    activity30?.avgXpPerActiveDay !== undefined
+      ? Math.round(activity30.avgXpPerActiveDay)
+      : null;
 
   // Level Calculation (simple logic for display)
   const nextLevelXP = (stats?.level || 1) * 1000; // Example: 1000 XP per level
@@ -106,7 +123,7 @@ export default function Progress() {
     visible: { 
       y: 0, 
       opacity: 1,
-      transition: { type: "spring", stiffness: 100 }
+      transition: { type: "spring" as const, stiffness: 100 }
     }
   };
 
@@ -214,8 +231,31 @@ export default function Progress() {
                       <span className="font-medium">{stats?.accuracyStats?.masteredVocab || 0}</span>
                     </div>
                     <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        Mastery Efficiency
+                      </span>
+                      <span className="font-medium">{masteryEfficiencyLabel}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Days Active</span>
                       <span className="font-medium">{daysSinceStart}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Active Days (30d)</span>
+                      <span className="font-medium">{activeDays30}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Active Days / Week</span>
+                      <span className="font-medium">
+                        {activeDaysPerWeek30 === null ? "—" : activeDaysPerWeek30}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Avg XP / Active Day (30d)</span>
+                      <span className="font-medium">
+                        {avgXpPerActiveDay30 === null ? "—" : avgXpPerActiveDay30}
+                      </span>
                     </div>
                   </div>
                 </CardContent>

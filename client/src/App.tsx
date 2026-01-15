@@ -17,8 +17,8 @@ import Vocabulary from "./pages/Vocabulary";
 import VocabularyQuizRedirect from "./pages/VocabularyQuizRedirect";
 import VocabularyList from "./pages/VocabularyList";
 import Progress from "./pages/Progress";
+import Leaderboards from "./pages/Leaderboards";
 import Feedback from "./pages/Feedback";
-import MySubscription from "./pages/MySubscription";
 import SubscriptionAnalytics from "./pages/SubscriptionAnalytics";
 import EmailTemplates from "./pages/EmailTemplates";
 import PromptAdmin from "./pages/PromptAdmin";
@@ -33,6 +33,8 @@ import WaitlistConfirm from "./pages/WaitlistConfirm";
 import AdminWaitlist from "./pages/AdminWaitlist";
 import Newsletter from "./pages/Newsletter";
 import NewsletterUnsubscribe from "./pages/NewsletterUnsubscribe";
+import NewsletterOptInConfirm from "./pages/NewsletterOptInConfirm";
+import Profile from "./pages/Profile";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
@@ -79,6 +81,7 @@ function Router() {
       {/* Public routes */}
       <Route path="/" component={Home} />
       <Route path="/waitlist/confirm" component={WaitlistConfirm} />
+      <Route path="/newsletter/optin/confirm" component={NewsletterOptInConfirm} />
       <Route path="/newsletter/unsubscribe" component={NewsletterUnsubscribe} />
       {/* Clerk auth routes - use wildcard to catch all sub-routes like /sign-in/factor-one */}
       <Route path="/sign-in/:rest*" component={SignInPage} />
@@ -111,8 +114,14 @@ function Router() {
       <Route path="/progress">
         {() => <Protected Component={Progress} />}
       </Route>
+      <Route path="/leaderboards">
+        {() => <Protected Component={Leaderboards} />}
+      </Route>
+      <Route path="/profile">
+        {() => <Protected Component={Profile} />}
+      </Route>
       <Route path="/subscription">
-        {() => <Protected Component={MySubscription} />}
+        {() => <Protected Component={Profile} />}
       </Route>
       <Route path="/feedback">
         {() => <Protected Component={Feedback} />}

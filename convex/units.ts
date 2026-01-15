@@ -880,6 +880,47 @@ export const deleteAllUnitExplanations = mutation({
 
 // ============= DAILY ACTIVITY =============
 
+export async function upsertDailyActivityByUserId(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  args: {
+    unitsCompleted?: number;
+    exercisesCompleted?: number;
+    xpEarned?: number;
+  }
+) {
+  // Get today at midnight
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTimestamp = today.getTime();
+
+  // Check if activity exists for today
+  const existing = await ctx.db
+    .query("dailyActivity")
+    .withIndex("by_user_date", (q) =>
+      q.eq("userId", userId).eq("activityDate", todayTimestamp)
+    )
+    .first();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      unitsCompleted: existing.unitsCompleted + (args.unitsCompleted ?? 0),
+      exercisesCompleted:
+        existing.exercisesCompleted + (args.exercisesCompleted ?? 0),
+      xpEarned: existing.xpEarned + (args.xpEarned ?? 0),
+    });
+    return existing._id;
+  }
+
+  return await ctx.db.insert("dailyActivity", {
+    userId,
+    activityDate: todayTimestamp,
+    unitsCompleted: args.unitsCompleted ?? 0,
+    exercisesCompleted: args.exercisesCompleted ?? 0,
+    xpEarned: args.xpEarned ?? 0,
+  });
+}
+
 // Get daily activity
 export const getDailyActivity = query({
   args: {
@@ -911,34 +952,10 @@ export const logActivity = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
 
-    // Get today at midnight
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTimestamp = today.getTime();
-
-    // Check if activity exists for today
-    const existing = await ctx.db
-      .query("dailyActivity")
-      .withIndex("by_user_date", (q) =>
-        q.eq("userId", user._id).eq("activityDate", todayTimestamp)
-      )
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        unitsCompleted: existing.unitsCompleted + (args.unitsCompleted ?? 0),
-        exercisesCompleted: existing.exercisesCompleted + (args.exercisesCompleted ?? 0),
-        xpEarned: existing.xpEarned + (args.xpEarned ?? 0),
-      });
-      return existing._id;
-    }
-
-    return await ctx.db.insert("dailyActivity", {
-      userId: user._id,
-      activityDate: todayTimestamp,
-      unitsCompleted: args.unitsCompleted ?? 0,
-      exercisesCompleted: args.exercisesCompleted ?? 0,
-      xpEarned: args.xpEarned ?? 0,
+    return await upsertDailyActivityByUserId(ctx, user._id, {
+      unitsCompleted: args.unitsCompleted,
+      exercisesCompleted: args.exercisesCompleted,
+      xpEarned: args.xpEarned,
     });
   },
 });

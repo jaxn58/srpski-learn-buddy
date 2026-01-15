@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { X } from "lucide-react";
+import { Info, X } from "lucide-react";
 import { AVAILABLE_ICONS } from "@/components/ui/icon-picker";
 
 interface WelcomeOnboardingProps {

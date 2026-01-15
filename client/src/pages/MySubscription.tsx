@@ -19,7 +19,7 @@ type SubscriptionPlan = {
   unitsPerWeek: number;
 };
 
-export default function MySubscription() {
+export function MySubscriptionContent({ embedded = false }: { embedded?: boolean }) {
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0 });
@@ -48,6 +48,9 @@ export default function MySubscription() {
       : subscription?.expiresAt ?? null;
 
   const availablePlans = useQuery(api.subscriptions.getPlans) as SubscriptionPlan[] | undefined;
+
+  const containerClass = embedded ? "w-full" : "p-8 w-full";
+  const innerClass = embedded ? "w-full" : "max-w-4xl mx-auto";
 
   // Calculate upgrade cost mutation
   const calculateUpgradeMutation = useMutation(api.subscriptions.calculateUpgradeCost);
@@ -187,9 +190,9 @@ export default function MySubscription() {
     // Check if user is Beta Tester
     if (user?.isBetaTester) {
       return (
-        <div className="p-8 w-full">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>
+        <div className={containerClass}>
+          <div className={innerClass}>
+            {!embedded && <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>}
             <Card className="border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
               <CardHeader>
                 <div className="flex items-center gap-3">
@@ -249,9 +252,9 @@ export default function MySubscription() {
     
     // No subscription and not Beta Tester
     return (
-      <div className="p-8 w-full">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>
+      <div className={containerClass}>
+        <div className={innerClass}>
+          {!embedded && <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>}
           <Card>
             <CardHeader>
               <CardTitle>{t('subscription.noSubscription')}</CardTitle>
@@ -273,9 +276,9 @@ export default function MySubscription() {
   // Special handling for Beta subscriptions
   if (normalizedPlan === "beta") {
     return (
-      <div className="p-8 w-full">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>
+      <div className={containerClass}>
+        <div className={innerClass}>
+          {!embedded && <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>}
           <Card className="border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -341,9 +344,9 @@ export default function MySubscription() {
   const progressPercentage = (daysElapsed / planDuration) * 100;
 
   return (
-    <div className="p-8 w-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>
+    <div className={embedded ? "w-full" : "p-8 w-full overflow-y-auto"}>
+      <div className={embedded ? "w-full" : "max-w-4xl mx-auto"}>
+        {!embedded && <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>}
 
         {/* Current Plan Card */}
         <Card className="mb-6">
@@ -481,4 +484,8 @@ export default function MySubscription() {
       </div>
     </div>
   );
+}
+
+export default function MySubscription() {
+  return <MySubscriptionContent />;
 }

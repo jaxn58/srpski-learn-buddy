@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { upsertDailyActivityByUserId } from "./units";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -181,6 +182,14 @@ export const submitResult = mutation({
           totalQuestions: args.totalQuestions,
           xpEarned,
         });
+
+        // Daily activity aggregation (for 7/30-day leaderboards + analytics)
+        if (xpEarned > 0) {
+          await upsertDailyActivityByUserId(ctx, user._id, {
+            xpEarned,
+            exercisesCompleted: 1,
+          });
+        }
         
         // Update user XP in Convex
         const newTotalXP = user.totalXP + xpEarned;
@@ -240,6 +249,14 @@ export const addCompletion = mutation({
       userId: user._id,
       ...args,
     });
+
+    // Daily activity aggregation (for 7/30-day leaderboards + analytics)
+    if (args.xpEarned > 0) {
+      await upsertDailyActivityByUserId(ctx, user._id, {
+        xpEarned: args.xpEarned,
+        exercisesCompleted: 1,
+      });
+    }
 
     // Update user XP
     const newTotalXP = user.totalXP + args.xpEarned;
@@ -510,6 +527,10 @@ export const recordExerciseQuestionAnswer = mutation({
           level: newLevel,
           lastActiveDate: Date.now(),
         });
+
+        await upsertDailyActivityByUserId(ctx, user._id, {
+          xpEarned: earnedXP,
+        });
         
         console.log('[Convex] Progressive XP granted:', {
           earnedXP,
@@ -547,6 +568,10 @@ export const recordExerciseQuestionAnswer = mutation({
           totalXP: newTotalXP,
           level: newLevel,
           lastActiveDate: Date.now(),
+        });
+
+        await upsertDailyActivityByUserId(ctx, user._id, {
+          xpEarned: earnedXP,
         });
         
         console.log('[Convex] Progressive XP granted (new question):', {

@@ -24,6 +24,14 @@ export default defineSchema({
     currentStreak: v.number(),
     longestStreak: v.number(),
     lastActiveDate: v.optional(v.number()), // timestamp
+
+    // Public profile (for Leaderboard)
+    publicNickname: v.optional(v.string()),
+    publicAvatarUrl: v.optional(v.string()),
+    // Convex Storage ID (preferred for uploads; URLs expire)
+    publicAvatarStorageId: v.optional(v.string()),
+    // Privacy guardrail: default OFF (treat undefined as false)
+    leaderboardPublicEnabled: v.optional(v.boolean()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])
@@ -319,7 +327,9 @@ export default defineSchema({
     unitsCompleted: v.number(),
     exercisesCompleted: v.number(),
     xpEarned: v.number(),
-  }).index("by_user_date", ["userId", "activityDate"]),
+  })
+    .index("by_user_date", ["userId", "activityDate"])
+    .index("by_date", ["activityDate"]),
 
   // ============= FEEDBACK SUBMISSIONS =============
   feedbackSubmissions: defineTable({

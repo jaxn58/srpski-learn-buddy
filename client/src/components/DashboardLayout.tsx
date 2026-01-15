@@ -38,7 +38,7 @@ import {
   Brain,
   FileText,
   TrendingUp,
-  CreditCard,
+  UserCircle,
   MessageSquare,
   Sparkles,
   MessageCircle,
@@ -199,7 +199,7 @@ function DashboardLayoutContent({
     { label: t('sidebar.practiceVocab'), path: "/vocabulary", icon: <BookOpen className="h-5 w-5" /> },
     { label: t('sidebar.viewAllWords'), path: "/vocabulary-list", icon: <FileText className="h-5 w-5" /> },
     { label: t('sidebar.viewProgress'), path: "/progress", icon: <TrendingUp className="h-5 w-5" /> },
-    { label: t('sidebar.mySubscription'), path: "/subscription", icon: <CreditCard className="h-5 w-5" /> },
+    { label: t('sidebar.leaderboards'), path: "/leaderboards", icon: <Trophy className="h-5 w-5" /> },
     { label: t('sidebar.sendFeedback'), path: "/feedback", icon: <MessageSquare className="h-5 w-5" /> },
   ];
 
@@ -309,9 +309,35 @@ function DashboardLayoutContent({
                 <div className="rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 p-3 space-y-3 border">
                   {/* User Info */}
                   <div className="space-y-1">
-                    <div className="text-sm font-semibold text-gray-900 truncate">
-                      {user.name || user.email}
-                    </div>
+                    {(() => {
+                      const nickname = (user.publicNickname || "").trim();
+                      const realName = (user.name || user.email || "").trim();
+                      const title = nickname || realName || "—";
+
+                      return (
+                        <Link
+                          href="/profile"
+                          title={title}
+                          aria-label={t("sidebar.profile")}
+                          className="flex items-start justify-between gap-3 rounded-md px-1 py-1 hover:bg-accent/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-gray-900 truncate">
+                              {nickname || realName || "—"}
+                            </div>
+                            {nickname && realName && realName !== nickname && (
+                              <div className="text-xs text-muted-foreground truncate">
+                                {realName}
+                              </div>
+                            )}
+                          </div>
+                          <div className="shrink-0 inline-flex items-center gap-1 text-muted-foreground">
+                            <UserCircle className="h-4 w-4" />
+                            <span className="text-xs font-medium">{t("sidebar.profile")}</span>
+                          </div>
+                        </Link>
+                      );
+                    })()}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">

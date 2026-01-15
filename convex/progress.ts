@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { getRequiredExercises } from "./unitExercises";
+import { upsertDailyActivityByUserId } from "./units";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -635,6 +636,14 @@ export const submitCategoryResult = mutation({
       totalXP: (user.totalXP ?? 0) + totalXP,
     });
 
+    // Daily activity aggregation (for 7/30-day leaderboards + analytics)
+    if (totalXP > 0) {
+      await upsertDailyActivityByUserId(ctx, user._id, {
+        xpEarned: totalXP,
+        exercisesCompleted: 1,
+      });
+    }
+
     console.log(`[Progress] submitCategoryResult: User ${user._id} earned ${totalXP} XP from ${args.category} in unit ${args.unitNumber}`);
 
     return { 
@@ -681,6 +690,13 @@ export const getDashboardStats = query({
       .order("desc")
       .take(7);
 
+    // 2b. Activity stats (Last 30 days)
+    const dailyActivities30 = await ctx.db
+      .query("dailyActivity")
+      .withIndex("by_user_date", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .take(30);
+
     // 3. Get Vocabulary Stats for Accuracy Chart
     const vocabProgress = await ctx.db
       .query("vocabularyProgress")
@@ -691,10 +707,18 @@ export const getDashboardStats = query({
     let totalIncorrect = 0;
     let masteredCount = 0;
 
+    // Mastery quality (how cleanly the user reached mastery)
+    let masteredCorrect = 0;
+    let masteredIncorrect = 0;
+
     for (const vp of vocabProgress) {
       totalCorrect += vp.correctAnswerCount || 0;
       totalIncorrect += vp.incorrectAnswerCount || 0;
-      if (vp.mastered) masteredCount++;
+      if (vp.mastered) {
+        masteredCount++;
+        masteredCorrect += vp.correctAnswerCount || 0;
+        masteredIncorrect += vp.incorrectAnswerCount || 0;
+      }
     }
 
     // 4. Exercise Stats (optional, but good for accuracy)
@@ -706,6 +730,11 @@ export const getDashboardStats = query({
     for (const ep of exerciseProgress) {
       totalCorrect += ep.correctAnswerCount || 0;
       totalIncorrect += ep.incorrectAnswerCount || 0;
+
+      if (ep.mastered) {
+        masteredCorrect += ep.correctAnswerCount || 0;
+        masteredIncorrect += ep.incorrectAnswerCount || 0;
+      }
     }
 
     return {
@@ -727,6 +756,21 @@ export const getDashboardStats = query({
         units: a.unitsCompleted,
         exercises: a.exercisesCompleted
       })),
+      activityStats30d: (() => {
+        const windowDays = 30;
+        const activeDays = dailyActivities30.length;
+        const xpSum = dailyActivities30.reduce((sum, a) => sum + (a.xpEarned ?? 0), 0);
+        const avgXpPerActiveDay = activeDays > 0 ? xpSum / activeDays : 0;
+        const activeDaysPerWeek = activeDays / (windowDays / 7);
+
+        return {
+          windowDays,
+          activeDays,
+          xpSum,
+          avgXpPerActiveDay,
+          activeDaysPerWeek,
+        };
+      })(),
       
       accuracyStats: {
         totalCorrect,
@@ -734,6 +778,16 @@ export const getDashboardStats = query({
         totalAttempts: totalCorrect + totalIncorrect,
         masteredVocab: masteredCount,
         totalVocabLearned: vocabProgress.length
+      },
+
+      masteryQuality: {
+        masteredCorrect,
+        masteredIncorrect,
+        masteredAttempts: masteredCorrect + masteredIncorrect,
+        masteredEfficiency:
+          masteredCorrect + masteredIncorrect > 0
+            ? masteredCorrect / (masteredCorrect + masteredIncorrect)
+            : null,
       }
     };
   }
