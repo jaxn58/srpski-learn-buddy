@@ -6,15 +6,40 @@
       (function () {
         // Capture the exact origin of the "CredentialsContainer get is read-only" error (PII-free).
         // This is temporary debug instrumentation and will be removed after verification.
+        try {
+          // Track dynamically added scripts that might be responsible (e.g. Clerk loading a webauthn helper).
+          const mo = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+              for (const n of Array.from(m.addedNodes || [])) {
+                try {
+                  if (!n || n.nodeType !== 1) continue;
+                  const el = n;
+                  if (el.tagName === "SCRIPT") {
+                    const src = el.getAttribute("src") || "";
+                    if (src && src.toLowerCase().includes("webauthn")) {
+                      console.log("[WebAuthn Debug] Script inserted", { src });
+                    }
+                  }
+                } catch (_) {}
+              }
+            }
+          });
+          mo.observe(document.documentElement, { childList: true, subtree: true });
+        } catch (_) {}
+
         window.addEventListener(
           "error",
           function (event) {
             try {
               const msg = String(event && event.message ? event.message : "");
-              if (!msg.includes("Cannot assign to read only property") || !msg.includes("CredentialsContainer")) return;
+              const filename = event && event.filename ? String(event.filename) : "";
+              const looksRelevant =
+                (msg.includes("Cannot assign to read only property") && msg.includes("CredentialsContainer")) ||
+                filename.toLowerCase().includes("webauthn");
+              if (!looksRelevant) return;
               console.log("[WebAuthn Debug] Captured error", {
                 message: msg,
-                filename: event && event.filename ? String(event.filename) : null,
+                filename: filename || null,
                 lineno: event && typeof event.lineno === "number" ? event.lineno : null,
                 colno: event && typeof event.colno === "number" ? event.colno : null,
                 stack:
