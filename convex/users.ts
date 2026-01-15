@@ -853,10 +853,27 @@ export const enforceSingleSession = action({
     sessionId: v.string(),
   },
   handler: async (ctx, args) => {
+    // #region agent log (debug)
+    // PII-free runtime evidence in Convex logs (Convex actions can't reach local ingest endpoint).
+    console.log("[agent-debug][A] enforceSingleSession:entry", {
+      hasSessionId: Boolean(args.sessionId),
+      sessionIdLength: args.sessionId?.length ?? 0,
+      isProduction: isProductionDeployment(),
+      hasCtxDb: (ctx as any)?.db != null,
+      hasRunQuery: typeof (ctx as any)?.runQuery === "function",
+    });
+    // #endregion agent log (debug)
+
     const identity = await ctx.auth.getUserIdentity();
     // Do not throw here: on initial load, Clerk may be ready while Convex auth token
     // hasn't propagated yet. Throwing would spam the client with "Server Error".
     if (!identity) {
+      // #region agent log (debug)
+      console.log("[agent-debug][A] enforceSingleSession:skip_no_identity", {
+        isProduction: isProductionDeployment(),
+      });
+      // #endregion agent log (debug)
+
       console.log("[enforceSingleSession] Skipping: no identity");
       return { skipped: true, reason: "no_identity" as const };
     }
@@ -866,10 +883,18 @@ export const enforceSingleSession = action({
       return { skipped: true, reason: "not_production" };
     }
 
-    const dbUser = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .first();
+    // IMPORTANT: actions do not have ctx.db. Use runQuery to access DB via a query.
+    const dbUser = await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+      clerkId: identity.subject,
+    });
+
+    // #region agent log (debug)
+    console.log("[agent-debug][B] enforceSingleSession:dbUser_loaded", {
+      hasDbUser: Boolean(dbUser),
+      role: (dbUser as any)?.role ?? "unknown",
+      isSuperadmin: (dbUser as any)?.role === "superadmin",
+    });
+    // #endregion agent log (debug)
 
     if (dbUser?.role === "superadmin") {
       console.log("[enforceSingleSession] Skipping: user is superadmin");
@@ -879,6 +904,12 @@ export const enforceSingleSession = action({
     // Revoke all other active sessions for this user
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
+      // #region agent log (debug)
+      console.warn("[agent-debug][C] enforceSingleSession:missing_clerk_secret", {
+        isProduction: isProductionDeployment(),
+      });
+      // #endregion agent log (debug)
+
       console.warn("[enforceSingleSession] CLERK_SECRET_KEY not set - skipping");
       return { skipped: true, reason: "missing_clerk_secret_key" };
     }
@@ -903,6 +934,12 @@ export const enforceSingleSession = action({
         );
 
         if (!listResp.ok) {
+          // #region agent log (debug)
+          console.warn("[agent-debug][C] enforceSingleSession:list_sessions_failed", {
+            status: listResp.status,
+          });
+          // #endregion agent log (debug)
+
           const errorText = await listResp.text().catch(() => "<failed_to_read_body>");
           console.error("[enforceSingleSession] Failed to list sessions", {
             clerkUserId,
@@ -965,6 +1002,12 @@ export const enforceSingleSession = action({
 
       return { skipped: false, revokedCount: revokedSessionIds.length, revokedSessionIds };
     } catch (error) {
+      // #region agent log (debug)
+      console.error("[agent-debug][C] enforceSingleSession:error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // #endregion agent log (debug)
+
       console.error("[enforceSingleSession] Error revoking sessions", {
         clerkUserId,
         sessionId: args.sessionId,
