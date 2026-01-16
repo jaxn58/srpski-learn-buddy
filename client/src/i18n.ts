@@ -99,6 +99,7 @@ const resources = {
       "home.units.subtitle": "<strong>5 comprehensive modules</strong> with <strong>27 interactive units</strong> and <strong>{{count}}+ vocabulary words</strong>",
       "home.units.module": "Module {{number}}",
       "home.units.lessons": "{{count}} units",
+      "home.units.lessonsPlaceholder": "Units: coming soon",
       
       // Modules
       "module.1.title": "Foundation",

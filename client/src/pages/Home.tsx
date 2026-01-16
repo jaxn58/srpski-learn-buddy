@@ -98,38 +98,40 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50">
       {/* Hero Section */}
-      <header className="container py-6 border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              {t('home.header.title')}
-            </h1>
-          </div>
-          
-          <div className="flex items-center gap-3">
-          {isAuthenticated ? (
-            <Link href="/dashboard">
-                <Button className="bg-primary hover:bg-primary/90">{t('home.header.dashboard')}</Button>
-            </Link>
-          ) : (
-            <>
-              {showWaitlist && (
-                <Button 
-                  variant="outline"
-                  className="border-primary text-primary hover:bg-primary/10"
-                  onClick={() => setIsWaitlistModalOpen(true)}
-                >
-                  Join Waitlist
-                </Button>
-              )}
-              <Link href="/sign-in">
-                <Button className="bg-primary hover:bg-primary/90">
-                    {t('home.header.login')}
-                </Button>
+      <header className="w-full border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-8 w-8 text-primary" />
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                {t('home.header.title')}
+              </h1>
+            </div>
+            
+            <div className="flex items-center gap-3">
+            {isAuthenticated ? (
+              <Link href="/dashboard">
+                  <Button className="bg-primary hover:bg-primary/90">{t('home.header.dashboard')}</Button>
               </Link>
-            </>
-          )}
+            ) : (
+              <>
+                {showWaitlist && (
+                  <Button 
+                    variant="outline"
+                    className="border-primary text-primary hover:bg-primary/10"
+                    onClick={() => setIsWaitlistModalOpen(true)}
+                  >
+                    Join Waitlist
+                  </Button>
+                )}
+                <Link href="/sign-in">
+                  <Button className="bg-primary hover:bg-primary/90">
+                      {t('home.header.login')}
+                  </Button>
+                </Link>
+              </>
+            )}
+            </div>
           </div>
         </div>
       </header>
@@ -194,8 +196,9 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="container py-16 bg-white/50">
-        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <section className="w-full bg-white/50">
+        <div className="container py-16">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <BookOpen className="h-12 w-12 text-primary mb-2" />
@@ -245,12 +248,11 @@ export default function Home() {
               </CardDescription>
             </CardHeader>
           </Card>
+          </div>
         </div>
       </section>
 
-      {/* Pricing, FAQ & Beta Banner Section - Hide during waitlist mode */}
-      {!showWaitlist && (
-      <>
+      {/* Pricing, Upgrade Policy & FAQ Section */}
       {/* Flexible Duration Section */}
       <section className="container py-20">
         <div className="max-w-4xl mx-auto space-y-8">
@@ -751,48 +753,49 @@ export default function Home() {
           </div>
 
           {/* Beta Tester Banner */}
-          <Card className="mt-12 border-4 border-yellow-400 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 shadow-2xl">
-            <CardContent className="py-8">
-              <div className="text-center space-y-4">
-                <div className="inline-block">
-                  <span className="text-5xl">🎁</span>
-                </div>
-                <h4 className="text-3xl font-bold text-yellow-900">{t('home.beta.banner.title')}</h4>
-                <p 
-                  className="text-lg text-yellow-800 max-w-3xl mx-auto" 
-                  dangerouslySetInnerHTML={{ __html: t('home.beta.banner.subtitle') }}
-                />
-                <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto mt-6">
-                  <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
-                    <div className="text-2xl mb-2">✓</div>
-                    <h5 className="font-semibold text-yellow-900 mb-1">{t('home.beta.banner.feature1.title')}</h5>
-                    <p className="text-sm text-yellow-800">{t('home.beta.banner.feature1.desc')}</p>
+          {!showWaitlist && (
+            <Card className="mt-12 border-4 border-yellow-400 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 shadow-2xl">
+              <CardContent className="py-8">
+                <div className="text-center space-y-4">
+                  <div className="inline-block">
+                    <span className="text-5xl">🎁</span>
                   </div>
-                  <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
-                    <div className="text-2xl mb-2">💰</div>
-                    <h5 className="font-semibold text-yellow-900 mb-1">{t('home.beta.banner.feature2.title')}</h5>
-                    <p className="text-sm text-yellow-800">{t('home.beta.banner.feature2.desc')}</p>
+                  <h4 className="text-3xl font-bold text-yellow-900">{t('home.beta.banner.title')}</h4>
+                  <p 
+                    className="text-lg text-yellow-800 max-w-3xl mx-auto" 
+                    dangerouslySetInnerHTML={{ __html: t('home.beta.banner.subtitle') }}
+                  />
+                  <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto mt-6">
+                    <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
+                      <div className="text-2xl mb-2">✓</div>
+                      <h5 className="font-semibold text-yellow-900 mb-1">{t('home.beta.banner.feature1.title')}</h5>
+                      <p className="text-sm text-yellow-800">{t('home.beta.banner.feature1.desc')}</p>
+                    </div>
+                    <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
+                      <div className="text-2xl mb-2">💰</div>
+                      <h5 className="font-semibold text-yellow-900 mb-1">{t('home.beta.banner.feature2.title')}</h5>
+                      <p className="text-sm text-yellow-800">{t('home.beta.banner.feature2.desc')}</p>
+                    </div>
                   </div>
+                  <div className="pt-4">
+                    <a href="#beta-registration">
+                      <Button size="lg" className="bg-yellow-600 hover:bg-yellow-700 text-white text-lg px-8">
+                        {t('home.beta.banner.cta')}
+                      </Button>
+                    </a>
+                  </div>
+                  <p className="text-xs text-yellow-700">{t('home.beta.banner.note')}</p>
                 </div>
-                <div className="pt-4">
-                  <a href="#beta-registration">
-                    <Button size="lg" className="bg-yellow-600 hover:bg-yellow-700 text-white text-lg px-8">
-                      {t('home.beta.banner.cta')}
-                    </Button>
-                  </a>
-                </div>
-                <p className="text-xs text-yellow-700">{t('home.beta.banner.note')}</p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </section>
-      </>
-      )}
 
       {/* Modules Section */}
-      <section id="units" className="container py-20 bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
-        <div className="max-w-7xl mx-auto">
+      <section id="units" className="w-full bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
+        <div className="container py-20">
+          <div className="max-w-7xl mx-auto">
           <div className="text-center space-y-4 mb-12">
             <h3 className="text-4xl font-bold">{t('home.units.title')}</h3>
             <p 
@@ -825,7 +828,11 @@ export default function Home() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BookOpen className="h-4 w-4 text-primary" />
-                      <span>{t('home.units.lessons', { count: module.unitCount })}</span>
+                      <span>
+                        {showWaitlist
+                          ? t("home.units.lessonsPlaceholder")
+                          : t("home.units.lessons", { count: module.unitCount })}
+                      </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {module.vocabCount}+ vocabulary words
@@ -835,6 +842,7 @@ export default function Home() {
               </Card>
               );
             })}
+          </div>
           </div>
         </div>
       </section>
@@ -886,9 +894,11 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
-        <div className="text-center text-sm text-muted-foreground">
-          <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
+      <footer className="w-full border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
+        <div className="container py-8">
+          <div className="text-center text-sm text-muted-foreground">
+            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
+          </div>
         </div>
       </footer>
 

@@ -440,9 +440,11 @@ export default function Chat() {
         </div>
 
         {/* Footer */}
-        <footer className="container py-8 border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50 mt-auto">
-          <div className="text-center text-sm text-muted-foreground">
-            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
+        <footer className="w-full border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50 mt-auto">
+          <div className="container py-8">
+            <div className="text-center text-sm text-muted-foreground">
+              <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
+            </div>
           </div>
         </footer>
       </main>
