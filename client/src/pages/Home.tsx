@@ -86,6 +86,22 @@ export default function Home() {
   const TOTAL_VOCABULARY = useMemo(() => {
     return courseVocabulary?.length || 0;
   }, [courseVocabulary]);
+  
+  const TOTAL_UNITS = useMemo(() => {
+    return dbUnitsEn?.length || 0;
+  }, [dbUnitsEn]);
+  
+  const TOTAL_MODULES = useMemo(() => {
+    return dbModules?.length || 0;
+  }, [dbModules]);
+  
+  const HOME_COUNTS = useMemo(() => {
+    return {
+      moduleCount: TOTAL_MODULES,
+      unitCount: TOTAL_UNITS,
+      vocabCount: TOTAL_VOCABULARY,
+    };
+  }, [TOTAL_MODULES, TOTAL_UNITS, TOTAL_VOCABULARY]);
 
   if (loading) {
     return (
@@ -154,7 +170,11 @@ export default function Home() {
           </p>
           <p 
             className="text-xl text-muted-foreground max-w-2xl mx-auto" 
-            dangerouslySetInnerHTML={{ __html: t('home.hero.description', { count: TOTAL_VOCABULARY }) }}
+            dangerouslySetInnerHTML={{
+              __html: showWaitlist
+                ? t("home.hero.descriptionWaitlist")
+                : t("home.hero.description", HOME_COUNTS),
+            }}
           />
           <div className="flex gap-4 justify-center pt-4">
             {!isAuthenticated ? (
@@ -204,7 +224,9 @@ export default function Home() {
               <BookOpen className="h-12 w-12 text-primary mb-2" />
               <CardTitle>{t('home.features.structuredPlan.title')}</CardTitle>
               <CardDescription>
-                {t('home.features.structuredPlan.desc')}
+                {showWaitlist
+                  ? t("home.features.structuredPlan.descWaitlist")
+                  : t("home.features.structuredPlan.desc", HOME_COUNTS)}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -244,7 +266,9 @@ export default function Home() {
               <BookOpen className="h-12 w-12 text-primary mb-2" />
               <CardTitle>{t('home.features.vocabulary.title')}</CardTitle>
               <CardDescription>
-                {t('home.features.vocabulary.desc')}
+                {showWaitlist
+                  ? t("home.features.vocabulary.descWaitlist")
+                  : t("home.features.vocabulary.desc", HOME_COUNTS)}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -294,7 +318,11 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>{t('home.pricing.intensive.feature4')}</span>
+                    <span>
+                      {showWaitlist
+                        ? t("home.pricing.feature4Waitlist")
+                        : t("home.pricing.intensive.feature4", HOME_COUNTS)}
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -336,7 +364,11 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>{t('home.pricing.balanced.feature4')}</span>
+                    <span>
+                      {showWaitlist
+                        ? t("home.pricing.feature4Waitlist")
+                        : t("home.pricing.balanced.feature4", HOME_COUNTS)}
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -381,7 +413,11 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>{t('home.pricing.standard.feature4')}</span>
+                    <span>
+                      {showWaitlist
+                        ? t("home.pricing.feature4Waitlist")
+                        : t("home.pricing.standard.feature4", HOME_COUNTS)}
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -423,7 +459,11 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
-                    <span>{t('home.pricing.relaxed.feature4')}</span>
+                    <span>
+                      {showWaitlist
+                        ? t("home.pricing.feature4Waitlist")
+                        : t("home.pricing.relaxed.feature4", HOME_COUNTS)}
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -570,7 +610,13 @@ export default function Home() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
-                  <p dangerouslySetInnerHTML={{ __html: t('home.faq.q4.answer') }} />
+                  <p
+                    dangerouslySetInnerHTML={{
+                      __html: showWaitlist
+                        ? t("home.faq.q4.answerWaitlist")
+                        : t("home.faq.q4.answer", HOME_COUNTS),
+                    }}
+                  />
                   <div className="flex gap-4 mt-4">
                     <div className="flex items-center gap-2 text-sm text-green-700">
                       <Check className="h-4 w-4" /> {t('home.faq.q4.check1')}
@@ -600,11 +646,19 @@ export default function Home() {
                   <div className="grid md:grid-cols-2 gap-3">
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                      <span>{t('home.faq.q5.item1')}</span>
+                      <span>
+                        {showWaitlist
+                          ? t("home.faq.q5.item1Waitlist")
+                          : t("home.faq.q5.item1", HOME_COUNTS)}
+                      </span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
-                      <span>{t('home.faq.q5.item2')}</span>
+                      <span>
+                        {showWaitlist
+                          ? t("home.faq.q5.item2Waitlist")
+                          : t("home.faq.q5.item2", HOME_COUNTS)}
+                      </span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Check className="h-5 w-5 text-green-600 mt-0.5" />
@@ -800,7 +854,11 @@ export default function Home() {
             <h3 className="text-4xl font-bold">{t('home.units.title')}</h3>
             <p 
               className="text-xl text-muted-foreground" 
-              dangerouslySetInnerHTML={{ __html: t('home.units.subtitle', { count: TOTAL_VOCABULARY }) }}
+              dangerouslySetInnerHTML={{
+                __html: showWaitlist
+                  ? t("home.units.subtitleWaitlist")
+                  : t("home.units.subtitle", HOME_COUNTS),
+              }}
             />
           </div>
 
@@ -834,9 +892,11 @@ export default function Home() {
                           : t("home.units.lessons", { count: module.unitCount })}
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {module.vocabCount}+ vocabulary words
-                    </div>
+                    {!showWaitlist && (
+                      <div className="text-xs text-muted-foreground">
+                        {module.vocabCount}+ vocabulary words
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
