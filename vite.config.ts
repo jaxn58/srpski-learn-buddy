@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
     plugins,
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
+      __AGENT_LOG_ENABLED__: JSON.stringify(mode !== "production"),
     },
     resolve: {
       alias: {

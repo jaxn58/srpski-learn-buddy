@@ -654,7 +654,7 @@ export const parseMarkdownToJson = action({
   handler: async (ctx, args) => {
     const user = await requireSuperadminAction(ctx);
     // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H1',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:start',message:'parseMarkdownToJson start',data:{filesCount:args.files.length,fileNames:args.files.map(f=>f.fileName)},timestamp:Date.now()})}).catch(()=>{});
+    if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H1',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:start',message:'parseMarkdownToJson start',data:{filesCount:args.files.length,fileNames:args.files.map(f=>f.fileName)},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
     
     // Parse all MD files to JSON
@@ -663,7 +663,7 @@ export const parseMarkdownToJson = action({
         // First, validate markdown structure
         const structureValidation = validateMarkdownStructure(file.markdownContent);
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H2',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:structure',message:'structure validation',data:{fileName:file.fileName,valid:structureValidation.valid,errorsCount:structureValidation.errors.length,hasOverview:file.markdownContent.includes("## 1. Overview"),hasExercises:file.markdownContent.includes("## 5. Interactive Test")},timestamp:Date.now()})}).catch(()=>{});
+        if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H2',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:structure',message:'structure validation',data:{fileName:file.fileName,valid:structureValidation.valid,errorsCount:structureValidation.errors.length,hasOverview:file.markdownContent.includes("## 1. Overview"),hasExercises:file.markdownContent.includes("## 5. Interactive Test")},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
         if (!structureValidation.valid) {
           return {
@@ -677,7 +677,7 @@ export const parseMarkdownToJson = action({
         // Parse markdown to unit package
         const unitPackage = parseMarkdownToUnitPackage(file.markdownContent);
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H3',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:parsed',message:'parsed unitPackage',data:{fileName:file.fileName,unitNumber:unitPackage.unitNumber,moduleNumber:unitPackage.module?.moduleNumber,contentKeys:Object.keys(unitPackage.content?.en ?? {}),vocabCount:(unitPackage.vocabulary?.en ?? []).length,exerciseCategories:(unitPackage.exercises?.en ?? []).length},timestamp:Date.now()})}).catch(()=>{});
+        if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H3',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:parsed',message:'parsed unitPackage',data:{fileName:file.fileName,unitNumber:unitPackage.unitNumber,moduleNumber:unitPackage.module?.moduleNumber,contentKeys:Object.keys(unitPackage.content?.en ?? {}),vocabCount:(unitPackage.vocabulary?.en ?? []).length,exerciseCategories:(unitPackage.exercises?.en ?? []).length},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
         
         // Apply auto-fixes
@@ -690,7 +690,7 @@ export const parseMarkdownToJson = action({
             message: i.message,
           }));
           // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H4',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:schemaFail',message:'schema validation failed',data:{fileName:file.fileName,errorsCount:schemaErrors.length,firstError:schemaErrors[0] ?? null,changesCount:changes.length},timestamp:Date.now()})}).catch(()=>{});
+          if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H4',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:schemaFail',message:'schema validation failed',data:{fileName:file.fileName,errorsCount:schemaErrors.length,firstError:schemaErrors[0] ?? null,changesCount:changes.length},timestamp:Date.now()})}).catch(()=>{});
           // #endregion
           return {
             fileName: file.fileName,
@@ -712,7 +712,7 @@ export const parseMarkdownToJson = action({
         const errors = issues.filter((i) => i.level === "error");
         const warnings = issues.filter((i) => i.level === "warning");
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H5',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:deep',message:'deep validation',data:{fileName:file.fileName,errorsCount:errors.length,warningsCount:warnings.length,changesCount:changes.length},timestamp:Date.now()})}).catch(()=>{});
+        if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H5',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:deep',message:'deep validation',data:{fileName:file.fileName,errorsCount:errors.length,warningsCount:warnings.length,changesCount:changes.length},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
         
         return {
@@ -730,7 +730,7 @@ export const parseMarkdownToJson = action({
         };
       } catch (error: any) {
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H6',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:catch',message:'parse error',data:{fileName:file.fileName,error:String(error?.message || error)},timestamp:Date.now()})}).catch(()=>{});
+        if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H6',location:'convex/contentImportAdmin.ts:parseMarkdownToJson:catch',message:'parse error',data:{fileName:file.fileName,error:String(error?.message || error)},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
         return {
           fileName: file.fileName,
