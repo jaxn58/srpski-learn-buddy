@@ -74,8 +74,21 @@ export const getAllCourseVocabulary = query({
       .query("courseVocabulary")
       .collect();
     
+    // Versioning/soft-archive: treat undefined isActive as active; unitVersion defaults to 1
+    const active = allVocab.filter((v: any) => v.isActive !== false);
+    // If multiple active versions exist (shouldn't, but possible during rollout), keep highest unitVersion per (unitNumber, serbian)
+    const latestByKey = new Map<string, any>();
+    for (const v of active as any[]) {
+      const key = `${v.unitNumber}::${v.serbian}`;
+      const ver = v.unitVersion ?? 1;
+      const prev = latestByKey.get(key);
+      const prevVer = prev ? (prev.unitVersion ?? 1) : -1;
+      if (!prev || ver > prevVer) latestByKey.set(key, v);
+    }
+    const latest = Array.from(latestByKey.values());
+
     // Sort by unitNumber (ascending), then alphabetically by serbian
-    return allVocab.sort((a, b) => {
+    return latest.sort((a, b) => {
       if (a.unitNumber !== b.unitNumber) {
         return a.unitNumber - b.unitNumber;
       }
@@ -92,6 +105,7 @@ export const getAvailableUnitNumbers = query({
     const allVocab = await ctx.db
       .query("courseVocabulary")
       .collect();
+    const activeVocab = allVocab.filter((v: any) => v.isActive !== false);
     
     // Get all unit metadata (to verify units are properly configured)
     const allMetadata = await ctx.db
@@ -100,7 +114,7 @@ export const getAvailableUnitNumbers = query({
       .collect();
     
     // Get unit numbers from vocabulary
-    const vocabUnitNumbers = new Set(allVocab.map(v => v.unitNumber));
+    const vocabUnitNumbers = new Set(activeVocab.map(v => v.unitNumber));
     
     // Get unit numbers from metadata
     const metadataUnitNumbers = new Set(allMetadata.map(m => m.unitNumber));
@@ -124,16 +138,26 @@ export const getCourseVocabularyByUnit = query({
       .query("courseVocabulary")
       .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
       .collect();
+    const active = withIndex.filter((v: any) => v.isActive !== false);
     
     // If empty, try without index (fallback)
-    if (withIndex.length === 0) {
+    if (active.length === 0) {
       const allVocab = await ctx.db
         .query("courseVocabulary")
         .collect();
-      return allVocab.filter(v => v.unitNumber === args.unitNumber);
+      return allVocab.filter((v: any) => v.unitNumber === args.unitNumber && v.isActive !== false);
     }
     
-    return withIndex;
+    // If multiple active versions exist, keep highest unitVersion per serbian
+    const latestBySerbian = new Map<string, any>();
+    for (const v of active as any[]) {
+      const key = String(v.serbian);
+      const ver = v.unitVersion ?? 1;
+      const prev = latestBySerbian.get(key);
+      const prevVer = prev ? (prev.unitVersion ?? 1) : -1;
+      if (!prev || ver > prevVer) latestBySerbian.set(key, v);
+    }
+    return Array.from(latestBySerbian.values());
   },
 });
 
@@ -153,7 +177,18 @@ export const getVocabularyWithProgress = query({
         q.eq("unitNumber", args.unitNumber)
       );
     }
-    const courseVocab = await courseVocabQuery.collect();
+    const rawCourseVocab = await courseVocabQuery.collect();
+    const activeCourseVocab = rawCourseVocab.filter((v: any) => v.isActive !== false);
+    // If multiple active versions exist, keep highest unitVersion per (unitNumber, serbian)
+    const latestByKey = new Map<string, any>();
+    for (const v of activeCourseVocab as any[]) {
+      const key = `${v.unitNumber}::${v.serbian}`;
+      const ver = v.unitVersion ?? 1;
+      const prev = latestByKey.get(key);
+      const prevVer = prev ? (prev.unitVersion ?? 1) : -1;
+      if (!prev || ver > prevVer) latestByKey.set(key, v);
+    }
+    const courseVocab = Array.from(latestByKey.values());
 
     // If no user, return vocabulary without progress
     if (!user) {
@@ -170,6 +205,7 @@ export const getVocabularyWithProgress = query({
         deAlt: word.deAlt,
         gender: word.gender,
         pronunciation: word.pronunciation,
+        audioStorageId: word.audioStorageId ?? null,
         noteEn: word.noteEn,
         noteDe: word.noteDe,
         noteSr: word.noteSr,
@@ -200,36 +236,40 @@ export const getVocabularyWithProgress = query({
     );
 
     // Combine course vocabulary with progress
-    const result = courseVocab.map(word => ({
-      _id: word._id,
-      unitNumber: word.unitNumber,
-      serbian: word.serbian,
-      en: word.en,
-      de: word.de,
-      sr: word.sr,
-      es: word.es,
-      fr: word.fr,
-      enAlt: word.enAlt,
-      deAlt: word.deAlt,
-      gender: word.gender,
-      pronunciation: word.pronunciation,
-      noteEn: word.noteEn,
-      noteDe: word.noteDe,
-      noteSr: word.noteSr,
-      noteEs: word.noteEs,
-      noteFr: word.noteFr,
-      // Include old translations array for backward compatibility
-      translations: word.translations,
-      // Progress data (or null if no progress)
-      progress: progressMap.get(word._id) ? {
-        mastered: progressMap.get(word._id)!.mastered,
-        reviewCount: progressMap.get(word._id)!.reviewCount,
-        lastReviewedAt: progressMap.get(word._id)!.lastReviewedAt,
-        correctAnswerCount: progressMap.get(word._id)!.correctAnswerCount,
-        incorrectAnswerCount: progressMap.get(word._id)!.incorrectAnswerCount,
-        lastAnsweredAt: progressMap.get(word._id)!.lastAnsweredAt,
-      } : null,
-    }));
+    const result = courseVocab.map(word => {
+      const progressData = progressMap.get(word._id);
+      return {
+        _id: word._id,
+        unitNumber: word.unitNumber,
+        serbian: word.serbian,
+        en: word.en,
+        de: word.de,
+        sr: word.sr,
+        es: word.es,
+        fr: word.fr,
+        enAlt: word.enAlt,
+        deAlt: word.deAlt,
+        gender: word.gender,
+        pronunciation: word.pronunciation,
+        audioStorageId: word.audioStorageId,
+        noteEn: word.noteEn,
+        noteDe: word.noteDe,
+        noteSr: word.noteSr,
+        noteEs: word.noteEs,
+        noteFr: word.noteFr,
+        // Include old translations array for backward compatibility
+        translations: word.translations,
+        // Progress data (or null if no progress)
+        progress: progressData ? {
+          mastered: progressData.mastered,
+          reviewCount: progressData.reviewCount,
+          lastReviewedAt: progressData.lastReviewedAt,
+          correctAnswerCount: progressData.correctAnswerCount,
+          incorrectAnswerCount: progressData.incorrectAnswerCount,
+          lastAnsweredAt: progressData.lastAnsweredAt,
+        } : null,
+      };
+    });
     
     // Sort by unitNumber (ascending), then alphabetically by serbian
     return result.sort((a, b) => {

@@ -76,58 +76,6 @@ async function verifyPaddleSignature(args: {
   const expected = await hmacSha256Hex(args.secret, signedPayload);
   return timingSafeEqualHex(expected, parsed.signatureHex);
 }
-
-function parseMoneyToCents(input: unknown): number | null {
-  if (typeof input === "number" && Number.isFinite(input)) {
-    // Ambiguous without docs; assume major units and convert to cents.
-    return Math.round(input * 100);
-  }
-  if (typeof input === "string") {
-    const n = Number.parseFloat(input);
-    if (!Number.isFinite(n)) return null;
-    return Math.round(n * 100);
-  }
-  return null;
-}
-
-function getPaddlePriceMapFromEnv() {
-  const normal = {
-    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE || "").trim(),
-    balanced: (process.env.PADDLE_PRODUCT_BALANCED || "").trim(),
-    standard: (process.env.PADDLE_PRODUCT_STANDARD || "").trim(),
-    relaxed: (process.env.PADDLE_PRODUCT_RELAXED || "").trim(),
-  } as const;
-
-  const beta50 = {
-    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_BETA50 || "").trim(),
-    balanced: (process.env.PADDLE_PRODUCT_BALANCED_BETA50 || "").trim(),
-    standard: (process.env.PADDLE_PRODUCT_STANDARD_BETA50 || "").trim(),
-    relaxed: (process.env.PADDLE_PRODUCT_RELAXED_BETA50 || "").trim(),
-  } as const;
-
-  const monthsByPlan = {
-    intensive: 3,
-    balanced: 6,
-    standard: 9,
-    relaxed: 12,
-  } as const;
-
-  const map = new Map<
-    string,
-    { planType: keyof typeof monthsByPlan; planDurationMonths: number; isBeta50: boolean }
-  >();
-
-  for (const plan of Object.keys(monthsByPlan) as Array<keyof typeof monthsByPlan>) {
-    if (normal[plan]) {
-      map.set(normal[plan], { planType: plan, planDurationMonths: monthsByPlan[plan], isBeta50: false });
-    }
-    if (beta50[plan]) {
-      map.set(beta50[plan], { planType: plan, planDurationMonths: monthsByPlan[plan], isBeta50: true });
-    }
-  }
-
-  return map;
-}
 http.route({
   path: "/clerk-webhook",
   method: "POST",

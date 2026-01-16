@@ -1,0 +1,616 @@
+{
+  "schemaVersion": "unitPackage.v1",
+  "unitNumber": 1,
+  "module": {
+    "moduleNumber": 1,
+    "title": "Ankommen (Arrival)"
+  },
+  "title": "First Words",
+  "baseLanguage": "en",
+  "targetLanguage": "sr",
+  "languages": [
+    "en"
+  ],
+  "content": {
+    "en": {
+      "overviewMd": "#### A Note from the Founder (Jacksenn)\n\n> \"The very first words you speak in a new language are the most important. They break the ice, they show respect, and they open doors. When I first arrived in Montenegro, I was terrified to speak. But the moment I said 'Dobar dan' to a shopkeeper and she smiled back, I knew I was on the right path. This unit is about giving you those first essential words—the ones that will make you feel human, not helpless. Don't worry about perfection. Just say hello, say thank you, and watch the magic happen.\"\n\n#### Learning Objectives\n\nBy the end of this unit, **we** will be able to:\n\n1. **Greet people** in formal and informal situations using appropriate Serbian phrases.\n2. **Say goodbye** politely.\n3. **Be polite** by using \"thank you,\" \"please,\" and \"excuse me.\"\n4. **Overcome the language barrier** by saying \"I don't speak Serbian\" and \"Do you speak English?\"\n5. **Say yes and no** confidently.\n6. **Introduce ourselves** with our name (very basic).\n\n---",
+      "grammarMd": "### A. Verb \"biti\" (to be) - The Essential Forms\n\nWe will learn the **three most important forms** of the verb **\"biti\" (to be)** in this unit. The full conjugation comes in Unit 2.\n\n#### Conjugation Table (Partial)\n\n| Person | Serbian | English |\n| :--- | :--- | :--- |\n| **Ja** | sam | I am |\n| **Ti** | si | You are (informal) |\n| **On/Ona/Ono** | je | He/She/It is |\n\n**Examples:**\n- Ja sam Alex. (I am Alex.)\n- Ja sam turista. (I am a tourist.)\n- Ti si iz Engleske? (Are you from England?)\n- On je konobar. (He is a waiter.)\n- Ona je turistkinja. (She is a tourist.)\n\n**Note:** In casual speech, \"Ja\" and \"Ti\" are often dropped: \"Sam Alex.\" \"Si turista?\" But for beginners, it's safer to include the pronoun.\n\n---\n\n### B. \"Govorim...\" (I speak...) - Overcoming the Language Barrier\n\nWe will learn only the **1st person singular** of the verb **\"govoriti\" (to speak)**.\n\n**Form:** Govorim\n\n**Examples:**\n- Govorim engleski. (I speak English.)\n- Ne govorim srpski. (I don't speak Serbian.)\n\n**Negative Form:** Just add **\"ne\"** before the verb.\n\n---",
+      "phrasesMd": "This section combines our new vocabulary into real-world phrases and short dialogues.\n\n### A. Essential Survival Phrases\n\n| Situation | Serbian Phrase | English Translation |\n| :--- | :--- | :--- |\n| Greeting (informal) | Zdravo! | Hello! |\n| Greeting (formal) | Dobar dan! | Good day! |\n| Greeting (morning) | Dobro jutro! | Good morning! |\n| Greeting (evening) | Dobro veče*! | Good evening! |\n| Saying goodbye | Doviđenja! | Goodbye! |\n| Saying good night | Laku noć! | Good night! |\n| Saying thank you | Hvala! | Thank you! |\n| Saying please | Molim! | Please! |\n| Saying excuse me | Izvinite! | Excuse me! |\n| Saying yes | Da! | Yes! |\n| Saying no | Ne! | No! |\n| I don't speak Serbian | Ne govorim srpski. | I don't speak Serbian. |\n| I speak English | Govorim engleski. | I speak English. |\n| Do you speak English? | Govorite li engleski? | Do you speak English? |\n| I understand | Razumem*. | I understand. |\n| I don't understand | Ne razumem*. | I don't understand. |\n| I am... (name) | Ja sam... | I am... |\n\n*Montenegro: Dobro veče (same), Razumijem, Ne razumijem\n\n---",
+      "dialoguesMd": "",
+      "testIntroductionMd": "**We** will use these exercises to solidify our understanding of the absolute basics."
+    }
+  },
+  "vocabulary": {
+    "en": [
+      {
+        "serbian": "Zdravo",
+        "en": "Hello (Informal)",
+        "noteEn": "Use with friends or people your age."
+      },
+      {
+        "serbian": "Dobar dan",
+        "en": "Good day (Formal)",
+        "noteEn": "Safe to use with everyone."
+      },
+      {
+        "serbian": "Dobro jutro",
+        "en": "Good morning",
+        "noteEn": "Used until around noon."
+      },
+      {
+        "serbian": "Dobro veče",
+        "en": "Good evening",
+        "noteEn": "Used from late afternoon onwards."
+      },
+      {
+        "serbian": "Laku noć",
+        "en": "Good night",
+        "noteEn": "Used when going to bed or leaving late at night."
+      },
+      {
+        "serbian": "Doviđenja",
+        "en": "Goodbye (Formal)",
+        "noteEn": "Standard farewell."
+      },
+      {
+        "serbian": "Hvala",
+        "en": "Thank you",
+        "noteEn": "Essential!"
+      },
+      {
+        "serbian": "Molim",
+        "en": "Please",
+        "enAlt": "You're welcome",
+        "noteEn": "Context-dependent."
+      },
+      {
+        "serbian": "Izvinite",
+        "en": "Excuse me",
+        "enAlt": "Sorry",
+        "noteEn": "Use to get attention or apologize."
+      },
+      {
+        "serbian": "Ne govorim srpski.",
+        "en": "I don't speak Serbian.",
+        "noteEn": "Your lifeline!"
+      },
+      {
+        "serbian": "Govorim engleski.",
+        "en": "I speak English."
+      },
+      {
+        "serbian": "Govorite li engleski?",
+        "en": "Do you speak English?"
+      },
+      {
+        "serbian": "Razumem. / Ne razumem.",
+        "en": "I understand.",
+        "enAlt": "I don't understand."
+      },
+      {
+        "serbian": "Da",
+        "en": "Yes"
+      },
+      {
+        "serbian": "Ne",
+        "en": "No"
+      },
+      {
+        "serbian": "Ja sam...",
+        "en": "I am...",
+        "noteEn": "For basic self-introduction."
+      },
+      {
+        "serbian": "Ime",
+        "en": "Name"
+      },
+      {
+        "serbian": "Turista",
+        "en": "Tourist"
+      },
+      {
+        "serbian": "Pasoš",
+        "en": "Passport"
+      },
+      {
+        "serbian": "Izvolite",
+        "en": "Here you are",
+        "noteEn": "Polite way to hand something over"
+      },
+      {
+        "serbian": "Dobro",
+        "en": "Good",
+        "enAlt": "Fine"
+      },
+      {
+        "serbian": "Gde",
+        "en": "Where",
+        "noteEn": "Question word | Montenegro (Ijekavian): Gdje"
+      },
+      {
+        "serbian": "Hotel",
+        "en": "Hotel"
+      },
+      {
+        "serbian": "Malo",
+        "en": "A little"
+      },
+      {
+        "serbian": "Taksi",
+        "en": "Taxi"
+      },
+      {
+        "serbian": "Ključ",
+        "en": "Key"
+      },
+      {
+        "serbian": "Drago mi je",
+        "en": "Nice to meet you",
+        "noteEn": "Literally: \"It's dear to me\""
+      },
+      {
+        "serbian": "Dobrodošao (m) / Dobrodošla (f)",
+        "en": "Welcome"
+      },
+      {
+        "serbian": "Konobar",
+        "en": "Waiter"
+      },
+      {
+        "serbian": "Turistkinja",
+        "en": "Female tourist"
+      },
+      {
+        "serbian": "Engleska",
+        "en": "England"
+      },
+      {
+        "serbian": "Srbija",
+        "en": "Serbia"
+      },
+      {
+        "serbian": "Crna Gora",
+        "en": "Montenegro"
+      },
+      {
+        "serbian": "Ovde",
+        "en": "Here",
+        "noteEn": "Montenegro (Ijekavian): Ovdje"
+      },
+      {
+        "serbian": "Tamo",
+        "en": "There"
+      },
+      {
+        "serbian": "Student",
+        "en": "Student"
+      },
+      {
+        "serbian": "Penzioner",
+        "en": "Retiree"
+      },
+      {
+        "serbian": "Kako",
+        "en": "How",
+        "noteEn": "Question word"
+      },
+      {
+        "serbian": "Kako se zoveš?",
+        "en": "What's your name? (informal)",
+        "noteEn": "Literally: \"How do you call yourself?\""
+      }
+    ]
+  },
+  "exercises": {
+    "en": [
+      {
+        "category": "translation",
+        "categoryInstructions": "Translate the following phrases from English to Serbian.",
+        "questions": [
+          {
+            "questionId": "u1_translation_q1",
+            "order": 1,
+            "questionType": "translation",
+            "question": "Hello (informal)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q2",
+            "order": 2,
+            "questionType": "translation",
+            "question": "Good day",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q3",
+            "order": 3,
+            "questionType": "translation",
+            "question": "Good morning",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q4",
+            "order": 4,
+            "questionType": "translation",
+            "question": "Good evening",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q5",
+            "order": 5,
+            "questionType": "translation",
+            "question": "Good night",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q6",
+            "order": 6,
+            "questionType": "translation",
+            "question": "Goodbye",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q7",
+            "order": 7,
+            "questionType": "translation",
+            "question": "Thank you",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q8",
+            "order": 8,
+            "questionType": "translation",
+            "question": "Please / You're welcome",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q9",
+            "order": 9,
+            "questionType": "translation",
+            "question": "Excuse me",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_translation_q10",
+            "order": 10,
+            "questionType": "translation",
+            "question": "Yes / No",
+            "correctAnswer": ""
+          }
+        ]
+      },
+      {
+        "category": "fillInBlank",
+        "categoryInstructions": "Fill in the blank with the correct Serbian word.",
+        "questions": [
+          {
+            "questionId": "u1_fillInBlank_q11",
+            "order": 11,
+            "questionType": "fillInBlank",
+            "question": "_____ dan. (Good day.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q12",
+            "order": 12,
+            "questionType": "fillInBlank",
+            "question": "_____ noć. (Good night.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q13",
+            "order": 13,
+            "questionType": "fillInBlank",
+            "question": "_____ vam. (Thank you.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q14",
+            "order": 14,
+            "questionType": "fillInBlank",
+            "question": "_____, molim. (Excuse me, please.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q15",
+            "order": 15,
+            "questionType": "fillInBlank",
+            "question": "Ja _____ Alex. (I am Alex.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q16",
+            "order": 16,
+            "questionType": "fillInBlank",
+            "question": "Ne _____ srpski. (I don't speak Serbian.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q17",
+            "order": 17,
+            "questionType": "fillInBlank",
+            "question": "_____ engleski. (I speak English.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q18",
+            "order": 18,
+            "questionType": "fillInBlank",
+            "question": "_____ li engleski? (Do you speak English?)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q19",
+            "order": 19,
+            "questionType": "fillInBlank",
+            "question": "_____, hvala. (Yes, thank you.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q20",
+            "order": 20,
+            "questionType": "fillInBlank",
+            "question": "_____, izvinite. (No, excuse me.)",
+            "correctAnswer": ""
+          }
+        ]
+      },
+      {
+        "category": "multipleChoice",
+        "categoryInstructions": "Choose the correct answer to complete the sentence or question.",
+        "questions": [
+          {
+            "questionId": "u1_multipleChoice_q21",
+            "order": 21,
+            "questionType": "multipleChoice",
+            "question": "You meet someone in the morning. What do you say?",
+            "options": []
+          },
+          {
+            "questionId": "u1_multipleChoice_q22",
+            "order": 22,
+            "questionType": "multipleChoice",
+            "question": "Someone says \"Hvala.\" What do you reply?",
+            "options": [
+              "Molim",
+              "Izvinite"
+            ],
+            "correctAnswer": "Molim"
+          },
+          {
+            "questionId": "u1_multipleChoice_q23",
+            "order": 23,
+            "questionType": "multipleChoice",
+            "question": "You don't speak Serbian. What do you say?",
+            "options": [
+              "Govorim srpski.",
+              "Ne govorim srpski."
+            ],
+            "correctAnswer": "Ne govorim srpski."
+          },
+          {
+            "questionId": "u1_multipleChoice_q24",
+            "order": 24,
+            "questionType": "multipleChoice",
+            "question": "You want to ask if someone speaks English. What do you say?",
+            "options": [
+              "Govorite li engleski?",
+              "Govorim engleski."
+            ],
+            "correctAnswer": "Govorite li engleski?"
+          },
+          {
+            "questionId": "u1_multipleChoice_q25",
+            "order": 25,
+            "questionType": "multipleChoice",
+            "question": "Someone asks \"Turista?\" and you are a tourist. What do you say?",
+            "options": [
+              "Ne",
+              "Izvinite"
+            ]
+          },
+          {
+            "questionId": "u1_multipleChoice_q26",
+            "order": 26,
+            "questionType": "multipleChoice",
+            "question": "It's evening and you want to greet someone. What do you say?",
+            "options": []
+          },
+          {
+            "questionId": "u1_multipleChoice_q27",
+            "order": 27,
+            "questionType": "multipleChoice",
+            "question": "You're leaving. What do you say?",
+            "options": [
+              "Molim"
+            ]
+          },
+          {
+            "questionId": "u1_multipleChoice_q28",
+            "order": 28,
+            "questionType": "multipleChoice",
+            "question": "You want to say \"Excuse me.\" What do you say?",
+            "options": [
+              "Izvinite",
+              "Molim"
+            ],
+            "correctAnswer": "Izvinite"
+          },
+          {
+            "questionId": "u1_multipleChoice_q29",
+            "order": 29,
+            "questionType": "multipleChoice",
+            "question": "You understand something. What do you say?",
+            "options": [
+              "Ne govorim"
+            ],
+            "correctAnswer": "Ne govorim"
+          },
+          {
+            "questionId": "u1_multipleChoice_q30",
+            "order": 30,
+            "questionType": "multipleChoice",
+            "question": "You want to introduce yourself. What do you say?",
+            "options": [
+              "Govorim...",
+              "Ime je..."
+            ],
+            "correctAnswer": "Govorim..."
+          }
+        ]
+      },
+      {
+        "category": "fillInBlank",
+        "categoryInstructions": "Fill in the blank with the correct form of the verb \"biti\" (to be).",
+        "questions": [
+          {
+            "questionId": "u1_fillInBlank_q31",
+            "order": 31,
+            "questionType": "fillInBlank",
+            "question": "Ja _____ Alex. (I am Alex.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q32",
+            "order": 32,
+            "questionType": "fillInBlank",
+            "question": "Ti _____ turista? (Are you a tourist?)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q33",
+            "order": 33,
+            "questionType": "fillInBlank",
+            "question": "On _____ konobar. (He is a waiter.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q34",
+            "order": 34,
+            "questionType": "fillInBlank",
+            "question": "Ona _____ turistkinja. (She is a tourist.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q35",
+            "order": 35,
+            "questionType": "fillInBlank",
+            "question": "Ja _____ iz Engleske. (I am from England.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q36",
+            "order": 36,
+            "questionType": "fillInBlank",
+            "question": "Ti _____ iz Srbije? (Are you from Serbia?)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q37",
+            "order": 37,
+            "questionType": "fillInBlank",
+            "question": "Marko _____ ovde*. (Marko is here.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q38",
+            "order": 38,
+            "questionType": "fillInBlank",
+            "question": "Ana _____ tamo. (Ana is there.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q39",
+            "order": 39,
+            "questionType": "fillInBlank",
+            "question": "Ja _____ student. (I am a student.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_fillInBlank_q40",
+            "order": 40,
+            "questionType": "fillInBlank",
+            "question": "Ti _____ penzioner? (Are you a retiree?)",
+            "correctAnswer": ""
+          }
+        ]
+      },
+      {
+        "category": "dialogueCompletion",
+        "categoryInstructions": "Choose the best response to complete the short dialogue.",
+        "questions": [
+          {
+            "questionId": "u1_dialogueCompletion_q41",
+            "order": 41,
+            "questionType": "multipleChoice",
+            "question": "A: Dobar dan! B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q42",
+            "order": 42,
+            "questionType": "multipleChoice",
+            "question": "A: Hvala vam. B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q43",
+            "order": 43,
+            "questionType": "multipleChoice",
+            "question": "A: Govorite li engleski? B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q44",
+            "order": 44,
+            "questionType": "multipleChoice",
+            "question": "A: Ti si turista? B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q45",
+            "order": 45,
+            "questionType": "multipleChoice",
+            "question": "A: Kako se zoveš? B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q46",
+            "order": 46,
+            "questionType": "multipleChoice",
+            "question": "A: Izvinite! B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q47",
+            "order": 47,
+            "questionType": "multipleChoice",
+            "question": "A: Laku noć! B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q48",
+            "order": 48,
+            "questionType": "multipleChoice",
+            "question": "A: Ona je turistkinja? B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q49",
+            "order": 49,
+            "questionType": "multipleChoice",
+            "question": "A: Ne razumem*. B: ___",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u1_dialogueCompletion_q50",
+            "order": 50,
+            "questionType": "multipleChoice",
+            "question": "A: Dovid̵enja! B: ___",
+            "correctAnswer": ""
+          }
+        ]
+      }
+    ]
+  }
+}

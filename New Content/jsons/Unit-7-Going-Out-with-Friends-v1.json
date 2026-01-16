@@ -1,0 +1,803 @@
+{
+  "schemaVersion": "unitPackage.v1",
+  "unitNumber": 7,
+  "module": {
+    "moduleNumber": 2,
+    "title": "Soziales Leben (Social Life)"
+  },
+  "title": "Going Out with Friends",
+  "baseLanguage": "en",
+  "targetLanguage": "sr",
+  "languages": [
+    "en"
+  ],
+  "content": {
+    "en": {
+      "overviewMd": "#### A Note from the Founder (Jacksenn)\n\n> \"After settling in, the next step is building a social life. I remember my first time going out with local friends—trying to understand when and where to meet, what to order, and how to keep up with the conversation. It was challenging, but also incredibly rewarding. This unit gives you the tools to make plans, meet friends, and enjoy the vibrant café and restaurant culture of Serbia and Montenegro. Trust me, once you can say 'Hajde da se nađemo večeras,' you're no longer just a tourist—you're part of the community.\"\n\n#### Learning Objectives\n\nBy the end of this unit, **we** will be able to:\n\n1. **Make plans with friends** using time expressions and days of the week.\n2. **Tell and understand time** (What time is it? At what time?).\n3. **Use the verb \"moći\" (can)** to ask if someone is available.\n4. **Use the verb \"piti\" (to drink)** to order drinks and socialize.\n5. **Make suggestions** using \"Hajde da...\" (Let's...).\n6. **Navigate conversations** in cafés and restaurants.\n7. **Understand the social culture** of rakija, coffee, and dining out.\n\n---",
+      "grammarMd": "### A. Days of the Week - Planning Ahead\n\nThe days of the week are essential for making plans. In Serbian, the week starts on Monday.\n\n#### Days of the Week\n\n| Serbian | English |\n| :--- | :--- |\n| Ponedeljak* | Monday |\n| Utorak | Tuesday |\n| Sreda | Wednesday |\n| Četvrtak* | Thursday |\n| Petak | Friday |\n| Subota | Saturday |\n| Nedelja* | Sunday |\n\n*Montenegro: Ponedeljak, Četvrtak, Nedelja (same)\n\n#### Using Days in Sentences\n\nTo say \"**on Monday**,\" use **\"u ponedeljak\"** (literally: \"in Monday\").\n\n**Examples:**\n*   **U ponedeljak idem u grad.** (On Monday I'm going to town.)\n*   **Možeš li u petak?** (Can you on Friday?)\n*   **Vidimo se u subotu.** (See you on Saturday.)\n\n---\n\n### B. Telling Time (Koliko je sati?)\n\nTelling time is crucial for making plans and meeting friends.\n\n#### Basic Time Questions\n\n| Serbian | English |\n| :--- | :--- |\n| Koliko je sati? | What time is it? |\n| Sada je... | It is now... |\n| U koliko sati? | At what time? |\n| U... sati. | At... o'clock. |\n\n#### Hours (1-12)\n\n| Time | Serbian | English |\n| :--- | :--- | :--- |\n| 1:00 | Jedan sat | One o'clock |\n| 2:00 | Dva sata | Two o'clock |\n| 3:00 | Tri sata | Three o'clock |\n| 4:00 | Četiri sata | Four o'clock |\n| 5:00 | Pet sati | Five o'clock |\n| 6:00 | Šest sati | Six o'clock |\n| 7:00 | Sedam sati | Seven o'clock |\n| 8:00 | Osam sati | Eight o'clock |\n| 9:00 | Devet sati | Nine o'clock |\n| 10:00 | Deset sati | Ten o'clock |\n| 11:00 | Jedanaest sati | Eleven o'clock |\n| 12:00 | Dvanaest sati | Twelve o'clock |\n\n**Note:** The word \"sat\" (hour) changes form:\n*   1 sat\n*   2-4 sata\n*   5+ sati\n\n#### Half Hours\n\nTo say \"half past,\" use **\"pola\"** (half) + the **next hour**.\n\n**Examples:**\n*   **Pola šest** = 5:30 (literally: \"half six\")\n*   **Pola osam** = 7:30 (literally: \"half eight\")\n\n#### Time of Day\n\n| Serbian | English |\n| :--- | :--- |\n| Ujutru | In the morning |\n| Popodne* | In the afternoon |\n| Uveče* | In the evening |\n| Noću | At night |\n\n*Montenegro: Popodne (same), Uveče (same)\n\n---\n\n### C. Verb \"moći\" (can / to be able to)\n\nThe verb **\"moći\"** is essential for asking if someone is available or able to do something.\n\n#### Conjugation Table\n\n| Person | Serbian | English |\n| :--- | :--- | :--- |\n| **Ja** | mogu | I can |\n| **Ti** | možeš | You can (informal) |\n| **On/Ona/Ono** | može | He/She/It can |\n| **Mi** | možemo | We can |\n| **Vi** | možete | You can (formal/plural) |\n| **Oni/One/Ona** | mogu | They can |\n\n#### Practical Examples\n\n*   **Mogu li da dođem?** (Can I come?)\n*   **Možeš li večeras?** (Can you tonight?)\n*   **Ne mogu sutra.** (I can't tomorrow.)\n*   **Možemo da se nađemo.** (We can meet.)\n*   **Ona može u petak.** (She can on Friday.)\n\n---\n\n### D. Verb \"piti\" (to drink)\n\nThe verb **\"piti\"** is essential for ordering drinks and socializing.\n\n#### Conjugation Table\n\n| Person | Serbian | English |\n| :--- | :--- | :--- |\n| **Ja** | pijem | I drink |\n| **Ti** | piješ | You drink (informal) |\n| **On/Ona/Ono** | pije | He/She/It drinks |\n| **Mi** | pijemo | We drink |\n| **Vi** | pijete | You drink (formal/plural) |\n| **Oni/One/Ona** | piju | They drink |\n\n#### Practical Examples\n\n*   **Ja pijem kafu.** (I drink coffee.)\n*   **Šta piješ?** (What are you drinking?)\n*   **Pijemo rakiju.** (We drink rakija.)\n*   **On pije pivo.** (He drinks beer.)\n*   **Nazdravlje!** (Cheers!)\n\n---\n\n### E. Making Suggestions: \"Hajde da...\" (Let's...)\n\nTo make suggestions or propose doing something together, use **\"Hajde da\"** + verb.\n\n#### Structure\n\n**Hajde da + [verb in 1st person plural]**\n\n#### Examples\n\n| Serbian | English |\n| :--- | :--- |\n| Hajde da idemo u kafić. | Let's go to a café. |\n| Hajde da pijemo kafu. | Let's drink coffee. |\n| Hajde da se nađemo. | Let's meet. |\n| Hajde da jedemo. | Let's eat. |\n| Hajde da čekamo. | Let's wait. |\n\n---",
+      "phrasesMd": "This section combines our new vocabulary and grammar into real-world phrases and dialogues about going out with friends.\n\n### A. Essential Phrases for Making Plans\n\n| Situation | Serbian Phrase | English Translation |\n| :--- | :--- | :--- |\n| Asking if someone is free | Slobodan si? / Slobodna si? | Are you free? (m/f) |\n| Asking what someone is doing | Šta radiš večeras? | What are you doing tonight? |\n| Saying you're free | Slobodan sam. / Slobodna sam. | I'm free. (m/f) |\n| Saying you're busy | Zauzet sam. / Zauzeta sam. | I'm busy. (m/f) |\n| Asking \"Can you...?\" | Možeš li...? | Can you...? |\n| Suggesting to meet | Hajde da se nađemo. | Let's meet. |\n| Asking \"At what time?\" | U koliko sati? | At what time? |\n| Suggesting a time | U sedam sati? | At seven o'clock? |\n| Asking \"Where?\" | Gde*? / Kod koga? | Where? / At whose place? |\n| Saying \"It's a deal\" | Dogovoreno. | Agreed. / It's a deal. |\n| Saying \"See you\" | Vidimo se. | See you. |\n\n*Montenegro: Gdje\n\n---",
+      "dialoguesMd": "**Scene:** Marko calls Ana to make plans for Friday night.\n\n| Role | Serbian | English |\n| :--- | :--- | :--- |\n| **Marko** | Zdravo, Ana! Šta radiš u petak uveče*? | Hi, Ana! What are you doing Friday evening? |\n| **Ana** | Zdravo, Marko! Slobodna sam. Zašto? | Hi, Marko! I'm free. Why? |\n| **Marko** | Hajde da se nađemo u centru. | Let's meet in the center. |\n| **Ana** | Dobra ideja! U koliko sati? | Good idea! At what time? |\n| **Marko** | U sedam sati? | At seven o'clock? |\n| **Ana** | Može. Gde** se nalazimo? | Okay. Where do we meet? |\n| **Marko** | Kod kafića \"Stara čaršija\". | At the café \"Stara čaršija\". |\n| **Ana** | Dogovoreno. Vidimo se u petak! | Agreed. See you on Friday! |\n| **Marko** | Vidimo se! | See you! |\n\n*Montenegro: Uveče (same)\n**Montenegro: Gdje\n\n---\n\n**Scene:** Ana and Marko meet at a café on Friday evening and order drinks.\n\n| Role | Serbian | English |\n| :--- | :--- | :--- |\n| **Ana** | Evo me! Izvinite što kasnim. | Here I am! Sorry I'm late. |\n| **Marko** | Nema problema. Hajde da sedimo. | No problem. Let's sit. |\n| **Waiter** | Dobro veče*. Šta želite? | Good evening. What would you like? |\n| **Marko** | Ja ću kafu, molim. | I'll have coffee, please. |\n| **Ana** | Ja ću rakiju. | I'll have rakija. |\n| **Waiter** | Odmah. | Right away. |\n| *(A few minutes later)* | | |\n| **Waiter** | Izvolite. Kafa i rakija. | Here you are. Coffee and rakija. |\n| **Marko** | Hvala. | Thank you. |\n| **Ana** | Nazdravlje! | Cheers! |\n| **Marko** | Nazdravlje! Kako si? | Cheers! How are you? |\n| **Ana** | Dobro sam. Ti? | I'm good. You? |\n| **Marko** | I ja. Hajde da idemo u restoran kasnije. | Me too. Let's go to a restaurant later. |\n| **Ana** | Odlično! | Excellent! |\n\n*Montenegro: Dobro veče (same)\n\n---\n\n**Scene:** After drinks, they decide to go to a restaurant.\n\n| Role | Serbian | English |\n| :--- | :--- | :--- |\n| **Ana** | Hajde da idemo u restoran. Gladna sam. | Let's go to a restaurant. I'm hungry. |\n| **Marko** | Dobra ideja. Gde* želiš da idemo? | Good idea. Where do you want to go? |\n| **Ana** | Možemo da idemo u \"Tri šešira\". | We can go to \"Tri šešira\". |\n| **Marko** | Odlično! Idemo. | Excellent! Let's go. |\n\n*Montenegro: Gdje\n\n---\n\n**Scene:** They arrive at the restaurant, order food, and ask for the bill.\n\n| Role | Serbian | English |\n| :--- | :--- | :--- |\n| **Waiter** | Dobro veče*. Izvolite meni. | Good evening. Here's the menu. |\n| **Marko** | Hvala. Šta preporučujete? | Thank you. What do you recommend? |\n| **Waiter** | Ćevapi su odlični. | The ćevapi are excellent. |\n| **Ana** | Ja ću ćevape. | I'll have ćevapi. |\n| **Marko** | I ja. I dva piva, molim. | Me too. And two beers, please. |\n| **Waiter** | Odmah. | Right away. |\n| *(After eating)* | | |\n| **Marko** | Račun, molim. | The bill, please. |\n| **Waiter** | Izvolite. Hiljadu dinara. | Here you are. One thousand dinars. |\n| **Marko** | Hvala. Doviđenja. | Thank you. Goodbye. |\n| **Waiter** | Doviđenja. Laku noć. | Goodbye. Good night. |\n\n*Montenegro: Dobro veče (same)",
+      "testIntroductionMd": "**We** will use these exercises to solidify our understanding of making plans, telling time, and socializing."
+    }
+  },
+  "vocabulary": {
+    "en": [
+      {
+        "serbian": "Prijatelj",
+        "en": "Friend (m)"
+      },
+      {
+        "serbian": "Prijateljica",
+        "en": "Friend (f)"
+      },
+      {
+        "serbian": "Večeras",
+        "en": "Tonight"
+      },
+      {
+        "serbian": "Sutra",
+        "en": "Tomorrow"
+      },
+      {
+        "serbian": "Sada",
+        "en": "Now"
+      },
+      {
+        "serbian": "Zajedno",
+        "en": "Together"
+      },
+      {
+        "serbian": "Sresti se",
+        "en": "To meet (reflexive)"
+      },
+      {
+        "serbian": "Čekati",
+        "en": "To wait"
+      },
+      {
+        "serbian": "Nazdravlje",
+        "en": "Cheers"
+      },
+      {
+        "serbian": "Danas",
+        "en": "Today"
+      },
+      {
+        "serbian": "Sutra",
+        "en": "Tomorrow"
+      },
+      {
+        "serbian": "Juče",
+        "en": "Yesterday"
+      },
+      {
+        "serbian": "Sada",
+        "en": "Now"
+      },
+      {
+        "serbian": "Kasnije",
+        "en": "Later"
+      },
+      {
+        "serbian": "Rano",
+        "en": "Early"
+      },
+      {
+        "serbian": "Kasno",
+        "en": "Late"
+      },
+      {
+        "serbian": "Vreme",
+        "en": "Time"
+      },
+      {
+        "serbian": "Sat",
+        "en": "Hour"
+      },
+      {
+        "serbian": "Ponedeljak",
+        "en": "Monday"
+      },
+      {
+        "serbian": "Utorak",
+        "en": "Tuesday"
+      },
+      {
+        "serbian": "Sreda",
+        "en": "Wednesday"
+      },
+      {
+        "serbian": "Četvrtak",
+        "en": "Thursday"
+      },
+      {
+        "serbian": "Petak",
+        "en": "Friday"
+      },
+      {
+        "serbian": "Subota",
+        "en": "Saturday"
+      },
+      {
+        "serbian": "Nedelja",
+        "en": "Sunday"
+      },
+      {
+        "serbian": "Poziv",
+        "en": "Call",
+        "enAlt": "Invitation"
+      },
+      {
+        "serbian": "Poruka",
+        "en": "Message"
+      },
+      {
+        "serbian": "Slobodan",
+        "en": "Free (available)"
+      },
+      {
+        "serbian": "Zauzet",
+        "en": "Busy"
+      },
+      {
+        "serbian": "Hajde",
+        "en": "Let's",
+        "enAlt": "Come on"
+      },
+      {
+        "serbian": "Dogovoreno",
+        "en": "Agreed",
+        "enAlt": "It's a deal"
+      },
+      {
+        "serbian": "Vidimo se",
+        "en": "See you"
+      },
+      {
+        "serbian": "Kasnim",
+        "en": "I'm late"
+      },
+      {
+        "serbian": "Kafa",
+        "en": "Coffee"
+      },
+      {
+        "serbian": "Rakija",
+        "en": "Rakija (fruit brandy)",
+        "noteEn": "National drink"
+      },
+      {
+        "serbian": "Pivo",
+        "en": "Beer"
+      },
+      {
+        "serbian": "Vino",
+        "en": "Wine"
+      },
+      {
+        "serbian": "Sok",
+        "en": "Juice"
+      },
+      {
+        "serbian": "Voda",
+        "en": "Water"
+      },
+      {
+        "serbian": "Kokteil",
+        "en": "Cocktail"
+      },
+      {
+        "serbian": "Čaša",
+        "en": "Glass"
+      },
+      {
+        "serbian": "Piće",
+        "en": "Drink (noun)"
+      },
+      {
+        "serbian": "Piti",
+        "en": "To drink (verb)"
+      },
+      {
+        "serbian": "Meni",
+        "en": "Menu"
+      },
+      {
+        "serbian": "Jelo",
+        "en": "Dish",
+        "enAlt": "Food"
+      },
+      {
+        "serbian": "Jesti",
+        "en": "To eat"
+      },
+      {
+        "serbian": "Gladan",
+        "en": "Hungry (m)"
+      },
+      {
+        "serbian": "Gladna",
+        "en": "Hungry (f)"
+      },
+      {
+        "serbian": "Račun",
+        "en": "Bill"
+      },
+      {
+        "serbian": "Plaćati",
+        "en": "To pay"
+      },
+      {
+        "serbian": "Konobar",
+        "en": "Waiter (m)"
+      },
+      {
+        "serbian": "Konobarica",
+        "en": "Waitress (f)"
+      }
+    ]
+  },
+  "exercises": {
+    "en": [
+      {
+        "category": "translation",
+        "categoryInstructions": "Translate the following phrases from English to Serbian.",
+        "questions": [
+          {
+            "questionId": "u7_translation_q1",
+            "order": 1,
+            "questionType": "translation",
+            "question": "Can you tonight?",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q2",
+            "order": 2,
+            "questionType": "translation",
+            "question": "Let's meet at seven.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q3",
+            "order": 3,
+            "questionType": "translation",
+            "question": "What are you doing on Friday?",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q4",
+            "order": 4,
+            "questionType": "translation",
+            "question": "I'm free tomorrow.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q5",
+            "order": 5,
+            "questionType": "translation",
+            "question": "See you on Monday.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q6",
+            "order": 6,
+            "questionType": "translation",
+            "question": "At what time?",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q7",
+            "order": 7,
+            "questionType": "translation",
+            "question": "I'm late.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q8",
+            "order": 8,
+            "questionType": "translation",
+            "question": "It's a deal.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q9",
+            "order": 9,
+            "questionType": "translation",
+            "question": "I'm hungry.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_translation_q10",
+            "order": 10,
+            "questionType": "translation",
+            "question": "Cheers!",
+            "correctAnswer": ""
+          }
+        ]
+      },
+      {
+        "category": "fillInBlank",
+        "categoryInstructions": "Fill in the blank with the correct Serbian word.",
+        "questions": [
+          {
+            "questionId": "u7_fillInBlank_q11",
+            "order": 11,
+            "questionType": "fillInBlank",
+            "question": "Koliko je _____? (What time is it?)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q12",
+            "order": 12,
+            "questionType": "fillInBlank",
+            "question": "Sada je _____ sati. (It is now seven o'clock.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q13",
+            "order": 13,
+            "questionType": "fillInBlank",
+            "question": "Vidimo se u _____. (See you on Monday.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q14",
+            "order": 14,
+            "questionType": "fillInBlank",
+            "question": "Možeš li u _____? (Can you on Friday?)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q15",
+            "order": 15,
+            "questionType": "fillInBlank",
+            "question": "Hajde da se nađemo _____. (Let's meet tonight.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q16",
+            "order": 16,
+            "questionType": "fillInBlank",
+            "question": "_____ je subota. (Today is Saturday.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q17",
+            "order": 17,
+            "questionType": "fillInBlank",
+            "question": "U _____ sati? (At what time?)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q18",
+            "order": 18,
+            "questionType": "fillInBlank",
+            "question": "_____ sam sutra. (I'm free tomorrow.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q19",
+            "order": 19,
+            "questionType": "fillInBlank",
+            "question": "Pola _____ je 7:30. (Half eight is 7:30.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q20",
+            "order": 20,
+            "questionType": "fillInBlank",
+            "question": "Vidimo se _____. (See you later.)",
+            "correctAnswer": ""
+          }
+        ]
+      },
+      {
+        "category": "multipleChoice",
+        "categoryInstructions": "Choose the correct answer to complete the sentence or question.",
+        "questions": [
+          {
+            "questionId": "u7_multipleChoice_q21",
+            "order": 21,
+            "questionType": "multipleChoice",
+            "question": "You want to suggest going to a café. What do you say?",
+            "options": []
+          },
+          {
+            "questionId": "u7_multipleChoice_q22",
+            "order": 22,
+            "questionType": "multipleChoice",
+            "question": "Someone asks \"Možeš li večeras?\" What are they asking?",
+            "options": []
+          },
+          {
+            "questionId": "u7_multipleChoice_q23",
+            "order": 23,
+            "questionType": "multipleChoice",
+            "question": "You want to say \"I'm late.\" What do you say?",
+            "options": [
+              "Idem."
+            ],
+            "correctAnswer": "Idem."
+          },
+          {
+            "questionId": "u7_multipleChoice_q24",
+            "order": 24,
+            "questionType": "multipleChoice",
+            "question": "It's 5:30. How do you say this in Serbian?",
+            "options": []
+          },
+          {
+            "questionId": "u7_multipleChoice_q25",
+            "order": 25,
+            "questionType": "multipleChoice",
+            "question": "You want to ask \"At what time?\" What do you say?",
+            "options": []
+          },
+          {
+            "questionId": "u7_multipleChoice_q26",
+            "order": 26,
+            "questionType": "multipleChoice",
+            "question": "Someone says \"Nazdravlje!\" What do you reply?",
+            "options": []
+          },
+          {
+            "questionId": "u7_multipleChoice_q27",
+            "order": 27,
+            "questionType": "multipleChoice",
+            "question": "You want to say \"See you on Friday.\" What do you say?",
+            "options": []
+          },
+          {
+            "questionId": "u7_multipleChoice_q28",
+            "order": 28,
+            "questionType": "multipleChoice",
+            "question": "You're ordering coffee. What do you say?",
+            "options": []
+          },
+          {
+            "questionId": "u7_multipleChoice_q29",
+            "order": 29,
+            "questionType": "multipleChoice",
+            "question": "You want to say \"I'm hungry.\" What do you say?",
+            "options": [
+              "Pijem.",
+              "Jedem."
+            ],
+            "correctAnswer": "Pijem."
+          },
+          {
+            "questionId": "u7_multipleChoice_q30",
+            "order": 30,
+            "questionType": "multipleChoice",
+            "question": "You want to ask for the bill. What do you say?",
+            "options": [
+              "Meni, molim."
+            ]
+          }
+        ]
+      },
+      {
+        "category": "verbConjugation",
+        "categoryInstructions": "Fill in the blank with the correct form of \"moći\" or \"piti\".",
+        "questions": [
+          {
+            "questionId": "u7_verbConjugation_q31",
+            "order": 31,
+            "questionType": "fillInBlank",
+            "question": "Ja _____ da dođem. (I can come.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q32",
+            "order": 32,
+            "questionType": "fillInBlank",
+            "question": "Ti _____ večeras? (Can you tonight?)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q33",
+            "order": 33,
+            "questionType": "fillInBlank",
+            "question": "Ona _____ vino. (She drinks wine.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q34",
+            "order": 34,
+            "questionType": "fillInBlank",
+            "question": "Mi _____ da se nađemo. (We can meet.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q35",
+            "order": 35,
+            "questionType": "fillInBlank",
+            "question": "Šta _____? (What are you drinking? - informal)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q36",
+            "order": 36,
+            "questionType": "fillInBlank",
+            "question": "Oni _____ u petak. (They can on Friday.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q37",
+            "order": 37,
+            "questionType": "fillInBlank",
+            "question": "Ja _____ kafu. (I drink coffee.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q38",
+            "order": 38,
+            "questionType": "fillInBlank",
+            "question": "Vi _____ sutra? (Can you tomorrow? - formal)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q39",
+            "order": 39,
+            "questionType": "fillInBlank",
+            "question": "On _____ pivo. (He drinks beer.)",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_verbConjugation_q40",
+            "order": 40,
+            "questionType": "fillInBlank",
+            "question": "Mi _____ rakiju. (We drink rakija.)",
+            "correctAnswer": ""
+          }
+        ]
+      },
+      {
+        "category": "dialogueCompletion",
+        "categoryInstructions": "Choose the best response to complete the short dialogue.",
+        "questions": [
+          {
+            "questionId": "u7_dialogueCompletion_q41",
+            "order": 41,
+            "questionType": "multipleChoice",
+            "question": "A: Šta radiš večeras?  B: ___",
+            "options": []
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q42",
+            "order": 42,
+            "questionType": "multipleChoice",
+            "question": "A: Hajde da se nađemo.  B: ___",
+            "options": []
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q43",
+            "order": 43,
+            "questionType": "multipleChoice",
+            "question": "A: U sedam sati?  B: ___",
+            "options": [
+              "Dogovoreno."
+            ],
+            "correctAnswer": "Dogovoreno."
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q44",
+            "order": 44,
+            "questionType": "multipleChoice",
+            "question": "A: Koliko je sati?  B: ___",
+            "options": []
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q45",
+            "order": 45,
+            "questionType": "multipleChoice",
+            "question": "A: Šta želite?  B: ___",
+            "options": [
+              "Vidimo se."
+            ],
+            "correctAnswer": "Vidimo se."
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q46",
+            "order": 46,
+            "questionType": "multipleChoice",
+            "question": "A: Nazdravlje!  B: ___",
+            "options": []
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q47",
+            "order": 47,
+            "questionType": "multipleChoice",
+            "question": "A: Gladna sam.  B: ___",
+            "options": []
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q48",
+            "order": 48,
+            "questionType": "multipleChoice",
+            "question": "A: Račun, molim.  B: ___",
+            "options": [
+              "Izvolite."
+            ],
+            "correctAnswer": "Izvolite."
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q49",
+            "order": 49,
+            "questionType": "multipleChoice",
+            "question": "A: Možeš li u petak?  B: ___",
+            "options": []
+          },
+          {
+            "questionId": "u7_dialogueCompletion_q50",
+            "order": 50,
+            "questionType": "multipleChoice",
+            "question": "A: Vidimo se!  B: ___",
+            "options": [
+              "Vidimo se!"
+            ],
+            "correctAnswer": "Vidimo se!"
+          }
+        ]
+      },
+      {
+        "category": "vocabularyMatching",
+        "categoryInstructions": "Match the Serbian day to its English meaning.",
+        "questions": [
+          {
+            "questionId": "u7_vocabularyMatching_q51",
+            "order": 51,
+            "questionType": "matching",
+            "question": "Ponedeljak",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_vocabularyMatching_q52",
+            "order": 52,
+            "questionType": "matching",
+            "question": "Utorak",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_vocabularyMatching_q53",
+            "order": 53,
+            "questionType": "matching",
+            "question": "Sreda",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_vocabularyMatching_q54",
+            "order": 54,
+            "questionType": "matching",
+            "question": "Četvrtak",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_vocabularyMatching_q55",
+            "order": 55,
+            "questionType": "matching",
+            "question": "Petak",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_vocabularyMatching_q56",
+            "order": 56,
+            "questionType": "matching",
+            "question": "Subota",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_vocabularyMatching_q57",
+            "order": 57,
+            "questionType": "matching",
+            "question": "Nedelja",
+            "correctAnswer": ""
+          }
+        ]
+      },
+      {
+        "category": "timeExpressions",
+        "categoryInstructions": "Translate the time expression from English to Serbian.",
+        "questions": [
+          {
+            "questionId": "u7_timeExpressions_q58",
+            "order": 58,
+            "questionType": "translation",
+            "question": "Today",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_timeExpressions_q59",
+            "order": 59,
+            "questionType": "translation",
+            "question": "Tomorrow",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_timeExpressions_q60",
+            "order": 60,
+            "questionType": "translation",
+            "question": "Tonight",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_timeExpressions_q61",
+            "order": 61,
+            "questionType": "translation",
+            "question": "Now",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_timeExpressions_q62",
+            "order": 62,
+            "questionType": "translation",
+            "question": "Later",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_timeExpressions_q63",
+            "order": 63,
+            "questionType": "translation",
+            "question": "Yesterday",
+            "correctAnswer": ""
+          }
+        ]
+      },
+      {
+        "category": "fillInBlank",
+        "categoryInstructions": "Complete the sentence using \"Hajde da...\" and the correct verb form.",
+        "questions": [
+          {
+            "questionId": "u7_fillInBlank_q64",
+            "order": 64,
+            "questionType": "fillInBlank",
+            "question": "Let's go to a café.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q65",
+            "order": 65,
+            "questionType": "fillInBlank",
+            "question": "Let's drink coffee.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q66",
+            "order": 66,
+            "questionType": "fillInBlank",
+            "question": "Let's meet.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q67",
+            "order": 67,
+            "questionType": "fillInBlank",
+            "question": "Let's eat.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q68",
+            "order": 68,
+            "questionType": "fillInBlank",
+            "question": "Let's wait.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q69",
+            "order": 69,
+            "questionType": "fillInBlank",
+            "question": "Let's go to a restaurant.",
+            "correctAnswer": ""
+          },
+          {
+            "questionId": "u7_fillInBlank_q70",
+            "order": 70,
+            "questionType": "fillInBlank",
+            "question": "Let's sit.",
+            "correctAnswer": ""
+          }
+        ]
+      }
+    ]
+  }
+}

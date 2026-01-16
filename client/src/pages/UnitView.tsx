@@ -14,6 +14,8 @@ import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { InteractiveTest } from "@/components/InteractiveTest";
+import { VocabularyDictionaryTable, type VocabularyDictionaryRow } from "@/components/vocabulary/VocabularyDictionaryTable";
+import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
 
 export default function UnitView() {
   const { user, loading: authLoading } = useAuth();
@@ -27,7 +29,95 @@ export default function UnitView() {
   // Load Unit Metadata & Content from DB
   const unitMetadata = useQuery(api.units.getUnitMetadata, { unitNumber, language: displayLanguage });
   const content = useQuery(api.units.getUnitContentSections, { unitNumber, language: displayLanguage });
-  const vocabulary = useQuery(api.vocabulary.getCourseVocabularyByUnit, { unitNumber });
+  const vocabularyWithProgress = useQuery(api.vocabulary.getVocabularyWithProgress, { unitNumber });
+
+  const { play, playingAudioId, loadingAudioId } = useVocabularyAudioPlayback();
+
+  const vocabularyRows: VocabularyDictionaryRow[] = React.useMemo(() => {
+    if (!vocabularyWithProgress || vocabularyWithProgress.length === 0) return [];
+
+    const getNoteForLanguage = (word: any, language: string): string | null => {
+      if (!word) return null;
+      if (language === "de") return word.noteDe || word.noteEn || null;
+      if (language === "sr") return word.noteSr || word.noteEn || null;
+      if (language === "es") return word.noteEs || word.noteEn || null;
+      if (language === "fr") return word.noteFr || word.noteEn || null;
+      return word.noteEn || null;
+    };
+
+    const getTranslationForLanguage = (
+      word: any,
+      language: string
+    ): { translation: string; altTranslation?: string } => {
+      // Prefer column-based translations when present
+      const hasAnyColumn =
+        (word.en && String(word.en).trim()) ||
+        (word.de && String(word.de).trim()) ||
+        (word.sr && String(word.sr).trim()) ||
+        (word.es && String(word.es).trim()) ||
+        (word.fr && String(word.fr).trim());
+
+      if (hasAnyColumn) {
+        const pick = (key: "en" | "de" | "sr" | "es" | "fr") => {
+          const val = word[key];
+          return val && String(val).trim() ? String(val).trim() : "";
+        };
+
+        const translation =
+          language === "de"
+            ? pick("de") || pick("en")
+            : language === "sr"
+              ? pick("sr") || pick("en")
+              : language === "es"
+                ? pick("es") || pick("en")
+                : language === "fr"
+                  ? pick("fr") || pick("en")
+                  : pick("en") || pick("de");
+
+        const altTranslation =
+          language === "de"
+            ? (word.deAlt && String(word.deAlt).trim() ? String(word.deAlt).trim() : undefined)
+            : language === "en"
+              ? (word.enAlt && String(word.enAlt).trim() ? String(word.enAlt).trim() : undefined)
+              : undefined;
+
+        return { translation: translation || "-", altTranslation };
+      }
+
+      // Fallback: translations[] array
+      if (word.translations && Array.isArray(word.translations)) {
+        const trans =
+          word.translations.find((t: any) => t.language === language) ||
+          word.translations.find((t: any) => t.language === "en");
+        return {
+          translation: trans?.translation || "-",
+          altTranslation: trans?.alt,
+        };
+      }
+
+      return { translation: "-" };
+    };
+
+    return vocabularyWithProgress.map((word: any, idx: number) => {
+      const { translation, altTranslation } = getTranslationForLanguage(word, displayLanguage);
+      const note = getNoteForLanguage(word, displayLanguage);
+
+      const correctCount = Number(word.progress?.correctAnswerCount ?? 0) || 0;
+      const incorrectCount = Number(word.progress?.incorrectAnswerCount ?? 0) || 0;
+      const mastered = Boolean(word.progress?.mastered) || correctCount >= 3;
+
+      return {
+        id: String(word._id ?? idx),
+        serbian: word.serbian,
+        translation,
+        altTranslation,
+        note,
+        audioStorageId: word.audioStorageId ?? null,
+        unitNumber: word.unitNumber ?? unitNumber,
+        mastery: { correctCount, incorrectCount, mastered },
+      } satisfies VocabularyDictionaryRow;
+    });
+  }, [vocabularyWithProgress, displayLanguage, unitNumber]);
 
   // Determine Module from unitMetadata
   const moduleSlug = unitMetadata?.moduleId;
@@ -248,61 +338,19 @@ export default function UnitView() {
                   <CardDescription>Master these words to complete the unit.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {vocabulary && vocabulary.length > 0 ? (
-                    <div className="space-y-1">
-                      {vocabulary.map((word: any, i: number) => {
-                        // NEW: Column-based translation access (consistent with moduleMetadata)
-                        // FALLBACK: Support old translations[] array during migration
-                        let displayTranslation: string;
-                        let altTranslation: string | undefined = undefined;
-                        
-                        if (word.en && word.de) {
-                          // NEW: Column-based structure
-                          displayTranslation = displayLanguage === "de" ? word.de : word.en;
-                          altTranslation = displayLanguage === "de" ? word.deAlt : word.enAlt;
-                        } else if (word.translations && Array.isArray(word.translations)) {
-                          // FALLBACK: Old translations[] array structure
-                          const trans =
-                            word.translations.find((t: any) => t.language === displayLanguage) ||
-                            word.translations.find((t: any) => t.language === "en");
-                          displayTranslation = trans?.translation || "-";
-                          altTranslation = trans?.alt;
-                        } else {
-                          displayTranslation = "-";
-                        }
-                        
-                        // Get note for current language
-                        let displayNote: string | null = null;
-                        if (displayLanguage === "de") {
-                          displayNote = word.noteDe || word.noteEn || null;
-                        } else if (displayLanguage === "sr") {
-                          displayNote = word.noteSr || word.noteEn || null;
-                        } else if (displayLanguage === "es") {
-                          displayNote = word.noteEs || word.noteEn || null;
-                        } else if (displayLanguage === "fr") {
-                          displayNote = word.noteFr || word.noteEn || null;
-                        } else {
-                          displayNote = word.noteEn || null;
-                        }
-                        
-                        return (
-                          <div key={i}>
-                            <span className="font-medium">{word.serbian}</span>
-                            <span> - </span>
-                            {altTranslation && altTranslation.trim() ? (
-                              <span>
-                                {displayTranslation} / {altTranslation}
-                              </span>
-                            ) : (
-                              <span>{displayTranslation}</span>
-                            )}
-                            {displayNote && displayNote.trim() && (
-                              <span className="text-muted-foreground italic text-[0.85rem]"> ({displayNote})</span>
-                            )}
-                          </div>
-                        );
-                      })}
+                  {vocabularyWithProgress === undefined ? (
+                    <div className="py-10 flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
+                  ) : vocabularyRows.length > 0 ? (
+                    <VocabularyDictionaryTable
+                      rows={vocabularyRows}
+                      onPlayAudio={({ vocabularyId, serbianWord, unitNumber, audioStorageId }) =>
+                        play({ vocabularyId, serbianWord, unitNumber, audioStorageId })
+                      }
+                      playingAudioId={playingAudioId}
+                      loadingAudioId={loadingAudioId}
+                    />
                   ) : content?.vocabulary ? (
                     <MarkdownContent content={content.vocabulary} />
                   ) : (

@@ -1,0 +1,325 @@
+{
+  "generatedAt": "2026-01-16T14:07:23.865Z",
+  "dryRun": true,
+  "fix": false,
+  "scanned": {
+    "dir": "New Content/jsons",
+    "count": 1
+  },
+  "summary": {
+    "files": 1,
+    "validFiles": 0,
+    "invalidFiles": 1,
+    "totalErrors": 58,
+    "filesFixed": 0
+  },
+  "files": [
+    {
+      "file": "New Content\\jsons\\Unit-1-First-Words-v7.json",
+      "changesCount": 16,
+      "changesPreview": [
+        {
+          "kind": "sanitizeSerbian",
+          "path": "vocabulary.en"
+        },
+        {
+          "kind": "sanitizeSerbian",
+          "path": "vocabulary.en"
+        },
+        {
+          "kind": "sanitizeSerbian",
+          "path": "vocabulary.en"
+        },
+        {
+          "kind": "splitVocabularyEntry",
+          "path": "vocabulary.en.12.serbian"
+        },
+        {
+          "kind": "sanitizeSerbian",
+          "path": "vocabulary.en"
+        },
+        {
+          "kind": "sanitizeSerbian",
+          "path": "vocabulary.en"
+        },
+        {
+          "kind": "sanitizeSerbian",
+          "path": "vocabulary.en"
+        },
+        {
+          "kind": "splitVocabularyEntry",
+          "path": "vocabulary.en.27.serbian"
+        },
+        {
+          "kind": "splitVocabularyGenderVariant",
+          "path": "vocabulary.en.27.serbian"
+        },
+        {
+          "kind": "splitVocabularyGenderVariant",
+          "path": "vocabulary.en.27.serbian"
+        },
+        {
+          "kind": "sanitizeSerbian",
+          "path": "vocabulary.en"
+        },
+        {
+          "kind": "mergeExerciseCategories",
+          "path": "exercises.en",
+          "note": "Merged 2 blocks of category 'fillInBlank'"
+        },
+        {
+          "kind": "normalizeCorrectAnswer",
+          "path": "exercises.en.2.questions.0.correctAnswer"
+        },
+        {
+          "kind": "normalizeCorrectAnswer",
+          "path": "exercises.en.2.questions.4.correctAnswer"
+        },
+        {
+          "kind": "normalizeCorrectAnswer",
+          "path": "exercises.en.2.questions.5.correctAnswer"
+        },
+        {
+          "kind": "normalizeCorrectAnswer",
+          "path": "exercises.en.2.questions.6.correctAnswer"
+        }
+      ],
+      "valid": false,
+      "errors": [
+        {
+          "path": "exercises.en.0.questions.0.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q1)"
+        },
+        {
+          "path": "exercises.en.0.questions.1.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q2)"
+        },
+        {
+          "path": "exercises.en.0.questions.2.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q3)"
+        },
+        {
+          "path": "exercises.en.0.questions.3.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q4)"
+        },
+        {
+          "path": "exercises.en.0.questions.4.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q5)"
+        },
+        {
+          "path": "exercises.en.0.questions.5.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q6)"
+        },
+        {
+          "path": "exercises.en.0.questions.6.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q7)"
+        },
+        {
+          "path": "exercises.en.0.questions.7.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q8)"
+        },
+        {
+          "path": "exercises.en.0.questions.8.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q9)"
+        },
+        {
+          "path": "exercises.en.0.questions.9.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_translation_q10)"
+        },
+        {
+          "path": "exercises.en.1.questions.0.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q11)"
+        },
+        {
+          "path": "exercises.en.1.questions.1.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q12)"
+        },
+        {
+          "path": "exercises.en.1.questions.2.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q13)"
+        },
+        {
+          "path": "exercises.en.1.questions.3.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q14)"
+        },
+        {
+          "path": "exercises.en.1.questions.4.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q15)"
+        },
+        {
+          "path": "exercises.en.1.questions.5.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q16)"
+        },
+        {
+          "path": "exercises.en.1.questions.6.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q17)"
+        },
+        {
+          "path": "exercises.en.1.questions.7.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q18)"
+        },
+        {
+          "path": "exercises.en.1.questions.8.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q19)"
+        },
+        {
+          "path": "exercises.en.1.questions.9.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q20)"
+        },
+        {
+          "path": "exercises.en.1.questions.10.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q31)"
+        },
+        {
+          "path": "exercises.en.1.questions.11.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q32)"
+        },
+        {
+          "path": "exercises.en.1.questions.12.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q33)"
+        },
+        {
+          "path": "exercises.en.1.questions.13.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q34)"
+        },
+        {
+          "path": "exercises.en.1.questions.14.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q35)"
+        },
+        {
+          "path": "exercises.en.1.questions.15.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q36)"
+        },
+        {
+          "path": "exercises.en.1.questions.16.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q37)"
+        },
+        {
+          "path": "exercises.en.1.questions.17.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q38)"
+        },
+        {
+          "path": "exercises.en.1.questions.18.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q39)"
+        },
+        {
+          "path": "exercises.en.1.questions.19.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_fillInBlank_q40)"
+        },
+        {
+          "path": "exercises.en.2.questions.0.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_multipleChoice_q21)"
+        },
+        {
+          "path": "exercises.en.2.questions.0.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_multipleChoice_q21)"
+        },
+        {
+          "path": "exercises.en.2.questions.4.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_multipleChoice_q25)"
+        },
+        {
+          "path": "exercises.en.2.questions.5.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_multipleChoice_q26)"
+        },
+        {
+          "path": "exercises.en.2.questions.5.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_multipleChoice_q26)"
+        },
+        {
+          "path": "exercises.en.2.questions.6.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_multipleChoice_q27)"
+        },
+        {
+          "path": "exercises.en.2.questions.6.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_multipleChoice_q27)"
+        },
+        {
+          "path": "exercises.en.2.questions.8.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_multipleChoice_q29)"
+        },
+        {
+          "path": "exercises.en.3.questions.0.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q41)"
+        },
+        {
+          "path": "exercises.en.3.questions.0.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q41)"
+        },
+        {
+          "path": "exercises.en.3.questions.1.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q42)"
+        },
+        {
+          "path": "exercises.en.3.questions.1.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q42)"
+        },
+        {
+          "path": "exercises.en.3.questions.2.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q43)"
+        },
+        {
+          "path": "exercises.en.3.questions.2.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q43)"
+        },
+        {
+          "path": "exercises.en.3.questions.3.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q44)"
+        },
+        {
+          "path": "exercises.en.3.questions.3.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q44)"
+        },
+        {
+          "path": "exercises.en.3.questions.4.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q45)"
+        },
+        {
+          "path": "exercises.en.3.questions.4.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q45)"
+        },
+        {
+          "path": "exercises.en.3.questions.5.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q46)"
+        },
+        {
+          "path": "exercises.en.3.questions.5.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q46)"
+        },
+        {
+          "path": "exercises.en.3.questions.6.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q47)"
+        },
+        {
+          "path": "exercises.en.3.questions.6.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q47)"
+        },
+        {
+          "path": "exercises.en.3.questions.7.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q48)"
+        },
+        {
+          "path": "exercises.en.3.questions.7.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q48)"
+        },
+        {
+          "path": "exercises.en.3.questions.8.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q49)"
+        },
+        {
+          "path": "exercises.en.3.questions.8.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q49)"
+        },
+        {
+          "path": "exercises.en.3.questions.9.correctAnswer",
+          "message": "correctAnswer must be non-empty (questionId=u1_dialogueCompletion_q50)"
+        },
+        {
+          "path": "exercises.en.3.questions.9.options",
+          "message": "multipleChoice must have at least 2 options (questionId=u1_dialogueCompletion_q50)"
+        }
+      ],
+      "parseErrors": []
+    }
+  ]
+}

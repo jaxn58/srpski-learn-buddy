@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,10 +33,47 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { Sparkles, History, Eye, RotateCcw, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 
+type PromptKey =
+  | "default"
+  | "feedback_reply_system"
+  | "support_knowledge_facts"
+  | "support_knowledge_tone"
+  | "support_knowledge_future";
+
+const PROMPT_OPTIONS: Array<{ key: PromptKey; label: string; hint: string }> = [
+  {
+    key: "default",
+    label: "Chat Prompt (default)",
+    hint: "System prompt for AI chat interactions (AI Learn Buddy).",
+  },
+  {
+    key: "feedback_reply_system",
+    label: "Feedback Reply – System Prompt",
+    hint: "System instructions for generating a support-style reply draft for user feedback.",
+  },
+  {
+    key: "support_knowledge_facts",
+    label: "Support Knowledge – Facts (verified)",
+    hint: "Verified product facts. Highest priority for support replies.",
+  },
+  {
+    key: "support_knowledge_tone",
+    label: "Support Knowledge – Tone & Wording",
+    hint: "Tone guidelines and canonical naming. No promises, no hype.",
+  },
+  {
+    key: "support_knowledge_future",
+    label: "Support Knowledge – Future Plans (defensive)",
+    hint: "Roadmap / plans. Must always be phrased defensively (no ETA, no guarantees).",
+  },
+];
+
 export default function PromptAdmin() {
   const { user, loading: authLoading } = useAuth();
-  const currentPrompt = useQuery(api.admin.getChatPrompt, { name: "default" });
-  const promptHistory = useQuery(api.admin.getChatPromptHistory, { name: "default", limit: 50 });
+  const [promptName, setPromptName] = useState<PromptKey>("default");
+
+  const currentPrompt = useQuery(api.admin.getChatPrompt, { name: promptName });
+  const promptHistory = useQuery(api.admin.getChatPromptHistory, { name: promptName, limit: 50 });
   const updatePromptMutation = useMutation(api.admin.updateChatPrompt);
   const restorePromptMutation = useMutation(api.admin.restoreChatPromptVersion);
   const deletePromptMutation = useMutation(api.admin.deleteChatPromptVersion);
@@ -49,10 +87,15 @@ export default function PromptAdmin() {
 
   // Load current prompt when available
   useEffect(() => {
-    if (currentPrompt) {
-      setSystemPrompt(currentPrompt.content || "");
-    }
+    // `currentPrompt` is either: undefined (loading), null (not created yet), or a prompt doc.
+    if (currentPrompt === undefined) return;
+    setSystemPrompt(currentPrompt?.content || "");
   }, [currentPrompt]);
+
+  // Reset description when switching prompt types (helps keep history descriptions relevant)
+  useEffect(() => {
+    setDescription("");
+  }, [promptName]);
 
   const handleSave = async () => {
     if (!systemPrompt.trim()) {
@@ -63,7 +106,7 @@ export default function PromptAdmin() {
     setIsLoading(true);
     try {
       await updatePromptMutation({
-        name: "default",
+        name: promptName,
         content: systemPrompt,
         description: description.trim() || undefined,
       });
@@ -183,15 +226,37 @@ export default function PromptAdmin() {
                       )}
                     </CardTitle>
                     <CardDescription>
-                      Configure the AI system prompt for chat interactions
+                      Configure and version AI prompts (chat + support reply + knowledge blocks)
                       {user.role === 'admin' && ' (View only - no edit permissions)'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       <div>
+                        <Label>Prompt Type</Label>
+                        <Select
+                          value={promptName}
+                          onValueChange={(value) => setPromptName(value as PromptKey)}
+                        >
+                          <SelectTrigger className="mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PROMPT_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.key} value={opt.key}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {PROMPT_OPTIONS.find((o) => o.key === promptName)?.hint}
+                        </p>
+                      </div>
+
+                      <div>
                         <Label htmlFor="system-prompt">
-                          System Prompt for AI Chat *
+                          Prompt Content *
                         </Label>
                         <Textarea
                           id="system-prompt"
@@ -203,7 +268,7 @@ export default function PromptAdmin() {
                           disabled={!isSuperadmin}
                         />
                         <p className="text-xs text-muted-foreground mt-2">
-                          This prompt defines the AI's behavior and personality in chat interactions.
+                          This content is stored in Convex and takes effect immediately for new generations that use this prompt.
                         </p>
                       </div>
 
@@ -253,11 +318,12 @@ export default function PromptAdmin() {
                   </CardHeader>
                   <CardContent>
                     <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                      <li>System prompts define the AI's behavior and personality</li>
-                      <li>Be specific about the AI's role and capabilities</li>
-                      <li>Test prompts thoroughly before deploying to production</li>
+                      <li>Use separate prompt types for chat, feedback replies, and knowledge blocks</li>
+                      <li>Keep Product Facts strictly verified (avoid unconfirmed claims)</li>
+                      <li>Keep Future Plans defensive (no ETA, no guarantees)</li>
+                      <li>Be specific about the AI's role and constraints</li>
                       <li>Add a description when saving to track changes over time</li>
-                      <li>Changes take effect immediately for new chat sessions</li>
+                      <li>Changes take effect immediately for new chat sessions and feedback reply generation</li>
                     </ul>
                   </CardContent>
                 </Card>
@@ -269,7 +335,7 @@ export default function PromptAdmin() {
                   <CardHeader>
                     <CardTitle>Version History</CardTitle>
                     <CardDescription>
-                      View and restore previous versions of the system prompt
+                      View and restore previous versions for the selected prompt type
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

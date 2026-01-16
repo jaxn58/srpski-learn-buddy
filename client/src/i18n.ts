@@ -628,7 +628,7 @@ const resources = {
       "progress.badge.level_25.req": "Reach Level 25",
       
       // VocabularyList
-      "vocabularyList.title": "Vocabulary Reference",
+      "vocabularyList.title": "Vocabulary Dictionary",
       "vocabularyList.backToDashboard": "← Back to Dashboard",
       "vocabularyList.searchFilter": "Search & Filter",
       "vocabularyList.searchFilter.desc": "Browse all {{count}} words from the coursebook",
@@ -745,7 +745,7 @@ const resources = {
       "sidebar.units": "Modules",
       "sidebar.aiLearnBuddy": "AI Learn Buddy",
       "sidebar.practiceVocab": "Practice Vocabulary",
-      "sidebar.viewAllWords": "View All Words",
+      "sidebar.viewAllWords": "Vocabulary Dictionary",
       "sidebar.viewProgress": "View Progress",
       "sidebar.leaderboards": "Leaderboards",
       "sidebar.profile": "Profile",
@@ -1212,7 +1212,7 @@ const resources = {
       "progress.tip5": "✍️ Bearbeite alle Übungen im Kursbuch",
       
       // VocabularyList
-      "vocabularyList.title": "Vokabular-Nachschlagewerk",
+      "vocabularyList.title": "Vokabular-Wörterbuch",
       "vocabularyList.backToDashboard": "← Zurück zum Dashboard",
       "vocabularyList.searchFilter": "Suchen & Filtern",
       "vocabularyList.searchFilter.desc": "Durchsuche alle {{count}} Wörter aus dem Kursbuch",
@@ -1317,7 +1317,7 @@ const resources = {
       "sidebar.dashboard": "Dashboard",
       "sidebar.units": "Einheiten",
       "sidebar.practiceVocab": "Vokabeln üben",
-      "sidebar.viewAllWords": "Alle Wörter ansehen",
+      "sidebar.viewAllWords": "Vokabular-Wörterbuch",
       "sidebar.viewProgress": "Fortschritt ansehen",
       "sidebar.leaderboards": "Leaderboards",
       "sidebar.profile": "Profil",

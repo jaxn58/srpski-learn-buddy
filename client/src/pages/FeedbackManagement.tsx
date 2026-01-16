@@ -6,14 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useQuery, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { MessageSquare, Eye, Trash2 } from "lucide-react";
+import { MessageSquare, Eye, Trash2, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU, formatDateTimeEU } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 // Sidebar import removed
 
 
@@ -23,15 +23,41 @@ type FeedbackType = "bug" | "feature" | "improvement" | "other";
 
 export default function FeedbackManagement() {
   const { user, loading: authLoading } = useAuth();
-  const submissions = useQuery(api.feedback.getAllSubmissions) as FeedbackSubmissionDoc[] | undefined;
+  const adminSubmissions = useQuery(api.feedback.getAllSubmissions) as FeedbackSubmissionDoc[] | undefined;
+  const superadminSubmissions = useQuery(
+    api.feedback.getAllSubmissionsForSuperadmin,
+    user?.role === "superadmin" ? undefined : "skip"
+  ) as FeedbackSubmissionDoc[] | undefined;
+
+  const submissions =
+    user?.role === "superadmin" ? superadminSubmissions : adminSubmissions;
   const submissionsLoading = submissions === undefined;
   
   const updateStatusMutation = useMutation(api.feedback.updateStatus);
   const deleteFeedbackMutation = useMutation(api.feedback.deleteFeedback);
+  const regenerateAiAction = useAction(api.feedback.regenerateAiForFeedback);
+  const sendAiReplyAction = useAction(api.feedback.sendAiReplyToUser);
   
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackSubmissionDoc | null>(null);
-  const [adminNotes, setAdminNotes] = useState('');
+  const [dialogOpenId, setDialogOpenId] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<FeedbackStatus>('new');
+  const [aiReplyText, setAiReplyText] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiSendBusy, setAiSendBusy] = useState(false);
+
+  // Keep dialog data fresh when Convex query updates
+  useEffect(() => {
+    if (!selectedFeedback || !submissions) return;
+    const updated = submissions.find((s: any) => s._id === selectedFeedback._id);
+    if (updated) {
+      setSelectedFeedback(updated);
+      // Only overwrite aiReplyText if the admin hasn't started editing yet
+      if (!aiReplyText.trim() && (updated as any).aiDraftReply) {
+        setAiReplyText(String((updated as any).aiDraftReply));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submissions]);
 
   if (authLoading || submissionsLoading) {
     return (
@@ -66,14 +92,12 @@ export default function FeedbackManagement() {
       await updateStatusMutation({
         id: selectedFeedback._id,
         status: currentStatus,
-        adminNotes: adminNotes || undefined
       });
       toast.success('Feedback updated successfully');
       // Update selectedFeedback with new values to reflect changes in dialog
       setSelectedFeedback({
         ...selectedFeedback,
         status: currentStatus,
-        adminNotes: adminNotes
       });
     } catch (error: any) {
       console.error('Update error:', error);
@@ -110,6 +134,24 @@ export default function FeedbackManagement() {
       case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const getAdminNotesPreview = (notes: string) => {
+    const normalized = String(notes).replace(/\s+/g, " ").trim();
+    if (!normalized) return "";
+    const MAX = 120;
+    if (normalized.length <= MAX) return normalized;
+    return normalized.slice(0, MAX).trimEnd() + "…";
+  };
+
+  const isDialogDirty = (feedback: FeedbackSubmissionDoc | null) => {
+    if (!feedback) return false;
+    const initialStatus = feedback.status as FeedbackStatus;
+    const initialDraft = String((feedback as any).aiDraftReply ?? "");
+    return (
+      currentStatus !== initialStatus ||
+      aiReplyText !== initialDraft
+    );
   };
 
   return (
@@ -168,32 +210,85 @@ export default function FeedbackManagement() {
                     <TableCell>
                       <span className="text-lg">{getTypeIcon(feedback.type)}</span>
                     </TableCell>
-                    <TableCell className="font-medium">{feedback.title}</TableCell>
+                                    <TableCell>
+                                      <div className="font-medium">{feedback.title}</div>
+                                      {(feedback as any).aiInternalNote && getAdminNotesPreview((feedback as any).aiInternalNote) && (
+                                        <div
+                                          className="mt-1 text-xs text-muted-foreground"
+                                          title={(feedback as any).aiInternalNote}
+                                        >
+                                          {getAdminNotesPreview((feedback as any).aiInternalNote)}
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <Badge className={getStatusColor(feedback.status)}>
+                                          {feedback.status.replace('_', ' ')}
+                                        </Badge>
+                                        {(feedback as any).aiSentAt && (
+                                          <CheckCircle2 className="h-4 w-4 text-green-600" title="Reply sent to user" />
+                                        )}
+                                      </div>
+                                    </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(feedback.status)}>
-                        {feedback.status.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {feedback.submittedAt ? formatDateEU(feedback.submittedAt) : "N/A"}
+                      {feedback.submittedAt ? formatDateTimeEU(feedback.submittedAt) : "N/A"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Dialog>
+                        <Dialog
+                          open={dialogOpenId === String(feedback._id)}
+                          onOpenChange={(open) => {
+                            if (open) {
+                              setSelectedFeedback(feedback);
+                              setDialogOpenId(String(feedback._id));
+                              setCurrentStatus(feedback.status);
+                              setAiReplyText((feedback as any).aiDraftReply || '');
+                              return;
+                            }
+
+                            const active =
+                              selectedFeedback && String(selectedFeedback._id) === String(feedback._id)
+                                ? selectedFeedback
+                                : null;
+
+                            if (active && isDialogDirty(active)) {
+                              const ok = confirm(
+                                "You have unsaved changes. Do you want to close and discard them?"
+                              );
+                              if (!ok) return;
+                            }
+
+                            setDialogOpenId(null);
+                          }}
+                        >
                           <DialogTrigger asChild>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => {
                                 setSelectedFeedback(feedback);
-                                setAdminNotes(feedback.adminNotes || '');
+                                setDialogOpenId(String(feedback._id));
                                 setCurrentStatus(feedback.status);
+                                setAiReplyText((feedback as any).aiDraftReply || '');
                               }}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
+                          <DialogContent
+                            className="!w-[95vw] !max-w-[1100px] sm:!max-w-[1100px] max-h-[85vh] overflow-y-auto"
+                            onInteractOutside={(e) => {
+                              if (selectedFeedback && String(selectedFeedback._id) === String(feedback._id) && isDialogDirty(selectedFeedback)) {
+                                e.preventDefault();
+                              }
+                            }}
+                            onEscapeKeyDown={(e) => {
+                              if (selectedFeedback && String(selectedFeedback._id) === String(feedback._id) && isDialogDirty(selectedFeedback)) {
+                                e.preventDefault();
+                              }
+                            }}
+                          >
                             <DialogHeader>
                               <DialogTitle>
                                 {getTypeIcon(feedback.type)} {feedback.title}
@@ -211,42 +306,133 @@ export default function FeedbackManagement() {
                                 </p>
                               </div>
 
-                              {user.role === 'superadmin' ? (
+                              {user.role === 'superadmin' || user.role === 'admin' ? (
                                 <>
                                   <div>
                                     <h3 className="font-semibold mb-2">Status</h3>
-                                    <Select
-                                      value={currentStatus}
-                                      onValueChange={(value: FeedbackStatus) => setCurrentStatus(value)}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="new">New</SelectItem>
-                                        <SelectItem value="reviewed">Reviewed</SelectItem>
-                                        <SelectItem value="in_progress">In Progress</SelectItem>
-                                        <SelectItem value="completed">Completed</SelectItem>
-                                        <SelectItem value="rejected">Rejected</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    <div className="flex gap-2">
+                                      <Select
+                                        value={currentStatus}
+                                        onValueChange={(value: FeedbackStatus) => setCurrentStatus(value)}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="new">New</SelectItem>
+                                          <SelectItem value="reviewed">Reviewed</SelectItem>
+                                          <SelectItem value="in_progress">In Progress</SelectItem>
+                                          <SelectItem value="completed">Completed</SelectItem>
+                                          <SelectItem value="rejected">Rejected</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleSaveChanges}
+                                        disabled={currentStatus === (selectedFeedback?.status as FeedbackStatus)}
+                                      >
+                                        Save Status
+                                      </Button>
+                                    </div>
                                   </div>
 
-                                  <div>
-                                    <h3 className="font-semibold mb-2">Admin Notes</h3>
-                                    <Textarea
-                                      value={adminNotes}
-                                      onChange={(e) => setAdminNotes(e.target.value)}
-                                      placeholder="Add notes about this feedback..."
-                                      rows={4}
-                                    />
-                                    <Button
-                                      className="mt-2"
-                                      size="sm"
-                                      onClick={handleSaveChanges}
-                                    >
-                                      Save Changes
-                                    </Button>
+                                  <div className="border-t pt-4">
+                                    <h3 className="font-semibold mb-2">AI Assistant</h3>
+                                    <div className="space-y-3">
+                                      <div className="text-sm text-muted-foreground">
+                                        <div>
+                                          <span className="font-semibold text-foreground">AI Status:</span>{" "}
+                                          {(selectedFeedback as any)?.aiStatus || "—"}
+                                        </div>
+                                        {(selectedFeedback as any)?.aiGeneratedAt && (
+                                          <div>
+                                            <span className="font-semibold text-foreground">Generated:</span>{" "}
+                                            {formatDateTimeEU((selectedFeedback as any).aiGeneratedAt)}
+                                          </div>
+                                        )}
+                                        {(selectedFeedback as any)?.aiError && (
+                                          <div className="text-red-700">
+                                            <span className="font-semibold">AI Error:</span>{" "}
+                                            {String((selectedFeedback as any).aiError)}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div>
+                                        <h4 className="font-semibold mb-2">Internal Note (Admin only)</h4>
+                                        <div className="bg-gray-50 rounded-lg p-3 text-sm whitespace-pre-wrap">
+                                          {(selectedFeedback as any)?.aiInternalNote || "—"}
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        <h4 className="font-semibold mb-2">Draft Reply (editable)</h4>
+                                        <Textarea
+                                          value={aiReplyText}
+                                          onChange={(e) => setAiReplyText(e.target.value)}
+                                          placeholder="AI draft reply will appear here..."
+                                          rows={6}
+                                        />
+                                        <div className="flex gap-2 mt-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={aiBusy}
+                                            onClick={async () => {
+                                              if (!selectedFeedback) return;
+                                              try {
+                                                setAiBusy(true);
+                                                await regenerateAiAction({ feedbackId: selectedFeedback._id });
+                                                toast.success("AI suggestion regenerated");
+                                              } catch (e: any) {
+                                                toast.error(e?.message || "Failed to regenerate AI suggestion");
+                                              } finally {
+                                                setAiBusy(false);
+                                              }
+                                            }}
+                                          >
+                                            {aiBusy ? "Regenerating..." : "Regenerate AI"}
+                                          </Button>
+
+                                          <Button
+                                            size="sm"
+                                            disabled={aiSendBusy || !aiReplyText.trim()}
+                                            onClick={async () => {
+                                              if (!selectedFeedback) return;
+                                              try {
+                                                setAiSendBusy(true);
+                                                const res: any = await sendAiReplyAction({
+                                                  feedbackId: selectedFeedback._id,
+                                                  replyText: aiReplyText.trim(),
+                                                });
+                                                if (res?.emailSent === false) {
+                                                  toast.success("Reply posted in tool", {
+                                                    description: `Email not sent: ${String(res?.emailError || "unknown")}`,
+                                                  });
+                                                } else {
+                                                  toast.success("Reply sent to user (tool + email)");
+                                                }
+                                                // Close dialog after successful send
+                                                setDialogOpenId(null);
+                                              } catch (e: any) {
+                                                toast.error(e?.message || "Failed to send reply");
+                                              } finally {
+                                                setAiSendBusy(false);
+                                              }
+                                            }}
+                                          >
+                                            {aiSendBusy ? "Sending..." : "Send to user"}
+                                          </Button>
+                                        </div>
+
+                                        {(selectedFeedback as any)?.aiSentAt && (
+                                          <p className="text-xs text-muted-foreground mt-2">
+                                            Sent at {formatDateTimeEU((selectedFeedback as any).aiSentAt)}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </>
                               ) : (
@@ -254,13 +440,6 @@ export default function FeedbackManagement() {
                                   <p className="text-sm text-blue-800">👁️ <strong>Read-Only Mode:</strong> You can view feedback but cannot edit status or notes.</p>
                                 </div>
                               )}
-
-                              <div className="border-t pt-4">
-                                <h3 className="font-semibold mb-3">Comments & History</h3>
-                                <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto mb-4">
-                                  <p className="text-sm text-muted-foreground text-center py-4">Comments feature coming soon...</p>
-                                </div>
-                              </div>
                             </div>
                           </DialogContent>
                         </Dialog>

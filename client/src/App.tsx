@@ -25,6 +25,7 @@ import PromptAdmin from "./pages/PromptAdmin";
 import ChangelogAdmin from "./pages/ChangelogAdmin";
 import OnboardingAdmin from "./pages/OnboardingAdmin";
 import BackupManagement from "./pages/BackupManagement";
+import ContentImportAdmin from "./pages/ContentImportAdmin";
 import Changelog from "./pages/Changelog";
 import SignInPage from "./pages/SignIn";
 import SignUpPage from "./pages/SignUp";
@@ -150,6 +151,9 @@ function Router() {
       </Route>
       <Route path="/admin/backup">
         {() => <Protected Component={BackupManagement} />}
+      </Route>
+      <Route path="/admin/content-import">
+        {() => <Protected Component={ContentImportAdmin} />}
       </Route>
       <Route path="/admin/waitlist">
         {() => <Protected Component={AdminWaitlist} />}

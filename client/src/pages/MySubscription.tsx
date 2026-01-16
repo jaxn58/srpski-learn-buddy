@@ -9,7 +9,7 @@ import { Calendar, Check, Clock, CreditCard, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { hasPaddleConfig, initPaddle, openCheckout } from "@/lib/paddle";
+import { initPaddleWithToken, openCheckout } from "@/lib/paddle";
 import { formatDateEU } from "@/lib/utils";
 
 type SubscriptionPlan = {
@@ -24,8 +24,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0 });
-  const paddleConfigured = hasPaddleConfig();
-  const [paddleReady, setPaddleReady] = useState(!paddleConfigured);
+  const paddleConfig = useQuery(api.subscriptions.getPaddleCheckoutConfig);
+  const paddleConfigured = paddleConfig?.clientTokenConfigured === true;
+  const [paddleReady, setPaddleReady] = useState(false);
 
   // Fetch subscription data from Convex
   const subscription = useQuery(api.subscriptions.getCurrent);
@@ -93,27 +94,27 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
   const [isCalculating, setIsCalculating] = useState(false);
 
-  const priceIdMap = useMemo(
-    () => ({
+  const priceIdMap = useMemo(() => {
+    const normal = paddleConfig?.priceIds?.normal;
+    return {
       beta: "",
-      intensive: import.meta.env.VITE_PADDLE_PRODUCT_INTENSIVE || "",
-      balanced: import.meta.env.VITE_PADDLE_PRODUCT_BALANCED || "",
-      standard: import.meta.env.VITE_PADDLE_PRODUCT_STANDARD || "",
-      relaxed: import.meta.env.VITE_PADDLE_PRODUCT_RELAXED || "",
-    }),
-    []
-  );
+      intensive: normal?.intensive || "",
+      balanced: normal?.balanced || "",
+      standard: normal?.standard || "",
+      relaxed: normal?.relaxed || "",
+    };
+  }, [paddleConfig]);
 
-  const beta50PriceIdMap = useMemo(
-    () => ({
+  const beta50PriceIdMap = useMemo(() => {
+    const beta50 = paddleConfig?.priceIds?.beta50;
+    return {
       beta: "",
-      intensive: import.meta.env.VITE_PADDLE_PRODUCT_INTENSIVE_BETA50 || "",
-      balanced: import.meta.env.VITE_PADDLE_PRODUCT_BALANCED_BETA50 || "",
-      standard: import.meta.env.VITE_PADDLE_PRODUCT_STANDARD_BETA50 || "",
-      relaxed: import.meta.env.VITE_PADDLE_PRODUCT_RELAXED_BETA50 || "",
-    }),
-    []
-  );
+      intensive: beta50?.intensive || "",
+      balanced: beta50?.balanced || "",
+      standard: beta50?.standard || "",
+      relaxed: beta50?.relaxed || "",
+    };
+  }, [paddleConfig]);
 
   const formatCurrency = (cents: number) => {
     const euros = cents / 100;
@@ -122,10 +123,14 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
   useEffect(() => {
     if (!paddleConfigured) {
+      setPaddleReady(false);
       return;
     }
 
-    initPaddle().then((instance) => {
+    initPaddleWithToken({
+      token: paddleConfig?.clientToken || "",
+      environment: paddleConfig?.environment === "production" ? "production" : "sandbox",
+    }).then((instance) => {
       if (!instance) {
         toast.error("Paddle could not be initialized.");
         return;
@@ -133,7 +138,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
       setPaddleReady(true);
     });
-  }, [paddleConfigured]);
+  }, [paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
 
   const handlePurchase = async (planId: Exclude<SubscriptionPlan["id"], "beta">, useBetaPrice: boolean) => {
     if (!user) return;
@@ -372,24 +377,45 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       );
     }
     
-    // No subscription and not Beta Tester
+    // No subscription and not Beta Tester: allow purchase (prepaid plans).
     return (
       <div className={containerClass}>
         <div className={innerClass}>
-          {!embedded && <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('subscription.noSubscription')}</CardTitle>
-              <CardDescription>
-                {t('subscription.noSubscription.desc')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => window.location.href = "/"}>
-                {t('subscription.viewPlans')}
-              </Button>
-            </CardContent>
-          </Card>
+          {!embedded && <h1 className="text-3xl font-bold mb-6">{t("subscription.title")}</h1>}
+
+          {availablePlans && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("subscription.viewPlans")}</CardTitle>
+                <CardDescription>Choose a plan to unlock all units.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {availablePlans
+                    .filter((p) => p.id !== "beta")
+                    .map((plan) => (
+                      <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
+                        <CardHeader>
+                          <CardTitle className="capitalize">{plan.name}</CardTitle>
+                          <CardDescription>{plan.months} months</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="text-3xl font-bold text-primary">{formatCurrency(plan.price)}</div>
+                          <Button
+                            onClick={() => handlePurchase(plan.id as any, false)}
+                            disabled={!paddleReady}
+                            className="w-full"
+                          >
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Continue with {plan.name}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     );

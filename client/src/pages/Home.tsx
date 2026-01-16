@@ -8,16 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
-import { Link } from "wouter";
-import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "wouter";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { WaitlistModal } from "@/components/WaitlistModal";
+import { initPaddleWithToken, openCheckout } from "@/lib/paddle";
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth();
   const { t, i18n } = useTranslation();
+  const [, setLocation] = useLocation();
   
   // Waitlist modal state
   const [isWaitlistModalOpen, setIsWaitlistModalOpen] = useState(false);
@@ -29,6 +31,116 @@ export default function Home() {
   // Show waitlist only if: waitlist mode is ON AND user is NOT a superadmin (or not logged in)
   const showWaitlist = isWaitlistMode && !isSuperadmin;
   const showBetaRegistration = !isWaitlistMode || isSuperadmin;
+
+  type PlanId = "intensive" | "balanced" | "standard" | "relaxed";
+
+  // Paddle config for public pricing checkout (requires login before checkout for server-side provisioning).
+  const paddleConfig = useQuery(api.subscriptions.getPaddleCheckoutConfig);
+  const paddleConfigured = paddleConfig?.clientTokenConfigured === true;
+  const [paddleReady, setPaddleReady] = useState(false);
+  const autoCheckoutAttemptedRef = useRef(false);
+
+  const betaDiscountStatus = useQuery(api.subscriptions.getBetaDiscountStatus);
+  const betaEnded = betaDiscountStatus?.betaEnded === true;
+  const betaDiscountEligible = betaDiscountStatus?.eligible === true;
+
+  useEffect(() => {
+    if (!paddleConfigured) {
+      setPaddleReady(false);
+      return;
+    }
+
+    initPaddleWithToken({
+      token: paddleConfig?.clientToken || "",
+      environment: paddleConfig?.environment === "production" ? "production" : "sandbox",
+    }).then((instance) => {
+      if (!instance) {
+        toast.error("Paddle could not be initialized.");
+        setPaddleReady(false);
+        return;
+      }
+      setPaddleReady(true);
+    });
+  }, [paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
+
+  const getPriceIdForPlan = (planId: PlanId) => {
+    const shouldUseBeta50 = betaEnded && betaDiscountEligible;
+    const priceIds = shouldUseBeta50 ? paddleConfig?.priceIds?.beta50 : paddleConfig?.priceIds?.normal;
+    const priceId = (priceIds as any)?.[planId] as string | undefined;
+    return { priceId: (priceId || "").trim(), shouldUseBeta50 };
+  };
+
+  const startPurchase = async (planId: PlanId) => {
+    if (showWaitlist) {
+      // Keep pricing visible, but use waitlist flow when enabled.
+      setIsWaitlistModalOpen(true);
+      return;
+    }
+
+    if (!isAuthenticated) {
+      const redirectUrl = `/?buy=${encodeURIComponent(planId)}#pricing`;
+      setLocation(`/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`);
+      return;
+    }
+
+    if (!paddleConfigured) {
+      toast.error("Paddle is not configured.");
+      return;
+    }
+
+    if (!paddleReady) {
+      toast.error("Paddle is still loading.");
+      return;
+    }
+
+    const { priceId, shouldUseBeta50 } = getPriceIdForPlan(planId);
+    if (!priceId) {
+      toast.error("No Paddle Price ID configured for this plan.");
+      return;
+    }
+
+    if (!user?.clerkId) {
+      toast.error("Please sign in again and retry.");
+      return;
+    }
+
+    try {
+      await openCheckout({
+        items: [{ priceId, quantity: 1 }],
+        customer: user.email ? { email: user.email } : undefined,
+        customData: {
+          clerkId: user.clerkId,
+          planType: planId,
+          source: "home_pricing",
+          beta50: shouldUseBeta50 ? "true" : "false",
+        },
+      });
+    } catch (error: any) {
+      toast.error(`Checkout failed: ${error?.message || "Unknown error"}`);
+    }
+  };
+
+  // Auto-start checkout after returning from Clerk Sign In/Sign Up.
+  useEffect(() => {
+    if (showWaitlist) return;
+    if (!isAuthenticated) return;
+    if (!paddleReady) return;
+    if (autoCheckoutAttemptedRef.current) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const buy = (params.get("buy") || "").trim();
+    const isPlan =
+      buy === "intensive" || buy === "balanced" || buy === "standard" || buy === "relaxed";
+    if (!isPlan) return;
+
+    autoCheckoutAttemptedRef.current = true;
+    params.delete("buy");
+    const qs = params.toString();
+    const nextUrl = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash || ""}`;
+    window.history.replaceState({}, "", nextUrl);
+
+    void startPurchase(buy as PlanId);
+  }, [isAuthenticated, paddleReady, showWaitlist]);
   
   // BETA: Force English for all users
   useEffect(() => {
@@ -278,7 +390,7 @@ export default function Home() {
 
       {/* Pricing, Upgrade Policy & FAQ Section */}
       {/* Flexible Duration Section */}
-      <section className="container py-20">
+      <section id="pricing" className="container py-20">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center space-y-4">
             <h3 className="text-4xl font-bold">{t('home.pricing.title')}</h3>
@@ -329,10 +441,16 @@ export default function Home() {
                     <span>{t('home.pricing.intensive.feature5')}</span>
                   </li>
                 </ul>
-                <Button className="w-full" disabled>
+                <Button
+                  className="w-full"
+                  disabled={showWaitlist || (isAuthenticated && !paddleReady)}
+                  onClick={() => void startPurchase("intensive")}
+                >
                   {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                {showWaitlist ? (
+                  <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -375,10 +493,16 @@ export default function Home() {
                     <span>{t('home.pricing.balanced.feature5')}</span>
                   </li>
                 </ul>
-                <Button className="w-full" disabled>
+                <Button
+                  className="w-full"
+                  disabled={showWaitlist || (isAuthenticated && !paddleReady)}
+                  onClick={() => void startPurchase("balanced")}
+                >
                   {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                {showWaitlist ? (
+                  <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -424,10 +548,16 @@ export default function Home() {
                     <span>{t('home.pricing.standard.feature5')}</span>
                   </li>
                 </ul>
-                <Button className="w-full bg-primary" disabled>
+                <Button
+                  className="w-full bg-primary"
+                  disabled={showWaitlist || (isAuthenticated && !paddleReady)}
+                  onClick={() => void startPurchase("standard")}
+                >
                   {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                {showWaitlist ? (
+                  <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -470,10 +600,16 @@ export default function Home() {
                     <span>{t('home.pricing.relaxed.feature5')}</span>
                   </li>
                 </ul>
-                <Button className="w-full" disabled>
+                <Button
+                  className="w-full"
+                  disabled={showWaitlist || (isAuthenticated && !paddleReady)}
+                  onClick={() => void startPurchase("relaxed")}
+                >
                   {t('home.pricing.choosePlan')}
                 </Button>
-                <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                {showWaitlist ? (
+                  <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
+                ) : null}
               </CardContent>
             </Card>
           </div>

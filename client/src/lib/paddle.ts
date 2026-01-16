@@ -8,6 +8,7 @@ import { initializePaddle, Paddle } from "@paddle/paddle-js";
 let paddleInstance: Paddle | null = null;
 
 type CheckoutOpenOptions = Parameters<Paddle["Checkout"]["open"]>[0];
+type PaddleEnv = "sandbox" | "production";
 
 /**
  * Check if Paddle is configured with valid credentials
@@ -41,6 +42,38 @@ export async function initPaddle(): Promise<Paddle | null> {
     paddleInstance =
       (await initializePaddle({
         environment,
+        token,
+      })) ?? null;
+
+    console.log("[Paddle] Initialized successfully");
+    return paddleInstance;
+  } catch (error) {
+    console.error("[Paddle] Initialization failed:", error);
+    return null;
+  }
+}
+
+/**
+ * Initialize Paddle.js with an explicit token (e.g. loaded from backend config).
+ */
+export async function initPaddleWithToken(args: {
+  token: string;
+  environment: PaddleEnv;
+}): Promise<Paddle | null> {
+  if (paddleInstance) {
+    return paddleInstance;
+  }
+
+  const token = (args.token || "").trim();
+  if (!token) {
+    console.warn("[Paddle] Client token not configured");
+    return null;
+  }
+
+  try {
+    paddleInstance =
+      (await initializePaddle({
+        environment: args.environment,
         token,
       })) ?? null;
 

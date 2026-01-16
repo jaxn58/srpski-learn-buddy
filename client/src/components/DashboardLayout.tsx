@@ -55,7 +55,8 @@ import {
   CheckCircle2,
   Footprints,
   Flag,
-  Zap
+  Zap,
+  Upload
 } from "lucide-react";
 import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
@@ -207,6 +208,11 @@ function DashboardLayoutContent({
   const badgeCount = useQuery(api.badges.getBadgeCount);
   const badgeData = badgeCount !== undefined ? { count: badgeCount } : undefined;
 
+  // Admin sidebar badges (return 0 for non-admins on the backend)
+  const feedbackNewCount = useQuery(api.feedback.getNewCount);
+  const inactiveUserCount = useQuery(api.users.getInactiveCount);
+  const waitlistPendingCount = useQuery(api.waitlist.getPendingCount);
+
   // Source of truth for displayed version: Convex appVersions (not package.json)
   const currentAppVersion = useQuery(api.versions.getCurrentVersion, { environment: "beta" });
 
@@ -249,10 +255,39 @@ function DashboardLayoutContent({
     { label: "Waitlist", path: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
     { label: t('sidebar.subscriptionAnalytics'), path: "/admin/subscription-analytics", icon: <TrendingUp className="h-4 w-4" /> },
     { label: "Database Backups", path: "/admin/backup", icon: <Database className="h-4 w-4" /> },
+    { label: "Content Import", path: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
   ];
 
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const activeMenuItem = [...navItems, ...(isAdmin ? adminItems : [])].find(item => item.path === location);
+
+  const renderAdminCountBadge = (path: string) => {
+    if (!isAdmin) return null;
+    const count =
+      path === "/admin/feedback"
+        ? (typeof feedbackNewCount === "number" ? feedbackNewCount : 0)
+        : path === "/admin"
+          ? (typeof inactiveUserCount === "number" ? inactiveUserCount : 0)
+          : path === "/admin/waitlist"
+            ? (typeof waitlistPendingCount === "number" ? waitlistPendingCount : 0)
+            : 0;
+
+    if (count <= 0) return null;
+    const label = count > 99 ? "99+" : String(count);
+
+    return (
+      <span
+        className={cn(
+          "ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-emerald-500 text-white text-[11px] font-semibold",
+          "group-data-[collapsible=icon]:hidden"
+        )}
+        aria-label={`${label} pending`}
+        title={`${label}`}
+      >
+        {label}
+      </span>
+    );
+  };
 
   useEffect(() => {
     if (isCollapsed) {
@@ -533,6 +568,7 @@ function DashboardLayoutContent({
                             <Link href={item.path}>
                               {item.icon}
                               <span>{item.label}</span>
+                              {renderAdminCountBadge(item.path)}
                             </Link>
                           </SidebarMenuButton>
                         </SidebarMenuItem>

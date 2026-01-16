@@ -237,10 +237,18 @@ export default defineSchema({
     options: v.optional(v.array(v.string())), // For Multiple Choice
     hint: v.optional(v.string()), // Optional Hint
     order: v.number(), // Order within category
+
+    // ===== Versioning / Soft-archive for Replace mode (backward compatible) =====
+    // Undefined is treated as active + version 1 in queries.
+    isActive: v.optional(v.boolean()),
+    archivedAt: v.optional(v.number()),
+    unitVersion: v.optional(v.number()),
   })
     .index("by_unit_lang_category", ["unitNumber", "language", "category"]) // Composite FK + category
     .index("by_unit_lang", ["unitNumber", "language"]) // Foreign Key to unitMetadata
-    .index("by_question_id", ["questionId"]), // Unique for Gamification
+    .index("by_question_id", ["questionId"]) // Unique for Gamification
+    .index("by_unit_lang_active", ["unitNumber", "language", "isActive"])
+    .index("by_unit_lang_active_version", ["unitNumber", "language", "isActive", "unitVersion"]),
 
   // ============= UNIT CONTENT (Modern multi-language support) =============
   // Relational: Foreign Key to unitMetadata (unitNumber, language)
@@ -262,9 +270,17 @@ export default defineSchema({
     version: v.optional(v.number()), // For content versioning
     createdAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
+
+    // ===== Versioning / Soft-archive for Replace mode (backward compatible) =====
+    // Undefined is treated as active + version 1 in queries.
+    isActive: v.optional(v.boolean()),
+    archivedAt: v.optional(v.number()),
+    unitVersion: v.optional(v.number()),
   })
     .index("by_unit_lang_type", ["unitNumber", "language", "contentType"]) // Composite FK + contentType
-    .index("by_unit_lang", ["unitNumber", "language"]), // Foreign Key to unitMetadata
+    .index("by_unit_lang", ["unitNumber", "language"]) // Foreign Key to unitMetadata
+    .index("by_unit_lang_type_active", ["unitNumber", "language", "contentType", "isActive"])
+    .index("by_unit_lang_type_active_version", ["unitNumber", "language", "contentType", "isActive", "unitVersion"]),
 
   // ============= CENTRAL COURSE VOCABULARY (Master Data) =============
   // Stores vocabulary definitions from Units (Markdown)
@@ -302,10 +318,19 @@ export default defineSchema({
     noteSr: v.optional(v.string()), // Serbian note
     noteEs: v.optional(v.string()), // Spanish note (future)
     noteFr: v.optional(v.string()), // French note (future)
+
+    // ===== Versioning / Soft-archive for Replace mode (backward compatible) =====
+    // Undefined is treated as active + version 1 in queries.
+    isActive: v.optional(v.boolean()),
+    archivedAt: v.optional(v.number()),
+    unitVersion: v.optional(v.number()),
   })
   .index("by_unit", ["unitNumber"])
   .index("by_serbian", ["serbian"])
-  .index("by_unit_serbian", ["unitNumber", "serbian"]), // NEW: For finding by unit + serbian
+  .index("by_unit_serbian", ["unitNumber", "serbian"]) // NEW: For finding by unit + serbian
+  .index("by_unit_active", ["unitNumber", "isActive"])
+  .index("by_unit_serbian_active", ["unitNumber", "serbian", "isActive"])
+  .index("by_unit_active_version", ["unitNumber", "isActive", "unitVersion"]),
 
   // ============= GAMIFICATION: EXERCISE COMPLETIONS =============
   exerciseCompletions: defineTable({
@@ -357,6 +382,21 @@ export default defineSchema({
     adminNotes: v.optional(v.string()),
     reviewedAt: v.optional(v.number()),
     submittedAt: v.optional(v.number()),
+
+    // ===== AI assistance (superadmin-only access via dedicated queries) =====
+    aiStatus: v.optional(
+      v.union(v.literal("pending"), v.literal("ready"), v.literal("error"))
+    ),
+    aiDraftReply: v.optional(v.string()),
+    aiInternalNote: v.optional(v.string()),
+    aiModel: v.optional(v.string()),
+    aiGeneratedAt: v.optional(v.number()),
+    aiError: v.optional(v.string()),
+
+    // Track what was actually sent to the user
+    aiSentAt: v.optional(v.number()),
+    aiSentBy: v.optional(v.id("users")),
+    aiSentContent: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"]),
@@ -634,6 +674,29 @@ export default defineSchema({
   })
     .index("by_timestamp", ["timestamp"])
     .index("by_environment", ["environment"])
+    .index("by_status", ["status"]),
+
+  // ============= CONTENT IMPORT RUNS (Admin Audit Log) =============
+  // Stores validation/import runs from the admin content import tool.
+  // Keep the report as a JSON string to stay forwards-compatible with report schema changes.
+  contentImportRuns: defineTable({
+    type: v.union(v.literal("validate"), v.literal("import")),
+    status: v.union(v.literal("success"), v.literal("failed")),
+    mode: v.optional(v.union(v.literal("update"), v.literal("replace"))),
+    unitVersion: v.optional(v.number()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    fileNames: v.array(v.string()),
+    filesCount: v.number(),
+    unitNumbers: v.array(v.number()),
+    totalErrors: v.number(),
+    totalWarnings: v.number(),
+    reportJson: v.string(),
+  })
+    .index("by_started_at", ["startedAt"])
+    .index("by_created_by", ["createdBy"])
+    .index("by_type", ["type"])
     .index("by_status", ["status"]),
 
   // ============= WAITLIST =============

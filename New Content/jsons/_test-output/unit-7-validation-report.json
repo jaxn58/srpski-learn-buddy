@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-01-16T16:52:55.845Z",
+  "fileName": "Unit-7-Going-Out-with-Friends-v1.md",
+  "unitNumber": 7,
+  "title": "Going Out with Friends",
+  "changesCount": 2,
+  "changes": [
+    {
+      "kind": "mergeExerciseCategories",
+      "path": [
+        "exercises",
+        "en"
+      ],
+      "before": [
+        {
+          "category": "translation",
+          "questions": 10
+        },
+        {
+          "category": "translation",
+          "questions": 6
+        }
+      ],
+      "after": {
+        "category": "translation",
+        "questions": 16
+      },
+      "note": "Merged 2 blocks of category 'translation'"
+    },
+    {
+      "kind": "mergeExerciseCategories",
+      "path": [
+        "exercises",
+        "en"
+      ],
+      "before": [
+        {
+          "category": "fillInBlank",
+          "questions": 10
+        },
+        {
+          "category": "fillInBlank",
+          "questions": 10
+        },
+        {
+          "category": "fillInBlank",
+          "questions": 7
+        }
+      ],
+      "after": {
+        "category": "fillInBlank",
+        "questions": 27
+      },
+      "note": "Merged 3 blocks of category 'fillInBlank'"
+    }
+  ],
+  "errorsCount": 0,
+  "errors": [],
+  "warningsCount": 0,
+  "warnings": [],
+  "valid": true
+}

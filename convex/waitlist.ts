@@ -211,6 +211,21 @@ export const getStats = query({
   },
 });
 
+// Count pending waitlist entries (admin/superadmin; returns 0 for others)
+export const getPendingCount = query({
+  handler: async (ctx) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) return 0;
+
+    const pending = await ctx.db
+      .query("waitlist")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .collect();
+
+    return pending.length;
+  },
+});
+
 // Notify all confirmed users about beta launch (admin only)
 export const notifyAll = mutation({
   handler: async (ctx) => {

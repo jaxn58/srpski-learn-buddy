@@ -13,44 +13,96 @@
  *   tsx scripts/sync-email-templates-to-production.ts --dry-run
  * 
  * Required Environment Variables:
- *   VITE_CONVEX_URL_DEV  - Development Convex deployment URL
- *   VITE_CONVEX_URL_PROD - Production Convex deployment URL
+ *   VITE_CONVEX_URL             - Development Convex deployment URL (loaded from .env.local)
+ *   VITE_CONVEX_URL_PRODUCTION  - Production Convex deployment URL (loaded from .env.local)
+ *
+ * Backward-compatible aliases also supported:
+ *   VITE_CONVEX_URL_DEV / CONVEX_URL_DEV
+ *   VITE_CONVEX_URL_PROD / CONVEX_URL_PROD
  */
 
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
-import "dotenv/config";
+import * as dotenv from "dotenv";
 import * as readline from "readline";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 
 // Parse command line arguments
 const args = process.argv.slice(2);
 const isDryRun = args.includes("--dry-run");
 
-// Get Convex URLs from environment variables
-const DEV_URL = 
-  process.env.VITE_CONVEX_URL_DEV || 
-  process.env.CONVEX_URL_DEV;
+// Load local environment.
+// On Windows + tsx, relying only on import.meta.url can point to a transpiled path.
+// Prefer process.cwd() (pnpm runs scripts from repo root), and fall back to script location.
+const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRootFromScript = path.resolve(scriptsDir, "..");
 
-const PROD_URL = 
+const cwd = process.cwd();
+const candidates = [
+  cwd,
+  path.resolve(cwd, ".."),
+  repoRootFromScript,
+].filter(Boolean);
+
+function loadEnvFrom(root: string) {
+  const envLocal = path.join(root, ".env.local");
+  const env = path.join(root, ".env");
+
+  if (fs.existsSync(envLocal)) {
+    dotenv.config({ path: envLocal });
+  }
+  if (fs.existsSync(env)) {
+    dotenv.config({ path: env });
+  }
+}
+
+for (const root of candidates) {
+  loadEnvFrom(root);
+}
+
+// Get Convex URLs from environment variables
+const DEV_URL =
+  process.env.VITE_CONVEX_URL_DEV || 
+  process.env.CONVEX_URL_DEV ||
+  process.env.VITE_CONVEX_URL ||
+  process.env.CONVEX_URL ||
+  (process.env.CONVEX_DEPLOYMENT
+    ? `https://${process.env.CONVEX_DEPLOYMENT}.convex.cloud`
+    : undefined);
+
+const DEFAULT_PROD_URL = "https://fleet-labrador-324.convex.cloud";
+
+const PROD_URL =
   process.env.VITE_CONVEX_URL_PROD || 
-  process.env.CONVEX_URL_PROD;
+  process.env.CONVEX_URL_PROD ||
+  process.env.VITE_CONVEX_URL_PRODUCTION ||
+  process.env.CONVEX_URL_PRODUCTION ||
+  DEFAULT_PROD_URL;
 
 // Validate environment variables
 if (!DEV_URL) {
   console.error("❌ Development Convex URL is not set");
-  console.error("\nPlease set VITE_CONVEX_URL_DEV:");
-  console.error("  $env:VITE_CONVEX_URL_DEV='https://your-dev-deployment.convex.cloud'");
-  console.error("\nOr add to your .env file:");
-  console.error("  VITE_CONVEX_URL_DEV=https://your-dev-deployment.convex.cloud");
+  console.error("\nExpected one of these to be set (prefer .env.local):");
+  console.error("  VITE_CONVEX_URL");
+  console.error("  VITE_CONVEX_URL_DEV");
+  console.error("  CONVEX_URL");
+  console.error("  CONVEX_URL_DEV");
+  console.error("\nExample (.env.local):");
+  console.error("  VITE_CONVEX_URL=https://your-dev-deployment.convex.cloud");
   process.exit(1);
 }
 
 if (!PROD_URL) {
   console.error("❌ Production Convex URL is not set");
-  console.error("\nPlease set VITE_CONVEX_URL_PROD:");
-  console.error("  $env:VITE_CONVEX_URL_PROD='https://your-prod-deployment.convex.cloud'");
-  console.error("\nOr add to your .env file:");
-  console.error("  VITE_CONVEX_URL_PROD=https://your-prod-deployment.convex.cloud");
+  console.error("\nExpected one of these to be set (prefer .env.local):");
+  console.error("  VITE_CONVEX_URL_PRODUCTION");
+  console.error("  VITE_CONVEX_URL_PROD");
+  console.error("  CONVEX_URL_PRODUCTION");
+  console.error("  CONVEX_URL_PROD");
+  console.error("\nExample (.env.local):");
+  console.error("  VITE_CONVEX_URL_PRODUCTION=https://your-production-deployment.convex.cloud");
   process.exit(1);
 }
 

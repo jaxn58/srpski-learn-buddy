@@ -3,6 +3,17 @@ import { BookOpen } from "lucide-react";
 import { Link } from "wouter";
 
 export default function SignUpPage() {
+  const redirectUrl = (() => {
+    const params = new URLSearchParams(window.location.search);
+    const candidate = (params.get("redirect_url") || "").trim();
+    if (!candidate) return "/dashboard";
+    // Prevent open redirects.
+    if (!candidate.startsWith("/")) return "/dashboard";
+    if (candidate.startsWith("//")) return "/dashboard";
+    if (candidate.includes("://")) return "/dashboard";
+    return candidate;
+  })();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50 flex flex-col">
       {/* Header */}
@@ -25,8 +36,8 @@ export default function SignUpPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <SignUp
           routing="virtual"
-          signInUrl="/sign-in"
-          afterSignUpUrl="/dashboard"
+          signInUrl={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
+          afterSignUpUrl={redirectUrl}
           appearance={{
             elements: {
               rootBox: "mx-auto",

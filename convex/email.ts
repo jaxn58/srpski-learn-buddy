@@ -243,6 +243,30 @@ export const sendFeedbackAdminNotificationEmail = internalAction({
   },
 });
 
+/**
+ * Send feedback admin reply email to the user (convenience wrapper)
+ */
+export const sendFeedbackAdminReplyEmail = internalAction({
+  args: {
+    userName: v.string(),
+    userEmail: v.string(),
+    feedbackTitle: v.string(),
+    adminReply: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.runAction(internal.email.sendEmail, {
+      templateName: "feedback-admin-reply",
+      variables: {
+        USER_NAME: args.userName,
+        USER_EMAIL: args.userEmail,
+        FEEDBACK_TITLE: args.feedbackTitle,
+        ADMIN_REPLY: args.adminReply,
+      },
+      to: args.userEmail,
+    });
+  },
+});
+
 
 
 

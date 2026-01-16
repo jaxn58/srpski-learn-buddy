@@ -132,6 +132,39 @@ This email was sent to {{ADMIN_EMAIL}}
   },
 
   {
+    name: "feedback-admin-reply",
+    subject: "Re: {{FEEDBACK_TITLE}}",
+    description: "Sent to user when a superadmin replies to their feedback",
+    category: "transactional" as const,
+    htmlContent: `
+<h1>Serbian AI Tutor</h1>
+<h2>Reply to Your Feedback</h2>
+
+<p>Hi {{USER_NAME}},</p>
+
+<p>Thanks again for your feedback about:</p>
+<p><strong>{{FEEDBACK_TITLE}}</strong></p>
+
+<h3>Our reply</h3>
+<p style="background-color: #f5f5f5; padding: 16px; border-left: 3px solid #ccc; white-space: pre-wrap;">
+{{ADMIN_REPLY}}
+</p>
+
+<p>If you have additional details (screenshots, steps to reproduce, device/browser), just reply to this email.</p>
+
+<p>Best regards,<br>
+<strong>The Serbian AI Tutor Team</strong></p>
+
+<hr>
+<p style="font-size: 12px; color: #666;">
+© 2025 Serbian AI Tutor by jacksenn.me<br>
+This email was sent to {{USER_EMAIL}}
+</p>
+`,
+    variables: ["USER_NAME", "USER_EMAIL", "FEEDBACK_TITLE", "ADMIN_REPLY"],
+  },
+
+  {
     name: "waitlist-opt-in",
     subject: "Confirm Your Waitlist Registration",
     description: "Sent when a user joins the waitlist - requires confirmation",

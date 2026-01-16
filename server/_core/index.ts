@@ -1,10 +1,17 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import { serveStatic, setupVite } from "./vite";
+import path from "path";
+
+// Load environment variables for the local Express server (including `.env.local`).
+// This keeps Dev TTS behavior aligned with the frontend and avoids missing secrets at runtime.
+const projectRoot = path.resolve(import.meta.dirname, "../..");
+dotenv.config({ path: path.join(projectRoot, ".env") });
+dotenv.config({ path: path.join(projectRoot, ".env.local"), override: true });
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {

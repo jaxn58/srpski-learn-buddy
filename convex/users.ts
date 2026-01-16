@@ -352,6 +352,19 @@ export const getAllUsers = query({
   },
 });
 
+// Count inactive users (admin/superadmin; returns 0 for others)
+export const getInactiveCount = query({
+  handler: async (ctx) => {
+    const currentUser = await getCurrentUser(ctx);
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "superadmin")) {
+      return 0;
+    }
+
+    const users = await ctx.db.query("users").collect();
+    return users.filter((u) => u.isActive === false).length;
+  },
+});
+
 // Update own learning language
 export const updateMyLanguage = mutation({
   args: {

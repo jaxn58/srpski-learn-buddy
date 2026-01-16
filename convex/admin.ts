@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { VOCABULARY } from "../shared/data/vocabulary/words";
@@ -42,6 +42,21 @@ export const getChatPrompt = query({
       .first();
 
     console.log(`getChatPrompt: Result found: ${!!prompt}`);
+    return prompt || null;
+  },
+});
+
+// Internal: fetch prompt by name without requiring user identity (for server-side actions).
+// NOTE: Do not expose this to clients directly. Use only via `internal.admin.*`.
+export const internalGetChatPromptByName = internalQuery({
+  args: {
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const prompt = await ctx.db
+      .query("chatPrompts")
+      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .first();
     return prompt || null;
   },
 });

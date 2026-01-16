@@ -2,18 +2,17 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-// Types only - no hardcoded data imports
-import type { SupportedLanguage } from "@shared/data";
-import { Search, BookOpen, Filter, Star, Volume2, Loader2 } from "lucide-react";
+import { Search, BookOpen, Filter, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo, useEffect } from "react";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
-import { useQuery, useAction, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { useTranslation } from "react-i18next";
+import { VocabularyDictionaryTable, type VocabularyDictionaryRow } from "@/components/vocabulary/VocabularyDictionaryTable";
+import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
 
 type VocabularyProgressDoc = Doc<"vocabulary">;
 
@@ -23,42 +22,29 @@ export default function VocabularyList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUnit, setSelectedUnit] = useState<number>(1);
   
-  // Audio URL cache for fast repeated playback (stores storage IDs)
-  const [audioStorageCache, setAudioStorageCache] = useState<Record<string, string>>({});
-  
   // Get accessible units from Convex
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
-  
-  // BETA: Force English for all users
-  const userLanguage: SupportedLanguage = "en";
 
-  // Helper function to get note for current language
-  const getNoteForLanguage = (word: any, language: SupportedLanguage): string | null => {
-    if (!word) return null;
-    if (language === "de") return word.noteDe || word.noteEn || null;
-    if (language === "sr") return word.noteSr || word.noteEn || null;
-    if (language === "es") return word.noteEs || word.noteEn || null;
-    if (language === "fr") return word.noteFr || word.noteEn || null;
-    return word.noteEn || null;
-  };
+  // Englisch-only (solange keine deutschen Inhalte vorhanden sind)
+  const maxUnits = accessInfo?.maxUnits ?? 0;
+  const hasAccess = Boolean(user) && accessInfo !== undefined && maxUnits > 0;
 
   // Fetch vocabulary progress for all units
-  const vocabProgressData = useQuery(api.vocabulary.getUserVocabularyProgress, {}) as VocabularyProgressDoc[] | undefined;
+  const vocabProgressData = useQuery(api.vocabulary.getUserVocabularyProgress, user ? {} : "skip") as
+    | VocabularyProgressDoc[]
+    | undefined;
   
   // NEW: Fetch course vocabulary from database
-  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
-  const vocabWithProgress = useQuery(api.vocabulary.getVocabularyWithProgress, { unitNumber: selectedUnit });
+  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary, hasAccess ? undefined : "skip");
+  const vocabWithProgress = useQuery(
+    api.vocabulary.getVocabularyWithProgress,
+    hasAccess ? { unitNumber: selectedUnit } : "skip"
+  );
   
   // NEW: Fetch available unit numbers dynamically from database
-  const availableUnitNumbers = useQuery(api.vocabulary.getAvailableUnitNumbers);
+  const availableUnitNumbers = useQuery(api.vocabulary.getAvailableUnitNumbers, hasAccess ? undefined : "skip");
   
-  // Audio generation mutations/actions
-  // We use direct fetch for generation to avoid Cloud->Localhost issues in dev
-  const updateVocabularyAudioStorageId = useMutation(api.vocabulary.updateVocabularyAudioStorageId);
-  
-  // State for audio playback
-  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
-  const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
+  const { play, playingAudioId, loadingAudioId } = useVocabularyAudioPlayback();
 
   if (!user) {
     window.location.href = "/";
@@ -67,6 +53,12 @@ export default function VocabularyList() {
 
   // Filter and search vocabulary
   const filteredVocabulary = useMemo(() => {
+    // Zugriff noch nicht geladen -> nichts anzeigen (vermeidet kurzes "Leaken" vor Zugriff-Check)
+    if (accessInfo === undefined) return [];
+
+    // Kein Zugriff -> nichts anzeigen
+    if (maxUnits <= 0) return [];
+
     // NEW: Use courseVocabulary from database (if available)
     // FALLBACK: Use hardcoded VOCABULARY for backward compatibility
     if (!courseVocabulary || courseVocabulary.length === 0) {
@@ -74,9 +66,14 @@ export default function VocabularyList() {
       return [];
     }
     
+    // Debug: Check if courseVocabulary has _id fields
+    if (courseVocabulary.length > 0 && !courseVocabulary[0]._id) {
+      console.error("[VocabularyList] courseVocabulary items are missing _id field!", courseVocabulary[0]);
+    }
+    
     let filtered = courseVocabulary
-      .filter(word => word.serbian) // Only include words with serbian field
-      .map(word => ({
+      .filter((word: any) => word.serbian) // Only include words with serbian field
+      .map((word: any) => ({
         _id: word._id,
         serbian: word.serbian,
         serbianWord: word.serbian, // For compatibility
@@ -96,19 +93,17 @@ export default function VocabularyList() {
       }));
 
     // Beta/Subscription Beschränkung
-    if (accessInfo && accessInfo.maxUnits > 0) {
-      filtered = filtered.filter(v => v.unit <= accessInfo.maxUnits);
-    }
+    filtered = filtered.filter((v: any) => v.unit <= maxUnits);
 
     // Filter by unit
     const beforeUnitFilter = filtered.length;
-    filtered = filtered.filter(v => v.unit === selectedUnit);
+    filtered = filtered.filter((v: any) => v.unit === selectedUnit);
     console.log(`[VocabularyList] After unit filter (${selectedUnit}): ${filtered.length} words (was ${beforeUnitFilter})`);
 
     // Search in Serbian or English
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(v => {
+      filtered = filtered.filter((v: any) => {
         // Check if serbian word exists before calling toLowerCase
         const serbianMatch = v.serbian && v.serbian.toLowerCase().includes(search);
         // NEW: Support column-based translations (check if values exist)
@@ -123,23 +118,26 @@ export default function VocabularyList() {
     }
 
     return filtered;
-  }, [searchTerm, selectedUnit, accessInfo, courseVocabulary, userLanguage]);
+  }, [searchTerm, selectedUnit, accessInfo, maxUnits, courseVocabulary]);
 
   // Units dynamisch aus Datenbank laden und basierend auf Zugriff beschränken
   const units = useMemo(() => {
+    if (accessInfo === undefined) {
+      return [];
+    }
+
+    if (maxUnits <= 0) {
+      return [];
+    }
+
     // Fallback: Wenn keine Units aus DB geladen, leeres Array zurückgeben
     if (!availableUnitNumbers || availableUnitNumbers.length === 0) {
       return [];
     }
     
     // Units basierend auf Zugriff filtern
-    if (accessInfo && accessInfo.maxUnits > 0) {
-      return availableUnitNumbers.filter(unit => unit <= accessInfo.maxUnits);
-    }
-    
-    // Alle verfügbaren Units zurückgeben
-    return availableUnitNumbers;
-  }, [availableUnitNumbers, accessInfo]);
+    return availableUnitNumbers.filter((unit: number) => unit <= maxUnits);
+  }, [availableUnitNumbers, accessInfo, maxUnits]);
   
   // Sicherstellen, dass selectedUnit gültig ist, wenn Units geladen werden
   useEffect(() => {
@@ -149,123 +147,8 @@ export default function VocabularyList() {
     }
   }, [units, selectedUnit]);
 
-  // Handle audio playback
-  const handlePlayAudio = async (vocabularyId: string, serbianWord: string) => {
-    // Prevent multiple simultaneous requests
-    if (loadingAudioId || playingAudioId === vocabularyId) {
-      return;
-    }
-
-    setLoadingAudioId(vocabularyId);
-    
-    try {
-      // 1. Check cache first (fastest) - storageId
-      let storageId = audioStorageCache[vocabularyId];
-      
-      // 2. If not in cache, check database
-      if (!storageId) {
-        const word = courseVocabulary?.find(w => w._id === vocabularyId);
-        storageId = (word as any)?.audioStorageId;
-      }
-      
-      // 3. If not found, generate it via server endpoint
-      if (!storageId) {
-        const word = courseVocabulary?.find(w => w._id === vocabularyId);
-        
-        // Use configured server URL if provided, otherwise fall back to same origin (works on Vercel)
-        const configuredServerUrl = import.meta.env.VITE_SERVER_URL?.replace(/\/$/, "");
-        const audioEndpoint = configuredServerUrl
-          ? `${configuredServerUrl}/api/audio/generate`
-          : "/api/audio/generate";
-
-        const response = await fetch(audioEndpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            serbianWord,
-            vocabularyId,
-            unitNumber: word?.unitNumber,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Audio generation failed: ${response.status} ${response.statusText} - ${errorText}`);
-        }
-
-        const result = await response.json();
-        
-        if (!result.success || !result.storageId) {
-          throw new Error("Invalid response from audio generation endpoint");
-        }
-        
-        storageId = result.storageId;
-        
-        // 4. Save to cache immediately for instant replay
-        setAudioStorageCache(prev => ({ ...prev, [vocabularyId]: storageId! }));
-        
-        // 5. Save the new storageId to database (async, don't wait)
-        updateVocabularyAudioStorageId({
-          vocabularyId: vocabularyId as any,
-          audioStorageId: storageId!,
-        }).catch(err => console.error("Failed to save audio storageId to DB:", err));
-      }
-      
-      // 6. Generate fresh URL from storageId (direct API call)
-      if (storageId) {
-        const response = await fetch(`${import.meta.env.VITE_CONVEX_URL}/api/query`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            path: "vocabulary:getAudioUrlFromStorageId",
-            args: { storageId },
-          }),
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to get audio URL: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        const audioUrl = result.value;
-        
-        if (!audioUrl) {
-          throw new Error("Failed to generate audio URL from storageId");
-        }
-        
-        const audio = new Audio(audioUrl);
-        
-        audio.onplay = () => {
-          setPlayingAudioId(vocabularyId);
-          setLoadingAudioId(null);
-        };
-        
-        audio.onended = () => {
-          setPlayingAudioId(null);
-        };
-        
-        audio.onerror = (e) => {
-          setLoadingAudioId(null);
-          setPlayingAudioId(null);
-          console.error("Audio playback failed", e);
-        };
-        
-        await audio.play();
-      }
-    } catch (error) {
-      console.error("Failed to get audio:", error);
-      setLoadingAudioId(null);
-      
-      // Show user-friendly error
-      const errorMessage = error instanceof Error && error.message === "Failed to fetch" 
-        ? "Server not reachable. Please ensuring 'pnpm dev:server' is running."
-        : "Failed to generate audio. Please try again.";
-        
-      alert(errorMessage); // Simple alert for now, could be toast
-    }
-  };
+  // Keep local cache for future use (e.g., to avoid finding from DB again)
+  // Note: playback itself is handled by the shared hook now.
 
   // Helper function to check if a unit is mastered
   // A unit is mastered when ALL vocabulary words in that unit have correctAnswerCount >= 3
@@ -277,7 +160,7 @@ export default function VocabularyList() {
     }
     
     // Get all vocabulary words for this unit
-    const unitVocab = courseVocabulary.filter(v => v.unitNumber === unitNumber);
+    const unitVocab = courseVocabulary.filter((v: any) => v.unitNumber === unitNumber);
     if (unitVocab.length === 0) return false;
     
     // Check if vocabProgressData or vocabWithProgress is loaded
@@ -287,10 +170,10 @@ export default function VocabularyList() {
     }
     
     // Check if all words in the unit are mastered (correctAnswerCount >= 3)
-    const allMastered = unitVocab.every(word => {
+    const allMastered = unitVocab.every((word: any) => {
       // NEW: Try vocabWithProgress first (contains progress data)
       if (vocabWithProgress) {
-        const progress = vocabWithProgress.find(p => p._id === word._id)?.progress;
+        const progress = vocabWithProgress.find((p: any) => p._id === word._id)?.progress;
         if (progress) {
           return (progress.correctAnswerCount ?? 0) >= 3;
         }
@@ -309,6 +192,64 @@ export default function VocabularyList() {
     
     return allMastered;
   };
+
+  // Prepare rows for shared Dictionary Table component
+  const tableRows: VocabularyDictionaryRow[] = useMemo(() => {
+    return filteredVocabulary.map((word: any, idx: number) => {
+      const wordProgress = vocabProgressData?.find(
+        (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
+      );
+
+      // Englisch-only: Translation (mit Fallbacks)
+      const enFromColumns = typeof word.en === "string" ? word.en.trim() : "";
+      const deFromColumns = typeof word.de === "string" ? word.de.trim() : "";
+
+      let displayTranslation: string = enFromColumns || "";
+      let altTranslation: string | undefined = typeof word.enAlt === "string" ? word.enAlt : undefined;
+
+      if (!displayTranslation && word.translations && Array.isArray(word.translations)) {
+        const enObj = word.translations.find((t: any) => t?.language === "en");
+        displayTranslation = (enObj?.translation || "").trim();
+        if (!altTranslation && typeof enObj?.alt === "string") {
+          altTranslation = enObj.alt;
+        }
+      }
+
+      // Last-resort fallback
+      if (!displayTranslation) {
+        displayTranslation = deFromColumns || "";
+      }
+
+      // Englisch-only: Note
+      const note = (typeof word.noteEn === "string" ? word.noteEn : null) as string | null;
+
+      const correctCountRaw = (wordProgress?.correctAnswerCount ?? 0) as number;
+      const incorrectCountRaw = (wordProgress as any)?.incorrectAnswerCount ?? 0;
+      const correctCount = Math.max(0, correctCountRaw);
+      const incorrectCount = Math.max(0, Number(incorrectCountRaw) || 0);
+      const mastered = Boolean((wordProgress as any)?.mastered) || correctCount >= 3;
+
+      // Safety check: Ensure _id exists (otherwise audio won't work)
+      if (!word._id) {
+        console.error(`[VocabularyList] Missing _id for word: ${word.serbian} (unit ${word.unit})`);
+      }
+
+      // Get audioStorageId from vocabWithProgress (NOT from courseVocabulary)
+      // vocabWithProgress contains progress data including audioStorageId
+      const audioStorageId = vocabWithProgress?.find((v: any) => v._id === word._id)?.audioStorageId ?? null;
+
+      return {
+        id: String(word._id ?? `fallback-${idx}`),
+        serbian: word.serbian,
+        translation: displayTranslation,
+        altTranslation,
+        note,
+        audioStorageId,
+        unitNumber: word.unit,
+        mastery: { correctCount, incorrectCount, mastered },
+      } satisfies VocabularyDictionaryRow;
+    });
+  }, [filteredVocabulary, vocabProgressData, vocabWithProgress]);
 
   return (
     <AnimatedPage>
@@ -331,61 +272,61 @@ export default function VocabularyList() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
         {/* Search and Filter */}
         <AnimatedItem>
-          <Card className="mb-8">
+          <Card>
             <CardHeader>
               <CardTitle>{t('vocabularyList.searchFilter')}</CardTitle>
               <CardDescription>
                 {t('vocabularyList.searchFilter.desc', { count: courseVocabulary?.length || 0 })}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={t('vocabularyList.searchPlaceholder')}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            {/* Unit Filter */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                <span className="text-sm font-medium">{t('vocabularyList.filterByUnit')}</span>
+            <CardContent className="space-y-6">
+              {/* Search */}
+              <div className="relative max-w-xl">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t('vocabularyList.searchPlaceholder')}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-              <div className="flex flex-wrap gap-2">
-                {units.map(unit => {
-                  const mastered = isUnitMastered(unit);
-                  const isSelected = selectedUnit === unit;
-                  return (
-                    <Button
-                      key={unit}
-                      variant={isSelected ? 'default' : 'outline'}
-                      size="sm"
-                      className={mastered && !isSelected ? 'bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500' : ''}
-                      onClick={() => setSelectedUnit(unit)}
-                    >
-                      {mastered && (
-                        <Star className="h-4 w-4 mr-1.5 text-white fill-white" />
-                      )}
-                      {t('vocabularyList.unit', { number: unit })}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
 
-            {/* Results count */}
-            <div className="text-sm text-muted-foreground">
-              {t('vocabularyList.showing', { count: filteredVocabulary.length })}
-            </div>
-          </CardContent>
+              {/* Unit Filter */}
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{t('vocabularyList.filterByUnit')}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {units.map((unit: number) => {
+                    const mastered = isUnitMastered(unit);
+                    const isSelected = selectedUnit === unit;
+                    return (
+                      <Button
+                        key={unit}
+                        variant={isSelected ? 'default' : 'outline'}
+                        size="sm"
+                        className={mastered && !isSelected ? 'border-yellow-200 bg-yellow-50 text-yellow-900 hover:bg-yellow-100' : ''}
+                        onClick={() => setSelectedUnit(unit)}
+                      >
+                        {mastered && (
+                          <Star className="h-4 w-4 mr-1.5 fill-yellow-500 text-yellow-500" />
+                        )}
+                        {t('vocabularyList.unit', { number: unit })}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Results count */}
+              <div className="text-sm text-muted-foreground">
+                {t('vocabularyList.showing', { count: filteredVocabulary.length })}
+              </div>
+            </CardContent>
         </Card>
         </AnimatedItem>
 
@@ -399,76 +340,21 @@ export default function VocabularyList() {
             </CardHeader>
             <CardContent>
             {filteredVocabulary.length > 0 ? (
-              <div className="space-y-1">
-                {filteredVocabulary.map((word, idx) => {
-                  const wordProgress = vocabProgressData?.find(
-                    (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
-                  );
-                  
-                  // Get translation
-                  let displayTranslation: string = "";
-                  let altTranslation: string | undefined = undefined;
-                  
-                  if (word.en && word.en.trim() || word.de && word.de.trim()) {
-                    displayTranslation = userLanguage === "de" 
-                      ? (word.de?.trim() || word.en?.trim() || "") 
-                      : (word.en?.trim() || word.de?.trim() || "");
-                    altTranslation = userLanguage === "de" ? word.deAlt : word.enAlt;
-                  } else if (word.translations && Array.isArray(word.translations)) {
-                    const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
-                                          word.translations.find((t: any) => t.language === "en");
-                    displayTranslation = translationObj?.translation || "";
-                    altTranslation = translationObj?.alt;
+              <VocabularyDictionaryTable
+                rows={tableRows}
+                onPlayAudio={({ vocabularyId, serbianWord, unitNumber, audioStorageId }) => {
+                  // Safety check: Ensure vocabularyId is a valid Convex ID (not a number or "fallback-X")
+                  if (!vocabularyId || vocabularyId.startsWith("fallback-") || /^\d+$/.test(vocabularyId)) {
+                    console.error(`[VocabularyList] Invalid vocabularyId for "${serbianWord}": ${vocabularyId}`);
+                    alert(`Cannot play audio: Invalid vocabulary ID. Please contact support.`);
+                    return;
                   }
-                  
-                  // Get note
-                  const note = getNoteForLanguage(word, userLanguage);
-                  
-                  const isPlaying = playingAudioId === word._id;
-                  const isLoading = loadingAudioId === word._id;
-                  
-                  return (
-                    <div key={idx} className="flex items-center gap-2">
-                      {wordProgress?.mastered && (
-                        <span className="text-yellow-500" title="Mastered!">⭐</span>
-                      )}
-                      {wordProgress && (wordProgress.correctAnswerCount || 0) > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          {wordProgress.correctAnswerCount || 0}/3
-                        </Badge>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => handlePlayAudio(word._id, word.serbian)}
-                        disabled={isLoading}
-                        title={isLoading ? "Generating audio..." : "Play pronunciation"}
-                      >
-                        {isLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Volume2 className={`h-4 w-4 ${isPlaying ? "text-primary" : ""}`} />
-                        )}
-                      </Button>
-                      <div>
-                        <span className="font-medium">{word.serbian}</span>
-                        <span> - </span>
-                        {altTranslation && altTranslation.trim() ? (
-                          <span>
-                            {displayTranslation} / {altTranslation}
-                          </span>
-                        ) : (
-                          <span>{displayTranslation}</span>
-                        )}
-                        {note && note.trim() && (
-                          <span className="text-muted-foreground italic text-[0.85rem]"> ({note})</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                  console.log(`[VocabularyList] Playing audio for "${serbianWord}" (ID: ${vocabularyId})`);
+                  play({ vocabularyId, serbianWord, unitNumber, audioStorageId });
+                }}
+                playingAudioId={playingAudioId}
+                loadingAudioId={loadingAudioId}
+              />
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 {t('vocabularyList.noWords')}
@@ -480,7 +366,7 @@ export default function VocabularyList() {
 
         {/* Quick Actions */}
         <AnimatedItem>
-          <div className="mt-8 flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center">
           <Link href="/vocabulary">
             <Button variant="default">
               Practice Vocabulary

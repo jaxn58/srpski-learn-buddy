@@ -30,6 +30,11 @@ export const getAccessibleUnits = query({
     const user = await getCurrentUser(ctx);
     if (!user) return { maxUnits: 0, isBeta: false };
 
+    // Admins/Superadmins always have full access (e.g., for QA and content verification).
+    if (user.role === "admin" || user.role === "superadmin") {
+      return { maxUnits: 27, isBeta: false };
+    }
+
     // Check for active subscription first
     const subscription = await ctx.db
       .query("userSubscriptions")
@@ -140,6 +145,60 @@ export const getBetaDiscountStatus = query({
     const eligible = betaEnded && user.isBetaTester === true && usedAt === null;
 
     return { betaEnded, eligible, usedAt };
+  },
+});
+
+export const getPaddleCheckoutConfig = query({
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+
+    const environment =
+      (process.env.PADDLE_ENVIRONMENT || process.env.VITE_PADDLE_ENVIRONMENT || "").trim() === "production"
+        ? ("production" as const)
+        : ("sandbox" as const);
+
+    // Client token is safe to expose to authenticated clients (similar to a publishable key).
+    const clientToken = (process.env.PADDLE_CLIENT_TOKEN || "").trim();
+
+    const normal = {
+      intensive: (process.env.PADDLE_PRODUCT_INTENSIVE || "").trim(),
+      balanced: (process.env.PADDLE_PRODUCT_BALANCED || "").trim(),
+      standard: (process.env.PADDLE_PRODUCT_STANDARD || "").trim(),
+      relaxed: (process.env.PADDLE_PRODUCT_RELAXED || "").trim(),
+    } as const;
+
+    // IMPORTANT:
+    // Do NOT expose beta50 price IDs to ineligible users. Otherwise they could purchase a discounted price,
+    // get charged, and then be denied access by server-side enforcement.
+    const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
+    const betaEnded = Number.isFinite(betaEndTs) ? Date.now() > betaEndTs : false;
+    const betaEligible =
+      user?.isBetaTester === true && betaEnded && (user.betaDiscountUsedAt ?? null) === null;
+
+    const beta50 = betaEligible
+      ? ({
+          intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_BETA50 || "").trim(),
+          balanced: (process.env.PADDLE_PRODUCT_BALANCED_BETA50 || "").trim(),
+          standard: (process.env.PADDLE_PRODUCT_STANDARD_BETA50 || "").trim(),
+          relaxed: (process.env.PADDLE_PRODUCT_RELAXED_BETA50 || "").trim(),
+        } as const)
+      : ({
+          intensive: "",
+          balanced: "",
+          standard: "",
+          relaxed: "",
+        } as const);
+
+    return {
+      environment,
+      clientTokenConfigured: clientToken.length > 0,
+      clientToken,
+      priceIds: {
+        normal,
+        beta50,
+      },
+      beta50Eligible: betaEligible,
+    };
   },
 });
 
@@ -452,6 +511,13 @@ function parseMoneyToCents(input: unknown): number | null {
   return null;
 }
 
+function getPlanPriceCentsFromConfig(args: { planType: string; isBeta50: boolean }): number {
+  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === args.planType);
+  if (!plan) return 0;
+  if (!args.isBeta50) return plan.price;
+  return Math.round(plan.price / 2);
+}
+
 function getPaddlePriceMapFromEnv() {
   const normal = {
     intensive: (process.env.PADDLE_PRODUCT_INTENSIVE || "").trim(),
@@ -665,7 +731,14 @@ export const internalProcessPaddleWebhook = internalMutation({
       environment: args.environment,
     });
 
+    // We only apply access after the payment is finalized.
+    // For prepaid one-time checkouts, that is a completed transaction.
     if (!eventType.startsWith("transaction.")) {
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "ignored" as const };
+    }
+
+    if (eventType !== "transaction.completed") {
       await ctx.db.patch(eventDocId, { processedAt: Date.now() });
       return { status: "ignored" as const };
     }
@@ -681,13 +754,11 @@ export const internalProcessPaddleWebhook = internalMutation({
       return { status: "ignored" as const };
     }
 
-    const amountCandidate =
-      data?.totals?.total ??
-      data?.details?.totals?.total ??
-      data?.amount?.total ??
-      data?.total ??
-      firstItem?.totals?.total;
-    const planPriceCents = parseMoneyToCents(amountCandidate) ?? 0;
+    // Do not rely on webhook money formatting. Use our configured plan prices instead.
+    const planPriceCents = getPlanPriceCentsFromConfig({
+      planType: mapping.planType,
+      isBeta50: mapping.isBeta50,
+    });
 
     await ctx.runMutation(internal.subscriptions.internalApplyPaddlePrepaidPurchase, {
       paddleEventId: eventId,

@@ -31,21 +31,36 @@ export const getExplanation = query({
 
     console.log(`[getExplanation] No content in unitExplanations, trying unitContent for unit ${args.unitNumber}`);
 
-    // Fallback: Try the new unitContent table
-    const [overview, grammar] = await Promise.all([
+    // Fallback: Try the new unitContent table (latest active)
+    const [overviewAll, grammarAll] = await Promise.all([
       ctx.db
         .query("unitContent")
         .withIndex("by_unit_lang_type", (q) =>
           q.eq("unitNumber", args.unitNumber).eq("language", "en").eq("contentType", "overview")
         )
-        .first(),
+        .collect(),
       ctx.db
         .query("unitContent")
         .withIndex("by_unit_lang_type", (q) =>
           q.eq("unitNumber", args.unitNumber).eq("language", "en").eq("contentType", "grammar")
         )
-        .first()
+        .collect()
     ]);
+    const pickLatestActive = (rows: any[]) => {
+      const active = rows.filter((r) => r.isActive !== false);
+      let best: any | null = null;
+      let bestV = -1;
+      for (const r of active) {
+        const v = r.unitVersion ?? r.version ?? 1;
+        if (v > bestV) {
+          best = r;
+          bestV = v;
+        }
+      }
+      return best;
+    };
+    const overview = pickLatestActive(overviewAll as any[]);
+    const grammar = pickLatestActive(grammarAll as any[]);
 
     console.log(`[getExplanation] unitContent results for unit ${args.unitNumber}:`, {
       overviewFound: !!overview,
@@ -644,14 +659,19 @@ export const getUnitInteractiveTest = query({
   handler: async (ctx, args) => {
     const language = args.language || "en";
     
-    // Fetch all questions for this unit, sorted by order
-    const questions = await ctx.db
+    // Fetch all questions for this unit/language
+    const all = await ctx.db
       .query("unitInteractiveTests")
       .withIndex("by_unit_lang", (q) => 
         q.eq("unitNumber", args.unitNumber).eq("language", language)
       )
       .collect();
-      
+
+    // Versioning/soft-archive: treat undefined isActive as active; unitVersion defaults to 1
+    const active = all.filter((q: any) => q.isActive !== false);
+    const maxVersion = active.reduce((m: number, q: any) => Math.max(m, q.unitVersion ?? 1), 1);
+    const questions = active.filter((q: any) => (q.unitVersion ?? 1) === maxVersion);
+
     // Sort by order only (Q1, Q2, ... Q45)
     return questions.sort((a, b) => a.order - b.order);
   },
@@ -687,7 +707,7 @@ export const getUnitContentSections = query({
     }
 
     // Get content (FK: unitNumber + language)
-    const contents = await ctx.db
+    const all = await ctx.db
       .query("unitContent")
       .withIndex("by_unit_lang_type", (q) => 
         q.eq("unitNumber", args.unitNumber).eq("language", finalLanguage)
@@ -695,8 +715,21 @@ export const getUnitContentSections = query({
       .collect();
       
     const result: Record<string, string> = {};
-    for (const content of contents) {
-      result[content.contentType] = content.content;
+    // Versioning/soft-archive:
+    // - treat undefined isActive as active
+    // - pick highest unitVersion per contentType (defaults to 1)
+    const byType = new Map<string, any>();
+    for (const c of all as any[]) {
+      if (c.isActive === false) continue;
+      const v = c.unitVersion ?? c.version ?? 1;
+      const prev = byType.get(String(c.contentType));
+      const prevV = prev ? (prev.unitVersion ?? prev.version ?? 1) : -1;
+      if (!prev || v > prevV) {
+        byType.set(String(c.contentType), c);
+      }
+    }
+    for (const [type, c] of byType.entries()) {
+      result[type] = c.content;
     }
     
     return result;

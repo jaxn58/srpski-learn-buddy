@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import type { Doc } from "../../../convex/_generated/dataModel";
+import type { Id } from "../../../convex/_generated/dataModel";
 // Sidebar import removed
 import { MessageSquare } from "lucide-react";
 import { useState } from "react";
@@ -14,7 +14,18 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { formatDateTimeEU } from "@/lib/utils";
 
-type FeedbackSubmissionDoc = Doc<"feedbackSubmissions">;
+type MyFeedbackSubmission = {
+  _id: Id<"feedbackSubmissions">;
+  _creationTime: number;
+  type: "bug" | "feature" | "improvement" | "other";
+  title: string;
+  description: string;
+  status: "new" | "reviewed" | "in_progress" | "completed" | "rejected";
+  submittedAt?: number;
+  reviewedAt?: number;
+  replyToUser?: string;
+  replySentAt?: number;
+};
 
 export default function Feedback() {
   const { user, loading } = useAuth();
@@ -22,7 +33,7 @@ export default function Feedback() {
   const [feedback, setFeedback] = useState({ type: "other" as const, title: "", description: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitFeedbackMutation = useMutation(api.feedback.submit);
-  const mySubmissions = (useQuery(api.feedback.getMySubmissions) ?? []) as FeedbackSubmissionDoc[];
+  const mySubmissions = (useQuery(api.feedback.getMySubmissions) ?? []) as MyFeedbackSubmission[];
 
   if (loading) {
     return (
@@ -239,13 +250,13 @@ export default function Feedback() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground mb-3">{submission.description}</p>
-                    {submission.adminNotes && (
+                    {submission.replyToUser && (
                       <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                         <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                          {t('feedback.adminNote') || 'Admin Note'}:
+                          {t("feedback.reply", { defaultValue: "Our Reply" })}:
                         </p>
                         <p className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
-                          {submission.adminNotes}
+                          {submission.replyToUser}
                         </p>
                       </div>
                     )}

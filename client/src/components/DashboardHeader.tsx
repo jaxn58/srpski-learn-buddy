@@ -19,7 +19,7 @@ export function DashboardHeader() {
   const navItems: NavItem[] = [
     { label: "Dashboard", path: "/dashboard", icon: <Home className="h-4 w-4" /> },
     { label: "Practice Vocabulary", path: "/vocabulary", icon: <Brain className="h-4 w-4" /> },
-    { label: "View All Words", path: "/vocabulary-list", icon: <FileText className="h-4 w-4" /> },
+    { label: "Vocabulary Dictionary", path: "/vocabulary-list", icon: <FileText className="h-4 w-4" /> },
     { label: "View Progress", path: "/progress", icon: <TrendingUp className="h-4 w-4" /> },
   ];
 
