@@ -176,12 +176,18 @@ export const getNewCount = query({
       return 0;
     }
 
-    const newOnes = await ctx.db
+    // Zähle nur Feedbacks die:
+    // 1. Status "new" haben UND
+    // 2. Noch keine Antwort versendet wurde (aiSentAt nicht gesetzt)
+    const allNew = await ctx.db
       .query("feedbackSubmissions")
       .withIndex("by_status", (q) => q.eq("status", "new"))
       .collect();
 
-    return newOnes.length;
+    // Filter: Nur die ohne aiSentAt
+    const unreplied = allNew.filter((f: any) => !f.aiSentAt);
+
+    return unreplied.length;
   },
 });
 

@@ -19,7 +19,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Mail, Users, CheckCircle, Clock, Bell, Loader2, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatDateEU, formatDateTimeEU, formatTimeEU } from "@/lib/utils";
 
 type WaitlistEntry = Doc<"waitlist">;
@@ -30,9 +30,19 @@ export default function AdminWaitlist() {
   const stats = useQuery(api.waitlist.getStats);
   const notifyAllMutation = useMutation(api.waitlist.notifyAll);
   const removeMutation = useMutation(api.waitlist.remove);
+  const markAsViewedMutation = useMutation(api.waitlist.markAllPendingAsViewed);
 
   const [isNotifying, setIsNotifying] = useState(false);
   const [deletingId, setDeletingId] = useState<Id<"waitlist"> | null>(null);
+
+  // Markiere alle pending Einträge als gesehen beim Laden der Seite
+  useEffect(() => {
+    if (!authLoading && user && (user.role === 'admin' || user.role === 'superadmin')) {
+      markAsViewedMutation().catch(err => {
+        console.error('Failed to mark waitlist as viewed:', err);
+      });
+    }
+  }, [authLoading, user?.role]);
 
   // Check if user is admin
   if (authLoading) {

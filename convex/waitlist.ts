@@ -84,6 +84,7 @@ export const join = mutation({
       status: "pending",
       confirmationToken,
       createdAt,
+      viewedByAdmin: false,
     });
 
     // Send opt-in email
@@ -217,12 +218,36 @@ export const getPendingCount = query({
     const admin = await getAdminUser(ctx);
     if (!admin) return 0;
 
+    // Nur pending UND ungesehene Einträge zählen
     const pending = await ctx.db
+      .query("waitlist")
+      .withIndex("by_status_viewed", (q) => 
+        q.eq("status", "pending").eq("viewedByAdmin", false)
+      )
+      .collect();
+
+    return pending.length;
+  },
+});
+
+// Markiere alle pending Waitlist-Einträge als gesehen (admin only)
+export const markAllPendingAsViewed = mutation({
+  handler: async (ctx) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const pendingEntries = await ctx.db
       .query("waitlist")
       .withIndex("by_status", (q) => q.eq("status", "pending"))
       .collect();
 
-    return pending.length;
+    await Promise.all(
+      pendingEntries
+        .filter(e => e.viewedByAdmin !== true)
+        .map(e => ctx.db.patch(e._id, { viewedByAdmin: true }))
+    );
+
+    return { count: pendingEntries.length };
   },
 });
 

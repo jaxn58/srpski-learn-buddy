@@ -714,10 +714,12 @@ export default defineSchema({
     createdAt: v.number(),
     confirmedAt: v.optional(v.number()),
     notifiedAt: v.optional(v.number()),
+    viewedByAdmin: v.optional(v.boolean()), // Tracking ob Admin die Einträge gesehen hat
   })
     .index("by_email", ["email"])
     .index("by_status", ["status"])
-    .index("by_token", ["confirmationToken"]),
+    .index("by_token", ["confirmationToken"])
+    .index("by_status_viewed", ["status", "viewedByAdmin"]),
 
   // ============= NEWSLETTER SYSTEM =============
   

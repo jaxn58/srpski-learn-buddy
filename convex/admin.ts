@@ -1423,6 +1423,80 @@ export const triggerBackupNow = mutation({
   },
 });
 
+// Get all email templates (for migrations, requires ADMIN_SECRET)
+export const adminGetAllEmailTemplates = query({
+  args: {
+    adminSecret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Unauthorized - Invalid admin secret");
+    }
+
+    return await ctx.db.query("emailTemplates").collect();
+  },
+});
+
+// Get all email signatures (for migrations, requires ADMIN_SECRET)
+export const adminGetAllEmailSignatures = query({
+  args: {
+    adminSecret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Unauthorized - Invalid admin secret");
+    }
+
+    return await ctx.db.query("emailSignatures").collect();
+  },
+});
+
+// Upsert email signature (for migrations, requires ADMIN_SECRET)
+export const adminUpsertEmailSignature = mutation({
+  args: {
+    adminSecret: v.string(),
+    category: v.union(
+      v.literal("transactional"),
+      v.literal("subscription"),
+      v.literal("marketing")
+    ),
+    htmlContent: v.string(),
+    isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Unauthorized - Invalid admin secret");
+    }
+
+    const existing = await ctx.db
+      .query("emailSignatures")
+      .withIndex("by_category", (q) => q.eq("category", args.category))
+      .first();
+
+    if (existing) {
+      // Update
+      await ctx.db.patch(existing._id, {
+        htmlContent: args.htmlContent,
+        isActive: args.isActive,
+        updatedAt: Date.now(),
+      });
+      return existing._id;
+    } else {
+      // Create
+      return await ctx.db.insert("emailSignatures", {
+        category: args.category,
+        htmlContent: args.htmlContent,
+        isActive: args.isActive,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
 // Upsert email template (for migrations, requires ADMIN_SECRET)
 export const adminUpsertEmailTemplate = mutation({
   args: {
@@ -1477,43 +1551,5 @@ export const adminUpsertEmailTemplate = mutation({
         updatedAt: Date.now(),
       });
     }
-  },
-});
-
-// Upsert email signature (for migrations, requires ADMIN_SECRET)
-export const adminUpsertEmailSignature = mutation({
-  args: {
-    adminSecret: v.string(),
-    category: v.union(v.literal("transactional"), v.literal("subscription"), v.literal("marketing")),
-    htmlContent: v.string(),
-    isActive: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const expectedSecret = process.env.ADMIN_SECRET;
-    if (!expectedSecret || args.adminSecret !== expectedSecret) {
-      throw new Error("Invalid admin secret");
-    }
-
-    const existing = await ctx.db
-      .query("emailSignatures")
-      .withIndex("by_category", (q) => q.eq("category", args.category))
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        htmlContent: args.htmlContent,
-        isActive: args.isActive,
-        updatedAt: Date.now(),
-      });
-      return existing._id;
-    }
-
-    return await ctx.db.insert("emailSignatures", {
-      category: args.category,
-      htmlContent: args.htmlContent,
-      isActive: args.isActive,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
   },
 });
