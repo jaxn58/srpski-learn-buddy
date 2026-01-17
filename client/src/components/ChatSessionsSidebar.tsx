@@ -142,8 +142,8 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
   }, [deleteArchivedMutation]);
 
   return (
-    <div className="hidden md:flex w-64 border-r bg-card/50 flex-col h-screen md:sticky md:top-0 overflow-y-auto">
-      <div className="p-4 border-b space-y-2">
+    <div className="hidden md:flex w-72 flex-col md:sticky md:top-20 self-start max-h-[calc(100vh-6rem)]">
+      <div className="bg-white rounded-xl shadow-sm p-4 space-y-2 overflow-hidden">
         <Button 
           onClick={onNewChat} 
           className="w-full bg-primary hover:bg-primary/90 text-white"
@@ -165,8 +165,8 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
+      <ScrollArea className="flex-1 mt-4">
+        <div className="space-y-1 bg-white rounded-xl shadow-sm p-2">
           {isLoading && (
             <div className="text-sm text-muted-foreground text-center py-4">
               Loading...
@@ -180,21 +180,35 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           )}
 
           {sessions?.map((session: ChatSession) => (
+            (() => {
+              const isActive = currentSessionId === session._id;
+              return (
             <div
               key={session._id}
               onClick={() => handleSelect(session._id)}
               className={cn(
-                "group flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors",
-                "hover:bg-accent",
-                currentSessionId === session._id && "bg-accent"
+                "group relative flex items-center gap-2 p-3 pr-10 rounded-lg cursor-pointer transition-colors",
+                isActive
+                  ? "bg-[color:var(--accent)] text-white hover:brightness-95"
+                  : "hover:bg-muted/40"
               )}
             >
-              <MessageSquare className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              <MessageSquare
+                className={cn(
+                  "h-4 w-4 flex-shrink-0",
+                  isActive ? "text-white" : "text-muted-foreground"
+                )}
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm truncate">
                   {session.title}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p
+                  className={cn(
+                    "text-xs truncate",
+                    isActive ? "text-white/85" : "text-muted-foreground"
+                  )}
+                >
                   {formatDateEU(session._creationTime)}
                 </p>
               </div>
@@ -202,7 +216,12 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                  "absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7",
+                  "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity",
+                  isActive && "opacity-100",
+                  isActive
+                    ? "text-white hover:bg-white/15"
+                    : "text-muted-foreground hover:bg-muted/40",
                   processingIds.has(session._id) && "opacity-50 cursor-wait"
                 )}
                 onClick={(e) => handleDelete(session._id, e)}
@@ -210,13 +229,15 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                 title="Archive"
                 aria-label="Archive chat"
               >
-                <Archive className="h-3 w-3" />
+                <Archive className="h-3.5 w-3.5" />
               </Button>
             </div>
+              );
+            })()
           ))}
 
           {showArchived && (
-            <div className="mt-4 border-t pt-3 space-y-2">
+            <div className="mt-4 border-t border-border/60 pt-3 space-y-2">
               <div className="text-xs font-semibold text-muted-foreground px-2">Archived</div>
               {archivedSessions === undefined && (
                 <div className="text-sm text-muted-foreground text-center py-2">Loading...</div>

@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search, BookOpen, Filter, Star } from "lucide-react";
+import { Search, Filter, Star } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo, useEffect } from "react";
 // Sidebar import removed
@@ -20,14 +20,10 @@ export default function VocabularyList() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUnit, setSelectedUnit] = useState<number>(1);
+  // 0 = "All Units" (all unlocked units)
+  const [selectedUnit, setSelectedUnit] = useState<number>(0);
   
-  // Get accessible units from Convex
-  const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
-
-  // Englisch-only (solange keine deutschen Inhalte vorhanden sind)
-  const maxUnits = accessInfo?.maxUnits ?? 0;
-  const hasAccess = Boolean(user) && accessInfo !== undefined && maxUnits > 0;
+  const hasAccess = Boolean(user);
 
   // Fetch vocabulary progress for all units
   const vocabProgressData = useQuery(api.vocabulary.getUserVocabularyProgress, user ? {} : "skip") as
@@ -38,7 +34,7 @@ export default function VocabularyList() {
   const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary, hasAccess ? undefined : "skip");
   const vocabWithProgress = useQuery(
     api.vocabulary.getVocabularyWithProgress,
-    hasAccess ? { unitNumber: selectedUnit } : "skip"
+    hasAccess ? {} : "skip"
   );
   
   // NEW: Fetch available unit numbers dynamically from database
@@ -53,12 +49,6 @@ export default function VocabularyList() {
 
   // Filter and search vocabulary
   const filteredVocabulary = useMemo(() => {
-    // Zugriff noch nicht geladen -> nichts anzeigen (vermeidet kurzes "Leaken" vor Zugriff-Check)
-    if (accessInfo === undefined) return [];
-
-    // Kein Zugriff -> nichts anzeigen
-    if (maxUnits <= 0) return [];
-
     // NEW: Use courseVocabulary from database (if available)
     // FALLBACK: Use hardcoded VOCABULARY for backward compatibility
     if (!courseVocabulary || courseVocabulary.length === 0) {
@@ -92,13 +82,14 @@ export default function VocabularyList() {
         translations: word.translations || [],
       }));
 
-    // Beta/Subscription Beschränkung
-    filtered = filtered.filter((v: any) => v.unit <= maxUnits);
-
     // Filter by unit
-    const beforeUnitFilter = filtered.length;
-    filtered = filtered.filter((v: any) => v.unit === selectedUnit);
-    console.log(`[VocabularyList] After unit filter (${selectedUnit}): ${filtered.length} words (was ${beforeUnitFilter})`);
+    if (selectedUnit !== 0) {
+      const beforeUnitFilter = filtered.length;
+      filtered = filtered.filter((v: any) => v.unit === selectedUnit);
+      console.log(
+        `[VocabularyList] After unit filter (${selectedUnit}): ${filtered.length} words (was ${beforeUnitFilter})`
+      );
+    }
 
     // Search in Serbian or English
     if (searchTerm) {
@@ -118,30 +109,22 @@ export default function VocabularyList() {
     }
 
     return filtered;
-  }, [searchTerm, selectedUnit, accessInfo, maxUnits, courseVocabulary]);
+  }, [searchTerm, selectedUnit, courseVocabulary]);
 
   // Units dynamisch aus Datenbank laden und basierend auf Zugriff beschränken
   const units = useMemo(() => {
-    if (accessInfo === undefined) {
-      return [];
-    }
-
-    if (maxUnits <= 0) {
-      return [];
-    }
-
     // Fallback: Wenn keine Units aus DB geladen, leeres Array zurückgeben
     if (!availableUnitNumbers || availableUnitNumbers.length === 0) {
       return [];
     }
     
-    // Units basierend auf Zugriff filtern
-    return availableUnitNumbers.filter((unit: number) => unit <= maxUnits);
-  }, [availableUnitNumbers, accessInfo, maxUnits]);
+    // Systemweit: Dictionary ist für alle Vokabel-Units offen
+    return availableUnitNumbers;
+  }, [availableUnitNumbers]);
   
   // Sicherstellen, dass selectedUnit gültig ist, wenn Units geladen werden
   useEffect(() => {
-    if (units.length > 0 && !units.includes(selectedUnit)) {
+    if (units.length > 0 && selectedUnit !== 0 && !units.includes(selectedUnit)) {
       // Wenn die ausgewählte Unit nicht mehr verfügbar ist, zur ersten verfügbaren Unit wechseln
       setSelectedUnit(units[0]);
     }
@@ -253,26 +236,10 @@ export default function VocabularyList() {
 
   return (
     <AnimatedPage>
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm">
-                  {t('vocabularyList.backToDashboard')}
-                </Button>
-              </Link>
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-6 w-6 text-primary" />
-                <h1 className="text-2xl font-bold">{t('vocabularyList.title')}</h1>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Screen-reader title (visual context handled by TopNavigation active state) */}
+      <h1 className="sr-only">{t("vocabularyList.title")}</h1>
 
-      <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
+      <div className="w-full space-y-8">
         {/* Search and Filter */}
         <AnimatedItem>
           <Card>
@@ -301,6 +268,14 @@ export default function VocabularyList() {
                   <span className="text-sm font-medium">{t('vocabularyList.filterByUnit')}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    key="all-units"
+                    variant={selectedUnit === 0 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedUnit(0)}
+                  >
+                    {t("vocabularyList.allUnits")}
+                  </Button>
                   {units.map((unit: number) => {
                     const mastered = isUnitMastered(unit);
                     const isSelected = selectedUnit === unit;
@@ -309,11 +284,15 @@ export default function VocabularyList() {
                         key={unit}
                         variant={isSelected ? 'default' : 'outline'}
                         size="sm"
-                        className={mastered && !isSelected ? 'border-yellow-200 bg-yellow-50 text-yellow-900 hover:bg-yellow-100' : ''}
+                        className={
+                          mastered && !isSelected
+                            ? "border-[color:var(--accent)]/35 bg-[color:var(--accent)]/10 hover:bg-[color:var(--accent)]/15"
+                            : ""
+                        }
                         onClick={() => setSelectedUnit(unit)}
                       >
                         {mastered && (
-                          <Star className="h-4 w-4 mr-1.5 fill-yellow-500 text-yellow-500" />
+                          <Star className="h-4 w-4 mr-1.5 fill-[color:var(--accent)] text-[color:var(--accent)]" />
                         )}
                         {t('vocabularyList.unit', { number: unit })}
                       </Button>
@@ -335,7 +314,9 @@ export default function VocabularyList() {
           <Card>
             <CardHeader>
               <CardTitle>
-                {t('vocabularyList.unit', { number: selectedUnit })}
+                {selectedUnit === 0
+                  ? t("vocabularyList.allUnits")
+                  : t("vocabularyList.unit", { number: selectedUnit })}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -362,22 +343,6 @@ export default function VocabularyList() {
             )}
           </CardContent>
         </Card>
-        </AnimatedItem>
-
-        {/* Quick Actions */}
-        <AnimatedItem>
-          <div className="flex gap-4 justify-center">
-          <Link href="/vocabulary">
-            <Button variant="default">
-              Practice Vocabulary
-            </Button>
-          </Link>
-          <Link href="/dashboard">
-            <Button variant="outline">
-              Back to Dashboard
-            </Button>
-          </Link>
-        </div>
         </AnimatedItem>
       </div>
     </AnimatedPage>

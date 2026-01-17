@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { Badge } from "@/components/ui/badge";
+import { Progress as ProgressBar } from "@/components/ui/progress";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, Brain, MessageSquare, Home, Lock, Star } from "lucide-react";
+import { BookOpen, Brain, Home, Lock, Star, TrendingUp, Volume2, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -15,8 +16,9 @@ import { FeedbackForm } from "@/components/FeedbackForm";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { logger } from "@/lib/logger";
+import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
@@ -42,6 +44,11 @@ export default function Dashboard() {
   
   // Load dynamic data from DB instead of static files
   const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
+  const dashboardStats = useQuery(api.progress.getDashboardStats);
+  const vocabWithProgress = useQuery(
+    api.vocabulary.getVocabularyWithProgress,
+    progressLoading ? "skip" : { unitNumber: safeCurrentUnit }
+  );
   
   const syncUserMutation = useMutation(api.users.syncUser);
 
@@ -66,6 +73,10 @@ export default function Dashboard() {
   
   // Onboarding tutorial state
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Practice preview state
+  const [showPracticeAnswer, setShowPracticeAnswer] = useState(false);
+  const { play, playingAudioId, loadingAudioId } = useVocabularyAudioPlayback();
   
   // Beta banner dismiss state
   const [showBetaBanner, setShowBetaBanner] = useState(true);
@@ -140,6 +151,64 @@ export default function Dashboard() {
 
   const accessibleCount = Array.isArray(rawAccessible) ? rawAccessible.length : 0;
 
+  const weeklyXp = dashboardStats?.weeklyProgress?.xpSum ?? 0;
+  const weeklyXpTarget = dashboardStats?.weeklyGoal?.xpTarget ?? 150;
+  const weeklyActiveDays = dashboardStats?.weeklyProgress?.activeDays ?? 0;
+  const weeklyActiveDaysTarget = dashboardStats?.weeklyGoal?.activeDaysTarget ?? 3;
+
+  const wordsMastered = dashboardStats?.accuracyStats?.masteredVocab ?? 0;
+  const masteryEfficiency = dashboardStats?.masteryQuality?.masteredEfficiency;
+
+  const startedDaysAgo = useMemo(() => {
+    const ts = dashboardStats?.creationTime;
+    if (!ts) return null;
+    const days = Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
+    return Number.isFinite(days) && days >= 0 ? days : null;
+  }, [dashboardStats?.creationTime]);
+
+  const courseMasteryPercent = useMemo(() => {
+    const total = totalUnits || 0;
+    if (!total) return null;
+    const completed = (dashboardStats?.completedUnits?.length ?? completedUnits.length) || 0;
+    return Math.round((completed / total) * 100);
+  }, [dashboardStats?.completedUnits?.length, completedUnits.length, totalUnits]);
+
+  const practicePreviewWord = useMemo(() => {
+    if (!vocabWithProgress || vocabWithProgress.length === 0) return null;
+    const pick = vocabWithProgress.find((w: any) => (w.progress?.correctAnswerCount ?? 0) < 3) ?? vocabWithProgress[0];
+    const translation =
+      (pick?.en && String(pick.en).trim()) ||
+      (Array.isArray(pick?.translations)
+        ? (pick.translations.find((t: any) => t.language === "en")?.translation ?? "")
+        : "");
+    const mastered =
+      Boolean(pick?.progress?.mastered) || (Number(pick?.progress?.correctAnswerCount ?? 0) || 0) >= 3;
+
+    return {
+      serbian: String(pick?.serbian ?? ""),
+      translation: String(translation || "-"),
+      mastered,
+    };
+  }, [vocabWithProgress]);
+
+  const audioSamples = useMemo(() => {
+    if (!vocabWithProgress || vocabWithProgress.length === 0) return [];
+    const samples = vocabWithProgress.slice(0, 5).map((w: any) => {
+      const translation =
+        (w?.en && String(w.en).trim()) ||
+        (Array.isArray(w?.translations)
+          ? (w.translations.find((t: any) => t.language === "en")?.translation ?? "")
+          : "");
+      return {
+        id: String(w?._id ?? ""),
+        serbian: String(w?.serbian ?? ""),
+        translation: String(translation || "-"),
+        audioStorageId: (w?.audioStorageId ?? null) as string | null,
+      };
+    });
+    return samples.filter((s) => s.id && s.serbian);
+  }, [vocabWithProgress]);
+
 
   useEffect(() => {
     // Removed debug instrumentation
@@ -178,6 +247,7 @@ export default function Dashboard() {
       )}
       
       <AnimatedPage>
+        <div className="pb-24">
         {/* Beta Tester Benefits Banner */}
         {user.isBetaTester && showBetaBanner && (
           <div className="mb-6 border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-6">
@@ -279,18 +349,278 @@ export default function Dashboard() {
           </AnimatedItem>
         </div>
 
+        {/* Dashboard Snippets (informative) */}
+        <AnimatedItem className="mb-10">
+          <div className="grid gap-6 lg:grid-cols-3 items-stretch">
+            {/* Practice Preview (wide) */}
+            <Card className="lg:col-span-2 hover:shadow-lg transition-shadow bg-white">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl">Practice Preview</CardTitle>
+                    <CardDescription>
+                      A quick taste of Learn Mode — no commitment, just start.
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`}>
+                      <Button size="sm" className="gap-2">
+                        <BookOpen className="h-4 w-4" />
+                        Learn
+                      </Button>
+                    </Link>
+                    <Link href={`/vocabulary?mode=quiz&unit=${safeCurrentUnit}`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 border-[color:var(--accent)] text-foreground hover:bg-[color:var(--accent)]/10 hover:border-[color:var(--accent)]"
+                      >
+                        <Star className="h-4 w-4 text-[color:var(--accent)]" />
+                        Quiz
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!practicePreviewWord ? (
+                  <div className="text-sm text-muted-foreground py-10 text-center">
+                    Loading preview…
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2 items-stretch">
+                    <div className="rounded-xl border bg-muted/10 p-6 flex flex-col justify-center text-center">
+                      <div className="inline-flex items-center justify-center gap-2 mb-2">
+                        <Badge variant="outline">Unit {safeCurrentUnit}</Badge>
+                        {practicePreviewWord.mastered && (
+                          <Badge className="bg-amber-500 text-white border-amber-500">
+                            Mastered
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-4xl font-bold tracking-tight">
+                        {practicePreviewWord.serbian}
+                      </div>
+                      <div className="mt-3 text-lg text-muted-foreground">
+                        {showPracticeAnswer ? practicePreviewWord.translation : "—"}
+                      </div>
+                      <div className="mt-6 flex items-center justify-center gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowPracticeAnswer((s) => !s)}
+                        >
+                          {showPracticeAnswer ? "Hide answer" : "Show answer"}
+                        </Button>
+                        <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`}>
+                          <Button>Open Trainer</Button>
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold">Your next win</div>
+                        <span className="text-sm text-muted-foreground">
+                          This week
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">XP</span>
+                          <span className="font-semibold">
+                            {weeklyXp} / {weeklyXpTarget}
+                          </span>
+                        </div>
+                        <ProgressBar value={Math.min(100, (weeklyXp / Math.max(1, weeklyXpTarget)) * 100)} />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Active days</span>
+                          <span className="font-semibold">
+                            {weeklyActiveDays} / {weeklyActiveDaysTarget}
+                          </span>
+                        </div>
+                        <ProgressBar value={Math.min(100, (weeklyActiveDays / Math.max(1, weeklyActiveDaysTarget)) * 100)} />
+                      </div>
+                      <div className="text-xs text-muted-foreground pt-2 border-t">
+                        Tip: even a short Learn Buddy chat counts as an active day.
+                      </div>
+                    </div>
+
+                    {/* Audio sampler (2nd row) */}
+                    <div className="md:col-span-2 rounded-xl border bg-muted/10 p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="font-semibold">Listen & repeat</div>
+                          <div className="text-sm text-muted-foreground">
+                            Tap a word to hear a native-like pronunciation.
+                          </div>
+                        </div>
+                        <Link href="/vocabulary-list">
+                          <Button variant="outline" size="sm">
+                            View all words
+                          </Button>
+                        </Link>
+                      </div>
+
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        {audioSamples.length === 0 ? (
+                          <div className="text-sm text-muted-foreground py-6">
+                            No vocabulary available for audio preview yet.
+                          </div>
+                        ) : (
+                          audioSamples.map((s) => {
+                            const isLoading = loadingAudioId === s.id;
+                            const isPlaying = playingAudioId === s.id;
+                            return (
+                              <button
+                                key={s.id}
+                                className="group w-full text-left rounded-lg border bg-background hover:bg-accent/40 transition-colors p-3 flex items-center gap-3"
+                                onClick={() =>
+                                  play({
+                                    vocabularyId: s.id,
+                                    serbianWord: s.serbian,
+                                    unitNumber: safeCurrentUnit,
+                                    audioStorageId: s.audioStorageId,
+                                  })
+                                }
+                                disabled={Boolean(loadingAudioId) && loadingAudioId !== s.id}
+                              >
+                                <span className="h-9 w-9 rounded-md bg-serbian-red/10 text-serbian-red flex items-center justify-center shrink-0">
+                                  {isLoading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Volume2 className="h-4 w-4" />
+                                  )}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block font-semibold truncate">
+                                    {s.serbian}
+                                  </span>
+                                  <span className="block text-xs text-muted-foreground truncate">
+                                    {s.translation}
+                                  </span>
+                                </span>
+                                {isPlaying && (
+                                  <span className="text-xs font-semibold text-serbian-red">
+                                    Playing
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Weekly goal / XP (compact, like screenshot) */}
+            <div className="grid gap-6">
+              <Card className="hover:shadow-lg transition-shadow bg-white">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Weekly Goal</CardTitle>
+                      <CardDescription>Small steps, consistent progress.</CardDescription>
+                    </div>
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-2xl font-bold">
+                    {weeklyXp} / {weeklyXpTarget} XP
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">XP this week</span>
+                      <span className="font-medium">{weeklyXp}</span>
+                    </div>
+                    <ProgressBar value={Math.min(100, (weeklyXp / Math.max(1, weeklyXpTarget)) * 100)} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Active days</span>
+                      <span className="font-medium">
+                        {weeklyActiveDays} / {weeklyActiveDaysTarget}
+                      </span>
+                    </div>
+                    <ProgressBar value={Math.min(100, (weeklyActiveDays / Math.max(1, weeklyActiveDaysTarget)) * 100)} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Course progress compact */}
+              <Card className="hover:shadow-lg transition-shadow bg-white">
+                <CardHeader>
+                  <CardTitle className="text-base">Course Progress</CardTitle>
+                  <CardDescription>Your current snapshot.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Course mastery</span>
+                    <span className="font-semibold">
+                      {courseMasteryPercent === null ? "—" : `${courseMasteryPercent}%`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Units completed</span>
+                    <span className="font-semibold">
+                      {(dashboardStats?.completedUnits?.length ?? completedUnits.length) || 0} / {totalUnits}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Words mastered</span>
+                    <span className="font-semibold">{wordsMastered}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Mastery efficiency</span>
+                    <span className="font-semibold">
+                      {typeof masteryEfficiency === "number"
+                        ? `${Math.round(masteryEfficiency * 100)}%`
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Started</span>
+                    <span className="font-semibold">
+                      {startedDaysAgo === null ? "—" : `${startedDaysAgo}d ago`}
+                    </span>
+                  </div>
+                  <div className="pt-2">
+                    <Link href="/progress">
+                      <Button variant="outline" className="w-full">
+                        Open Progress
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </AnimatedItem>
+
         {/* Modules List Card */}
         <AnimatedItem>
-          <Card>
+          <Card className="bg-gradient-to-br from-background to-muted/30 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle className="text-xl">
-                {isAdmin ? t('dashboard.adminView') : t('dashboard.allUnits', 'All Units')}
-              </CardTitle>
-              <CardDescription className="text-base mt-2">
-                {isAdmin
-                  ? t('dashboard.adminViewDesc', 'All available course modules')
-                  : t('dashboard.allUnitsDesc', 'Continue your learning journey')}
-              </CardDescription>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="text-xl">
+                    {t('dashboard.allUnits', 'All Units')}
+                  </CardTitle>
+                  <CardDescription className="text-base mt-2">
+                    {t('dashboard.allUnitsDesc', 'Continue your learning journey')}
+                  </CardDescription>
+                </div>
+                {isAdmin && (
+                  <Badge variant="outline" className="bg-white/70">
+                    Admin access
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid gap-5">
@@ -411,6 +741,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </AnimatedItem>
+        </div>
       </AnimatedPage>
     </>
   );

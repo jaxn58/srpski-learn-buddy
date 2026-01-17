@@ -340,34 +340,18 @@ export default function Progress() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-50/50 min-h-full">
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 mb-8">
-        <div className="container py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm" className="hover:bg-slate-100">
-                {t("progress.backToDashboard")}
-              </Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
-                {t("progress.title")}
-              </h1>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="w-full">
+      {/* Screen-reader title (visual context handled by TopNavigation active state) */}
+      <h1 className="sr-only">{t("progress.title")}</h1>
 
-      <div className="max-w-7xl mx-auto">
-        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-8">
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-8">
           {/* HERO SECTION: STORY + NEXT WIN */}
           <motion.div variants={itemVariants}>
             {/* Use the exact same Serbian Blue gradient as the Level card (`bg-serbian-blue`) */}
@@ -999,12 +983,7 @@ export default function Progress() {
               </CardContent>
             </Card>
           </motion.div>
-
-          <footer className="mt-12 pt-8 border-t text-center text-sm text-muted-foreground">
-            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
-          </footer>
-        </motion.div>
-      </div>
+      </motion.div>
     </div>
   );
 }

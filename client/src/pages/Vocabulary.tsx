@@ -947,21 +947,10 @@ export default function Vocabulary() {
 
   return (
     <AnimatedPage>
-      <header className="border-b bg-card">
-        <div className="container py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">{t('vocabulary.backToDashboard')}</Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">{t('vocabulary.title')}</h1>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Screen-reader title (visual title handled by TopNavigation active state) */}
+      <h1 className="sr-only">{t("vocabulary.title")}</h1>
 
-      <div className="container py-8 max-w-4xl space-y-6">
+      <div className="w-full space-y-6">
         {/* Mode Selection */}
         <AnimatedItem>
           <Card>
@@ -977,9 +966,10 @@ export default function Vocabulary() {
                     setMode('learn'); 
                     handleReset(); 
                   }}
-                  className="flex-1"
+                  className="flex-1 gap-2"
                 >
-                  📚 {t('vocabulary.learnMode')}
+                  <BookOpen className="h-4 w-4" />
+                  {t('vocabulary.learnMode')}
                 </Button>
                 <Button
                   variant={mode === 'quiz' ? 'default' : 'outline'}
@@ -987,9 +977,14 @@ export default function Vocabulary() {
                     setMode('quiz'); 
                     handleReset(); 
                   }}
-                  className="flex-1"
+                  className={
+                    mode === "quiz"
+                      ? "flex-1 gap-2"
+                      : "flex-1 gap-2 border-[color:var(--accent)] text-foreground hover:bg-[color:var(--accent)]/10 hover:border-[color:var(--accent)]"
+                  }
                 >
-                  🎯 {t('vocabulary.quizMode')}
+                  <Star className={mode === "quiz" ? "h-4 w-4" : "h-4 w-4 text-[color:var(--accent)]"} />
+                  {t('vocabulary.quizMode')}
                 </Button>
               </div>
             </CardContent>

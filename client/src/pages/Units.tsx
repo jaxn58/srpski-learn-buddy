@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "wouter";
-import { Lock, BookOpen, Star, ChevronDown } from "lucide-react";
+import { Lock, BookOpen, Star } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
@@ -179,31 +179,37 @@ export default function Units() {
             // Get module title and description based on language
             const moduleTitle = i18n.language === "de" ? module.titleGerman : module.titleEnglish;
             const moduleDescription = i18n.language === "de" ? module.descriptionGerman : module.description;
+            const isOpen = openModule === `module-${module.id}`;
 
             return (
               <AnimatedItem key={`module-${module.number}-${module.id}`}>
                 <Card 
                 id={`module-card-${module.id}`}
-                className={isModuleLocked ? "opacity-60 border-dashed" : ""}
+                className={
+                  isModuleLocked
+                    ? "opacity-60 border-dashed bg-white shadow-sm"
+                    : "bg-white shadow-sm hover:shadow-md transition-shadow"
+                }
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Badge variant="outline" className="text-lg px-3 py-1">
-                          {t("units.module", { number: module.number })}
-                        </Badge>
-                        {isModuleLocked && (
-                          <Badge variant="outline" className="gap-1 text-gray-600">
-                            <Lock className="h-3 w-3" />
-                            {t("units.locked")}
-                          </Badge>
-                        )}
-                      </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
                       <CardTitle className="text-2xl mb-2">{moduleTitle}</CardTitle>
                       <CardDescription className="text-base">
                         {moduleDescription}
                       </CardDescription>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <Badge variant="outline" className="text-xs px-2 py-1 bg-muted/30">
+                        {t("units.module", { number: module.number })}
+                      </Badge>
+                      {isModuleLocked && (
+                        <Badge variant="outline" className="gap-1 text-gray-600 text-xs px-2 py-1 bg-muted/20">
+                          <Lock className="h-3 w-3" />
+                          {t("units.locked")}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   
@@ -243,10 +249,19 @@ export default function Units() {
                     }}
                   >
                     <AccordionItem value={`module-${module.id}`} className="border-none">
-                      <AccordionTrigger className="hover:no-underline">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {t("units.lessons", { count: moduleUnits.length })}
-                        </span>
+                      <AccordionTrigger className="hover:no-underline px-4 py-3 rounded-lg border bg-muted/10 hover:bg-muted/20 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-foreground">
+                            Units
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {t("units.lessons", { count: moduleUnits.length })}
+                          </span>
+                          <span className="text-sm text-muted-foreground">•</span>
+                          <span className="text-sm text-muted-foreground">
+                            {isOpen ? "Hide" : "Show"}
+                          </span>
+                        </div>
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
