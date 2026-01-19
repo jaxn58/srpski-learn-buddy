@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 
 
 type FeedbackSubmissionDoc = Doc<"feedbackSubmissions">;
-type FeedbackStatus = "new" | "reviewed" | "in_progress" | "completed" | "rejected";
+type FeedbackStatus = "new" | "reviewed" | "answered" | "in_progress" | "completed" | "rejected";
 type FeedbackType = "bug" | "feature" | "improvement" | "other";
 
 export default function FeedbackManagement() {
@@ -52,8 +52,12 @@ export default function FeedbackManagement() {
     if (updated) {
       setSelectedFeedback(updated);
       // Only overwrite aiReplyText if the admin hasn't started editing yet
-      if (!aiReplyText.trim() && (updated as any).aiDraftReply) {
-        setAiReplyText(String((updated as any).aiDraftReply));
+      if (!aiReplyText.trim()) {
+        const hasBeenSent = Boolean((updated as any).aiSentAt);
+        const contentToShow = hasBeenSent 
+          ? String((updated as any).aiSentContent ?? "") 
+          : String((updated as any).aiDraftReply ?? "");
+        setAiReplyText(contentToShow);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,11 +133,21 @@ export default function FeedbackManagement() {
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800';
       case 'reviewed': return 'bg-yellow-100 text-yellow-800';
+      case 'answered': return 'bg-emerald-100 text-emerald-800';
       case 'in_progress': return 'bg-purple-100 text-purple-800';
       case 'completed': return 'bg-green-100 text-green-800';
       case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const getDisplayStatus = (feedback: FeedbackSubmissionDoc): FeedbackStatus => {
+    const status = feedback.status as FeedbackStatus;
+    const hasReply = Boolean((feedback as any).aiSentAt);
+    if (hasReply && (status === "new" || status === "reviewed")) {
+      return "answered";
+    }
+    return status;
   };
 
   const getAdminNotesPreview = (notes: string) => {
@@ -223,9 +237,14 @@ export default function FeedbackManagement() {
                                     </TableCell>
                                     <TableCell>
                                       <div className="flex items-center gap-2">
-                                        <Badge className={getStatusColor(feedback.status)}>
-                                          {feedback.status.replace('_', ' ')}
-                                        </Badge>
+                                        {(() => {
+                                          const displayStatus = getDisplayStatus(feedback);
+                                          return (
+                                            <Badge className={getStatusColor(displayStatus)}>
+                                              {displayStatus.replace('_', ' ')}
+                                            </Badge>
+                                          );
+                                        })()}
                                         {(feedback as any).aiSentAt && (
                                           <CheckCircle2 className="h-4 w-4 text-green-600" title="Reply sent to user" />
                                         )}
@@ -240,10 +259,11 @@ export default function FeedbackManagement() {
                           open={dialogOpenId === String(feedback._id)}
                           onOpenChange={(open) => {
                             if (open) {
+                              const hasBeenSent = Boolean((feedback as any).aiSentAt);
                               setSelectedFeedback(feedback);
                               setDialogOpenId(String(feedback._id));
-                              setCurrentStatus(feedback.status);
-                              setAiReplyText((feedback as any).aiDraftReply || '');
+                              setCurrentStatus(getDisplayStatus(feedback));
+                              setAiReplyText(hasBeenSent ? (feedback as any).aiSentContent || '' : (feedback as any).aiDraftReply || '');
                               return;
                             }
 
@@ -267,10 +287,11 @@ export default function FeedbackManagement() {
                               variant="outline"
                               size="sm"
                               onClick={() => {
+                                const hasBeenSent = Boolean((feedback as any).aiSentAt);
                                 setSelectedFeedback(feedback);
                                 setDialogOpenId(String(feedback._id));
-                                setCurrentStatus(feedback.status);
-                                setAiReplyText((feedback as any).aiDraftReply || '');
+                                setCurrentStatus(getDisplayStatus(feedback));
+                                setAiReplyText(hasBeenSent ? (feedback as any).aiSentContent || '' : (feedback as any).aiDraftReply || '');
                               }}
                             >
                               <Eye className="h-4 w-4" />
@@ -321,6 +342,7 @@ export default function FeedbackManagement() {
                                         <SelectContent>
                                           <SelectItem value="new">New</SelectItem>
                                           <SelectItem value="reviewed">Reviewed</SelectItem>
+                                          <SelectItem value="answered">Answered</SelectItem>
                                           <SelectItem value="in_progress">In Progress</SelectItem>
                                           <SelectItem value="completed">Completed</SelectItem>
                                           <SelectItem value="rejected">Rejected</SelectItem>
@@ -367,7 +389,9 @@ export default function FeedbackManagement() {
                                       </div>
 
                                       <div>
-                                        <h4 className="font-semibold mb-2">Draft Reply (editable)</h4>
+                                        <h4 className="font-semibold mb-2">
+                                          {(selectedFeedback as any)?.aiSentAt ? "Sent Reply" : "Draft Reply (editable)"}
+                                        </h4>
                                         <Textarea
                                           value={aiReplyText}
                                           onChange={(e) => setAiReplyText(e.target.value)}
@@ -375,25 +399,27 @@ export default function FeedbackManagement() {
                                           rows={6}
                                         />
                                         <div className="flex gap-2 mt-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={aiBusy}
-                                            onClick={async () => {
-                                              if (!selectedFeedback) return;
-                                              try {
-                                                setAiBusy(true);
-                                                await regenerateAiAction({ feedbackId: selectedFeedback._id });
-                                                toast.success("AI suggestion regenerated");
-                                              } catch (e: any) {
-                                                toast.error(e?.message || "Failed to regenerate AI suggestion");
-                                              } finally {
-                                                setAiBusy(false);
-                                              }
-                                            }}
-                                          >
-                                            {aiBusy ? "Regenerating..." : "Regenerate AI"}
-                                          </Button>
+                                          {!(selectedFeedback as any)?.aiSentAt && (
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              disabled={aiBusy}
+                                              onClick={async () => {
+                                                if (!selectedFeedback) return;
+                                                try {
+                                                  setAiBusy(true);
+                                                  await regenerateAiAction({ feedbackId: selectedFeedback._id });
+                                                  toast.success("AI suggestion regenerated");
+                                                } catch (e: any) {
+                                                  toast.error(e?.message || "Failed to regenerate AI suggestion");
+                                                } finally {
+                                                  setAiBusy(false);
+                                                }
+                                              }}
+                                            >
+                                              {aiBusy ? "Regenerating..." : "Regenerate AI"}
+                                            </Button>
+                                          )}
 
                                           <Button
                                             size="sm"
@@ -422,7 +448,7 @@ export default function FeedbackManagement() {
                                               }
                                             }}
                                           >
-                                            {aiSendBusy ? "Sending..." : "Send to user"}
+                                            {aiSendBusy ? "Sending..." : (selectedFeedback as any)?.aiSentAt ? "Resend/Update Reply" : "Send to user"}
                                           </Button>
                                         </div>
 

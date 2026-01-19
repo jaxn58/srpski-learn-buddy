@@ -375,6 +375,7 @@ export default defineSchema({
     status: v.union(
       v.literal("new"),
       v.literal("reviewed"),
+      v.literal("answered"),
       v.literal("in_progress"),
       v.literal("completed"),
       v.literal("rejected")
@@ -447,12 +448,25 @@ export default defineSchema({
     expiresAt: v.number(), // timestamp
     status: v.union(
       v.literal("active"),
+      v.literal("past_due"),
       v.literal("expired"),
       v.literal("cancelled")
     ),
     autoRenew: v.boolean(),
     cancelledAt: v.optional(v.number()),
     maxAccessibleUnits: v.optional(v.number()), // Max units accessible (e.g., 5 for beta, 27 for full)
+
+    // Payment metadata (optional for backwards compatibility)
+    paymentMode: v.optional(v.union(v.literal("prepaid"), v.literal("installments"))),
+    // Paddle subscription id for recurring installment plans
+    paddleSubscriptionId: v.optional(v.string()),
+    // Installments tracking (only for paymentMode="installments")
+    installmentsTotalMonths: v.optional(v.number()),
+    installmentsPaidMonths: v.optional(v.number()),
+    installmentMonthlyPrice: v.optional(v.number()), // in cents
+    pausedAt: v.optional(v.number()),
+    installmentsCompletedAt: v.optional(v.number()),
+    paddleCancelRequestedAt: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   // ============= SUBSCRIPTION HISTORY =============
@@ -464,7 +478,9 @@ export default defineSchema({
       v.literal("downgraded"),
       v.literal("cancelled"),
       v.literal("expired"),
-      v.literal("renewed")
+      v.literal("renewed"),
+      v.literal("payment_failed"),
+      v.literal("payment_succeeded")
     ),
     previousPlanType: v.optional(v.string()),
     newPlanType: v.optional(v.string()),

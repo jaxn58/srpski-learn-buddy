@@ -93,6 +93,7 @@ export const getPublicLeaderboard = query({
       xp: number;
       nickname: string;
       avatarUrl: string;
+      level: number | null;
     }> = [];
 
     for (const item of ranked) {
@@ -113,6 +114,7 @@ export const getPublicLeaderboard = query({
         xp: item.xp,
         nickname,
         avatarUrl,
+        level: typeof user.level === "number" && Number.isFinite(user.level) ? user.level : null,
       });
 
       if (out.length >= limit) break;
@@ -163,6 +165,7 @@ export const getLeaderboard = query({
       avatarUrl: string | null;
       isYou: boolean;
       isPublic: boolean;
+      level: number | null;
     }> = [];
 
     for (const item of slice) {
@@ -180,6 +183,7 @@ export const getLeaderboard = query({
         avatarUrl: resolvedAvatarUrl,
         isYou: display.isYou,
         isPublic: display.isPublic,
+        level: typeof user.level === "number" && Number.isFinite(user.level) ? user.level : null,
       });
     }
 
@@ -195,3 +199,36 @@ export const getLeaderboard = query({
   },
 });
 
+// Aggregated level distribution (no PII). Used for the Leaderboards "Level Progress" panel.
+export const getLevelDistribution = query({
+  args: {
+    maxLevel: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const maxLevel = Math.min(Math.max(args.maxLevel ?? 25, 3), 50);
+    const users = await ctx.db.query("users").collect();
+    const totalMembers = users.length;
+
+    const counts = new Map<number, number>();
+    for (const u of users) {
+      const lvl = u.level ?? 1;
+      if (!Number.isFinite(lvl) || lvl <= 0) continue;
+      if (lvl > maxLevel) continue;
+      counts.set(lvl, (counts.get(lvl) ?? 0) + 1);
+    }
+
+    const levels = Array.from({ length: maxLevel }, (_, idx) => {
+      const level = idx + 1;
+      const count = counts.get(level) ?? 0;
+      const percent = totalMembers > 0 ? Math.round((count / totalMembers) * 100) : 0;
+      return { level, count, percent };
+    });
+
+    return {
+      maxLevel,
+      totalMembers,
+      levels,
+      updatedAt: Date.now(),
+    };
+  },
+});

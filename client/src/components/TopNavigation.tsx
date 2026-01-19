@@ -65,6 +65,14 @@ export function TopNavigation() {
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const activeClass = "bg-[color:var(--accent)] text-white hover:brightness-95 hover:text-white";
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
+  const stats = useQuery(api.progress.getDashboardStats, user ? undefined : "skip");
+  const XP_PER_LEVEL = 300;
+  const totalXP = Math.floor(stats?.totalXP || 0);
+  const currentLevel =
+    typeof stats?.level === "number" && Number.isFinite(stats.level) ? stats.level : null;
+  const xpIntoLevel = ((totalXP % XP_PER_LEVEL) + XP_PER_LEVEL) % XP_PER_LEVEL;
+  const progressToNextRatio =
+    currentLevel && XP_PER_LEVEL > 0 ? Math.min(1, Math.max(0, xpIntoLevel / XP_PER_LEVEL)) : 0;
 
   const mainItems: NavItem[] = useMemo(
     () => [
@@ -343,12 +351,57 @@ export function TopNavigation() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="inline-flex items-center gap-2 rounded-full p-1 hover:bg-accent/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Avatar className="h-9 w-9 border">
-                  {myAvatar?.url ? <AvatarImage src={myAvatar.url} alt="Your avatar" /> : null}
-                  <AvatarFallback className="text-xs font-medium">
-                    {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative h-11 w-11">
+                  {currentLevel !== null && (
+                    <svg
+                      className="absolute inset-0"
+                      viewBox="0 0 40 40"
+                      aria-hidden="true"
+                    >
+                      {(() => {
+                        const r = 16;
+                        const c = 2 * Math.PI * r;
+                        const dashOffset = c * (1 - progressToNextRatio);
+                        return (
+                          <g transform="translate(20,20) rotate(-90)">
+                            <circle
+                              r={r}
+                              cx={0}
+                              cy={0}
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={4}
+                              className="text-muted/35"
+                            />
+                            <circle
+                              r={r}
+                              cx={0}
+                              cy={0}
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={4}
+                              strokeLinecap="round"
+                              strokeDasharray={`${c} ${c}`}
+                              strokeDashoffset={dashOffset}
+                              className="text-[color:var(--brand-blue)] transition-[stroke-dashoffset] duration-700 ease-out"
+                            />
+                          </g>
+                        );
+                      })()}
+                    </svg>
+                  )}
+                  <Avatar className="absolute inset-1 h-9 w-9 border bg-white">
+                    {myAvatar?.url ? <AvatarImage src={myAvatar.url} alt="Your avatar" /> : null}
+                    <AvatarFallback className="text-xs font-medium">
+                      {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  {currentLevel !== null && (
+                    <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-[color:var(--brand-blue)] text-white text-[11px] font-bold flex items-center justify-center border-2 border-white">
+                      {currentLevel}
+                    </div>
+                  )}
+                </div>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">

@@ -16,4 +16,8 @@ crons.daily(
   internal.backup.createDatabaseBackup
 );
 
+// Cancels installment subscriptions in Paddle after the fixed term has been fully paid.
+// Runs hourly to ensure we cancel well before the next billing date.
+crons.hourly("hourly-installment-cancellations", { minuteUTC: 5 }, internal.subscriptions.processInstallmentCancellations);
+
 export default crons;

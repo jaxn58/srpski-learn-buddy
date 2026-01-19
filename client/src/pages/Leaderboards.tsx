@@ -4,10 +4,11 @@ import { api } from "../../../convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Lock } from "lucide-react";
+import { ChevronDown, Lock } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
 type Period = "all" | "30d" | "7d";
@@ -34,6 +35,7 @@ export default function Leaderboards() {
     | null
     | undefined
   >(undefined);
+  const [roadmapExpanded, setRoadmapExpanded] = useState(false);
 
   // Load level distribution in an effect so missing backend functions don't crash the page
   useEffect(() => {
@@ -80,6 +82,17 @@ export default function Leaderboards() {
   const progressToLastRatio =
     LAST_LEVEL_TOTAL_XP > 0 ? Math.min(1, Math.max(0, totalXP / LAST_LEVEL_TOTAL_XP)) : 0;
   const xpToLastLevel = Math.max(0, LAST_LEVEL_TOTAL_XP - totalXP);
+  const levelRange = useMemo(() => {
+    const windowSize = 6;
+    let start = Math.max(1, currentLevel - 1);
+    let end = Math.min(LAST_LEVEL, start + windowSize - 1);
+    start = Math.max(1, end - windowSize + 1);
+    return { start, end };
+  }, [currentLevel]);
+  const allLevels = useMemo(
+    () => Array.from({ length: LAST_LEVEL }, (_, idx) => idx + 1),
+    [LAST_LEVEL]
+  );
 
   return (
     <div className="w-full space-y-8">
@@ -185,42 +198,110 @@ export default function Leaderboards() {
               </div>
 
               <div className="flex-1">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {Array.from({ length: LAST_LEVEL }, (_, idx) => idx + 1).map((level) => {
-                    const distRow = levelDistribution?.levels?.find((l) => l.level === level) ?? null;
-                    const isLocked = level > currentLevel;
-                    const isCurrent = level === currentLevel;
-                    const requiredXp = (level - 1) * XP_PER_LEVEL;
-                    return (
-                      <div
-                        key={level}
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl p-3 border",
-                          "bg-white",
-                          isCurrent && "border-[color:var(--accent)] shadow-sm"
-                        )}
-                      >
-                        <div
+                <Collapsible open={roadmapExpanded} onOpenChange={setRoadmapExpanded}>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="text-sm font-semibold">Level roadmap</div>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+                        {roadmapExpanded ? "Show less" : "Show all levels"}
+                        <ChevronDown
                           className={cn(
-                            "h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0",
-                            isLocked ? "bg-muted text-muted-foreground" : "bg-[color:var(--accent)] text-white"
+                            "ml-1.5 h-4 w-4 transition-transform",
+                            roadmapExpanded && "rotate-180"
                           )}
-                        >
-                          {isLocked ? <Lock className="h-4 w-4" /> : <span className="font-bold">{level}</span>}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold">Level {level}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Requires {requiredXp} total XP
-                            {distRow ? (
-                              <span className="ml-2 text-muted-foreground/70">· {distRow.percent}% of members</span>
-                            ) : null}
+                        />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+
+                  {!roadmapExpanded && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {allLevels
+                        .filter((level) => level >= levelRange.start && level <= levelRange.end)
+                        .map((level) => {
+                          const distRow = levelDistribution?.levels?.find((l) => l.level === level) ?? null;
+                          const isLocked = level > currentLevel;
+                          const isCurrent = level === currentLevel;
+                          const requiredXp = (level - 1) * XP_PER_LEVEL;
+                          return (
+                            <div
+                              key={level}
+                              className={cn(
+                                "flex items-center gap-3 rounded-xl p-3 border",
+                                "bg-white",
+                                isCurrent && "border-[color:var(--accent)] shadow-sm"
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0",
+                                  isLocked ? "bg-muted text-muted-foreground" : "bg-[color:var(--accent)] text-white"
+                                )}
+                              >
+                                {isLocked ? (
+                                  <Lock className="h-4 w-4" />
+                                ) : (
+                                  <span className="font-bold">{level}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold">Level {level}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Requires {requiredXp} total XP
+                                  {distRow ? (
+                                    <span className="ml-2 text-muted-foreground/70">
+                                      · {distRow.percent}% of members
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  <CollapsibleContent>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {allLevels.map((level) => {
+                        const distRow = levelDistribution?.levels?.find((l) => l.level === level) ?? null;
+                        const isLocked = level > currentLevel;
+                        const isCurrent = level === currentLevel;
+                        const requiredXp = (level - 1) * XP_PER_LEVEL;
+                        return (
+                          <div
+                            key={level}
+                            className={cn(
+                              "flex items-center gap-3 rounded-xl p-3 border",
+                              "bg-white",
+                              isCurrent && "border-[color:var(--accent)] shadow-sm"
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0",
+                                isLocked ? "bg-muted text-muted-foreground" : "bg-[color:var(--accent)] text-white"
+                              )}
+                            >
+                              {isLocked ? <Lock className="h-4 w-4" /> : <span className="font-bold">{level}</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold">Level {level}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Requires {requiredXp} total XP
+                                {distRow ? (
+                                  <span className="ml-2 text-muted-foreground/70">
+                                    · {distRow.percent}% of members
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        );
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
           )}
@@ -294,19 +375,13 @@ export default function Leaderboards() {
                                   typeof (e as any).level === "number" && Number.isFinite((e as any).level)
                                     ? (e as any).level
                                     : null;
-                                const isYou =
-                                  Boolean(user?.leaderboardPublicEnabled) &&
-                                  Boolean(user?.publicNickname) &&
-                                  e.nickname === user?.publicNickname;
-                                const shownLevel = entryLevel ?? (isYou ? currentLevel : null);
-
-                                if (shownLevel === null) return null;
+                                if (entryLevel === null) return null;
                                 return (
                                   <Badge
                                     variant="secondary"
                                     className="h-5 px-2 text-[10px] border-[color:var(--brand-blue-soft-border)] bg-[color:var(--brand-blue-soft)] text-[color:var(--brand-blue-strong-text)]"
                                   >
-                                    Lvl {shownLevel}
+                                    Lvl {entryLevel}
                                   </Badge>
                                 );
                               })()}

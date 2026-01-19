@@ -7,6 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -33,12 +34,27 @@ export default function Home() {
   const showBetaRegistration = !isWaitlistMode || isSuperadmin;
 
   type PlanId = "intensive" | "balanced" | "standard" | "relaxed";
+  type PaymentMode = "prepaid" | "installments";
 
   // Paddle config for public pricing checkout (requires login before checkout for server-side provisioning).
   const paddleConfig = useQuery(api.subscriptions.getPaddleCheckoutConfig);
   const paddleConfigured = paddleConfig?.clientTokenConfigured === true;
   const [paddleReady, setPaddleReady] = useState(false);
   const autoCheckoutAttemptedRef = useRef(false);
+
+  const availablePlans = useQuery(api.subscriptions.getPlans);
+  const planById = useMemo(() => {
+    const map = new Map<string, any>();
+    (availablePlans || []).forEach((p: any) => map.set(p.id, p));
+    return map;
+  }, [availablePlans]);
+
+  const [paymentModeByPlan, setPaymentModeByPlan] = useState<Record<PlanId, PaymentMode>>({
+    intensive: "prepaid",
+    balanced: "prepaid",
+    standard: "prepaid",
+    relaxed: "prepaid",
+  });
 
   const betaDiscountStatus = useQuery(api.subscriptions.getBetaDiscountStatus);
   const betaEnded = betaDiscountStatus?.betaEnded === true;
@@ -63,14 +79,19 @@ export default function Home() {
     });
   }, [paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
 
-  const getPriceIdForPlan = (planId: PlanId) => {
-    const shouldUseBeta50 = betaEnded && betaDiscountEligible;
-    const priceIds = shouldUseBeta50 ? paddleConfig?.priceIds?.beta50 : paddleConfig?.priceIds?.normal;
+  const getPriceIdForPlan = (planId: PlanId, paymentMode: PaymentMode) => {
+    const shouldUseBeta50 = paymentMode === "prepaid" && betaEnded && betaDiscountEligible;
+    const priceIds =
+      paymentMode === "installments"
+        ? paddleConfig?.priceIds?.installments
+        : shouldUseBeta50
+          ? paddleConfig?.priceIds?.beta50
+          : paddleConfig?.priceIds?.normal;
     const priceId = (priceIds as any)?.[planId] as string | undefined;
     return { priceId: (priceId || "").trim(), shouldUseBeta50 };
   };
 
-  const startPurchase = async (planId: PlanId) => {
+  const startPurchase = async (planId: PlanId, paymentMode: PaymentMode) => {
     if (showWaitlist) {
       // Keep pricing visible, but use waitlist flow when enabled.
       setIsWaitlistModalOpen(true);
@@ -93,7 +114,7 @@ export default function Home() {
       return;
     }
 
-    const { priceId, shouldUseBeta50 } = getPriceIdForPlan(planId);
+    const { priceId, shouldUseBeta50 } = getPriceIdForPlan(planId, paymentMode);
     if (!priceId) {
       toast.error("No Paddle Price ID configured for this plan.");
       return;
@@ -111,6 +132,7 @@ export default function Home() {
         customData: {
           clerkId: user.clerkId,
           planType: planId,
+          paymentMode,
           source: "home_pricing",
           beta50: shouldUseBeta50 ? "true" : "false",
         },
@@ -139,7 +161,8 @@ export default function Home() {
     const nextUrl = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash || ""}`;
     window.history.replaceState({}, "", nextUrl);
 
-    void startPurchase(buy as PlanId);
+    // Deep-link purchases always default to prepaid for now.
+    void startPurchase(buy as PlanId, "prepaid");
   }, [isAuthenticated, paddleReady, showWaitlist]);
   
   // BETA: Force English for all users
@@ -160,13 +183,13 @@ export default function Home() {
     }
     
     // Count vocabulary per unit
-    const vocabCounts = courseVocabulary.reduce((acc, word) => {
+    const vocabCounts = courseVocabulary.reduce((acc: Record<number, number>, word: any) => {
       acc[word.unitNumber] = (acc[word.unitNumber] || 0) + 1;
       return acc;
     }, {} as Record<number, number>);
     
     // Count units per module
-    const unitCounts = (dbUnitsEn || []).reduce((acc, unit) => {
+    const unitCounts = (dbUnitsEn || []).reduce((acc: Record<string, number>, unit: any) => {
       const moduleId = unit.moduleId;
       if (moduleId) {
         acc[moduleId] = (acc[moduleId] || 0) + 1;
@@ -174,10 +197,10 @@ export default function Home() {
       return acc;
     }, {} as Record<string, number>);
     
-    return dbModules.map((module) => {
+    return dbModules.map((module: any) => {
       // Calculate total vocabulary for this module by summing units
-      const moduleUnits = (dbUnitsEn || []).filter(u => u.moduleId === module.slug);
-      const vocabCount = moduleUnits.reduce((sum, unit) => {
+      const moduleUnits = (dbUnitsEn || []).filter((u: any) => u.moduleId === module.slug);
+      const vocabCount = moduleUnits.reduce((sum: number, unit: any) => {
         return sum + (vocabCounts[unit.unitNumber] || 0);
       }, 0);
       
@@ -410,11 +433,44 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.intensive.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.intensive.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">{t('home.pricing.intensive.price')}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.pricing.intensive.payment')}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {paymentModeByPlan.intensive === "installments"
+                      ? `€${(((planById.get("intensive") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
+                      : t('home.pricing.intensive.price')}
+                    {paymentModeByPlan.intensive === "installments" ? (
+                      <span className="text-sm text-muted-foreground">/month</span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {paymentModeByPlan.intensive === "installments"
+                      ? `Pay monthly for ${(planById.get("intensive") as any)?.months ?? 3} months`
+                      : t('home.pricing.intensive.payment')}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
+                <div className="space-y-2">
+                  <RadioGroup
+                    value={paymentModeByPlan.intensive}
+                    onValueChange={(value) =>
+                      setPaymentModeByPlan((prev) => ({ ...prev, intensive: value as any }))
+                    }
+                    className="gap-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem id="intensive-pay-once" value="prepaid" />
+                      <Label htmlFor="intensive-pay-once" className="text-xs">
+                        Pay once
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem id="intensive-pay-monthly" value="installments" />
+                      <Label htmlFor="intensive-pay-monthly" className="text-xs">
+                        Pay monthly (+10%)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -444,7 +500,7 @@ export default function Home() {
                 <Button
                   className="w-full"
                   disabled={showWaitlist || (isAuthenticated && !paddleReady)}
-                  onClick={() => void startPurchase("intensive")}
+                  onClick={() => void startPurchase("intensive", paymentModeByPlan.intensive)}
                 >
                   {t('home.pricing.choosePlan')}
                 </Button>
@@ -462,11 +518,44 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.balanced.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.balanced.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">{t('home.pricing.balanced.price')}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.pricing.balanced.payment')}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {paymentModeByPlan.balanced === "installments"
+                      ? `€${(((planById.get("balanced") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
+                      : t('home.pricing.balanced.price')}
+                    {paymentModeByPlan.balanced === "installments" ? (
+                      <span className="text-sm text-muted-foreground">/month</span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {paymentModeByPlan.balanced === "installments"
+                      ? `Pay monthly for ${(planById.get("balanced") as any)?.months ?? 6} months`
+                      : t('home.pricing.balanced.payment')}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
+                <div className="space-y-2">
+                  <RadioGroup
+                    value={paymentModeByPlan.balanced}
+                    onValueChange={(value) =>
+                      setPaymentModeByPlan((prev) => ({ ...prev, balanced: value as any }))
+                    }
+                    className="gap-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem id="balanced-pay-once" value="prepaid" />
+                      <Label htmlFor="balanced-pay-once" className="text-xs">
+                        Pay once
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem id="balanced-pay-monthly" value="installments" />
+                      <Label htmlFor="balanced-pay-monthly" className="text-xs">
+                        Pay monthly (+10%)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -496,7 +585,7 @@ export default function Home() {
                 <Button
                   className="w-full"
                   disabled={showWaitlist || (isAuthenticated && !paddleReady)}
-                  onClick={() => void startPurchase("balanced")}
+                  onClick={() => void startPurchase("balanced", paymentModeByPlan.balanced)}
                 >
                   {t('home.pricing.choosePlan')}
                 </Button>
@@ -517,11 +606,44 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.standard.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.standard.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">{t('home.pricing.standard.price')}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.pricing.standard.payment')}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {paymentModeByPlan.standard === "installments"
+                      ? `€${(((planById.get("standard") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
+                      : t('home.pricing.standard.price')}
+                    {paymentModeByPlan.standard === "installments" ? (
+                      <span className="text-sm text-muted-foreground">/month</span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {paymentModeByPlan.standard === "installments"
+                      ? `Pay monthly for ${(planById.get("standard") as any)?.months ?? 9} months`
+                      : t('home.pricing.standard.payment')}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
+                <div className="space-y-2">
+                  <RadioGroup
+                    value={paymentModeByPlan.standard}
+                    onValueChange={(value) =>
+                      setPaymentModeByPlan((prev) => ({ ...prev, standard: value as any }))
+                    }
+                    className="gap-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem id="standard-pay-once" value="prepaid" />
+                      <Label htmlFor="standard-pay-once" className="text-xs">
+                        Pay once
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem id="standard-pay-monthly" value="installments" />
+                      <Label htmlFor="standard-pay-monthly" className="text-xs">
+                        Pay monthly (+10%)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -551,7 +673,7 @@ export default function Home() {
                 <Button
                   className="w-full bg-primary"
                   disabled={showWaitlist || (isAuthenticated && !paddleReady)}
-                  onClick={() => void startPurchase("standard")}
+                  onClick={() => void startPurchase("standard", paymentModeByPlan.standard)}
                 >
                   {t('home.pricing.choosePlan')}
                 </Button>
@@ -569,11 +691,44 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.relaxed.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.relaxed.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">{t('home.pricing.relaxed.price')}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.pricing.relaxed.payment')}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {paymentModeByPlan.relaxed === "installments"
+                      ? `€${(((planById.get("relaxed") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
+                      : t('home.pricing.relaxed.price')}
+                    {paymentModeByPlan.relaxed === "installments" ? (
+                      <span className="text-sm text-muted-foreground">/month</span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {paymentModeByPlan.relaxed === "installments"
+                      ? `Pay monthly for ${(planById.get("relaxed") as any)?.months ?? 12} months`
+                      : t('home.pricing.relaxed.payment')}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
+                <div className="space-y-2">
+                  <RadioGroup
+                    value={paymentModeByPlan.relaxed}
+                    onValueChange={(value) =>
+                      setPaymentModeByPlan((prev) => ({ ...prev, relaxed: value as any }))
+                    }
+                    className="gap-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem id="relaxed-pay-once" value="prepaid" />
+                      <Label htmlFor="relaxed-pay-once" className="text-xs">
+                        Pay once
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem id="relaxed-pay-monthly" value="installments" />
+                      <Label htmlFor="relaxed-pay-monthly" className="text-xs">
+                        Pay monthly (+10%)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 font-bold mt-0.5">✓</span>
@@ -603,7 +758,7 @@ export default function Home() {
                 <Button
                   className="w-full"
                   disabled={showWaitlist || (isAuthenticated && !paddleReady)}
-                  onClick={() => void startPurchase("relaxed")}
+                  onClick={() => void startPurchase("relaxed", paymentModeByPlan.relaxed)}
                 >
                   {t('home.pricing.choosePlan')}
                 </Button>
@@ -999,7 +1154,7 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {MODULES_DATA.map((module) => {
+            {MODULES_DATA.map((module: any) => {
               // BETA: Always use English
               const displayTitle = module.titleEnglish;
               const displayDescription = module.description;
