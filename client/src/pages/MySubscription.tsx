@@ -3,6 +3,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Calendar, Check, Clock, CreditCard, TrendingUp } from "lucide-react";
@@ -18,6 +20,12 @@ type SubscriptionPlan = {
   months: number;
   price: number; // cents
   unitsPerWeek: number;
+  paymentOptions?: {
+    prepaidTotal: number;
+    installmentsMonthly?: number;
+    installmentsTotal?: number;
+    installmentsUpliftPercent?: number;
+  };
 };
 
 export function MySubscriptionContent({ embedded = false }: { embedded?: boolean }) {
@@ -54,6 +62,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       : subscription?.expiresAt ?? null;
 
   const availablePlans = useQuery(api.subscriptions.getPlans) as SubscriptionPlan[] | undefined;
+  const [paymentModeByPlan, setPaymentModeByPlan] = useState<Record<string, "prepaid" | "installments">>({});
 
   const containerClass = embedded ? "w-full" : "p-8 w-full";
   const innerClass = embedded ? "w-full" : "max-w-4xl mx-auto";
@@ -116,6 +125,17 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
     };
   }, [paddleConfig]);
 
+  const installmentsPriceIdMap = useMemo(() => {
+    const installments = paddleConfig?.priceIds?.installments;
+    return {
+      beta: "",
+      intensive: installments?.intensive || "",
+      balanced: installments?.balanced || "",
+      standard: installments?.standard || "",
+      relaxed: installments?.relaxed || "",
+    };
+  }, [paddleConfig]);
+
   const formatCurrency = (cents: number) => {
     const euros = cents / 100;
     return `€${euros.toFixed(2)}`;
@@ -140,7 +160,12 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
     });
   }, [paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
 
-  const handlePurchase = async (planId: Exclude<SubscriptionPlan["id"], "beta">, useBetaPrice: boolean) => {
+  type PaymentMode = "prepaid" | "installments";
+  const handlePurchase = async (
+    planId: Exclude<SubscriptionPlan["id"], "beta">,
+    paymentMode: PaymentMode,
+    useBetaPrice: boolean
+  ) => {
     if (!user) return;
 
     if (!paddleConfigured) {
@@ -148,7 +173,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       return;
     }
 
-    const priceId = (useBetaPrice ? beta50PriceIdMap : priceIdMap)[planId];
+    const effectiveUseBetaPrice = paymentMode === "prepaid" && useBetaPrice;
+    const priceId =
+      paymentMode === "installments"
+        ? installmentsPriceIdMap[planId]
+        : (effectiveUseBetaPrice ? beta50PriceIdMap : priceIdMap)[planId];
     if (!priceId) {
       toast.error("No Paddle Price ID configured for this plan.");
       return;
@@ -161,8 +190,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
         customData: {
           clerkId: user.clerkId,
           planType: planId,
+          paymentMode,
           source: "my_subscription",
-          beta50: useBetaPrice,
+          beta50: effectiveUseBetaPrice,
         },
       });
     } catch (error: any) {
@@ -344,7 +374,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                       .filter((p) => p.id !== "beta")
                       .map((plan) => {
                         const isBetaPrice = betaDiscountEligible;
+                        const selectedPaymentMode = paymentModeByPlan[plan.id] || "prepaid";
                         const displayPrice = isBetaPrice ? Math.round(plan.price / 2) : plan.price;
+                        const installmentMonthly = plan.paymentOptions?.installmentsMonthly ?? 0;
                         return (
                           <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
                             <CardHeader>
@@ -353,11 +385,40 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             </CardHeader>
                             <CardContent className="space-y-4">
                               <div className="text-3xl font-bold text-primary">
-                                {formatCurrency(displayPrice)}
-                                {isBetaPrice ? <span className="text-sm text-muted-foreground"> (Beta 50%)</span> : null}
+                                {selectedPaymentMode === "installments"
+                                  ? `${formatCurrency(installmentMonthly)}/mo`
+                                  : formatCurrency(displayPrice)}
+                                {selectedPaymentMode === "prepaid" && isBetaPrice ? (
+                                  <span className="text-sm text-muted-foreground"> (Beta 50%)</span>
+                                ) : null}
                               </div>
+                              <RadioGroup
+                                value={selectedPaymentMode}
+                                onValueChange={(v) => setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }))}
+                                className="gap-2"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <RadioGroupItem id={`${plan.id}-pay-once-beta`} value="prepaid" />
+                                  <Label htmlFor={`${plan.id}-pay-once-beta`} className="text-sm">
+                                    Pay once
+                                  </Label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <RadioGroupItem id={`${plan.id}-pay-monthly-beta`} value="installments" />
+                                  <Label htmlFor={`${plan.id}-pay-monthly-beta`} className="text-sm">
+                                    Pay monthly (+10%)
+                                  </Label>
+                                </div>
+                              </RadioGroup>
                               <Button
-                                onClick={() => handlePurchase(plan.id as any, isBetaPrice)}
+                                onClick={() =>
+                                  handlePurchase(
+                                    plan.id as any,
+                                    selectedPaymentMode,
+                                    // Beta 50% applies only to prepaid (enforced in handler too)
+                                    isBetaPrice
+                                  )
+                                }
                                 disabled={!paddleReady}
                                 className="w-full"
                               >
@@ -393,25 +454,51 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                 <div className="grid gap-4 md:grid-cols-2">
                   {availablePlans
                     .filter((p) => p.id !== "beta")
-                    .map((plan) => (
-                      <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
-                        <CardHeader>
-                          <CardTitle className="capitalize">{plan.name}</CardTitle>
-                          <CardDescription>{plan.months} months</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="text-3xl font-bold text-primary">{formatCurrency(plan.price)}</div>
-                          <Button
-                            onClick={() => handlePurchase(plan.id as any, false)}
-                            disabled={!paddleReady}
-                            className="w-full"
-                          >
-                            <CreditCard className="h-4 w-4 mr-2" />
-                            Continue with {plan.name}
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))}
+                    .map((plan) => {
+                      const selectedPaymentMode = paymentModeByPlan[plan.id] || "prepaid";
+                      const installmentMonthly = plan.paymentOptions?.installmentsMonthly ?? 0;
+                      return (
+                        <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
+                          <CardHeader>
+                            <CardTitle className="capitalize">{plan.name}</CardTitle>
+                            <CardDescription>{plan.months} months</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="text-3xl font-bold text-primary">
+                              {selectedPaymentMode === "installments"
+                                ? `${formatCurrency(installmentMonthly)}/mo`
+                                : formatCurrency(plan.price)}
+                            </div>
+                            <RadioGroup
+                              value={selectedPaymentMode}
+                              onValueChange={(v) => setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }))}
+                              className="gap-2"
+                            >
+                              <div className="flex items-center gap-2">
+                                <RadioGroupItem id={`${plan.id}-pay-once`} value="prepaid" />
+                                <Label htmlFor={`${plan.id}-pay-once`} className="text-sm">
+                                  Pay once
+                                </Label>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <RadioGroupItem id={`${plan.id}-pay-monthly`} value="installments" />
+                                <Label htmlFor={`${plan.id}-pay-monthly`} className="text-sm">
+                                  Pay monthly (+10%)
+                                </Label>
+                              </div>
+                            </RadioGroup>
+                            <Button
+                              onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, false)}
+                              disabled={!paddleReady}
+                              className="w-full"
+                            >
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Continue with {plan.name}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>
@@ -459,7 +546,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                       .filter((p) => p.id !== "beta")
                       .map((plan) => {
                         const isBetaPrice = betaDiscountEligible;
+                        const selectedPaymentMode = paymentModeByPlan[plan.id] || "prepaid";
                         const displayPrice = isBetaPrice ? Math.round(plan.price / 2) : plan.price;
+                        const installmentMonthly = plan.paymentOptions?.installmentsMonthly ?? 0;
                         return (
                           <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
                             <CardHeader>
@@ -468,11 +557,33 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             </CardHeader>
                             <CardContent className="space-y-4">
                               <div className="text-3xl font-bold text-primary">
-                                {formatCurrency(displayPrice)}
-                                {isBetaPrice ? <span className="text-sm text-muted-foreground"> (Beta 50%)</span> : null}
+                                {selectedPaymentMode === "installments"
+                                  ? `${formatCurrency(installmentMonthly)}/mo`
+                                  : formatCurrency(displayPrice)}
+                                {selectedPaymentMode === "prepaid" && isBetaPrice ? (
+                                  <span className="text-sm text-muted-foreground"> (Beta 50%)</span>
+                                ) : null}
                               </div>
+                              <RadioGroup
+                                value={selectedPaymentMode}
+                                onValueChange={(v) => setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }))}
+                                className="gap-2"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <RadioGroupItem id={`${plan.id}-pay-once-beta2`} value="prepaid" />
+                                  <Label htmlFor={`${plan.id}-pay-once-beta2`} className="text-sm">
+                                    Pay once
+                                  </Label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <RadioGroupItem id={`${plan.id}-pay-monthly-beta2`} value="installments" />
+                                  <Label htmlFor={`${plan.id}-pay-monthly-beta2`} className="text-sm">
+                                    Pay monthly (+10%)
+                                  </Label>
+                                </div>
+                              </RadioGroup>
                               <Button
-                                onClick={() => handlePurchase(plan.id as any, isBetaPrice)}
+                                onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, isBetaPrice)}
                                 disabled={!paddleReady}
                                 className="w-full"
                               >
@@ -572,7 +683,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
               <div>
                 <CardTitle className="text-2xl capitalize">{normalizedPlan} {t('subscription.plan')}</CardTitle>
                 <CardDescription>
-                  {subscription.status === "active" ? t('subscription.active') : t('subscription.cancelled')}
+                  {subscription.status === "active"
+                    ? t('subscription.active')
+                    : subscription.status === "past_due"
+                      ? t("subscription.pastDue")
+                      : t('subscription.cancelled')}
                 </CardDescription>
               </div>
               <div className="text-right">
@@ -592,6 +707,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {subscription.status === "past_due" ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                <strong>{t("subscription.pastDueTitle")}</strong> {t("subscription.pastDueDesc")}
+              </div>
+            ) : null}
             {/* Time Remaining */}
             <div>
               <div className="flex items-center justify-between mb-2">

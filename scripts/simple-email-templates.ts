@@ -150,8 +150,6 @@ This email was sent to {{ADMIN_EMAIL}}
 {{ADMIN_REPLY}}
 </p>
 
-<p>If you have additional details (screenshots, steps to reproduce, device/browser), just reply to this email.</p>
-
 <p>Best regards,<br>
 <strong>The Serbian AI Tutor Team</strong></p>
 
@@ -240,7 +238,6 @@ This email was sent to {{USER_EMAIL}}
 <p>Follow our progress and get Serbian learning tips:</p>
 <ul>
   <li>Website: <a href="https://learn-with.me">learn-with.me</a></li>
-  <li>Questions? Reply to this email anytime!</li>
 </ul>
 
 <p>Thank you for your interest in Serbian AI Tutor. We can't wait to help you on your Serbian language journey!</p>

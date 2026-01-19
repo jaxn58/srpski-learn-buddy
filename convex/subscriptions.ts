@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, action, QueryCtx, MutationCtx, internalMutation } from "./_generated/server";
+import { mutation, query, action, QueryCtx, MutationCtx, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
@@ -24,6 +24,34 @@ const SUBSCRIPTION_PLANS = [
   { id: "relaxed", name: "Relaxed", months: 12, price: 11900, unitsPerWeek: 1 },
 ];
 
+type PaidPlanId = "intensive" | "balanced" | "standard" | "relaxed";
+
+function charmRoundUpTo99Cents(rawMonthlyCents: number): number {
+  // Round up to the next *.99 EUR boundary (e.g. 1448.33 -> 1499).
+  // Ensures monthlyCharge*months is >= raw target, which keeps pay-once attractive.
+  const eurosFloor = Math.floor(rawMonthlyCents / 100);
+  let candidate = eurosFloor * 100 + 99;
+  if (candidate < Math.ceil(rawMonthlyCents)) {
+    candidate = (eurosFloor + 1) * 100 + 99;
+  }
+  return candidate;
+}
+
+function getInstallmentMonthlyChargeCents(planType: PaidPlanId): number {
+  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
+  if (!plan || !plan.months) return 0;
+  const monthlyTotal = Math.round(plan.price * 1.1);
+  const rawMonthly = monthlyTotal / plan.months;
+  return charmRoundUpTo99Cents(rawMonthly);
+}
+
+function getInstallmentTotalCents(planType: PaidPlanId): number {
+  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
+  if (!plan || !plan.months) return 0;
+  const monthly = getInstallmentMonthlyChargeCents(planType);
+  return monthly * plan.months;
+}
+
 // Get accessible units for current user based on subscription
 export const getAccessibleUnits = query({
   handler: async (ctx) => {
@@ -41,6 +69,17 @@ export const getAccessibleUnits = query({
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .filter((q) => q.eq(q.field("status"), "active"))
       .first();
+
+    const pastDueSub = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("status"), "past_due"))
+      .first();
+
+    // If a payment failed for an installment plan, we pause access completely (even for beta testers).
+    if (pastDueSub) {
+      return { maxUnits: 0, isBeta: false };
+    }
 
     if (subscription?.maxAccessibleUnits) {
       return {
@@ -127,7 +166,21 @@ export const getDaysRemaining = query({
 // Get available plans
 export const getPlans = query({
   handler: async () => {
-    return SUBSCRIPTION_PLANS;
+    return SUBSCRIPTION_PLANS.map((p) => {
+      if (p.id === "beta") return { ...p, paymentOptions: { prepaidTotal: 0 } };
+      const planType = p.id as PaidPlanId;
+      const monthly = getInstallmentMonthlyChargeCents(planType);
+      const total = getInstallmentTotalCents(planType);
+      return {
+        ...p,
+        paymentOptions: {
+          prepaidTotal: p.price,
+          installmentsMonthly: monthly,
+          installmentsTotal: total,
+          installmentsUpliftPercent: 10,
+        },
+      };
+    });
   },
 });
 
@@ -167,6 +220,13 @@ export const getPaddleCheckoutConfig = query({
       relaxed: (process.env.PADDLE_PRODUCT_RELAXED || "").trim(),
     } as const;
 
+    const installments = {
+      intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_MONTHLY || "").trim(),
+      balanced: (process.env.PADDLE_PRODUCT_BALANCED_MONTHLY || "").trim(),
+      standard: (process.env.PADDLE_PRODUCT_STANDARD_MONTHLY || "").trim(),
+      relaxed: (process.env.PADDLE_PRODUCT_RELAXED_MONTHLY || "").trim(),
+    } as const;
+
     // IMPORTANT:
     // Do NOT expose beta50 price IDs to ineligible users. Otherwise they could purchase a discounted price,
     // get charged, and then be denied access by server-side enforcement.
@@ -195,6 +255,7 @@ export const getPaddleCheckoutConfig = query({
       clientToken,
       priceIds: {
         normal,
+        installments,
         beta50,
       },
       beta50Eligible: betaEligible,
@@ -526,6 +587,13 @@ function getPaddlePriceMapFromEnv() {
     relaxed: (process.env.PADDLE_PRODUCT_RELAXED || "").trim(),
   } as const;
 
+  const installments = {
+    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_MONTHLY || "").trim(),
+    balanced: (process.env.PADDLE_PRODUCT_BALANCED_MONTHLY || "").trim(),
+    standard: (process.env.PADDLE_PRODUCT_STANDARD_MONTHLY || "").trim(),
+    relaxed: (process.env.PADDLE_PRODUCT_RELAXED_MONTHLY || "").trim(),
+  } as const;
+
   const beta50 = {
     intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_BETA50 || "").trim(),
     balanced: (process.env.PADDLE_PRODUCT_BALANCED_BETA50 || "").trim(),
@@ -542,15 +610,38 @@ function getPaddlePriceMapFromEnv() {
 
   const map = new Map<
     string,
-    { planType: keyof typeof monthsByPlan; planDurationMonths: number; isBeta50: boolean }
+    {
+      planType: keyof typeof monthsByPlan;
+      planDurationMonths: number;
+      isBeta50: boolean;
+      paymentMode: "prepaid" | "installments";
+    }
   >();
 
   for (const plan of Object.keys(monthsByPlan) as Array<keyof typeof monthsByPlan>) {
     if (normal[plan]) {
-      map.set(normal[plan], { planType: plan, planDurationMonths: monthsByPlan[plan], isBeta50: false });
+      map.set(normal[plan], {
+        planType: plan,
+        planDurationMonths: monthsByPlan[plan],
+        isBeta50: false,
+        paymentMode: "prepaid",
+      });
     }
     if (beta50[plan]) {
-      map.set(beta50[plan], { planType: plan, planDurationMonths: monthsByPlan[plan], isBeta50: true });
+      map.set(beta50[plan], {
+        planType: plan,
+        planDurationMonths: monthsByPlan[plan],
+        isBeta50: true,
+        paymentMode: "prepaid",
+      });
+    }
+    if (installments[plan]) {
+      map.set(installments[plan], {
+        planType: plan,
+        planDurationMonths: monthsByPlan[plan],
+        isBeta50: false,
+        paymentMode: "installments",
+      });
     }
   }
 
@@ -574,6 +665,8 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
     priceId: v.string(),
     transactionId: v.optional(v.string()),
     isBeta50: v.boolean(),
+    paymentMode: v.optional(v.union(v.literal("prepaid"), v.literal("installments"))),
+    paddleSubscriptionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -614,6 +707,11 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
 
     const maxAccessibleUnits = 27;
 
+    const paymentMode = (args.paymentMode || "prepaid") as "prepaid" | "installments";
+    const installmentMonthlyPrice =
+      paymentMode === "installments" ? getInstallmentMonthlyChargeCents(args.planType) : undefined;
+    const installmentsTotalMonths = paymentMode === "installments" ? args.planDurationMonths : undefined;
+
     if (existing) {
       await ctx.db.patch(existing._id, {
         planType: args.planType,
@@ -624,6 +722,12 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
         autoRenew: false,
         cancelledAt: undefined,
         maxAccessibleUnits,
+        paymentMode,
+        paddleSubscriptionId: args.paddleSubscriptionId,
+        installmentsTotalMonths,
+        installmentsPaidMonths: paymentMode === "installments" ? 1 : undefined,
+        installmentMonthlyPrice,
+        pausedAt: undefined,
       });
 
       await ctx.db.insert("subscriptionHistory", {
@@ -633,7 +737,8 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
         newPlanType: args.planType,
         previousExpiresAt: existing.expiresAt,
         newExpiresAt: expiresAt,
-        cost: args.planPriceCents,
+        // For installments we record revenue per successful charge.
+        cost: paymentMode === "installments" ? installmentMonthlyPrice : args.planPriceCents,
         notes: `paddle_event:${args.paddleEventId}${args.transactionId ? ` tx:${args.transactionId}` : ""}`,
       });
 
@@ -649,6 +754,11 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
       status: "active",
       autoRenew: false,
       maxAccessibleUnits,
+      paymentMode,
+      paddleSubscriptionId: args.paddleSubscriptionId,
+      installmentsTotalMonths,
+      installmentsPaidMonths: paymentMode === "installments" ? 1 : undefined,
+      installmentMonthlyPrice,
     });
 
     await ctx.db.insert("subscriptionHistory", {
@@ -656,11 +766,134 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
       action: "purchased",
       newPlanType: args.planType,
       newExpiresAt: expiresAt,
-      cost: args.planPriceCents,
+      cost: paymentMode === "installments" ? installmentMonthlyPrice : args.planPriceCents,
       notes: `paddle_event:${args.paddleEventId}${args.transactionId ? ` tx:${args.transactionId}` : ""}`,
     });
 
     return { subscriptionId, userId: user._id };
+  },
+});
+
+async function applyInstallmentRenewal(ctx: MutationCtx, args: { paddleEventId: string; subscriptionId: string }) {
+  const now = Date.now();
+  const sub = await ctx.db
+    .query("userSubscriptions")
+    .filter((q) => q.eq(q.field("paddleSubscriptionId"), args.subscriptionId))
+    .first();
+  if (!sub) return;
+
+  const totalMonths = (sub.installmentsTotalMonths ?? sub.planDurationMonths) || 0;
+  const paidMonths = (sub.installmentsPaidMonths ?? 0) + 1;
+  const monthlyPrice = sub.installmentMonthlyPrice ?? 0;
+
+  await ctx.db.patch(sub._id, {
+    status: "active",
+    installmentsPaidMonths: paidMonths,
+    pausedAt: undefined,
+  });
+
+  await ctx.db.insert("subscriptionHistory", {
+    userId: sub.userId,
+    action: "renewed",
+    previousPlanType: sub.planType,
+    newPlanType: sub.planType,
+    previousExpiresAt: sub.expiresAt,
+    newExpiresAt: sub.expiresAt,
+    cost: monthlyPrice,
+    notes: `paddle_event:${args.paddleEventId} installments_charge:${paidMonths}/${totalMonths}`,
+  });
+
+  if (totalMonths > 0 && paidMonths >= totalMonths) {
+    await ctx.db.patch(sub._id, { installmentsCompletedAt: now });
+  }
+}
+
+async function pauseAccessForFailedInstallment(ctx: MutationCtx, args: { paddleEventId: string; subscriptionId: string }) {
+  const now = Date.now();
+  const sub = await ctx.db
+    .query("userSubscriptions")
+    .filter((q) => q.eq(q.field("paddleSubscriptionId"), args.subscriptionId))
+    .first();
+  if (!sub) return;
+
+  await ctx.db.patch(sub._id, {
+    status: "past_due",
+    pausedAt: now,
+  });
+
+  await ctx.db.insert("subscriptionHistory", {
+    userId: sub.userId,
+    action: "payment_failed",
+    previousPlanType: sub.planType,
+    newPlanType: sub.planType,
+    cost: undefined,
+    notes: `paddle_event:${args.paddleEventId} installments_payment_failed`,
+  });
+}
+
+export const internalListInstallmentsToCancel = internalQuery({
+  handler: async (ctx) => {
+    // Cancel subscriptions that reached their fixed term and haven't been cancelled in Paddle yet.
+    const subs = await ctx.db
+      .query("userSubscriptions")
+      .filter((q) => q.eq(q.field("paymentMode"), "installments"))
+      .collect();
+
+    return subs
+      .filter((s) => {
+        if (s.paddleCancelRequestedAt !== undefined) return false;
+        if (s.installmentsCompletedAt === undefined) return false;
+        const total = s.installmentsTotalMonths ?? s.planDurationMonths;
+        const paid = s.installmentsPaidMonths ?? 0;
+        return total > 0 && paid >= total && typeof s.paddleSubscriptionId === "string" && s.paddleSubscriptionId.length > 0;
+      })
+      .map((s) => ({ id: s._id, paddleSubscriptionId: s.paddleSubscriptionId as string }));
+  },
+});
+
+export const internalMarkPaddleCancelRequested = internalMutation({
+  args: { id: v.id("userSubscriptions") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { paddleCancelRequestedAt: Date.now() });
+  },
+});
+
+export const processInstallmentCancellations = internalAction({
+  handler: async (ctx) => {
+    const apiKey = (process.env.PADDLE_API_KEY || "").trim();
+    if (!apiKey) {
+      console.warn("[Paddle] PADDLE_API_KEY not configured; skipping installment cancellations.");
+      return { attempted: 0, cancelled: 0 };
+    }
+
+    const environment =
+      (process.env.PADDLE_ENVIRONMENT || process.env.VITE_PADDLE_ENVIRONMENT || "").trim() === "production"
+        ? "production"
+        : "sandbox";
+    const baseUrl = environment === "production" ? "https://api.paddle.com" : "https://sandbox-api.paddle.com";
+
+    const toCancel = await ctx.runQuery(internal.subscriptions.internalListInstallmentsToCancel);
+    let cancelled = 0;
+
+    for (const item of toCancel) {
+      try {
+        await fetch(`${baseUrl}/subscriptions/${encodeURIComponent(item.paddleSubscriptionId)}/cancel`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ effective_from: "next_billing_period" }),
+        });
+
+        await ctx.runMutation(internal.subscriptions.internalMarkPaddleCancelRequested, { id: item.id });
+        cancelled += 1;
+      } catch (err) {
+        console.warn("[Paddle] Failed to cancel subscription", { paddleSubscriptionId: item.paddleSubscriptionId, err });
+      }
+    }
+
+    return { attempted: toCancel.length, cancelled };
   },
 });
 
@@ -702,6 +935,12 @@ export const internalProcessPaddleWebhook = internalMutation({
     const data = evt?.data ?? {};
     const transactionId: string | undefined =
       data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.transaction?.id;
+    const subscriptionId: string | undefined =
+      data?.subscription_id ??
+      data?.subscriptionId ??
+      data?.subscription?.id ??
+      data?.subscription?.subscription_id ??
+      data?.subscription?.subscriptionId;
     const firstItem = Array.isArray(data?.items) ? data.items[0] : undefined;
     const priceId: string | undefined =
       firstItem?.price_id ??
@@ -731,8 +970,14 @@ export const internalProcessPaddleWebhook = internalMutation({
       environment: args.environment,
     });
 
+    // Handle installment payment failures: pause access.
+    if (eventType.includes("payment_failed") && subscriptionId) {
+      await pauseAccessForFailedInstallment(ctx, { paddleEventId: eventId, subscriptionId });
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "applied" as const };
+    }
+
     // We only apply access after the payment is finalized.
-    // For prepaid one-time checkouts, that is a completed transaction.
     if (!eventType.startsWith("transaction.")) {
       await ctx.db.patch(eventDocId, { processedAt: Date.now() });
       return { status: "ignored" as const };
@@ -743,13 +988,66 @@ export const internalProcessPaddleWebhook = internalMutation({
       return { status: "ignored" as const };
     }
 
-    if (!clerkId || !priceId) {
+    if (!priceId) {
       await ctx.db.patch(eventDocId, { processedAt: Date.now() });
       return { status: "ignored" as const };
     }
 
     const mapping = getPaddlePriceMapFromEnv().get(priceId);
     if (!mapping) {
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "ignored" as const };
+    }
+
+    if (mapping.paymentMode === "installments") {
+      // Initial charge: we require clerkId to provision the subscription.
+      // Renewals: we can match by stored paddleSubscriptionId.
+      if (subscriptionId) {
+        const existingInstallment = await ctx.db
+          .query("userSubscriptions")
+          .filter((q) => q.eq(q.field("paddleSubscriptionId"), subscriptionId))
+          .first();
+
+        if (existingInstallment) {
+          await applyInstallmentRenewal(ctx, { paddleEventId: eventId, subscriptionId });
+        } else if (clerkId) {
+          const planPriceCents = getInstallmentTotalCents(mapping.planType);
+          await ctx.runMutation(internal.subscriptions.internalApplyPaddlePrepaidPurchase, {
+            paddleEventId: eventId,
+            clerkId,
+            planType: mapping.planType,
+            planDurationMonths: mapping.planDurationMonths,
+            planPriceCents,
+            priceId,
+            transactionId,
+            isBeta50: false,
+            paymentMode: "installments",
+            paddleSubscriptionId: subscriptionId,
+          });
+        }
+      } else if (clerkId) {
+        // Fallback: should not happen for recurring prices, but keep deterministic behavior.
+        const planPriceCents = getInstallmentTotalCents(mapping.planType);
+        await ctx.runMutation(internal.subscriptions.internalApplyPaddlePrepaidPurchase, {
+          paddleEventId: eventId,
+          clerkId,
+          planType: mapping.planType,
+          planDurationMonths: mapping.planDurationMonths,
+          planPriceCents,
+          priceId,
+          transactionId,
+          isBeta50: false,
+          paymentMode: "installments",
+          paddleSubscriptionId: undefined,
+        });
+      }
+
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "applied" as const };
+    }
+
+    // Prepaid (one-time) purchase flow (supports beta50)
+    if (!clerkId) {
       await ctx.db.patch(eventDocId, { processedAt: Date.now() });
       return { status: "ignored" as const };
     }
@@ -769,6 +1067,8 @@ export const internalProcessPaddleWebhook = internalMutation({
       priceId,
       transactionId,
       isBeta50: mapping.isBeta50,
+      paymentMode: "prepaid",
+      paddleSubscriptionId: undefined,
     });
 
     await ctx.db.patch(eventDocId, { processedAt: Date.now() });
@@ -791,6 +1091,7 @@ const serverUpsertArgs = {
   planPrice: v.number(),
   status: v.union(
     v.literal("active"),
+    v.literal("past_due"),
     v.literal("expired"),
     v.literal("cancelled")
   ),

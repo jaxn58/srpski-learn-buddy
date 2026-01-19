@@ -7,6 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -33,12 +34,54 @@ export default function Home() {
   const showBetaRegistration = !isWaitlistMode || isSuperadmin;
 
   type PlanId = "intensive" | "balanced" | "standard" | "relaxed";
+  type PaymentMode = "prepaid" | "installments";
 
   // Paddle config for public pricing checkout (requires login before checkout for server-side provisioning).
   const paddleConfig = useQuery(api.subscriptions.getPaddleCheckoutConfig);
   const paddleConfigured = paddleConfig?.clientTokenConfigured === true;
   const [paddleReady, setPaddleReady] = useState(false);
   const autoCheckoutAttemptedRef = useRef(false);
+
+  const currentSubscription = useQuery(api.subscriptions.getCurrent);
+
+  const availablePlans = useQuery(api.subscriptions.getPlans);
+  const planById = useMemo(() => {
+    const map = new Map<string, any>();
+    (availablePlans || []).forEach((p: any) => map.set(p.id, p));
+    return map;
+  }, [availablePlans]);
+
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
+
+  const installmentsConfiguredForAllPlans = useMemo(() => {
+    const ids: Array<PlanId> = ["intensive", "balanced", "standard", "relaxed"];
+    return ids.every((id) => (((paddleConfig as any)?.priceIds?.installments?.[id] as string | undefined) || "").trim().length > 0);
+  }, [paddleConfig]);
+
+  const hasActiveOrPastDuePaidSubscription = useMemo(() => {
+    const sub: any = currentSubscription as any;
+    if (!sub) return false;
+    const planType = (sub.planType ?? sub.plan) as string | undefined;
+    const status = sub.status as string | undefined;
+    if (!planType || planType === "beta") return false;
+    return status === "active" || status === "past_due";
+  }, [currentSubscription]);
+
+  const installmentsSelectable =
+    installmentsConfiguredForAllPlans && !(isAuthenticated && hasActiveOrPastDuePaidSubscription);
+
+  const paymentToggleHint =
+    !installmentsConfiguredForAllPlans
+      ? "Monthly payments are not configured yet."
+      : isAuthenticated && hasActiveOrPastDuePaidSubscription
+        ? "Monthly payments are available for new purchases only."
+        : null;
+
+  useEffect(() => {
+    if (paymentMode === "installments" && !installmentsSelectable) {
+      setPaymentMode("prepaid");
+    }
+  }, [installmentsSelectable, paymentMode]);
 
   const betaDiscountStatus = useQuery(api.subscriptions.getBetaDiscountStatus);
   const betaEnded = betaDiscountStatus?.betaEnded === true;
@@ -63,9 +106,14 @@ export default function Home() {
     });
   }, [paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
 
-  const getPriceIdForPlan = (planId: PlanId) => {
-    const shouldUseBeta50 = betaEnded && betaDiscountEligible;
-    const priceIds = shouldUseBeta50 ? paddleConfig?.priceIds?.beta50 : paddleConfig?.priceIds?.normal;
+  const getPriceIdForPlan = (planId: PlanId, paymentMode: PaymentMode) => {
+    const shouldUseBeta50 = paymentMode === "prepaid" && betaEnded && betaDiscountEligible;
+    const priceIds =
+      paymentMode === "installments"
+        ? paddleConfig?.priceIds?.installments
+        : shouldUseBeta50
+          ? paddleConfig?.priceIds?.beta50
+          : paddleConfig?.priceIds?.normal;
     const priceId = (priceIds as any)?.[planId] as string | undefined;
     return { priceId: (priceId || "").trim(), shouldUseBeta50 };
   };
@@ -93,7 +141,12 @@ export default function Home() {
       return;
     }
 
-    const { priceId, shouldUseBeta50 } = getPriceIdForPlan(planId);
+    if (paymentMode === "installments" && !installmentsSelectable) {
+      toast.error("Monthly payments are currently unavailable for your account.");
+      return;
+    }
+
+    const { priceId, shouldUseBeta50 } = getPriceIdForPlan(planId, paymentMode);
     if (!priceId) {
       toast.error("No Paddle Price ID configured for this plan.");
       return;
@@ -111,6 +164,7 @@ export default function Home() {
         customData: {
           clerkId: user.clerkId,
           planType: planId,
+          paymentMode,
           source: "home_pricing",
           beta50: shouldUseBeta50 ? "true" : "false",
         },
@@ -139,6 +193,7 @@ export default function Home() {
     const nextUrl = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash || ""}`;
     window.history.replaceState({}, "", nextUrl);
 
+    // Deep-link purchases always default to prepaid for now.
     void startPurchase(buy as PlanId);
   }, [isAuthenticated, paddleReady, showWaitlist]);
   
@@ -160,13 +215,13 @@ export default function Home() {
     }
     
     // Count vocabulary per unit
-    const vocabCounts = courseVocabulary.reduce((acc, word) => {
+    const vocabCounts = courseVocabulary.reduce((acc: Record<number, number>, word: any) => {
       acc[word.unitNumber] = (acc[word.unitNumber] || 0) + 1;
       return acc;
     }, {} as Record<number, number>);
     
     // Count units per module
-    const unitCounts = (dbUnitsEn || []).reduce((acc, unit) => {
+    const unitCounts = (dbUnitsEn || []).reduce((acc: Record<string, number>, unit: any) => {
       const moduleId = unit.moduleId;
       if (moduleId) {
         acc[moduleId] = (acc[moduleId] || 0) + 1;
@@ -174,10 +229,10 @@ export default function Home() {
       return acc;
     }, {} as Record<string, number>);
     
-    return dbModules.map((module) => {
+    return dbModules.map((module: any) => {
       // Calculate total vocabulary for this module by summing units
-      const moduleUnits = (dbUnitsEn || []).filter(u => u.moduleId === module.slug);
-      const vocabCount = moduleUnits.reduce((sum, unit) => {
+      const moduleUnits = (dbUnitsEn || []).filter((u: any) => u.moduleId === module.slug);
+      const vocabCount = moduleUnits.reduce((sum: number, unit: any) => {
         return sum + (vocabCounts[unit.unitNumber] || 0);
       }, 0);
       
@@ -399,6 +454,30 @@ export default function Home() {
               dangerouslySetInnerHTML={{ __html: t('home.pricing.subtitle') }}
             />
           </div>
+
+          {/* Global Payment Mode Toggle */}
+          <div className="flex flex-col items-center gap-2">
+            <ToggleGroup
+              type="single"
+              value={paymentMode}
+              onValueChange={(value) => {
+                if (!value) return;
+                setPaymentMode(value as PaymentMode);
+              }}
+              size="sm"
+              className="bg-muted p-1 rounded-lg"
+            >
+              <ToggleGroupItem value="prepaid" className="px-3">
+                Pay once
+              </ToggleGroupItem>
+              <ToggleGroupItem value="installments" disabled={!installmentsSelectable} className="px-3">
+                Pay monthly
+              </ToggleGroupItem>
+            </ToggleGroup>
+            {paymentToggleHint ? (
+              <div className="text-xs text-muted-foreground text-center">{paymentToggleHint}</div>
+            ) : null}
+          </div>
           
           {/* Pricing Cards */}
           <div className="grid md:grid-cols-4 gap-6 mt-12">
@@ -410,8 +489,19 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.intensive.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.intensive.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">{t('home.pricing.intensive.price')}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.pricing.intensive.payment')}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {paymentMode === "installments"
+                      ? `€${(((planById.get("intensive") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
+                      : t('home.pricing.intensive.price')}
+                    {paymentMode === "installments" ? (
+                      <span className="text-sm text-muted-foreground">/month</span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {paymentMode === "installments"
+                      ? `Total €${(((planById.get("intensive") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • ${(planById.get("intensive") as any)?.months ?? 3} monthly payments`
+                      : t('home.pricing.intensive.payment')}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
@@ -462,8 +552,19 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.balanced.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.balanced.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">{t('home.pricing.balanced.price')}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.pricing.balanced.payment')}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {paymentMode === "installments"
+                      ? `€${(((planById.get("balanced") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
+                      : t('home.pricing.balanced.price')}
+                    {paymentMode === "installments" ? (
+                      <span className="text-sm text-muted-foreground">/month</span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {paymentMode === "installments"
+                      ? `Total €${(((planById.get("balanced") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • ${(planById.get("balanced") as any)?.months ?? 6} monthly payments`
+                      : t('home.pricing.balanced.payment')}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
@@ -517,8 +618,19 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.standard.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.standard.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">{t('home.pricing.standard.price')}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.pricing.standard.payment')}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {paymentMode === "installments"
+                      ? `€${(((planById.get("standard") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
+                      : t('home.pricing.standard.price')}
+                    {paymentMode === "installments" ? (
+                      <span className="text-sm text-muted-foreground">/month</span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {paymentMode === "installments"
+                      ? `Total €${(((planById.get("standard") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • ${(planById.get("standard") as any)?.months ?? 9} monthly payments`
+                      : t('home.pricing.standard.payment')}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
@@ -569,8 +681,19 @@ export default function Home() {
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.relaxed.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.relaxed.audience')}</p>
                 <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">{t('home.pricing.relaxed.price')}</div>
-                  <div className="text-xs text-muted-foreground">{t('home.pricing.relaxed.payment')}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {paymentMode === "installments"
+                      ? `€${(((planById.get("relaxed") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
+                      : t('home.pricing.relaxed.price')}
+                    {paymentMode === "installments" ? (
+                      <span className="text-sm text-muted-foreground">/month</span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {paymentMode === "installments"
+                      ? `Total €${(((planById.get("relaxed") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • ${(planById.get("relaxed") as any)?.months ?? 12} monthly payments`
+                      : t('home.pricing.relaxed.payment')}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
@@ -999,7 +1122,7 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {MODULES_DATA.map((module) => {
+            {MODULES_DATA.map((module: any) => {
               // BETA: Always use English
               const displayTitle = module.titleEnglish;
               const displayDescription = module.description;

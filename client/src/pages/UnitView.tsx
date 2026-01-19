@@ -247,75 +247,94 @@ export default function UnitView() {
 
   return (
     <AnimatedPage>
-        <header className="border-b bg-card sticky top-0 z-10 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 mb-8">
-          <div className="container py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center text-sm text-muted-foreground">
-                <Link href="/dashboard" className="hover:text-foreground transition-colors">
-                  {t('sidebar.dashboard')}
+      <header className="sticky top-16 z-40 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 pt-4 pb-2 mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center text-xs md:text-sm text-muted-foreground">
+            <Link href="/dashboard" className="hover:text-foreground transition-colors">
+              {t("sidebar.dashboard")}
+            </Link>
+            {moduleTitle && moduleSlug && (
+              <>
+                <ChevronRight className="h-4 w-4 mx-1" />
+                <Link
+                  href={`/units#module-${moduleSlug}`}
+                  className="hover:text-foreground transition-colors"
+                >
+                  {moduleTitle}
                 </Link>
-                {moduleTitle && moduleSlug && (
-                  <>
-                    <ChevronRight className="h-4 w-4 mx-1" />
-                    <Link 
-                      href={`/units#module-${moduleSlug}`}
-                      className="font-medium text-foreground hover:text-primary transition-colors"
-                    >
-                      {moduleTitle}
-                    </Link>
-                  </>
-                )}
-                {unitMetadata && (
-                  <>
-                    <ChevronRight className="h-4 w-4 mx-1" />
-                    <span className="font-bold text-primary">
-                      {unitMetadata.title} <span className="font-normal text-muted-foreground">(Unit {unitNumber})</span>
-                    </span>
-                  </>
+              </>
+            )}
+            {unitMetadata && (
+              <>
+                <ChevronRight className="h-4 w-4 mx-1" />
+                <span className="font-semibold text-foreground">
+                  {unitMetadata.title}{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (Unit {unitNumber})
+                  </span>
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {prevUnit && (
+              <Link href={`/unit/${prevUnit}`}>
+                <Button variant="outline" size="sm">
+                  {t("unit.previous")}
+                </Button>
+              </Link>
+            )}
+            {nextUnit && (
+              <Link href={`/unit/${nextUnit}`}>
+                <Button variant="outline" size="sm">
+                  {t("unit.next")}
+                </Button>
+              </Link>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Header Card */}
+      <AnimatedItem>
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="text-3xl mb-2">{unitMetadata.title}</CardTitle>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {unitMetadata.topics?.map((topic: string, i: number) => (
+                    <Badge key={i} variant="secondary">
+                      {topic}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {/* {isCompleted && <Badge className="bg-green-600"><CheckCircle2 className="w-4 h-4 mr-1"/> Completed</Badge>} */}
+                {isMastered && (
+                  <Badge className="bg-amber-500">
+                    <Star className="w-4 h-4 mr-1" /> Mastered
+                  </Badge>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {prevUnit && <Link href={`/unit/${prevUnit}`}><Button variant="outline" size="sm">{t('unit.previous')}</Button></Link>}
-              {nextUnit && <Link href={`/unit/${nextUnit}`}><Button variant="outline" size="sm">{t('unit.next')}</Button></Link>}
-            </div>
-          </div>
-        </header>
+          </CardHeader>
+        </Card>
+      </AnimatedItem>
 
-        <div className="max-w-5xl mx-auto">
-          {/* Header Card */}
-          <AnimatedItem>
-            <Card className="mb-6">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-3xl mb-2">{unitMetadata.title}</CardTitle>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {unitMetadata.topics?.map((topic: string, i: number) => (
-                        <Badge key={i} variant="secondary">{topic}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {/* {isCompleted && <Badge className="bg-green-600"><CheckCircle2 className="w-4 h-4 mr-1"/> Completed</Badge>} */}
-                    {isMastered && <Badge className="bg-amber-500"><Star className="w-4 h-4 mr-1"/> Mastered</Badge>}
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          </AnimatedItem>
-
-          {/* New 6-Tab Structure */}
-          <AnimatedItem>
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
-              <TabsTrigger value="overview" className="gap-2"><Lightbulb className="w-4 h-4"/> Overview</TabsTrigger>
-              <TabsTrigger value="vocabulary" className="gap-2"><BookOpen className="w-4 h-4"/> Vocabulary</TabsTrigger>
-              <TabsTrigger value="grammar" className="gap-2"><Brain className="w-4 h-4"/> Grammar</TabsTrigger>
-              <TabsTrigger value="phrases" className="gap-2"><MessageSquare className="w-4 h-4"/> Phrases</TabsTrigger>
-              <TabsTrigger value="dialogues" className="gap-2"><Mic className="w-4 h-4"/> Dialogues</TabsTrigger>
-              <TabsTrigger value="test" className="gap-2"><PenTool className="w-4 h-4"/> Exercises</TabsTrigger>
-            </TabsList>
+      {/* New 6-Tab Structure */}
+      <AnimatedItem>
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
+            <TabsTrigger value="overview" className="gap-2"><Lightbulb className="w-4 h-4"/> Overview</TabsTrigger>
+            <TabsTrigger value="vocabulary" className="gap-2"><BookOpen className="w-4 h-4"/> Vocabulary</TabsTrigger>
+            <TabsTrigger value="grammar" className="gap-2"><Brain className="w-4 h-4"/> Grammar</TabsTrigger>
+            <TabsTrigger value="phrases" className="gap-2"><MessageSquare className="w-4 h-4"/> Phrases</TabsTrigger>
+            <TabsTrigger value="dialogues" className="gap-2"><Mic className="w-4 h-4"/> Dialogues</TabsTrigger>
+            <TabsTrigger value="test" className="gap-2"><PenTool className="w-4 h-4"/> Exercises</TabsTrigger>
+          </TabsList>
 
             {/* 1. Overview */}
             <TabsContent value="overview" className="mt-6">
@@ -408,9 +427,8 @@ export default function UnitView() {
             <TabsContent value="test" className="mt-6">
               <InteractiveTest unitNumber={unitNumber} language={displayLanguage} />
             </TabsContent>
-          </Tabs>
-          </AnimatedItem>
-        </div>
+        </Tabs>
+      </AnimatedItem>
     </AnimatedPage>
   );
 }

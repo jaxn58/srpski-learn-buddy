@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -24,10 +24,11 @@ import remarkGfm from 'remark-gfm';
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 // Custom Markdown components for clean rendering
 const markdownComponents = {
-  p: ({node, ...props}: any) => <p className="mb-3 leading-relaxed" {...props} />,
+  p: ({node, ...props}: any) => <p className="mb-2 leading-snug" {...props} />,
   ul: ({node, ...props}: any) => <ul className="list-disc list-outside ml-4 mb-3 space-y-1.5" {...props} />,
   ol: ({node, ...props}: any) => <ol className="list-decimal list-outside ml-4 mb-3 space-y-1.5" {...props} />,
   li: ({node, ...props}: any) => <li className="mb-0.5" {...props} />,
@@ -69,6 +70,7 @@ export default function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
+  const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   
   const formatMessageTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -78,6 +80,36 @@ export default function Chat() {
   const progress = useQuery(api.progress.getUserProgress);
   const createSessionMutation = useMutation(api.chat.createSession);
   const sendMessageAction = useAction(api.chat.sendMessage);
+
+  const createNewSession = async (options?: { showSuccessToast?: boolean }): Promise<string | null> => {
+    if (isCreatingSession) return null;
+    setIsCreatingSession(true);
+    try {
+      const sessionId = await createSessionMutation({ title: t('chat.newChat') });
+      const sessionIdStr = sessionId as unknown as string;
+      setCurrentSessionId(sessionIdStr);
+      if (options?.showSuccessToast) {
+        toast.success(t('chat.newChatSuccess'));
+      }
+      return sessionIdStr;
+    } catch (error) {
+      console.error("Failed to create new chat:", error);
+      toast.error(t('chat.newChatError'));
+      return null;
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
+
+  const prefillExampleMessage = async (exampleText: string) => {
+    const sessionIdToUse = currentSessionId ?? (await createNewSession());
+    if (!sessionIdToUse) return;
+
+    setMessage(exampleText);
+    requestAnimationFrame(() => {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    });
+  };
 
   // Wähle den ersten vorhandenen Chat, wenn keiner selektiert ist oder der aktuelle nicht mehr existiert.
   // Keine Auto-Erstellung eines neuen Chats bei leerer Liste.
@@ -129,14 +161,7 @@ export default function Chat() {
   }, [isSending]);
 
   const handleNewChat = async () => {
-    try {
-      const sessionId = await createSessionMutation({ title: t('chat.newChat') });
-      setCurrentSessionId(sessionId as unknown as string);
-      toast.success(t('chat.newChatSuccess'));
-    } catch (error) {
-      console.error("Failed to create new chat:", error);
-      toast.error(t('chat.newChatError'));
-    }
+    await createNewSession({ showSuccessToast: true });
   };
 
   const handleSelectSession = async (sessionId: string | null) => {
@@ -212,35 +237,23 @@ export default function Chat() {
 
   return (
     <AnimatedPage>
-      <div className="flex flex-1 w-full h-[calc(100vh-theme(spacing.16))]">
+      <div className="flex w-full gap-6">
         <ChatSessionsSidebar 
           currentSessionId={currentSessionId}
           onSelectSession={handleSelectSession}
           onNewChat={handleNewChat}
         />
-        <div className="flex-1 w-full flex flex-col">
-      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm">{t('chat.back')}</Button>
-            </Link>
-            <div className="flex items-center gap-3 flex-1">
-              <div className="h-10 w-10 rounded-full bg-serbian-red flex items-center justify-center">
-                <Brain className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold">{t('chat.title')}</h1>
-                <p className="text-xs text-muted-foreground">{t('chat.subtitle')}</p>
-              </div>
-            </div>
-            
-            {/* Chat Usage Info Dialog */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          <main className="w-full flex-1 flex flex-col min-h-0">
+        <div className="flex flex-col bg-card border rounded-xl shadow-sm h-full min-h-[70vh]">
+          {/* Top tools row (keeps UI clean; TopNav already provides context) */}
+          <div className="px-4 pt-4 flex items-center justify-end">
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
                   <Info className="h-4 w-4" />
                   <span className="hidden sm:inline">{t('chat.usage.title')}</span>
+                  <span className="sm:hidden">Info</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -312,11 +325,6 @@ export default function Chat() {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
-      </header>
-
-      <main className="container py-6 max-w-4xl flex-1 flex flex-col min-h-0">
-        <div className="flex flex-col bg-card rounded-lg shadow-lg border h-full">
           {/* Messages Area */}
           <div 
             ref={scrollRef}
@@ -329,21 +337,34 @@ export default function Chat() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold mb-2">{t('chat.welcome.title')}</h2>
-                  <p className="text-muted-foreground mb-4">{t('chat.welcome.subtitle')}</p>
+                  <p className="text-muted-foreground mb-2">{t('chat.welcome.subtitle')}</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    <span className="font-medium text-foreground/80">{t('chat.welcome.examplesHintTitle')}</span>{" "}
+                    {t('chat.welcome.examplesHint')}
+                  </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl">
                   <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Explain the verb 'biti' to me")}>
+                    <Card
+                      className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                      onClick={() => void prefillExampleMessage("Explain the verb 'biti' to me")}
+                    >
                       <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
                     </Card>
                   </AnimatedItem>
                   <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("What is the locative case?")}>
+                    <Card
+                      className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                      onClick={() => void prefillExampleMessage("What is the locative case?")}
+                    >
                       <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
                     </Card>
                   </AnimatedItem>
                   <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Dobar dan! Kako ste?")}>
+                    <Card
+                      className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                      onClick={() => void prefillExampleMessage("Dobar dan! Kako ste?")}
+                    >
                       <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
                     </Card>
                   </AnimatedItem>
@@ -356,9 +377,31 @@ export default function Chat() {
                 key={idx}
                 className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-serbian-blue' : 'bg-serbian-blue'}`}>
-                  <AvatarFallback className="text-white text-xs bg-transparent">
-                    {msg.role === 'assistant' ? <Brain className="h-5 w-5 text-white" /> : <User className="h-4 w-4" />}
+                <Avatar
+                  className={cn(
+                    "h-8 w-8 flex-shrink-0",
+                    msg.role === "assistant" ? "bg-serbian-blue" : "bg-card border"
+                  )}
+                >
+                  {msg.role === "user" && myAvatar?.url ? (
+                    <AvatarImage src={myAvatar.url} alt="Your avatar" />
+                  ) : null}
+                  <AvatarFallback
+                    className={cn(
+                      "text-xs",
+                      msg.role === "assistant" ? "text-white bg-transparent" : "bg-muted text-foreground"
+                    )}
+                  >
+                    {msg.role === "assistant" ? (
+                      <Brain className="h-5 w-5 text-white" />
+                    ) : (
+                      <span className="font-semibold">
+                        {(user?.publicNickname || user?.name || user?.email || "U")
+                          .trim()
+                          .charAt(0)
+                          .toUpperCase()}
+                      </span>
+                    )}
                   </AvatarFallback>
                 </Avatar>
                 
@@ -380,7 +423,7 @@ export default function Chat() {
                         </ReactMarkdown>
                       </div>
                     ) : (
-                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      <p className="whitespace-pre-wrap leading-snug">{msg.content}</p>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-2">
@@ -409,7 +452,7 @@ export default function Chat() {
           </div>
 
           {/* Input Area */}
-          <div className="border-t p-4 bg-muted/30">
+          <div className="p-4 bg-muted/20 rounded-b-xl">
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
@@ -438,17 +481,8 @@ export default function Chat() {
             )}
           </div>
         </div>
-
-        {/* Footer */}
-        <footer className="w-full border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50 mt-auto">
-          <div className="container py-8">
-            <div className="text-center text-sm text-muted-foreground">
-              <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
-            </div>
-          </div>
-        </footer>
-      </main>
-      </div>
+          </main>
+        </div>
       </div>
     </AnimatedPage>
   );

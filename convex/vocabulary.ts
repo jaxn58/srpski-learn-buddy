@@ -281,6 +281,139 @@ export const getVocabularyWithProgress = query({
   },
 });
 
+function hashToUint32(input: string): number {
+  // FNV-1a 32-bit
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let x = Math.imul(t ^ (t >>> 15), 1 | t);
+    x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seededShuffle<T>(items: T[], rand: () => number): T[] {
+  const a = items.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
+  }
+  return a;
+}
+
+function getEnglishTranslation(word: any): string {
+  const direct = word?.en && String(word.en).trim();
+  if (direct) return direct;
+  if (Array.isArray(word?.translations)) {
+    const t = word.translations.find((x: any) => x?.language === "en")?.translation;
+    if (t && String(t).trim()) return String(t).trim();
+  }
+  return "-";
+}
+
+// Practice Preview (daily stable, seeded) — keeps trainer/list ordering intact
+export const getPracticePreview = query({
+  args: {
+    unitNumber: v.number(),
+    // Expected format: YYYY-MM-DD (client decides UTC/local). Used only for deterministic daily rotation.
+    seedDay: v.string(),
+    audioCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+
+    // Load course vocabulary for this unit (active + latest version per (unitNumber, serbian))
+    const rawCourseVocab = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+    const activeCourseVocab = rawCourseVocab.filter((v: any) => v.isActive !== false);
+    const latestByKey = new Map<string, any>();
+    for (const v of activeCourseVocab as any[]) {
+      const key = `${v.unitNumber}::${v.serbian}`;
+      const ver = v.unitVersion ?? 1;
+      const prev = latestByKey.get(key);
+      const prevVer = prev ? (prev.unitVersion ?? 1) : -1;
+      if (!prev || ver > prevVer) latestByKey.set(key, v);
+    }
+    const courseVocab = Array.from(latestByKey.values());
+
+    // Progress lookup
+    const progressMap = new Map<any, any>();
+    if (user) {
+      const userProgress = await ctx.db
+        .query("vocabularyProgress")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .collect();
+      for (const p of userProgress as any[]) {
+        progressMap.set(p.courseVocabularyId, p);
+      }
+    }
+
+    const words = courseVocab
+      .map((w: any) => {
+        const p = progressMap.get(w._id);
+        const correctAnswerCount = Number(p?.correctAnswerCount ?? 0) || 0;
+        const mastered = Boolean(p?.mastered) || correctAnswerCount >= 3;
+        return {
+          id: w._id,
+          serbian: String(w?.serbian ?? ""),
+          translation: getEnglishTranslation(w),
+          audioStorageId: (w?.audioStorageId ?? null) as string | null,
+          mastered,
+          correctAnswerCount,
+        };
+      })
+      .filter((x) => x.id && x.serbian);
+
+    const audioCount = Math.max(0, Math.min(20, Number(args.audioCount ?? 5) || 5));
+
+    if (words.length === 0) {
+      return { word: null, audioSamples: [] as any[] };
+    }
+
+    const seed = hashToUint32(`${args.seedDay}::${String(user?._id ?? "anon")}::${args.unitNumber}`);
+    const rand = mulberry32(seed);
+
+    const unmastered = words.filter((w) => w.correctAnswerCount < 3);
+    const wordCandidates = unmastered.length > 0 ? unmastered : words;
+    const wordPick = seededShuffle(wordCandidates, rand)[0] ?? null;
+
+    // Audio samples: distinct, seeded, and (by default) excludes the main word
+    const audioPool = words.filter((w) => !wordPick || w.id !== wordPick.id);
+    const shuffledAudio = seededShuffle(audioPool, rand);
+    const audioSamples = shuffledAudio.slice(0, audioCount).map((w) => ({
+      id: String(w.id),
+      serbian: w.serbian,
+      translation: w.translation,
+      audioStorageId: w.audioStorageId,
+    }));
+
+    return {
+      word: wordPick
+        ? {
+            id: String(wordPick.id),
+            serbian: wordPick.serbian,
+            translation: wordPick.translation,
+            mastered: wordPick.mastered,
+          }
+        : null,
+      audioSamples,
+    };
+  },
+});
+
 // Delete vocabulary by unit numbers (for migration/cleanup)
 export const deleteVocabularyByUnits = mutation({
   args: {

@@ -111,6 +111,30 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
 
   const messages = (sessionMessages ?? []) as ChatMessageDisplay[];
 
+  const ensureSessionId = async (): Promise<string | null> => {
+    if (currentSessionId) return currentSessionId;
+    try {
+      const sessionId = await createSessionMutation({ title: t('chat.newChat') });
+      const sessionIdStr = sessionId as unknown as string;
+      setCurrentSessionId(sessionIdStr);
+      return sessionIdStr;
+    } catch (error) {
+      console.error("Failed to create session:", error);
+      toast.error(t('chat.newChatError'));
+      return null;
+    }
+  };
+
+  const prefillExampleMessage = async (exampleText: string) => {
+    const sessionId = await ensureSessionId();
+    if (!sessionId) return;
+
+    setMessage(exampleText);
+    requestAnimationFrame(() => {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    });
+  };
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollRef.current) {
@@ -237,16 +261,29 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold mb-2">{t('chat.welcome.title')}</h2>
-                  <p className="text-muted-foreground mb-4">{t('chat.welcome.subtitle')}</p>
+                  <p className="text-muted-foreground mb-2">{t('chat.welcome.subtitle')}</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    <span className="font-medium text-foreground/80">{t('chat.welcome.examplesHintTitle')}</span>{" "}
+                    {t('chat.welcome.examplesHint')}
+                  </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl">
-                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Explain the verb 'biti' to me")}>
+                  <Card
+                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                    onClick={() => void prefillExampleMessage("Explain the verb 'biti' to me")}
+                  >
                     <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
                   </Card>
-                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("What is the locative case?")}>
+                  <Card
+                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                    onClick={() => void prefillExampleMessage("What is the locative case?")}
+                  >
                     <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
                   </Card>
-                  <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Dobar dan! Kako ste?")}>
+                  <Card
+                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                    onClick={() => void prefillExampleMessage("Dobar dan! Kako ste?")}
+                  >
                     <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
                   </Card>
                 </div>

@@ -509,6 +509,8 @@ export const internalApplyAdminReply = internalMutation({
       aiSentAt: Date.now(),
       aiSentBy: args.sentBy,
       aiSentContent: args.replyText,
+      status: "answered",
+      reviewedAt: Date.now(),
     });
   },
 });
@@ -601,6 +603,7 @@ export const updateStatus = mutation({
     status: v.union(
       v.literal("new"),
       v.literal("reviewed"),
+      v.literal("answered"),
       v.literal("in_progress"),
       v.literal("completed"),
       v.literal("rejected")
