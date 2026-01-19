@@ -2,8 +2,6 @@ import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import { createRoot } from "react-dom/client";
-import { deDE } from "@clerk/localizations";
-import { useEffect, useState } from "react";
 import { I18nextProvider } from "react-i18next";
 import App from "./App";
 import "./index.css";
