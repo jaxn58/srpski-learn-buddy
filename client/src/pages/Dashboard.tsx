@@ -270,14 +270,14 @@ export default function Dashboard() {
         <div className="pb-24">
         {/* Beta Tester Benefits Banner */}
         {user.isBetaTester && showBetaBanner && (
-          <div className="mb-4 border border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <div className="bg-yellow-400 rounded-full p-2 flex-shrink-0">
-                <Gift className="h-5 w-5 text-yellow-900" />
+          <div className="mb-4 border border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-3 md:p-4">
+            <div className="flex items-start gap-2 md:gap-3">
+              <div className="bg-yellow-400 rounded-full p-1.5 md:p-2 flex-shrink-0">
+                <Gift className="h-4 w-4 md:h-5 md:w-5 text-yellow-900" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-bold text-lg text-gray-900">{t('dashboard.betaBanner.title')}</h3>
+                <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
+                  <h3 className="font-bold text-base md:text-lg text-gray-900">{t('dashboard.betaBanner.title')}</h3>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -288,20 +288,20 @@ export default function Dashboard() {
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-sm text-gray-700 mb-2">
+                <p className="text-xs md:text-sm text-gray-700 mb-1 md:mb-2">
                   <strong>{t('dashboard.betaBanner.thankYou')}</strong> {t('dashboard.betaBanner.intro')}
                 </p>
-                <ul className="text-sm text-gray-700 space-y-1 mb-2">
+                <ul className="text-xs md:text-sm text-gray-700 space-y-0.5 md:space-y-1 mb-1 md:mb-2">
                   <li className="flex items-start">
-                    <span className="mr-2">✓</span>
+                    <span className="mr-1 md:mr-2">✓</span>
                     <span>{t('dashboard.betaBanner.benefit1')}</span>
                   </li>
                   <li className="flex items-start">
-                    <span className="mr-2">✓</span>
+                    <span className="mr-1 md:mr-2">✓</span>
                     <span>{t('dashboard.betaBanner.benefit2')}</span>
                   </li>
                 </ul>
-                <div className="bg-white/80 rounded-md p-2 border border-yellow-300">
+                <div className="bg-white/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
                   <p className="text-xs text-gray-600">
                     <strong>{t('dashboard.betaBanner.afterLaunch')}</strong> {t('dashboard.betaBanner.afterLaunchDesc')}
                   </p>
@@ -311,8 +311,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-foreground">
+        <div className="mb-4 md:mb-6">
+          <h1 className="text-xl md:text-2xl font-semibold text-foreground">
             {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Learner' })}
           </h1>
         </div>
@@ -379,8 +379,8 @@ export default function Dashboard() {
         </div>
 
         {/* Dashboard Snippets (informative) */}
-        <AnimatedItem className="mb-10">
-          <div className="grid gap-6 lg:grid-cols-3 items-stretch">
+        <AnimatedItem className="mb-6 md:mb-10">
+          <div className="grid gap-4 md:gap-6 lg:grid-cols-3 items-stretch">
             {/* Practice Preview (wide) */}
             <Card className="lg:col-span-2 hover:shadow-md transition-shadow border border-border">
               <CardHeader className="pb-4">
@@ -391,18 +391,18 @@ export default function Dashboard() {
                       A quick taste of Learn Mode — no commitment, just start.
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`}>
-                      <Button size="sm" variant="default" className="gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
+                    <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
+                      <Button size="sm" variant="default" className="gap-2 w-full sm:w-auto">
                         <BookOpen className="h-4 w-4" />
                         Learn
                       </Button>
                     </Link>
-                    <Link href={`/vocabulary?mode=quiz&unit=${safeCurrentUnit}`}>
+                    <Link href={`/vocabulary?mode=quiz&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-2"
+                        className="gap-2 w-full sm:w-auto"
                       >
                         <Star className="h-4 w-4" />
                         Quiz
@@ -437,10 +437,10 @@ export default function Dashboard() {
                               </Badge>
                             )}
                           </div>
-                          <div className="text-4xl font-bold tracking-tight mb-4">
+                          <div className="text-2xl md:text-4xl font-bold tracking-tight mb-3 md:mb-4">
                             {practicePreviewWord.serbian}
                           </div>
-                          <div className="text-sm text-muted-foreground">
+                          <div className="text-xs md:text-sm text-muted-foreground">
                             Click to reveal translation
                           </div>
                         </div>
@@ -455,24 +455,25 @@ export default function Dashboard() {
                               </Badge>
                             )}
                           </div>
-                          <div className="text-4xl font-bold tracking-tight mb-2">
+                          <div className="text-2xl md:text-4xl font-bold tracking-tight mb-2">
                             {practicePreviewWord.serbian}
                           </div>
-                          <div className="text-xl text-muted-foreground">
+                          <div className="text-lg md:text-xl text-muted-foreground">
                             {practicePreviewWord.translation}
                           </div>
                         </div>
                       }
                     />
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
                       <Button
                         variant="outline"
                         onClick={() => setShowPracticeAnswer((s) => !s)}
+                        className="w-full sm:w-auto"
                       >
                         {showPracticeAnswer ? "Show word" : "Show translation"}
                       </Button>
-                      <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`}>
-                        <Button>Open Trainer</Button>
+                      <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
+                        <Button className="w-full sm:w-auto">Open Trainer</Button>
                       </Link>
                     </div>
 
@@ -664,7 +665,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 {/* Filter and Search */}
-                <div className="mb-6 space-y-4">
+                <div className="mb-4 md:mb-6 space-y-3 md:space-y-4">
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant={unitFilter === 'all' ? 'default' : 'outline'}
@@ -725,8 +726,8 @@ export default function Dashboard() {
                     if (isLocked) {
                       return (
                         <Card key={unitNum} className="transition-all opacity-60 bg-gray-50 border-gray-300">
-                          <CardContent className="p-5">
-                            <div className="flex items-start justify-between gap-4">
+                          <CardContent className="p-4 md:p-5">
+                            <div className="flex flex-col sm:flex-row items-start justify-between gap-3 md:gap-4">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant="outline" className="bg-gray-100">
@@ -770,10 +771,10 @@ export default function Dashboard() {
                           isCompleted ? 'border-[color:var(--brand-blue-soft-border)] bg-[color:var(--brand-blue-soft)]' : 
                           'hover:border-primary/50'
                         }`}>
-                          <CardContent className="p-6">
-                            <div className="flex items-start justify-between gap-6">
+                          <CardContent className="p-4 md:p-6">
+                            <div className="flex flex-col sm:flex-row items-start justify-between gap-4 md:gap-6">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                                <div className="flex items-center gap-2 mb-2 md:mb-3 flex-wrap">
                                   <Badge variant={isCurrent ? 'default' : 'outline'} className="text-sm">
                                     {t('dashboard.unit', { number: unitNum })}
                                   </Badge>
@@ -792,10 +793,10 @@ export default function Dashboard() {
                                     <span className="text-primary text-sm font-medium">{t('dashboard.currentLessonBadge')}</span>
                                   )}
                                 </div>
-                                <div className="font-semibold text-xl mb-2 leading-tight">
+                                <div className="font-semibold text-lg md:text-xl mb-1 md:mb-2 leading-tight">
                                   {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
                                 </div>
-                                <div className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                                <div className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4 leading-relaxed">
                                   {unit?.title}
                                 </div>
                                 {unit?.topics && unit.topics.length > 0 && (
@@ -813,11 +814,11 @@ export default function Dashboard() {
                                   </div>
                                 )}
                               </div>
-                              <div className="flex-shrink-0">
+                              <div className="flex-shrink-0 w-full sm:w-auto">
                                 <Button 
                                   variant={isCurrent ? 'default' : 'outline'} 
                                   size="sm"
-                                  className="whitespace-nowrap"
+                                  className="whitespace-nowrap w-full sm:w-auto"
                                 >
                                   {isCompleted ? t('dashboard.review') : isCurrent ? t('dashboard.continue') : t('dashboard.start')}
                                 </Button>
