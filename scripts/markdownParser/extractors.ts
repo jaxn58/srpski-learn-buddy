@@ -94,11 +94,44 @@ export function extractOverview(markdown: string): string {
     /####\s+Learning Objectives\s*\n([\s\S]+?)(?=####|##|$)/
   );
 
-  if (objectivesMatch) {
-    return objectivesMatch[1].trim();
+  const baseOverview = (objectivesMatch ? objectivesMatch[1] : overview).trim();
+
+  // Append Cultural Note (if present anywhere in the markdown) to the end of overviewMd.
+  // This allows authors to place the Cultural Note at the end of the document while
+  // still storing it alongside the overview content.
+  const cultural = extractCulturalNote(markdown);
+  if (cultural) {
+    const titleSuffix = cultural.title ? `: ${cultural.title}` : "";
+    return `${baseOverview}\n\n---\n\n### Cultural Note${titleSuffix}\n\n${cultural.bodyMd}`.trim();
   }
 
-  return overview.trim();
+  return baseOverview;
+}
+
+/**
+ * Extract Cultural Note section from anywhere in the document.
+ * Supported headings:
+ * - "## C. Cultural Note: Title"
+ * - "## 6. Cultural Note: Title"
+ * - "## Cultural Note: Title"
+ */
+function extractCulturalNote(
+  markdown: string
+): { title?: string; bodyMd: string } | null {
+  const match = markdown.match(
+    /^##\s+(?:(?:[A-Z])\.\s+|(?:\d+)\.\s+)?Cultural Note:?\s*(.*?)\s*\n([\s\S]+?)(?=^##\s+|$)/m
+  );
+
+  if (!match) return null;
+
+  const rawTitle = (match[1] || "").trim();
+  const body = (match[2] || "").trim();
+  if (!body) return null;
+
+  return {
+    title: rawTitle || undefined,
+    bodyMd: body,
+  };
 }
 
 /**
