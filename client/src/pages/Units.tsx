@@ -187,8 +187,8 @@ export default function Units() {
                 id={`module-card-${module.id}`}
                 className={
                   isModuleLocked
-                    ? "opacity-60 border-dashed bg-white shadow-sm"
-                    : "bg-white shadow-sm hover:shadow-md transition-shadow"
+                    ? "opacity-60 border-dashed shadow-sm"
+                    : "shadow-sm hover:shadow-md transition-shadow"
                 }
               >
                 <CardHeader>
@@ -286,7 +286,7 @@ export default function Units() {
                                   className={`h-full transition-all ${
                                     locked
                                       ? "opacity-60 cursor-not-allowed border-dashed"
-                                      : "hover:shadow-lg hover:border-primary/30 cursor-pointer"
+                                      : "hover:shadow-md hover:border-primary/30 cursor-pointer"
                                   }`}
                                 >
                                   <CardHeader className="space-y-1">

@@ -86,7 +86,7 @@ export default function Changelog() {
           </Card>
         ) : (
           changelogHistory.map(({ version, entries }) => (
-            <Card key={version._id} className="border-2 hover:shadow-lg transition-shadow">
+            <Card key={version._id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>

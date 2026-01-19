@@ -143,7 +143,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
 
   return (
     <div className="hidden md:flex w-72 flex-col md:sticky md:top-20 self-start max-h-[calc(100vh-6rem)]">
-      <div className="bg-white rounded-xl shadow-sm p-4 space-y-2 overflow-hidden">
+      <div className="bg-card border rounded-xl shadow-sm p-4 space-y-2 overflow-hidden">
         <Button 
           onClick={onNewChat} 
           className="w-full bg-primary hover:bg-primary/90 text-white"
@@ -166,7 +166,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
       </div>
 
       <ScrollArea className="flex-1 mt-4">
-        <div className="space-y-1 bg-white rounded-xl shadow-sm p-2">
+        <div className="space-y-1 bg-card border rounded-xl shadow-sm p-2">
           {isLoading && (
             <div className="text-sm text-muted-foreground text-center py-4">
               Loading...

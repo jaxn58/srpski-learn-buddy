@@ -147,7 +147,7 @@ export default function Leaderboards() {
                     </svg>
 
                     <div className="absolute inset-2 flex items-center justify-center">
-                      <Avatar className="h-28 w-28 bg-white border">
+                      <Avatar className="h-28 w-28 bg-card border">
                     <AvatarImage
                       src={myAvatar?.url ?? user?.publicAvatarUrl ?? undefined}
                       alt={user?.publicNickname || user?.name || "User"}
@@ -228,7 +228,7 @@ export default function Leaderboards() {
                               key={level}
                               className={cn(
                                 "flex items-center gap-3 rounded-xl p-3 border",
-                                "bg-white",
+                                "bg-card",
                                 isCurrent && "border-[color:var(--accent)] shadow-sm"
                               )}
                             >
@@ -273,7 +273,7 @@ export default function Leaderboards() {
                             key={level}
                             className={cn(
                               "flex items-center gap-3 rounded-xl p-3 border",
-                              "bg-white",
+                              "bg-card",
                               isCurrent && "border-[color:var(--accent)] shadow-sm"
                             )}
                           >

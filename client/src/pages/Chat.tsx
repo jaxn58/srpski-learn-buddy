@@ -222,7 +222,7 @@ export default function Chat() {
         />
         <div className="flex-1 min-w-0 flex flex-col">
           <main className="w-full flex-1 flex flex-col min-h-0">
-        <div className="flex flex-col bg-white rounded-xl shadow-sm h-full min-h-[70vh]">
+        <div className="flex flex-col bg-card border rounded-xl shadow-sm h-full min-h-[70vh]">
           {/* Top tools row (keeps UI clean; TopNav already provides context) */}
           <div className="px-4 pt-4 flex items-center justify-end">
             <Dialog>
@@ -344,7 +344,7 @@ export default function Chat() {
                 <Avatar
                   className={cn(
                     "h-8 w-8 flex-shrink-0",
-                    msg.role === "assistant" ? "bg-serbian-blue" : "bg-white border"
+                    msg.role === "assistant" ? "bg-serbian-blue" : "bg-card border"
                   )}
                 >
                   {msg.role === "user" && myAvatar?.url ? (

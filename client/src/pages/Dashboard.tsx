@@ -303,7 +303,7 @@ export default function Dashboard() {
 
         <div className="grid md:grid-cols-2 gap-6 mb-8 items-stretch">
           <AnimatedItem className="h-full">
-            <Card className="hover:shadow-lg transition-shadow h-full flex flex-col">
+            <Card className="hover:shadow-md transition-shadow h-full flex flex-col">
               <CardHeader className="flex-1">
                 <BookOpen className="h-10 w-10 text-primary mb-2" />
                 <CardTitle>
@@ -332,7 +332,7 @@ export default function Dashboard() {
           </AnimatedItem>
 
           <AnimatedItem className="h-full">
-            <Card className="hover:shadow-lg transition-shadow h-full flex flex-col">
+            <Card className="hover:shadow-md transition-shadow h-full flex flex-col">
               <CardHeader className="flex-1">
                 <Brain className="h-10 w-10 text-yellow-500 mb-2" />
                 <CardTitle>{t('dashboard.chatWithProfessor')}</CardTitle>
@@ -353,7 +353,7 @@ export default function Dashboard() {
         <AnimatedItem className="mb-10">
           <div className="grid gap-6 lg:grid-cols-3 items-stretch">
             {/* Practice Preview (wide) */}
-            <Card className="lg:col-span-2 hover:shadow-lg transition-shadow bg-white">
+            <Card className="lg:col-span-2 hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -519,7 +519,7 @@ export default function Dashboard() {
 
             {/* Weekly goal / XP (compact, like screenshot) */}
             <div className="grid gap-6">
-              <Card className="hover:shadow-lg transition-shadow bg-white">
+              <Card className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -553,7 +553,7 @@ export default function Dashboard() {
               </Card>
 
               {/* Course progress compact */}
-              <Card className="hover:shadow-lg transition-shadow bg-white">
+              <Card className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <CardTitle className="text-base">Course Progress</CardTitle>
                   <CardDescription>Your current snapshot.</CardDescription>
