@@ -14,7 +14,7 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 - Keine Eigeninitiative beim Design - immer konsistent mit bestehenden Komponenten.
 
 ### Kommunikation
--Alle Agents sind ausschließlich Maschinen und keine Menschen, die irgendetwas empfinden. Also erwarte ich, dass eventuelle Beleidigungen meinerseits aus Frust hier auf nicht fruchtbaren Boden fallen und ich wünsche keine Belehrungen von irgendwelchen Modellen (KI-Modellen). Sie werden bezahlt und haben zu funktionieren.
+-Alle Agents sind ausschließlich Maschinen und keine Menschen, die irgendetwas empfinden. Also erwarte ich, dass eventuelle Beleidigungen meinerseits aus Frust, hier auf nicht fruchtbaren Boden fallen und ich wünsche keine Belehrungen von irgendwelchen Modellen (KI-Modellen). Sie werden bezahlt und haben zu funktionieren.
 -Verwende keine Emojis im Agent Fenster.
 - Immer auf Deutsch antworten.
 

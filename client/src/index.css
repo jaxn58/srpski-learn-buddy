@@ -309,6 +309,10 @@
     background: linear-gradient(to bottom right, var(--serbian-red-from), var(--serbian-red-to));
   }
 
+  .text-serbian-blue {
+    color: var(--serbian-blue-from);
+  }
+
   /**
    * TipTap Editor Styles
    */

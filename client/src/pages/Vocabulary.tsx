@@ -6,12 +6,13 @@ import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star, Volume2, Loader2 } from "lucide-react";
+import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star, Volume2, Loader2, Calendar, PenTool, MessageSquare, Target } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Types only - no hardcoded data imports
 import type { VocabWord, SupportedLanguage } from "@shared/data";
@@ -989,59 +990,35 @@ export default function Vocabulary() {
           </Card>
         </AnimatedItem>
 
-        {/* Quiz Instructions */}
-        {mode === 'quiz' && (
-          <AnimatedItem>
-            <Collapsible>
-              <Card className="bg-blue-50 border-blue-200">
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-blue-100 transition-colors">
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Info className="h-5 w-5 text-blue-600" />
-                      {t('vocabulary.quizInstructions.title')}
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-blue-600" />
-                  </CardTitle>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">1.</span>
-                    <p>
-                      <strong>{t('vocabulary.quizInstructions.step1')}</strong>
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">2.</span>
-                    <p>
-                      <strong>{t('vocabulary.quizInstructions.step2')}</strong>
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">3.</span>
-                    <p>
-                      <strong>{t('vocabulary.quizInstructions.step3')}</strong>
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">4.</span>
-                    <p>
-                      <strong>{t('vocabulary.quizInstructions.step4')}</strong>
-                    </p>
-                  </div>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mt-3">
-                    <p className="text-xs text-yellow-800">
-                      {t('vocabulary.quizInstructions.tip')}
-                    </p>
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-          </AnimatedItem>
-        )}
+        {/* Progress */}
+        <AnimatedItem>
+          <Card>
+            <CardContent className="pt-6">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>{t('vocabulary.progress')}</span>
+                <span>{currentIndex + 1} / {filteredVocab.length}</span>
+              </div>
+              <Progress value={progressPercent} />
+              {mode === 'quiz' && score.total > 0 && (
+                <div className="text-sm text-muted-foreground text-center">
+                  {t('vocabulary.score', { correct: score.correct, total: score.total })} ({Math.round((score.correct / score.total) * 100)}%)
+                </div>
+              )}
+              {mode === 'quiz' && sessionXP > 0 && (
+                <div className="flex items-center justify-center gap-2 text-sm bg-yellow-50 p-2 rounded border border-yellow-200">
+                  <span className="font-semibold text-yellow-700">Session XP: +{sessionXP}</span>
+                  <GamificationModal trigger={
+                    <button className="text-blue-600 hover:text-blue-700 underline text-xs">
+                      How does XP work?
+                    </button>
+                  } />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        </AnimatedItem>
 
         {/* Unit Filter */}
         <AnimatedItem>
@@ -1090,60 +1067,35 @@ export default function Vocabulary() {
             </CardContent>
           </Card>
         </AnimatedItem>
-
-
-        {/* Progress */}
-        <AnimatedItem>
-          <Card>
-            <CardContent className="pt-6">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>{t('vocabulary.progress')}</span>
-                <span>{currentIndex + 1} / {filteredVocab.length}</span>
-              </div>
-              <Progress value={progressPercent} />
-              {mode === 'quiz' && score.total > 0 && (
-                <div className="text-sm text-muted-foreground text-center">
-                  {t('vocabulary.score', { correct: score.correct, total: score.total })} ({Math.round((score.correct / score.total) * 100)}%)
-                </div>
-              )}
-              {mode === 'quiz' && sessionXP > 0 && (
-                <div className="flex items-center justify-center gap-2 text-sm bg-yellow-50 p-2 rounded border border-yellow-200">
-                  <span className="font-semibold text-yellow-700">Session XP: +{sessionXP}</span>
-                  <GamificationModal trigger={
-                    <button className="text-blue-600 hover:text-blue-700 underline text-xs">
-                      How does XP work?
-                    </button>
-                  } />
-                </div>
-              )}
-              {mode === 'quiz' && lastQuizProgress && lastQuizProgress.lastScore > 0 && (
-                <div className="text-sm text-muted-foreground text-center bg-blue-50 p-2 rounded">
-                  Last attempt: {lastQuizProgress.lastScore}% ({lastQuizProgress.totalAttempts} attempts)
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        </AnimatedItem>
         {/* Flashcard */}
         {currentWord && (
           <AnimatedItem>
-            <Card className="min-h-[400px] flex flex-col justify-center">
-            <CardContent className="text-center space-y-8 py-12">
-              {/* Vokabel immer anzeigen (auch während Feedback) */}
-              {/* Use answeredWord during feedback, otherwise use currentWord */}
-              {(() => {
-                const displayWord = showAnswer && answeredWord ? answeredWord : currentWord;
-                if (!displayWord) return null;
-                
-                return (
-                  <div>
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                      <Badge variant="outline">
-                        {t('vocabulary.unit', { number: displayWord.unit })}
-                      </Badge>
-                    </div>
+            <Card className="min-h-[400px] flex flex-col">
+            <CardContent className="text-center space-y-6 py-8">
+              {/* Header: Unit Badge + Last Attempt Info */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">
+                    {t('vocabulary.unit', { number: (showAnswer && answeredWord ? answeredWord : currentWord).unit })}
+                  </Badge>
+                </div>
+                {mode === 'quiz' && lastQuizProgress && lastQuizProgress.lastScore > 0 && (
+                  <div className="text-xs text-muted-foreground bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
+                    Last attempt: {lastQuizProgress.lastScore}% ({lastQuizProgress.totalAttempts} attempts)
+                  </div>
+                )}
+              </div>
+
+              {/* Word Section */}
+              <div className="space-y-4">
+                {/* Vokabel immer anzeigen (auch während Feedback) */}
+                {/* Use answeredWord during feedback, otherwise use currentWord */}
+                {(() => {
+                  const displayWord = showAnswer && answeredWord ? answeredWord : currentWord;
+                  if (!displayWord) return null;
+                  
+                  return (
+                    <div>
                     <div className="flex items-center justify-center gap-3 mb-2">
                       <h2 className="text-5xl font-bold">
                         {displayWord.serbian}
@@ -1249,7 +1201,9 @@ export default function Vocabulary() {
                   </div>
                 );
               })()}
+              </div>
 
+              {/* Input/Feedback Section */}
               {mode === 'learn' ? (
                 <div className="flex gap-4 justify-center">
                   <Button
@@ -1306,122 +1260,218 @@ export default function Vocabulary() {
                       )}
                     </>
                   ) : (
-                    <div className="space-y-4">
-                      <div className={`p-4 rounded-lg border-2 ${
-                        isCorrect 
-                          ? 'bg-green-50 border-green-200' 
-                          : 'bg-red-50 border-red-200'
-                      }`}>
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          {isCorrect ? (
-                            <>
-                              <CheckCircle className="h-6 w-6 text-green-600" />
-                              <span className="text-lg font-semibold text-green-600">{t('vocabulary.correct')}</span>
-                              {/* Show XP earned for this answer */}
-                              {mode === 'quiz' && (() => {
-                                const currentProgress = currentWordProgress;
-                                const correctCount = currentProgress?.correctAnswerCount || 0;
-                                let xpForAnswer = 0;
-                                if (correctCount === 1) xpForAnswer = 5;
-                                else if (correctCount === 2) xpForAnswer = 10;
-                                else if (correctCount === 3) xpForAnswer = 20;
-                                
-                                if (xpForAnswer > 0) {
-                                  return (
-                                    <Badge className="bg-yellow-500 text-white ml-2 animate-bounce">
-                                      +{xpForAnswer} XP
-                                    </Badge>
-                                  );
-                                }
-                                return null;
-                              })()}
-                            </>
-                          ) : (
-                            <>
-                              <XCircle className="h-6 w-6 text-red-600" />
-                              <span className="text-lg font-semibold text-red-600">{t('vocabulary.incorrect')}</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm text-muted-foreground">{t('vocabulary.yourAnswer')}</div>
-                          <div className="font-medium">
-                            {userAnswer}
-                            {/* Note direkt hinter der Antwort bei korrekter Antwort */}
-                            {isCorrect && (() => {
-                              const word = answeredWord || currentWord;
-                              const note = getNoteForLanguage(word, userLanguage);
-                              return note ? (
-                                <span className="text-muted-foreground italic text-[0.85rem] ml-2">
-                                  ({note})
-                                </span>
-                              ) : null;
-                            })()}
-                          </div>
-                          {!isCorrect && (
-                            <>
-                              <div className="text-sm text-muted-foreground mt-2">{t('vocabulary.correctAnswer')}</div>
-                              <div className="font-medium text-green-600">
-                                {currentCorrectTranslation || (() => {
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key="feedback"
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ 
+                          type: "spring", 
+                          stiffness: 300, 
+                          damping: 25,
+                          duration: 0.4
+                        }}
+                        className="space-y-4"
+                      >
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 20 }}
+                          className={`p-6 rounded-xl border-2 shadow-sm ${
+                            isCorrect 
+                              ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300' 
+                              : 'bg-gradient-to-br from-red-50 to-rose-50 border-red-300'
+                          }`}
+                        >
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 15, delay: 0.15 }}
+                            className="flex items-center justify-center gap-2 mb-4"
+                          >
+                            {isCorrect ? (
+                              <>
+                                <CheckCircle className="h-7 w-7 text-green-600" />
+                                <span className="text-xl font-semibold text-green-700">{t('vocabulary.correct')}</span>
+                                {/* Show XP earned for this answer */}
+                                {mode === 'quiz' && (() => {
+                                  const currentProgress = currentWordProgress;
+                                  const correctCount = currentProgress?.correctAnswerCount || 0;
+                                  let xpForAnswer = 0;
+                                  if (correctCount === 1) xpForAnswer = 5;
+                                  else if (correctCount === 2) xpForAnswer = 10;
+                                  else if (correctCount === 3) xpForAnswer = 20;
+                                  
+                                  if (xpForAnswer > 0) {
+                                    return (
+                                      <motion.div
+                                        initial={{ scale: 0, rotate: -180 }}
+                                        animate={{ scale: 1, rotate: 0 }}
+                                        transition={{ type: "spring", stiffness: 500, damping: 15, delay: 0.2 }}
+                                      >
+                                        <Badge className="bg-yellow-500 text-white ml-2 text-sm px-3 py-1">
+                                          +{xpForAnswer} XP
+                                        </Badge>
+                                      </motion.div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-7 w-7 text-red-600" />
+                                <span className="text-xl font-semibold text-red-700">{t('vocabulary.incorrect')}</span>
+                              </>
+                            )}
+                          </motion.div>
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.25 }}
+                            className="text-center space-y-3"
+                          >
+                            <div>
+                              <div className="text-xs text-muted-foreground mb-1">{t('vocabulary.yourAnswer')}</div>
+                              <div className="font-semibold text-lg">
+                                {userAnswer}
+                                {/* Note direkt hinter der Antwort bei korrekter Antwort */}
+                                {isCorrect && (() => {
                                   const word = answeredWord || currentWord;
-                                  // NEW: Support column-based translations (check if values exist)
-                                  // BETA: Currently always English, but code prepared for future multi-language support
-                                  if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
-                                    return (word.en?.trim() || word.de?.trim() || "");
-                                  }
-                                  // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
-                                  if (word && Array.isArray(word.translations)) {
-                                    const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
-                                                          word.translations.find((t: any) => t.language === "en");
-                                    return translationObj?.translation || "";
-                                  }
-                                  // No fallback - database should always provide translations
-                                  console.error('[Vocabulary] No translation available for correct answer display');
-                                  return "";
+                                  const note = getNoteForLanguage(word, userLanguage);
+                                  return note ? (
+                                    <span className="text-muted-foreground italic text-sm ml-2">
+                                      ({note})
+                                    </span>
+                                  ) : null;
                                 })()}
                               </div>
-                              {/* Note anzeigen wenn vorhanden */}
-                              {(() => {
-                                const word = answeredWord || currentWord;
-                                const note = getNoteForLanguage(word, userLanguage);
-                                return note ? (
-                                  <div className="text-muted-foreground mt-2 italic text-[0.85rem]">
-                                    {note}
-                                  </div>
-                                ) : null;
-                              })()}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      {/* Auto-advance setting for quiz mode */}
-                      {mode === 'quiz' && (
-                        <div className="flex items-center justify-between gap-2 pt-4 border-t">
-                          <p className="text-xs text-muted-foreground">
-                            Automatic switch to the next word after two seconds. Turn on and off.
-                          </p>
-                          <Switch
-                            id="auto-advance"
-                            checked={autoAdvance}
-                            onCheckedChange={handleAutoAdvanceChange}
-                          />
-                        </div>
-                      )}
-                      {/* Weiter-Button für Quiz-Modus */}
-                      {mode === 'quiz' && showAnswer && currentIndex < filteredVocab.length - 1 && (
-                        <div className="flex justify-center mt-4">
-                          <Button
-                            onClick={handleNextWord}
-                            size="lg"
-                            className="min-w-[120px]"
+                            </div>
+                            {!isCorrect && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.35 }}
+                                className="pt-3 border-t border-red-200"
+                              >
+                                <div className="text-xs text-muted-foreground mb-1">{t('vocabulary.correctAnswer')}</div>
+                                <div className="font-semibold text-lg text-green-700">
+                                  {currentCorrectTranslation || (() => {
+                                    const word = answeredWord || currentWord;
+                                    // NEW: Support column-based translations (check if values exist)
+                                    // BETA: Currently always English, but code prepared for future multi-language support
+                                    if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
+                                      return (word.en?.trim() || word.de?.trim() || "");
+                                    }
+                                    // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
+                                    if (word && Array.isArray(word.translations)) {
+                                      const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
+                                                            word.translations.find((t: any) => t.language === "en");
+                                      return translationObj?.translation || "";
+                                    }
+                                    // No fallback - database should always provide translations
+                                    console.error('[Vocabulary] No translation available for correct answer display');
+                                    return "";
+                                  })()}
+                                </div>
+                                {/* Note anzeigen wenn vorhanden */}
+                                {(() => {
+                                  const word = answeredWord || currentWord;
+                                  const note = getNoteForLanguage(word, userLanguage);
+                                  return note ? (
+                                    <div className="text-muted-foreground mt-2 italic text-sm">
+                                      {note}
+                                    </div>
+                                  ) : null;
+                                })()}
+                              </motion.div>
+                            )}
+                          </motion.div>
+                        </motion.div>
+                        {/* Auto-advance setting for quiz mode */}
+                        {mode === 'quiz' && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.4 }}
+                            className="flex items-center justify-between gap-2 pt-4 border-t"
                           >
-                            {t('vocabulary.next')}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                            <p className="text-xs text-muted-foreground">
+                              Automatic switch to the next word after two seconds. Turn on and off.
+                            </p>
+                            <Switch
+                              id="auto-advance"
+                              checked={autoAdvance}
+                              onCheckedChange={handleAutoAdvanceChange}
+                            />
+                          </motion.div>
+                        )}
+                        {/* Weiter-Button für Quiz-Modus */}
+                        {mode === 'quiz' && showAnswer && currentIndex < filteredVocab.length - 1 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.5 }}
+                            className="flex justify-center mt-4"
+                          >
+                            <Button
+                              onClick={handleNextWord}
+                              size="lg"
+                              className="min-w-[120px]"
+                            >
+                              {t('vocabulary.next')}
+                            </Button>
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
                   )}
                 </div>
+              )}
+
+              {/* Quiz Instructions - Compact */}
+              {mode === 'quiz' && (
+                <Collapsible className="mt-4">
+                  <div className="flex justify-end">
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted-foreground hover:text-foreground h-auto py-2"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Info className="h-3.5 w-3.5" />
+                          <span>{t('vocabulary.quizInstructions.title')}</span>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </div>
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+                  <CollapsibleContent>
+                    <div className="pt-2 pb-1 space-y-1.5 text-xs text-muted-foreground">
+                      <div className="flex items-start gap-1.5">
+                        <span className="min-w-[1rem]">1.</span>
+                        <span>{t('vocabulary.quizInstructions.step1')}</span>
+                      </div>
+                      <div className="flex items-start gap-1.5">
+                        <span className="min-w-[1rem]">2.</span>
+                        <span>{t('vocabulary.quizInstructions.step2')}</span>
+                      </div>
+                      <div className="flex items-start gap-1.5">
+                        <span className="min-w-[1rem]">3.</span>
+                        <span>{t('vocabulary.quizInstructions.step3')}</span>
+                      </div>
+                      <div className="flex items-start gap-1.5">
+                        <span className="min-w-[1rem]">4.</span>
+                        <span>{t('vocabulary.quizInstructions.step4')}</span>
+                      </div>
+                      <div className="pt-1.5 mt-1.5 border-t text-[0.7rem] italic">
+                        {t('vocabulary.quizInstructions.tip')}
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
             </CardContent>
           </Card>
@@ -1484,24 +1534,42 @@ export default function Vocabulary() {
 
         {/* Study Tips */}
         <AnimatedItem>
-          <Card className="bg-primary/5 border-primary/20">
+          <Card className="bg-serbian-blue/10 border-serbian-blue/30">
             <CardHeader>
-              <CardTitle className="text-primary">{t('vocabulary.tips')}</CardTitle>
+              <CardTitle className="text-serbian-blue flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                {t('vocabulary.tips')}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm">
-                <li>{t('vocabulary.tip1')}</li>
-                <li>{t('vocabulary.tip2')}</li>
-                <li>{t('vocabulary.tip3')}</li>
-                <li>{t('vocabulary.tip4')}</li>
-                <li>{t('vocabulary.tip5')}</li>
+                <li className="flex items-start gap-2">
+                  <Calendar className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
+                  <span>{t('vocabulary.tip1').replace(/^📚\s*/, '')}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Volume2 className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
+                  <span>{t('vocabulary.tip2').replace(/^🗣️\s*/, '')}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <PenTool className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
+                  <span>{t('vocabulary.tip3').replace(/^✍️\s*/, '')}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <RotateCcw className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
+                  <span>{t('vocabulary.tip4').replace(/^📅\s*/, '')}</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <MessageSquare className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
+                  <span>{t('vocabulary.tip5').replace(/^💬\s*/, '')}</span>
+                </li>
               </ul>
             </CardContent>
           </Card>
         </AnimatedItem>
       </div>
 
-      <footer className="w-full border-t bg-muted/20">
+      <footer className="w-full border-t">
         <div className="container py-8">
           <div className="text-center text-sm text-muted-foreground">
             <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
