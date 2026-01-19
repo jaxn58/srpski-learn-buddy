@@ -266,7 +266,7 @@ export default function Units() {
                       <AccordionContent>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                           {moduleUnits.map((unit) => {
-                            const locked = !isAdmin && isBetaTester && unit.number > 3;
+                            const locked = !isAdmin && isBetaTester && unit.number > 1;
                             const isCurrent = progress?.currentUnit === unit.number;
                             const isCompleted = completedUnits.includes(unit.number);
                             const isMastered = masteredUnits?.includes(unit.number);

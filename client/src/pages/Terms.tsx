@@ -156,7 +156,7 @@ export default function Terms() {
                 <h3 className="text-lg font-semibold">1.3 Eligibility & Beta Access</h3>
                 <P>
                   During a beta phase, certain users may receive free access to a limited portion of the course (e.g.
-                  the first 3 units). Beta access may change or end. Any promotional discounts for beta participants are
+                  Unit 1). Beta access may change or end. Any promotional discounts for beta participants are
                   described in the Refund/Discount sections and may be limited to one-time use.
                 </P>
               </div>

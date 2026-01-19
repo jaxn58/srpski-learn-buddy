@@ -99,7 +99,7 @@ export async function sendBetaRegistrationEmail(name: string, email: string): Pr
   } catch (error) {
     // Fallback to hardcoded template if Convex template not available
     console.warn('[Email] Using fallback template for beta-registration:', error);
-    subject = '🎉 Welcome to Serbian AI Tutor Beta Testing!';
+    subject = 'Welcome to Serbian AI Tutor Beta Testing';
     html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -131,37 +131,40 @@ export async function sendBetaRegistrationEmail(name: string, email: string): Pr
               </p>
               
               <p style="color: #4a4a4a; line-height: 1.6; margin: 0 0 16px 0; font-size: 16px;">
-                Thank you for your interest in the Serbian AI Tutor Beta Testing Program! We've received your registration and are excited to have you join us.
+                Thank you for your interest in the Serbian AI Tutor Beta Testing Program! I received your registration and I'm excited to have you join.
               </p>
               
               <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; margin: 24px 0; border-radius: 4px;">
                 <p style="color: #92400E; margin: 0; font-size: 14px; line-height: 1.5;">
                   <strong>⏳ What's Next?</strong><br>
-                  Your account is currently <strong>pending approval</strong>. Our team will review your registration and activate your account shortly. You'll receive another email once you're approved!
+                  Your account is currently <strong>pending approval</strong>. I will review your registration and activate your account shortly. You'll receive another email once you're approved!
                 </p>
               </div>
               
               <div style="background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 24px 0; border-radius: 4px;">
                 <p style="color: #065F46; margin: 0; font-size: 14px; line-height: 1.5;">
                   <strong>🎁 Beta Tester Benefits</strong><br>
-                  • <strong>Free access</strong> to the first 3 units of Module 1 during beta testing<br>
-                  • <strong>50% OFF discount</strong> on the full course when we launch<br>
-                  • Early access to all features and improvements
+                  • <strong>Free access</strong> to Unit 1 (Foundation) during beta testing<br>
+                  • <strong>50% OFF discount</strong> when I launch paid plans<br>
+                  • Early access to new features and improvements
                 </p>
               </div>
               
               <h3 style="color: #1a1a1a; margin: 32px 0 16px 0; font-size: 18px; font-weight: 600;">What's Included in Beta:</h3>
               <ul style="color: #4a4a4a; line-height: 1.8; margin: 0 0 16px 0; padding-left: 20px;">
-                <li><strong>3 Units</strong> of structured Serbian lessons (Units 1-3 of Module 1)</li>
-                <li>Interactive exercises and vocabulary training</li>
-                <li>AI-powered learning assistant</li>
-                <li>Gamification features: XP, badges, and streaks</li>
+                <li><strong>Unit 1 (Foundation)</strong> – the essential starting point</li>
+                <li>First Steps</li>
+                <li>Interactive exercises</li>
+                <li>Vocabulary training</li>
+                <li>AI Learning Buddy (chat)</li>
+                <li>Audio support for vocabulary, phrases, and dialogues</li>
+                <li>Gamification</li>
               </ul>
               
               <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; margin: 24px 0; border-radius: 4px;">
                 <p style="color: #92400E; margin: 0; font-size: 14px; line-height: 1.5;">
                   <strong>📚 After Launch:</strong><br>
-                  Unlock all 27 units and 737+ vocabulary words with your exclusive <strong>50% discount</strong>!
+                  I’ll email you when paid plans go live and how to use your <strong>50% discount</strong>.
                 </p>
               </div>
               
@@ -174,7 +177,7 @@ export async function sendBetaRegistrationEmail(name: string, email: string): Pr
               
               <p style="color: #4a4a4a; line-height: 1.6; margin: 24px 0 0 0; font-size: 16px;">
                 Best regards,<br>
-                <strong>The Serbian AI Tutor Team</strong>
+                <strong>Jacksenn</strong>
               </p>
             </td>
           </tr>
@@ -291,7 +294,7 @@ export async function sendUserActivationEmail(name: string, email: string, login
               
               <p style="color: #4a4a4a; line-height: 1.6; margin: 16px 0 0 0; font-size: 16px;">
                 Happy learning!<br>
-                <strong>The Serbian AI Tutor Team</strong>
+                <strong>Jacksenn</strong>
               </p>
             </td>
           </tr>
@@ -353,7 +356,7 @@ export async function sendFeedbackConfirmationEmail(name: string, email: string,
   } catch (error) {
     // Fallback to hardcoded template if Convex template not available
     console.warn('[Email] Using fallback template for feedback-confirmation:', error);
-    subject = '✅ We Received Your Feedback!';
+    subject = 'I received your feedback';
     html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -385,7 +388,7 @@ export async function sendFeedbackConfirmationEmail(name: string, email: string,
               </p>
               
               <p style="color: #4a4a4a; line-height: 1.6; margin: 0 0 16px 0; font-size: 16px;">
-                We've received your feedback and really appreciate you taking the time to help us improve Serbian AI Tutor!
+                I received your feedback and really appreciate you taking the time to help me improve Serbian AI Tutor!
               </p>
               
               <div style="background-color: #F3F4F6; border-left: 4px solid #6B7280; padding: 16px; margin: 24px 0; border-radius: 4px;">
@@ -398,13 +401,13 @@ export async function sendFeedbackConfirmationEmail(name: string, email: string,
               <div style="background-color: #D1FAE5; border-left: 4px solid #10B981; padding: 16px; margin: 24px 0; border-radius: 4px;">
                 <p style="color: #065F46; margin: 0; font-size: 14px; line-height: 1.5;">
                   <strong>✅ What Happens Next?</strong><br>
-                  Our team will review your feedback shortly. If it's a bug report, we'll investigate and fix it. For feature requests and improvements, we'll evaluate them for future updates. Thank you for helping us build a better learning experience!
+                  I’ll review your feedback shortly. If it's a bug report, I’ll investigate and fix it. For feature requests and improvements, I’ll evaluate them for future updates. Thank you for helping me build a better learning experience!
                 </p>
               </div>
               
               <p style="color: #4a4a4a; line-height: 1.6; margin: 24px 0 0 0; font-size: 16px;">
                 Best regards,<br>
-                <strong>The Serbian AI Tutor Team</strong>
+                <strong>Jacksenn</strong>
               </p>
             </td>
           </tr>

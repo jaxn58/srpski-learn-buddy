@@ -2,6 +2,9 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { upsertDailyActivityByUserId } from "./units";
 
+// Beta phase policy: during beta, only Unit 1 is accessible for normal users.
+const BETA_MAX_UNITS = 1;
+
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -34,13 +37,16 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     return true;
   }
 
-  // Paid subscriptions get full access
-  if (subscription && subscription.planType !== "beta" && unitNumber <= 27) {
-    return true;
+  // Paid subscriptions get full access (bounded by current course length in DB).
+  if (subscription && subscription.planType !== "beta") {
+    const units = await ctx.db.query("unitMetadata").collect();
+    const englishUnits = units.filter((u) => u.language === "en");
+    const totalUnits = new Set(englishUnits.map((u) => u.unitNumber)).size;
+    if (unitNumber <= totalUnits) return true;
   }
 
-  // Fallback: Beta Tester Flag (first 3 units of Module 1)
-  if (user.isBetaTester && unitNumber <= 3) {
+  // Fallback: Beta Tester Flag (beta phase: only Unit 1)
+  if (user.isBetaTester && unitNumber <= BETA_MAX_UNITS) {
     return true;
   }
 

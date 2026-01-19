@@ -177,9 +177,14 @@ export default function UnitView() {
   const isLoading = unitMetadata === undefined || content === undefined;
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
   const isMastered = masteryStatus?.isMastered ?? false;
-  const isLocked = user?.isBetaTester && unitNumber > 3; // First 3 units of Module 1
+  const isLocked = user?.isBetaTester && unitNumber > 1; // Beta phase: only Unit 1
 
-  const nextUnit = unitNumber < 27 ? unitNumber + 1 : null;
+  // During beta we only expose Unit 1 for students, so hide Next for beta users.
+  const nextUnit = user?.role === "admin" || user?.role === "superadmin"
+    ? unitNumber + 1
+    : user?.isBetaTester
+      ? null
+      : unitNumber + 1;
   const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
 
   // Handle completion

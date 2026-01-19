@@ -171,8 +171,8 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     return true;
   }
 
-  // Fallback: Beta Tester Flag (first 3 units of Module 1)
-  if (user.isBetaTester && unitNumber <= 3) {
+  // Fallback: Beta Tester Flag (beta phase: only Unit 1)
+  if (user.isBetaTester && unitNumber <= 1) {
     return true;
   }
 

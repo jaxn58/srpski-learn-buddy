@@ -172,7 +172,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
             <div className="space-y-2">
               <h3 className="text-xl font-semibold">Check Your Email!</h3>
               <p className="text-muted-foreground">
-                We've sent a confirmation link to <strong>{email}</strong>
+                I sent a confirmation link to <strong>{email}</strong>
               </p>
               <p className="text-sm text-muted-foreground">
                 Please click the link in the email to complete your registration.

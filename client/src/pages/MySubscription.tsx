@@ -320,7 +320,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                     <h3 className="font-semibold mb-2">📊 {t('subscription.accessDetails')}</h3>
                     <div className="space-y-2 text-sm">
                       <p><strong>{t('subscription.plan')}:</strong> {t('subscription.betaAccess')}</p>
-                      <p><strong>{t('subscription.units')}:</strong> 1-{(subscription as any).maxAccessibleUnits || 5} (of 27)</p>
+                      <p><strong>{t('subscription.units')}:</strong> 1-{(subscription as any).maxAccessibleUnits || 1}</p>
                       <p><strong>{t('subscription.price')}:</strong> {t('subscription.free')}</p>
                       <p><strong>{t('subscription.duration')}:</strong> {t('subscription.betaPhase')}</p>
                     </div>
@@ -646,7 +646,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                   <h3 className="font-semibold mb-2">📊 {t('subscription.accessDetails')}</h3>
                   <div className="space-y-2 text-sm">
                     <p><strong>{t('subscription.plan')}:</strong> {t('subscription.betaAccess')}</p>
-                    <p><strong>{t('subscription.units')}:</strong> 1-{(subscription as any).maxAccessibleUnits || 5} (of 27)</p>
+                    <p><strong>{t('subscription.units')}:</strong> 1-{(subscription as any).maxAccessibleUnits || 1}</p>
                     <p><strong>{t('subscription.price')}:</strong> {t('subscription.free')}</p>
                     <p><strong>{t('subscription.duration')}:</strong> {t('subscription.betaPhase')}</p>
                   </div>

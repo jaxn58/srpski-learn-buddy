@@ -23,7 +23,7 @@ export function GamificationModal({ trigger }: GamificationModalProps) {
             Gamification System - XP & Rewards
           </DialogTitle>
           <DialogDescription>
-            Learn how our Progressive XP System rewards your learning progress
+            Learn how my Progressive XP System rewards your learning progress
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 py-4">

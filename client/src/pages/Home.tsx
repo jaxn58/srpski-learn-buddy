@@ -10,12 +10,12 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { WaitlistModal } from "@/components/WaitlistModal";
-import { initPaddleWithToken, openCheckout } from "@/lib/paddle";
+// During beta phase, we do not offer paid plans/checkout.
 
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth();
@@ -33,169 +33,17 @@ export default function Home() {
   const showWaitlist = isWaitlistMode && !isSuperadmin;
   const showBetaRegistration = !isWaitlistMode || isSuperadmin;
 
-  type PlanId = "intensive" | "balanced" | "standard" | "relaxed";
-  type PaymentMode = "prepaid" | "installments";
-
-  // Paddle config for public pricing checkout (requires login before checkout for server-side provisioning).
-  const paddleConfig = useQuery(api.subscriptions.getPaddleCheckoutConfig);
-  const paddleConfigured = paddleConfig?.clientTokenConfigured === true;
-  const [paddleReady, setPaddleReady] = useState(false);
-  const autoCheckoutAttemptedRef = useRef(false);
-
-  const currentSubscription = useQuery(api.subscriptions.getCurrent);
-
-  const availablePlans = useQuery(api.subscriptions.getPlans);
-  const planById = useMemo(() => {
-    const map = new Map<string, any>();
-    (availablePlans || []).forEach((p: any) => map.set(p.id, p));
-    return map;
-  }, [availablePlans]);
-
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
-
-  const installmentsConfiguredForAllPlans = useMemo(() => {
-    const ids: Array<PlanId> = ["intensive", "balanced", "standard", "relaxed"];
-    return ids.every((id) => (((paddleConfig as any)?.priceIds?.installments?.[id] as string | undefined) || "").trim().length > 0);
-  }, [paddleConfig]);
-
-  const hasActiveOrPastDuePaidSubscription = useMemo(() => {
-    const sub: any = currentSubscription as any;
-    if (!sub) return false;
-    const planType = (sub.planType ?? sub.plan) as string | undefined;
-    const status = sub.status as string | undefined;
-    if (!planType || planType === "beta") return false;
-    return status === "active" || status === "past_due";
-  }, [currentSubscription]);
-
-  const installmentsSelectable =
-    installmentsConfiguredForAllPlans && !(isAuthenticated && hasActiveOrPastDuePaidSubscription);
-
-  const paymentToggleHint =
-    !installmentsConfiguredForAllPlans
-      ? "Monthly payments are not configured yet."
-      : isAuthenticated && hasActiveOrPastDuePaidSubscription
-        ? "Monthly payments are available for new purchases only."
-        : null;
-
-  useEffect(() => {
-    if (paymentMode === "installments" && !installmentsSelectable) {
-      setPaymentMode("prepaid");
-    }
-  }, [installmentsSelectable, paymentMode]);
-
-  const betaDiscountStatus = useQuery(api.subscriptions.getBetaDiscountStatus);
-  const betaEnded = betaDiscountStatus?.betaEnded === true;
-  const betaDiscountEligible = betaDiscountStatus?.eligible === true;
-
-  useEffect(() => {
-    if (!paddleConfigured) {
-      setPaddleReady(false);
-      return;
-    }
-
-    initPaddleWithToken({
-      token: paddleConfig?.clientToken || "",
-      environment: paddleConfig?.environment === "production" ? "production" : "sandbox",
-    }).then((instance) => {
-      if (!instance) {
-        toast.error("Paddle could not be initialized.");
-        setPaddleReady(false);
-        return;
-      }
-      setPaddleReady(true);
-    });
-  }, [paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
-
-  const getPriceIdForPlan = (planId: PlanId, paymentMode: PaymentMode) => {
-    const shouldUseBeta50 = paymentMode === "prepaid" && betaEnded && betaDiscountEligible;
-    const priceIds =
-      paymentMode === "installments"
-        ? paddleConfig?.priceIds?.installments
-        : shouldUseBeta50
-          ? paddleConfig?.priceIds?.beta50
-          : paddleConfig?.priceIds?.normal;
-    const priceId = (priceIds as any)?.[planId] as string | undefined;
-    return { priceId: (priceId || "").trim(), shouldUseBeta50 };
+  // Pricing/checkout is intentionally disabled during beta.
+  // Keep the old pricing JSX gated behind a constant false to avoid a large UI rewrite here.
+  // (Plans go live after beta.)
+  const paddleReady = false;
+  const paymentMode = "prepaid" as const;
+  const installmentsSelectable = false;
+  const paymentToggleHint: string | null = null;
+  const planById = useMemo(() => new Map<string, any>(), []);
+  const startPurchase = async () => {
+    toast.info("Paid plans will be available after the beta phase.");
   };
-
-  const startPurchase = async (planId: PlanId) => {
-    if (showWaitlist) {
-      // Keep pricing visible, but use waitlist flow when enabled.
-      setIsWaitlistModalOpen(true);
-      return;
-    }
-
-    if (!isAuthenticated) {
-      const redirectUrl = `/?buy=${encodeURIComponent(planId)}#pricing`;
-      setLocation(`/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`);
-      return;
-    }
-
-    if (!paddleConfigured) {
-      toast.error("Paddle is not configured.");
-      return;
-    }
-
-    if (!paddleReady) {
-      toast.error("Paddle is still loading.");
-      return;
-    }
-
-    if (paymentMode === "installments" && !installmentsSelectable) {
-      toast.error("Monthly payments are currently unavailable for your account.");
-      return;
-    }
-
-    const { priceId, shouldUseBeta50 } = getPriceIdForPlan(planId, paymentMode);
-    if (!priceId) {
-      toast.error("No Paddle Price ID configured for this plan.");
-      return;
-    }
-
-    if (!user?.clerkId) {
-      toast.error("Please sign in again and retry.");
-      return;
-    }
-
-    try {
-      await openCheckout({
-        items: [{ priceId, quantity: 1 }],
-        customer: user.email ? { email: user.email } : undefined,
-        customData: {
-          clerkId: user.clerkId,
-          planType: planId,
-          paymentMode,
-          source: "home_pricing",
-          beta50: shouldUseBeta50 ? "true" : "false",
-        },
-      });
-    } catch (error: any) {
-      toast.error(`Checkout failed: ${error?.message || "Unknown error"}`);
-    }
-  };
-
-  // Auto-start checkout after returning from Clerk Sign In/Sign Up.
-  useEffect(() => {
-    if (showWaitlist) return;
-    if (!isAuthenticated) return;
-    if (!paddleReady) return;
-    if (autoCheckoutAttemptedRef.current) return;
-
-    const params = new URLSearchParams(window.location.search);
-    const buy = (params.get("buy") || "").trim();
-    const isPlan =
-      buy === "intensive" || buy === "balanced" || buy === "standard" || buy === "relaxed";
-    if (!isPlan) return;
-
-    autoCheckoutAttemptedRef.current = true;
-    params.delete("buy");
-    const qs = params.toString();
-    const nextUrl = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash || ""}`;
-    window.history.replaceState({}, "", nextUrl);
-
-    // Deep-link purchases always default to prepaid for now.
-    void startPurchase(buy as PlanId);
-  }, [isAuthenticated, paddleReady, showWaitlist]);
   
   // BETA: Force English for all users
   useEffect(() => {
@@ -445,6 +293,7 @@ export default function Home() {
 
       {/* Pricing, Upgrade Policy & FAQ Section */}
       {/* Flexible Duration Section */}
+      {false && (
       <section id="pricing" className="container py-20">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center space-y-4">
@@ -1104,6 +953,7 @@ export default function Home() {
           )}
         </div>
       </section>
+      )}
 
       {/* Modules Section */}
       <section id="units" className="w-full bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
@@ -1146,16 +996,9 @@ export default function Home() {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BookOpen className="h-4 w-4 text-primary" />
                       <span>
-                        {showWaitlist
-                          ? t("home.units.lessonsPlaceholder")
-                          : t("home.units.lessons", { count: module.unitCount })}
+                        {t("home.units.lessonsPlaceholder")}
                       </span>
                     </div>
-                    {!showWaitlist && (
-                      <div className="text-xs text-muted-foreground">
-                        {module.vocabCount}+ vocabulary words
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>

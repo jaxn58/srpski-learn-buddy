@@ -38,6 +38,9 @@ const SUBSCRIPTION_PLANS = [
 
 type PaidPlanId = "intensive" | "balanced" | "standard" | "relaxed";
 
+// Beta phase policy: during beta, only Unit 1 is accessible for normal users.
+const BETA_MAX_UNITS = 1;
+
 function charmRoundUpTo99Cents(rawMonthlyCents: number): number {
   // Round up to the next *.99 EUR boundary (e.g. 1448.33 -> 1499).
   // Ensures monthlyCharge*months is >= raw target, which keeps pay-once attractive.
@@ -102,9 +105,9 @@ export const getAccessibleUnits = query({
     }
 
     // Fallback: Check Beta Tester Flag (for backwards compatibility)
-    // Beta testers have access to the first 3 units of Module 1
+    // Beta testers have access to Unit 1 during beta.
     if (user.isBetaTester) {
-      return { maxUnits: 3, isBeta: true };
+      return { maxUnits: BETA_MAX_UNITS, isBeta: true };
     }
 
     // Check if they have any paid subscription (full access to all units)
@@ -130,12 +133,12 @@ export const getCurrent = query({
       .first();
 
     // Virtual Beta Subscription for Beta Testers without subscription
-    // Beta testers have access to the first 3 units of Module 1
+    // Beta testers have access to Unit 1 during beta.
     if (!subscription && user.isBetaTester) {
       return {
         planType: "beta" as const,
         planName: "Beta Access",
-        maxAccessibleUnits: 3,
+        maxAccessibleUnits: BETA_MAX_UNITS,
         status: "active" as const,
         expiresAt: null,
         planDurationMonths: 0,
