@@ -24,6 +24,8 @@ import {
   Users,
   Layers,
   Presentation,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -31,6 +33,7 @@ import { APP_LOGO, APP_TITLE } from "@/const";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useTheme } from "@/contexts/ThemeContext";
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -61,6 +64,7 @@ export function TopNavigation() {
   const { t } = useTranslation();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { theme, toggleTheme, switchable } = useTheme();
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const activeClass = "bg-[color:var(--accent)] text-white hover:brightness-95 hover:text-white";
@@ -348,6 +352,23 @@ export function TopNavigation() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* Dark Mode Toggle - Visible */}
+          {switchable && toggleTheme && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-9 w-9"
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="inline-flex items-center gap-2 rounded-full p-1 hover:bg-accent/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">

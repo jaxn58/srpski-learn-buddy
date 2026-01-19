@@ -2,12 +2,13 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 import { Badge } from "@/components/ui/badge";
 import { Progress as ProgressBar } from "@/components/ui/progress";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, Brain, Home, Lock, Star, TrendingUp, Volume2, Loader2 } from "lucide-react";
+import { BookOpen, Brain, Home, Lock, Star, TrendingUp, Volume2, Loader2, X, Gift, Search } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 
@@ -17,8 +18,12 @@ import { FeedbackForm } from "@/components/FeedbackForm";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { logger } from "@/lib/logger";
 import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
+import { MetricCard } from "@/components/MetricCard";
+import { EmptyState } from "@/components/EmptyState";
+import { FlipCard } from "@/components/FlipCard";
+import { Skeleton } from "@/components/ui/skeleton";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, memo } from "react";
 
 export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
@@ -45,9 +50,10 @@ export default function Dashboard() {
   // Load dynamic data from DB instead of static files
   const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
   const dashboardStats = useQuery(api.progress.getDashboardStats);
-  const vocabWithProgress = useQuery(
-    api.vocabulary.getVocabularyWithProgress,
-    progressLoading ? "skip" : { unitNumber: safeCurrentUnit }
+  const seedDay = new Date().toISOString().slice(0, 10);
+  const practicePreview = useQuery(
+    api.vocabulary.getPracticePreview,
+    progressLoading ? "skip" : { unitNumber: safeCurrentUnit, seedDay, audioCount: 5 }
   );
   
   const syncUserMutation = useMutation(api.users.syncUser);
@@ -80,6 +86,10 @@ export default function Dashboard() {
   
   // Beta banner dismiss state
   const [showBetaBanner, setShowBetaBanner] = useState(true);
+  
+  // Units filter state
+  const [unitFilter, setUnitFilter] = useState<'all' | 'in-progress' | 'completed' | 'locked'>('all');
+  const [unitSearchQuery, setUnitSearchQuery] = useState('');
   
   // Load beta banner preference from localStorage
   useEffect(() => {
@@ -151,6 +161,37 @@ export default function Dashboard() {
 
   const accessibleCount = Array.isArray(rawAccessible) ? rawAccessible.length : 0;
 
+  // Filter and search units
+  const filteredUnits = useMemo(() => {
+    if (!visibleUnits || !units) return [];
+    
+    let filtered = visibleUnits.filter((unitNum) => {
+      const unit = units.find(u => u.unitNumber === unitNum || u.number === unitNum);
+      const isCompleted = completedUnits.includes(unitNum);
+      const isCurrent = unitNum === progress?.currentUnit;
+      const isLocked = user.isBetaTester && unitNum > 3;
+      
+      // Apply filter
+      if (unitFilter === 'completed' && !isCompleted) return false;
+      if (unitFilter === 'in-progress' && (isCompleted || !isCurrent)) return false;
+      if (unitFilter === 'locked' && !isLocked) return false;
+      
+      // Apply search
+      if (unitSearchQuery) {
+        const query = unitSearchQuery.toLowerCase();
+        const title = i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish || unit?.title || '';
+        const unitNumber = unitNum.toString();
+        if (!title.toLowerCase().includes(query) && !unitNumber.includes(query)) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+    
+    return filtered;
+  }, [visibleUnits, units, completedUnits, progress?.currentUnit, unitFilter, unitSearchQuery, user.isBetaTester, i18n.language]);
+
   const weeklyXp = dashboardStats?.weeklyProgress?.xpSum ?? 0;
   const weeklyXpTarget = dashboardStats?.weeklyGoal?.xpTarget ?? 150;
   const weeklyActiveDays = dashboardStats?.weeklyProgress?.activeDays ?? 0;
@@ -173,41 +214,13 @@ export default function Dashboard() {
     return Math.round((completed / total) * 100);
   }, [dashboardStats?.completedUnits?.length, completedUnits.length, totalUnits]);
 
-  const practicePreviewWord = useMemo(() => {
-    if (!vocabWithProgress || vocabWithProgress.length === 0) return null;
-    const pick = vocabWithProgress.find((w: any) => (w.progress?.correctAnswerCount ?? 0) < 3) ?? vocabWithProgress[0];
-    const translation =
-      (pick?.en && String(pick.en).trim()) ||
-      (Array.isArray(pick?.translations)
-        ? (pick.translations.find((t: any) => t.language === "en")?.translation ?? "")
-        : "");
-    const mastered =
-      Boolean(pick?.progress?.mastered) || (Number(pick?.progress?.correctAnswerCount ?? 0) || 0) >= 3;
+  const practicePreviewWord = practicePreview?.word ?? null;
+  const audioSamples = practicePreview?.audioSamples ?? [];
 
-    return {
-      serbian: String(pick?.serbian ?? ""),
-      translation: String(translation || "-"),
-      mastered,
-    };
-  }, [vocabWithProgress]);
-
-  const audioSamples = useMemo(() => {
-    if (!vocabWithProgress || vocabWithProgress.length === 0) return [];
-    const samples = vocabWithProgress.slice(0, 5).map((w: any) => {
-      const translation =
-        (w?.en && String(w.en).trim()) ||
-        (Array.isArray(w?.translations)
-          ? (w.translations.find((t: any) => t.language === "en")?.translation ?? "")
-          : "");
-      return {
-        id: String(w?._id ?? ""),
-        serbian: String(w?.serbian ?? ""),
-        translation: String(translation || "-"),
-        audioStorageId: (w?.audioStorageId ?? null) as string | null,
-      };
-    });
-    return samples.filter((s) => s.id && s.serbian);
-  }, [vocabWithProgress]);
+  useEffect(() => {
+    // When the daily pick changes, default back to hiding the answer
+    setShowPracticeAnswer(false);
+  }, [practicePreviewWord?.id]);
 
 
   useEffect(() => {
@@ -229,8 +242,15 @@ export default function Dashboard() {
   // Also show loading while user is being synced to Convex
   if (authLoading || progressLoading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-7xl space-y-6">
+          <Skeleton className="h-8 w-64" />
+          <div className="grid md:grid-cols-2 gap-6">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+          <Skeleton className="h-96 w-full" />
+        </div>
       </div>
     );
   }
@@ -250,17 +270,28 @@ export default function Dashboard() {
         <div className="pb-24">
         {/* Beta Tester Benefits Banner */}
         {user.isBetaTester && showBetaBanner && (
-          <div className="mb-6 border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-6">
-            <div className="flex items-start gap-4">
-              <div className="bg-yellow-400 rounded-full p-3 flex-shrink-0">
-                <span className="text-2xl">🎁</span>
+          <div className="mb-4 border border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="bg-yellow-400 rounded-full p-2 flex-shrink-0">
+                <Gift className="h-5 w-5 text-yellow-900" />
               </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-xl mb-3 text-gray-900">{t('dashboard.betaBanner.title')}</h3>
-                <p className="text-sm text-gray-700 mb-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className="font-bold text-lg text-gray-900">{t('dashboard.betaBanner.title')}</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 flex-shrink-0"
+                    onClick={handleDismissBetaBanner}
+                    aria-label="Dismiss banner"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-sm text-gray-700 mb-2">
                   <strong>{t('dashboard.betaBanner.thankYou')}</strong> {t('dashboard.betaBanner.intro')}
                 </p>
-                <ul className="text-sm text-gray-700 space-y-2 mb-4">
+                <ul className="text-sm text-gray-700 space-y-1 mb-2">
                   <li className="flex items-start">
                     <span className="mr-2">✓</span>
                     <span>{t('dashboard.betaBanner.benefit1')}</span>
@@ -270,60 +301,52 @@ export default function Dashboard() {
                     <span>{t('dashboard.betaBanner.benefit2')}</span>
                   </li>
                 </ul>
-                <div className="bg-white/80 rounded-md p-3 border border-yellow-300 mb-3">
+                <div className="bg-white/80 rounded-md p-2 border border-yellow-300">
                   <p className="text-xs text-gray-600">
                     <strong>{t('dashboard.betaBanner.afterLaunch')}</strong> {t('dashboard.betaBanner.afterLaunchDesc')}
                   </p>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <input 
-                    type="checkbox" 
-                    id="dismiss-beta-banner"
-                    className="rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        handleDismissBetaBanner();
-                      }
-                    }}
-                  />
-                  <label htmlFor="dismiss-beta-banner" className="cursor-pointer select-none">
-                    {t('dashboard.betaBanner.dontShow')}
-                  </label>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">
             {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Learner' })}
-          </h2>
+          </h1>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8 items-stretch">
-          <AnimatedItem className="h-full">
-            <Card className="hover:shadow-md transition-shadow h-full flex flex-col">
-              <CardHeader className="flex-1">
-                <BookOpen className="h-10 w-10 text-primary mb-2" />
-                <CardTitle>
-                  {currentUnitActivity?.hasActivity ? t('dashboard.continueLesson') : t('dashboard.startNextLesson')}
-                </CardTitle>
-                <CardDescription>
-                  {(() => {
-                    const unit = units?.find(u => u.unitNumber === safeCurrentUnit);
-                    return (
-                      <>
-                        <span className="font-semibold">{t('dashboard.unit', { number: safeCurrentUnit })}</span>
-                        {unit?.title && <span> - {unit.title}</span>}
-                      </>
-                    );
-                  })()}
-                </CardDescription>
+        {/* Primary Actions - Balanced Design */}
+        <div className="grid md:grid-cols-2 gap-4 mb-8">
+          <AnimatedItem>
+            <Card className="hover:shadow-md transition-all h-full flex flex-col border border-border">
+              <CardHeader className="pb-4">
+                <div className="flex items-start gap-4">
+                  <div className="bg-primary/10 rounded-lg p-2.5 flex-shrink-0">
+                    <BookOpen className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg font-semibold mb-1">
+                      {currentUnitActivity?.hasActivity ? t('dashboard.continueLesson') : t('dashboard.startNextLesson')}
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                      {(() => {
+                        const unit = units?.find(u => u.unitNumber === safeCurrentUnit);
+                        return (
+                          <>
+                            <span className="font-medium">{t('dashboard.unit', { number: safeCurrentUnit })}</span>
+                            {unit?.title && <span> - {unit.title}</span>}
+                          </>
+                        );
+                      })()}
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="mt-auto">
+              <CardContent className="pt-0">
                 <Link href={`/unit/${safeCurrentUnit}`}>
-                  <Button className="w-full">
+                  <Button className="w-full" size="default">
                     {currentUnitActivity?.hasActivity ? t('dashboard.goToLesson') : t('dashboard.startLesson')}
                   </Button>
                 </Link>
@@ -331,18 +354,24 @@ export default function Dashboard() {
             </Card>
           </AnimatedItem>
 
-          <AnimatedItem className="h-full">
-            <Card className="hover:shadow-md transition-shadow h-full flex flex-col">
-              <CardHeader className="flex-1">
-                <Brain className="h-10 w-10 text-yellow-500 mb-2" />
-                <CardTitle>{t('dashboard.chatWithProfessor')}</CardTitle>
-                <CardDescription>
-                  {t('dashboard.chatDesc')}
-                </CardDescription>
+          <AnimatedItem>
+            <Card className="hover:shadow-md transition-all h-full flex flex-col border border-border">
+              <CardHeader className="pb-4">
+                <div className="flex items-start gap-4">
+                  <div className="bg-yellow-500/10 rounded-lg p-2.5 flex-shrink-0">
+                    <Brain className="h-6 w-6 text-yellow-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg font-semibold mb-1">{t('dashboard.chatWithProfessor')}</CardTitle>
+                    <CardDescription className="text-sm">
+                      {t('dashboard.chatDesc')}
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="mt-auto">
+              <CardContent className="pt-0">
                 <Link href="/chat">
-                  <Button className="w-full border-yellow-500 text-yellow-600 hover:bg-yellow-50 hover:border-yellow-600" variant="outline">{t('dashboard.openChat')}</Button>
+                  <Button className="w-full" variant="outline">{t('dashboard.openChat')}</Button>
                 </Link>
               </CardContent>
             </Card>
@@ -353,18 +382,18 @@ export default function Dashboard() {
         <AnimatedItem className="mb-10">
           <div className="grid gap-6 lg:grid-cols-3 items-stretch">
             {/* Practice Preview (wide) */}
-            <Card className="lg:col-span-2 hover:shadow-md transition-shadow">
-              <CardHeader>
+            <Card className="lg:col-span-2 hover:shadow-md transition-shadow border border-border">
+              <CardHeader className="pb-4">
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl">Practice Preview</CardTitle>
-                    <CardDescription>
+                  <div className="flex-1">
+                    <CardTitle className="text-lg font-semibold mb-1">Practice Preview</CardTitle>
+                    <CardDescription className="text-sm">
                       A quick taste of Learn Mode — no commitment, just start.
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`}>
-                      <Button size="sm" className="gap-2">
+                      <Button size="sm" variant="default" className="gap-2">
                         <BookOpen className="h-4 w-4" />
                         Learn
                       </Button>
@@ -373,9 +402,9 @@ export default function Dashboard() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-2 border-[color:var(--accent)] text-foreground hover:bg-[color:var(--accent)]/10 hover:border-[color:var(--accent)]"
+                        className="gap-2"
                       >
-                        <Star className="h-4 w-4 text-[color:var(--accent)]" />
+                        <Star className="h-4 w-4" />
                         Quiz
                       </Button>
                     </Link>
@@ -383,72 +412,72 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {!practicePreviewWord ? (
+                {practicePreview === undefined ? (
+                  <div className="space-y-4 py-6">
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                ) : !practicePreviewWord ? (
                   <div className="text-sm text-muted-foreground py-10 text-center">
-                    Loading preview…
+                    No vocabulary available for practice preview yet.
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 items-stretch">
-                    <div className="rounded-xl border bg-muted/10 p-6 flex flex-col justify-center text-center">
-                      <div className="inline-flex items-center justify-center gap-2 mb-2">
-                        <Badge variant="outline">Unit {safeCurrentUnit}</Badge>
-                        {practicePreviewWord.mastered && (
-                          <Badge className="bg-amber-500 text-white border-amber-500">
-                            Mastered
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-4xl font-bold tracking-tight">
-                        {practicePreviewWord.serbian}
-                      </div>
-                      <div className="mt-3 text-lg text-muted-foreground">
-                        {showPracticeAnswer ? practicePreviewWord.translation : "—"}
-                      </div>
-                      <div className="mt-6 flex items-center justify-center gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowPracticeAnswer((s) => !s)}
-                        >
-                          {showPracticeAnswer ? "Hide answer" : "Show answer"}
-                        </Button>
-                        <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`}>
-                          <Button>Open Trainer</Button>
-                        </Link>
-                      </div>
+                  <div className="grid gap-4 items-stretch">
+                    <FlipCard
+                      flipped={showPracticeAnswer}
+                      onFlip={() => setShowPracticeAnswer((s) => !s)}
+                      className="h-full min-h-[200px]"
+                      front={
+                        <div className="rounded-xl border bg-muted/10 p-6 flex flex-col justify-center text-center h-full">
+                          <div className="inline-flex items-center justify-center gap-2 mb-2">
+                            <Badge variant="outline">Unit {safeCurrentUnit}</Badge>
+                            {practicePreviewWord.mastered && (
+                              <Badge className="bg-amber-500 text-white border-amber-500">
+                                Mastered
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-4xl font-bold tracking-tight mb-4">
+                            {practicePreviewWord.serbian}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Click to reveal translation
+                          </div>
+                        </div>
+                      }
+                      back={
+                        <div className="rounded-xl border bg-primary/5 p-6 flex flex-col justify-center text-center h-full">
+                          <div className="inline-flex items-center justify-center gap-2 mb-2">
+                            <Badge variant="outline">Unit {safeCurrentUnit}</Badge>
+                            {practicePreviewWord.mastered && (
+                              <Badge className="bg-amber-500 text-white border-amber-500">
+                                Mastered
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-4xl font-bold tracking-tight mb-2">
+                            {practicePreviewWord.serbian}
+                          </div>
+                          <div className="text-xl text-muted-foreground">
+                            {practicePreviewWord.translation}
+                          </div>
+                        </div>
+                      }
+                    />
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowPracticeAnswer((s) => !s)}
+                      >
+                        {showPracticeAnswer ? "Show word" : "Show translation"}
+                      </Button>
+                      <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`}>
+                        <Button>Open Trainer</Button>
+                      </Link>
                     </div>
 
-                    <div className="rounded-xl border p-6 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="font-semibold">Your next win</div>
-                        <span className="text-sm text-muted-foreground">
-                          This week
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">XP</span>
-                          <span className="font-semibold">
-                            {weeklyXp} / {weeklyXpTarget}
-                          </span>
-                        </div>
-                        <ProgressBar value={Math.min(100, (weeklyXp / Math.max(1, weeklyXpTarget)) * 100)} />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Active days</span>
-                          <span className="font-semibold">
-                            {weeklyActiveDays} / {weeklyActiveDaysTarget}
-                          </span>
-                        </div>
-                        <ProgressBar value={Math.min(100, (weeklyActiveDays / Math.max(1, weeklyActiveDaysTarget)) * 100)} />
-                      </div>
-                      <div className="text-xs text-muted-foreground pt-2 border-t">
-                        Tip: even a short Learn Buddy chat counts as an active day.
-                      </div>
-                    </div>
-
-                    {/* Audio sampler (2nd row) */}
-                    <div className="md:col-span-2 rounded-xl border bg-muted/10 p-5">
+                    {/* Audio sampler */}
+                    <div className="rounded-xl border bg-muted/10 p-5">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <div className="font-semibold">Listen & repeat</div>
@@ -560,7 +589,7 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Course mastery</span>
+                    <span className="text-muted-foreground">Course progress</span>
                     <span className="font-semibold">
                       {courseMasteryPercent === null ? "—" : `${courseMasteryPercent}%`}
                     </span>
@@ -604,27 +633,89 @@ export default function Dashboard() {
 
         {/* Modules List Card */}
         <AnimatedItem>
-          <Card className="bg-gradient-to-br from-background to-muted/30 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <CardTitle className="text-xl">
-                    {t('dashboard.allUnits', 'All Units')}
-                  </CardTitle>
-                  <CardDescription className="text-base mt-2">
-                    {t('dashboard.allUnitsDesc', 'Continue your learning journey')}
-                  </CardDescription>
+          {completedUnits.length === 0 && visibleUnits && visibleUnits.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title="Start Your Learning Journey"
+              description="Complete your first unit to see your progress here and unlock more content."
+              action={{
+                label: "Start First Unit",
+                href: `/unit/1`,
+              }}
+            />
+          ) : (
+            <Card className="shadow-sm hover:shadow-md transition-shadow border border-border">
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg font-semibold mb-1">
+                      {t('dashboard.allUnits', 'All Units')}
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                      {t('dashboard.allUnitsDesc', 'Continue your learning journey')}
+                    </CardDescription>
+                  </div>
+                  {isAdmin && (
+                    <Badge variant="outline" className="flex-shrink-0">
+                      Admin access
+                    </Badge>
+                  )}
                 </div>
-                {isAdmin && (
-                  <Badge variant="outline" className="bg-white/70">
-                    Admin access
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-5">
-                    {visibleUnits?.map(unitNum => {
+              </CardHeader>
+              <CardContent>
+                {/* Filter and Search */}
+                <div className="mb-6 space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant={unitFilter === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setUnitFilter('all')}
+                    >
+                      All
+                    </Button>
+                    <Button
+                      variant={unitFilter === 'in-progress' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setUnitFilter('in-progress')}
+                    >
+                      In Progress
+                    </Button>
+                    <Button
+                      variant={unitFilter === 'completed' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setUnitFilter('completed')}
+                    >
+                      Completed
+                    </Button>
+                    {user.isBetaTester && (
+                      <Button
+                        variant={unitFilter === 'locked' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setUnitFilter('locked')}
+                      >
+                        Locked
+                      </Button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    <Input
+                      type="text"
+                      placeholder="Search units..."
+                      value={unitSearchQuery}
+                      onChange={(e) => setUnitSearchQuery(e.target.value)}
+                      className="pl-9"
+                      aria-label="Search units"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-5">
+                      {filteredUnits.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No units found matching your criteria.
+                        </div>
+                      ) : (
+                        filteredUnits.map(unitNum => {
                     const unit = units?.find(u => u.number === unitNum);
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
@@ -736,10 +827,12 @@ export default function Dashboard() {
                         </Card>
                       </Link>
                     );
-                  })}
-              </div>
-            </CardContent>
-          </Card>
+                  })
+                )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </AnimatedItem>
         </div>
       </AnimatedPage>

@@ -146,7 +146,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
       <div className="bg-card border rounded-xl shadow-sm p-4 space-y-2 overflow-hidden">
         <Button 
           onClick={onNewChat} 
-          className="w-full bg-primary hover:bg-primary/90 text-white"
+          className="w-full bg-primary hover:bg-primary/90 text-white text-xs"
           size="sm"
         >
           <MessageSquarePlus className="h-4 w-4 mr-2" />

@@ -81,6 +81,36 @@ export default function Chat() {
   const createSessionMutation = useMutation(api.chat.createSession);
   const sendMessageAction = useAction(api.chat.sendMessage);
 
+  const createNewSession = async (options?: { showSuccessToast?: boolean }): Promise<string | null> => {
+    if (isCreatingSession) return null;
+    setIsCreatingSession(true);
+    try {
+      const sessionId = await createSessionMutation({ title: t('chat.newChat') });
+      const sessionIdStr = sessionId as unknown as string;
+      setCurrentSessionId(sessionIdStr);
+      if (options?.showSuccessToast) {
+        toast.success(t('chat.newChatSuccess'));
+      }
+      return sessionIdStr;
+    } catch (error) {
+      console.error("Failed to create new chat:", error);
+      toast.error(t('chat.newChatError'));
+      return null;
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
+
+  const prefillExampleMessage = async (exampleText: string) => {
+    const sessionIdToUse = currentSessionId ?? (await createNewSession());
+    if (!sessionIdToUse) return;
+
+    setMessage(exampleText);
+    requestAnimationFrame(() => {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    });
+  };
+
   // Wähle den ersten vorhandenen Chat, wenn keiner selektiert ist oder der aktuelle nicht mehr existiert.
   // Keine Auto-Erstellung eines neuen Chats bei leerer Liste.
   useEffect(() => {
@@ -131,14 +161,7 @@ export default function Chat() {
   }, [isSending]);
 
   const handleNewChat = async () => {
-    try {
-      const sessionId = await createSessionMutation({ title: t('chat.newChat') });
-      setCurrentSessionId(sessionId as unknown as string);
-      toast.success(t('chat.newChatSuccess'));
-    } catch (error) {
-      console.error("Failed to create new chat:", error);
-      toast.error(t('chat.newChatError'));
-    }
+    await createNewSession({ showSuccessToast: true });
   };
 
   const handleSelectSession = async (sessionId: string | null) => {
@@ -314,21 +337,34 @@ export default function Chat() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold mb-2">{t('chat.welcome.title')}</h2>
-                  <p className="text-muted-foreground mb-4">{t('chat.welcome.subtitle')}</p>
+                  <p className="text-muted-foreground mb-2">{t('chat.welcome.subtitle')}</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    <span className="font-medium text-foreground/80">{t('chat.welcome.examplesHintTitle')}</span>{" "}
+                    {t('chat.welcome.examplesHint')}
+                  </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl">
                   <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Explain the verb 'biti' to me")}>
+                    <Card
+                      className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                      onClick={() => void prefillExampleMessage("Explain the verb 'biti' to me")}
+                    >
                       <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
                     </Card>
                   </AnimatedItem>
                   <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("What is the locative case?")}>
+                    <Card
+                      className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                      onClick={() => void prefillExampleMessage("What is the locative case?")}
+                    >
                       <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
                     </Card>
                   </AnimatedItem>
                   <AnimatedItem>
-                    <Card className="p-4 hover:bg-accent cursor-pointer transition-colors" onClick={() => setMessage("Dobar dan! Kako ste?")}>
+                    <Card
+                      className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                      onClick={() => void prefillExampleMessage("Dobar dan! Kako ste?")}
+                    >
                       <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
                     </Card>
                   </AnimatedItem>
