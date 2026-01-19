@@ -220,18 +220,24 @@ export function InteractiveMarkdownContent({ content, unitNumber }: InteractiveM
                     <ol className="list-decimal list-inside mb-4 space-y-1" {...props} />
                   ),
                   table: ({ node, ...props }) => (
-                    <div className="overflow-x-auto mb-4">
-                      <table className="min-w-full border-collapse border border-gray-300" {...props} />
+                    <div className="overflow-x-auto mb-6 rounded-lg border border-border shadow-sm">
+                      <table className="min-w-full divide-y divide-border" {...props} />
                     </div>
                   ),
                   thead: ({ node, ...props }) => (
-                    <thead className="bg-gray-100" {...props} />
+                    <thead className="bg-gradient-to-r from-serbian-blue/10 to-serbian-blue/5" {...props} />
+                  ),
+                  tbody: ({ node, ...props }) => (
+                    <tbody className="bg-card divide-y divide-border/50" {...props} />
+                  ),
+                  tr: ({ node, ...props }) => (
+                    <tr className="hover:bg-muted/50 transition-colors duration-150" {...props} />
                   ),
                   th: ({ node, ...props }) => (
-                    <th className="border border-gray-300 px-4 py-2 text-left font-semibold" {...props} />
+                    <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-semibold text-foreground uppercase tracking-wider" {...props} />
                   ),
                   td: ({ node, ...props }) => (
-                    <td className="border border-gray-300 px-4 py-2" {...props} />
+                    <td className="px-4 md:px-6 py-3 md:py-4 text-sm text-foreground" {...props} />
                   ),
                   code: ({ node, inline, ...props }: any) =>
                     inline ? (

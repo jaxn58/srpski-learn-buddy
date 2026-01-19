@@ -5,7 +5,7 @@
  * and uploads it to Convex File Storage.
  * 
  * POST /api/audio/generate
- * Body: { serbianWord: string, vocabularyId?: string, unitNumber?: number }
+ * Body: { serbianWord?: string, text?: string, vocabularyId?: string, unitNumber?: number, contentType?: "phrases" | "dialogues", voiceKey?: string }
  * Response: { success: true, audioUrl: string } | { success: false, error: string }
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -72,9 +72,10 @@ async function uploadToConvex(
  * Generate Serbian audio using Google Cloud TTS
  */
 async function generateSerbianAudio(options: {
-  serbianWord: string;
+  text: string;
   vocabularyId?: string;
   unitNumber?: number;
+  contentType?: "phrases" | "dialogues";
 }): Promise<{ storageId: string }> {
   if (!ENV.googleCloudServiceAccountKey) {
     throw new Error("GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY is not configured");
@@ -159,9 +160,22 @@ async function generateSerbianAudio(options: {
     apiEndpoint: 'texttospeech.googleapis.com',
   });
 
+  function escapeSsml(text: string): string {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }
+
+  // Single voice mode (same philosophy as vocabulary audio): no selectable variants.
+  const speakingRate = 0.9;
+  const pitch = 0.0;
+  const rateTag = "slow";
+
   // Configure TTS request with SSML for better control
-  // SSML helps with short words and proper pronunciation
-  const ssmlText = `<speak><prosody rate="slow">${options.serbianWord}</prosody></speak>`;
+  const ssmlText = `<speak><prosody rate="${rateTag}">${escapeSsml(options.text)}</prosody></speak>`;
   
   const request = {
     input: { ssml: ssmlText },
@@ -172,9 +186,9 @@ async function generateSerbianAudio(options: {
     },
     audioConfig: {
       audioEncoding: 'MP3' as const,
-      speakingRate: 0.9,
+      speakingRate,
       volumeGainDb: 0.0,
-      pitch: 0.0,
+      pitch,
     }
   };
 
@@ -188,27 +202,9 @@ async function generateSerbianAudio(options: {
 
     const audioBuffer = Buffer.from(response.audioContent as Uint8Array);
 
-    // Generate storage path
-    const voiceBase = request.voice.name.split('-').pop()?.toLowerCase() || 'default';
-    const voiceSuffix = `${voiceBase}-${AUDIO_VERSION_TAG}`;
-
-    let storagePath: string;
-    if (options.unitNumber !== undefined && options.vocabularyId) {
-      storagePath = `audio/vocabulary/unit-${options.unitNumber}/${options.vocabularyId}-${voiceSuffix}.mp3`;
-    } else if (options.vocabularyId) {
-      storagePath = `audio/vocabulary/${options.vocabularyId}-${voiceSuffix}.mp3`;
-    } else {
-      // Fallback: use sanitized word
-      const sanitizedWord = options.serbianWord
-        .toLowerCase()
-        .replace(/[^a-z0-9čćđšž]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-      storagePath = `audio/vocabulary/${sanitizedWord}-${voiceSuffix}.mp3`;
-    }
-
-    // Upload to Convex File Storage
-    const { storageId } = await uploadToConvex(storagePath, audioBuffer, 'audio/mpeg');
+    // Upload to Convex File Storage (Convex URLs are generated later from storageId)
+    // Note: Convex file storage does not support stable "paths". We keep AUDIO_VERSION_TAG for cache keys upstream.
+    const { storageId } = await uploadToConvex("unused", audioBuffer, 'audio/mpeg');
     return { storageId };
   } catch (error) {
     if (error instanceof Error) {
@@ -239,19 +235,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { serbianWord, vocabularyId, unitNumber } = req.body;
+    const { serbianWord, text, vocabularyId, unitNumber, contentType } = req.body;
+    const effectiveText = (typeof text === "string" && text.trim())
+      ? text.trim()
+      : (typeof serbianWord === "string" && serbianWord.trim() ? serbianWord.trim() : "");
 
-    if (!serbianWord || typeof serbianWord !== 'string') {
+    if (!effectiveText) {
       return res.status(400).json({
         success: false,
-        error: 'serbianWord is required and must be a string',
+        error: 'Either "text" or "serbianWord" is required and must be a non-empty string',
       });
     }
 
     const { storageId } = await generateSerbianAudio({
-      serbianWord,
+      text: effectiveText,
       vocabularyId,
       unitNumber,
+      contentType,
     });
 
     res.json({ success: true, storageId });

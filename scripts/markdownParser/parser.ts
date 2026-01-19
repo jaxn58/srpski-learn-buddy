@@ -89,8 +89,11 @@ function convertExercisesToUnitPackageFormat(
     // Build questions array with proper structure
     const questions: any[] = exercise.questions.map((question) => {
       const order = orderCounter++;
+      const providedId = String(question.questionId || "").trim();
+      const questionId =
+        providedId && !providedId.startsWith("ex") ? providedId : `u${unitNumber}_${questionType}_q${order}`;
       const questionEntry: any = {
-        questionId: `u${unitNumber}_${questionType}_q${order}`,
+        questionId,
         order,
         questionType,
         question: question.question,

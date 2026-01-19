@@ -1075,9 +1075,12 @@ export default function Vocabulary() {
               {/* Header: Unit Badge + Last Attempt Info */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">
-                    {t('vocabulary.unit', { number: (showAnswer && answeredWord ? answeredWord : currentWord).unit })}
-                  </Badge>
+                  {/* Unit Badge nur anzeigen wenn "All Units" ausgewählt ist */}
+                  {selectedUnit === 'all' && (
+                    <Badge variant="outline">
+                      {t('vocabulary.unit', { number: (showAnswer && answeredWord ? answeredWord : currentWord).unit })}
+                    </Badge>
+                  )}
                 </div>
                 {mode === 'quiz' && lastQuizProgress && lastQuizProgress.lastScore > 0 && (
                   <div className="text-xs text-muted-foreground bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
@@ -1096,11 +1099,9 @@ export default function Vocabulary() {
                   
                   return (
                     <div>
-                    <div className="flex items-center justify-center gap-3 mb-2">
-                      <h2 className="text-5xl font-bold">
-                        {displayWord.serbian}
-                      </h2>
-                      {displayWord._id && (
+                    {/* Audio Icon über der Vokabel */}
+                    {displayWord._id && (
+                      <div className="flex justify-center mb-3">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1115,7 +1116,13 @@ export default function Vocabulary() {
                             <Volume2 className={`h-5 w-5 ${playingAudioId === displayWord._id ? "text-primary" : ""}`} />
                           )}
                         </Button>
-                      )}
+                      </div>
+                    )}
+                    {/* Vokabel */}
+                    <div className="flex items-center justify-center mb-2">
+                      <h2 className="text-5xl font-bold">
+                        {displayWord.serbian}
+                      </h2>
                     </div>
                 {/* Progress indicator with numbers or star */}
                 {(mode === 'quiz' || mode === 'learn') && (

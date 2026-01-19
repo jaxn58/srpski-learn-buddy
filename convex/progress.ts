@@ -601,16 +601,12 @@ export const submitCategoryResult = mutation({
     const updatedProgress: Array<{
       questionId: string;
       correctAttempts: number;
+      incorrectAttempts: number;
       isMastered: boolean;
       xpEarned: number;
     }> = [];
 
     for (const result of args.questionResults) {
-      if (!result.isCorrect) {
-        // Falsche Antworten zählen nicht für Progress/XP
-        continue;
-      }
-
       // Hole existierenden Progress für diese Frage
       const existingProgress = await ctx.db
         .query("questionProgress")
@@ -619,15 +615,21 @@ export const submitCategoryResult = mutation({
         )
         .first();
 
-      const correctAttempts = (existingProgress?.correctAttempts ?? 0) + 1;
+      const prevCorrectAttempts = existingProgress?.correctAttempts ?? 0;
+      const prevIncorrectAttempts = existingProgress?.incorrectAttempts ?? 0;
+
+      const correctAttempts = result.isCorrect ? prevCorrectAttempts + 1 : prevCorrectAttempts;
+      const incorrectAttempts = result.isCorrect ? prevIncorrectAttempts : prevIncorrectAttempts + 1;
       const isMastered = correctAttempts >= 3;
 
       // XP-Berechnung: Einheitlich für Vocabulary + Exercises
       // 1st correct=5 XP, 2nd correct=10 XP, 3rd correct=20 XP (Mastered!), danach=0 XP
       let xpForQuestion = 0;
-      if (correctAttempts === 1) xpForQuestion = 5;
-      else if (correctAttempts === 2) xpForQuestion = 10;
-      else if (correctAttempts === 3) xpForQuestion = 20;
+      if (result.isCorrect) {
+        if (correctAttempts === 1) xpForQuestion = 5;
+        else if (correctAttempts === 2) xpForQuestion = 10;
+        else if (correctAttempts === 3) xpForQuestion = 20;
+      }
       // Nach Mastery (>3): 0 XP
 
       totalXP += xpForQuestion;
@@ -636,6 +638,7 @@ export const submitCategoryResult = mutation({
       if (existingProgress) {
         await ctx.db.patch(existingProgress._id, {
           correctAttempts,
+          incorrectAttempts,
           isMastered,
           totalXPEarned: (existingProgress.totalXPEarned ?? 0) + xpForQuestion,
           lastAttemptAt: Date.now(),
@@ -646,6 +649,7 @@ export const submitCategoryResult = mutation({
           unitNumber: args.unitNumber,
           questionId: result.questionId,
           correctAttempts,
+          incorrectAttempts,
           isMastered,
           totalXPEarned: xpForQuestion,
           lastAttemptAt: Date.now(),
@@ -655,6 +659,7 @@ export const submitCategoryResult = mutation({
       updatedProgress.push({
         questionId: result.questionId,
         correctAttempts,
+        incorrectAttempts,
         isMastered,
         xpEarned: xpForQuestion,
       });

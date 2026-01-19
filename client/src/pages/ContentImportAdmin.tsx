@@ -94,6 +94,8 @@ type ImportRun = {
 
 export default function ContentImportAdmin() {
   const { user, loading: authLoading } = useAuth();
+  // Prefer Markdown as primary import method; keep JSON import behind a toggle.
+  const ENABLE_JSON_IMPORT = false;
   const runs = useQuery(api.contentImportAdmin.listRuns, { limit: 50 }) as ImportRun[] | undefined;
   const runsLoading = runs === undefined;
   const availableModules = useQuery(api.contentImportAdmin.listModulesForImport) as Doc<"moduleMetadata">[] | undefined;
@@ -695,12 +697,14 @@ export default function ContentImportAdmin() {
         </p>
       </div>
 
-      <Tabs defaultValue="import" className="space-y-6">
+      <Tabs defaultValue={ENABLE_JSON_IMPORT ? "import" : "markdown"} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="import" className="gap-2">
-            <FileJson className="h-4 w-4" />
-            Import JSON
-          </TabsTrigger>
+          {ENABLE_JSON_IMPORT && (
+            <TabsTrigger value="import" className="gap-2">
+              <FileJson className="h-4 w-4" />
+              Import JSON
+            </TabsTrigger>
+          )}
           <TabsTrigger value="markdown" className="gap-2">
             <FileText className="h-4 w-4" />
             Import Markdown
@@ -711,6 +715,7 @@ export default function ContentImportAdmin() {
           </TabsTrigger>
         </TabsList>
 
+        {ENABLE_JSON_IMPORT && (
         <TabsContent value="import" className="space-y-6">
           {/* Upload Section */}
           <Card>
@@ -977,6 +982,7 @@ export default function ContentImportAdmin() {
             </Card>
           )}
         </TabsContent>
+        )}
 
         <TabsContent value="markdown" className="space-y-6">
           {/* Markdown Upload Section */}
@@ -1458,14 +1464,14 @@ export default function ContentImportAdmin() {
 
       {/* JSON Preview Dialog */}
       <AlertDialog open={showJsonPreview} onOpenChange={setShowJsonPreview}>
-        <AlertDialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
+        <AlertDialogContent className="w-[98vw] max-w-[98vw] sm:max-w-[98vw] h-[90vh] max-h-[90vh] overflow-hidden">
           <AlertDialogHeader>
             <AlertDialogTitle>Generated JSON Preview</AlertDialogTitle>
             <AlertDialogDescription>
               {selectedJsonPreview?.fileName} | Unit {selectedJsonPreview?.unitNumber}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto pr-1">
             {selectedJsonPreview && (
               <>
                 {/* Status Summary */}
@@ -1505,14 +1511,36 @@ export default function ContentImportAdmin() {
                 )}
 
                 {/* Changes */}
-                {selectedJsonPreview.changes && selectedJsonPreview.changes.length > 0 && (
+                {((selectedJsonPreview.changesPreview || selectedJsonPreview.changes) ?? []).length > 0 && (
                   <div>
                     <h4 className="font-semibold mb-2 text-orange-600">Auto-Fixes Applied:</h4>
                     <div className="max-h-48 overflow-y-auto space-y-1">
-                      {selectedJsonPreview.changes.map((change: any, idx: number) => (
+                      {((selectedJsonPreview.changesPreview || selectedJsonPreview.changes) ?? []).map((change: any, idx: number) => (
                         <div key={idx} className="text-xs bg-orange-50 border border-orange-200 rounded p-2">
-                          <strong>{change.kind}</strong> at <code className="text-muted-foreground">{change.path}</code>
-                          <p>{change.note}</p>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <strong>{String(change.kind ?? "autofix")}</strong>
+                            <span className="text-muted-foreground">at</span>
+                            <code className="text-muted-foreground">
+                              {Array.isArray(change.path) ? change.path.join(".") : String(change.path ?? "(unknown path)")}
+                            </code>
+                          </div>
+                          {change.note ? <p className="mt-1">{change.note}</p> : null}
+                          {"before" in change || "after" in change ? (
+                            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {"before" in change ? (
+                                <div className="bg-white/60 border rounded p-2">
+                                  <div className="font-semibold mb-1">Before</div>
+                                  <pre className="whitespace-pre-wrap break-words">{JSON.stringify((change as any).before, null, 2)}</pre>
+                                </div>
+                              ) : null}
+                              {"after" in change ? (
+                                <div className="bg-white/60 border rounded p-2">
+                                  <div className="font-semibold mb-1">After</div>
+                                  <pre className="whitespace-pre-wrap break-words">{JSON.stringify((change as any).after, null, 2)}</pre>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -1522,11 +1550,31 @@ export default function ContentImportAdmin() {
                 {/* Generated JSON */}
                 <div>
                   <h4 className="font-semibold mb-2">Generated JSON Unit Package:</h4>
-                  <pre className="bg-muted p-4 rounded-lg text-xs overflow-x-auto max-h-96 border">
-                    {selectedJsonPreview.unitPackage 
-                      ? JSON.stringify(selectedJsonPreview.unitPackage, null, 2)
-                      : "No JSON available"}
-                  </pre>
+                  <div className="bg-muted rounded-lg text-xs border overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/60">
+                      <span className="font-semibold">JSON (with line numbers)</span>
+                    </div>
+                    <div className="overflow-y-auto max-h-[55vh]">
+                      {(() => {
+                        const text = selectedJsonPreview.unitPackage
+                          ? JSON.stringify(selectedJsonPreview.unitPackage, null, 2)
+                          : "No JSON available";
+                        const lines = text.split("\n");
+                        return (
+                          <div className="font-mono">
+                            {lines.map((line: string, i: number) => (
+                              <div key={i} className="grid grid-cols-[64px_1fr] gap-3 px-4">
+                                <div className="text-muted-foreground select-none text-right pr-2 border-r">
+                                  {i + 1}
+                                </div>
+                                <div className="whitespace-pre-wrap break-words">{line}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 </div>
               </>
             )}

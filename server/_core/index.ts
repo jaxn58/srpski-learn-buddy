@@ -52,19 +52,24 @@ async function startServer() {
   app.post("/api/audio/generate", async (req, res) => {
     try {
       const { generateSerbianAudio } = await import("./textToSpeech");
-      const { serbianWord, vocabularyId, unitNumber } = req.body;
+      const { serbianWord, text, vocabularyId, unitNumber, contentType } = req.body;
+      const effectiveText =
+        (typeof text === "string" && text.trim())
+          ? text.trim()
+          : (typeof serbianWord === "string" && serbianWord.trim() ? serbianWord.trim() : "");
 
-      if (!serbianWord || typeof serbianWord !== "string") {
+      if (!effectiveText) {
         return res.status(400).json({
           success: false,
-          error: "serbianWord is required and must be a string",
+          error: 'Either "text" or "serbianWord" is required and must be a non-empty string',
         });
       }
 
       const { storageId } = await generateSerbianAudio({
-        serbianWord,
+        text: effectiveText,
         vocabularyId,
         unitNumber,
+        contentType,
       });
 
       res.json({ success: true, storageId });

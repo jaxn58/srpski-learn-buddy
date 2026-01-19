@@ -28,6 +28,7 @@ import type * as onboarding from "../onboarding.js";
 import type * as progress from "../progress.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as system from "../system.js";
+import type * as unitContentAudio from "../unitContentAudio.js";
 import type * as unitExercises from "../unitExercises.js";
 import type * as units from "../units.js";
 import type * as users from "../users.js";
@@ -62,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   progress: typeof progress;
   subscriptions: typeof subscriptions;
   system: typeof system;
+  unitContentAudio: typeof unitContentAudio;
   unitExercises: typeof unitExercises;
   units: typeof units;
   users: typeof users;

@@ -63,36 +63,36 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
             </li>
           ),
           
-          // Tables
+          // Tables - Modern Design
           table: ({ children }) => (
-            <div className="overflow-x-auto my-6">
-              <table className="min-w-full border-collapse border border-border">
+            <div className="overflow-x-auto my-6 rounded-lg border border-border shadow-sm">
+              <table className="min-w-full divide-y divide-border">
                 {children}
               </table>
             </div>
           ),
           thead: ({ children }) => (
-            <thead className="bg-muted">
+            <thead className="bg-gradient-to-r from-serbian-blue/10 to-serbian-blue/5">
               {children}
             </thead>
           ),
           tbody: ({ children }) => (
-            <tbody className="divide-y divide-border">
+            <tbody className="bg-card divide-y divide-border/50">
               {children}
             </tbody>
           ),
           tr: ({ children }) => (
-            <tr className="border-b border-border">
+            <tr className="hover:bg-muted/50 transition-colors duration-150">
               {children}
             </tr>
           ),
           th: ({ children }) => (
-            <th className="px-4 py-3 text-left font-semibold text-foreground border border-border">
+            <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-semibold text-foreground uppercase tracking-wider">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-4 py-3 text-foreground border border-border">
+            <td className="px-4 md:px-6 py-3 md:py-4 text-sm text-foreground">
               {children}
             </td>
           ),

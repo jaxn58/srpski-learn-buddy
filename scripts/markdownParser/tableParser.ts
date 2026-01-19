@@ -84,7 +84,13 @@ export function extractTableFromSection(
   // Find table start (line with pipes)
   let tableStartIdx = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes("|") && lines[i].includes(":---")) {
+    const line = lines[i];
+    // Accept both standard markdown separator (`---`) and aligned variants (`:---`, `---:`).
+    // Example: "| :--- | ---: | :---: |"
+    const isSeparatorLine =
+      line.includes("|") &&
+      /^\s*\|?(\s*:?-{3,}:?\s*\|)+\s*$/.test(line.trim());
+    if (isSeparatorLine) {
       // Found separator line, table starts one line before
       tableStartIdx = Math.max(0, i - 1);
       break;

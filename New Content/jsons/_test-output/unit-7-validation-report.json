@@ -1,10 +1,58 @@
 {
-  "generatedAt": "2026-01-16T16:52:55.845Z",
+  "generatedAt": "2026-01-19T15:28:26.126Z",
   "fileName": "Unit-7-Going-Out-with-Friends-v1.md",
   "unitNumber": 7,
   "title": "Going Out with Friends",
-  "changesCount": 2,
+  "changesCount": 6,
   "changes": [
+    {
+      "kind": "splitEnglishAlt",
+      "path": [
+        "vocabulary",
+        "en"
+      ],
+      "before": "Call / Invitation",
+      "after": {
+        "en": "Call",
+        "enAlt": "Invitation"
+      }
+    },
+    {
+      "kind": "splitEnglishAlt",
+      "path": [
+        "vocabulary",
+        "en"
+      ],
+      "before": "Let's / Come on",
+      "after": {
+        "en": "Let's",
+        "enAlt": "Come on"
+      }
+    },
+    {
+      "kind": "splitEnglishAlt",
+      "path": [
+        "vocabulary",
+        "en"
+      ],
+      "before": "Agreed / It's a deal",
+      "after": {
+        "en": "Agreed",
+        "enAlt": "It's a deal"
+      }
+    },
+    {
+      "kind": "splitEnglishAlt",
+      "path": [
+        "vocabulary",
+        "en"
+      ],
+      "before": "Dish / Food",
+      "after": {
+        "en": "Dish",
+        "enAlt": "Food"
+      }
+    },
     {
       "kind": "mergeExerciseCategories",
       "path": [

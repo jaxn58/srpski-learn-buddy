@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { MasteryIndicator, MistakesIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
 
 interface InteractiveTestProps {
   unitNumber: number;
@@ -22,6 +23,19 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
   const questionProgress = useQuery(api.progress.getQuestionProgress, { unitNumber });
   const submitCategoryResultMutation = useMutation(api.progress.submitCategoryResult);
   
+  const normalizeAnswer = (value: string) => {
+    return (value ?? "")
+      .trim()
+      .toLowerCase()
+      // diacritics: č/ć/š/ž -> c/s/z (via unicode decomposition)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      // Serbian keyboard fallback: đ/Đ is often typed as plain "d"
+      .replace(/đ/g, "d")
+      // collapse whitespace
+      .replace(/\s+/g, " ");
+  };
+
   // State for answers and block-level checking
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<Record<string, boolean | null>>({}); // true=correct, false=incorrect, null=unchecked
@@ -32,16 +46,18 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
   // Mastery tracking per question (from backend)
   const [questionMastery, setQuestionMastery] = useState<Record<string, {
     correctAttempts: number,
+    incorrectAttempts?: number,
     isMastered: boolean
   }>>({});
 
   // Load question mastery status from backend
   useEffect(() => {
     if (questionProgress) {
-      const masteryMap: Record<string, {correctAttempts: number, isMastered: boolean}> = {};
+      const masteryMap: Record<string, {correctAttempts: number, incorrectAttempts?: number, isMastered: boolean}> = {};
       questionProgress.forEach(p => {
         masteryMap[p.questionId] = {
           correctAttempts: p.correctAttempts,
+          incorrectAttempts: p.incorrectAttempts,
           isMastered: p.isMastered
         };
       });
@@ -85,9 +101,9 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
       if (q.questionType === "multipleChoice") {
         isCorrect = userAnswer === q.correctAnswer;
       } else {
-        const normalizedAnswer = userAnswer.trim().toLowerCase();
-        const normalizedCorrect = q.correctAnswer.toLowerCase();
-        const alternatives = q.acceptableAlternatives?.map(a => a.toLowerCase()) || [];
+        const normalizedAnswer = normalizeAnswer(userAnswer);
+        const normalizedCorrect = normalizeAnswer(q.correctAnswer);
+        const alternatives = q.acceptableAlternatives?.map(a => normalizeAnswer(a)) || [];
         isCorrect = normalizedAnswer === normalizedCorrect || alternatives.includes(normalizedAnswer);
       }
 
@@ -115,10 +131,11 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
       setCategoryXP(prev => ({ ...prev, [category]: result.earnedXP }));
 
       // Update mastery state with new progress
-      const updatedMastery: Record<string, {correctAttempts: number, isMastered: boolean}> = {};
+      const updatedMastery: Record<string, {correctAttempts: number, incorrectAttempts?: number, isMastered: boolean}> = {};
       result.updatedProgress.forEach(p => {
         updatedMastery[p.questionId] = {
           correctAttempts: p.correctAttempts,
+          incorrectAttempts: p.incorrectAttempts,
           isMastered: p.isMastered
         };
       });
@@ -131,7 +148,12 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
       if (result.earnedXP > 0) {
         toast.success(`You earned ${result.earnedXP} XP!`);
       } else {
-        toast.info("All questions in this category are mastered!");
+        const incorrectInThisCheck = categoryQuestions.length - correctCount;
+        if (incorrectInThisCheck > 0) {
+          toast.info("Saved. No XP earned for incorrect answers.");
+        } else {
+          toast.info("All questions in this category are mastered!");
+        }
       }
     } catch (error) {
       console.error("Failed to submit category result:", error);
@@ -227,141 +249,158 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
               )}
             </div>
             
-            {/* Questions */}
-            <div className="space-y-6">
+            {/* Questions (Vocabulary-like table with Mastery/Mistakes columns) */}
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="grid grid-cols-[1fr_140px_120px] items-center gap-3 border-b bg-muted/25 px-4 py-2 text-xs font-medium text-muted-foreground">
+                <div title="Question & answer">Exercises</div>
+                <div className="text-center" title="Progress toward mastery (3 correct)">
+                  Mastery
+                </div>
+                <div className="text-center" title="Incorrect attempts">
+                  Mistakes
+                </div>
+              </div>
+
               {categoryQuestions.map((q) => {
                 const isSubmitted = isCategoryChecked;
                 const isCorrect = feedback[q.questionId] === true;
                 const isIncorrect = feedback[q.questionId] === false;
-                const isMastered = questionMastery[q.questionId]?.isMastered ?? false;
+                const progressForQuestion = questionMastery[q.questionId];
+                const correctAttempts = Math.max(0, Number(progressForQuestion?.correctAttempts ?? 0) || 0);
+                const incorrectAttempts = Math.max(0, Number(progressForQuestion?.incorrectAttempts ?? 0) || 0);
+                const isMastered = Boolean(progressForQuestion?.isMastered) || correctAttempts >= 3;
+
+                const renderInlineInput = () => {
+                  const parts = q.question.split(/_+/);
+                  const blanks = q.question.match(/_+/g) || [];
+                  const inputWidth = q.questionType === "dialogue" ? "w-48" : "w-32";
+
+                  return (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {parts.map((part, idx) => (
+                        <React.Fragment key={idx}>
+                          <span className="text-foreground">{part}</span>
+                          {idx < blanks.length && (
+                            <Input
+                              placeholder="..."
+                              value={answers[q.questionId] || ""}
+                              onChange={(e) => handleAnswerChange(q.questionId, category, e.target.value)}
+                              disabled={isCategoryChecked}
+                              className={`inline-block ${inputWidth} h-8 text-sm ${
+                                isCorrect ? "border-green-500" : isIncorrect ? "border-red-500" : ""
+                              }`}
+                            />
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  );
+                };
+
+                const renderAnswerInput = () => {
+                  const isInline =
+                    q.questionType === "fillInBlank" ||
+                    q.questionType === "matching" ||
+                    (q.questionType === "dialogue" && q.question.includes("_"));
+
+                  if (isInline) return renderInlineInput();
+
+                  if (q.questionType === "multipleChoice") {
+                    return (
+                      <RadioGroup
+                        value={answers[q.questionId] || ""}
+                        onValueChange={(val) => handleAnswerChange(q.questionId, category, val)}
+                        disabled={isCategoryChecked}
+                      >
+                        <div className="space-y-2">
+                          {q.options?.map((option, optIdx) => (
+                            <div
+                              key={optIdx}
+                              className={`flex items-center space-x-2 ${
+                                isSubmitted && option === q.correctAnswer
+                                  ? "text-green-600 font-medium"
+                                  : isSubmitted && answers[q.questionId] === option && option !== q.correctAnswer
+                                    ? "text-red-600"
+                                    : ""
+                              }`}
+                            >
+                              <RadioGroupItem value={option} id={`${q.questionId}-${optIdx}`} />
+                              <Label htmlFor={`${q.questionId}-${optIdx}`} className="cursor-pointer">
+                                {option}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </RadioGroup>
+                    );
+                  }
+
+                  // translation / dialogue (no blanks)
+                  if (q.questionType === "translation" || (q.questionType === "dialogue" && !q.question.includes("_"))) {
+                    return (
+                      <Input
+                        placeholder="Type your answer..."
+                        value={answers[q.questionId] || ""}
+                        onChange={(e) => handleAnswerChange(q.questionId, category, e.target.value)}
+                        disabled={isCategoryChecked}
+                        className={`max-w-md ${isCorrect ? "border-green-500" : isIncorrect ? "border-red-500" : ""}`}
+                      />
+                    );
+                  }
+
+                  // fallback (shouldn't happen)
+                  return null;
+                };
 
                 return (
-                  <div key={q.questionId} className="space-y-3">
-                    {/* Question with inline input for fill-in-the-blank, vocabulary matching, and dialogue with blanks */}
-                    {(q.questionType === "fillInBlank" || q.questionType === "matching" || (q.questionType === "dialogue" && q.question.includes('_'))) ? (
-                      <div className="flex items-start gap-3">
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-medium text-gray-900">{q.order}.</span>
-                          {isMastered && (
-                            <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-                          )}
-                          <span className="text-xs text-gray-500">
-                            {questionMastery[q.questionId]?.correctAttempts || 0}/3
-                          </span>
+                  <div
+                    key={q.questionId}
+                    className="grid grid-cols-[1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/40 border-b last:border-b-0"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-start gap-2">
+                        <div className="shrink-0 flex items-center gap-2 pt-0.5">
+                          <span className="font-medium text-muted-foreground">{q.order}.</span>
+                          {isMastered && <Star className="w-4 h-4 fill-amber-500 text-amber-500" />}
                         </div>
-                        <div className="flex-1 flex items-center gap-2 flex-wrap">
-                          {(() => {
-                            const parts = q.question.split(/_+/);
-                            const blanks = q.question.match(/_+/g) || [];
-                            // Dialogue questions typically need more space for answers
-                            const inputWidth = q.questionType === "dialogue" ? "w-48" : "w-32";
-                            
-                            return parts.map((part, idx) => (
-                              <React.Fragment key={idx}>
-                                <span className="text-gray-900">{part}</span>
-                                {idx < blanks.length && (
-                                  <Input 
-                                    placeholder="..."
-                                    value={answers[q.questionId] || ""}
-                                    onChange={(e) => handleAnswerChange(q.questionId, category, e.target.value)}
-                                    disabled={isCategoryChecked}
-                                    className={`inline-block ${inputWidth} h-8 text-sm ${isCorrect ? "border-green-500" : isIncorrect ? "border-red-500" : ""}`}
-                                  />
-                                )}
-                              </React.Fragment>
-                            ));
-                          })()}
-                          {isSubmitted && (
-                            <span className={`text-sm font-medium ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                              {isCorrect ? '✓' : '✗'}
-                            </span>
+                        <div className="min-w-0 flex-1 space-y-2">
+                          {/* Question text */}
+                          {q.questionType === "fillInBlank" || q.questionType === "matching" || q.questionType === "dialogue" ? null : (
+                            <p className="text-foreground">{q.question}</p>
                           )}
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Question Text for other types */}
-                        <div className="flex items-start gap-3">
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="font-medium text-gray-900">{q.order}.</span>
-                            {isMastered && (
-                              <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-                            )}
-                            <span className="text-xs text-gray-500">
-                              {questionMastery[q.questionId]?.correctAttempts || 0}/3
-                            </span>
-                          </div>
-                          <p className="text-gray-900 flex-1">{q.question}</p>
-                          {isSubmitted && (
-                            <span className={`text-sm font-medium shrink-0 ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                              {isCorrect ? '✓' : '✗'}
-                            </span>
-                          )}
-                        </div>
-                      </>
-                    )}
 
-                    {/* Mastery Badge */}
-                    {isMastered && (
-                      <div className="pl-6">
-                        <Badge className="bg-amber-500 text-white">
-                          <Star className="w-3 h-3 mr-1 fill-white"/> Mastered ({questionMastery[q.questionId]?.correctAttempts}/3)
-                        </Badge>
-                      </div>
-                    )}
+                          {/* Input */}
+                          {renderAnswerInput()}
 
-                    {/* Answer Input for non-inline types */}
-                    {q.questionType !== "fillInBlank" && q.questionType !== "matching" && !(q.questionType === "dialogue" && q.question.includes('_')) && (
-                      <div className="pl-6">
-                        {q.questionType === "multipleChoice" ? (
-                          <RadioGroup 
-                            value={answers[q.questionId] || ""} 
-                            onValueChange={(val) => handleAnswerChange(q.questionId, category, val)}
-                            disabled={isCategoryChecked}
-                          >
-                            <div className="space-y-2">
-                              {q.options?.map((option, optIdx) => (
-                                <div key={optIdx} className={`flex items-center space-x-2 ${
-                                  isSubmitted && option === q.correctAnswer ? "text-green-600 font-medium" : 
-                                  isSubmitted && answers[q.questionId] === option && option !== q.correctAnswer ? "text-red-600" : 
-                                  ""
-                                }`}>
-                                  <RadioGroupItem value={option} id={`${q.questionId}-${optIdx}`} />
-                                  <Label htmlFor={`${q.questionId}-${optIdx}`} className="cursor-pointer">{option}</Label>
-                                </div>
-                              ))}
+                          {/* Hint */}
+                          {q.hint && !isSubmitted && (
+                            <p className="text-xs text-muted-foreground italic">Hint: {q.hint}</p>
+                          )}
+
+                          {/* Feedback */}
+                          {isSubmitted && (
+                            <div className="text-sm">
+                              <span className={`font-medium ${isCorrect ? "text-green-600" : "text-red-600"}`}>
+                                {isCorrect ? "✓ Correct" : "✗ Incorrect"}
+                              </span>
+                              {isIncorrect && (
+                                <p className="mt-1 text-sm text-red-600">
+                                  Correct answer: <strong>{q.correctAnswer}</strong>
+                                </p>
+                              )}
                             </div>
-                          </RadioGroup>
-                        ) : q.questionType === "translation" || (q.questionType === "dialogue" && !q.question.includes('_')) ? (
-                          <Input 
-                            placeholder="Type your answer..." 
-                            value={answers[q.questionId] || ""}
-                            onChange={(e) => handleAnswerChange(q.questionId, category, e.target.value)}
-                            disabled={isCategoryChecked}
-                            className={`max-w-md ${isCorrect ? "border-green-500" : isIncorrect ? "border-red-500" : ""}`}
-                          />
-                        ) : null}
-                        
-                        {/* Feedback */}
-                        {isIncorrect && (
-                          <p className="mt-2 text-sm text-red-600">
-                            Correct answer: <strong>{q.correctAnswer}</strong>
-                          </p>
-                        )}
-                        {q.hint && !isSubmitted && (
-                          <p className="mt-2 text-xs text-muted-foreground italic">Hint: {q.hint}</p>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    )}
-                    
-                    {/* Feedback for inline input types */}
-                    {(q.questionType === "fillInBlank" || q.questionType === "matching" || (q.questionType === "dialogue" && q.question.includes('_'))) && isIncorrect && (
-                      <div className="pl-6">
-                        <p className="text-sm text-red-600">
-                          Correct answer: <strong>{q.correctAnswer}</strong>
-                        </p>
-                      </div>
-                    )}
+                    </div>
+
+                    <div className="pt-0.5 flex justify-center">
+                      <MasteryIndicator correctCount={correctAttempts} mastered={isMastered} />
+                    </div>
+
+                    <div className="pt-0.5 flex justify-center">
+                      <MistakesIndicator count={incorrectAttempts} />
+                    </div>
                   </div>
                 );
               })}

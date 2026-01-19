@@ -1,0 +1,85 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+
+/**
+ * Fetch cached audio info for a given textHash.
+ * This is the main lookup path used by the frontend before triggering TTS generation.
+ */
+export const getByTextHash = query({
+  args: {
+    textHash: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("unitContentAudio")
+      .withIndex("by_text_hash", (q) => q.eq("textHash", args.textHash))
+      .first();
+
+    if (!row) return null;
+
+    // Versioning/soft-archive: treat undefined isActive as active
+    if (row.isActive === false) return null;
+
+    return {
+      audioStorageId: row.audioStorageId,
+      unitNumber: row.unitNumber,
+      language: row.language,
+      contentType: row.contentType,
+      voiceKey: row.voiceKey,
+      textSr: row.textSr,
+      textHash: row.textHash,
+    };
+  },
+});
+
+/**
+ * Upsert cached audio for a given textHash.
+ * Note: This is intentionally NOT admin-only: it mirrors the vocabulary audio cache behavior
+ * where audio is generated on-demand and then cached in Convex storage.
+ */
+export const upsert = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    contentType: v.union(v.literal("phrases"), v.literal("dialogues")),
+    textSr: v.string(),
+    voiceKey: v.string(),
+    textHash: v.string(),
+    audioStorageId: v.string(),
+    unitVersion: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    const existing = await ctx.db
+      .query("unitContentAudio")
+      .withIndex("by_text_hash", (q) => q.eq("textHash", args.textHash))
+      .first();
+
+    const payload = {
+      unitNumber: args.unitNumber,
+      language: args.language,
+      contentType: args.contentType,
+      textSr: args.textSr,
+      voiceKey: args.voiceKey,
+      textHash: args.textHash,
+      audioStorageId: args.audioStorageId,
+      updatedAt: now,
+      // Versioning/soft-archive defaults
+      isActive: true,
+      archivedAt: undefined,
+      unitVersion: args.unitVersion,
+    } as const;
+
+    if (existing) {
+      await ctx.db.patch(existing._id, payload);
+      return existing._id;
+    }
+
+    return await ctx.db.insert("unitContentAudio", {
+      ...payload,
+      createdAt: now,
+    });
+  },
+});
+

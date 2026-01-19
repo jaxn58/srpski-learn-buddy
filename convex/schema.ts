@@ -111,6 +111,7 @@ export default defineSchema({
     unitNumber: v.number(),
     questionId: v.string(), // Stable question ID (e.g., "u1_trans_q1")
     correctAttempts: v.number(), // Only correct answers count
+    incorrectAttempts: v.optional(v.number()), // Track incorrect attempts (optional for backward compatibility)
     isMastered: v.boolean(), // true after 3 correct attempts
     totalXPEarned: v.number(), // Total XP earned from this question
     lastAttemptAt: v.number(), // Timestamp of last attempt
@@ -279,6 +280,40 @@ export default defineSchema({
   })
     .index("by_unit_lang_type", ["unitNumber", "language", "contentType"]) // Composite FK + contentType
     .index("by_unit_lang", ["unitNumber", "language"]) // Foreign Key to unitMetadata
+    .index("by_unit_lang_type_active", ["unitNumber", "language", "contentType", "isActive"])
+    .index("by_unit_lang_type_active_version", ["unitNumber", "language", "contentType", "isActive", "unitVersion"]),
+
+  // ============= UNIT CONTENT AUDIO (Phrases/Dialogues TTS cache) =============
+  // Stores generated TTS audio for unit content lines (e.g. a phrase row or a dialogue line).
+  // Multi-language ready (row-based, like unitContent). For now we use English units only, but keep language.
+  unitContentAudio: defineTable({
+    unitNumber: v.number(),
+    language: v.string(), // "en" for now
+    contentType: v.union(v.literal("phrases"), v.literal("dialogues")),
+
+    // The spoken Serbian text. (We store it for debugging/admin and future migrations.)
+    textSr: v.string(),
+
+    // Voice/config variant identifier selected in the UI (e.g. "voice1", "voice2").
+    voiceKey: v.string(),
+
+    // Stable cache key derived from (textSr + voiceKey + AUDIO_VERSION_TAG)
+    textHash: v.string(),
+
+    // Convex Storage ID for permanent audio storage
+    audioStorageId: v.string(),
+
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+
+    // Optional versioning/soft-archive (keeps pattern consistent with unitContent)
+    isActive: v.optional(v.boolean()),
+    archivedAt: v.optional(v.number()),
+    unitVersion: v.optional(v.number()),
+  })
+    .index("by_text_hash", ["textHash"])
+    .index("by_unit_lang_type", ["unitNumber", "language", "contentType"])
+    .index("by_unit_lang_type_voice", ["unitNumber", "language", "contentType", "voiceKey"])
     .index("by_unit_lang_type_active", ["unitNumber", "language", "contentType", "isActive"])
     .index("by_unit_lang_type_active_version", ["unitNumber", "language", "contentType", "isActive", "unitVersion"]),
 

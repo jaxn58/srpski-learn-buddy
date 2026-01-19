@@ -15,9 +15,10 @@ import { createPrivateKey } from "node:crypto";
 const AUDIO_VERSION_TAG = "puck-v2";
 
 export type GenerateSerbianAudioOptions = {
-  serbianWord: string;
+  text: string;
   vocabularyId?: string; // Optional: for better file naming
   unitNumber?: number; // Optional: for better file organization
+  contentType?: "phrases" | "dialogues";
 };
 
 export type GenerateSerbianAudioResponse = {
@@ -162,9 +163,24 @@ export async function generateSerbianAudio(
     apiEndpoint: 'texttospeech.googleapis.com',
   });
   
-  // Configure TTS request for Serbian
+  function escapeSsml(text: string): string {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }
+
+  // Single voice mode (same as vocabulary audio): no selectable variants.
+  const speakingRate = 0.9;
+  const pitch = 0.0;
+  const rateTag = "slow";
+
+  // Configure TTS request for Serbian (use SSML for better prosody control)
+  const ssmlText = `<speak><prosody rate="${rateTag}">${escapeSsml(options.text)}</prosody></speak>`;
   const request = {
-    input: { text: options.serbianWord },
+    input: { ssml: ssmlText },
     voice: {
       languageCode: 'sr-RS',
       name: 'sr-RS-Chirp3-HD-Puck', // Male HD voice
@@ -172,7 +188,8 @@ export async function generateSerbianAudio(
     },
     audioConfig: {
       audioEncoding: 'MP3' as const,
-      speakingRate: 0.9, // Slightly slower
+      speakingRate,
+      pitch,
     }
   };
 

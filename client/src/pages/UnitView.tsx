@@ -9,6 +9,7 @@ import { api } from "../../../convex/_generated/api";
 import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronRight } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { UnitContentAudioMarkdown } from "@/components/UnitContentAudioMarkdown";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
@@ -170,6 +171,7 @@ export default function UnitView() {
   const [showSuccess, setShowSuccess] = React.useState(false);
   const [isCompleting, setIsCompleting] = React.useState(false);
   const [isMarkingComplete, setIsMarkingComplete] = React.useState(false);
+  const [isScrolled, setIsScrolled] = React.useState(false);
 
   // Derived values
   const isLoading = unitMetadata === undefined || content === undefined;
@@ -192,6 +194,15 @@ export default function UnitView() {
       setIsCompleting(false);
     }
   }, [completeUnitMutation, unitNumber]);
+
+  // Track scroll state for breadcrumb styling
+  React.useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Auto-complete if requirements met - TEMPORARILY DISABLED
   // React.useEffect(() => {
@@ -247,7 +258,11 @@ export default function UnitView() {
 
   return (
     <AnimatedPage>
-      <header className="sticky top-16 z-40 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 pt-4 pb-2 mb-6">
+      <header className={`sticky top-16 z-40 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 pt-4 pb-2 mb-6 transition-all duration-200 ${
+        isScrolled 
+          ? 'bg-gradient-to-b from-background/95 via-background/90 to-background/0 backdrop-blur supports-[backdrop-filter]:backdrop-blur' 
+          : ''
+      }`}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center text-xs md:text-sm text-muted-foreground">
             <Link href="/dashboard" className="hover:text-foreground transition-colors">
@@ -402,7 +417,12 @@ export default function UnitView() {
               <Card>
                 <CardContent className="pt-6">
                   {content?.phrases ? (
-                    <MarkdownContent content={content.phrases} />
+                    <UnitContentAudioMarkdown
+                      content={content.phrases}
+                      unitNumber={unitNumber}
+                      language={displayLanguage}
+                      contentType="phrases"
+                    />
                   ) : (
                     <p className="text-muted-foreground text-center py-8">No phrases available.</p>
                   )}
@@ -415,7 +435,12 @@ export default function UnitView() {
               <Card>
                 <CardContent className="pt-6">
                   {content?.dialogues ? (
-                    <MarkdownContent content={content.dialogues} />
+                    <UnitContentAudioMarkdown
+                      content={content.dialogues}
+                      unitNumber={unitNumber}
+                      language={displayLanguage}
+                      contentType="dialogues"
+                    />
                   ) : (
                     <p className="text-muted-foreground text-center py-8">No dialogues available.</p>
                   )}

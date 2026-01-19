@@ -79,7 +79,7 @@ export function extractMetadata(markdown: string): ParsedMetadata {
  */
 export function extractOverview(markdown: string): string {
   const overviewMatch = markdown.match(
-    /##\s+1\.\s+Overview\s*\n([\s\S]+?)(?=##\s+\d+\.|\z)/
+    /##\s+1\.\s+Overview\s*\n([\s\S]+?)(?=##\s+\d+\.|$)/
   );
 
   if (!overviewMatch) return "";
@@ -106,7 +106,7 @@ export function extractOverview(markdown: string): string {
  */
 export function extractVocabulary(markdown: string): ParsedVocabularyEntry[] {
   const vocabMatch = markdown.match(
-    /##\s+2\.\s+Vocabulary[\s\S]+?(?=##\s+\d+\.|\z)/
+    /##\s+2\.\s+Vocabulary[\s\S]+?(?=##\s+\d+\.|$)/
   );
 
   if (!vocabMatch) return [];
@@ -143,11 +143,20 @@ export function extractVocabulary(markdown: string): ParsedVocabularyEntry[] {
         en: extractCleanTranslation(english),
       };
 
-      // Extract notes (gender markers, dialect notes)
+      // Extract gender from English markers like "(m)" if present
       const genderMatch = english.match(/\((m|f|n)\)/);
       if (genderMatch) {
         entry.gender = genderMatch[1] as "m" | "f" | "n";
         entry.noteEn = genderMatch[1];
+      }
+
+      // Optional dedicated Gender column: "m" | "f" | "n"
+      const genderCellRaw = cleanCellContent((row["Gender"] || row["gender"] || "").trim());
+      if (genderCellRaw) {
+        const normalized = genderCellRaw.toLowerCase();
+        if (normalized === "m" || normalized === "f" || normalized === "n") {
+          entry.gender = normalized as "m" | "f" | "n";
+        }
       }
 
       // Extract additional notes from Notes column if present
@@ -191,7 +200,7 @@ function extractCleanTranslation(translation: string): string {
  */
 export function extractGrammar(markdown: string): string {
   const grammarMatch = markdown.match(
-    /##\s+3\.\s+Grammar[\s\S]+?(?=##\s+\d+\.|\z)/
+    /##\s+3\.\s+Grammar[\s\S]+?(?=##\s+\d+\.|$)/
   );
 
   if (!grammarMatch) return "";
@@ -205,7 +214,7 @@ export function extractGrammar(markdown: string): string {
  */
 export function extractPhrases(markdown: string): string {
   const phrasesMatch = markdown.match(
-    /##\s+4\.\s+Phrases[\s\S]+?(?=##\s+\d+\.|\z)/
+    /##\s+4\.\s+Phrases[\s\S]+?(?=##\s+\d+\.|$)/
   );
 
   if (!phrasesMatch) return "";
@@ -223,7 +232,7 @@ export function extractPhrases(markdown: string): string {
  */
 export function extractDialogues(markdown: string): string {
   const phrasesMatch = markdown.match(
-    /##\s+4\.\s+Phrases[\s\S]+?(?=##\s+\d+\.|\z)/
+    /##\s+4\.\s+Phrases[\s\S]+?(?=##\s+\d+\.|$)/
   );
 
   if (!phrasesMatch) return "";
@@ -240,7 +249,7 @@ export function extractDialogues(markdown: string): string {
  */
 export function extractTestIntroduction(markdown: string): string {
   const testIntroMatch = markdown.match(
-    /##\s+5\.\s+Interactive Test[^\n]*\n([\s\S]+?)(?=###\s+Exercise|##\s+\d+\.|\z)/
+    /##\s+5\.\s+Interactive Test[^\n]*\n([\s\S]+?)(?=###\s+Exercise|##\s+\d+\.|$)/
   );
 
   if (!testIntroMatch) return "";
@@ -358,6 +367,7 @@ function parseExerciseSection(exerciseNumber: number, title: string, content: st
   if (table) {
     for (let qIdx = 0; qIdx < table.rows.length; qIdx++) {
       const row = table.rows[qIdx];
+      const stableIdCell = cleanCellContent(row["Question ID"] || "");
 
       // Extract question text - try all possible column names
       let questionText = "";
@@ -426,7 +436,7 @@ function parseExerciseSection(exerciseNumber: number, title: string, content: st
       }
 
       const question: ParsedQuestion = {
-        questionId: `ex${exerciseNumber}_q${qIdx + 1}`,
+        questionId: stableIdCell || `ex${exerciseNumber}_q${qIdx + 1}`,
         question: questionText,
         correctAnswer,
       };
