@@ -29,6 +29,11 @@ export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
   const { t, i18n } = useTranslation();
   
+  // Fix: Scroll to top on mount to prevent auto-scroll to units
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+  
   // Use user's learning language or fallback to UI language or 'en'
   const displayLanguage = user?.learningLanguage || (i18n.language === 'de' ? 'de' : 'en');
   

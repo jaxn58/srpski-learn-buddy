@@ -18,7 +18,7 @@ import type { VocabWord, SupportedLanguage } from "@shared/data";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { GamificationModal } from "@/components/GamificationModal";
 
 type QuizProgressDoc = Doc<"quizProgress">;
 type VocabularyProgressDoc = Doc<"vocabulary">;
@@ -80,8 +80,6 @@ export default function Vocabulary() {
   const [recentQuizCompletion, setRecentQuizCompletion] = useState(false);
   // Track XP earned in this session (for display)
   const [sessionXP, setSessionXP] = useState(0);
-  // Modal state for gamification explanation
-  const [showGamificationModal, setShowGamificationModal] = useState(false);
   // Auto-advance setting (load from localStorage)
   const [autoAdvance, setAutoAdvance] = useState<boolean>(() => {
     const saved = localStorage.getItem('vocab_quiz_auto_advance');
@@ -1112,142 +1110,11 @@ export default function Vocabulary() {
               {mode === 'quiz' && sessionXP > 0 && (
                 <div className="flex items-center justify-center gap-2 text-sm bg-yellow-50 p-2 rounded border border-yellow-200">
                   <span className="font-semibold text-yellow-700">Session XP: +{sessionXP}</span>
-                  <Dialog open={showGamificationModal} onOpenChange={setShowGamificationModal}>
-                    <DialogTrigger asChild>
-                      <button className="text-blue-600 hover:text-blue-700 underline text-xs">
-                        How does XP work?
-                      </button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle className="text-2xl flex items-center gap-2">
-                          🎮 Gamification System - XP & Rewards
-                        </DialogTitle>
-                        <DialogDescription>
-                          Learn how our Progressive XP System rewards your learning progress
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-6 py-4">
-                        {/* Progressive XP System */}
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                            ⭐ Progressive XP System
-                          </h3>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Based on Spaced Repetition: The more you practice, the more XP you earn!
-                          </p>
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                              <div className="text-2xl">1️⃣</div>
-                              <div className="flex-1">
-                                <div className="font-semibold text-green-700">First Time Correct</div>
-                                <div className="text-sm text-muted-foreground">+5 XP - Great start!</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                              <div className="text-2xl">2️⃣</div>
-                              <div className="flex-1">
-                                <div className="font-semibold text-blue-700">Second Time Correct</div>
-                                <div className="text-sm text-muted-foreground">+10 XP - You're learning!</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-300">
-                              <div className="text-2xl">3️⃣</div>
-                              <div className="flex-1">
-                                <div className="font-semibold text-yellow-700">Third Time Correct (Mastered! 🌟)</div>
-                                <div className="text-sm text-muted-foreground">+20 XP - Word mastered!</div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                            <div className="font-semibold text-purple-700 mb-2">Total per Word: 35 XP</div>
-                            <div className="text-sm text-muted-foreground">
-                              Master a word completely to earn all 35 XP! (5 + 10 + 20)
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Why Progressive XP? */}
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                            💡 Why Progressive XP?
-                          </h3>
-                          <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li className="flex items-start gap-2">
-                              <span className="text-green-600">✓</span>
-                              <span><strong>Immediate Feedback:</strong> See your progress instantly after each correct answer</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-green-600">✓</span>
-                              <span><strong>Spaced Repetition Bonus:</strong> Harder repetitions = More XP</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-green-600">✓</span>
-                              <span><strong>Motivating:</strong> Watch your XP grow as you learn</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-green-600">✓</span>
-                              <span><strong>Fair:</strong> Rewards long-term learning, not just quick answers</span>
-                            </li>
-                          </ul>
-                        </div>
-
-                        {/* Example */}
-                        <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-4 rounded-lg border-2 border-blue-200">
-                          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                            📚 Example: Unit 1 (23 Words)
-                          </h3>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span>23 words × 3 repetitions</span>
-                              <span className="font-semibold">69 practice sessions</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>1st time (23 × 5 XP)</span>
-                              <span className="font-semibold">+115 XP</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>2nd time (23 × 10 XP)</span>
-                              <span className="font-semibold">+230 XP</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>3rd time - Mastered! (23 × 20 XP)</span>
-                              <span className="font-semibold">+460 XP</span>
-                            </div>
-                            <div className="border-t-2 border-blue-300 pt-2 flex justify-between text-lg font-bold text-blue-700">
-                              <span>Total Possible XP:</span>
-                              <span>805 XP! 🎉</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Tips */}
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                            💪 Pro Tips
-                          </h3>
-                          <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li className="flex items-start gap-2">
-                              <span>🎯</span>
-                              <span>Practice daily for best results - consistency is key!</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span>🔁</span>
-                              <span>Review words multiple times to earn maximum XP</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span>⭐</span>
-                              <span>Master all words in a unit to unlock full XP potential</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span>📈</span>
-                              <span>Watch your XP grow - every correct answer counts!</span>
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                  <GamificationModal trigger={
+                    <button className="text-blue-600 hover:text-blue-700 underline text-xs">
+                      How does XP work?
+                    </button>
+                  } />
                 </div>
               )}
               {mode === 'quiz' && lastQuizProgress && lastQuizProgress.lastScore > 0 && (

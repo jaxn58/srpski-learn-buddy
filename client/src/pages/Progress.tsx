@@ -32,6 +32,7 @@ import {
   Lock,
   Footprints,
   Flag,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -40,6 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { formatDateEU, formatDateShortEU, formatMonthYearShortEU } from "@/lib/utils";
+import { GamificationModal } from "@/components/GamificationModal";
 
 type AchievementTone = "units" | "streak" | "xp" | "level" | "misc";
 type AchievementIconComponent = React.ComponentType<{ className?: string }>;
@@ -535,6 +537,15 @@ export default function Progress() {
                     {weeklyXpRemaining === 0 && weeklyDaysRemaining === 0
                       ? t("progress.cards.weeklyGoal.momentumAchieved")
                       : t("progress.cards.weeklyGoal.nextWin", { xp: weeklyXpRemaining, days: weeklyDaysRemaining })}
+                  </div>
+                  <div className="pt-3 border-t flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">How is XP calculated?</span>
+                    <GamificationModal trigger={
+                      <Button variant="ghost" size="sm" className="gap-2 h-8">
+                        <Info className="h-4 w-4" />
+                        Learn More
+                      </Button>
+                    } />
                   </div>
                   <div className="pt-2 border-t text-sm">
                     <div className="flex justify-between">

@@ -622,12 +622,12 @@ export const submitCategoryResult = mutation({
       const correctAttempts = (existingProgress?.correctAttempts ?? 0) + 1;
       const isMastered = correctAttempts >= 3;
 
-      // XP-Berechnung nach .cursorrules:
-      // 1st correct=10 XP, 2nd correct=5 XP, 3rd correct=3 XP, mastered (>3)=0 XP
+      // XP-Berechnung: Einheitlich für Vocabulary + Exercises
+      // 1st correct=5 XP, 2nd correct=10 XP, 3rd correct=20 XP (Mastered!), danach=0 XP
       let xpForQuestion = 0;
-      if (correctAttempts === 1) xpForQuestion = 10;
-      else if (correctAttempts === 2) xpForQuestion = 5;
-      else if (correctAttempts === 3) xpForQuestion = 3;
+      if (correctAttempts === 1) xpForQuestion = 5;
+      else if (correctAttempts === 2) xpForQuestion = 10;
+      else if (correctAttempts === 3) xpForQuestion = 20;
       // Nach Mastery (>3): 0 XP
 
       totalXP += xpForQuestion;

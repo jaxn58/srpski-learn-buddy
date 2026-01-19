@@ -14,7 +14,8 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 - Keine Eigeninitiative beim Design - immer konsistent mit bestehenden Komponenten.
 
 ### Kommunikation
-- Verwende keine Emojis im Agent Fenster.
+-Alle Agents sind ausschließlich Maschinen und keine Menschen, die irgendetwas empfinden. Also erwarte ich, dass eventuelle Beleidigungen meinerseits aus Frust hier auf nicht fruchtbaren Boden fallen und ich wünsche keine Belehrungen von irgendwelchen Modellen (KI-Modellen). Sie werden bezahlt und haben zu funktionieren.
+-Verwende keine Emojis im Agent Fenster.
 - Immer auf Deutsch antworten.
 
 ## Architektur & Datenbank
@@ -41,11 +42,13 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 
 ### Regeln
 - Nach der Mastery, das heißt **dreimal richtige Antwort**, kann kein weiteres XP mehr generiert werden.
-- **XP System**: 
-  - 1st = 10 XP
-  - 2nd = 5 XP
-  - 3rd = 3 XP
+- **XP System** (gilt für Vocabulary UND Unit Exercises):
+  - 1st = 5 XP
+  - 2nd = 10 XP
+  - 3rd = 20 XP (Mastered!)
+  - Total per Item = 35 XP
   - danach = 0 XP
+ 
 
 ## Design & UI/UX
 
@@ -144,6 +147,7 @@ pnpm sync:email-templates
 **❌ DON'Ts:**
 - **NIEMALS `npx convex deploy` ausführen ohne VORHER explizit zu fragen!**
 - **NIEMALS `vercel --prod` ausführen ohne VORHER explizit zu fragen!**
+- **NIEMALS Dev-Server (pnpm dev, npm run dev, vite, etc.) starten oder stoppen ohne VORHER explizit zu fragen!**
 - **NIEMALS direkt auf Production entwickeln**
 - **NIEMALS Production-Datenbank für Tests verwenden**
 - **NIEMALS Production-API-Keys lokal verwenden**
@@ -204,6 +208,7 @@ RESEND_API_KEY=re_UwZ5RfBp_H7xV6RqKyk3AYzZaW7VoXPEC
 
 - ❌ **NIEMALS NIEMALS NIEMALS auf Production deployen ohne EXPLIZITE Zustimmung des Users!**
 - ❌ **IMMER VORHER FRAGEN bevor `npx convex deploy` ausgeführt wird!**
+- ❌ **IMMER VORHER FRAGEN bevor Dev-Server gestartet oder gestoppt werden!**
 - ❌ **KEIN automatisches Deployment - IMMER erst fragen: "Soll ich jetzt auf Production deployen?"**
 - ❌ **NIEMALS NIEMALS NIEMALS echte Secrets, API Keys oder Passwörter in Dateien schreiben, die ins Git-Repository kommen!**
 - ❌ Keine Eigeninitiative bei Dateien oder Design-Änderungen ohne Rückfrage

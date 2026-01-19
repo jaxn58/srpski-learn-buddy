@@ -2,6 +2,20 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
 
 /**
+ * Get total number of units from database
+ */
+async function getTotalUnitsCount(ctx: QueryCtx | MutationCtx): Promise<number> {
+  const units = await ctx.db
+    .query("unitMetadata")
+    .collect();
+  
+  // Filter by English language and get unique unit numbers
+  const englishUnits = units.filter(u => u.language === "en");
+  const uniqueUnits = new Set(englishUnits.map(u => u.unitNumber));
+  return uniqueUnits.size;
+}
+
+/**
  * @deprecated Use getUnitContent instead. This query will be removed after migration.
  * Get unit explanation (legacy - for backward compatibility only)
  */
@@ -149,8 +163,11 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     return true;
   }
 
+  // Get total units count dynamically from database
+  const totalUnits = await getTotalUnitsCount(ctx);
+
   // Paid subscriptions get full access (if within total course length)
-  if (subscription && subscription.planType !== "beta" && unitNumber <= 27) {
+  if (subscription && subscription.planType !== "beta" && unitNumber <= totalUnits) {
     return true;
   }
 

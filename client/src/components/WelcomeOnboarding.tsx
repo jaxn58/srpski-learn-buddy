@@ -138,9 +138,9 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <Card 
-        className="max-w-2xl w-full relative"
+        className="max-w-2xl w-full relative my-8 max-h-[90vh] overflow-y-auto"
         style={currentStepData?.backgroundColor ? { backgroundColor: currentStepData.backgroundColor } : undefined}
       >
         <Button
@@ -173,24 +173,9 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
             />
           )}
 
-          {/* Don't show again checkbox */}
-          <div className="flex items-center space-x-2 pt-2 pb-2">
-            <Checkbox 
-              id="dontShowAgain" 
-              checked={dontShowAgain}
-              onCheckedChange={(checked) => setDontShowAgain(checked === true)}
-            />
-            <Label 
-              htmlFor="dontShowAgain" 
-              className="text-sm cursor-pointer select-none"
-            >
-              Don't show this tutorial automatically at login
-            </Label>
-          </div>
-
           {/* Marketing/community updates (double opt-in) */}
           {step === 1 && (
-            <div className="flex items-start space-x-2 pt-1 pb-2">
+            <div className="flex items-start space-x-2 pt-2">
               <Checkbox
                 id="communityUpdates"
                 checked={wantsCommunityUpdates}
@@ -201,26 +186,42 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
                   Send me product updates, community news, and learning tips.
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  We’ll ask you to confirm via email (double opt-in). Unsubscribe anytime.
+                  We'll ask you to confirm via email (double opt-in). Unsubscribe anytime.
                 </p>
               </div>
             </div>
           )}
 
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={skipTutorial}>
+          {/* Navigation Buttons */}
+          <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4">
+            <Button variant="outline" onClick={skipTutorial} className="w-full sm:w-auto">
               Skip Tutorial
             </Button>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {step > 1 && (
-                <Button variant="outline" onClick={() => setStep(step - 1)}>
+                <Button variant="outline" onClick={() => setStep(step - 1)} className="w-full sm:w-auto">
                   Previous
                 </Button>
               )}
-              <Button onClick={nextStep}>
+              <Button onClick={nextStep} className="w-full sm:w-auto">
                 {step === totalSteps ? "Get Started!" : "Next"}
               </Button>
             </div>
+          </div>
+
+          {/* Don't show again - BELOW buttons with separator */}
+          <div className="flex items-center space-x-2 pt-3 border-t">
+            <Checkbox 
+              id="dontShowAgain" 
+              checked={dontShowAgain}
+              onCheckedChange={(checked) => setDontShowAgain(checked === true)}
+            />
+            <Label 
+              htmlFor="dontShowAgain" 
+              className="text-sm text-muted-foreground cursor-pointer select-none"
+            >
+              Don't show this tutorial automatically at login
+            </Label>
           </div>
         </CardContent>
       </Card>

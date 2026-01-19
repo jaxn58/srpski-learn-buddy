@@ -14,6 +14,18 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .first();
 }
 
+// Get total number of units from database
+async function getTotalUnitsCount(ctx: QueryCtx | MutationCtx): Promise<number> {
+  const units = await ctx.db
+    .query("unitMetadata")
+    .collect();
+  
+  // Filter by English language and get unique unit numbers
+  const englishUnits = units.filter(u => u.language === "en");
+  const uniqueUnits = new Set(englishUnits.map(u => u.unitNumber));
+  return uniqueUnits.size;
+}
+
 // Subscription plans
 const SUBSCRIPTION_PLANS = [
   // NOTE: Prices are in cents (EUR).
@@ -60,7 +72,8 @@ export const getAccessibleUnits = query({
 
     // Admins/Superadmins always have full access (e.g., for QA and content verification).
     if (user.role === "admin" || user.role === "superadmin") {
-      return { maxUnits: 27, isBeta: false };
+      const totalUnits = await getTotalUnitsCount(ctx);
+      return { maxUnits: totalUnits, isBeta: false };
     }
 
     // Check for active subscription first
@@ -94,9 +107,10 @@ export const getAccessibleUnits = query({
       return { maxUnits: 3, isBeta: true };
     }
 
-    // Check if they have any paid subscription (full access to all 27 units)
+    // Check if they have any paid subscription (full access to all units)
     if (subscription && subscription.planType !== "beta") {
-      return { maxUnits: 27, isBeta: false };
+      const totalUnits = await getTotalUnitsCount(ctx);
+      return { maxUnits: totalUnits, isBeta: false };
     }
 
     // Default: no access
@@ -705,7 +719,7 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
     const baseStart = existing?.expiresAt && existing.expiresAt > now ? existing.expiresAt : now;
     const expiresAt = baseStart + args.planDurationMonths * 30 * 24 * 60 * 60 * 1000;
 
-    const maxAccessibleUnits = 27;
+    const maxAccessibleUnits = await getTotalUnitsCount(ctx);
 
     const paymentMode = (args.paymentMode || "prepaid") as "prepaid" | "installments";
     const installmentMonthlyPrice =

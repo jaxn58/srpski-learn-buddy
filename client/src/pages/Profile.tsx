@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { UserCircle } from "lucide-react";
 import { MySubscriptionContent } from "./MySubscription";
+import { GamificationModal } from "@/components/GamificationModal";
 
 const AVATAR_MAX_INPUT_BYTES = 2 * 1024 * 1024; // 2 MB
 const AVATAR_TARGET_SIZE = 256; // px (square)
@@ -403,6 +404,18 @@ export default function Profile() {
             </div>
           </div>
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Gamification System</span>
+            <GamificationModal />
+          </CardTitle>
+          <CardDescription>
+            Learn how XP, levels, and rewards work
+          </CardDescription>
+        </CardHeader>
       </Card>
 
       <Card>
