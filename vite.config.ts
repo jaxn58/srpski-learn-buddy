@@ -49,7 +49,9 @@ export default defineConfig(({ mode }) => {
             if (id.includes("/react/") || id.includes("/react-dom/")) return "react";
 
             // Auth / data
-            if (id.includes("@clerk/")) return "clerk";
+            // IMPORTANT: Do NOT isolate Clerk into its own chunk.
+            // We saw a production TDZ error ("Cannot access 'ut' before initialization") in the `clerk-*.js` chunk.
+            // Keeping Clerk in the regular vendor buckets avoids fragile cross-chunk initialization ordering.
             if (id.includes("/convex/") || id.includes("convex/")) return "convex";
             if (id.includes("@tanstack/")) return "tanstack";
 
