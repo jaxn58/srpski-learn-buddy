@@ -27,21 +27,22 @@ export default function Home() {
   
   // Environment checks
   const isWaitlistMode = import.meta.env.VITE_WAITLIST_MODE === 'on';
-  const isSuperadmin = user?.role === 'superadmin';
+  const isPrivileged = user?.role === "admin" || user?.role === "superadmin";
   
-  // Show waitlist only if: waitlist mode is ON AND user is NOT a superadmin (or not logged in)
-  const showWaitlist = isWaitlistMode && !isSuperadmin;
-  const showBetaRegistration = !isWaitlistMode || isSuperadmin;
+  // Show waitlist only if: waitlist mode is ON AND user is NOT a privileged developer/admin user
+  const showWaitlist = isWaitlistMode && !isPrivileged;
+  const showBetaRegistration = !isWaitlistMode || isPrivileged;
 
   // Pricing/checkout is intentionally disabled during beta.
   // Keep the old pricing JSX gated behind a constant false to avoid a large UI rewrite here.
   // (Plans go live after beta.)
   const paddleReady = false;
-  const paymentMode = "prepaid" as const;
+  type PaymentMode = "prepaid" | "installments";
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
   const installmentsSelectable = false;
   const paymentToggleHint: string | null = null;
   const planById = useMemo(() => new Map<string, any>(), []);
-  const startPurchase = async () => {
+  const startPurchase = async (_planId: string) => {
     toast.info("Paid plans will be available after the beta phase.");
   };
   
@@ -293,7 +294,7 @@ export default function Home() {
 
       {/* Pricing, Upgrade Policy & FAQ Section */}
       {/* Flexible Duration Section */}
-      {false && (
+      {isPrivileged && (
       <section id="pricing" className="container py-20">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center space-y-4">
@@ -382,7 +383,7 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={showWaitlist || (isAuthenticated && !paddleReady)}
+                  disabled={showWaitlist}
                   onClick={() => void startPurchase("intensive")}
                 >
                   {t('home.pricing.choosePlan')}
@@ -445,7 +446,7 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={showWaitlist || (isAuthenticated && !paddleReady)}
+                  disabled={showWaitlist}
                   onClick={() => void startPurchase("balanced")}
                 >
                   {t('home.pricing.choosePlan')}
@@ -511,7 +512,7 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full bg-primary"
-                  disabled={showWaitlist || (isAuthenticated && !paddleReady)}
+                  disabled={showWaitlist}
                   onClick={() => void startPurchase("standard")}
                 >
                   {t('home.pricing.choosePlan')}
@@ -574,7 +575,7 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={showWaitlist || (isAuthenticated && !paddleReady)}
+                  disabled={showWaitlist}
                   onClick={() => void startPurchase("relaxed")}
                 >
                   {t('home.pricing.choosePlan')}
@@ -1009,7 +1010,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Beta Registration / Sign Up Section - Only show if not in waitlist mode OR user is superadmin */}
+      {/* Beta Registration / Sign Up Section - Only show if not in waitlist mode OR user is privileged */}
       {showBetaRegistration && (
         <section id="beta-registration" className="container py-20">
           <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
