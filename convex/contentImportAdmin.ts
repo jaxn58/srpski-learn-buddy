@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { action, internalMutation, query, ActionCtx, QueryCtx, MutationCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
-import { api } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
+import { api, internal } from "./_generated/api";
 
 import { UnitPackageSchema, validateUnitPackageDeep } from "../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../scripts/unitPackage/autofix";
@@ -48,8 +48,14 @@ async function getSuperadminUser(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
-async function requireSuperadminAction(ctx: ActionCtx) {
-  const user = await ctx.runQuery(api.users.me, {});
+async function requireSuperadminAction(ctx: ActionCtx): Promise<Doc<"users">> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new Error("Unauthorized - Superadmin required");
+
+  const user = await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+    clerkId: identity.subject,
+  });
+
   if (!user || user.role !== "superadmin") {
     throw new Error("Unauthorized - Superadmin required");
   }
@@ -267,7 +273,7 @@ export const validateUnitPackages = action({
     files: v.array(v.object({ fileName: v.string(), unitPackage: v.any() })),
     includeFixed: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ runId: Id<"contentImportRuns">; report: Report }> => {
     const user = await requireSuperadminAction(ctx);
 
     const startedAt = Date.now();
@@ -300,7 +306,7 @@ export const validateUnitPackages = action({
       new Set(files.map((f) => f.unitNumber).filter((n): n is number => typeof n === "number"))
     ).sort((a, b) => a - b);
 
-    const runId = await ctx.runMutation(api.contentImportAdmin.internalCreateRun, {
+    const runId = await ctx.runMutation(internal.contentImportAdmin.internalCreateRun, {
       type: "validate",
       status,
       startedAt,
@@ -371,6 +377,8 @@ export const internalImportUnitPackage = internalMutation({
         unitNumber: fixed.unitNumber,
         language: lang,
         title: fixed.title,
+        // IMPORTANT: description is admin-managed (see Unit Metadata tab) and must not be overwritten by imports
+        // unless we explicitly add it to the import payload in the future.
         topics: [],
         grammarFocus: [],
         vocabularyThemes: [],
@@ -388,7 +396,13 @@ export const internalImportUnitPackage = internalMutation({
     }
 
     // 2) Unit content (per language)
-    const contentTypeMap: Array<{ key: string; type: string }> = [
+    type UnitContentType =
+      | "overview"
+      | "grammar"
+      | "phrases"
+      | "dialogues"
+      | "testIntroduction";
+    const contentTypeMap: Array<{ key: string; type: UnitContentType }> = [
       { key: "overviewMd", type: "overview" },
       { key: "grammarMd", type: "grammar" },
       { key: "phrasesMd", type: "phrases" },
@@ -404,7 +418,7 @@ export const internalImportUnitPackage = internalMutation({
           await ctx.db.insert("unitContent", {
             unitNumber: fixed.unitNumber,
             language: lang,
-            contentType: m.type as any,
+            contentType: m.type,
             content: contentValue,
             createdAt: now,
             updatedAt: now,
@@ -751,7 +765,7 @@ export const importUnitPackages = action({
     moduleId: v.optional(v.id("moduleMetadata")), // Optional: manually selected module
     mode: v.optional(v.union(v.literal("update"), v.literal("replace"))),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ runId: Id<"contentImportRuns">; report: Report; imported?: Array<{ fileName: string; unitNumber: number; title: string }> }> => {
     const user = await requireSuperadminAction(ctx);
     const mode: "update" | "replace" = (args as any).mode ?? "update";
 
@@ -784,7 +798,7 @@ export const importUnitPackages = action({
         new Set(files.map((f) => f.unitNumber).filter((n): n is number => typeof n === "number"))
       ).sort((a, b) => a - b);
 
-      const runId = await ctx.runMutation(api.contentImportAdmin.internalCreateRun, {
+      const runId = await ctx.runMutation(internal.contentImportAdmin.internalCreateRun, {
         type: "import",
         status: "failed",
         mode,
@@ -836,7 +850,7 @@ export const importUnitPackages = action({
       }
       for (const u of unitNumbersForConfirm) {
         const langs = Array.from(langsByUnit.get(u) ?? new Set(["en"]));
-        const res = await ctx.runMutation(api.contentImportAdmin.internalArchiveUnitForReplace, {
+        const res = await ctx.runMutation(internal.contentImportAdmin.internalArchiveUnitForReplace, {
           unitNumber: u,
           languages: langs,
         });
@@ -846,7 +860,7 @@ export const importUnitPackages = action({
 
     for (const f of fixedFiles) {
       const unitNumber = f.fixed.unitNumber as number;
-      const result = await ctx.runMutation(api.contentImportAdmin.internalImportUnitPackage, {
+      const result = await ctx.runMutation(internal.contentImportAdmin.internalImportUnitPackage, {
         fileName: f.fileName,
         unitPackage: f.fixed,
         moduleId: args.moduleId, // Pass manually selected module
@@ -873,7 +887,7 @@ export const importUnitPackages = action({
     const fileNames = files.map((f) => f.fileName);
     const unitNumbers = imported.map((i) => i.unitNumber).sort((a, b) => a - b);
 
-    const runId = await ctx.runMutation(api.contentImportAdmin.internalCreateRun, {
+    const runId = await ctx.runMutation(internal.contentImportAdmin.internalCreateRun, {
       type: "import",
       status: "success",
       mode,

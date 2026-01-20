@@ -484,7 +484,11 @@ function ContactsTab() {
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {contact.subscribed ? (
-                      <span>Subscribed {formatDateEU(contact.subscribedAt)}</span>
+                      contact.subscribedAt ? (
+                        <span>Subscribed {formatDateEU(contact.subscribedAt)}</span>
+                      ) : (
+                        <span>Subscribed</span>
+                      )
                     ) : (
                       contact.unsubscribedAt && (
                         <span>Unsubscribed {formatDateEU(contact.unsubscribedAt)}</span>

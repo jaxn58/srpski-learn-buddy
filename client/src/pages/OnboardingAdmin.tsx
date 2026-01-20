@@ -24,7 +24,7 @@ import { api } from "../../../convex/_generated/api";
 import { Plus, Edit, Trash2, Eye, ChevronUp, ChevronDown, ToggleLeft, ToggleRight } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Id } from "../../../convex/_generated/dataModel";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -180,7 +180,7 @@ export default function OnboardingAdmin() {
   };
 
   // Handle edit
-  const handleEdit = (step: typeof allSteps[0]) => {
+  const handleEdit = (step: Doc<"onboardingSteps">) => {
     setFormData({
       stepNumber: step.stepNumber,
       titleEn: step.titleEn || "",

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import type { Doc } from "../../../convex/_generated/dataModel";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star, Volume2, Loader2, Calendar, PenTool, MessageSquare, Target } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -15,14 +15,51 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Types only - no hardcoded data imports
-import type { VocabWord, SupportedLanguage } from "@shared/data";
+import type { SupportedLanguage } from "@shared/data";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { GamificationModal } from "@/components/GamificationModal";
 
 type QuizProgressDoc = Doc<"quizProgress">;
-type VocabularyProgressDoc = Doc<"vocabulary">;
+type VocabularyProgressDoc = Doc<"vocabularyProgress">;
+
+type VocabItem = {
+  _id: Id<"courseVocabulary">;
+  serbian: string;
+  serbianWord: string;
+  unit: number;
+  unitNumber: number;
+  en?: string;
+  de?: string;
+  enAlt?: string;
+  deAlt?: string;
+  translations: Array<{ language: string; translation: string; alt?: string }>;
+};
+
+type VocabWithProgressItem = {
+  _id: Id<"courseVocabulary">;
+  progress: {
+    correctAnswerCount?: number;
+    incorrectAnswerCount?: number;
+    reviewCount?: number;
+    mastered?: boolean;
+    lastReviewedAt?: number;
+    lastAnsweredAt?: number;
+  } | null;
+};
+
+type UserVocabProgressRow = {
+  serbianWord: string;
+  unitNumber: number;
+  correctAnswerCount: number;
+  incorrectAnswerCount: number;
+  mastered: boolean;
+  reviewCount: number;
+  lastReviewedAt?: number;
+  lastAnsweredAt?: number;
+  courseVocabularyId?: Id<"courseVocabulary">;
+};
 
 export default function Vocabulary() {
   const { user } = useAuth();
@@ -74,7 +111,7 @@ export default function Vocabulary() {
   // Store the correct translation for the current answer (to prevent it from changing during feedback)
   const [currentCorrectTranslation, setCurrentCorrectTranslation] = useState<string | null>(null);
   // Store the current word object when answering (to prevent it from changing during feedback)
-  const [answeredWord, setAnsweredWord] = useState<VocabWord | null>(null);
+  const [answeredWord, setAnsweredWord] = useState<VocabItem | null>(null);
   // Track if unit selection was manual (to prevent auto-redirect from interfering)
   const [isManualSelection, setIsManualSelection] = useState(false);
   // Track recent quiz completion to prevent immediate auto-redirect
@@ -271,7 +308,7 @@ export default function Vocabulary() {
     (mode === 'quiz' || mode === 'learn') 
       ? { unitNumber: undefined } // Load all units
       : "skip"
-  ) as VocabularyProgressDoc[] | undefined;
+  ) as UserVocabProgressRow[] | undefined;
 
   // NEW: Fetch course vocabulary from database (for both Learn Mode and Quiz Mode)
   const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
@@ -280,7 +317,7 @@ export default function Vocabulary() {
     (mode === 'learn' || mode === 'quiz') 
       ? { unitNumber: selectedUnit === 'all' ? undefined : selectedUnit } 
       : "skip"
-  );
+  ) as VocabWithProgressItem[] | undefined;
 
   const handleQuizComplete = async () => {
     const earnedXP = calculateXP(score.correct, score.total);
@@ -454,7 +491,7 @@ export default function Vocabulary() {
   }
 
   // Filter vocabulary by unit and access
-  const filteredVocab = useMemo(() => {
+  const filteredVocab = useMemo<VocabItem[]>(() => {
     // NEW: Learn Mode uses database data
     if (mode === 'learn' && courseVocabulary && courseVocabulary.length > 0) {
       let vocab = selectedUnit === 'all'
@@ -467,7 +504,7 @@ export default function Vocabulary() {
       }
       
       // Map to format compatible with existing code
-      const mappedVocab = vocab.map((word: Doc<"courseVocabulary">) => ({
+      const mappedVocab: VocabItem[] = vocab.map((word: Doc<"courseVocabulary">) => ({
         _id: word._id,
         serbian: word.serbian,
         serbianWord: word.serbian, // For compatibility
@@ -478,7 +515,7 @@ export default function Vocabulary() {
         enAlt: word.enAlt,
         deAlt: word.deAlt,
         // Include old translations array for backward compatibility during migration
-        translations: word.translations || [],
+        translations: (word.translations || []) as VocabItem["translations"],
       }));
       
       // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
@@ -504,11 +541,11 @@ export default function Vocabulary() {
       // Filter out mastered words (correctAnswerCount >= 3)
       vocab = vocab.filter((word: Doc<"courseVocabulary">) => {
         // NEW: Use courseVocabularyId for optimistic updates
-        const optimisticKey = word._id;
+        const optimisticKey = String(word._id);
         const optimistic = optimisticProgress.get(optimisticKey);
         
         // Find progress from vocabWithProgress (contains progress data)
-        const progress = vocabWithProgress?.find((p: { _id: string; progress: { correctAnswerCount: number } | null }) => p._id === word._id)?.progress;
+        const progress = vocabWithProgress?.find((p) => p._id === word._id)?.progress;
         
         // Use optimistic count if available, otherwise use database count
         const correctCount = optimistic?.correctAnswerCount ?? progress?.correctAnswerCount ?? 0;
@@ -518,7 +555,7 @@ export default function Vocabulary() {
       });
       
       // Map to format compatible with existing code
-      const mappedVocab = vocab.map((word: Doc<"courseVocabulary">) => ({
+      const mappedVocab: VocabItem[] = vocab.map((word: Doc<"courseVocabulary">) => ({
         _id: word._id,
         serbian: word.serbian,
         serbianWord: word.serbian, // For compatibility
@@ -529,7 +566,7 @@ export default function Vocabulary() {
         enAlt: word.enAlt,
         deAlt: word.deAlt,
         // Include old translations array for backward compatibility during migration
-        translations: word.translations || [],
+        translations: (word.translations || []) as VocabItem["translations"],
       }));
       
       // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
@@ -560,16 +597,15 @@ export default function Vocabulary() {
     const wordToCheck = (showAnswer && answeredWord) ? answeredWord : currentWord;
     if (!wordToCheck) return null;
     
-    // NEW: Use courseVocabularyId for optimistic updates (if available)
-    // FALLBACK: Use old serbian:unit format for backward compatibility
-    const optimisticKey = wordToCheck._id || `${wordToCheck.serbian}:${wordToCheck.unit}`;
+    // Use courseVocabularyId for optimistic updates.
+    const optimisticKey = String(wordToCheck._id);
     const optimistic = optimisticProgress.get(optimisticKey);
     
     // Find progress from database
     // NEW: Try vocabWithProgress first (contains progress data)
     let dbProgress = null;
-    if (wordToCheck._id && vocabWithProgress) {
-      const vocabProgress = vocabWithProgress.find((p: { _id: string; progress: VocabularyProgressDoc | null }) => p._id === wordToCheck._id)?.progress;
+    if (vocabWithProgress) {
+      const vocabProgress = vocabWithProgress.find((p) => p._id === wordToCheck._id)?.progress;
       if (vocabProgress) {
         dbProgress = vocabProgress as any;
       }
@@ -578,7 +614,7 @@ export default function Vocabulary() {
     // FALLBACK: Use old vocabProgressData structure
     if (!dbProgress && vocabProgressData) {
       dbProgress = vocabProgressData.find(
-        p => p.serbianWord === wordToCheck.serbian && p.unitNumber === wordToCheck.unit
+        (p) => p.serbianWord === wordToCheck.serbian && p.unitNumber === wordToCheck.unit
       );
     }
     
@@ -713,7 +749,7 @@ export default function Vocabulary() {
       // Optimistic update: Update local state immediately
       // NEW: Use courseVocabularyId for optimistic key (if available)
       // FALLBACK: Use old serbian:unit format for backward compatibility
-      const optimisticKey = wordToAnswer._id || `${wordToAnswer.serbian}:${wordToAnswer.unit}`;
+      const optimisticKey = String(wordToAnswer._id);
       const currentProgress = currentWordProgress;
       const currentCorrectCount = currentProgress?.correctAnswerCount || 0;
       const currentIncorrectCount = currentProgress?.incorrectAnswerCount || 0;
@@ -894,7 +930,7 @@ export default function Vocabulary() {
   const isUnitMastered = (unitNumber: number): boolean => {
     // NEW: Use courseVocabulary from database (if available)
     // FALLBACK: Use hardcoded VOCABULARY for backward compatibility
-    let unitVocab: Array<{ _id?: string; serbian: string; serbianWord: string; unit: number; unitNumber: number }> = [];
+    let unitVocab: Array<{ _id?: Id<"courseVocabulary">; serbian: string; serbianWord: string; unit: number; unitNumber: number }> = [];
     
     if (courseVocabulary && courseVocabulary.length > 0) {
       unitVocab = courseVocabulary
@@ -924,7 +960,7 @@ export default function Vocabulary() {
     const allMastered = unitVocab.every(word => {
       // NEW: Try vocabWithProgress first (contains progress data)
       if (word._id && vocabWithProgress) {
-        const progress = vocabWithProgress.find((p: { _id: string; progress: { correctAnswerCount: number } | null }) => p._id === word._id)?.progress;
+        const progress = vocabWithProgress.find((p) => p._id === word._id)?.progress;
         if (progress) {
           return (progress.correctAnswerCount ?? 0) >= 3;
         }
@@ -933,7 +969,7 @@ export default function Vocabulary() {
       // FALLBACK: Use old vocabProgressData structure
       if (vocabProgressData) {
         const progress = vocabProgressData.find(
-          (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
+          (p) => p.serbianWord === word.serbian && p.unitNumber === word.unit
         );
         return (progress?.correctAnswerCount ?? 0) >= 3;
       }

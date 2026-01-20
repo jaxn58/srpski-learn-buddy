@@ -61,7 +61,7 @@ export function VocabularyDictionaryTable({
         return (
           <div
             key={row.id}
-            className="grid grid-cols-[40px_1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/40 border-b last:border-b-0"
+            className="grid grid-cols-[40px_1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/3 border-b last:border-b-0"
           >
             <Button
               variant="ghost"

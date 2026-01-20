@@ -82,6 +82,10 @@
   --serbian-blue-to: #1a5a9e; /* Light Serbian blue */
   --serbian-red-from: #C6363C; /* Serbian red */
   --serbian-red-to: #a82329; /* Dark Serbian red */
+
+  /* Form focus styling (system-wide): subtle Serbian red */
+  --form-focus-border: color-mix(in oklch, var(--serbian-red-from) 55%, var(--border));
+  --form-focus-ring: color-mix(in oklch, var(--serbian-red-from) 35%, transparent);
   
   --primary: oklch(0.50 0.24 15); /* Serbian red */
   --primary-foreground: oklch(0.985 0 0);
@@ -145,6 +149,8 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.488 0.243 264.376);
+  --form-focus-border: color-mix(in oklch, var(--serbian-red-from) 55%, var(--border));
+  --form-focus-ring: color-mix(in oklch, var(--serbian-red-from) 35%, transparent);
   --chart-1: var(--color-blue-300);
   --chart-2: var(--color-blue-500);
   --chart-3: var(--color-blue-600);

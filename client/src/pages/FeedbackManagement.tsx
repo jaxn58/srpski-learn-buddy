@@ -246,7 +246,9 @@ export default function FeedbackManagement() {
                                           );
                                         })()}
                                         {(feedback as any).aiSentAt && (
-                                          <CheckCircle2 className="h-4 w-4 text-green-600" title="Reply sent to user" />
+                                          <span title="Reply sent to user">
+                                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                          </span>
                                         )}
                                       </div>
                                     </TableCell>

@@ -96,16 +96,18 @@ export function extractOverview(markdown: string): string {
 
   const baseOverview = (objectivesMatch ? objectivesMatch[1] : overview).trim();
 
+  const overviewHeader = "## 1. Overview";
+
   // Append Cultural Note (if present anywhere in the markdown) to the end of overviewMd.
   // This allows authors to place the Cultural Note at the end of the document while
   // still storing it alongside the overview content.
   const cultural = extractCulturalNote(markdown);
   if (cultural) {
     const titleSuffix = cultural.title ? `: ${cultural.title}` : "";
-    return `${baseOverview}\n\n---\n\n### Cultural Note${titleSuffix}\n\n${cultural.bodyMd}`.trim();
+    return `${overviewHeader}\n\n${baseOverview}\n\n---\n\n### Cultural Note${titleSuffix}\n\n${cultural.bodyMd}`.trim();
   }
 
-  return baseOverview;
+  return `${overviewHeader}\n\n${baseOverview}`.trim();
 }
 
 /**
@@ -264,6 +266,20 @@ export function extractPhrases(markdown: string): string {
  * Extract dialogue subsections from "4. Phrases" section
  */
 export function extractDialogues(markdown: string): string {
+  const dialoguesHeader = "## 5. Dialogues";
+
+  // Prefer a dedicated Dialogues section if present
+  const dedicatedDialoguesMatch = markdown.match(
+    /^##\s+5\.\s+Dialogues[^\n]*\n([\s\S]+?)(?=^##\s+|$)/m
+  );
+
+  if (dedicatedDialoguesMatch) {
+    const body = (dedicatedDialoguesMatch[1] || "").trim();
+    if (!body) return "";
+    return `${dialoguesHeader}\n\n${body}`.trim();
+  }
+
+  // Fallback: extract "### ... Dialogue" subsections from the Phrases section
   const phrasesMatch = markdown.match(
     /##\s+4\.\s+Phrases[\s\S]+?(?=##\s+\d+\.|$)/
   );
@@ -274,7 +290,10 @@ export function extractDialogues(markdown: string): string {
   const dialogueBlocks =
     phrasesSection.match(/###\s+.*Dialogue[\s\S]+?(?=###\s+|$)/g) || [];
 
-  return dialogueBlocks.map((b) => b.trim()).filter(Boolean).join("\n\n---\n\n");
+  const body = dialogueBlocks.map((b) => b.trim()).filter(Boolean).join("\n\n---\n\n");
+  if (!body) return "";
+
+  return `${dialoguesHeader}\n\n${body}`.trim();
 }
 
 /**

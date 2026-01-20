@@ -32,8 +32,10 @@ export function parseMarkdownToUnitPackage(markdown: string): UnitPackage {
   const testIntroductionMd = extractTestIntroduction(markdown);
   const exercises = extractExercises(markdown);
 
-  const baseLanguage = normalizeLanguageCode(metadata.baseLanguage, "en");
-  const targetLanguage = normalizeLanguageCode(metadata.targetLanguage, "sr");
+  // UnitPackageSchema currently expects strict literals here.
+  // Until the app is fully multi-language capable, we lock these to en→sr.
+  const baseLanguage: "en" = "en";
+  const targetLanguage: "sr" = "sr";
 
   // Build unit package
   const unitPackage: UnitPackage = {

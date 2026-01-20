@@ -533,7 +533,7 @@ http.route({
 
     try {
       const result = await ctx.runMutation(api.newsletter.unsubscribeByToken, { token });
-      return new Response(JSON.stringify({ success: true, ...result }), {
+      return new Response(JSON.stringify(result), {
         status: 200,
         headers: { "Content-Type": "application/json; charset=utf-8" },
       });

@@ -231,7 +231,7 @@ export function InteractiveMarkdownContent({ content, unitNumber }: InteractiveM
                     <tbody className="bg-card divide-y divide-border/50" {...props} />
                   ),
                   tr: ({ node, ...props }) => (
-                    <tr className="hover:bg-muted/50 transition-colors duration-150" {...props} />
+                    <tr className="hover:bg-muted/3 transition-colors duration-150" {...props} />
                   ),
                   th: ({ node, ...props }) => (
                     <th className="px-4 md:px-6 py-3 md:py-4 text-left text-xs md:text-sm font-semibold text-foreground uppercase tracking-wider" {...props} />

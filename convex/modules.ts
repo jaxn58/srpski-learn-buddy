@@ -1,7 +1,94 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { mutation, query, MutationCtx } from "./_generated/server";
 
 // ============= MODULE METADATA =============
+
+function normalizeSlug(input: string): string {
+  // Keep this conservative: stable, URL-friendly, ASCII-only.
+  // (The UI can prefill a slug, but the backend is the source of truth.)
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function requireSuperadmin(ctx: MutationCtx): Promise<Id<"users">> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new Error("Unauthorized");
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .first();
+
+  if (!user || user.role !== "superadmin") {
+    throw new Error("Unauthorized - Superadmin required");
+  }
+
+  return user._id;
+}
+
+async function createConsolidatedModule(
+  ctx: MutationCtx,
+  args: {
+    moduleNumber: number;
+    slug: string;
+    titleDe: string;
+    titleEn: string;
+    descriptionDe: string;
+    descriptionEn: string;
+  }
+) {
+  await requireSuperadmin(ctx);
+
+  const moduleNumber = Number(args.moduleNumber);
+  if (!Number.isFinite(moduleNumber) || moduleNumber < 1) {
+    throw new Error("INVALID_MODULE_NUMBER");
+  }
+
+  const slug = normalizeSlug(args.slug);
+  if (!slug) {
+    throw new Error("INVALID_SLUG");
+  }
+
+  const titleEn = args.titleEn.trim();
+  const titleDe = args.titleDe.trim();
+  const descriptionEn = args.descriptionEn.trim();
+  const descriptionDe = args.descriptionDe.trim();
+
+  if (!titleEn || !titleDe || !descriptionEn || !descriptionDe) {
+    throw new Error("MISSING_REQUIRED_FIELDS");
+  }
+
+  const existingBySlug = await ctx.db
+    .query("moduleMetadata")
+    .withIndex("by_slug", (q) => q.eq("slug", slug))
+    .first();
+  if (existingBySlug) {
+    throw new Error("MODULE_SLUG_TAKEN");
+  }
+
+  const existingByNumber = await ctx.db
+    .query("moduleMetadata")
+    .filter((q) => q.eq(q.field("moduleNumber"), moduleNumber))
+    .first();
+  if (existingByNumber) {
+    throw new Error("MODULE_NUMBER_TAKEN");
+  }
+
+  return await ctx.db.insert("moduleMetadata", {
+    titleDe,
+    titleEn,
+    descriptionDe,
+    descriptionEn,
+    slug,
+    moduleNumber,
+  });
+}
 
 // Insert module metadata (for migration script)
 export const insertModuleMetadata = mutation({
@@ -97,7 +184,23 @@ export const getAllModules = query({
 
 // ============= NEW CONSOLIDATED MODULE STRUCTURE =============
 
-// Insert consolidated module metadata (one row per module with multilingual columns)
+// Create consolidated module metadata (one row per module with multilingual columns)
+// Superadmin-only: used by admin UI (and can also be used by migration scripts if executed as superadmin).
+export const createModule = mutation({
+  args: {
+    moduleNumber: v.number(),
+    slug: v.string(),
+    titleDe: v.string(),
+    titleEn: v.string(),
+    descriptionDe: v.string(),
+    descriptionEn: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await createConsolidatedModule(ctx, args);
+  },
+});
+
+// Backward-compat alias (was used for earlier migrations)
 export const insertConsolidatedModuleMetadata = mutation({
   args: {
     titleDe: v.string(),
@@ -108,13 +211,16 @@ export const insertConsolidatedModuleMetadata = mutation({
     moduleNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("moduleMetadata", {
+    if (args.moduleNumber === undefined) {
+      throw new Error("INVALID_MODULE_NUMBER");
+    }
+    return await createConsolidatedModule(ctx, {
+      moduleNumber: args.moduleNumber,
+      slug: args.slug,
       titleDe: args.titleDe,
       titleEn: args.titleEn,
       descriptionDe: args.descriptionDe,
       descriptionEn: args.descriptionEn,
-      slug: args.slug,
-      moduleNumber: args.moduleNumber,
     });
   },
 });
@@ -131,9 +237,71 @@ export const updateModuleMetadata = mutation({
     moduleNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { moduleId, ...updates } = args;
-    await ctx.db.patch(moduleId, updates);
-    return moduleId;
+    await requireSuperadmin(ctx);
+
+    const existing = await ctx.db.get(args.moduleId);
+    if (!existing) {
+      throw new Error("MODULE_NOT_FOUND");
+    }
+
+    const updates: Record<string, unknown> = {};
+
+    if (args.titleEn !== undefined) {
+      const v = args.titleEn.trim();
+      if (!v) throw new Error("INVALID_TITLE_EN");
+      updates.titleEn = v;
+    }
+    if (args.titleDe !== undefined) {
+      const v = args.titleDe.trim();
+      if (!v) throw new Error("INVALID_TITLE_DE");
+      updates.titleDe = v;
+    }
+    if (args.descriptionEn !== undefined) {
+      const v = args.descriptionEn.trim();
+      if (!v) throw new Error("INVALID_DESCRIPTION_EN");
+      updates.descriptionEn = v;
+    }
+    if (args.descriptionDe !== undefined) {
+      const v = args.descriptionDe.trim();
+      if (!v) throw new Error("INVALID_DESCRIPTION_DE");
+      updates.descriptionDe = v;
+    }
+
+    if (args.slug !== undefined) {
+      const nextSlug = normalizeSlug(args.slug);
+      if (!nextSlug) throw new Error("INVALID_SLUG");
+      if (nextSlug !== (existing as any).slug) {
+        const other = await ctx.db
+          .query("moduleMetadata")
+          .withIndex("by_slug", (q) => q.eq("slug", nextSlug))
+          .first();
+        if (other && other._id !== args.moduleId) {
+          throw new Error("MODULE_SLUG_TAKEN");
+        }
+      }
+      updates.slug = nextSlug;
+    }
+
+    if (args.moduleNumber !== undefined) {
+      const moduleNumber = Number(args.moduleNumber);
+      if (!Number.isFinite(moduleNumber) || moduleNumber < 1) {
+        throw new Error("INVALID_MODULE_NUMBER");
+      }
+      if (moduleNumber !== (existing as any).moduleNumber) {
+        const allWithNumber = await ctx.db
+          .query("moduleMetadata")
+          .filter((q) => q.eq(q.field("moduleNumber"), moduleNumber))
+          .collect();
+        const collision = allWithNumber.find((m) => m._id !== args.moduleId);
+        if (collision) {
+          throw new Error("MODULE_NUMBER_TAKEN");
+        }
+      }
+      updates.moduleNumber = moduleNumber;
+    }
+
+    await ctx.db.patch(args.moduleId, updates);
+    return args.moduleId;
   },
 });
 
@@ -233,6 +401,7 @@ export const getAllModulesAbsolute = query({
 export const deleteModuleById = mutation({
   args: { id: v.id("moduleMetadata") },
   handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
     await ctx.db.delete(args.id);
     return { success: true };
   },
@@ -241,14 +410,16 @@ export const deleteModuleById = mutation({
 // Remove legacy module entries with pattern "module-X" (cleanup migration - no auth required)
 export const removeLegacyModuleEntries = mutation({
   handler: async (ctx) => {
+    await requireSuperadmin(ctx);
     const allModules = await ctx.db.query("moduleMetadata").collect();
     let deleted = 0;
     const deletedIds: string[] = [];
     
     for (const module of allModules) {
       // Check if moduleId matches the legacy pattern "module-X" (where X is a number)
-      if (/^module-\d+$/.test(module.moduleId)) {
-        deletedIds.push(`${module.moduleId} (${module.language})`);
+      const moduleId = module.moduleId;
+      if (typeof moduleId === "string" && /^module-\d+$/.test(moduleId)) {
+        deletedIds.push(`${moduleId} (${module.language})`);
         await ctx.db.delete(module._id);
         deleted++;
       }

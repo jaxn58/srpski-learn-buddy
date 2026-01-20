@@ -261,6 +261,13 @@ export default function UnitView() {
     );
   }
 
+  const unitDescription =
+    unitMetadata.description && String(unitMetadata.description).trim()
+      ? String(unitMetadata.description).trim()
+      : null;
+
+  const unitTopicsForBadges = unitMetadata.topics ?? [];
+
   return (
     <AnimatedPage>
       <header className={`sticky top-16 z-40 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 pt-4 pb-2 mb-6 transition-all duration-200 ${
@@ -323,8 +330,11 @@ export default function UnitView() {
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle className="text-3xl mb-2">{unitMetadata.title}</CardTitle>
+                {unitDescription && (
+                  <CardDescription className="text-base">{unitDescription}</CardDescription>
+                )}
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {unitMetadata.topics?.map((topic: string, i: number) => (
+                  {unitTopicsForBadges.map((topic: string, i: number) => (
                     <Badge key={i} variant="secondary">
                       {topic}
                     </Badge>
@@ -359,9 +369,13 @@ export default function UnitView() {
             {/* 1. Overview */}
             <TabsContent value="overview" className="mt-6">
               <Card>
-                <CardContent className="pt-6">
+                <CardHeader>
+                  <CardTitle>1. Overview</CardTitle>
+                  <CardDescription>What you'll learn in this unit.</CardDescription>
+                </CardHeader>
+                <CardContent>
                   {content?.overview ? (
-                    <MarkdownContent content={content.overview} />
+                    <MarkdownContent content={content.overview.replace(/^##\s+[^\n]+\n+/, "")} />
                   ) : (
                     <p className="text-muted-foreground text-center py-8">No overview available.</p>
                   )}
@@ -373,7 +387,7 @@ export default function UnitView() {
             <TabsContent value="vocabulary" className="mt-6">
               <Card>
                 <CardHeader>
-                  <h2 className="text-2xl font-semibold">Unit Vocabulary</h2>
+                  <CardTitle>2. Vocabulary</CardTitle>
                   <CardDescription>Master these words to complete the unit.</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -407,7 +421,11 @@ export default function UnitView() {
             {/* 3. Grammar */}
             <TabsContent value="grammar" className="mt-6">
               <Card>
-                <CardContent className="pt-6">
+                <CardHeader>
+                  <CardTitle>3. Grammar</CardTitle>
+                  <CardDescription>Rules, patterns, and examples used in this unit.</CardDescription>
+                </CardHeader>
+                <CardContent>
                   {content?.grammar ? (
                     <MarkdownContent content={content.grammar} />
                   ) : (
@@ -420,7 +438,11 @@ export default function UnitView() {
             {/* 4. Phrases */}
             <TabsContent value="phrases" className="mt-6">
               <Card>
-                <CardContent className="pt-6">
+                <CardHeader>
+                  <CardTitle>4. Phrases</CardTitle>
+                  <CardDescription>Common phrases with audio.</CardDescription>
+                </CardHeader>
+                <CardContent>
                   {content?.phrases ? (
                     <UnitContentAudioMarkdown
                       content={content.phrases}
@@ -438,10 +460,14 @@ export default function UnitView() {
             {/* 5. Dialogues */}
             <TabsContent value="dialogues" className="mt-6">
               <Card>
-                <CardContent className="pt-6">
+                <CardHeader>
+                  <CardTitle>5. Dialogues</CardTitle>
+                  <CardDescription>Short dialogues to practice in context.</CardDescription>
+                </CardHeader>
+                <CardContent>
                   {content?.dialogues ? (
                     <UnitContentAudioMarkdown
-                      content={content.dialogues}
+                      content={content.dialogues.replace(/^##\s+[^\n]+\n+/, "")}
                       unitNumber={unitNumber}
                       language={displayLanguage}
                       contentType="dialogues"
@@ -455,7 +481,15 @@ export default function UnitView() {
 
             {/* 6. Interactive Test */}
             <TabsContent value="test" className="mt-6">
-              <InteractiveTest unitNumber={unitNumber} language={displayLanguage} />
+              <Card>
+                <CardHeader>
+                  <CardTitle>6. Exercises</CardTitle>
+                  <CardDescription>Test your understanding and earn XP.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InteractiveTest unitNumber={unitNumber} language={displayLanguage} />
+                </CardContent>
+              </Card>
             </TabsContent>
         </Tabs>
       </AnimatedItem>

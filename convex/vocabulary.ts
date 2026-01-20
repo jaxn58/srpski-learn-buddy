@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, action, QueryCtx, MutationCtx } from "./_generated/server";
 import { api } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 
 // ============= COURSE VOCABULARY (Master Data) =============
@@ -33,7 +33,7 @@ export const upsertCourseVocabulary = mutation({
       .first();
 
     if (existing) {
-      const updates: Record<string, unknown> = {
+      const updates: Partial<Doc<"courseVocabulary">> = {
         translations: args.translations, // Overwrite translations (source of truth is Markdown)
         gender: args.gender,
         pronunciation: args.pronunciation,
@@ -49,19 +49,18 @@ export const upsertCourseVocabulary = mutation({
       return existing._id;
     }
 
-    const insertData: Record<string, unknown> = {
+    const insertData: Omit<Doc<"courseVocabulary">, "_id" | "_creationTime"> = {
       unitNumber: args.unitNumber,
       serbian: args.serbian,
       translations: args.translations,
-      gender: args.gender,
-      pronunciation: args.pronunciation,
+      ...(args.gender !== undefined ? { gender: args.gender } : {}),
+      ...(args.pronunciation !== undefined ? { pronunciation: args.pronunciation } : {}),
+      ...(args.noteEn !== undefined ? { noteEn: args.noteEn } : {}),
+      ...(args.noteDe !== undefined ? { noteDe: args.noteDe } : {}),
+      ...(args.noteSr !== undefined ? { noteSr: args.noteSr } : {}),
+      ...(args.noteEs !== undefined ? { noteEs: args.noteEs } : {}),
+      ...(args.noteFr !== undefined ? { noteFr: args.noteFr } : {}),
     };
-    
-    if (args.noteEn !== undefined) insertData.noteEn = args.noteEn;
-    if (args.noteDe !== undefined) insertData.noteDe = args.noteDe;
-    if (args.noteSr !== undefined) insertData.noteSr = args.noteSr;
-    if (args.noteEs !== undefined) insertData.noteEs = args.noteEs;
-    if (args.noteFr !== undefined) insertData.noteFr = args.noteFr;
 
     return await ctx.db.insert("courseVocabulary", insertData);
   },
@@ -171,13 +170,13 @@ export const getVocabularyWithProgress = query({
     const user = await getCurrentUser(ctx);
     
     // Get all course vocabulary (or filtered by unit)
-    let courseVocabQuery = ctx.db.query("courseVocabulary");
-    if (args.unitNumber !== undefined) {
-      courseVocabQuery = courseVocabQuery.withIndex("by_unit", (q) => 
-        q.eq("unitNumber", args.unitNumber)
-      );
-    }
-    const rawCourseVocab = await courseVocabQuery.collect();
+    const rawCourseVocab =
+      args.unitNumber !== undefined
+        ? await ctx.db
+            .query("courseVocabulary")
+            .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber!))
+            .collect()
+        : await ctx.db.query("courseVocabulary").collect();
     const activeCourseVocab = rawCourseVocab.filter((v: any) => v.isActive !== false);
     // If multiple active versions exist, keep highest unitVersion per (unitNumber, serbian)
     const latestByKey = new Map<string, any>();
@@ -720,7 +719,7 @@ export const recordVocabularyAnswer = mutation({
       courseVocab = await ctx.db
         .query("courseVocabulary")
         .withIndex("by_unit_serbian", (q) =>
-          q.eq("unitNumber", args.unitNumber!).eq("serbian", args.serbianWord)
+          q.eq("unitNumber", args.unitNumber!).eq("serbian", args.serbianWord!)
         )
         .first();
       
@@ -1075,8 +1074,13 @@ export const findVocabularyId = query({
     // Migration script should handle this by iterating over all users
     const vocab = await ctx.db
       .query("vocabulary")
-      .withIndex("by_user_unit", (q) => q.eq("unitNumber", args.unitNumber))
-      .filter((q) => q.eq(q.field("serbianWord"), args.serbianWord))
+      // Index is (userId, unitNumber), so we can't query by unitNumber alone here.
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("unitNumber"), args.unitNumber),
+          q.eq(q.field("serbianWord"), args.serbianWord)
+        )
+      )
       .collect();
       
     return vocab.map(v => v._id);
@@ -1320,7 +1324,6 @@ export const findDuplicateVocabularyProgress = query({
             incorrectAnswerCount: e.incorrectAnswerCount || 0,
             reviewCount: e.reviewCount || 0,
             mastered: e.mastered || false,
-            serbianWord: e.serbianWord, // Include original serbianWord for debugging
           })),
           mergedCounts: {
             correctAnswerCount: mergedCorrectCount,

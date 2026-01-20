@@ -11,6 +11,7 @@ import {
   MutationCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 
 
 // Helper to get the current user
@@ -231,7 +232,7 @@ export const submit = mutation({
   },
 });
 
-async function getSuperadminUser(ctx: ActionCtx | QueryCtx | MutationCtx) {
+async function getSuperadminUser(ctx: QueryCtx | MutationCtx): Promise<Doc<"users"> | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
@@ -515,7 +516,7 @@ export const internalApplyAdminReply = internalMutation({
   },
 });
 
-async function requireSuperadmin(ctx: ActionCtx) {
+async function requireSuperadmin(ctx: ActionCtx): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Unauthorized");
 
@@ -535,7 +536,13 @@ export const sendAiReplyToUser = action({
     feedbackId: v.id("feedbackSubmissions"),
     replyText: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<
+    | { success: true; emailSent: true; messageId?: string }
+    | { success: true; emailSent: false; emailError: string }
+  > => {
     const superadmin = await requireSuperadmin(ctx);
 
     const feedback = await ctx.runQuery(internal.feedback.internalGetFeedbackById, {
@@ -574,7 +581,7 @@ export const sendAiReplyToUser = action({
         return { success: true, emailSent: false, emailError: String(emailResult?.error || "send_failed") };
       }
 
-      return { success: true, emailSent: true, messageId: (emailResult as any).messageId };
+      return { success: true, emailSent: true, messageId: (emailResult as any)?.messageId };
     } catch (e: any) {
       return { success: true, emailSent: false, emailError: e?.message ? String(e.message) : String(e) };
     }

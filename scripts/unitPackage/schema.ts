@@ -180,14 +180,15 @@ export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
   // Vocabulary: audio-clean Serbian
   for (const lang of pkg.languages) {
     const vocab = pkg.vocabulary[lang] || [];
-    vocab.forEach((v, idx) => {
+    for (let idx = 0; idx < vocab.length; idx++) {
+      const v = vocab[idx];
       if (!v.serbian.trim()) {
         issues.push({
           level: "error",
           path: ["vocabulary", lang, idx, "serbian"],
           message: "serbian must be non-empty",
         });
-        return;
+        continue;
       }
 
       if (SERBIAN_FORBIDDEN_REGEX.test(v.serbian)) {
@@ -206,7 +207,7 @@ export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
           message: `serbian has ${words} words (max 3 allowed): '${v.serbian}'`,
         });
       }
-    });
+    }
   }
 
   // Exercises: completeness + multiple choice constraints + blank constraints
@@ -215,7 +216,8 @@ export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
 
     // Category keys should be unique post-autofix
     const seenCat = new Set<string>();
-    categories.forEach((c, cIdx) => {
+    for (let cIdx = 0; cIdx < categories.length; cIdx++) {
+      const c = categories[cIdx];
       if (seenCat.has(c.category)) {
         issues.push({
           level: "error",
@@ -225,7 +227,8 @@ export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
       }
       seenCat.add(c.category);
 
-      c.questions.forEach((q, qIdx) => {
+      for (let qIdx = 0; qIdx < c.questions.length; qIdx++) {
+        const q = c.questions[qIdx];
         const qPath = ["exercises", lang, cIdx, "questions", qIdx] as const;
 
         if (!q.correctAnswer || !q.correctAnswer.trim()) {
@@ -273,8 +276,8 @@ export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
             });
           }
         }
-      });
-    });
+      }
+    }
   }
 
   return issues;

@@ -117,6 +117,20 @@ export default function Progress() {
   }, [user]);
 
   const completedUnits: number[] = stats?.completedUnits || [];
+  const currentUnitNumber = useMemo(() => {
+    const unique = Array.from(new Set((completedUnits || []).filter((n) => Number.isInteger(n) && n > 0))).sort(
+      (a, b) => a - b
+    );
+    let u = 1;
+    for (const n of unique) {
+      if (n === u) {
+        u += 1;
+        continue;
+      }
+      if (n > u) break;
+    }
+    return u;
+  }, [completedUnits]);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const totalUnitsFromDb = dbUnitsEn?.length || 27;
   const maxAccessibleUnits = accessInfo?.maxUnits ?? 0;
@@ -130,7 +144,7 @@ export default function Progress() {
   // Dates / activity helpers
   // App-wide: European numeric dates (TT.MM.JJJJ). Weekday labels can still be localized.
   const weekdayLocale = i18n.language === "de" ? "de-DE" : "en-GB";
-  const activityGranularity: "day" | "week" | "month" = stats?.activityChartGranularity || "day";
+  const activityGranularity: "day" | "week" | "month" = activityRange === "lifetime" ? "month" : "day";
 
   // Fallback activity source: query dailyActivity directly for the selected window.
   // This makes 30D/Lifetime work even if getDashboardStats doesn't (yet) return activityChart30/activityChartDynamic.
@@ -377,7 +391,7 @@ export default function Progress() {
                         {t("progress.hero.activeDaysBadge", { count: stats?.activeDaysCurrentStreak || 0 })}
                       </Badge>
                       <Badge className="bg-white/10 text-white border-white/20">
-                        {t("progress.hero.badgesBadge", { count: stats?.badges?.count ?? 0 })}
+                        {t("progress.hero.badgesBadge", { count: userBadges?.length ?? 0 })}
                       </Badge>
                     </div>
                     <div className="text-3xl md:text-4xl font-bold leading-tight">
@@ -415,9 +429,9 @@ export default function Progress() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Link href={`/unit/${stats?.currentUnit || 1}`}>
+                    <Link href={`/unit/${currentUnitNumber}`}>
                       <Button className="gap-2 bg-white text-slate-900 hover:bg-white/90">
-                        {t("progress.cta.continueUnit", { unit: stats?.currentUnit || 1 })}
+                        {t("progress.cta.continueUnit", { unit: currentUnitNumber })}
                         <ArrowRight className="h-4 w-4" />
                       </Button>
                     </Link>
@@ -694,7 +708,7 @@ export default function Progress() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Link href={`/unit/${stats?.currentUnit || 1}`}>
+                          <Link href={`/unit/${currentUnitNumber}`}>
                             <Button size="sm" className="gap-2">
                               {t("progress.activity.cta.continue")}
                               <ArrowRight className="h-4 w-4" />

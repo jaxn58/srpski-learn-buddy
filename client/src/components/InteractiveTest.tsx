@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -67,11 +66,9 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
 
   if (!questions || questions.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          No interactive test available for this unit yet.
-        </CardContent>
-      </Card>
+      <div className="py-8 text-center text-muted-foreground">
+        No interactive test available for this unit yet.
+      </div>
     );
   }
 
@@ -221,7 +218,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
   });
 
   return (
-    <div className="space-y-12 max-w-4xl mx-auto">
+    <div className="space-y-12 w-full">
       {/* Test Introduction */}
       {testIntro?.testIntroduction && (
         <div className="mb-8">
@@ -355,7 +352,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                 return (
                   <div
                     key={q.questionId}
-                    className="grid grid-cols-[1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/40 border-b last:border-b-0"
+                    className="grid grid-cols-[1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/3 border-b last:border-b-0"
                   >
                     <div className="min-w-0">
                       <div className="flex items-start gap-2">

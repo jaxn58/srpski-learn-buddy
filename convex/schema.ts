@@ -176,6 +176,9 @@ export default defineSchema({
     unitNumber: v.number(), // Primary Key (composite with language)
     language: v.string(), // "en", "de", "es", "fr" - Primary Key (composite with unitNumber)
     title: v.string(), // Translated Title
+    // Short description shown in the UI (e.g., under the unit title).
+    // Optional for backward compatibility; will be backfilled from legacy `topics[0]`.
+    description: v.optional(v.string()),
     topics: v.array(v.string()), // Array of Topics
     grammarFocus: v.array(v.string()), // Array of Grammar Focus points
     vocabularyThemes: v.array(v.string()), // Array of Vocabulary Themes

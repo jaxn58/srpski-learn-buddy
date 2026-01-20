@@ -6,6 +6,67 @@ import { api, internal } from "./_generated/api";
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@mail.jacksenn.me";
 const REPLY_TO_EMAIL = process.env.RESEND_REPLY_TO_EMAIL || "hello@jacksenn.me";
 
+type SendEmailResult = { success: boolean; messageId?: string; error?: string };
+
+async function renderAndSendTemplateEmail(
+  ctx: ActionCtx,
+  args: {
+    templateName: string;
+    variables: Record<string, string | number>;
+    to: string;
+    replyTo?: string;
+  }
+): Promise<SendEmailResult> {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY environment variable is not set");
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  // Render template from Convex
+  let subject: string;
+  let html: string;
+
+  try {
+    const template = await ctx.runQuery(api.emailTemplates.render, {
+      templateName: args.templateName,
+      variables: args.variables,
+    });
+
+    if (!template) {
+      throw new Error(`Template "${args.templateName}" not found or not active`);
+    }
+
+    subject = template.subject;
+    html = template.html;
+  } catch (error) {
+    console.error(`[Email] Failed to render template ${args.templateName}:`, error);
+    throw new Error(`Failed to render email template: ${args.templateName}`);
+  }
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `Serbian AI Tutor <${FROM_EMAIL}>`,
+      to: args.to,
+      subject,
+      html,
+      text: htmlToText(html),
+      replyTo: args.replyTo || REPLY_TO_EMAIL,
+    });
+
+    if (error) {
+      console.error("[Email] Failed to send email:", error);
+      return { success: false, error: error.message || JSON.stringify(error) };
+    }
+
+    console.log(`[Email] ✅ Successfully sent ${args.templateName} email to ${args.to}, ID: ${data?.id}`);
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error("[Email] Exception while sending email:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
 function htmlToText(html: string): string {
   // Minimal, safe fallback: strip tags and collapse whitespace.
   // This is used for recipients/clients that prefer plain text.
@@ -35,55 +96,13 @@ export const sendEmail = internalAction({
     to: v.string(),
     replyTo: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    if (!process.env.RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY environment variable is not set");
-    }
-
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    // Render template from Convex
-    let subject: string;
-    let html: string;
-
-    try {
-      const template = await ctx.runQuery(api.emailTemplates.render, {
-        templateName: args.templateName,
-        variables: args.variables as Record<string, string | number>,
-      });
-
-      if (!template) {
-        throw new Error(`Template "${args.templateName}" not found or not active`);
-      }
-
-      subject = template.subject;
-      html = template.html;
-    } catch (error) {
-      console.error(`[Email] Failed to render template ${args.templateName}:`, error);
-      throw new Error(`Failed to render email template: ${args.templateName}`);
-    }
-
-    try {
-      const { data, error } = await resend.emails.send({
-        from: `Serbian AI Tutor <${FROM_EMAIL}>`,
-        to: args.to,
-        subject: subject,
-        html: html,
-        text: htmlToText(html),
-        replyTo: args.replyTo || REPLY_TO_EMAIL,
-      });
-
-      if (error) {
-        console.error("[Email] Failed to send email:", error);
-        return { success: false, error: error.message || JSON.stringify(error) };
-      }
-
-      console.log(`[Email] ✅ Successfully sent ${args.templateName} email to ${args.to}, ID: ${data?.id}`);
-      return { success: true, messageId: data?.id };
-    } catch (error: any) {
-      console.error("[Email] Exception while sending email:", error);
-      return { success: false, error: String(error) };
-    }
+  handler: async (ctx, args): Promise<SendEmailResult> => {
+    return await renderAndSendTemplateEmail(ctx, {
+      templateName: args.templateName,
+      variables: args.variables as Record<string, string | number>,
+      to: args.to,
+      replyTo: args.replyTo,
+    });
   },
 });
 
@@ -178,13 +197,10 @@ export const sendBetaRegistrationEmail = internalAction({
     name: v.string(),
     email: v.string(),
   },
-  handler: async (ctx, args) => {
-    return await ctx.runAction(internal.email.sendEmail, {
+  handler: async (ctx, args): Promise<SendEmailResult> => {
+    return await renderAndSendTemplateEmail(ctx, {
       templateName: "beta-registration",
-      variables: {
-        USER_NAME: args.name,
-        USER_EMAIL: args.email,
-      },
+      variables: { USER_NAME: args.name, USER_EMAIL: args.email },
       to: args.email,
     });
   },
@@ -201,8 +217,8 @@ export const sendFeedbackConfirmationEmail = internalAction({
     feedbackType: v.string(),
     feedbackTitle: v.string(),
   },
-  handler: async (ctx, args) => {
-    return await ctx.runAction(internal.email.sendEmail, {
+  handler: async (ctx, args): Promise<SendEmailResult> => {
+    return await renderAndSendTemplateEmail(ctx, {
       templateName: "feedback-confirmation",
       variables: {
         USER_NAME: args.name,
@@ -227,8 +243,8 @@ export const sendFeedbackAdminNotificationEmail = internalAction({
     feedbackDescription: v.string(),
     adminEmail: v.string(),
   },
-  handler: async (ctx, args) => {
-    return await ctx.runAction(internal.email.sendEmail, {
+  handler: async (ctx, args): Promise<SendEmailResult> => {
+    return await renderAndSendTemplateEmail(ctx, {
       templateName: "feedback-admin-notification",
       variables: {
         USER_NAME: args.userName,
@@ -253,8 +269,8 @@ export const sendFeedbackAdminReplyEmail = internalAction({
     feedbackTitle: v.string(),
     adminReply: v.string(),
   },
-  handler: async (ctx, args) => {
-    return await ctx.runAction(internal.email.sendEmail, {
+  handler: async (ctx, args): Promise<SendEmailResult> => {
+    return await renderAndSendTemplateEmail(ctx, {
       templateName: "feedback-admin-reply",
       variables: {
         USER_NAME: args.userName,

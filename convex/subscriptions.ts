@@ -876,7 +876,7 @@ export const internalMarkPaddleCancelRequested = internalMutation({
 });
 
 export const processInstallmentCancellations = internalAction({
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<{ attempted: number; cancelled: number }> => {
     const apiKey = (process.env.PADDLE_API_KEY || "").trim();
     if (!apiKey) {
       console.warn("[Paddle] PADDLE_API_KEY not configured; skipping installment cancellations.");
@@ -889,7 +889,8 @@ export const processInstallmentCancellations = internalAction({
         : "sandbox";
     const baseUrl = environment === "production" ? "https://api.paddle.com" : "https://sandbox-api.paddle.com";
 
-    const toCancel = await ctx.runQuery(internal.subscriptions.internalListInstallmentsToCancel);
+    const toCancel: Array<{ id: Id<"userSubscriptions">; paddleSubscriptionId: string }> =
+      (await ctx.runQuery(internal.subscriptions.internalListInstallmentsToCancel)) as any;
     let cancelled = 0;
 
     for (const item of toCancel) {

@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
+import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 /**
  * Get total number of units from database
@@ -116,6 +118,14 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .first();
 }
 
+async function requireSuperadmin(ctx: QueryCtx | MutationCtx) {
+  const user = await getCurrentUser(ctx);
+  if (!user || user.role !== "superadmin") {
+    throw new Error("Unauthorized - Superadmin required");
+  }
+  return user;
+}
+
 // Helper to check unit access
 async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
   const user = await getCurrentUser(ctx);
@@ -195,6 +205,7 @@ export const insertUnitMetadata = mutation({
     unitNumber: v.number(),
     language: v.string(),
     title: v.string(),
+    description: v.optional(v.string()),
     topics: v.array(v.string()),
     grammarFocus: v.array(v.string()),
     vocabularyThemes: v.array(v.string()),
@@ -211,6 +222,7 @@ export const insertUnitMetadata = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         title: args.title,
+        ...(args.description !== undefined && { description: args.description }),
         topics: args.topics,
         grammarFocus: args.grammarFocus,
         vocabularyThemes: args.vocabularyThemes,
@@ -223,11 +235,100 @@ export const insertUnitMetadata = mutation({
       unitNumber: args.unitNumber,
       language: args.language,
       title: args.title,
+      description: args.description,
       topics: args.topics,
       grammarFocus: args.grammarFocus,
       vocabularyThemes: args.vocabularyThemes,
       moduleId: args.moduleId,
     });
+  },
+});
+
+// Update unit description (Superadmin only)
+export const updateUnitDescription = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    description: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+
+    const existing = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", args.language))
+      .first();
+
+    if (!existing) {
+      throw new Error(`Unit metadata not found for unit ${args.unitNumber}, language ${args.language}`);
+    }
+
+    await ctx.db.patch(existing._id, { description: args.description });
+    return existing._id;
+  },
+});
+
+// One-time cleanup: migrate legacy description stored in topics[0] into description.
+export const migrateUnitDescriptionsFromTopics = mutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+
+    const dryRun = args.dryRun ?? true;
+    const limit = args.limit && args.limit > 0 ? Math.min(args.limit, 1000) : 1000;
+
+    const all = await ctx.db.query("unitMetadata").collect();
+    let considered = 0;
+    let migrated = 0;
+
+    const samples: Array<{
+      unitNumber: number;
+      language: string;
+      from: string;
+      to: string;
+      topicsBeforeCount: number;
+      topicsAfterCount: number;
+    }> = [];
+
+    for (const doc of all as any[]) {
+      if (considered >= limit) break;
+      considered += 1;
+
+      const currentDescription = typeof doc.description === "string" ? doc.description.trim() : "";
+      const topics: string[] = Array.isArray(doc.topics) ? doc.topics : [];
+      const firstTopic = typeof topics[0] === "string" ? topics[0].trim() : "";
+
+      if (currentDescription) continue;
+      if (!firstTopic) continue;
+
+      const nextDescription = firstTopic;
+      const nextTopics = topics.slice(1);
+
+      migrated += 1;
+
+      if (samples.length < 25) {
+        samples.push({
+          unitNumber: doc.unitNumber,
+          language: doc.language,
+          from: firstTopic,
+          to: nextDescription,
+          topicsBeforeCount: topics.length,
+          topicsAfterCount: nextTopics.length,
+        });
+      }
+
+      if (!dryRun) {
+        await ctx.db.patch(doc._id, {
+          description: nextDescription,
+          topics: nextTopics,
+        });
+      }
+    }
+
+    return { dryRun, limit, considered, migrated, samples };
   },
 });
 
@@ -449,7 +550,15 @@ export const insertUnitContent = mutation({
   args: {
     unitNumber: v.number(),
     language: v.string(),
-    contentType: v.string(),
+    contentType: v.union(
+      v.literal("overview"),
+      v.literal("grammar"),
+      v.literal("phrases"),
+      v.literal("dialogues"),
+      v.literal("vocabulary"),
+      v.literal("testIntroduction"),
+      v.literal("practice")
+    ),
     content: v.string(),
   },
   handler: async (ctx, args) => {
@@ -1112,6 +1221,63 @@ export const cleanMarkdownInTests = mutation({
 
 // ============= CLEANUP OPERATIONS =============
 
+async function deleteInvalidContentTypesImpl(
+  ctx: MutationCtx,
+  args: {
+    unitNumbers: number[];
+    contentTypes: string[];
+    dryRun?: boolean;
+  }
+) {
+  console.log(`[deleteInvalidContentTypes] Cleaning units: ${args.unitNumbers.join(", ")}`);
+  console.log(`[deleteInvalidContentTypes] ContentTypes: ${args.contentTypes.join(", ")}`);
+  console.log(`[deleteInvalidContentTypes] Dry run: ${args.dryRun ?? false}`);
+
+  let found = 0;
+  let deleted = 0;
+  const foundEntries: Array<{ unitNumber: number; language: string; contentType: string; id: string }> = [];
+
+  for (const unitNumber of args.unitNumbers) {
+    for (const contentType of args.contentTypes) {
+      // Find all entries with this contentType for this unit
+      const entries = await ctx.db
+        .query("unitContent")
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("unitNumber"), unitNumber),
+            q.eq(q.field("contentType"), contentType as any)
+          )
+        )
+        .collect();
+
+      found += entries.length;
+
+      for (const entry of entries) {
+        foundEntries.push({
+          unitNumber: entry.unitNumber,
+          language: entry.language,
+          contentType: entry.contentType as string,
+          id: entry._id,
+        });
+
+        if (!args.dryRun) {
+          await ctx.db.delete(entry._id);
+          deleted++;
+        }
+      }
+    }
+  }
+
+  console.log(`[deleteInvalidContentTypes] Found: ${found}, Deleted: ${deleted}`);
+
+  return {
+    found,
+    deleted,
+    entries: foundEntries,
+    dryRun: args.dryRun ?? false,
+  };
+}
+
 // Delete unitContent entries with invalid contentTypes (for cleanup script)
 export const deleteInvalidContentTypes = mutation({
   args: {
@@ -1120,53 +1286,11 @@ export const deleteInvalidContentTypes = mutation({
     dryRun: v.optional(v.boolean()), // If true, only count without deleting
   },
   handler: async (ctx, args) => {
-    console.log(`[deleteInvalidContentTypes] Cleaning units: ${args.unitNumbers.join(", ")}`);
-    console.log(`[deleteInvalidContentTypes] ContentTypes: ${args.contentTypes.join(", ")}`);
-    console.log(`[deleteInvalidContentTypes] Dry run: ${args.dryRun ?? false}`);
-    
-    let found = 0;
-    let deleted = 0;
-    const foundEntries: Array<{ unitNumber: number; language: string; contentType: string; id: string }> = [];
-
-    for (const unitNumber of args.unitNumbers) {
-      for (const contentType of args.contentTypes) {
-        // Find all entries with this contentType for this unit
-        const entries = await ctx.db
-          .query("unitContent")
-          .filter((q) => 
-            q.and(
-              q.eq(q.field("unitNumber"), unitNumber),
-              q.eq(q.field("contentType"), contentType as any) // Cast to bypass TypeScript check
-            )
-          )
-          .collect();
-
-        found += entries.length;
-
-        for (const entry of entries) {
-          foundEntries.push({
-            unitNumber: entry.unitNumber,
-            language: entry.language,
-            contentType: entry.contentType as string,
-            id: entry._id,
-          });
-
-          if (!args.dryRun) {
-            await ctx.db.delete(entry._id);
-            deleted++;
-          }
-        }
-      }
-    }
-
-    console.log(`[deleteInvalidContentTypes] Found: ${found}, Deleted: ${deleted}`);
-    
-    return {
-      found,
-      deleted,
-      entries: foundEntries,
-      dryRun: args.dryRun ?? false,
-    };
+    return await deleteInvalidContentTypesImpl(ctx, {
+      unitNumbers: args.unitNumbers,
+      contentTypes: args.contentTypes,
+      dryRun: args.dryRun,
+    });
   },
 });
 
@@ -1177,7 +1301,7 @@ export const deleteInvalidPracticeContent = mutation({
     dryRun: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    return await ctx.runMutation(api.units.deleteInvalidContentTypes, {
+    return await deleteInvalidContentTypesImpl(ctx, {
       unitNumbers: args.unitNumbers,
       contentTypes: ["practice"],
       dryRun: args.dryRun,

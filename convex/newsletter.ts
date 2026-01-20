@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, internalQuery, internalAction, action, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { Resend } from "resend";
 
 // ============= HELPER FUNCTIONS =============
@@ -14,18 +14,18 @@ function hasDb(ctx: AnyCtx): ctx is CtxWithDb {
   return "db" in ctx;
 }
 
-async function getAdminUser(ctx: AnyCtx) {
+async function getAdminUser(ctx: AnyCtx): Promise<Doc<"users"> | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  const user = hasDb(ctx)
+  const user: Doc<"users"> | null = hasDb(ctx)
     ? await ctx.db
         .query("users")
         .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
         .first()
-    : await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+    : ((await ctx.runQuery(internal.users.internalGetUserByClerkId, {
         clerkId: identity.subject,
-      });
+      })) as Doc<"users"> | null);
 
   if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
     return null;
@@ -221,8 +221,9 @@ export const requestWaitlistUpdatesDoubleOptIn = internalMutation({
 
     // Ensure contact exists (not subscribed by default)
     const contactId =
-      (await ctx.runMutation(internal.newsletter.syncWaitlistToNewsletter, { waitlistId: args.waitlistId })) ??
-      null;
+      ((await ctx.runMutation(internal.newsletter.syncWaitlistToNewsletter, {
+        waitlistId: args.waitlistId,
+      })) as Id<"newsletterContacts"> | null) ?? null;
     if (!contactId) {
       return { success: false, reason: "contact_missing" as const };
     }
@@ -291,8 +292,10 @@ export const requestCommunityUpdatesDoubleOptIn = mutation({
 
     // Ensure contact exists
     const contactId =
-      (await ctx.runMutation(internal.newsletter.syncUserToNewsletter, { userId: user._id, autoSubscribe: false })) ??
-      null;
+      ((await ctx.runMutation(internal.newsletter.syncUserToNewsletter, {
+        userId: user._id,
+        autoSubscribe: false,
+      })) as Id<"newsletterContacts"> | null) ?? null;
     if (!contactId) throw new Error("Could not create newsletter contact");
 
     const contact = await ctx.db.get(contactId);
@@ -473,13 +476,13 @@ export const getAllContacts = query({
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized - Admin access required");
 
-    let query = ctx.db.query("newsletterContacts");
-
-    if (args.subscribed !== undefined) {
-      query = query.withIndex("by_subscribed", (q) => q.eq("subscribed", args.subscribed!));
-    }
-
-    let contacts = await query.collect();
+    let contacts =
+      args.subscribed !== undefined
+        ? await ctx.db
+            .query("newsletterContacts")
+            .withIndex("by_subscribed", (q) => q.eq("subscribed", args.subscribed!))
+            .collect()
+        : await ctx.db.query("newsletterContacts").collect();
 
     // Filter by source if provided
     if (args.source) {
@@ -654,35 +657,39 @@ export const updateContactTags = mutation({
 /**
  * Internal query to get newsletter statistics (no auth check)
  */
+async function computeNewsletterStats(ctx: QueryCtx) {
+  const allContacts = await ctx.db.query("newsletterContacts").collect();
+  const allCampaigns = await ctx.db.query("newsletterCampaigns").collect();
+
+  const subscribed = allContacts.filter((c) => c.subscribed).length;
+  const unsubscribed = allContacts.filter((c) => !c.subscribed).length;
+  const fromWaitlist = allContacts.filter((c) => c.source === "waitlist").length;
+  const fromUsers = allContacts.filter((c) => c.source === "user").length;
+  const manual = allContacts.filter((c) => c.source === "manual").length;
+
+  const draftCampaigns = allCampaigns.filter((c) => c.status === "draft").length;
+  const sentCampaigns = allCampaigns.filter((c) => c.status === "sent").length;
+
+  return {
+    totalContacts: allContacts.length,
+    subscribed,
+    unsubscribed,
+    sources: {
+      waitlist: fromWaitlist,
+      users: fromUsers,
+      manual,
+    },
+    campaigns: {
+      draft: draftCampaigns,
+      sent: sentCampaigns,
+      total: allCampaigns.length,
+    },
+  };
+}
+
 export const internalGetNewsletterStats = internalQuery({
   handler: async (ctx) => {
-    const allContacts = await ctx.db.query("newsletterContacts").collect();
-    const allCampaigns = await ctx.db.query("newsletterCampaigns").collect();
-
-    const subscribed = allContacts.filter(c => c.subscribed).length;
-    const unsubscribed = allContacts.filter(c => !c.subscribed).length;
-    const fromWaitlist = allContacts.filter(c => c.source === "waitlist").length;
-    const fromUsers = allContacts.filter(c => c.source === "user").length;
-    const manual = allContacts.filter(c => c.source === "manual").length;
-
-    const draftCampaigns = allCampaigns.filter(c => c.status === "draft").length;
-    const sentCampaigns = allCampaigns.filter(c => c.status === "sent").length;
-
-    return {
-      totalContacts: allContacts.length,
-      subscribed,
-      unsubscribed,
-      sources: {
-        waitlist: fromWaitlist,
-        users: fromUsers,
-        manual,
-      },
-      campaigns: {
-        draft: draftCampaigns,
-        sent: sentCampaigns,
-        total: allCampaigns.length,
-      },
-    };
+    return await computeNewsletterStats(ctx);
   },
 });
 
@@ -694,7 +701,7 @@ export const getNewsletterStats = query({
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized - Admin access required");
 
-    return await ctx.runQuery(internal.newsletter.internalGetNewsletterStats);
+    return await computeNewsletterStats(ctx);
   },
 });
 
@@ -762,13 +769,13 @@ export const getAllCampaigns = query({
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized - Admin access required");
 
-    let query = ctx.db.query("newsletterCampaigns");
-
-    if (args.status) {
-      query = query.withIndex("by_status", (q) => q.eq("status", args.status!));
-    }
-
-    return await query.order("desc").collect();
+    return args.status
+      ? await ctx.db
+          .query("newsletterCampaigns")
+          .withIndex("by_status", (q) => q.eq("status", args.status!))
+          .order("desc")
+          .collect()
+      : await ctx.db.query("newsletterCampaigns").order("desc").collect();
   },
 });
 
@@ -1590,7 +1597,7 @@ export const runInitialMigration = action({
     console.log("[Newsletter Migration] Starting initial migration...");
 
     // Get all waitlist entries
-    const waitlistEntries = await ctx.runQuery(internal.waitlist.internalGetAll);
+    const waitlistEntries = (await ctx.runQuery(internal.waitlist.internalGetAll)) as any[];
     const confirmedEntries = waitlistEntries.filter((entry: any) => entry.status === "confirmed");
 
     console.log(`[Newsletter Migration] Found ${confirmedEntries.length} confirmed waitlist entries`);
@@ -1611,7 +1618,9 @@ export const runInitialMigration = action({
     }
 
     // Get stats (using internal version to avoid auth check)
-    const stats = await ctx.runQuery(internal.newsletter.internalGetNewsletterStats);
+    const stats = (await ctx.runQuery(internal.newsletter.internalGetNewsletterStats)) as Awaited<
+      ReturnType<typeof computeNewsletterStats>
+    >;
 
     return {
       success: true,

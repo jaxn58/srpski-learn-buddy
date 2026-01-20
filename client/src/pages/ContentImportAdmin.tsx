@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import {
@@ -43,7 +44,8 @@ import {
   Database,
   FolderTree,
   Sparkles,
-  Eye
+  Eye,
+  Pencil
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTimeEU } from "@/lib/utils";
@@ -99,10 +101,18 @@ export default function ContentImportAdmin() {
   const runs = useQuery(api.contentImportAdmin.listRuns, { limit: 50 }) as ImportRun[] | undefined;
   const runsLoading = runs === undefined;
   const availableModules = useQuery(api.contentImportAdmin.listModulesForImport) as Doc<"moduleMetadata">[] | undefined;
+  const dbModules = useQuery(api.modules.getAllModulesConsolidated) as Doc<"moduleMetadata">[] | undefined;
+  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" }) as Doc<"unitMetadata">[] | undefined;
+  const dbUnitsDe = useQuery(api.units.getAllUnitsMetadata, { language: "de" }) as Doc<"unitMetadata">[] | undefined;
   
   const validateAction = useAction(api.contentImportAdmin.validateUnitPackages);
   const importAction = useAction(api.contentImportAdmin.importUnitPackages);
   const parseMarkdownAction = useAction(api.contentImportAdmin.parseMarkdownToJson);
+
+  const createModuleMutation = useMutation(api.modules.createModule);
+  const updateModuleMutation = useMutation(api.modules.updateModuleMetadata);
+  const updateUnitDescriptionMutation = useMutation(api.units.updateUnitDescription);
+  const migrateUnitDescriptionsMutation = useMutation(api.units.migrateUnitDescriptionsFromTopics);
   
   // JSON Import states
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -128,11 +138,53 @@ export default function ContentImportAdmin() {
   const [selectedJsonPreview, setSelectedJsonPreview] = useState<any | null>(null);
   const [showJsonPreview, setShowJsonPreview] = useState(false);
   const [isDraggingMarkdown, setIsDraggingMarkdown] = useState(false);
+
+  // Module Management states (Superadmin-only)
+  const [newModuleNumber, setNewModuleNumber] = useState<string>("");
+  const [newTitleEn, setNewTitleEn] = useState<string>("");
+  const [newTitleDe, setNewTitleDe] = useState<string>("");
+  const [newDescriptionEn, setNewDescriptionEn] = useState<string>("");
+  const [newDescriptionDe, setNewDescriptionDe] = useState<string>("");
+  const [newSlug, setNewSlug] = useState<string>("");
+  const [newSlugTouched, setNewSlugTouched] = useState(false);
+
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingModuleId, setEditingModuleId] = useState<Id<"moduleMetadata"> | null>(null);
+  const [editModuleNumber, setEditModuleNumber] = useState<string>("");
+  const [editTitleEn, setEditTitleEn] = useState<string>("");
+  const [editTitleDe, setEditTitleDe] = useState<string>("");
+  const [editDescriptionEn, setEditDescriptionEn] = useState<string>("");
+  const [editDescriptionDe, setEditDescriptionDe] = useState<string>("");
+  const [editSlug, setEditSlug] = useState<string>("");
+
+  // Unit Metadata states (Superadmin-only)
+  const [editUnitDialogOpen, setEditUnitDialogOpen] = useState(false);
+  const [editingUnitNumber, setEditingUnitNumber] = useState<number | null>(null);
+  const [editUnitDescriptionEn, setEditUnitDescriptionEn] = useState<string>("");
+  const [editUnitDescriptionDe, setEditUnitDescriptionDe] = useState<string>("");
+  const [migratingUnitDescriptions, setMigratingUnitDescriptions] = useState(false);
+  const [lastMigrationPreview, setLastMigrationPreview] = useState<any | null>(null);
   
   const getRun = useQuery(
-    selectedRun ? api.contentImportAdmin.getRun : "skip", 
+    api.contentImportAdmin.getRun,
     selectedRun ? { runId: selectedRun._id } : "skip"
   );
+
+  const slugify = useCallback((input: string) => {
+    return input
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^a-z0-9-]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }, []);
+
+  // Auto-generate slug from English title until user edits slug manually.
+  useEffect(() => {
+    if (newSlugTouched) return;
+    setNewSlug(slugify(newTitleEn));
+  }, [newTitleEn, newSlugTouched, slugify]);
 
   const confirmUnitNumber = useMemo(() => {
     const fromMarkdown = markdownImportToConfirm?.unitNumber;
@@ -688,6 +740,173 @@ export default function ContentImportAdmin() {
     }
   };
 
+  const humanizeModuleError = (message: string) => {
+    if (message.includes("MODULE_SLUG_TAKEN")) return "Slug is already in use. Please choose a unique slug.";
+    if (message.includes("MODULE_NUMBER_TAKEN")) return "Module number is already in use. Please choose a different number.";
+    if (message.includes("INVALID_MODULE_NUMBER")) return "Module number must be a positive number.";
+    if (message.includes("INVALID_SLUG")) return "Slug is invalid. Use letters/numbers and hyphens.";
+    if (message.includes("MISSING_REQUIRED_FIELDS")) return "Please fill all required fields.";
+    if (message.includes("Unauthorized")) return "Unauthorized. Superadmin required.";
+    return message;
+  };
+
+  const resetNewModuleForm = () => {
+    setNewModuleNumber("");
+    setNewTitleEn("");
+    setNewTitleDe("");
+    setNewDescriptionEn("");
+    setNewDescriptionDe("");
+    setNewSlug("");
+    setNewSlugTouched(false);
+  };
+
+  const handleCreateModule = async () => {
+    try {
+      const moduleNumber = Number(newModuleNumber);
+      const slug = newSlug || slugify(newTitleEn);
+
+      await createModuleMutation({
+        moduleNumber,
+        slug,
+        titleEn: newTitleEn,
+        titleDe: newTitleDe,
+        descriptionEn: newDescriptionEn,
+        descriptionDe: newDescriptionDe,
+      });
+
+      toast.success("Module created");
+      resetNewModuleForm();
+    } catch (error: any) {
+      toast.error("Failed to create module", {
+        description: humanizeModuleError(String(error?.message || error)),
+      });
+    }
+  };
+
+  const openEditModule = (m: Doc<"moduleMetadata">) => {
+    setEditingModuleId(m._id);
+    setEditModuleNumber(String(m.moduleNumber ?? ""));
+    setEditSlug(String(m.slug ?? ""));
+    setEditTitleEn(String(m.titleEn ?? ""));
+    setEditTitleDe(String(m.titleDe ?? ""));
+    setEditDescriptionEn(String(m.descriptionEn ?? ""));
+    setEditDescriptionDe(String(m.descriptionDe ?? ""));
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEditModule = async () => {
+    if (!editingModuleId) return;
+    try {
+      const moduleNumber = Number(editModuleNumber);
+      await updateModuleMutation({
+        moduleId: editingModuleId,
+        moduleNumber,
+        slug: editSlug,
+        titleEn: editTitleEn,
+        titleDe: editTitleDe,
+        descriptionEn: editDescriptionEn,
+        descriptionDe: editDescriptionDe,
+      });
+
+      toast.success("Module updated");
+      setEditDialogOpen(false);
+      setEditingModuleId(null);
+    } catch (error: any) {
+      toast.error("Failed to update module", {
+        description: humanizeModuleError(String(error?.message || error)),
+      });
+    }
+  };
+
+  const unitsTableRows = useMemo(() => {
+    const en = dbUnitsEn ?? [];
+    const de = dbUnitsDe ?? [];
+    const byUnit = new Map<number, { en?: Doc<"unitMetadata">; de?: Doc<"unitMetadata"> }>();
+
+    for (const u of en) {
+      byUnit.set(u.unitNumber, { ...(byUnit.get(u.unitNumber) ?? {}), en: u });
+    }
+    for (const u of de) {
+      byUnit.set(u.unitNumber, { ...(byUnit.get(u.unitNumber) ?? {}), de: u });
+    }
+
+    return Array.from(byUnit.entries())
+      .map(([unitNumber, pair]) => ({
+        unitNumber,
+        titleEn: pair.en?.title ?? "—",
+        descriptionEn: (pair.en as any)?.description ?? "",
+        titleDe: pair.de?.title ?? "—",
+        descriptionDe: (pair.de as any)?.description ?? "",
+        hasEn: Boolean(pair.en),
+        hasDe: Boolean(pair.de),
+      }))
+      .sort((a, b) => a.unitNumber - b.unitNumber);
+  }, [dbUnitsEn, dbUnitsDe]);
+
+  const openEditUnit = useCallback((row: (typeof unitsTableRows)[number]) => {
+    setEditingUnitNumber(row.unitNumber);
+    setEditUnitDescriptionEn(String(row.descriptionEn ?? ""));
+    setEditUnitDescriptionDe(String(row.descriptionDe ?? ""));
+    setEditUnitDialogOpen(true);
+  }, []);
+
+  const handleSaveEditUnit = useCallback(async () => {
+    if (!editingUnitNumber) return;
+
+    const enDesc = String(editUnitDescriptionEn ?? "").trim();
+    const deDesc = String(editUnitDescriptionDe ?? "").trim();
+
+    if (!enDesc && !deDesc) {
+      toast.error("Nothing to save", { description: "Provide at least one description (EN or DE)." });
+      return;
+    }
+
+    const row = unitsTableRows.find((r) => r.unitNumber === editingUnitNumber);
+    if (!row) return;
+
+    try {
+      const ops: Array<Promise<any>> = [];
+      if (enDesc) {
+        if (!row.hasEn) {
+          toast.error("Missing EN metadata", { description: `Unit ${editingUnitNumber} has no EN unitMetadata row.` });
+        } else {
+          ops.push(updateUnitDescriptionMutation({ unitNumber: editingUnitNumber, language: "en", description: enDesc }));
+        }
+      }
+      if (deDesc) {
+        if (!row.hasDe) {
+          toast.error("Missing DE metadata", { description: `Unit ${editingUnitNumber} has no DE unitMetadata row.` });
+        } else {
+          ops.push(updateUnitDescriptionMutation({ unitNumber: editingUnitNumber, language: "de", description: deDesc }));
+        }
+      }
+
+      if (ops.length === 0) return;
+      await Promise.all(ops);
+
+      toast.success("Unit description updated");
+      setEditUnitDialogOpen(false);
+      setEditingUnitNumber(null);
+    } catch (error: any) {
+      toast.error("Failed to update unit description", { description: String(error?.message || error) });
+    }
+  }, [editingUnitNumber, editUnitDescriptionEn, editUnitDescriptionDe, unitsTableRows, updateUnitDescriptionMutation]);
+
+  const runUnitDescriptionMigration = useCallback(async (dryRun: boolean) => {
+    setMigratingUnitDescriptions(true);
+    try {
+      const res = await migrateUnitDescriptionsMutation({ dryRun, limit: 1000 });
+      setLastMigrationPreview(res);
+      toast.success(dryRun ? "Migration preview ready" : "Migration executed", {
+        description: `Migrated: ${res.migrated} / Considered: ${res.considered} (dryRun=${res.dryRun})`,
+      });
+    } catch (error: any) {
+      toast.error("Migration failed", { description: String(error?.message || error) });
+    } finally {
+      setMigratingUnitDescriptions(false);
+    }
+  }, [migrateUnitDescriptionsMutation]);
+
   return (
     <div className="container py-8 max-w-6xl">
       <div className="mb-8">
@@ -708,6 +927,14 @@ export default function ContentImportAdmin() {
           <TabsTrigger value="markdown" className="gap-2">
             <FileText className="h-4 w-4" />
             Import Markdown
+          </TabsTrigger>
+          <TabsTrigger value="units" className="gap-2">
+            <Database className="h-4 w-4" />
+            Units
+          </TabsTrigger>
+          <TabsTrigger value="modules" className="gap-2">
+            <FolderTree className="h-4 w-4" />
+            Modules
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
@@ -1216,6 +1443,366 @@ export default function ContentImportAdmin() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="units" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Unit Metadata
+              </CardTitle>
+              <CardDescription>
+                Edit unit descriptions stored in <code>unitMetadata.description</code> (EN + DE). This is what the Unit header renders.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  disabled={migratingUnitDescriptions}
+                  onClick={() => void runUnitDescriptionMigration(true)}
+                >
+                  {migratingUnitDescriptions ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Working...
+                    </>
+                  ) : (
+                    "Preview legacy migration (dry-run)"
+                  )}
+                </Button>
+                <Button
+                  disabled={migratingUnitDescriptions}
+                  onClick={() => void runUnitDescriptionMigration(false)}
+                >
+                  {migratingUnitDescriptions ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Working...
+                    </>
+                  ) : (
+                    "Execute migration"
+                  )}
+                </Button>
+              </div>
+
+              {lastMigrationPreview && (
+                <Alert>
+                  <AlertDescription className="space-y-2">
+                    <div>
+                      <strong>Migration result:</strong> migrated {lastMigrationPreview.migrated} / considered {lastMigrationPreview.considered} (dryRun={String(lastMigrationPreview.dryRun)})
+                    </div>
+                    {Array.isArray(lastMigrationPreview.samples) && lastMigrationPreview.samples.length > 0 && (
+                      <div className="text-xs">
+                        <strong>Samples:</strong>{" "}
+                        {lastMigrationPreview.samples
+                          .slice(0, 5)
+                          .map((s: any) => `Unit ${s.unitNumber} (${s.language})`)
+                          .join(", ")}
+                      </div>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Existing Units</CardTitle>
+              <CardDescription>
+                Edit per-language descriptions. EN/DE rows must exist in <code>unitMetadata</code> to be editable.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {dbUnitsEn === undefined || dbUnitsDe === undefined ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : unitsTableRows.length === 0 ? (
+                <Alert>
+                  <AlertDescription>No units found in the database yet.</AlertDescription>
+                </Alert>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Title (EN)</TableHead>
+                      <TableHead>Description (EN)</TableHead>
+                      <TableHead>Title (DE)</TableHead>
+                      <TableHead>Description (DE)</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {unitsTableRows.map((r) => (
+                      <TableRow key={r.unitNumber}>
+                        <TableCell className="font-medium">{r.unitNumber}</TableCell>
+                        <TableCell>{r.titleEn}</TableCell>
+                        <TableCell className="max-w-[360px] truncate" title={r.descriptionEn || ""}>
+                          {r.descriptionEn ? String(r.descriptionEn) : "—"}
+                        </TableCell>
+                        <TableCell>{r.titleDe}</TableCell>
+                        <TableCell className="max-w-[360px] truncate" title={r.descriptionDe || ""}>
+                          {r.descriptionDe ? String(r.descriptionDe) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditUnit(r)}>
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <AlertDialog open={editUnitDialogOpen} onOpenChange={setEditUnitDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Edit Unit Description</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Updates <code>unitMetadata.description</code> for EN/DE (if the rows exist).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              <div className="grid gap-4 py-2">
+                <div className="space-y-2">
+                  <Label>Unit</Label>
+                  <Input value={editingUnitNumber ? `Unit ${editingUnitNumber}` : ""} readOnly />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Description (EN)</Label>
+                  <Textarea
+                    placeholder="Short description shown in the app (English)."
+                    value={editUnitDescriptionEn}
+                    onChange={(e) => setEditUnitDescriptionEn(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description (DE)</Label>
+                  <Textarea
+                    placeholder="Kurze Beschreibung in der App (Deutsch)."
+                    value={editUnitDescriptionDe}
+                    onChange={(e) => setEditUnitDescriptionDe(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void handleSaveEditUnit()}>
+                  Save
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </TabsContent>
+
+        <TabsContent value="modules" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FolderTree className="h-5 w-5" />
+                Module Management
+              </CardTitle>
+              <CardDescription>
+                Create and update modules (EN + DE). These modules are used to group units and to assign units during import.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Module number</Label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="1"
+                    value={newModuleNumber}
+                    onChange={(e) => setNewModuleNumber(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Slug</Label>
+                  <Input
+                    placeholder="foundation"
+                    value={newSlug}
+                    onChange={(e) => {
+                      setNewSlugTouched(true);
+                      setNewSlug(e.target.value);
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used in URLs and as stable identifier. Auto-generated from Title (EN) until edited.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Title (EN)</Label>
+                  <Input
+                    placeholder="Module 1: Foundation"
+                    value={newTitleEn}
+                    onChange={(e) => setNewTitleEn(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Title (DE)</Label>
+                  <Input
+                    placeholder="Modul 1: Grundlagen"
+                    value={newTitleDe}
+                    onChange={(e) => setNewTitleDe(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Description (EN)</Label>
+                  <Textarea
+                    placeholder="Short description shown in the app (English)."
+                    value={newDescriptionEn}
+                    onChange={(e) => setNewDescriptionEn(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Description (DE)</Label>
+                  <Textarea
+                    placeholder="Kurze Beschreibung in der App (Deutsch)."
+                    value={newDescriptionDe}
+                    onChange={(e) => setNewDescriptionDe(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <Button onClick={() => void handleCreateModule()} className="gap-2">
+                  <FolderTree className="h-4 w-4" />
+                  Create Module
+                </Button>
+                <Button variant="outline" onClick={resetNewModuleForm}>
+                  Reset
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Existing Modules</CardTitle>
+              <CardDescription>Sorted by moduleNumber (as stored).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {dbModules === undefined ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : dbModules.length === 0 ? (
+                <Alert>
+                  <AlertDescription>No modules found in the database yet.</AlertDescription>
+                </Alert>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Slug</TableHead>
+                      <TableHead>Title (EN)</TableHead>
+                      <TableHead>Title (DE)</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dbModules.map((m) => (
+                      <TableRow key={m._id}>
+                        <TableCell className="font-medium">{m.moduleNumber ?? "—"}</TableCell>
+                        <TableCell>{m.slug ?? "—"}</TableCell>
+                        <TableCell>{m.titleEn ?? "—"}</TableCell>
+                        <TableCell>{m.titleDe ?? "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => openEditModule(m)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <AlertDialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Edit Module</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Update module fields. Slug and module number must remain unique.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              <div className="grid gap-4 md:grid-cols-2 py-2">
+                <div className="space-y-2">
+                  <Label>Module number</Label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={editModuleNumber}
+                    onChange={(e) => setEditModuleNumber(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Slug</Label>
+                  <Input value={editSlug} onChange={(e) => setEditSlug(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Title (EN)</Label>
+                  <Input value={editTitleEn} onChange={(e) => setEditTitleEn(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Title (DE)</Label>
+                  <Input value={editTitleDe} onChange={(e) => setEditTitleDe(e.target.value)} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Description (EN)</Label>
+                  <Textarea value={editDescriptionEn} onChange={(e) => setEditDescriptionEn(e.target.value)} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Description (DE)</Label>
+                  <Textarea value={editDescriptionDe} onChange={(e) => setEditDescriptionDe(e.target.value)} />
+                </div>
+              </div>
+
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  onClick={() => {
+                    setEditDialogOpen(false);
+                    setEditingModuleId(null);
+                  }}
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    // Prevent AlertDialogAction default close until mutation succeeds.
+                    e.preventDefault();
+                    void handleSaveEditModule();
+                  }}
+                >
+                  Save
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">

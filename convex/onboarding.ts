@@ -65,8 +65,10 @@ export const getAllOnboardingSteps = query({
 
     // Sort by language, then stepNumber
     return steps.sort((a, b) => {
-      if (a.language !== b.language) {
-        return a.language.localeCompare(b.language);
+      const aLang = a.language ?? "";
+      const bLang = b.language ?? "";
+      if (aLang !== bLang) {
+        return aLang.localeCompare(bLang);
       }
       return a.stepNumber - b.stepNumber;
     });

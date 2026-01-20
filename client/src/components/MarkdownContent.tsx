@@ -82,7 +82,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
             </tbody>
           ),
           tr: ({ children }) => (
-            <tr className="hover:bg-muted/50 transition-colors duration-150">
+            <tr className="hover:bg-muted/3 transition-colors duration-150">
               {children}
             </tr>
           ),

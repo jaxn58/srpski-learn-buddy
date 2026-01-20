@@ -1152,7 +1152,9 @@ export const hasQuestionProgress = query({
     // Check if any user has progress for this question
     const progress = await ctx.db
       .query("questionProgress")
-      .withIndex("by_user_question", (q) => q.eq("questionId", args.questionId))
+      // Index is (userId, questionId), so we can't query by questionId alone here.
+      // This query is only used for migration safety checks; a full scan is acceptable.
+      .filter((q) => q.eq(q.field("questionId"), args.questionId))
       .first();
     
     return progress !== null;

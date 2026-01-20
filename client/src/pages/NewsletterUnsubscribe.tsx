@@ -50,8 +50,8 @@ export default function NewsletterUnsubscribe() {
     }
   };
 
-  const isInvalidToken = token && contact === null;
-  const isAlreadyUnsubscribed = token && contact && contact.subscribed === false;
+  const isInvalidToken = !!token && contact === null;
+  const isAlreadyUnsubscribed = !!token && !!contact && contact.subscribed === false;
   const disableUnsubscribe = !token || isInvalidToken || isAlreadyUnsubscribed;
 
   return (

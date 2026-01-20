@@ -180,7 +180,7 @@ function AudioTable({
                 )
               : [];
             return (
-              <tr key={rowIdx} className="hover:bg-muted/50 transition-colors duration-150">
+              <tr key={rowIdx} className="hover:bg-muted/3 transition-colors duration-150">
                 {cells.map((cellNode, cellIdx) => {
                   const rawText = mdastToPlainText(cellNode);
                   const cellText = cleanSerbianForTts(rawText);

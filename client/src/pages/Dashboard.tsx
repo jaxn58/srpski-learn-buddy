@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { FlipCard } from "@/components/FlipCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useMemo, useState, useEffect, memo } from "react";
+import { useMemo, useState, useEffect, memo, useCallback } from "react";
 
 export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
@@ -166,15 +166,30 @@ export default function Dashboard() {
 
   const accessibleCount = Array.isArray(rawAccessible) ? rawAccessible.length : 0;
 
+  const isBetaTester = !!user?.isBetaTester;
+
+  const getUnitRow = useCallback(
+    (unitNumber: number) => {
+      if (!units) return undefined;
+      const preferredLang = i18n.language === "de" ? "de" : "en";
+      return (
+        units.find((u) => u.unitNumber === unitNumber && u.language === preferredLang) ??
+        units.find((u) => u.unitNumber === unitNumber && u.language === "en") ??
+        units.find((u) => u.unitNumber === unitNumber)
+      );
+    },
+    [units, i18n.language]
+  );
+
   // Filter and search units
   const filteredUnits = useMemo(() => {
     if (!visibleUnits || !units) return [];
     
     let filtered = visibleUnits.filter((unitNum) => {
-      const unit = units.find(u => u.unitNumber === unitNum || u.number === unitNum);
+      const unit = getUnitRow(unitNum);
       const isCompleted = completedUnits.includes(unitNum);
       const isCurrent = unitNum === progress?.currentUnit;
-      const isLocked = user.isBetaTester && unitNum > 1;
+      const isLocked = isBetaTester && unitNum > 1;
       
       // Apply filter
       if (unitFilter === 'completed' && !isCompleted) return false;
@@ -184,7 +199,7 @@ export default function Dashboard() {
       // Apply search
       if (unitSearchQuery) {
         const query = unitSearchQuery.toLowerCase();
-        const title = i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish || unit?.title || '';
+        const title = unit?.title || "";
         const unitNumber = unitNum.toString();
         if (!title.toLowerCase().includes(query) && !unitNumber.includes(query)) {
           return false;
@@ -195,7 +210,7 @@ export default function Dashboard() {
     });
     
     return filtered;
-  }, [visibleUnits, units, completedUnits, progress?.currentUnit, unitFilter, unitSearchQuery, user.isBetaTester, i18n.language]);
+  }, [visibleUnits, units, completedUnits, progress?.currentUnit, unitFilter, unitSearchQuery, isBetaTester, getUnitRow]);
 
   const weeklyXp = dashboardStats?.weeklyProgress?.xpSum ?? 0;
   const weeklyXpTarget = dashboardStats?.weeklyGoal?.xpTarget ?? 150;
@@ -722,11 +737,11 @@ export default function Dashboard() {
                         </div>
                       ) : (
                         filteredUnits.map(unitNum => {
-                    const unit = units?.find(u => u.number === unitNum);
+                    const unit = getUnitRow(unitNum);
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
                     const isMastered = masteredUnits?.includes(unitNum);
-                    const isLocked = user.isBetaTester && unitNum > 1;
+                    const isLocked = isBetaTester && unitNum > 1;
 
                     if (isLocked) {
                       return (
@@ -742,13 +757,13 @@ export default function Dashboard() {
                                   <span className="text-gray-500 text-sm font-medium">{t('dashboard.locked')}</span>
                                 </div>
                                 <div className="font-semibold text-lg mb-1 text-gray-600">
-                                  {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
-                                </div>
-                                <div className="text-sm text-gray-500 mb-3">
                                   {unit?.title}
                                 </div>
+                                <div className="text-sm text-gray-500 mb-3">
+                                  {unit?.description}
+                                </div>
                                 <div className="text-xs text-gray-600 bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
-                                  🎁 <strong>{t('dashboard.betaTester.note')}</strong> {t('dashboard.betaTester.unlockNote')}
+                                  <strong>{t('dashboard.betaTester.note')}</strong> {t('dashboard.betaTester.unlockNote')}
                                 </div>
                               </div>
                               <div className="text-right">
@@ -799,21 +814,21 @@ export default function Dashboard() {
                                   )}
                                 </div>
                                 <div className="font-semibold text-lg md:text-xl mb-1 md:mb-2 leading-tight">
-                                  {i18n.language === 'de' ? unit?.titleGerman : unit?.titleEnglish}
+                                  {unit?.title}
                                 </div>
                                 <div className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4 leading-relaxed">
-                                  {unit?.title}
+                                  {unit?.description}
                                 </div>
                                 {unit?.topics && unit.topics.length > 0 && (
                                   <div className="flex flex-wrap gap-2 mt-4">
-                                    {(i18n.language === 'de' ? unit.topicsGerman : unit.topics).slice(0, 3).map((topic, idx) => (
+                                    {unit.topics.slice(0, 3).map((topic: string, idx: number) => (
                                       <Badge key={idx} variant="outline" className="text-xs">
                                         {topic}
                                       </Badge>
                                     ))}
-                                    {(i18n.language === 'de' ? unit.topicsGerman : unit.topics).length > 3 && (
+                                    {unit.topics.length > 3 && (
                                       <Badge variant="outline" className="text-xs">
-                                        {t('dashboard.moreTopics', { count: (i18n.language === 'de' ? unit.topicsGerman : unit.topics).length - 3 })}
+                                        {t('dashboard.moreTopics', { count: unit.topics.length - 3 })}
                                       </Badge>
                                     )}
                                   </div>
