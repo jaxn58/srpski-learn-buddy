@@ -36,6 +36,16 @@ function mdastToPlainText(node: any): string {
   return "";
 }
 
+function extractTextFromReactNode(node: any): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractTextFromReactNode).join("");
+  if (typeof node === "object" && "props" in node) {
+    return extractTextFromReactNode((node as any).props?.children);
+  }
+  return "";
+}
+
 function renderHastInline(node: any): React.ReactNode {
   if (!node) return null;
   if (Array.isArray(node)) return node.map((n, i) => <React.Fragment key={i}>{renderHastInline(n)}</React.Fragment>);
@@ -278,15 +288,19 @@ export function UnitContentAudioMarkdown({ content, unitNumber, language, conten
             ),
             // Keep typography consistent with existing MarkdownContent
             h1: ({ children }) => (
-              <h1 className="text-3xl font-bold mt-8 mb-4 text-foreground border-b pb-2">{children}</h1>
+              <h1 className="text-3xl font-bold mt-10 mb-4 text-foreground border-b pb-2 first:mt-0">{children}</h1>
             ),
-            h2: ({ children }) => <h2 className="text-2xl font-bold mt-6 mb-3 text-foreground">{children}</h2>,
-            h3: ({ children }) => <h3 className="text-xl font-semibold mt-5 mb-2 text-foreground">{children}</h3>,
-            h4: ({ children }) => <h4 className="text-lg font-semibold mt-4 mb-2 text-foreground">{children}</h4>,
+            h2: ({ children }) => <h2 className="text-2xl font-bold mt-8 mb-3 text-foreground first:mt-0">{children}</h2>,
+            h3: ({ children }) => <h3 className="text-xl font-semibold mt-7 mb-2 text-foreground first:mt-0">{children}</h3>,
+            h4: ({ children }) => <h4 className="text-lg font-semibold mt-6 mb-2 text-foreground first:mt-0">{children}</h4>,
             p: ({ children }) => <p className="mb-4 leading-7 text-foreground">{children}</p>,
-            ul: ({ children }) => <ul className="list-disc list-inside mb-4 space-y-2 ml-4">{children}</ul>,
-            ol: ({ children }) => <ol className="list-decimal list-inside mb-4 space-y-2 ml-4">{children}</ol>,
-            li: ({ children }) => <li className="leading-7 text-foreground">{children}</li>,
+            // Use list-outside so bullets align correctly when list items contain block elements (e.g. <p>).
+            ul: ({ children }) => <ul className="list-disc list-outside mb-4 space-y-2 pl-6">{children}</ul>,
+            ol: ({ children }) => <ol className="list-decimal list-outside mb-4 space-y-2 pl-6">{children}</ol>,
+            li: ({ children }) =>
+              extractTextFromReactNode(children).trim().length === 0 ? null : (
+                <li className="leading-7 text-foreground">{children}</li>
+              ),
             strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
             em: ({ children }) => <em className="italic text-foreground">{children}</em>,
             blockquote: ({ children }) => (

@@ -2082,6 +2082,28 @@ export default function ContentImportAdmin() {
                   </div>
                 </div>
 
+                {/* High-level error message (e.g. structure validation / thrown parsing error) */}
+                {(selectedJsonPreview.error || selectedJsonPreview.structureErrors?.length) && (
+                  <div className="text-xs bg-red-50 border border-red-200 rounded p-3 space-y-2">
+                    {selectedJsonPreview.error ? (
+                      <div>
+                        <div className="font-semibold text-red-700 mb-1">Error</div>
+                        <div className="text-red-800">{String(selectedJsonPreview.error)}</div>
+                      </div>
+                    ) : null}
+                    {Array.isArray(selectedJsonPreview.structureErrors) && selectedJsonPreview.structureErrors.length > 0 ? (
+                      <div>
+                        <div className="font-semibold text-red-700 mb-1">Structure Errors</div>
+                        <ul className="list-disc ml-5 space-y-1">
+                          {selectedJsonPreview.structureErrors.map((e: any, i: number) => (
+                            <li key={i} className="text-red-800">{String(e)}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
                 {/* Errors */}
                 {selectedJsonPreview.errors && selectedJsonPreview.errors.length > 0 && (
                   <div>

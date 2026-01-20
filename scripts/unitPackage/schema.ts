@@ -7,6 +7,9 @@ export const UnitPackageSchemaVersion = "unitPackage.v1" as const;
 
 export const UnitPackageContentSchema = z.object({
   overviewMd: z.string(),
+  // Optional for backward compatibility: older unit packages didn't store raw vocabulary section markdown.
+  // When present, it may include multiple `###` category blocks used by the Unit UI.
+  vocabularyMd: z.optional(z.string()),
   grammarMd: z.string(),
   phrasesMd: z.string(),
   dialoguesMd: z.string(),
@@ -173,6 +176,13 @@ function countBlanks(question: string): number {
   return blanks.length;
 }
 
+function normalizeVocabKey(s: string): string {
+  return String(s || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
 /**
  * Deep validation rules that go beyond structural schema checks.
  * Run this on the *post-autofix* package.
@@ -192,6 +202,30 @@ export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
   // Vocabulary: audio-clean Serbian
   for (const lang of pkg.languages) {
     const vocab = pkg.vocabulary[lang] || [];
+
+    // Disallow duplicate Serbian entries within the same unit/language.
+    // Rationale:
+    // - The app's vocabulary/trainer expects one "courseVocabulary" row per Serbian key.
+    // - Duplicates can lead to "last one wins" overwrites during import and confusing UI duplicates.
+    // If a word has multiple meanings/usages (e.g. "Molim"), keep ONE row and put extra meanings in Notes.
+    const seenSerbian = new Map<string, number>(); // key -> first index
+    for (let idx = 0; idx < vocab.length; idx++) {
+      const key = normalizeVocabKey(vocab[idx]?.serbian);
+      if (!key) continue;
+      const firstIdx = seenSerbian.get(key);
+      if (typeof firstIdx === "number") {
+        issues.push({
+          level: "error",
+          path: ["vocabulary", lang, idx, "serbian"],
+          message:
+            `Duplicate Serbian entry '${vocab[idx].serbian}' (first at index ${firstIdx}). ` +
+            `Use ONE row and put additional meanings/usages into Notes.`,
+        });
+      } else {
+        seenSerbian.set(key, idx);
+      }
+    }
+
     for (let idx = 0; idx < vocab.length; idx++) {
       const v = vocab[idx];
       if (!v.serbian.trim()) {

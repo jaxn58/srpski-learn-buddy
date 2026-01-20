@@ -12,6 +12,16 @@ import { UNITS_6_10_EXERCISES } from './exercises/units-6-10-exercises';
 import { UNITS_11_15_EXERCISES } from './exercises/units-11-15-exercises';
 import { UNITS_16_27_EXERCISES } from './exercises/units-16-27-exercises';
 
+function extractTextFromReactNode(node: any): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractTextFromReactNode).join('');
+  if (typeof node === 'object' && 'props' in node) {
+    return extractTextFromReactNode((node as any).props?.children);
+  }
+  return '';
+}
+
 // Exercise data definitions
 const EXERCISES: Record<string, any> = {
   ...NEW_UNIT1_EXERCISES,
@@ -214,11 +224,15 @@ export function InteractiveMarkdownContent({ content, unitNumber }: InteractiveM
                     <p className="mb-4 leading-relaxed" {...props} />
                   ),
                   ul: ({ node, ...props }) => (
-                    <ul className="list-disc list-inside mb-4 space-y-1" {...props} />
+                    <ul className="list-disc list-outside mb-4 space-y-1 pl-6" {...props} />
                   ),
                   ol: ({ node, ...props }) => (
-                    <ol className="list-decimal list-inside mb-4 space-y-1" {...props} />
+                    <ol className="list-decimal list-outside mb-4 space-y-1 pl-6" {...props} />
                   ),
+                  li: ({ node, children, ...props }: any) =>
+                    extractTextFromReactNode(children).trim().length === 0 ? null : (
+                      <li {...props}>{children}</li>
+                    ),
                   table: ({ node, ...props }) => (
                     <div className="overflow-x-auto mb-6 rounded-lg border border-border shadow-sm">
                       <table className="min-w-full divide-y divide-border" {...props} />

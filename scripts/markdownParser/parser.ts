@@ -8,6 +8,7 @@ import {
   extractMetadata,
   extractOverview,
   extractVocabulary,
+  extractVocabularyMarkdown,
   extractGrammar,
   extractPhrases,
   extractDialogues,
@@ -25,6 +26,7 @@ export function parseMarkdownToUnitPackage(markdown: string): UnitPackage {
 
   // Extract content sections
   const overviewMd = extractOverview(markdown);
+  const vocabularyMd = extractVocabularyMarkdown(markdown);
   const vocabulary = extractVocabulary(markdown);
   const grammarMd = extractGrammar(markdown);
   const phrasesMd = extractPhrases(markdown);
@@ -53,6 +55,7 @@ export function parseMarkdownToUnitPackage(markdown: string): UnitPackage {
     content: {
       en: {
         overviewMd,
+        vocabularyMd,
         grammarMd,
         phrasesMd,
         dialoguesMd,

@@ -23,7 +23,8 @@ import {
  * Extract module and unit metadata from the top of the document
  */
 export function extractMetadata(markdown: string): ParsedMetadata {
-  const lines = markdown.split("\n");
+  // Be robust to Windows CRLF by normalizing line endings.
+  const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
 
   let moduleNumber = 0;
   let moduleTitle = "";
@@ -33,7 +34,8 @@ export function extractMetadata(markdown: string): ParsedMetadata {
   let baseLanguage = "English";
   let targetLanguage = "Serbian";
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\r$/, "");
     // Module: "# Module 2: Soziales Leben (Social Life)"
     const moduleMatch = line.match(/^#\s+Module\s+(\d+):\s+(.+?)(?:\s+\((.+?)\))?$/);
     if (moduleMatch) {
@@ -208,6 +210,19 @@ export function extractVocabulary(markdown: string): ParsedVocabularyEntry[] {
   }
 
   return vocabulary;
+}
+
+/**
+ * Extract the full Vocabulary section as Markdown (including headings + tables).
+ * This is used for UI rendering/grouping (e.g. multiple `###` categories).
+ */
+export function extractVocabularyMarkdown(markdown: string): string {
+  // Normalize CRLF -> LF so we can safely look for "\n## <n>." boundaries.
+  const normalized = String(markdown || "").replace(/\r\n/g, "\n");
+  const vocabMatch = normalized.match(
+    /##\s+2\.\s+Vocabulary[\s\S]+?(?=\n##\s+\d+\.|$)/
+  );
+  return vocabMatch?.[0]?.trim() ?? "";
 }
 
 /**

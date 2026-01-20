@@ -401,12 +401,14 @@ export const internalImportUnitPackage = internalMutation({
     // 2) Unit content (per language)
     type UnitContentType =
       | "overview"
+      | "vocabulary"
       | "grammar"
       | "phrases"
       | "dialogues"
       | "testIntroduction";
     const contentTypeMap: Array<{ key: string; type: UnitContentType }> = [
       { key: "overviewMd", type: "overview" },
+      { key: "vocabularyMd", type: "vocabulary" },
       { key: "grammarMd", type: "grammar" },
       { key: "phrasesMd", type: "phrases" },
       { key: "dialoguesMd", type: "dialogues" },

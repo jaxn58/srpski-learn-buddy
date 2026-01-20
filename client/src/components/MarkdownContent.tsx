@@ -7,6 +7,18 @@ interface MarkdownContentProps {
   className?: string;
 }
 
+function extractTextFromReactNode(node: any): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractTextFromReactNode).join("");
+  // React element-like
+  if (typeof node === "object" && "props" in node) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return extractTextFromReactNode((node as any).props?.children);
+  }
+  return "";
+}
+
 /**
  * Renders Markdown content with proper styling for educational content
  * Supports: headings, lists, tables, bold, italic, code blocks, etc.
@@ -19,22 +31,22 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
         components={{
           // Headings
           h1: ({ children }) => (
-            <h1 className="text-3xl font-bold mt-8 mb-4 text-foreground border-b pb-2">
+            <h1 className="text-3xl font-bold mt-10 mb-4 text-foreground border-b pb-2 first:mt-0">
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="text-2xl font-bold mt-6 mb-3 text-foreground">
+            <h2 className="text-2xl font-bold mt-8 mb-3 text-foreground first:mt-0">
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-xl font-semibold mt-5 mb-2 text-foreground">
+            <h3 className="text-xl font-semibold mt-7 mb-2 text-foreground first:mt-0">
               {children}
             </h3>
           ),
           h4: ({ children }) => (
-            <h4 className="text-lg font-semibold mt-4 mb-2 text-foreground">
+            <h4 className="text-lg font-semibold mt-6 mb-2 text-foreground first:mt-0">
               {children}
             </h4>
           ),
@@ -48,19 +60,21 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           
           // Lists
           ul: ({ children }) => (
-            <ul className="list-disc list-inside mb-4 space-y-2 ml-4">
+            // Use list-outside so bullets align correctly when list items contain block elements (e.g. <p>).
+            <ul className="list-disc list-outside mb-4 space-y-2 pl-6">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal list-inside mb-4 space-y-2 ml-4">
+            <ol className="list-decimal list-outside mb-4 space-y-2 pl-6">
               {children}
             </ol>
           ),
           li: ({ children }) => (
-            <li className="leading-7 text-foreground">
-              {children}
-            </li>
+            // Avoid rendering empty list items (can appear due to markdown structure/whitespace)
+            extractTextFromReactNode(children).trim().length === 0 ? null : (
+              <li className="leading-7 text-foreground">{children}</li>
+            )
           ),
           
           // Tables - Modern Design

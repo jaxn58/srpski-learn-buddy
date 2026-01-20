@@ -18,6 +18,155 @@ import { InteractiveTest } from "@/components/InteractiveTest";
 import { VocabularyDictionaryTable, type VocabularyDictionaryRow } from "@/components/vocabulary/VocabularyDictionaryTable";
 import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
 
+type VocabularyGroup = {
+  title: string;
+  // Normalized Serbian keys (trimmed/lowercased, spaces collapsed)
+  serbianKeys: string[];
+};
+
+function normalizeProgressionFormattingInOverview(markdown: string): string {
+  const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
+  const out: string[] = [];
+
+  let inProgression = false;
+  let deindentNestedBullets = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+
+    // Detect start of Progression block
+    if (/^####\s+Progression\s*$/i.test(line.trim())) {
+      inProgression = true;
+      deindentNestedBullets = false;
+      out.push(line);
+      continue;
+    }
+
+    // Stop at the horizontal rule that usually ends the overview section
+    if (inProgression && /^-{3,}\s*$/.test(line.trim())) {
+      inProgression = false;
+      deindentNestedBullets = false;
+      out.push(line);
+      continue;
+    }
+
+    if (!inProgression) {
+      out.push(line);
+      continue;
+    }
+
+    // Convert "- **New Vocabulary:**" / "- **New Grammar:**" into a paragraph-style label
+    const newBlockMatch = line.match(/^\s*-\s+\*\*(New (Vocabulary|Grammar)):\*\*\s*$/i);
+    if (newBlockMatch?.[1]) {
+      const label = newBlockMatch[1];
+      out.push(`**${label}:**`);
+      deindentNestedBullets = true;
+      continue;
+    }
+
+    // De-indent nested bullets so they become a clean list under the label
+    if (deindentNestedBullets && /^\s{2}-\s+/.test(line)) {
+      out.push(line.slice(2));
+      continue;
+    }
+
+    // Reset de-indent mode when we leave the nested list area (blank lines are fine)
+    if (deindentNestedBullets && line.trim() !== "" && !/^\s{2}-\s+/.test(line)) {
+      deindentNestedBullets = false;
+    }
+
+    out.push(line);
+  }
+
+  // Avoid excessive blank lines after transformations
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+function formatOverviewForDisplay(markdown: string): string {
+  // Remove "## 1. Overview" header stored in DB, then normalize progression visuals.
+  const base = String(markdown || "").replace(/^##\s+[^\n]+\n+/, "");
+  return normalizeProgressionFormattingInOverview(base);
+}
+
+function normalizeSerbianKey(input: string): string {
+  return String(input || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function extractVocabularyGroupsFromMarkdown(markdown: string): VocabularyGroup[] {
+  // Normalize CRLF -> LF so regex boundaries behave consistently.
+  const md = String(markdown || "").replace(/\r\n/g, "\n");
+  if (!md.trim()) return [];
+
+  // Grab "## 2. Vocabulary ..." section only
+  // IMPORTANT: Don't use multiline `$` here (it matches end-of-line). We want end-of-string.
+  const match = md.match(/##\s+2\.\s+Vocabulary[\s\S]+?(?=\n##\s+\d+\.|$)/);
+  if (!match) return [];
+  const section = match[0];
+
+  const groups: VocabularyGroup[] = [];
+
+  // Find each subsection heading ("### Title") and slice until the next heading.
+  // Avoid using multiline `$` in lookaheads (it matches end-of-line and can truncate bodies).
+  const headingRe = /^###\s+(.+?)\s*$/gm;
+  const headings: Array<{ title: string; index: number; afterIndex: number }> = [];
+  let hm: RegExpExecArray | null = null;
+  while ((hm = headingRe.exec(section)) !== null) {
+    const title = String(hm[1] || "").trim();
+    if (!title) continue;
+    headings.push({ title, index: hm.index, afterIndex: hm.index + hm[0].length });
+  }
+  for (let hIdx = 0; hIdx < headings.length; hIdx++) {
+    const title = headings[hIdx].title;
+    const bodyStart = headings[hIdx].afterIndex;
+    const bodyEnd = headings[hIdx + 1]?.index ?? section.length;
+    const body = section.slice(bodyStart, bodyEnd);
+
+    const lines = body.split(/\r?\n/);
+    const firstTableLineIdx = lines.findIndex((l) => l.trim().startsWith("|"));
+    if (firstTableLineIdx < 0) continue;
+
+    // Collect contiguous table lines
+    const tableLines: string[] = [];
+    for (let i = firstTableLineIdx; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim().startsWith("|")) break;
+      tableLines.push(line);
+    }
+    if (tableLines.length < 3) continue; // header + separator + at least one row
+
+    const parseRow = (line: string): string[] => {
+      const raw = line.trim();
+      const trimmed = raw.startsWith("|") ? raw.slice(1) : raw;
+      const trimmed2 = trimmed.endsWith("|") ? trimmed.slice(0, -1) : trimmed;
+      return trimmed2.split("|").map((c) => c.trim());
+    };
+
+    const headers = parseRow(tableLines[0]).map((h) => h.toLowerCase());
+    const serbianIdx = headers.findIndex((h) => h.includes("serbian"));
+    if (serbianIdx < 0) continue;
+
+    const serbianKeys: string[] = [];
+    const seenKeys = new Set<string>();
+    for (let i = 2; i < tableLines.length; i++) {
+      const cells = parseRow(tableLines[i]);
+      const serbianCell = cells[serbianIdx] ?? "";
+      const key = normalizeSerbianKey(serbianCell);
+      if (key && !seenKeys.has(key)) {
+        seenKeys.add(key);
+        serbianKeys.push(key);
+      }
+    }
+
+    if (serbianKeys.length === 0) continue;
+    groups.push({ title, serbianKeys });
+  }
+
+  return groups;
+}
+
 export default function UnitView() {
   const { user, loading: authLoading } = useAuth();
   const { t, i18n } = useTranslation();
@@ -119,6 +268,45 @@ export default function UnitView() {
       } satisfies VocabularyDictionaryRow;
     });
   }, [vocabularyWithProgress, displayLanguage, unitNumber]);
+
+  const vocabularyGroupsForUnitView = React.useMemo(() => {
+    const md = content?.vocabulary;
+    const groups = md ? extractVocabularyGroupsFromMarkdown(md) : [];
+    if (!groups.length || vocabularyRows.length === 0) {
+      return { hasGroups: false as const, groups: [] as Array<{ title: string; rows: VocabularyDictionaryRow[] }> };
+    }
+
+    const rowByKey = new Map<string, VocabularyDictionaryRow>();
+    for (const row of vocabularyRows) {
+      rowByKey.set(normalizeSerbianKey(row.serbian), row);
+    }
+
+    const usedKeys = new Set<string>();
+    const grouped = groups
+      .map((g) => {
+        const rows = g.serbianKeys
+          .map((k) => rowByKey.get(k))
+          .filter((r): r is VocabularyDictionaryRow => Boolean(r));
+        for (const k of g.serbianKeys) usedKeys.add(k);
+        return { title: g.title, rows };
+      })
+      .filter((g) => g.rows.length > 0);
+
+    // Only switch to grouped view if we have at least 2 groups with content.
+    if (grouped.length < 2) {
+      return { hasGroups: false as const, groups: [] as Array<{ title: string; rows: VocabularyDictionaryRow[] }> };
+    }
+
+    // Any remaining words (not present in markdown tables) go to "Other".
+    const remaining: VocabularyDictionaryRow[] = vocabularyRows.filter(
+      (r) => !usedKeys.has(normalizeSerbianKey(r.serbian))
+    );
+    if (remaining.length > 0) {
+      grouped.push({ title: "Other", rows: remaining });
+    }
+
+    return { hasGroups: true as const, groups: grouped };
+  }, [content?.vocabulary, vocabularyRows]);
 
   // Determine Module from unitMetadata
   const moduleSlug = unitMetadata?.moduleId;
@@ -375,7 +563,7 @@ export default function UnitView() {
                 </CardHeader>
                 <CardContent>
                   {content?.overview ? (
-                    <MarkdownContent content={content.overview.replace(/^##\s+[^\n]+\n+/, "")} />
+                    <MarkdownContent content={formatOverviewForDisplay(content.overview)} />
                   ) : (
                     <p className="text-muted-foreground text-center py-8">No overview available.</p>
                   )}
@@ -396,14 +584,32 @@ export default function UnitView() {
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
                   ) : vocabularyRows.length > 0 ? (
-                    <VocabularyDictionaryTable
-                      rows={vocabularyRows}
-                      onPlayAudio={({ vocabularyId, serbianWord, unitNumber, audioStorageId }) =>
-                        play({ vocabularyId, serbianWord, unitNumber, audioStorageId })
-                      }
-                      playingAudioId={playingAudioId}
-                      loadingAudioId={loadingAudioId}
-                    />
+                    vocabularyGroupsForUnitView.hasGroups ? (
+                      <div className="space-y-10">
+                        {vocabularyGroupsForUnitView.groups.map((group) => (
+                          <div key={group.title}>
+                            <h3 className="text-lg font-semibold mb-4">{group.title}</h3>
+                            <VocabularyDictionaryTable
+                              rows={group.rows}
+                              onPlayAudio={({ vocabularyId, serbianWord, unitNumber, audioStorageId }) =>
+                                play({ vocabularyId, serbianWord, unitNumber, audioStorageId })
+                              }
+                              playingAudioId={playingAudioId}
+                              loadingAudioId={loadingAudioId}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <VocabularyDictionaryTable
+                        rows={vocabularyRows}
+                        onPlayAudio={({ vocabularyId, serbianWord, unitNumber, audioStorageId }) =>
+                          play({ vocabularyId, serbianWord, unitNumber, audioStorageId })
+                        }
+                        playingAudioId={playingAudioId}
+                        loadingAudioId={loadingAudioId}
+                      />
+                    )
                   ) : content?.vocabulary ? (
                     <MarkdownContent content={content.vocabulary} />
                   ) : (
