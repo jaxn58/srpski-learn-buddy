@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import {
@@ -26,6 +26,7 @@ import {
   Presentation,
   Moon,
   Sun,
+  Lock,
 } from "lucide-react";
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -51,6 +52,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type NavItem = {
   label: string;
@@ -62,14 +71,18 @@ type NavItem = {
 export function TopNavigation() {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { theme, toggleTheme, switchable } = useTheme();
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isBetaTester = Boolean(user?.isBetaTester);
   const activeClass = "bg-[color:var(--accent)] text-white hover:brightness-95 hover:text-white";
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const stats = useQuery(api.progress.getDashboardStats, user ? undefined : "skip");
+  // Protected layout already requires auth; mirror `/units` data access here.
+  const dbModules = useQuery(api.modules.getAllModulesConsolidated);
+  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" });
   const XP_PER_LEVEL = 300;
   const totalXP = Math.floor(stats?.totalXP || 0);
   const currentLevel =
@@ -104,6 +117,110 @@ export function TopNavigation() {
     ],
     [t]
   );
+
+  const modulesForQuickSwitch = useMemo(() => {
+    if (!dbModules || dbModules.length === 0) return [];
+    return dbModules
+      .map((m) => ({
+        slug: m.slug || "",
+        number: m.moduleNumber || 0,
+        title: m.titleEn || "",
+        _id: m._id,
+      }))
+      .filter((m) => Boolean(m.slug))
+      .sort((a, b) => a.number - b.number);
+  }, [dbModules]);
+
+  const unitsByModuleSlugForQuickSwitch = useMemo(() => {
+    const result: Record<string, Array<{ unitNumber: number; title: string }>> = {};
+    if (!dbUnitsEn || dbUnitsEn.length === 0) return result;
+
+    const slugByModuleMetadataId = new Map<string, string>();
+    for (const m of dbModules || []) {
+      if (m?._id && m?.slug) slugByModuleMetadataId.set(String(m._id), String(m.slug));
+    }
+
+    for (const unit of dbUnitsEn) {
+      let moduleSlug: string | undefined;
+      if ((unit as any).moduleMetadataId) {
+        moduleSlug = slugByModuleMetadataId.get(String((unit as any).moduleMetadataId));
+      } else if ((unit as any).moduleId) {
+        moduleSlug = String((unit as any).moduleId);
+      }
+
+      if (!moduleSlug) continue;
+      if (!result[moduleSlug]) result[moduleSlug] = [];
+
+      const unitNumber = Number((unit as any).unitNumber);
+      if (!Number.isFinite(unitNumber)) continue;
+      const exists = result[moduleSlug].some((u) => u.unitNumber === unitNumber);
+      if (exists) continue;
+
+      result[moduleSlug].push({
+        unitNumber,
+        title: String((unit as any).title || "").trim(),
+      });
+    }
+
+    for (const slug of Object.keys(result)) {
+      result[slug].sort((a, b) => a.unitNumber - b.unitNumber);
+    }
+    return result;
+  }, [dbUnitsEn, dbModules]);
+
+  const quickSwitchModulesWithUnits = useMemo(() => {
+    return modulesForQuickSwitch.filter(
+      (m) => (unitsByModuleSlugForQuickSwitch[m.slug] || []).length > 0
+    );
+  }, [modulesForQuickSwitch, unitsByModuleSlugForQuickSwitch]);
+
+  const [unitsQuickSwitchOpen, setUnitsQuickSwitchOpen] = useState(false);
+  const [selectedModuleSlug, setSelectedModuleSlug] = useState<string>("");
+  const [selectedUnitNumber, setSelectedUnitNumber] = useState<string>("");
+
+  const currentUnitNumberFromUrl = useMemo(() => {
+    const m = String(location || "").match(/^\/unit\/(\d+)/);
+    if (!m?.[1]) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? n : null;
+  }, [location]);
+
+  const moduleSlugForCurrentUnit = useMemo(() => {
+    if (!currentUnitNumberFromUrl) return null;
+    for (const [slug, units] of Object.entries(unitsByModuleSlugForQuickSwitch)) {
+      if (units.some((u) => u.unitNumber === currentUnitNumberFromUrl)) return slug;
+    }
+    return null;
+  }, [currentUnitNumberFromUrl, unitsByModuleSlugForQuickSwitch]);
+
+  useEffect(() => {
+    if (!unitsQuickSwitchOpen) return;
+
+    // Default module selection to current unit's module, otherwise first module with units.
+    const fallbackSlug = quickSwitchModulesWithUnits[0]?.slug || "";
+    const desired = moduleSlugForCurrentUnit || fallbackSlug;
+
+    if (!selectedModuleSlug && desired) {
+      setSelectedModuleSlug(desired);
+      setSelectedUnitNumber("");
+      return;
+    }
+
+    // If selected module has no units (data changed), reset to first available.
+    if (selectedModuleSlug) {
+      const hasUnits = (unitsByModuleSlugForQuickSwitch[selectedModuleSlug] || []).length > 0;
+      if (!hasUnits && fallbackSlug) {
+        setSelectedModuleSlug(fallbackSlug);
+        setSelectedUnitNumber("");
+      }
+    }
+  }, [
+    unitsQuickSwitchOpen,
+    selectedModuleSlug,
+    moduleSlugForCurrentUnit,
+    quickSwitchModulesWithUnits,
+    unitsByModuleSlugForQuickSwitch,
+  ]);
 
   const moreItems: NavItem[] = useMemo(
     () => [
@@ -275,20 +392,123 @@ export function TopNavigation() {
         <nav className="hidden md:flex flex-1 items-center justify-center gap-1">
           {mainItems.map((item) => {
             const active = isItemActive(item);
+            const isUnitsItem = item.href === "/units";
             return (
-              <Link key={item.href} href={item.href}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "gap-2 px-3",
-                    active && activeClass
-                  )}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Button>
-              </Link>
+              <div key={item.href} className={cn("flex items-center", isUnitsItem && "gap-0")}>
+                <Link href={item.href}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "gap-2 px-3",
+                      active && activeClass
+                    )}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </Button>
+                </Link>
+
+                {isUnitsItem && (
+                  <Popover open={unitsQuickSwitchOpen} onOpenChange={setUnitsQuickSwitchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "px-2",
+                          unitsQuickSwitchOpen && "bg-accent text-accent-foreground"
+                        )}
+                        aria-label="Jump to unit"
+                      >
+                        <ChevronDown className="h-4 w-4 opacity-70" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-80 p-3">
+                      <div className="space-y-3">
+                        <div className="text-sm font-medium">Jump to Unit</div>
+
+                        {quickSwitchModulesWithUnits.length === 0 ? (
+                          <div className="text-sm text-muted-foreground">
+                            No units available yet.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <div className="text-xs text-muted-foreground">Module</div>
+                              <Select
+                                value={selectedModuleSlug}
+                                onValueChange={(v) => {
+                                  setSelectedModuleSlug(v);
+                                  setSelectedUnitNumber("");
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select module" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {quickSwitchModulesWithUnits.map((m) => (
+                                    <SelectItem key={m.slug} value={m.slug}>
+                                      {`Module ${m.number}: ${m.title || m.slug}`}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="text-xs text-muted-foreground">Unit</div>
+                              <Select
+                                value={selectedUnitNumber}
+                                onValueChange={(v) => {
+                                  setSelectedUnitNumber(v);
+                                  const n = Number(v);
+                                  if (Number.isFinite(n)) {
+                                    setUnitsQuickSwitchOpen(false);
+                                    setLocation(`/unit/${n}`);
+                                  }
+                                }}
+                                disabled={!selectedModuleSlug}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select unit" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(unitsByModuleSlugForQuickSwitch[selectedModuleSlug] || []).map(
+                                    (u) => {
+                                      const locked =
+                                        !isAdmin && isBetaTester && u.unitNumber > 1;
+                                      return (
+                                        <SelectItem
+                                          key={u.unitNumber}
+                                          value={String(u.unitNumber)}
+                                          disabled={locked}
+                                        >
+                                          <span className="inline-flex items-center gap-2">
+                                            <span>{`Unit ${u.unitNumber}`}</span>
+                                            {u.title ? (
+                                              <span className="text-muted-foreground">
+                                                — {u.title}
+                                              </span>
+                                            ) : null}
+                                            {locked ? (
+                                              <Lock className="h-3.5 w-3.5 opacity-60" />
+                                            ) : null}
+                                          </span>
+                                        </SelectItem>
+                                      );
+                                    }
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
             );
           })}
 

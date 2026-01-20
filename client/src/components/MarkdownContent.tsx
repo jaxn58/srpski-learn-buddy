@@ -50,6 +50,13 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
               {children}
             </h4>
           ),
+          // Use a slightly larger h5 to reduce the visual jump from h4 (used by section blocks like "Progression")
+          // while still preserving hierarchy.
+          h5: ({ children }) => (
+            <h5 className="text-[17px] font-semibold mt-5 mb-2 text-foreground first:mt-0">
+              {children}
+            </h5>
+          ),
           
           // Paragraphs
           p: ({ children }) => (

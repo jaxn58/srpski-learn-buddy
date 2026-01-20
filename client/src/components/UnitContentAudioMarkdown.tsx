@@ -293,6 +293,7 @@ export function UnitContentAudioMarkdown({ content, unitNumber, language, conten
             h2: ({ children }) => <h2 className="text-2xl font-bold mt-8 mb-3 text-foreground first:mt-0">{children}</h2>,
             h3: ({ children }) => <h3 className="text-xl font-semibold mt-7 mb-2 text-foreground first:mt-0">{children}</h3>,
             h4: ({ children }) => <h4 className="text-lg font-semibold mt-6 mb-2 text-foreground first:mt-0">{children}</h4>,
+            h5: ({ children }) => <h5 className="text-[17px] font-semibold mt-5 mb-2 text-foreground first:mt-0">{children}</h5>,
             p: ({ children }) => <p className="mb-4 leading-7 text-foreground">{children}</p>,
             // Use list-outside so bullets align correctly when list items contain block elements (e.g. <p>).
             ul: ({ children }) => <ul className="list-disc list-outside mb-4 space-y-2 pl-6">{children}</ul>,

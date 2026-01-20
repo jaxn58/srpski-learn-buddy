@@ -55,6 +55,20 @@ function normalizeProgressionFormattingInOverview(markdown: string): string {
       continue;
     }
 
+    // Promote progression sub-sections to a consistent sub-heading hierarchy:
+    // - "Prerequisites ..." and "New in this Unit" should look like siblings under "Progression".
+    const prereqMatch = line.trim().match(/^\*\*Prerequisites\s*\(Known from earlier units\):\*\*\s*$/i);
+    if (prereqMatch) {
+      out.push("##### Prerequisites (Known from earlier units)");
+      continue;
+    }
+
+    const newInMatch = line.trim().match(/^\*\*New in this Unit:\*\*\s*$/i);
+    if (newInMatch) {
+      out.push("##### New in this Unit");
+      continue;
+    }
+
     // Convert "- **New Vocabulary:**" / "- **New Grammar:**" into a paragraph-style label
     const newBlockMatch = line.match(/^\s*-\s+\*\*(New (Vocabulary|Grammar)):\*\*\s*$/i);
     if (newBlockMatch?.[1]) {
@@ -430,7 +444,7 @@ export default function UnitView() {
 
   if (isLocked) {
     return (
-      <AnimatedPage>
+      <AnimatedPage className="md:[&_[data-slot=card-header]]:px-9 md:[&_[data-slot=card-content]]:px-9 md:[&_[data-slot=card-footer]]:px-9">
         <div className="flex-1 p-8 flex items-center justify-center">
           <Card className="max-w-md border-yellow-200 bg-yellow-50">
             <CardHeader>
@@ -457,7 +471,7 @@ export default function UnitView() {
   const unitTopicsForBadges = unitMetadata.topics ?? [];
 
   return (
-    <AnimatedPage>
+    <AnimatedPage className="md:[&_[data-slot=card-header]]:px-9 md:[&_[data-slot=card-content]]:px-9 md:[&_[data-slot=card-footer]]:px-9">
       <header className={`sticky top-16 z-40 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 pt-4 pb-2 mb-6 transition-all duration-200 ${
         isScrolled 
           ? 'bg-gradient-to-b from-background/95 via-background/90 to-background/0 backdrop-blur supports-[backdrop-filter]:backdrop-blur' 
