@@ -8,6 +8,7 @@ export interface ParsedMetadata {
   moduleTitle: string;
   unitNumber: number;
   unitTitle: string;
+  unitDescription?: string;
   baseLanguage: string;
   targetLanguage: string;
 }

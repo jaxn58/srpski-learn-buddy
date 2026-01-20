@@ -59,6 +59,9 @@ export const UnitPackageSchema = z
       title: z.string().min(1),
     }),
     title: z.string().min(1),
+    // Short description shown under the unit title in the app.
+    // Optional for backward compatibility; recommended for new content.
+    description: z.optional(z.string().min(1)),
     baseLanguage: z.literal("en"),
     targetLanguage: z.literal("sr"),
     languages: z.array(SupportedLanguageSchema).min(1),
@@ -176,6 +179,15 @@ function countBlanks(question: string): number {
  */
 export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+
+  // Unit description (shown under unit title in the app)
+  if (!pkg.description || !String(pkg.description).trim()) {
+    issues.push({
+      level: "warning",
+      path: ["description"],
+      message: "Missing unit description (recommended): add a short one-sentence description.",
+    });
+  }
 
   // Vocabulary: audio-clean Serbian
   for (const lang of pkg.languages) {

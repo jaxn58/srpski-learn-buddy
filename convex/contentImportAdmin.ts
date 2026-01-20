@@ -377,8 +377,11 @@ export const internalImportUnitPackage = internalMutation({
         unitNumber: fixed.unitNumber,
         language: lang,
         title: fixed.title,
-        // IMPORTANT: description is admin-managed (see Unit Metadata tab) and must not be overwritten by imports
-        // unless we explicitly add it to the import payload in the future.
+        // Unit description comes from Markdown/UnitPackage (preferred source of truth).
+        // IMPORTANT: We only set it when present to avoid unintentionally wiping existing descriptions.
+        ...(typeof (fixed as any).description === "string" && String((fixed as any).description).trim()
+          ? { description: String((fixed as any).description).trim() }
+          : {}),
         topics: [],
         grammarFocus: [],
         vocabularyThemes: [],

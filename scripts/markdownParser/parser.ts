@@ -42,6 +42,7 @@ export function parseMarkdownToUnitPackage(markdown: string): UnitPackage {
     schemaVersion: "unitPackage.v1" as const,
     unitNumber: metadata.unitNumber,
     title: metadata.unitTitle,
+    description: metadata.unitDescription,
     baseLanguage,
     targetLanguage,
     languages: ["en"], // Currently only English
@@ -200,6 +201,12 @@ export function validateMarkdownStructure(markdown: string): {
 
   if (!markdown.match(/^##\s+Unit\s+\d+:/m)) {
     errors.push("Missing unit header (e.g., '## Unit 1: ...')");
+  }
+
+  // Require a short description right after the unit header.
+  // Accept EN/DE label for author convenience.
+  if (!markdown.match(/^\*\*(Description|Beschreibung):\*\*\s+.+/m)) {
+    errors.push("Missing unit description line (e.g., '**Description:** One short sentence.')");
   }
 
   return {

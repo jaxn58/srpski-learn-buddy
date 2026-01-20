@@ -24,8 +24,13 @@ Deine Markdown-Datei **muss** folgende Struktur haben:
 
 ## Unit Y: [Unittitel]
 
+**Description:** [ONE short sentence shown under the unit title in the app]
+
 ## 1. Overview
 [Einführungstext in die Unit]
+
+#### A Note from the Founder (optional)
+> "Kurzer persönlicher Kontext/Warum diese Unit wichtig ist."
 
 ## 2. Vocabulary
 **Instructions:** ...
@@ -58,6 +63,7 @@ Deine Markdown-Datei **muss** folgende Struktur haben:
 
 1. **Pflichtfelder:**
    - Module & Unit Header (`# Module X:` und `## Unit Y:`)
+   - **Unit Description** direkt nach dem Unit-Header: `**Description:** ...`
    - Section `## 1. Overview`
    - Section `## 2. Vocabulary`
    - Section `## 5. Interactive Test` mit mindestens einem Exercise
@@ -128,6 +134,11 @@ Beispiel (Multiple Choice):
 ```text
 You will produce a SINGLE Markdown file for ONE unit.
 
+CRITICAL REQUIREMENT: add a short unit description line directly under the unit header.
+Use EXACTLY this format:
+**Description:** <one short sentence (max ~120 characters)>
+This will be stored in `unitMetadata.description` and shown under the unit title in the app.
+
 CRITICAL REQUIREMENT: add stable Question IDs for every exercise question.
 Our system uses `questionId` as the unique key. If it changes between versions, progress cannot be matched reliably.
 
@@ -144,6 +155,7 @@ Our system uses `questionId` as the unique key. If it changes between versions, 
    u6_ex3_q01
 
 3) Rules:
+   - Never leave **Description** empty.
    - Never leave "Question ID" empty.
    - Never generate random IDs.
    - If you regenerate the unit later, reuse the SAME IDs for the SAME questions.

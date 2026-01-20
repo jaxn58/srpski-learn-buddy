@@ -29,6 +29,7 @@ export function extractMetadata(markdown: string): ParsedMetadata {
   let moduleTitle = "";
   let unitNumber = 0;
   let unitTitle = "";
+  let unitDescription: string | undefined = undefined;
   let baseLanguage = "English";
   let targetLanguage = "Serbian";
 
@@ -58,6 +59,14 @@ export function extractMetadata(markdown: string): ParsedMetadata {
     if (targetLangMatch) {
       targetLanguage = targetLangMatch[1].trim();
     }
+
+    // Unit short description: "**Description:** Handle money transactions."
+    // Support DE label as well for author convenience.
+    const descMatch = line.match(/\*\*(Description|Beschreibung):\*\*\s+(.+)/i);
+    if (descMatch?.[2]) {
+      const raw = descMatch[2].trim();
+      if (raw) unitDescription = raw;
+    }
   }
 
   if (moduleNumber === 0 || unitNumber === 0) {
@@ -69,6 +78,7 @@ export function extractMetadata(markdown: string): ParsedMetadata {
     moduleTitle,
     unitNumber,
     unitTitle,
+    unitDescription,
     baseLanguage,
     targetLanguage,
   };
@@ -84,19 +94,12 @@ export function extractOverview(markdown: string): string {
 
   if (!overviewMatch) return "";
 
-  let overview = overviewMatch[1].trim();
-
-  // Remove the founder note quote if present
-  overview = overview.replace(/####\s+A Note from the Founder[\s\S]+?(?=####|$)/, "");
-
-  // Extract learning objectives if present
-  const objectivesMatch = overview.match(
-    /####\s+Learning Objectives\s*\n([\s\S]+?)(?=####|##|$)/
-  );
-
-  const baseOverview = (objectivesMatch ? objectivesMatch[1] : overview).trim();
-
   const overviewHeader = "## 1. Overview";
+  // Keep the overview body as-authored, including optional Founder quote blocks.
+  const baseOverviewRaw = overviewMatch[1].trim();
+  // Avoid double separators when we append a Cultural Note below.
+  // Many authored units end the overview section with a horizontal rule ("---").
+  const baseOverview = baseOverviewRaw.replace(/(\n\s*---\s*)+$/g, "").trim();
 
   // Append Cultural Note (if present anywhere in the markdown) to the end of overviewMd.
   // This allows authors to place the Cultural Note at the end of the document while
