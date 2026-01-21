@@ -1,6 +1,7 @@
 import { SignUp } from "@clerk/clerk-react";
 import { BookOpen } from "lucide-react";
 import { Link } from "wouter";
+import { AppFooter } from "@/components/AppFooter";
 
 export default function SignUpPage() {
   const redirectUrl = (() => {
@@ -50,6 +51,8 @@ export default function SignUpPage() {
           }}
         />
       </div>
+
+      <AppFooter />
     </div>
   );
 }

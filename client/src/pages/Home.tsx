@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { WaitlistModal } from "@/components/WaitlistModal";
+import { AppFooter } from "@/components/AppFooter";
 // During beta phase, we do not offer paid plans/checkout.
 
 export default function Home() {
@@ -294,7 +295,6 @@ export default function Home() {
 
       {/* Pricing, Upgrade Policy & FAQ Section */}
       {/* Flexible Duration Section */}
-      {isPrivileged && (
       <section id="pricing" className="container py-20">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center space-y-4">
@@ -954,7 +954,6 @@ export default function Home() {
           )}
         </div>
       </section>
-      )}
 
       {/* Modules Section */}
       <section id="units" className="w-full bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
@@ -1057,13 +1056,7 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <footer className="w-full border-t bg-gradient-to-r from-red-50/50 via-white to-blue-50/50">
-        <div className="container py-8">
-          <div className="text-center text-sm text-muted-foreground">
-            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
-          </div>
-        </div>
-      </footer>
+      <AppFooter />
 
       {/* Waitlist Modal */}
       <WaitlistModal 

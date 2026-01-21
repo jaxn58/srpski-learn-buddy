@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, ArrowLeft, Shield, RefreshCw, FileText } from "lucide-react";
+import { AppFooter } from "@/components/AppFooter";
 
 function SectionTitle({ id, children }: { id: string; children: string }) {
   return (
@@ -361,11 +362,10 @@ export default function Terms() {
             </CardContent>
           </Card>
 
-          <div className="text-center text-xs text-muted-foreground pt-4">
-            <p>© learn-with.me</p>
-          </div>
         </div>
       </main>
+
+      <AppFooter />
     </div>
   );
 }
