@@ -147,8 +147,16 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       return;
     }
 
+    // Additional check: ensure clientToken is actually present
+    const clientToken = paddleConfig?.clientToken;
+    if (!clientToken || clientToken.trim() === "") {
+      console.warn("[MySubscription] Paddle client token not available yet");
+      setPaddleReady(false);
+      return;
+    }
+
     initPaddleWithToken({
-      token: paddleConfig?.clientToken || "",
+      token: clientToken,
       environment: paddleConfig?.environment === "production" ? "production" : "sandbox",
     }).then((instance) => {
       if (!instance) {
@@ -194,6 +202,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
           source: "my_subscription",
           beta50: effectiveUseBetaPrice,
         },
+        settings: {
+          successUrl: `${window.location.origin}/dashboard?purchase=success`,
+        },
       });
     } catch (error: any) {
       toast.error(t("subscription.upgradeError", { error: error.message }));
@@ -233,6 +244,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
           planType: newPlan,
           previousPlan: subscriptionPlan || subscription.planType,
           upgradeCostCents: result?.cost ?? 0,
+        },
+        settings: {
+          successUrl: `${window.location.origin}/dashboard?upgrade=success`,
         },
       });
     } catch (error: any) {

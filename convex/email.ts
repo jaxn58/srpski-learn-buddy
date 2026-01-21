@@ -283,6 +283,57 @@ export const sendFeedbackAdminReplyEmail = internalAction({
   },
 });
 
+/**
+ * Send purchase confirmation email (convenience wrapper)
+ */
+export const sendPurchaseConfirmationEmail = internalAction({
+  args: {
+    email: v.string(),
+    name: v.string(),
+    planType: v.string(),
+    planDurationMonths: v.number(),
+    expiresAt: v.number(),
+    paymentMode: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<SendEmailResult> => {
+    // Map plan type to display name
+    const planNames: Record<string, string> = {
+      intensive: "Intensive Plan",
+      balanced: "Balanced Plan",
+      standard: "Standard Plan",
+      relaxed: "Relaxed Plan",
+    };
+    
+    const planName = planNames[args.planType] || args.planType;
+    
+    // Format expiration date (EU format: DD.MM.YYYY)
+    const expiresDate = new Date(args.expiresAt);
+    const expiresAt = expiresDate.toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    
+    // Format payment mode
+    const paymentModeDisplay = args.paymentMode === "installments" 
+      ? "Monthly Installments" 
+      : "One-time Payment";
+    
+    return await renderAndSendTemplateEmail(ctx, {
+      templateName: "purchase-confirmation",
+      variables: {
+        USER_NAME: args.name,
+        USER_EMAIL: args.email,
+        PLAN_NAME: planName,
+        PLAN_DURATION_MONTHS: args.planDurationMonths,
+        EXPIRES_AT: expiresAt,
+        PAYMENT_MODE: paymentModeDisplay,
+      },
+      to: args.email,
+    });
+  },
+});
+
 
 
 

@@ -759,6 +759,18 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
         notes: `paddle_event:${args.paddleEventId}${args.transactionId ? ` tx:${args.transactionId}` : ""}`,
       });
 
+      // Send purchase confirmation email for renewals/upgrades
+      if (user.email) {
+        await ctx.scheduler.runAfter(0, internal.email.sendPurchaseConfirmationEmail, {
+          email: user.email,
+          name: user.name || "Customer",
+          planType: args.planType,
+          planDurationMonths: args.planDurationMonths,
+          expiresAt,
+          paymentMode: paymentMode,
+        });
+      }
+
       return { subscriptionId: existing._id, userId: user._id };
     }
 
@@ -786,6 +798,18 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
       cost: paymentMode === "installments" ? installmentMonthlyPrice : args.planPriceCents,
       notes: `paddle_event:${args.paddleEventId}${args.transactionId ? ` tx:${args.transactionId}` : ""}`,
     });
+
+    // Send purchase confirmation email
+    if (user.email) {
+      await ctx.scheduler.runAfter(0, internal.email.sendPurchaseConfirmationEmail, {
+        email: user.email,
+        name: user.name || "Customer",
+        planType: args.planType,
+        planDurationMonths: args.planDurationMonths,
+        expiresAt,
+        paymentMode: paymentMode,
+      });
+    }
 
     return { subscriptionId, userId: user._id };
   },

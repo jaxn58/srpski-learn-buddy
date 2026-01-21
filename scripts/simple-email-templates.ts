@@ -257,6 +257,56 @@ This email was sent to {{USER_EMAIL}}
   },
 
   {
+    name: "purchase-confirmation",
+    subject: "Your Serbian AI Tutor Subscription is Active!",
+    description: "Sent when a user completes a purchase",
+    category: "subscription" as const,
+    htmlContent: `
+<h1>Serbian AI Tutor</h1>
+<h2>Welcome to Your Serbian Learning Journey!</h2>
+
+<p>Hi {{USER_NAME}},</p>
+
+<p>Great news! Your payment was successful and your <strong>{{PLAN_NAME}}</strong> subscription is now active.</p>
+
+<p><a href="https://learn-with.me/dashboard" style="display: inline-block; background-color: #C41E3A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Start Learning Now</a></p>
+
+<h3>Your Subscription Details</h3>
+<ul>
+  <li><strong>Plan:</strong> {{PLAN_NAME}}</li>
+  <li><strong>Duration:</strong> {{PLAN_DURATION_MONTHS}} months</li>
+  <li><strong>Valid until:</strong> {{EXPIRES_AT}}</li>
+  <li><strong>Payment Mode:</strong> {{PAYMENT_MODE}}</li>
+</ul>
+
+<h3>What's Next?</h3>
+<ol>
+  <li>Log in to your dashboard (click the button above)</li>
+  <li>Complete the onboarding if you're new</li>
+  <li>Start learning Serbian with full access to all units</li>
+  <li>Track your progress with XP, badges, and streaks</li>
+</ol>
+
+<h3>Need Help?</h3>
+<p>Use the "Send Feedback" button in your dashboard if you have any questions, encounter bugs, or want to share suggestions. I'm here to help!</p>
+
+<p><strong>Receipt:</strong> You'll receive a separate invoice from Paddle with your payment details.</p>
+
+<p>Thank you for choosing Serbian AI Tutor. I'm excited to support you on your language learning journey!</p>
+
+<p>Srećno (Good luck)!<br>
+<strong>Jacksenn</strong></p>
+
+<hr>
+<p style="font-size: 12px; color: #666;">
+© 2025 Serbian AI Tutor by jacksenn.me<br>
+This email was sent to {{USER_EMAIL}}
+</p>
+`,
+    variables: ["USER_NAME", "USER_EMAIL", "PLAN_NAME", "PLAN_DURATION_MONTHS", "EXPIRES_AT", "PAYMENT_MODE"],
+  },
+
+  {
     name: "waitlist-beta-launch",
     subject: "Serbian AI Tutor Beta is Now Open!",
     description: "Sent to all confirmed waitlist users when Beta launches",

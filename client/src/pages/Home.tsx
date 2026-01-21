@@ -1,5 +1,4 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { SignUp } from "@clerk/clerk-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,14 +36,220 @@ export default function Home() {
   // Pricing/checkout is intentionally disabled during beta.
   // Keep the old pricing JSX gated behind a constant false to avoid a large UI rewrite here.
   // (Plans go live after beta.)
-  const paddleReady = false;
+  
+  // Disabled again after testing - will be enabled after beta phase
+  const ENABLE_PURCHASE_FOR_TESTING = false;
+  
   type PaymentMode = "prepaid" | "installments";
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
-  const installmentsSelectable = false;
+  const installmentsSelectable = true;
   const paymentToggleHint: string | null = null;
-  const planById = useMemo(() => new Map<string, any>(), []);
-  const startPurchase = async (_planId: string) => {
-    toast.info("Paid plans will be available after the beta phase.");
+  
+  // Load plans from Convex
+  const availablePlans = useQuery(api.subscriptions.getPlans);
+  const planById = useMemo(() => {
+    const map = new Map<string, any>();
+    if (availablePlans) {
+      availablePlans.forEach(plan => map.set(plan.id, plan));
+    }
+    return map;
+  }, [availablePlans]);
+  
+  // Load current subscription for logged-in users
+  const currentSubscription = useQuery(
+    api.subscriptions.getCurrent,
+    user?.clerkId ? {} : "skip"
+  );
+  
+  const currentPlan = currentSubscription?.planType || null;
+  const hasActiveSubscription = currentSubscription?.expiresAt && currentSubscription.expiresAt > Date.now();
+  
+  // Loading state for essential data
+  const plansLoading = availablePlans === undefined;
+  
+  // Paddle configuration
+  const paddleConfig = useQuery(api.subscriptions.getPaddleCheckoutConfig);
+  const paddleConfigured = paddleConfig?.clientTokenConfigured === true;
+  const [paddleReady, setPaddleReady] = useState(false);
+  
+  const priceIdMap = useMemo(() => {
+    const normal = paddleConfig?.priceIds?.normal;
+    return {
+      intensive: normal?.intensive || "",
+      balanced: normal?.balanced || "",
+      standard: normal?.standard || "",
+      relaxed: normal?.relaxed || "",
+    };
+  }, [paddleConfig]);
+  
+  const installmentsPriceIdMap = useMemo(() => {
+    const installments = paddleConfig?.priceIds?.installments;
+    return {
+      intensive: installments?.intensive || "",
+      balanced: installments?.balanced || "",
+      standard: installments?.standard || "",
+      relaxed: installments?.relaxed || "",
+    };
+  }, [paddleConfig]);
+  
+  // Initialize Paddle
+  useEffect(() => {
+    if (!ENABLE_PURCHASE_FOR_TESTING || !paddleConfigured) {
+      setPaddleReady(false);
+      return;
+    }
+    
+    // Additional check: ensure clientToken is actually present
+    const clientToken = paddleConfig?.clientToken;
+    if (!clientToken || clientToken.trim() === "") {
+      console.warn("[Home] Paddle client token not available yet");
+      setPaddleReady(false);
+      return;
+    }
+    
+    import("@/lib/paddle").then(({ initPaddleWithToken }) => {
+      initPaddleWithToken({
+        token: clientToken,
+        environment: paddleConfig?.environment === "production" ? "production" : "sandbox",
+      }).then((instance) => {
+        if (!instance) {
+          toast.error("Paddle could not be initialized.");
+          return;
+        }
+        setPaddleReady(true);
+      });
+    });
+  }, [ENABLE_PURCHASE_FOR_TESTING, paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
+  
+  // After successful signup, automatically continue with purchase (from localStorage)
+  useEffect(() => {
+    if (user?.clerkId && !loading) {
+      const pendingPlan = localStorage.getItem('pendingPurchasePlan');
+      const pendingMode = localStorage.getItem('pendingPaymentMode');
+      
+      if (pendingPlan) {
+        // Clear from localStorage
+        localStorage.removeItem('pendingPurchasePlan');
+        localStorage.removeItem('pendingPaymentMode');
+        
+        // Restore payment mode
+        if (pendingMode) {
+          setPaymentMode(pendingMode as PaymentMode);
+        }
+        
+        // Auto-trigger purchase after short delay
+        setTimeout(() => {
+          toast.success("Welcome! Opening checkout for your selected plan...");
+          void startPurchase(pendingPlan);
+        }, 1000);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.clerkId, loading]);
+  
+  // Determine plan relationship (current, upgrade, renew)
+  const getPlanAction = (planId: string): "current" | "upgrade" | "renew" | "choose" => {
+    if (!hasActiveSubscription) return "choose";
+    if (currentPlan === planId) return "current";
+    
+    // Plan hierarchy (lower number = higher tier)
+    const planHierarchy: Record<string, number> = {
+      intensive: 1,
+      balanced: 2,
+      standard: 3,
+      relaxed: 4,
+    };
+    
+    const currentTier = planHierarchy[currentPlan || ""];
+    const targetTier = planHierarchy[planId];
+    
+    if (targetTier < currentTier) return "upgrade";
+    return "choose"; // Downgrade not supported (could be "renew" for same tier)
+  };
+  
+  const getButtonText = (planId: string): string => {
+    const action = getPlanAction(planId);
+    
+    if (action === "current") {
+      return "Current Plan";
+    }
+    
+    // If user has active subscription and this is not the current plan -> always "Upgrade Plan"
+    if (hasActiveSubscription && action !== "current") {
+      return "Upgrade Plan";
+    }
+    
+    // No active subscription -> "Choose Plan"
+    return t('home.pricing.choosePlan');
+  };
+  
+  const getCardClasses = (planId: string): string => {
+    const action = getPlanAction(planId);
+    const base = "border-2 transition-all hover:shadow-xl relative";
+    
+    // Current plan: green highlighted
+    if (action === "current") {
+      return `${base} border-green-500 shadow-lg shadow-green-200 bg-green-50/30`;
+    }
+    
+    // All other plans when user has active subscription: normal (upgradeable)
+    if (hasActiveSubscription) {
+      return `${base} hover:border-primary`;
+    }
+    
+    // No active subscription: normal
+    return `${base} hover:border-primary`;
+  };
+  
+  const startPurchase = async (planId: string) => {
+    if (!ENABLE_PURCHASE_FOR_TESTING) {
+      toast.info("Paid plans will be available after the beta phase.");
+      return;
+    }
+    
+    // Check if user is logged in - if not, redirect to sign-up
+    if (!user?.clerkId) {
+      // Store plan selection in localStorage to resume after signup
+      localStorage.setItem('pendingPurchasePlan', planId);
+      localStorage.setItem('pendingPaymentMode', paymentMode);
+      toast.info("Please sign up to continue with your purchase.");
+      setLocation("/sign-up?redirect_url=/");
+      return;
+    }
+    
+    if (!paddleConfigured) {
+      toast.error("Paddle is not configured.");
+      return;
+    }
+    
+    const priceId = paymentMode === "installments" 
+      ? installmentsPriceIdMap[planId as keyof typeof installmentsPriceIdMap]
+      : priceIdMap[planId as keyof typeof priceIdMap];
+      
+    if (!priceId) {
+      toast.error("No Paddle Price ID configured for this plan.");
+      return;
+    }
+    
+    try {
+      const { openCheckout } = await import("@/lib/paddle");
+      
+      await openCheckout({
+        items: [{ priceId, quantity: 1 }],
+        customer: user.email ? { email: user.email } : undefined,
+        customData: {
+          clerkId: user.clerkId,
+          planType: planId,
+          paymentMode,
+          source: "home_page",
+        },
+        settings: {
+          successUrl: `${window.location.origin}/dashboard?purchase=success`,
+        },
+      });
+    } catch (error: any) {
+      toast.error(`Purchase error: ${error.message}`);
+    }
   };
   
   // BETA: Force English for all users
@@ -332,26 +537,50 @@ export default function Home() {
           {/* Pricing Cards */}
           <div className="grid md:grid-cols-4 gap-6 mt-12">
             {/* Intensive Plan */}
-            <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
+            <Card className={getCardClasses("intensive")}>
+              {getPlanAction("intensive") === "current" && (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                  <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
+                    Your Current Plan
+                  </span>
+                </div>
+              )}
               <CardHeader className="text-left pb-4">
                 <Sparkles className="h-12 w-12 text-primary mb-3" />
                 <CardTitle className="text-2xl mb-2">{t('home.pricing.intensive.title')}</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.intensive.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.intensive.audience')}</p>
-                <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">
-                    {paymentMode === "installments"
-                      ? `€${(((planById.get("intensive") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
-                      : t('home.pricing.intensive.price')}
-                    {paymentMode === "installments" ? (
-                      <span className="text-sm text-muted-foreground">/month</span>
-                    ) : null}
+                <div className="mt-4 space-y-2">
+                  {/* Pay once price */}
+                  <div className={paymentMode === "prepaid" ? "" : "opacity-40"}>
+                    <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
+                      {t('home.pricing.intensive.price')}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('home.pricing.intensive.payment')}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {paymentMode === "installments"
-                      ? `Total €${(((planById.get("intensive") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • ${(planById.get("intensive") as any)?.months ?? 3} monthly payments`
-                      : t('home.pricing.intensive.payment')}
-                  </div>
+                  
+                  {/* Pay monthly price */}
+                  {installmentsSelectable && (
+                    <div className={paymentMode === "installments" ? "" : "opacity-40"}>
+                      <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
+                        {plansLoading ? (
+                          <span className="animate-pulse">Loading...</span>
+                        ) : (
+                          <>€{(((planById.get("intensive") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}</>
+                        )}
+                        <span className="text-sm text-muted-foreground">/month</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {plansLoading ? (
+                          <span className="animate-pulse">Calculating...</span>
+                        ) : (
+                          <>Total €{(((planById.get("intensive") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • {(planById.get("intensive") as any)?.months ?? 3} monthly payments</>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
@@ -383,38 +612,63 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={showWaitlist}
+                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!paddleReady || getPlanAction("intensive") === "current") : false) : showWaitlist}
                   onClick={() => void startPurchase("intensive")}
+                  variant={getPlanAction("intensive") === "current" ? "secondary" : "default"}
                 >
-                  {t('home.pricing.choosePlan')}
+                  {getButtonText("intensive")}
                 </Button>
-                {showWaitlist ? (
+                {showWaitlist && !ENABLE_PURCHASE_FOR_TESTING ? (
                   <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
                 ) : null}
               </CardContent>
             </Card>
 
             {/* Balanced Plan */}
-            <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
+            <Card className={getCardClasses("balanced")}>
+              {getPlanAction("balanced") === "current" && (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                  <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
+                    Your Current Plan
+                  </span>
+                </div>
+              )}
               <CardHeader className="text-left pb-4">
                 <Target className="h-12 w-12 text-primary mb-3" />
                 <CardTitle className="text-2xl mb-2">{t('home.pricing.balanced.title')}</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.balanced.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.balanced.audience')}</p>
-                <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">
-                    {paymentMode === "installments"
-                      ? `€${(((planById.get("balanced") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
-                      : t('home.pricing.balanced.price')}
-                    {paymentMode === "installments" ? (
-                      <span className="text-sm text-muted-foreground">/month</span>
-                    ) : null}
+                <div className="mt-4 space-y-2">
+                  {/* Pay once price */}
+                  <div className={paymentMode === "prepaid" ? "" : "opacity-40"}>
+                    <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
+                      {t('home.pricing.balanced.price')}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('home.pricing.balanced.payment')}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {paymentMode === "installments"
-                      ? `Total €${(((planById.get("balanced") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • ${(planById.get("balanced") as any)?.months ?? 6} monthly payments`
-                      : t('home.pricing.balanced.payment')}
-                  </div>
+                  
+                  {/* Pay monthly price */}
+                  {installmentsSelectable && (
+                    <div className={paymentMode === "installments" ? "" : "opacity-40"}>
+                      <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
+                        {plansLoading ? (
+                          <span className="animate-pulse">Loading...</span>
+                        ) : (
+                          <>€{(((planById.get("balanced") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}</>
+                        )}
+                        <span className="text-sm text-muted-foreground">/month</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {plansLoading ? (
+                          <span className="animate-pulse">Calculating...</span>
+                        ) : (
+                          <>Total €{(((planById.get("balanced") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • {(planById.get("balanced") as any)?.months ?? 6} monthly payments</>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
@@ -446,41 +700,67 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={showWaitlist}
+                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!paddleReady || getPlanAction("balanced") === "current") : false) : showWaitlist}
                   onClick={() => void startPurchase("balanced")}
+                  variant={getPlanAction("balanced") === "current" ? "secondary" : "default"}
                 >
-                  {t('home.pricing.choosePlan')}
+                  {getButtonText("balanced")}
                 </Button>
-                {showWaitlist ? (
+                {showWaitlist && !ENABLE_PURCHASE_FOR_TESTING ? (
                   <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
                 ) : null}
               </CardContent>
             </Card>
 
             {/* Standard Plan (Most Popular - Best Value) */}
-            <Card className="border-4 border-primary shadow-2xl scale-105 relative">
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                <span className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">{t('home.pricing.standard.badge')}</span>
-              </div>
+            <Card className={getPlanAction("standard") === "current" ? getCardClasses("standard") : "border-4 border-primary shadow-2xl scale-105 relative"}>
+              {getPlanAction("standard") === "current" ? (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                  <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
+                    Your Current Plan
+                  </span>
+                </div>
+              ) : (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                  <span className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">{t('home.pricing.standard.badge')}</span>
+                </div>
+              )}
               <CardHeader className="text-left pb-4 pt-8">
                 <BookOpen className="h-12 w-12 text-primary mb-3" />
                 <CardTitle className="text-2xl mb-2">{t('home.pricing.standard.title')}</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.standard.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.standard.audience')}</p>
-                <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">
-                    {paymentMode === "installments"
-                      ? `€${(((planById.get("standard") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
-                      : t('home.pricing.standard.price')}
-                    {paymentMode === "installments" ? (
-                      <span className="text-sm text-muted-foreground">/month</span>
-                    ) : null}
+                <div className="mt-4 space-y-2">
+                  {/* Pay once price */}
+                  <div className={paymentMode === "prepaid" ? "" : "opacity-40"}>
+                    <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
+                      {t('home.pricing.standard.price')}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('home.pricing.standard.payment')}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {paymentMode === "installments"
-                      ? `Total €${(((planById.get("standard") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • ${(planById.get("standard") as any)?.months ?? 9} monthly payments`
-                      : t('home.pricing.standard.payment')}
-                  </div>
+                  
+                  {/* Pay monthly price */}
+                  {installmentsSelectable && (
+                    <div className={paymentMode === "installments" ? "" : "opacity-40"}>
+                      <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
+                        {plansLoading ? (
+                          <span className="animate-pulse">Loading...</span>
+                        ) : (
+                          <>€{(((planById.get("standard") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}</>
+                        )}
+                        <span className="text-sm text-muted-foreground">/month</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {plansLoading ? (
+                          <span className="animate-pulse">Calculating...</span>
+                        ) : (
+                          <>Total €{(((planById.get("standard") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • {(planById.get("standard") as any)?.months ?? 9} monthly payments</>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
@@ -512,38 +792,63 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full bg-primary"
-                  disabled={showWaitlist}
+                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!paddleReady || getPlanAction("standard") === "current") : false) : showWaitlist}
                   onClick={() => void startPurchase("standard")}
+                  variant={getPlanAction("standard") === "current" ? "secondary" : "default"}
                 >
-                  {t('home.pricing.choosePlan')}
+                  {getButtonText("standard")}
                 </Button>
-                {showWaitlist ? (
+                {showWaitlist && !ENABLE_PURCHASE_FOR_TESTING ? (
                   <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
                 ) : null}
               </CardContent>
             </Card>
 
             {/* Relaxed Plan */}
-            <Card className="border-2 hover:border-primary transition-all hover:shadow-xl relative">
+            <Card className={getCardClasses("relaxed")}>
+              {getPlanAction("relaxed") === "current" && (
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                  <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
+                    Your Current Plan
+                  </span>
+                </div>
+              )}
               <CardHeader className="text-left pb-4">
                 <Clock className="h-12 w-12 text-primary mb-3" />
                 <CardTitle className="text-2xl mb-2">{t('home.pricing.relaxed.title')}</CardTitle>
                 <CardDescription className="text-base font-semibold mb-2">{t('home.pricing.relaxed.duration')}</CardDescription>
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.relaxed.audience')}</p>
-                <div className="mt-4">
-                  <div className="text-3xl font-bold text-primary">
-                    {paymentMode === "installments"
-                      ? `€${(((planById.get("relaxed") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}`
-                      : t('home.pricing.relaxed.price')}
-                    {paymentMode === "installments" ? (
-                      <span className="text-sm text-muted-foreground">/month</span>
-                    ) : null}
+                <div className="mt-4 space-y-2">
+                  {/* Pay once price */}
+                  <div className={paymentMode === "prepaid" ? "" : "opacity-40"}>
+                    <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
+                      {t('home.pricing.relaxed.price')}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('home.pricing.relaxed.payment')}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {paymentMode === "installments"
-                      ? `Total €${(((planById.get("relaxed") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • ${(planById.get("relaxed") as any)?.months ?? 12} monthly payments`
-                      : t('home.pricing.relaxed.payment')}
-                  </div>
+                  
+                  {/* Pay monthly price */}
+                  {installmentsSelectable && (
+                    <div className={paymentMode === "installments" ? "" : "opacity-40"}>
+                      <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
+                        {plansLoading ? (
+                          <span className="animate-pulse">Loading...</span>
+                        ) : (
+                          <>€{(((planById.get("relaxed") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}</>
+                        )}
+                        <span className="text-sm text-muted-foreground">/month</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {plansLoading ? (
+                          <span className="animate-pulse">Calculating...</span>
+                        ) : (
+                          <>Total €{(((planById.get("relaxed") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • {(planById.get("relaxed") as any)?.months ?? 12} monthly payments</>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-left">
@@ -575,12 +880,13 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={showWaitlist}
+                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!paddleReady || getPlanAction("relaxed") === "current") : false) : showWaitlist}
                   onClick={() => void startPurchase("relaxed")}
+                  variant={getPlanAction("relaxed") === "current" ? "secondary" : "default"}
                 >
-                  {t('home.pricing.choosePlan')}
+                  {getButtonText("relaxed")}
                 </Button>
-                {showWaitlist ? (
+                {showWaitlist && !ENABLE_PURCHASE_FOR_TESTING ? (
                   <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
                 ) : null}
               </CardContent>
