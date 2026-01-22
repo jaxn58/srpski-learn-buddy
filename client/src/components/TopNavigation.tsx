@@ -647,6 +647,12 @@ export function TopNavigation() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem asChild>
+                <Link href="/progress" className="cursor-pointer">
+                  <TrendingUp className="mr-2 h-4 w-4" />
+                  <span>{t("sidebar.viewProgress")}</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link href="/profile" className="cursor-pointer">
                   <UserCircle className="mr-2 h-4 w-4" />
                   <span>{t("sidebar.profile")}</span>

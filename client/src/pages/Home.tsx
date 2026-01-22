@@ -120,7 +120,7 @@ export default function Home() {
       });
     });
   }, [ENABLE_PURCHASE_FOR_TESTING, paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
-  
+
   // After successful signup, automatically continue with purchase (from localStorage)
   useEffect(() => {
     if (user?.clerkId && !loading) {
@@ -374,6 +374,7 @@ export default function Home() {
         </div>
       </header>
 
+      <main>
       {/* Hero Section */}
       <section className="container py-20">
         <div className="max-w-4xl mx-auto text-center space-y-6">
@@ -552,7 +553,7 @@ export default function Home() {
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.intensive.audience')}</p>
                 <div className="mt-4 space-y-2">
                   {/* Pay once price */}
-                  <div className={paymentMode === "prepaid" ? "" : "opacity-40"}>
+                  <div>
                     <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                       {t('home.pricing.intensive.price')}
                     </div>
@@ -563,7 +564,7 @@ export default function Home() {
                   
                   {/* Pay monthly price */}
                   {installmentsSelectable && (
-                    <div className={paymentMode === "installments" ? "" : "opacity-40"}>
+                    <div>
                       <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                         {plansLoading ? (
                           <span className="animate-pulse">Loading...</span>
@@ -586,19 +587,19 @@ export default function Home() {
               <CardContent className="space-y-4 text-left">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.intensive.feature1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.intensive.feature2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.intensive.feature3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>
                       {showWaitlist
                         ? t("home.pricing.feature4Waitlist")
@@ -606,7 +607,7 @@ export default function Home() {
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.intensive.feature5')}</span>
                   </li>
                 </ul>
@@ -640,7 +641,7 @@ export default function Home() {
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.balanced.audience')}</p>
                 <div className="mt-4 space-y-2">
                   {/* Pay once price */}
-                  <div className={paymentMode === "prepaid" ? "" : "opacity-40"}>
+                  <div>
                     <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                       {t('home.pricing.balanced.price')}
                     </div>
@@ -651,7 +652,7 @@ export default function Home() {
                   
                   {/* Pay monthly price */}
                   {installmentsSelectable && (
-                    <div className={paymentMode === "installments" ? "" : "opacity-40"}>
+                    <div>
                       <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                         {plansLoading ? (
                           <span className="animate-pulse">Loading...</span>
@@ -674,19 +675,19 @@ export default function Home() {
               <CardContent className="space-y-4 text-left">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.balanced.feature1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.balanced.feature2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.balanced.feature3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>
                       {showWaitlist
                         ? t("home.pricing.feature4Waitlist")
@@ -694,7 +695,7 @@ export default function Home() {
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.balanced.feature5')}</span>
                   </li>
                 </ul>
@@ -732,7 +733,7 @@ export default function Home() {
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.standard.audience')}</p>
                 <div className="mt-4 space-y-2">
                   {/* Pay once price */}
-                  <div className={paymentMode === "prepaid" ? "" : "opacity-40"}>
+                  <div>
                     <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                       {t('home.pricing.standard.price')}
                     </div>
@@ -743,7 +744,7 @@ export default function Home() {
                   
                   {/* Pay monthly price */}
                   {installmentsSelectable && (
-                    <div className={paymentMode === "installments" ? "" : "opacity-40"}>
+                    <div>
                       <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                         {plansLoading ? (
                           <span className="animate-pulse">Loading...</span>
@@ -766,19 +767,19 @@ export default function Home() {
               <CardContent className="space-y-4 text-left">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.standard.feature1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.standard.feature2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.standard.feature3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>
                       {showWaitlist
                         ? t("home.pricing.feature4Waitlist")
@@ -786,7 +787,7 @@ export default function Home() {
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.standard.feature5')}</span>
                   </li>
                 </ul>
@@ -820,7 +821,7 @@ export default function Home() {
                 <p className="text-xs text-muted-foreground italic">{t('home.pricing.relaxed.audience')}</p>
                 <div className="mt-4 space-y-2">
                   {/* Pay once price */}
-                  <div className={paymentMode === "prepaid" ? "" : "opacity-40"}>
+                  <div>
                     <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                       {t('home.pricing.relaxed.price')}
                     </div>
@@ -831,7 +832,7 @@ export default function Home() {
                   
                   {/* Pay monthly price */}
                   {installmentsSelectable && (
-                    <div className={paymentMode === "installments" ? "" : "opacity-40"}>
+                    <div>
                       <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                         {plansLoading ? (
                           <span className="animate-pulse">Loading...</span>
@@ -854,19 +855,19 @@ export default function Home() {
               <CardContent className="space-y-4 text-left">
                 <ul className="space-y-2 text-xs">
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.relaxed.feature1')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.relaxed.feature2')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.relaxed.feature3')}</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>
                       {showWaitlist
                         ? t("home.pricing.feature4Waitlist")
@@ -874,7 +875,7 @@ export default function Home() {
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-600 font-bold mt-0.5">✓</span>
+                    <span className="text-green-700 font-bold mt-0.5">✓</span>
                     <span>{t('home.pricing.relaxed.feature5')}</span>
                   </li>
                 </ul>
@@ -1361,6 +1362,7 @@ export default function Home() {
         </section>
       )}
 
+      </main>
       {/* Footer */}
       <AppFooter />
 
