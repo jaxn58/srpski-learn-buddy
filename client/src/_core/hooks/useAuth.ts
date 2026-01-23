@@ -78,14 +78,6 @@ export function useAuth() {
   }, [isSignedIn, clerkLoaded, sessionId, dbUser, enforceSingleSession]);
 
   const state = useMemo(() => {
-    // Store user info for Manus runtime compatibility
-    if (dbUser) {
-      localStorage.setItem(
-        "manus-runtime-user-info",
-        JSON.stringify(dbUser)
-      );
-    }
-
     // dbUser is undefined while loading, null if not found
     const isLoading = !clerkLoaded || (isSignedIn && dbUser === undefined);
 
