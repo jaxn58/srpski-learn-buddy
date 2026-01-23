@@ -563,9 +563,9 @@ export const sendMessage = action({
       ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
       : "https://api.openai.com/v1/chat/completions";
     
-    // Use gemini-2.0-flash for OpenAI-compatible endpoint
-    // Available models: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash, gemini-2.0-flash-lite
-    const model = isGemini ? "gemini-2.0-flash" : "gpt-4o-mini";
+    // Use Gemini 2.5 Flash for OpenAI-compatible endpoint (recommended replacement for 2.0 Flash)
+    // Available models (examples): gemini-2.5-flash, gemini-2.5-pro, gemini-2.5-flash-lite
+    const model = isGemini ? "gemini-2.5-flash" : "gpt-4o-mini";
 
     // Call the AI API
     const response = await fetch(apiUrl, {

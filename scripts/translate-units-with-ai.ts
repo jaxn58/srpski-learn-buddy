@@ -111,7 +111,7 @@ async function translateText(text: string): Promise<string> {
 
   // 3. Determine Model
   // If using Gemini Key (even with Forge URL potentially?), prefer Gemini model
-  const model = (GEMINI_API_KEY || (apiKey === GEMINI_API_KEY)) ? "gemini-1.5-flash" : "gpt-4o-mini";
+  const model = (GEMINI_API_KEY || (apiKey === GEMINI_API_KEY)) ? "gemini-2.5-flash" : "gpt-4o-mini";
 
   try {
     const response = await fetch(apiUrl, {

@@ -27,6 +27,7 @@ import {
   Moon,
   Sun,
   Lock,
+  ListTodo,
 } from "lucide-react";
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -244,6 +245,11 @@ export function TopNavigation() {
         href: "/feedback",
         icon: <MessageSquare className="h-4 w-4" />,
       },
+      {
+        label: "Wishlist",
+        href: "/wishlist",
+        icon: <ListTodo className="h-4 w-4" />,
+      },
     ],
     [t]
   );
@@ -255,6 +261,7 @@ export function TopNavigation() {
       { label: "Changelog", href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
       { label: "Onboarding", href: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
       { label: t("sidebar.feedback"), href: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
+      { label: "Wishlist", href: "/admin/wishlist", icon: <ListTodo className="h-4 w-4" /> },
       { label: t("sidebar.emailTemplates"), href: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
       { label: "Newsletter", href: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
       { label: "Waitlist", href: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },

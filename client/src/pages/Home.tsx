@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { SignUp } from "@clerk/clerk-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { WaitlistModal } from "@/components/WaitlistModal";
 import { AppFooter } from "@/components/AppFooter";
+import { buildLandingModuleCards, computeLandingCounts } from "./home/landingData";
 // During beta phase, we do not offer paid plans/checkout.
 
 export default function Home() {
@@ -175,7 +177,7 @@ export default function Home() {
     }
     
     // If user has active subscription and this is not the current plan -> always "Upgrade Plan"
-    if (hasActiveSubscription && action !== "current") {
+    if (hasActiveSubscription) {
       return "Upgrade Plan";
     }
     
@@ -265,65 +267,35 @@ export default function Home() {
   
   // Generate modules data for landing page from database
   const MODULES_DATA = useMemo(() => {
-    if (!dbModules || dbModules.length === 0 || !courseVocabulary) {
-      return [];
-    }
-    
-    // Count vocabulary per unit
-    const vocabCounts = courseVocabulary.reduce((acc: Record<number, number>, word: any) => {
-      acc[word.unitNumber] = (acc[word.unitNumber] || 0) + 1;
-      return acc;
-    }, {} as Record<number, number>);
-    
-    // Count units per module
-    const unitCounts = (dbUnitsEn || []).reduce((acc: Record<string, number>, unit: any) => {
-      const moduleId = unit.moduleId;
-      if (moduleId) {
-        acc[moduleId] = (acc[moduleId] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    return dbModules.map((module: any) => {
-      // Calculate total vocabulary for this module by summing units
-      const moduleUnits = (dbUnitsEn || []).filter((u: any) => u.moduleId === module.slug);
-      const vocabCount = moduleUnits.reduce((sum: number, unit: any) => {
-        return sum + (vocabCounts[unit.unitNumber] || 0);
-      }, 0);
-      
-      return {
-        id: module.slug || "",
-        number: module.moduleNumber || 0,
-        title: module.titleEn || "",
-        titleEnglish: module.titleEn || "",
-        titleGerman: module.titleDe || "",
-        description: module.descriptionEn || "",
-        descriptionGerman: module.descriptionDe || "",
-        unitCount: unitCounts[module.slug || ""] || 0,
-        vocabCount: vocabCount,
-      };
+    if (!dbModules || dbModules.length === 0 || !courseVocabulary) return [];
+
+    const base = buildLandingModuleCards({
+      modules: dbModules as any,
+      unitsEn: dbUnitsEn as any,
+      vocab: courseVocabulary as any,
     });
+
+    // Keep existing shape used throughout Home.tsx
+    return base.map((m) => ({
+      id: m.id,
+      number: m.number,
+      title: m.title,
+      titleEnglish: m.title,
+      titleGerman: "", // BETA: currently force English UI
+      description: m.description,
+      descriptionGerman: "",
+      unitCount: m.unitCount,
+      vocabCount: m.vocabCount,
+    }));
   }, [dbModules, courseVocabulary, dbUnitsEn]);
-  
-  const TOTAL_VOCABULARY = useMemo(() => {
-    return courseVocabulary?.length || 0;
-  }, [courseVocabulary]);
-  
-  const TOTAL_UNITS = useMemo(() => {
-    return dbUnitsEn?.length || 0;
-  }, [dbUnitsEn]);
-  
-  const TOTAL_MODULES = useMemo(() => {
-    return dbModules?.length || 0;
-  }, [dbModules]);
-  
+
   const HOME_COUNTS = useMemo(() => {
-    return {
-      moduleCount: TOTAL_MODULES,
-      unitCount: TOTAL_UNITS,
-      vocabCount: TOTAL_VOCABULARY,
-    };
-  }, [TOTAL_MODULES, TOTAL_UNITS, TOTAL_VOCABULARY]);
+    return computeLandingCounts({
+      modules: dbModules as any,
+      unitsEn: dbUnitsEn as any,
+      vocab: courseVocabulary as any,
+    });
+  }, [dbModules, dbUnitsEn, courseVocabulary]);
 
   if (loading) {
     return (

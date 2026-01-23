@@ -108,11 +108,33 @@ export default function ContentImportAdmin() {
   const validateAction = useAction(api.contentImportAdmin.validateUnitPackages);
   const importAction = useAction(api.contentImportAdmin.importUnitPackages);
   const parseMarkdownAction = useAction(api.contentImportAdmin.parseMarkdownToJson);
+  const triggerDeployHookAction = useAction(api.deploy.triggerVercelDeployHook);
 
   const createModuleMutation = useMutation(api.modules.createModule);
   const updateModuleMutation = useMutation(api.modules.updateModuleMetadata);
   const updateUnitDescriptionMutation = useMutation(api.units.updateUnitDescription);
   const migrateUnitDescriptionsMutation = useMutation(api.units.migrateUnitDescriptionsFromTopics);
+
+  const [triggeringDeploy, setTriggeringDeploy] = useState(false);
+  const triggerLandingRebuild = useCallback(
+    async (reason: string) => {
+      if (user?.role !== "superadmin") return;
+      try {
+        setTriggeringDeploy(true);
+        await triggerDeployHookAction({ reason });
+        toast.success("Landing rebuild triggered", {
+          description: "Vercel deploy hook called. The landing page will be rebuilt shortly.",
+        });
+      } catch (error: any) {
+        toast.error("Failed to trigger landing rebuild", {
+          description: String(error?.message || error),
+        });
+      } finally {
+        setTriggeringDeploy(false);
+      }
+    },
+    [triggerDeployHookAction, user?.role]
+  );
   
   // JSON Import states
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -461,6 +483,9 @@ export default function ContentImportAdmin() {
         toast.success("Import completed", {
           description: `Unit ${firstFile.unitNumber} has been successfully imported to the database.`
         });
+
+        // Auto-trigger SSG refresh after successful content import.
+        await triggerLandingRebuild(`content-import:${importMode}`);
       } else {
         const firstFile = result.report.files[0];
         const firstIssue = firstFile?.parseErrors?.[0] || firstFile?.errors?.[0];
@@ -776,6 +801,7 @@ export default function ContentImportAdmin() {
 
       toast.success("Module created");
       resetNewModuleForm();
+      await triggerLandingRebuild("module-created");
     } catch (error: any) {
       toast.error("Failed to create module", {
         description: humanizeModuleError(String(error?.message || error)),
@@ -811,6 +837,7 @@ export default function ContentImportAdmin() {
       toast.success("Module updated");
       setEditDialogOpen(false);
       setEditingModuleId(null);
+      await triggerLandingRebuild("module-updated");
     } catch (error: any) {
       toast.error("Failed to update module", {
         description: humanizeModuleError(String(error?.message || error)),
@@ -887,10 +914,18 @@ export default function ContentImportAdmin() {
       toast.success("Unit description updated");
       setEditUnitDialogOpen(false);
       setEditingUnitNumber(null);
+      await triggerLandingRebuild("unit-description-updated");
     } catch (error: any) {
       toast.error("Failed to update unit description", { description: String(error?.message || error) });
     }
-  }, [editingUnitNumber, editUnitDescriptionEn, editUnitDescriptionDe, unitsTableRows, updateUnitDescriptionMutation]);
+  }, [
+    editingUnitNumber,
+    editUnitDescriptionEn,
+    editUnitDescriptionDe,
+    unitsTableRows,
+    updateUnitDescriptionMutation,
+    triggerLandingRebuild,
+  ]);
 
   const runUnitDescriptionMigration = useCallback(async (dryRun: boolean) => {
     setMigratingUnitDescriptions(true);
@@ -900,12 +935,15 @@ export default function ContentImportAdmin() {
       toast.success(dryRun ? "Migration preview ready" : "Migration executed", {
         description: `Migrated: ${res.migrated} / Considered: ${res.considered} (dryRun=${res.dryRun})`,
       });
+      if (!dryRun) {
+        await triggerLandingRebuild("unit-description-migration");
+      }
     } catch (error: any) {
       toast.error("Migration failed", { description: String(error?.message || error) });
     } finally {
       setMigratingUnitDescriptions(false);
     }
-  }, [migrateUnitDescriptionsMutation]);
+  }, [migrateUnitDescriptionsMutation, triggerLandingRebuild]);
 
   return (
     <div className="container py-8 max-w-6xl">
@@ -914,6 +952,20 @@ export default function ContentImportAdmin() {
         <p className="text-muted-foreground mt-2">
           Upload and import JSON unit packages into the database. Only valid files can be imported.
         </p>
+        {user?.role === "superadmin" ? (
+          <div className="mt-4 flex items-center gap-3">
+            <Button
+              variant="outline"
+              disabled={triggeringDeploy}
+              onClick={() => void triggerLandingRebuild("manual")}
+            >
+              {triggeringDeploy ? "Triggering rebuild..." : "Rebuild landing (SEO)"}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Calls the Vercel deploy hook to regenerate `/` static HTML.
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <Tabs defaultValue={ENABLE_JSON_IMPORT ? "import" : "markdown"} className="space-y-6">

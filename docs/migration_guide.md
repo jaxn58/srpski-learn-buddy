@@ -312,7 +312,7 @@ export const sendMessage = action({
 
     // 3. Call the Gemini API
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent(message);
     const aiResponse = await result.response.text();
 

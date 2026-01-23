@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { UserCircle } from "lucide-react";
 import { MySubscriptionContent } from "./MySubscription";
 import { GamificationModal } from "@/components/GamificationModal";
+import { Link } from "wouter";
 
 const AVATAR_MAX_INPUT_BYTES = 2 * 1024 * 1024; // 2 MB
 const AVATAR_TARGET_SIZE = 256; // px (square)
@@ -425,6 +426,25 @@ export default function Profile() {
         </CardHeader>
         <CardContent>
           <MySubscriptionContent embedded />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Wishlist</CardTitle>
+          <CardDescription>
+            Submit feature ideas for review and upvote suggestions from the community.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/wishlist">
+              <Button variant="outline">Open Wishlist</Button>
+            </Link>
+            <Link href="/wishlist/new">
+              <Button>Submit a wishlist item</Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

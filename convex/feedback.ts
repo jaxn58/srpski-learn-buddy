@@ -207,11 +207,18 @@ export const submit = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
 
+    const title = String(args.title || "").trim();
+    const description = String(args.description || "").trim();
+    if (title.length < 10) throw new Error("Title is too short");
+    if (title.length > 200) throw new Error("Title is too long");
+    if (description.length < 50) throw new Error("Description is too short");
+    if (description.length > 5000) throw new Error("Description is too long");
+
     const feedbackId = await ctx.db.insert("feedbackSubmissions", {
       userId: user._id,
       type: args.type,
-      title: args.title,
-      description: args.description,
+      title,
+      description,
       status: "new",
       submittedAt: Date.now(),
       aiStatus: "pending",
@@ -367,7 +374,7 @@ async function callAi(
     ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
     : "https://api.openai.com/v1/chat/completions";
 
-  const model = isGemini ? "gemini-2.0-flash" : "gpt-4o-mini";
+  const model = isGemini ? "gemini-2.5-flash" : "gpt-4o-mini";
 
   const response = await fetch(apiUrl, {
     method: "POST",

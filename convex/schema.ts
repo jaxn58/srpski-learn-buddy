@@ -471,6 +471,53 @@ export default defineSchema({
     changedBy: v.id("users"),
   }).index("by_feedback", ["feedbackId"]),
 
+  // ============= WISHLIST (Feature Requests) =============
+  wishlistItems: defineTable({
+    createdBy: v.id("users"),
+    title: v.string(),
+    // Lowercased + whitespace-collapsed title, used for de-dupe checks.
+    titleNormalized: v.string(),
+    description: v.string(),
+    status: v.union(
+      v.literal("submitted"),
+      v.literal("in_review"),
+      v.literal("on_todo_list"),
+      v.literal("im_working_on_it"),
+      v.literal("shipped"),
+      v.literal("duplicate"),
+      v.literal("rejected")
+    ),
+    // Optional admin note (kept in English; short explanation for status/decision)
+    adminStatusNote: v.optional(v.string()),
+    // If status is "duplicate", points to the canonical wishlist item.
+    duplicateOfWishlistItemId: v.optional(v.id("wishlistItems")),
+    reviewedAt: v.optional(v.number()),
+    reviewedBy: v.optional(v.id("users")),
+    source: v.optional(
+      v.object({
+        kind: v.literal("feedback"),
+        feedbackId: v.id("feedbackSubmissions"),
+      })
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    upvoteCount: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_titleNormalized", ["titleNormalized"])
+    .index("by_user_titleNormalized", ["createdBy", "titleNormalized"])
+    .index("by_user_createdAt", ["createdBy", "createdAt"]),
+
+  wishlistUpvotes: defineTable({
+    wishlistItemId: v.id("wishlistItems"),
+    userId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_item", ["wishlistItemId"])
+    .index("by_item_user", ["wishlistItemId", "userId"])
+    .index("by_user", ["userId"]),
+
   // ============= USER SUBSCRIPTIONS =============
   userSubscriptions: defineTable({
     userId: v.id("users"),

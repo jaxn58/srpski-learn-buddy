@@ -1,7 +1,7 @@
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { I18nextProvider } from "react-i18next";
 import App from "./App";
 import "./index.css";
@@ -40,12 +40,7 @@ function DynamicClerkProvider({ children }: { children: React.ReactNode }) {
 // Ensure we only create one root instance across HMR reloads
 const rootElement = document.getElementById("root")!;
 
-// Store root in a way that survives HMR
-if (!(window as any).__react_root__) {
-  (window as any).__react_root__ = createRoot(rootElement);
-}
-
-(window as any).__react_root__.render(
+const appTree = (
   <I18nextProvider i18n={i18n}>
     <DynamicClerkProvider>
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
@@ -54,3 +49,17 @@ if (!(window as any).__react_root__) {
     </DynamicClerkProvider>
   </I18nextProvider>
 );
+
+// Store root in a way that survives HMR. If the root contains prerendered HTML,
+// hydrate instead of replacing it (used by `/landing.html`).
+if (!(window as any).__react_root__) {
+  const hasPrerendered = rootElement.hasAttribute("data-prerendered") || rootElement.childNodes.length > 0;
+  if (hasPrerendered) {
+    (window as any).__react_root__ = hydrateRoot(rootElement, appTree);
+  } else {
+    (window as any).__react_root__ = createRoot(rootElement);
+  }
+}
+
+// Render is safe for both createRoot and hydrateRoot (no-op update when already hydrated).
+(window as any).__react_root__.render(appTree);

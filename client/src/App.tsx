@@ -33,6 +33,9 @@ const Leaderboards = lazy(() => import("./pages/Leaderboards"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Feedback = lazy(() => import("./pages/Feedback"));
 const Changelog = lazy(() => import("./pages/Changelog"));
+const Wishlist = lazy(() => import("./pages/Wishlist"));
+const WishlistItem = lazy(() => import("./pages/WishlistItem"));
+const WishlistNew = lazy(() => import("./pages/WishlistNew"));
 
 // Admin pages
 const Admin = lazy(() => import("./pages/Admin"));
@@ -40,6 +43,7 @@ const PromptAdmin = lazy(() => import("./pages/PromptAdmin"));
 const ChangelogAdmin = lazy(() => import("./pages/ChangelogAdmin"));
 const OnboardingAdmin = lazy(() => import("./pages/OnboardingAdmin"));
 const FeedbackManagement = lazy(() => import("./pages/FeedbackManagement"));
+const WishlistManagement = lazy(() => import("./pages/WishlistManagement"));
 const SubscriptionAnalytics = lazy(() => import("./pages/SubscriptionAnalytics"));
 const EmailTemplates = lazy(() => import("./pages/EmailTemplates"));
 const BackupManagement = lazy(() => import("./pages/BackupManagement"));
@@ -226,6 +230,39 @@ function Router() {
             </ProtectedRoute>
           )}
         </Route>
+        <Route path="/wishlist">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <Wishlist />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/wishlist/new">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <WishlistNew />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/wishlist/:id">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <WishlistItem />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
 
         {/* Admin routes - Specific routes must come before general /admin route */}
         <Route path="/admin/prompt">
@@ -267,6 +304,17 @@ function Router() {
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
                   <FeedbackManagement />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/admin/wishlist">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <WishlistManagement />
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>

@@ -27,11 +27,25 @@ type MyFeedbackSubmission = {
   replySentAt?: number;
 };
 
+type FeedbackFormState = {
+  type: "bug" | "feature" | "improvement" | "other";
+  title: string;
+  description: string;
+};
+
+const TITLE_MIN = 10;
+const DESCRIPTION_MIN = 50;
+
 export default function Feedback() {
   const { user, loading } = useAuth();
   const { t } = useTranslation();
-  const [feedback, setFeedback] = useState({ type: "other" as const, title: "", description: "" });
+  const [feedback, setFeedback] = useState<FeedbackFormState>({
+    type: "other",
+    title: "",
+    description: "",
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const submitFeedbackMutation = useMutation(api.feedback.submit);
   const mySubmissions = (useQuery(api.feedback.getMySubmissions) ?? []) as MyFeedbackSubmission[];
 
@@ -59,8 +73,23 @@ export default function Feedback() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!feedback.type || !feedback.title || !feedback.description) {
-      toast.error(t('feedback.error.fillFields'));
+    setSubmitAttempted(true);
+
+    const titleTrimmed = feedback.title.trim();
+    const descriptionTrimmed = feedback.description.trim();
+    const titleMissing = titleTrimmed.length === 0;
+    const descriptionMissing = descriptionTrimmed.length === 0;
+    const titleTooShort = titleTrimmed.length > 0 && titleTrimmed.length < TITLE_MIN;
+    const descriptionTooShort =
+      descriptionTrimmed.length > 0 && descriptionTrimmed.length < DESCRIPTION_MIN;
+
+    if (titleMissing || descriptionMissing || titleTooShort || descriptionTooShort) {
+      toast.error("Please fix the highlighted fields");
+
+      const focusId = titleMissing || titleTooShort ? "title" : "description";
+      const el = document.getElementById(focusId) as HTMLElement | null;
+      el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      (el as any)?.focus?.();
       return;
     }
 
@@ -69,8 +98,8 @@ export default function Feedback() {
     try {
       await submitFeedbackMutation({
         type: feedback.type,
-        title: feedback.title,
-        description: feedback.description,
+        title: titleTrimmed,
+        description: descriptionTrimmed,
       });
 
       toast.success(t('feedback.success.title'), {
@@ -79,6 +108,7 @@ export default function Feedback() {
       });
 
       setFeedback({ type: "other", title: "", description: "" });
+      setSubmitAttempted(false);
       setIsSubmitting(false);
     } catch (error) {
       toast.error(t('feedback.error.send'));
@@ -120,6 +150,17 @@ export default function Feedback() {
     return status;
   };
 
+  const titleLen = feedback.title.trim().length;
+  const descriptionLen = feedback.description.trim().length;
+  const titleMissingError = submitAttempted && titleLen === 0;
+  const titleTooShortError = submitAttempted && titleLen > 0 && titleLen < TITLE_MIN;
+  const descriptionMissingError = submitAttempted && descriptionLen === 0;
+  const descriptionTooShortError =
+    submitAttempted && descriptionLen > 0 && descriptionLen < DESCRIPTION_MIN;
+  const titleError = titleMissingError || titleTooShortError;
+  const descriptionError = descriptionMissingError || descriptionTooShortError;
+  const requiredMark = <span className="text-destructive">*</span>;
+
   return (
     <div className="container py-8 md:py-10">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -137,14 +178,21 @@ export default function Feedback() {
           <Card className="shadow-sm lg:col-span-5">
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-5">
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-destructive">*</span> Required
+                </p>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="type">{t('feedback.type')}</Label>
+                    <Label htmlFor="type">{t('feedback.type')} {requiredMark}</Label>
                     <select
                       id="type"
                       value={feedback.type}
-                      onChange={(e) => setFeedback({ ...feedback, type: e.target.value as any })}
+                      onChange={(e) => {
+                        const nextType = e.target.value as any;
+                        setFeedback({ ...feedback, type: nextType });
+                      }}
                       disabled={isSubmitting}
+                      required
                       className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
                     >
                       <option value="bug">{t('feedback.type.bug')}</option>
@@ -155,7 +203,10 @@ export default function Feedback() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="title">{t('feedback.title.label')}</Label>
+                    <Label htmlFor="title">
+                      {t('feedback.title.label')} {requiredMark}{" "}
+                      <span className="text-xs text-muted-foreground">(min {TITLE_MIN})</span>
+                    </Label>
                     <Input
                       id="title"
                       placeholder={t('feedback.title.placeholder')}
@@ -163,13 +214,27 @@ export default function Feedback() {
                       onChange={(e) => setFeedback({ ...feedback, title: e.target.value })}
                       disabled={isSubmitting}
                       maxLength={200}
+                      minLength={TITLE_MIN}
+                      required
+                      aria-invalid={titleError}
+                      aria-describedby={titleError ? "title-error" : undefined}
                     />
+                    {titleError && (
+                      <p id="title-error" className="text-xs text-destructive">
+                        {titleMissingError
+                          ? "This field is required."
+                          : `Please enter at least ${TITLE_MIN} characters.`}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">{feedback.title.length}/200</p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">{t('feedback.description')}</Label>
+                  <Label htmlFor="description">
+                    {t('feedback.description')} {requiredMark}{" "}
+                    <span className="text-xs text-muted-foreground">(min {DESCRIPTION_MIN})</span>
+                  </Label>
                   <Textarea
                     id="description"
                     placeholder={t('feedback.description.placeholder')}
@@ -179,7 +244,18 @@ export default function Feedback() {
                     rows={6}
                     className="resize-none"
                     maxLength={5000}
+                    minLength={DESCRIPTION_MIN}
+                    required
+                    aria-invalid={descriptionError}
+                    aria-describedby={descriptionError ? "description-error" : undefined}
                   />
+                  {descriptionError && (
+                    <p id="description-error" className="text-xs text-destructive">
+                      {descriptionMissingError
+                        ? "This field is required."
+                        : `Please enter at least ${DESCRIPTION_MIN} characters.`}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">{feedback.description.length}/5000</p>
                 </div>
 

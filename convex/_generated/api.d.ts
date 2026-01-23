@@ -16,6 +16,7 @@ import type * as chat from "../chat.js";
 import type * as contentImportAdmin from "../contentImportAdmin.js";
 import type * as crons from "../crons.js";
 import type * as debug_index from "../debug_index.js";
+import type * as deploy from "../deploy.js";
 import type * as email from "../email.js";
 import type * as emailTemplates from "../emailTemplates.js";
 import type * as exercises from "../exercises.js";
@@ -35,6 +36,7 @@ import type * as users from "../users.js";
 import type * as versions from "../versions.js";
 import type * as vocabulary from "../vocabulary.js";
 import type * as waitlist from "../waitlist.js";
+import type * as wishlist from "../wishlist.js";
 
 import type {
   ApiFromModules,
@@ -51,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   contentImportAdmin: typeof contentImportAdmin;
   crons: typeof crons;
   debug_index: typeof debug_index;
+  deploy: typeof deploy;
   email: typeof email;
   emailTemplates: typeof emailTemplates;
   exercises: typeof exercises;
@@ -70,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   versions: typeof versions;
   vocabulary: typeof vocabulary;
   waitlist: typeof waitlist;
+  wishlist: typeof wishlist;
 }>;
 
 /**
