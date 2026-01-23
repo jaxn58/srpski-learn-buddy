@@ -63,7 +63,8 @@ export default function Home() {
     user?.clerkId ? {} : "skip"
   );
   
-  const currentPlan = currentSubscription?.planType || null;
+  type PlanId = "intensive" | "balanced" | "standard" | "relaxed";
+  const currentPlan: PlanId | null = (currentSubscription?.planType as PlanId | undefined) ?? null;
   const hasActiveSubscription = currentSubscription?.expiresAt && currentSubscription.expiresAt > Date.now();
   
   // Loading state for essential data
@@ -150,26 +151,27 @@ export default function Home() {
   }, [user?.clerkId, loading]);
   
   // Determine plan relationship (current, upgrade, renew)
-  const getPlanAction = (planId: string): "current" | "upgrade" | "renew" | "choose" => {
+  const getPlanAction = (planId: PlanId): "current" | "upgrade" | "renew" | "choose" => {
     if (!hasActiveSubscription) return "choose";
     if (currentPlan === planId) return "current";
+    if (!currentPlan) return "choose";
     
     // Plan hierarchy (lower number = higher tier)
-    const planHierarchy: Record<string, number> = {
+    const planHierarchy: Record<PlanId, number> = {
       intensive: 1,
       balanced: 2,
       standard: 3,
       relaxed: 4,
     };
     
-    const currentTier = planHierarchy[currentPlan || ""];
+    const currentTier = planHierarchy[currentPlan];
     const targetTier = planHierarchy[planId];
     
     if (targetTier < currentTier) return "upgrade";
     return "choose"; // Downgrade not supported (could be "renew" for same tier)
   };
   
-  const getButtonText = (planId: string): string => {
+  const getButtonText = (planId: PlanId): string => {
     const action = getPlanAction(planId);
     
     if (action === "current") {
@@ -185,7 +187,7 @@ export default function Home() {
     return t('home.pricing.choosePlan');
   };
   
-  const getCardClasses = (planId: string): string => {
+  const getCardClasses = (planId: PlanId): string => {
     const action = getPlanAction(planId);
     const base = "border-2 transition-all hover:shadow-xl relative";
     
