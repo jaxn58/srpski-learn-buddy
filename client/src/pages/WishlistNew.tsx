@@ -244,7 +244,7 @@ export default function WishlistNew() {
 
   return (
     <div className="container py-8 md:py-10">
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <ListTodo className="h-7 w-7 text-primary" />
