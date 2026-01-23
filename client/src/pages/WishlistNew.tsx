@@ -52,6 +52,13 @@ export default function WishlistNew() {
   const [submitting, setSubmitting] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
+  // Live countdown while blocked.
+  useEffect(() => {
+    if (!cooldown?.isBlocked || !cooldown?.nextAllowedAt) return;
+    const id = window.setInterval(() => setNowTs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [cooldown?.isBlocked, cooldown?.nextAllowedAt]);
+
   const titleLen = form.title.trim().length;
   const descriptionLen = form.description.trim().length;
   const titleMissing = submitAttempted && titleLen === 0;
@@ -113,13 +120,6 @@ export default function WishlistNew() {
       </div>
     );
   }
-
-  // Live countdown while blocked.
-  useEffect(() => {
-    if (!cooldown?.isBlocked || !cooldown?.nextAllowedAt) return;
-    const id = window.setInterval(() => setNowTs(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [cooldown?.isBlocked, cooldown?.nextAllowedAt]);
 
   const remainingMs = cooldown?.nextAllowedAt ? Math.max(0, cooldown.nextAllowedAt - nowTs) : 0;
   const remainingLabel = formatRemainingTime(remainingMs);

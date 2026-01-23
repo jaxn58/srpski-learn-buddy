@@ -85,7 +85,9 @@ export default function WishlistManagement() {
   const { user, loading: authLoading } = useAuth();
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
-  const rows = useQuery(api.wishlist.listReviewQueue, isAdmin ? {} : "skip") as ReviewRow[] | undefined;
+  const [showAll, setShowAll] = useState(true);
+  const rows = useQuery(api.wishlist.listReviewQueue, isAdmin ? { includeAll: showAll } : "skip") as ReviewRow[] | undefined;
+
   const updateStatus = useMutation(api.wishlist.updateWishlistStatus);
 
   const [selected, setSelected] = useState<ReviewRow | null>(null);
@@ -149,11 +151,25 @@ export default function WishlistManagement() {
 
       <div className="container py-8">
         <Card>
-          <CardHeader>
-            <CardTitle>Review Queue</CardTitle>
-            <CardDescription>
-              Items in <strong>submitted</strong> or <strong>in review</strong>.
-            </CardDescription>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>Review Queue</CardTitle>
+              <CardDescription>
+                {showAll ? "All wishlist items." : "Items in submitted or in review."}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="show-all" className="text-sm cursor-pointer">
+                Show all items
+              </Label>
+              <input
+                id="show-all"
+                type="checkbox"
+                checked={showAll}
+                onChange={(e) => setShowAll(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <Table>

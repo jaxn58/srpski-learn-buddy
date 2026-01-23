@@ -83,15 +83,19 @@ export const createWishlistItem = mutation({
     const now = Date.now();
     const windowStart = now - WISHLIST_SUBMIT_COOLDOWN_MS;
 
-    // Rate-limit: 1 wishlist suggestion per 24h per user
-    const recent = await ctx.db
-      .query("wishlistItems")
-      .withIndex("by_user_createdAt", (q) =>
-        q.eq("createdBy", user._id).gte("createdAt", windowStart)
-      )
-      .collect();
-    if (recent.length >= 1) {
-      throw new Error("Rate limit: you can submit 1 wishlist suggestion per 24 hours.");
+    const isAdmin = user.role === "admin" || user.role === "superadmin";
+
+    // Rate-limit: 1 wishlist suggestion per 24h per user (Admins/Superadmins are exempt)
+    if (!isAdmin) {
+      const recent = await ctx.db
+        .query("wishlistItems")
+        .withIndex("by_user_createdAt", (q) =>
+          q.eq("createdBy", user._id).gte("createdAt", windowStart)
+        )
+        .collect();
+      if (recent.length >= 1) {
+        throw new Error("Rate limit: you can submit 1 wishlist suggestion per 24 hours.");
+      }
     }
 
     // Per-user exact de-dupe: block if same normalized title already exists and isn't rejected.
@@ -136,6 +140,11 @@ export const getMySubmitCooldown = query({
 
     const now = Date.now();
     const windowStart = now - WISHLIST_SUBMIT_COOLDOWN_MS;
+
+    const isAdmin = user.role === "admin" || user.role === "superadmin";
+    if (isAdmin) {
+      return { isBlocked: false, nextAllowedAt: null as number | null, remainingMs: 0 };
+    }
 
     const mostRecentWithinWindow = await ctx.db
       .query("wishlistItems")
@@ -305,10 +314,27 @@ export const toggleUpvote = mutation({
 });
 
 export const listReviewQueue = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    includeAll: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
+
+    if (args.includeAll) {
+      const all = await ctx.db.query("wishlistItems").collect();
+      const sorted = all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      return await Promise.all(
+        sorted.map(async (item) => {
+          const submitter = await ctx.db.get(item.createdBy);
+          return {
+            ...item,
+            submitterName: submitter?.name || submitter?.email || "Unknown",
+            submitterEmail: submitter?.email || "",
+          } as any;
+        })
+      );
+    }
 
     const submitted = await ctx.db
       .query("wishlistItems")
