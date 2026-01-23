@@ -108,7 +108,7 @@ async function main() {
     })
   );
 
-  const outPath = path.resolve(process.cwd(), "dist", "public", "landing.html");
+  const outPath = path.resolve(process.cwd(), "dist", "public", "index.html");
   if (!fs.existsSync(outPath)) {
     throw new Error(`Expected build output not found: ${outPath}. Did you run \`vite build\` first?`);
   }

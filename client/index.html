@@ -2,22 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0"
-    />
-    <!-- CSP temporarily disabled for local development to debug Cloudflare Turnstile -->
-    <!-- TODO: Re-enable CSP for production deployment -->
-    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.cloudflare.com https://*.paddle.com https://cdn.paddle.com; script-src-elem 'self' 'unsafe-inline' blob: https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.cloudflare.com https://*.paddle.com https://cdn.paddle.com; worker-src 'self' blob:; frame-src 'self' https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.cloudflare.com https://*.paddle.com https://sandbox-checkout.paddle.com; style-src 'self' 'unsafe-inline' https://*.paddle.com https://*.cloudflare.com https://challenges.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: https: https://*.paddle.com; connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.cloudflare.com https://*.paddle.com https://api.paddle.com ws://localhost:* http://localhost:*; font-src 'self' https://fonts.gstatic.com; child-src 'self' https://*.clerk.accounts.dev https://challenges.cloudflare.com https://*.cloudflare.com; form-action 'self' https://*.clerk.accounts.dev;"> -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      This file is the prerendered entry for `/`.
+      The build step injects SEO head tags + prerendered HTML into the markers below.
+    -->
+
+    <!--PRERENDER_HEAD_START-->
+    <title>Serbian AI Tutor</title>
+    <!--PRERENDER_HEAD_END-->
+
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <title>Serbian AI Tutor</title>
-    
   </head>
 
   <body>
+    <!--PRERENDER_ROOT_START-->
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!--PRERENDER_ROOT_END-->
 
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+

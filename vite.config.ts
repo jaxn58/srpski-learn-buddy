@@ -38,8 +38,8 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       rollupOptions: {
         input: {
+          app: path.resolve(import.meta.dirname, "client", "app.html"),
           index: path.resolve(import.meta.dirname, "client", "index.html"),
-          landing: path.resolve(import.meta.dirname, "client", "landing.html"),
         },
       },
     },
