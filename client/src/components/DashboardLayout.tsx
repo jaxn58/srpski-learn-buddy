@@ -22,15 +22,27 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  ChevronLeft,
+  ChevronRight,
   Database,
+  ListTodo,
   Mail,
   MessageCircle,
   PanelLeft,
+  PanelRight,
   Presentation,
   ScrollText,
   Send,
@@ -47,33 +59,58 @@ type AdminNavItem = {
   icon: React.ReactNode;
 };
 
+type AdminGroup = {
+  title: string;
+  icon: React.ReactNode;
+  items: AdminNavItem[];
+};
+
 function AdminSidebar() {
   const { t } = useTranslation();
   const [location] = useLocation();
-  const { state, toggleSidebar } = useSidebar();
+  const { state, toggleSidebar, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
 
   const feedbackNewCount = useQuery(api.feedback.getNewCount);
   const inactiveUserCount = useQuery(api.users.getInactiveCount);
   const waitlistPendingCount = useQuery(api.waitlist.getPendingCount);
 
-  const adminItems: AdminNavItem[] = useMemo(
+  const adminGroups: AdminGroup[] = useMemo(
     () => [
-      { label: t("sidebar.userManagement"), path: "/admin", icon: <Users className="h-4 w-4" /> },
-      { label: "Prompt Admin", path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
-      { label: "Changelog", path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
-      { label: "Onboarding", path: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
-      { label: t("sidebar.feedback"), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
-      { label: t("sidebar.emailTemplates"), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
-      { label: "Newsletter", path: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
-      { label: "Waitlist", path: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
       {
-        label: t("sidebar.subscriptionAnalytics"),
-        path: "/admin/subscription-analytics",
-        icon: <TrendingUp className="h-4 w-4" />,
+        title: t("sidebar.userManagement"),
+        icon: <Users className="h-4 w-4" />,
+        items: [
+          { label: t("sidebar.userManagement"), path: "/admin", icon: <Users className="h-4 w-4" /> },
+          { label: "Waitlist", path: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
+          { label: "Onboarding", path: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
+          {
+            label: t("sidebar.subscriptionAnalytics"),
+            path: "/admin/subscription-analytics",
+            icon: <TrendingUp className="h-4 w-4" />,
+          },
+        ],
       },
-      { label: "Database Backups", path: "/admin/backup", icon: <Database className="h-4 w-4" /> },
-      { label: "Content Import", path: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+      {
+        title: "Communication",
+        icon: <Mail className="h-4 w-4" />,
+        items: [
+          { label: t("sidebar.emailTemplates"), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
+          { label: "Newsletter", path: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
+          { label: t("sidebar.feedback"), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
+          { label: "Wishlist", path: "/admin/wishlist", icon: <ListTodo className="h-4 w-4" /> },
+        ],
+      },
+      {
+        title: "Content & System",
+        icon: <Database className="h-4 w-4" />,
+        items: [
+          { label: "Prompt Admin", path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+          { label: "Content Import", path: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+          { label: "Changelog", path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
+          { label: "Database Backups", path: "/admin/backup", icon: <Database className="h-4 w-4" /> },
+        ],
+      },
     ],
     [t]
   );
@@ -106,60 +143,86 @@ function AdminSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="h-16 justify-center">
-        <div className="flex items-center gap-2 px-2 w-full">
-          <Shield className="h-5 w-5 text-primary shrink-0" />
-          {!isCollapsed && (
-            <span className="font-semibold tracking-tight truncate">
-              {t("sidebar.adminPanel")}
-            </span>
-          )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={toggleSidebar}
-                className="ml-auto h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Toggle admin menu"
-              >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {isCollapsed ? "Expand menu" : "Collapse menu"}
-            </TooltipContent>
-          </Tooltip>
-        </div>
+    <Sidebar collapsible="icon" className="z-[60] border-r transition-all duration-300">
+      <SidebarHeader className="h-16 flex items-center justify-center bg-background border-b">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleSidebar}
+              className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {isCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+          </TooltipContent>
+        </Tooltip>
       </SidebarHeader>
 
-      <SidebarContent className="gap-0">
+      <SidebarContent className="gap-0 bg-background">
         <SidebarGroup>
-          <SidebarGroupLabel>{t("sidebar.adminPanel")}</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-4 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">
+            {t("sidebar.adminPanel")}
+          </SidebarGroupLabel>
           <SidebarMenu>
-            {adminItems.map((item) => {
-              const isActive = location === item.path;
-              return (
-                <SidebarMenuItem key={item.path}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive}
-                    tooltip={item.label}
-                    className={cn(
-                      "h-9 transition-all font-normal",
-                      isActive
-                        ? "bg-red-100 text-red-700 hover:bg-red-100 hover:text-red-700"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <Link href={item.path}>
-                      {item.icon}
-                      <span>{item.label}</span>
-                      {renderAdminCountBadge(item.path)}
-                    </Link>
-                  </SidebarMenuButton>
+            {adminGroups.map((group) => (
+              <Collapsible
+                key={group.title}
+                asChild
+                defaultOpen={group.items.some((item) => location === item.path)}
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton 
+                      tooltip={group.title}
+                      onClick={() => {
+                        if (isCollapsed) {
+                          setOpen(true);
+                        }
+                      }}
+                    >
+                      {group.icon}
+                      <span>{group.title}</span>
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {group.items.map((item) => {
+                        const isActive = location === item.path;
+                        return (
+                          <SidebarMenuSubItem key={item.path}>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={isActive}
+                              className={cn(
+                                "h-9 transition-all font-normal",
+                                isActive
+                                  ? "bg-red-100 text-red-700 hover:bg-red-100 hover:text-red-700"
+                                  : "text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              <Link href={item.path}>
+                                {item.icon}
+                                <span>{item.label}</span>
+                                {renderAdminCountBadge(item.path)}
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
                 </SidebarMenuItem>
-              );
-            })}
+              </Collapsible>
+            ))}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
@@ -182,7 +245,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <>
       <SignedIn>
-        {isAdmin && isAdminRoute && !isMobile ? (
+        {isAdmin && !isMobile ? (
           <SidebarProvider>
             <AdminSidebar />
             <SidebarInset className="bg-muted/20">

@@ -28,6 +28,7 @@ import {
   Sun,
   Lock,
   ListTodo,
+  ChevronRight,
 } from "lucide-react";
 
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -68,6 +69,50 @@ type NavItem = {
   icon: React.ReactNode;
   isActive?: (location: string) => boolean;
 };
+
+function MobileAdminGroup({ group, location, activeClass, closeMobile }: { 
+  group: any, 
+  location: string, 
+  activeClass: string, 
+  closeMobile: () => void 
+}) {
+  const [isOpen, setIsOpen] = useState(
+    group.items.some((item: any) => 
+      location === item.href || (item.href === "/admin" && (location === "/admin" || location.startsWith("/admin/")))
+    )
+  );
+
+  return (
+    <div className="space-y-1">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest hover:text-foreground transition-colors"
+      >
+        <span>{group.title}</span>
+        <ChevronRight className={cn("h-3 w-3 transition-transform", isOpen && "rotate-90")} />
+      </button>
+      {isOpen && group.items.map((item: any) => {
+        const active =
+          location === item.href ||
+          (item.href === "/admin" && (location === "/admin" || location.startsWith("/admin/")));
+        return (
+          <Link key={item.href} href={item.href} onClick={closeMobile}>
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full justify-start gap-2 pl-6",
+                active && activeClass
+              )}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </Button>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
 
 export function TopNavigation() {
   const { user, logout } = useAuth();
@@ -254,24 +299,42 @@ export function TopNavigation() {
     [t]
   );
 
-  const adminItems: NavItem[] = useMemo(
+  const adminGroups = useMemo(
     () => [
-      { label: t("sidebar.userManagement"), href: "/admin", icon: <Users className="h-4 w-4" /> },
-      { label: "Prompt Admin", href: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
-      { label: "Changelog", href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
-      { label: "Onboarding", href: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
-      { label: t("sidebar.feedback"), href: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
-      { label: "Wishlist", href: "/admin/wishlist", icon: <ListTodo className="h-4 w-4" /> },
-      { label: t("sidebar.emailTemplates"), href: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
-      { label: "Newsletter", href: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
-      { label: "Waitlist", href: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
       {
-        label: t("sidebar.subscriptionAnalytics"),
-        href: "/admin/subscription-analytics",
-        icon: <TrendingUp className="h-4 w-4" />,
+        title: t("sidebar.userManagement"),
+        icon: <Users className="h-4 w-4" />,
+        items: [
+          { label: t("sidebar.userManagement"), href: "/admin", icon: <Users className="h-4 w-4" /> },
+          { label: "Waitlist", href: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
+          { label: "Onboarding", href: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
+          {
+            label: t("sidebar.subscriptionAnalytics"),
+            href: "/admin/subscription-analytics",
+            icon: <TrendingUp className="h-4 w-4" />,
+          },
+        ],
       },
-      { label: "Database Backups", href: "/admin/backup", icon: <Database className="h-4 w-4" /> },
-      { label: "Content Import", href: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+      {
+        title: "Communication",
+        icon: <Mail className="h-4 w-4" />,
+        items: [
+          { label: t("sidebar.emailTemplates"), href: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
+          { label: "Newsletter", href: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
+          { label: t("sidebar.feedback"), href: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
+          { label: "Wishlist", href: "/admin/wishlist", icon: <ListTodo className="h-4 w-4" /> },
+        ],
+      },
+      {
+        title: "Content & System",
+        icon: <Database className="h-4 w-4" />,
+        items: [
+          { label: "Prompt Admin", href: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+          { label: "Content Import", href: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+          { label: "Changelog", href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
+          { label: "Database Backups", href: "/admin/backup", icon: <Database className="h-4 w-4" /> },
+        ],
+      },
     ],
     [t]
   );
@@ -359,25 +422,15 @@ export function TopNavigation() {
                     <div className="px-2 pt-4 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       {t("sidebar.adminPanel")}
                     </div>
-                    {adminItems.map((item) => {
-                      const active =
-                        location === item.href ||
-                        (item.href === "/admin" && (location === "/admin" || location.startsWith("/admin/")));
-                      return (
-                        <Link key={item.href} href={item.href} onClick={closeMobile}>
-                          <Button
-                            variant="ghost"
-                            className={cn(
-                              "w-full justify-start gap-2",
-                              active && activeClass
-                            )}
-                          >
-                            {item.icon}
-                            <span>{item.label}</span>
-                          </Button>
-                        </Link>
-                      );
-                    })}
+                    {adminGroups.map((group) => (
+                      <MobileAdminGroup 
+                        key={group.title} 
+                        group={group} 
+                        location={location} 
+                        activeClass={activeClass} 
+                        closeMobile={closeMobile} 
+                      />
+                    ))}
                   </>
                 )}
               </nav>
@@ -545,37 +598,6 @@ export function TopNavigation() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          {isAdmin && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    "gap-2",
-                    (location === "/admin" || location.startsWith("/admin/")) &&
-                      activeClass
-                  )}
-                  aria-label="Admin menu"
-                >
-                  <Shield className="h-4 w-4" />
-                  <span>{t("sidebar.adminPanel")}</span>
-                  <ChevronDown className="h-4 w-4 opacity-70" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
-                {adminItems.map((item) => (
-                  <DropdownMenuItem key={item.href} asChild>
-                    <Link href={item.href} className="cursor-pointer">
-                      {item.icon}
-                      <span className="ml-2">{item.label}</span>
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
         </nav>
 
         <div className="flex items-center gap-2">
