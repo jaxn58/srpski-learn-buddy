@@ -12,6 +12,180 @@ export const listDrafts = query({
   },
 });
 
+export const getUnitRemovalSummary = query({
+  args: { unitNumber: v.number() },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const unitNumber = args.unitNumber;
+
+    const counts: Record<string, number> = {
+      drafts: 0,
+      draftSnapshots: 0,
+      draftFindings: 0,
+      draftAiRuns: 0,
+      draftHumanReviews: 0,
+      unitMetadata: 0,
+      unitContent: 0,
+      unitInteractiveTests: 0,
+      courseVocabulary: 0,
+      vocabularyProgress: 0,
+      unitContentAudio: 0,
+      unitExplanations: 0,
+      exerciseQuestionProgress: 0,
+      questionProgress: 0,
+      exerciseResults: 0,
+      exerciseCompletions: 0,
+      quizProgress: 0,
+      legacyVocabulary: 0,
+      legacyVocabularyTranslations: 0,
+      userProgressWouldPatch: 0,
+      userProgressCurrentUnitWouldChange: 0,
+      userProgressCompletedUnitsWouldChange: 0,
+    };
+
+    // Draft layer
+    const drafts = await ctx.db
+      .query("contentDrafts")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    counts.drafts = drafts.length;
+
+    for (const d of drafts as any[]) {
+      const snaps = await ctx.db
+        .query("contentDraftSnapshots")
+        .withIndex("by_draft", (q) => q.eq("draftId", d._id))
+        .collect();
+      counts.draftSnapshots += snaps.length;
+
+      const findings = await ctx.db
+        .query("contentDraftFindings")
+        .withIndex("by_draft", (q) => q.eq("draftId", d._id))
+        .collect();
+      counts.draftFindings += findings.length;
+
+      const runs = await ctx.db
+        .query("contentDraftAiRuns")
+        .withIndex("by_draft", (q) => q.eq("draftId", d._id))
+        .collect();
+      counts.draftAiRuns += runs.length;
+
+      const reviews = await ctx.db
+        .query("contentDraftHumanReviews")
+        .withIndex("by_draft", (q) => q.eq("draftId", d._id))
+        .collect();
+      counts.draftHumanReviews += reviews.length;
+    }
+
+    // Published content
+    const metas = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    counts.unitMetadata = metas.length;
+
+    const contents = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    counts.unitContent = contents.length;
+
+    const tests = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    counts.unitInteractiveTests = tests.length;
+
+    const vocabs = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    counts.courseVocabulary = vocabs.length;
+
+    const courseVocabIds = (vocabs as any[]).map((v) => v._id);
+    for (const vid of courseVocabIds) {
+      const progressRows = await ctx.db
+        .query("vocabularyProgress")
+        .withIndex("by_course_vocab", (q) => q.eq("courseVocabularyId", vid))
+        .collect();
+      counts.vocabularyProgress += progressRows.length;
+    }
+
+    const audios = await ctx.db
+      .query("unitContentAudio")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    counts.unitContentAudio = audios.length;
+
+    const legacyExpl = await ctx.db
+      .query("unitExplanations")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    counts.unitExplanations = legacyExpl.length;
+
+    // Gamification / progress (unitNumber-based)
+    const eqp = await ctx.db
+      .query("exerciseQuestionProgress")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    counts.exerciseQuestionProgress = eqp.length;
+
+    const qp = await ctx.db
+      .query("questionProgress")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    counts.questionProgress = qp.length;
+
+    const results = await ctx.db
+      .query("exerciseResults")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    counts.exerciseResults = results.length;
+
+    const completions = await ctx.db
+      .query("exerciseCompletions")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    counts.exerciseCompletions = completions.length;
+
+    const quizzes = await ctx.db
+      .query("quizProgress")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    counts.quizProgress = quizzes.length;
+
+    const legacyVocab = await ctx.db
+      .query("vocabulary")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    counts.legacyVocabulary = legacyVocab.length;
+
+    const legacyVocabIds = (legacyVocab as any[]).map((v) => v._id);
+    for (const vid of legacyVocabIds) {
+      const translations = await ctx.db
+        .query("vocabularyTranslations")
+        .withIndex("by_vocab_lang", (q) => q.eq("vocabularyId", vid))
+        .collect();
+      counts.legacyVocabularyTranslations += translations.length;
+    }
+
+    // userProgress impact
+    const allUserProgress = await ctx.db.query("userProgress").collect();
+    for (const up of allUserProgress as any[]) {
+      const completedUnits: number[] = Array.isArray(up.completedUnits) ? up.completedUnits : [];
+      const wouldRemoveCompleted = completedUnits.includes(unitNumber);
+      const currentUnit = typeof up.currentUnit === "number" ? up.currentUnit : 1;
+      const wouldChangeCurrent = currentUnit === unitNumber;
+      if (wouldRemoveCompleted || wouldChangeCurrent) {
+        counts.userProgressWouldPatch += 1;
+        if (wouldRemoveCompleted) counts.userProgressCompletedUnitsWouldChange += 1;
+        if (wouldChangeCurrent) counts.userProgressCurrentUnitWouldChange += 1;
+      }
+    }
+
+    return { unitNumber, counts };
+  },
+});
+
 export const getStudioMetrics = query({
   args: {},
   handler: async (ctx) => {

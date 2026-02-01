@@ -194,6 +194,9 @@ export default defineSchema({
     // - "preview" => visible to superadmin only (1:1 preview UI)
     // - "offline" => hidden from all
     releaseStatus: v.optional(v.union(v.literal("published"), v.literal("preview"), v.literal("offline"))),
+
+    // Unit-level offline toggle (reversible). Hidden for students, manageable by admins.
+    isOffline: v.optional(v.boolean()),
   })
     .index("by_unit_lang", ["unitNumber", "language"]) // Composite Primary Key
     .index("by_module", ["moduleId"]) // Old Foreign Key Index (deprecated)

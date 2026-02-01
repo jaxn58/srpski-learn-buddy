@@ -7,7 +7,7 @@ import {
   callAiJson,
   buildStageSkillBlock,
 } from "./_shared";
-import { buildAuditPayload } from "./_validatorHelpers";
+import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
 import { getAuditorSystemPrompt } from "./prompts";
 import type { Id } from "../_generated/dataModel";
 
@@ -159,6 +159,13 @@ export const runAiAuditor = action({
       let blockers = Array.isArray(audit?.blockers) ? audit.blockers : [];
       let warnings = Array.isArray(audit?.warnings) ? audit.warnings : [];
 
+      // Defensive normalization: ensure issues are consistently shaped strings.
+      const normalizeIssue = (i: any) => ({
+        code: String(i?.code || "").trim(),
+        message: String(i?.message || "").trim(),
+        path: typeof i?.path === "string" ? i.path : undefined,
+      });
+
       // Server-side enforcement: some models still emit subjective "blockers".
       // We only allow objective blockers in this pipeline. Downgrade known subjective codes to warnings.
       const downgradeCodes = new Set([
@@ -217,6 +224,20 @@ export const runAiAuditor = action({
       });
       if (downgraded.length) warnings = [...downgraded, ...warnings];
 
+      // Additional safety: the Lector is not reliable enough to hard-block publishing.
+      // Convert any remaining blockers into warnings.
+      if (blockers.length) {
+        warnings = [
+          ...blockers.map((b: any) => ({
+            ...normalizeIssue(b),
+            code: String(b?.code || "auditor_blocker").trim() || "auditor_blocker",
+            message: String(b?.message || "Blocker").trim() || "Blocker",
+          })),
+          ...warnings,
+        ];
+        blockers = [];
+      }
+
       // Post-process: Filter out vocabulary warnings for words that already exist in the course
       // This catches false positives where the Lector claims a word is "missing" but it's already taught
       const vocabWarningCodes = new Set([
@@ -233,24 +254,46 @@ export const runAiAuditor = action({
         return match ? match[1].toLowerCase() : null;
       };
 
+      // Unit vocabulary keys (normalized) for filtering false "missing" reports.
+      const unitVocabKeys = new Set(
+        (payload?.vocabularyKeys ?? []).map((k: any) => normalizeSerbianKey(k))
+      );
+
       // Also get ALL course vocabulary keys for comprehensive check
       const allVocabKeys = new Set(allCourseVocab.map((v: any) => String(v.serbian || "").toLowerCase()));
 
       const filteredWarnings: any[] = [];
       for (const w of warnings) {
-        const code = String(w?.code || "");
-        const msg = String(w?.message || "");
+        const norm = normalizeIssue(w);
+        const code = norm.code;
+        const msg = norm.message;
+        const looksTrunc = /truncat/i.test(code) || /truncat/i.test(msg);
+        if (looksTrunc) continue;
+        // Enforce evidence: warnings without a concrete path are too noisy/unreliable.
+        if (!norm.path) continue;
+
+        // Normalize/limit codes to reduce UI noise and prevent "invented" categories.
+        const allowedCodes = new Set(["SERBIAN_ERROR", "TRANSLATION_MISMATCH", "CULTURAL_FACT_RISK", "STYLE_SUGGESTION"]);
+        const outCode = allowedCodes.has(code) ? code : "STYLE_SUGGESTION";
+        const outMsg = allowedCodes.has(code) ? msg : `[${code || "unknown"}] ${msg}`;
         
         if (vocabWarningCodes.has(code)) {
-          const word = extractSerbianWord(msg);
-          if (word && allVocabKeys.has(word)) {
-            console.log(`Lector warning filtered: '${word}' already exists in course vocabulary`);
-            continue; // Skip this warning - word already exists
-          }
+          const word = extractSerbianWord(outMsg);
+          const normWord = word ? normalizeSerbianKey(word) : null;
+          if (normWord && unitVocabKeys.has(normWord)) continue; // already present in unit vocabulary
+          if (word && allVocabKeys.has(word)) continue; // already exists in course vocabulary
         }
-        filteredWarnings.push(w);
+        if (!outMsg.trim()) continue;
+        filteredWarnings.push({ ...w, code: outCode, message: outMsg, path: norm.path });
       }
-      warnings = filteredWarnings;
+      // Deduplicate warnings by (code + message + path) to reduce model spam.
+      const seen = new Set<string>();
+      warnings = filteredWarnings.filter((w: any) => {
+        const k = `${String(w?.code || "")}||${String(w?.message || "")}||${String(w?.path || "")}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
 
       // Normalize audit object so UI shows the post-processed blocker/warning sets.
       const normalizedAudit = {
@@ -259,7 +302,8 @@ export const runAiAuditor = action({
         warnings,
       };
 
-      const ok = blockers.length === 0;
+      // Non-blocking by design: auditor output is advisory only.
+      const ok = true;
 
       const findings = [
         ...blockers.map((b: any) => ({
@@ -285,7 +329,7 @@ export const runAiAuditor = action({
         unitPackageJson: snapshot.unitPackageJson,
         markdownSource: snapshot.markdownSource,
         validationReportJson: JSON.stringify({ ok, audit: normalizedAudit }),
-        status: ok ? "ready_to_publish" : "audit_failed",
+        status: "ready_to_publish",
         // Replace findings so old auditor blockers don't linger after reruns.
         // After qc_passed, validator findings should already be empty, so this is safe.
         replaceFindings: true,

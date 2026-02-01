@@ -261,15 +261,43 @@ export const translateToEnglish = action({
       `Keep it concise; preserve the original tone.`,
     ].join("\n");
 
-    const { raw } = await callAiText(ctx, {
-      stage: "specialist",
-      preferredProvider: (args.preferredProvider as any) || undefined,
-      system,
-      user: input,
-      maxTokens: 300,
-    });
+    const tryOnce = async (p?: "gemini" | "openai"): Promise<string | null> => {
+      try {
+        const { raw } = await callAiText(ctx, {
+          stage: "specialist",
+          preferredProvider: (p as any) || undefined,
+          system,
+          user: input,
+          maxTokens: 600,
+        });
+        const out = String(raw || "").trim();
+        return out || null;
+      } catch {
+        return null;
+      }
+    };
 
-    return { english: String(raw || "").trim() };
+    const preferred = (args.preferredProvider as any) || undefined;
+    const primary = await tryOnce(preferred);
+    if (primary) return { english: primary };
+
+    const hasGemini = !!process.env.GEMINI_API_KEY;
+    const hasOpenAI = !!process.env.OPENAI_API_KEY;
+    const other =
+      preferred === "gemini"
+        ? (hasOpenAI ? "openai" : undefined)
+        : preferred === "openai"
+          ? (hasGemini ? "gemini" : undefined)
+          : hasGemini
+            ? "gemini"
+            : hasOpenAI
+              ? "openai"
+              : undefined;
+    const fallback = other ? await tryOnce(other) : null;
+    if (fallback) return { english: fallback };
+
+    // Final fallback: do not break the UI.
+    return { english: input };
   },
 });
 

@@ -5,6 +5,8 @@ export type AutoFixChange = {
     | "sanitizeSerbian"
     | "splitVocabularyEntry"
     | "splitVocabularyGenderVariant"
+    | "stripEnglishGenderMarker"
+    | "stripExerciseInstructionPrefix"
     | "splitEnglishAlt"
     | "mergeExerciseCategories"
     | "normalizeChoiceOption"
@@ -20,6 +22,50 @@ const PUNCTUATION_REPLACE_REGEX = /[.?!,:;]/g;
 
 function normalizeWhitespace(s: string): string {
   return s.replace(/\s+/g, " ").trim();
+}
+
+function stripExerciseInstructionPrefix(raw: unknown): string {
+  const s0 = typeof raw === "string" ? raw : String(raw ?? "");
+  const s = s0.replace(/\r\n/g, "\n").trim();
+  if (!s) return s;
+
+  const lines = s.split("\n");
+  const firstIdx = lines.findIndex((l) => l.trim().length > 0);
+  if (firstIdx < 0) return s;
+
+  const first = lines[firstIdx].trim();
+  const looksLikeInstruction =
+    /^(translate|fill|complete|choose|match)\b/i.test(first) ||
+    /^complete the dialogue\b/i.test(first);
+
+  // Multi-line pattern: instruction line, blank line, then the actual prompt content.
+  if (looksLikeInstruction) {
+    const blankAfter = lines.slice(firstIdx + 1).findIndex((l) => l.trim().length === 0);
+    if (blankAfter >= 0) {
+      const dropUntil = firstIdx + 1 + blankAfter + 1;
+      const remainder = lines.slice(dropUntil).join("\n").trim();
+      if (remainder) return remainder;
+    }
+  }
+
+  // Single-line patterns: "Instruction: actual question"
+  const singleLine = first
+    .replace(/^translate into serbian:\s*/i, "")
+    .replace(/^choose the serbian for:\s*/i, "")
+    .replace(/^choose the correct answer[^:]{0,80}:\s*/i, "")
+    .replace(/^match:\s*/i, "")
+    .replace(/^complete the sentence:\s*/i, "")
+    .replace(/^complete the dialogue[^:]{0,80}:\s*/i, "")
+    .replace(/^fill in the blank[^:]{0,80}:\s*/i, "");
+
+  if (singleLine !== first) {
+    // Replace only the first non-empty line; keep any following lines (dialogue snippets, etc.).
+    const nextLines = [...lines];
+    nextLines[firstIdx] = singleLine;
+    return nextLines.join("\n").trim();
+  }
+
+  return s;
 }
 
 function stripChoicePrefix(input: unknown): string {
@@ -55,6 +101,75 @@ function removeGenderMarkersFromSerbian(s: string): string {
     s
       .replace(/\((m|f|n)\.?\)/gi, "")
   );
+}
+
+function extractGenderMarkersFromEnglish(en: string): { cleaned: string; markers: Array<"m" | "f" | "n"> } {
+  const src = String(en ?? "");
+  if (!src.includes("(") || !src.includes(")")) return { cleaned: src, markers: [] };
+
+  const markers: Array<"m" | "f" | "n"> = [];
+  let cleaned = src;
+
+  // Only remove explicit gender markers inside parentheses to avoid false positives (e.g., "(informal)").
+  const re = /\(([^)]{1,24})\)/g;
+  cleaned = cleaned.replace(re, (full, inner) => {
+    const raw = String(inner || "").trim().toLowerCase();
+    const norm = raw.replace(/\./g, "").replace(/\s+/g, "");
+    const push = (m: "m" | "f" | "n") => {
+      if (!markers.includes(m)) markers.push(m);
+    };
+
+    // Single markers
+    if (norm === "m" || norm === "masc" || norm === "masculine") {
+      push("m");
+      return "";
+    }
+    if (norm === "f" || norm === "fem" || norm === "feminine") {
+      push("f");
+      return "";
+    }
+    if (norm === "n" || norm === "neut" || norm === "neuter") {
+      push("n");
+      return "";
+    }
+
+    // Combined markers like m/f, f/m, m,f
+    const parts = norm.split(/[\/,]/g).filter(Boolean);
+    if (parts.length >= 2 && parts.every((p) => ["m", "f", "n", "masc", "fem", "neut", "masculine", "feminine", "neuter"].includes(p))) {
+      for (const p of parts) {
+        if (p === "m" || p === "masc" || p === "masculine") push("m");
+        if (p === "f" || p === "fem" || p === "feminine") push("f");
+        if (p === "n" || p === "neut" || p === "neuter") push("n");
+      }
+      return "";
+    }
+
+    return full;
+  });
+
+  // Normalize spacing/punctuation after removal
+  cleaned = normalizeWhitespace(cleaned)
+    .replace(/\s+,/g, ",")
+    .replace(/,\s*$/g, "")
+    .trim();
+
+  // Deterministic order
+  const ordered: Array<"m" | "f" | "n"> = [];
+  if (markers.includes("m")) ordered.push("m");
+  if (markers.includes("f")) ordered.push("f");
+  if (markers.includes("n")) ordered.push("n");
+
+  return { cleaned, markers: ordered };
+}
+
+function applyEnglishGenderMarkerStrip(entry: UnitPackageVocabularyEntry): UnitPackageVocabularyEntry {
+  const { cleaned, markers } = extractGenderMarkersFromEnglish(entry.en);
+  if (!markers.length) return entry;
+  if (!cleaned.trim()) return entry;
+
+  const label = (m: "m" | "f" | "n") => (m === "m" ? "masculine" : m === "f" ? "feminine" : "neuter");
+  const genderNote = `Gender: ${markers.map(label).join("/")}`;
+  return { ...entry, en: cleaned, noteEn: appendNote(entry.noteEn, genderNote) };
 }
 
 function sanitizeSerbianForAudio(raw: string): { cleaned: string; removed: string[] } {
@@ -247,6 +362,16 @@ export function autofixUnitPackage(pkg: UnitPackage): {
         }
 
         let nextEntry: UnitPackageVocabularyEntry = { ...e, serbian: cleanedGenderRemoved };
+        nextEntry = applyEnglishGenderMarkerStrip(nextEntry);
+        if (nextEntry.en !== e.en) {
+          changes.push({
+            kind: "stripEnglishGenderMarker",
+            path: ["vocabulary", lang, i, "en"],
+            before: e.en,
+            after: nextEntry.en,
+            note: "Moved gender markers from English to Notes",
+          });
+        }
         nextEntry = splitEnglishAlt(nextEntry);
         if (nextEntry.enAlt && !e.enAlt && e.en.includes("/")) {
           changes.push({
@@ -305,11 +430,25 @@ export function autofixUnitPackage(pkg: UnitPackage): {
 
     fixedCats = fixedCats.map((cat, cIdx) => {
       const fixedQuestions = cat.questions.map((q, qIdx) => {
-        if (q.questionType !== "multipleChoice") {
-          return q;
+        const beforeQuestion = q.question;
+        const afterQuestion = stripExerciseInstructionPrefix(beforeQuestion);
+        const baseQ = afterQuestion !== beforeQuestion ? { ...q, question: afterQuestion } : q;
+
+        if (afterQuestion !== beforeQuestion) {
+          changes.push({
+            kind: "stripExerciseInstructionPrefix",
+            path: ["exercises", lang, cIdx, "questions", qIdx, "question"],
+            before: beforeQuestion,
+            after: afterQuestion,
+            note: "Removed per-row instruction prefix; instructions belong in category header only",
+          });
         }
 
-        const beforeOptions = q.options ?? [];
+        if (q.questionType !== "multipleChoice") {
+          return baseQ;
+        }
+
+        const beforeOptions = baseQ.options ?? [];
         const afterOptions = beforeOptions.map((opt) => normalizeChoiceValue(stripChoicePrefix(opt))).filter(Boolean);
         if (JSON.stringify(beforeOptions) !== JSON.stringify(afterOptions)) {
           changes.push({
@@ -320,7 +459,7 @@ export function autofixUnitPackage(pkg: UnitPackage): {
           });
         }
 
-        const beforeCorrect = q.correctAnswer;
+        const beforeCorrect = baseQ.correctAnswer;
         let afterCorrect = normalizeChoiceValue(stripChoicePrefix(beforeCorrect));
         if (beforeCorrect !== afterCorrect) {
           changes.push({
@@ -355,7 +494,7 @@ export function autofixUnitPackage(pkg: UnitPackage): {
         }
 
         return {
-          ...q,
+          ...baseQ,
           options: afterOptions.length ? afterOptions : q.options,
           correctAnswer: afterCorrect,
         };

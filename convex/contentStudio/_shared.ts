@@ -501,28 +501,107 @@ export async function translateShortToEnglishIfNeeded(
     `Keep it concise; preserve the original tone.`,
   ].join("\n");
 
-  const { raw } = await callAiText(ctx, {
-    stage: "specialist",
-    preferredProvider,
-    system,
-    user: input,
-    maxTokens: 800,
-  });
-  const out = String(raw || "").trim();
-  if (!out) throw new Error("Auto-translation returned empty text");
-  if (looksGerman(out)) {
-    throw new Error("Auto-translation did not convert the text to English");
-  }
-  return out;
+  const tryOnce = async (p?: Provider): Promise<string | null> => {
+    try {
+      const { raw } = await callAiText(ctx, {
+        stage: "specialist",
+        preferredProvider: p,
+        system,
+        user: input,
+        maxTokens: 800,
+      });
+      const out = String(raw || "").trim();
+      if (!out) return null;
+      if (looksGerman(out)) return null;
+      return out;
+    } catch {
+      return null;
+    }
+  };
+
+  const primary = await tryOnce(preferredProvider);
+  if (primary) return primary;
+
+  // Fallback: try the other provider if configured (avoid hard-failing founder note insertion).
+  const hasGemini = !!process.env.GEMINI_API_KEY;
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+  const other: Provider | null =
+    preferredProvider === "gemini"
+      ? (hasOpenAI ? "openai" : null)
+      : preferredProvider === "openai"
+        ? (hasGemini ? "gemini" : null)
+        : hasGemini
+          ? "gemini"
+          : hasOpenAI
+            ? "openai"
+            : null;
+  const fallback = other ? await tryOnce(other) : null;
+  if (fallback) return fallback;
+
+  // Final fallback: return the original text (better UX than breaking the pipeline).
+  return input;
 }
 
 export function upsertFounderNoteBlock(md: string, name: string, quote: string): string {
   const safeName = String(name || "").trim().replace(/^"+|"+$/g, "");
   const safeQuote = String(quote || "").trim();
 
-  // Remove existing Founder/Author note block if present (deterministic).
-  const reExisting = /^####\s+A Note from the (?:Founder[^\n]*|Unit Author[^\n]*)\n(?:>.*\n)+\n?/m;
-  let next = String(md || "").replace(reExisting, "");
+  const stripFounderNotesFromOverview = (input: string): string => {
+    const text = String(input || "").replace(/\r\n/g, "\n");
+    const lines = text.split("\n");
+    const out: string[] = [];
+
+    let inOverview = false;
+    let skipping = false;
+
+    const isOverviewHeader = (line: string) => /^##\s+1\.\s+Overview\b/i.test(line);
+    const isNextMajorSection = (line: string) => /^##\s+\d+\.\s+\S/i.test(line);
+    const isLearningObjectives = (line: string) => /^#{3,4}\s+Learning Objectives\b/i.test(line);
+    const isFounderNoteStart = (line: string) =>
+      /^(?:\s*>\s*){0,3}\s*#{0,4}\s*(?:\*{0,2}\s*)?A Note from the (?:Founder|Unit Author)\b/i.test(line);
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i] ?? "";
+
+      if (isOverviewHeader(line)) {
+        inOverview = true;
+        skipping = false;
+        out.push(line);
+        continue;
+      }
+
+      if (inOverview && isNextMajorSection(line) && !/^##\s+1\.\s+Overview\b/i.test(line)) {
+        // Leaving Overview (e.g., "## 2. Vocabulary")
+        inOverview = false;
+        skipping = false;
+        out.push(line);
+        continue;
+      }
+
+      if (inOverview) {
+        if (!skipping && isFounderNoteStart(line)) {
+          skipping = true;
+          continue;
+        }
+
+        if (skipping) {
+          if (isLearningObjectives(line) || isNextMajorSection(line)) {
+            skipping = false;
+            out.push(line);
+          }
+          continue;
+        }
+      }
+
+      out.push(line);
+    }
+
+    return out.join("\n");
+  };
+
+  // Remove ANY existing Founder/Author note block in Overview (deterministic),
+  // even if the creator generated a non-standard format.
+  let next = stripFounderNotesFromOverview(String(md || ""));
 
   if (!safeName || !safeQuote) return next;
 

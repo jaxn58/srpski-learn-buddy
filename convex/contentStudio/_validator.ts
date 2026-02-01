@@ -37,7 +37,9 @@ export const runQcValidate = action({
     if (!base.success) {
       const parseIssues: ValidationIssue[] = base.error.issues.map((i) => ({
         level: "error",
-        path: i.path,
+        // Zod uses PropertyKey (string | number | symbol); our ValidationIssue expects (string | number).
+        // Coerce defensively to keep the report JSON stable.
+        path: (i.path as any[]).map((p) => (typeof p === "number" ? p : String(p))),
         message: i.message,
       }));
       const report = {
@@ -223,10 +225,26 @@ export const runQcValidate = action({
       });
     }
 
+    // Ensure the snapshot markdown carries the configured Founder/Author note as well
+    // (so it doesn't depend on a manual "apply" step in the UI).
+    let nextMarkdownSource = snapshot.markdownSource;
+    if (typeof nextMarkdownSource === "string" && nextMarkdownSource.trim()) {
+      try {
+        let md = String(nextMarkdownSource);
+        md = canonicalizeDialoguesToUnit1Tables(md);
+        md = await translateUnitMarkdownToEnglishIfNeeded(ctx, md, undefined);
+        md = await ensureFounderNoteInMarkdownIfConfigured(ctx, draft.draft as any, md, undefined);
+        nextMarkdownSource = md;
+      } catch {
+        // If markdown injection/translation fails for any reason, keep the original markdownSource.
+        nextMarkdownSource = snapshot.markdownSource;
+      }
+    }
+
     await ctx.runMutation(api.contentStudio.saveUnitPackageSnapshot, {
       draftId: args.draftId,
       unitPackageJson: JSON.stringify(ensuredWithVocab),
-      markdownSource: snapshot.markdownSource,
+      markdownSource: nextMarkdownSource,
       validationReportJson: JSON.stringify(report),
       status: report.ok ? "qc_passed" : "qc_failed",
       replaceFindings: true,

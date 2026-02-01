@@ -12,7 +12,7 @@ async function getTotalUnitsCount(ctx: QueryCtx | MutationCtx): Promise<number> 
     .collect();
   
   // Filter by English language and get unique unit numbers
-  const englishUnits = units.filter(u => u.language === "en");
+  const englishUnits = units.filter((u: any) => u.language === "en" && u.isOffline !== true);
   const uniqueUnits = new Set(englishUnits.map(u => u.unitNumber));
   return uniqueUnits.size;
 }
@@ -156,6 +156,48 @@ async function requireSuperadmin(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
+async function isUnitOffline(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
+  const metas = await ctx.db
+    .query("unitMetadata")
+    .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
+    .collect();
+  return (metas as any[]).some((m) => m?.isOffline === true);
+}
+
+// Reversible unit-level offline toggle (Superadmin only).
+export const setUnitOffline = mutation({
+  args: {
+    unitNumber: v.number(),
+    offline: v.boolean(),
+    confirm: v.string(), // Must be "OFFLINE UNIT <N>" or "ONLINE UNIT <N>"
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const unitNumber = args.unitNumber;
+    const expected = args.offline ? `OFFLINE UNIT ${unitNumber}` : `ONLINE UNIT ${unitNumber}`;
+    if (args.confirm !== expected) {
+      throw new Error(`Confirmation mismatch. Expected "${expected}", got "${args.confirm}"`);
+    }
+
+    const metas = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    if (metas.length === 0) {
+      throw new Error(`Unit ${unitNumber} not found in unitMetadata`);
+    }
+
+    let updated = 0;
+    for (const m of metas as any[]) {
+      if ((m as any).isOffline === args.offline) continue;
+      await ctx.db.patch(m._id, { isOffline: args.offline });
+      updated += 1;
+    }
+
+    return { ok: true, unitNumber, offline: args.offline, updated };
+  },
+});
+
 // Helper to check unit access
 async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
   const user = await getCurrentUser(ctx);
@@ -166,6 +208,11 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
   // Admins have full access
   if (user.role === "admin" || user.role === "superadmin") {
     return true;
+  }
+
+  // Offline units are hidden for students
+  if (await isUnitOffline(ctx, unitNumber)) {
+    return false;
   }
 
   // Fetch user progress to see which units are unlocked
@@ -373,12 +420,14 @@ export const getUnitMetadata = query({
 
     const user = await getCurrentUser(ctx);
     const allowPreview = user?.role === "superadmin";
+    const allowOffline = user?.role === "admin" || user?.role === "superadmin";
 
     const allForLang = await ctx.db
       .query("unitMetadata")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", language))
       .collect();
-    const metadata = pickBestByRelease(allForLang as any[], allowPreview);
+    const eligibleForLang = allowOffline ? (allForLang as any[]) : (allForLang as any[]).filter((m) => m?.isOffline !== true);
+    const metadata = pickBestByRelease(eligibleForLang as any[], allowPreview);
 
     // Fallback to English if requested language not found
     if (!metadata && language !== "en") {
@@ -386,7 +435,8 @@ export const getUnitMetadata = query({
         .query("unitMetadata")
         .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", "en"))
         .collect();
-      const picked = pickBestByRelease(allEn as any[], allowPreview);
+      const eligibleEn = allowOffline ? (allEn as any[]) : (allEn as any[]).filter((m) => m?.isOffline !== true);
+      const picked = pickBestByRelease(eligibleEn as any[], allowPreview);
       if (picked) return picked;
     }
 
@@ -403,11 +453,13 @@ export const getAllUnitsMetadata = query({
     const language = args.language || "en";
     const user = await getCurrentUser(ctx);
     const allowPreview = user?.role === "superadmin";
+    const allowOffline = user?.role === "admin" || user?.role === "superadmin";
     
     // This is not perfectly efficient as we can't sort by unitNumber with the language index easily
     // But for <100 units it's fine
     const allMetadata = await ctx.db.query("unitMetadata").filter((q) => q.eq(q.field("language"), language)).collect();
     const filtered = (allMetadata as any[]).filter((m) => {
+      if (!allowOffline && (m as any).isOffline === true) return false;
       const s = (m as any).releaseStatus;
       if (s === "offline") return false;
       if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
@@ -418,6 +470,7 @@ export const getAllUnitsMetadata = query({
     if (filtered.length === 0 && language !== "en") {
       const allEn = await ctx.db.query("unitMetadata").filter((q) => q.eq(q.field("language"), "en")).collect();
       const filteredEn = (allEn as any[]).filter((m) => {
+        if (!allowOffline && (m as any).isOffline === true) return false;
         const s = (m as any).releaseStatus;
         if (s === "offline") return false;
         if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
@@ -837,6 +890,12 @@ export const getUnitInteractiveTest = query({
     const language = args.language || "en";
     const user = await getCurrentUser(ctx);
     const allowPreview = user?.role === "superadmin";
+    const allowOffline = user?.role === "admin" || user?.role === "superadmin";
+
+    // Hide offline units for students without throwing (keeps UI resilient).
+    if (!allowOffline && (await isUnitOffline(ctx, args.unitNumber))) {
+      return [];
+    }
     
     // Fetch all questions for this unit/language
     const all = await ctx.db
@@ -879,6 +938,12 @@ export const getUnitContentSections = query({
     const language = args.language || "en";
     const user = await getCurrentUser(ctx);
     const allowPreview = user?.role === "superadmin";
+    const allowOffline = user?.role === "admin" || user?.role === "superadmin";
+
+    // Hide offline units for students without throwing (keeps UI resilient).
+    if (!allowOffline && (await isUnitOffline(ctx, args.unitNumber))) {
+      return {};
+    }
     
     // Referential Integrity: Check if unitMetadata exists (Master-Table)
     let metadata = await ctx.db

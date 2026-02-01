@@ -291,7 +291,6 @@ export default function ContentStudioAdmin() {
 
   const [unitPackageJson, setUnitPackageJson] = useState<string>("");
   const [markdownText, setMarkdownText] = useState<string>("");
-  const [restoreMarkdownOpen, setRestoreMarkdownOpen] = useState(false);
   const [restoreMarkdownText, setRestoreMarkdownText] = useState<string>("");
   const [restoreMarkdownUpdatedAt, setRestoreMarkdownUpdatedAt] = useState<number | null>(null);
   const [showMarkdownRendered, setShowMarkdownRendered] = useState(false);
@@ -712,7 +711,8 @@ export default function ContentStudioAdmin() {
       if (md === snapshotMarkdown) return;
       setRestoreMarkdownText(md);
       setRestoreMarkdownUpdatedAt(updatedAt);
-      setRestoreMarkdownOpen(true);
+      // Do NOT auto-open a blocking modal when selecting a draft.
+      // Instead we show a small inline banner in the Markdown tab.
     } catch {
       // ignore
     }
@@ -1432,25 +1432,33 @@ export default function ContentStudioAdmin() {
     return `${block}\n${next}`.trimStart();
   };
 
-  const handleApplyFounderNoteToMarkdown = async () => {
-    let quote = String(draftAuthorNoteQuote || "").trim();
-    const name = String(draftAuthorNoteName || "").trim();
-    if (!name || !quote) return;
+  const maybeApplyFounderNoteToMarkdown = (name: string, quote: string) => {
+    if (!markdownText.trim()) return;
+    const next = upsertFounderNoteInMarkdown(markdownText, name, quote);
+    if (next !== markdownText) setMarkdownText(next);
+  };
 
+  const handleFounderQuoteBlur = async () => {
+    const name = String(draftAuthorNoteName || "").trim();
+    const quoteRaw = String(draftAuthorNoteQuote || "").trim();
+    if (!name || !quoteRaw) return;
+
+    let quote = quoteRaw;
     try {
-      if (looksGerman(quote)) {
-        const res = await translateToEnglish({ text: quote } as any);
+      if (looksGerman(quoteRaw)) {
+        const res = await translateToEnglish({ text: quoteRaw } as any);
         const english = String((res as any)?.english || "").trim();
-        if (!english) throw new Error("Translation returned empty text");
-        quote = english;
-        setDraftAuthorNoteQuote(english);
+        if (english) {
+          quote = english;
+          // Persist in UI state so future inserts are English
+          setDraftAuthorNoteQuote(english);
+        }
       }
-      const next = upsertFounderNoteInMarkdown(markdownText, name, quote);
-      setMarkdownText(next);
-      toast.success("Founder note applied to markdown. Save Markdown to persist.");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to apply founder note");
+    } catch {
+      // no hard-fail; just keep original text
     }
+
+    maybeApplyFounderNoteToMarkdown(name, quote);
   };
 
   const handleDeleteSelectedDraft = async () => {
@@ -2682,71 +2690,6 @@ export default function ContentStudioAdmin() {
         </DialogContent>
       </Dialog>
 
-      {/* Restore local markdown autosave (if present) */}
-      <Dialog
-        open={restoreMarkdownOpen}
-        onOpenChange={(open) => {
-          setRestoreMarkdownOpen(open);
-          if (!open) {
-            setRestoreMarkdownText("");
-            setRestoreMarkdownUpdatedAt(null);
-          }
-        }}
-      >
-        <DialogContent className="w-[98vw] max-w-[980px]">
-          <DialogHeader>
-            <DialogTitle>Restore unsaved Markdown?</DialogTitle>
-            <DialogDescription>
-              A local autosave was found for this draft. Restoring will overwrite the current editor text (you can still
-              load the snapshot again).
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            <div className="text-xs text-muted-foreground">
-              Saved at:{" "}
-              {restoreMarkdownUpdatedAt ? new Date(restoreMarkdownUpdatedAt).toLocaleString() : "unknown"} • Draft:{" "}
-              <span className="font-mono">{selectedDraftId ? String(selectedDraftId).slice(0, 8) : "—"}</span>
-            </div>
-            <div className="rounded border bg-muted/30 p-3">
-              <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                {restoreMarkdownText.length > 1800 ? `${restoreMarkdownText.slice(0, 1800)}\n\n…` : restoreMarkdownText}
-              </pre>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => {
-                try {
-                  if (markdownLocalStorageKey) localStorage.removeItem(markdownLocalStorageKey);
-                } catch {
-                  // ignore
-                }
-                setRestoreMarkdownOpen(false);
-                setRestoreMarkdownText("");
-                setRestoreMarkdownUpdatedAt(null);
-                toast.success("Discarded local autosave");
-              }}
-            >
-              Discard
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                setMarkdownText(restoreMarkdownText);
-                setRestoreMarkdownOpen(false);
-                toast.success("Restored markdown from local autosave");
-              }}
-            >
-              Restore
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Layout: always stacked (no multi-pane) */}
       <div className="grid gap-6">
         <Card>
@@ -2989,9 +2932,13 @@ export default function ContentStudioAdmin() {
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="min-w-0">
                       <CardTitle className="truncate">
-                        Draft U{selected.draft.unitNumber}: {selected.draft.title}
+                        Workflow
                       </CardTitle>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>
+                          Draft U{selected.draft.unitNumber}: {selected.draft.title}
+                        </span>
+                        <span className="text-muted-foreground/40">•</span>
                         <span>Module M{selected.draft.moduleNumber}</span>
                         <span className="text-muted-foreground/40">•</span>
                         <span>
@@ -3036,183 +2983,302 @@ export default function ContentStudioAdmin() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    {[
-                      { id: "setup" as const, label: "Setup" },
-                      { id: "generate" as const, label: "Generate" },
-                      { id: "qa" as const, label: "QA" },
-                      { id: "preview" as const, label: "Preview" },
-                      { id: "publish" as const, label: "Publish" },
-                    ].map((s, idx, arr) => {
-                      const isComplete = idx < activeStepIndex;
-                      const isActive = idx === activeStepIndex;
-                      return (
-                        <div key={s.id} className="space-y-2">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={cn(
-                                "h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold border shrink-0",
-                                isComplete
-                                  ? "bg-emerald-600 text-white border-emerald-600"
-                                  : isActive
-                                    ? "bg-accent text-accent-foreground border-accent"
-                                    : "bg-muted text-muted-foreground border-border"
-                              )}
-                              aria-label={s.label}
-                              title={s.label}
-                            >
-                              {isComplete ? <CheckCircle className="h-4 w-4" /> : idx + 1}
-                            </div>
-                            <div className="min-w-0 flex-1">
+                  <div className="overflow-x-auto">
+                    <div className="flex items-center gap-3 min-w-max py-1">
+                      {[
+                        { id: "setup" as const, label: "Setup" },
+                        { id: "generate" as const, label: "Generate" },
+                        { id: "qa" as const, label: "QA" },
+                        { id: "preview" as const, label: "Preview" },
+                        { id: "publish" as const, label: "Publish" },
+                      ].map((s, idx, arr) => {
+                        const isComplete = idx < activeStepIndex;
+                        const isActive = idx === activeStepIndex;
+                        const connectorClass =
+                          idx < activeStepIndex
+                            ? "bg-emerald-300 dark:bg-emerald-700"
+                            : idx === activeStepIndex
+                              ? "bg-accent"
+                              : "bg-border";
+
+                        return (
+                          <div key={s.id} className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div
+                                className={cn(
+                                  "h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold border shrink-0",
+                                  isComplete
+                                    ? "bg-emerald-600 text-white border-emerald-600"
+                                    : isActive
+                                      ? "bg-accent text-accent-foreground border-accent"
+                                      : "bg-muted text-muted-foreground border-border"
+                                )}
+                                aria-label={s.label}
+                                title={s.label}
+                              >
+                                {isComplete ? <CheckCircle className="h-4 w-4" /> : idx + 1}
+                              </div>
                               <div className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>
                                 {s.label}
+                                {isActive ? (
+                                  <span className="ml-2 text-[11px] text-muted-foreground font-normal">(current)</span>
+                                ) : null}
                               </div>
-                              {isActive ? (
-                                <div className="text-xs text-muted-foreground">
-                                  Current step
-                                </div>
-                              ) : null}
                             </div>
+
+                            {idx < arr.length - 1 ? (
+                              <div className={cn("h-px w-10 rounded", connectorClass)} />
+                            ) : null}
                           </div>
-                          {idx < arr.length - 1 ? <Separator /> : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Setup</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Title</Label>
-                      <Input
-                        value={draftEditTitle}
-                        onChange={(e) => setDraftEditTitle(e.target.value)}
-                        placeholder="Unit title (shown in the app)"
-                      />
+                        );
+                      })}
                     </div>
-                    <div className="space-y-2">
-                      <Label>Unit description (1 short sentence)</Label>
-                      <Input
-                        value={draftEditDescription}
-                        onChange={(e) => setDraftEditDescription(e.target.value)}
-                        placeholder="This becomes **Description:** in the unit header (max ~120 chars)."
-                      />
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-3">
+                    {isBusy ? (
+                      <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 p-3 space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-blue-700 dark:text-blue-300">
+                            {progressMessage || currentTaskLabel}
+                          </span>
+                          <span className="text-blue-600 dark:text-blue-400 tabular-nums">
+                            {progressPercent != null ? `${Math.max(0, Math.min(100, progressPercent))}% • ` : ""}
+                            {elapsedSeconds}s
+                          </span>
+                        </div>
+                        {progressPercent != null ? (
+                          <Progress value={Math.max(0, Math.min(100, progressPercent))} />
+                        ) : (
+                          <div className="relative h-2 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-900">
+                            <div className="absolute h-full w-1/3 bg-blue-500 animate-[progress-indeterminate_1.5s_ease-in-out_infinite]" />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
                       <div className="text-xs text-muted-foreground">
-                        This becomes <span className="font-mono">**Description:** ...</span> in the generated unit header.
+                        Primary path: Generate (Creator → Validator → Lector). Then Preview → Approve → Publish.
                       </div>
-                    </div>
-                  </div>
+                    )}
 
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Unit author name (optional)</Label>
-                      <Input
-                        value={draftAuthorNoteName}
-                        onChange={(e) => setDraftAuthorNoteName(e.target.value)}
-                        placeholder="Shown in the unit (e.g., 'Jacksenn')"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Founder quote (optional, will be English in the unit)</Label>
-                      <Input
-                        value={draftAuthorNoteQuote}
-                        onChange={(e) => setDraftAuthorNoteQuote(e.target.value)}
-                        placeholder='You can type German; it will be translated to English on apply (e.g., "Don’t aim for perfect—aim for clear.")'
-                      />
-                    </div>
-                  </div>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <Button onClick={handleGenerate} disabled={isBusy || !selectedDraftId}>
+                        {runningCreateValidate ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="mr-2 h-4 w-4" />
+                        )}
+                        {runningCreateValidate ? "Generating…" : "Generate (auto)"}
+                      </Button>
 
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      onClick={handleApplyFounderNoteToMarkdown}
-                      disabled={!draftAuthorNoteName.trim() || !draftAuthorNoteQuote.trim() || isBusy}
-                    >
-                      Apply founder note to Markdown
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Creator Brief</Label>
-                    <Textarea
-                      value={draftRefNotes}
-                      onChange={(e) => setDraftRefNotes(e.target.value)}
-                      placeholder="Prerequisites, new vocab, scenes..."
-                      className="min-h-[90px]"
-                    />
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Reference (optional)</Label>
-                        <Select
-                          value={draftRefId ? draftRefId : "none"}
-                          onValueChange={(v) => setDraftRefId(v === "none" ? "" : String(v))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select reference" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {(refs || []).map((r: any) => (
-                              <SelectItem key={r._id} value={String(r._id)}>
-                                {String(r.title || "Untitled")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="text-xs text-muted-foreground">
-                          If selected, the PDF is distilled into high-level guidelines (no quotes) and used as inspiration for unit structure and question-writing.
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Chapter</Label>
-                          <Input
-                            value={draftRefChapter}
-                            onChange={(e) => setDraftRefChapter(e.target.value)}
-                            placeholder="e.g. 3"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Pages</Label>
-                          <Input
-                            value={draftRefPages}
-                            onChange={(e) => setDraftRefPages(e.target.value)}
-                            placeholder="e.g. 12-15"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-xs bg-muted/30 rounded px-3 py-2">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-                        <span>{(specialistSkills || []).length + (auditorSkills || []).length} AI skills auto-applied</span>
-                      </div>
                       <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-xs"
+                        variant="secondary"
+                        disabled={isBusy || !selectedDraftId || (nextStepKey === "publish" && !canPublishLive)}
                         onClick={() => {
-                          setSettingsTab("libraries");
-                          setSettingsOpen(true);
+                          if (nextStepKey === "creator") return void handleRunSpecialist();
+                          if (nextStepKey === "validator") return void handleRunValidate();
+                          if (nextStepKey === "lector") return void handleRunAuditor();
+                          if (nextStepKey === "preview") return void handlePublishToPreview();
+                          if (nextStepKey === "publish") return void handlePublish();
                         }}
                       >
-                        Settings
+                        Run next step: {nextStepLabel}
                       </Button>
                     </div>
-                  </div>
 
-                  <div className="text-xs text-muted-foreground">
-                    Note: Unit number (U{selected.draft.unitNumber}) and module number (M{selected.draft.moduleNumber}) are fixed for this draft.
+                    <Accordion type="single" collapsible defaultValue="setup" className="w-full">
+                      <AccordionItem value="setup">
+                        <AccordionTrigger>Setup</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-4 pt-2">
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>Title</Label>
+                                <Input
+                                  value={draftEditTitle}
+                                  onChange={(e) => setDraftEditTitle(e.target.value)}
+                                  placeholder="Unit title (shown in the app)"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Unit description (1 short sentence)</Label>
+                                <Input
+                                  value={draftEditDescription}
+                                  onChange={(e) => setDraftEditDescription(e.target.value)}
+                                  placeholder="This becomes **Description:** in the unit header (max ~120 chars)."
+                                />
+                                <div className="text-xs text-muted-foreground">
+                                  This becomes <span className="font-mono">**Description:** ...</span> in the generated unit header.
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>Unit author name (optional)</Label>
+                                <Input
+                                  value={draftAuthorNoteName}
+                                  onChange={(e) => setDraftAuthorNoteName(e.target.value)}
+                                  onBlur={() => {
+                                    const name = String(draftAuthorNoteName || "").trim();
+                                    const quote = String(draftAuthorNoteQuote || "").trim();
+                                    if (name && quote) maybeApplyFounderNoteToMarkdown(name, quote);
+                                  }}
+                                  placeholder="Shown in the unit (e.g., 'Jacksenn')"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Founder quote (optional, will be English in the unit)</Label>
+                                <Input
+                                  value={draftAuthorNoteQuote}
+                                  onChange={(e) => setDraftAuthorNoteQuote(e.target.value)}
+                                  onBlur={() => void handleFounderQuoteBlur()}
+                                  placeholder='You can type German; it will be translated to English automatically (e.g., "Don’t aim for perfect—aim for clear.")'
+                                />
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              The note is injected automatically (Creator/Validator/Editor) and will be persisted on the next snapshot/save.
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Creator Brief</Label>
+                              <Textarea
+                                value={draftRefNotes}
+                                onChange={(e) => setDraftRefNotes(e.target.value)}
+                                placeholder="Prerequisites, new vocab, scenes..."
+                                className="min-h-[90px]"
+                              />
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div className="space-y-2">
+                                  <Label>Reference (optional)</Label>
+                                  <Select
+                                    value={draftRefId ? draftRefId : "none"}
+                                    onValueChange={(v) => setDraftRefId(v === "none" ? "" : String(v))}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select reference" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      {(refs || []).map((r: any) => (
+                                        <SelectItem key={r._id} value={String(r._id)}>
+                                          {String(r.title || "Untitled")}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <div className="text-xs text-muted-foreground">
+                                    If selected, the PDF is distilled into high-level guidelines (no quotes) and used as inspiration for unit structure and question-writing.
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-3 grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label>Chapter</Label>
+                                    <Input
+                                      value={draftRefChapter}
+                                      onChange={(e) => setDraftRefChapter(e.target.value)}
+                                      placeholder="e.g. 3"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Pages</Label>
+                                    <Input
+                                      value={draftRefPages}
+                                      onChange={(e) => setDraftRefPages(e.target.value)}
+                                      placeholder="e.g. 12-15"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 text-xs bg-muted/30 rounded px-3 py-2">
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                  <span>{(specialistSkills || []).length + (auditorSkills || []).length} AI skills auto-applied</span>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  size="sm"
+                                  className="h-auto p-0 text-xs"
+                                  onClick={() => {
+                                    setSettingsTab("libraries");
+                                    setSettingsOpen(true);
+                                  }}
+                                >
+                                  Settings
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="text-xs text-muted-foreground">
+                              Note: Unit number (U{selected.draft.unitNumber}) and module number (M{selected.draft.moduleNumber}) are fixed for this draft.
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="edit">
+                        <AccordionTrigger>Edit Content</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <Label className="text-sm">Target section</Label>
+                              <select
+                                className="rounded border bg-background px-2 py-1.5 text-sm"
+                                value={expandSection}
+                                onChange={(e) => setExpandSection(e.target.value as SectionId)}
+                              >
+                                {SECTION_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <Textarea
+                              value={expandInstruction}
+                              onChange={(e) => setExpandInstruction(e.target.value)}
+                              placeholder="Describe what you want to change…"
+                              className="min-h-[110px]"
+                            />
+                            <Button
+                              className="w-full"
+                              onClick={handleSectionRevise}
+                              disabled={isBusy || !selectedDraftId || !expandInstruction.trim()}
+                            >
+                              {runningSectionRevise ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="mr-2 h-4 w-4" />
+                              )}
+                              {runningSectionRevise ? "Applying…" : "Apply Changes"}
+                            </Button>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="advanced">
+                        <AccordionTrigger>Advanced</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="grid gap-2 pt-2">
+                            <Button variant="outline" onClick={handleRunSpecialist} disabled={isBusy || !selectedDraftId}>
+                              Run Creator
+                            </Button>
+                            <Button variant="outline" onClick={handleRunValidate} disabled={isBusy || !selectedDraftId}>
+                              Run Validator
+                            </Button>
+                            <Button variant="outline" onClick={handleRunAuditor} disabled={isBusy || !selectedDraftId || !canRunLector}>
+                              Run Lector
+                            </Button>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   </div>
                 </CardContent>
               </Card>
@@ -3271,6 +3337,45 @@ export default function ContentStudioAdmin() {
                           Load from snapshot
                         </Button>
                       </div>
+
+                      {restoreMarkdownText.trim() ? (
+                        <div className="rounded border bg-muted/30 p-2 flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-xs text-muted-foreground">
+                            Local autosave found{" "}
+                            {restoreMarkdownUpdatedAt ? `(${new Date(restoreMarkdownUpdatedAt).toLocaleString()})` : ""}.
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              type="button"
+                              onClick={() => {
+                                setMarkdownText(restoreMarkdownText);
+                                toast.success("Restored markdown from local autosave");
+                              }}
+                            >
+                              Restore
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              type="button"
+                              onClick={() => {
+                                try {
+                                  if (markdownLocalStorageKey) localStorage.removeItem(markdownLocalStorageKey);
+                                } catch {
+                                  // ignore
+                                }
+                                setRestoreMarkdownText("");
+                                setRestoreMarkdownUpdatedAt(null);
+                                toast.success("Discarded local autosave");
+                              }}
+                            >
+                              Discard
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
 
                       <Textarea
                         value={markdownText}
@@ -3441,121 +3546,6 @@ export default function ContentStudioAdmin() {
             </Card>
           ) : (
             <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Workflow</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {isBusy ? (
-                    <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 p-3 space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-blue-700 dark:text-blue-300">
-                          {progressMessage || currentTaskLabel}
-                        </span>
-                        <span className="text-blue-600 dark:text-blue-400 tabular-nums">
-                          {progressPercent != null ? `${Math.max(0, Math.min(100, progressPercent))}% • ` : ""}
-                          {elapsedSeconds}s
-                        </span>
-                      </div>
-                      {progressPercent != null ? (
-                        <Progress value={Math.max(0, Math.min(100, progressPercent))} />
-                      ) : (
-                        <div className="relative h-2 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-900">
-                          <div className="absolute h-full w-1/3 bg-blue-500 animate-[progress-indeterminate_1.5s_ease-in-out_infinite]" />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground">
-                      Primary path: Generate (Creator → Validator → Lector). Then Preview → Approve → Publish.
-                    </div>
-                  )}
-
-                  <Button className="w-full" onClick={handleGenerate} disabled={isBusy || !selectedDraftId}>
-                    {runningCreateValidate ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="mr-2 h-4 w-4" />
-                    )}
-                    {runningCreateValidate ? "Generating…" : "Generate (auto)"}
-                  </Button>
-
-                  <Button
-                    className="w-full"
-                    variant="secondary"
-                    disabled={
-                      isBusy ||
-                      !selectedDraftId ||
-                      (nextStepKey === "publish" && !canPublishLive)
-                    }
-                    onClick={() => {
-                      if (nextStepKey === "creator") return void handleRunSpecialist();
-                      if (nextStepKey === "validator") return void handleRunValidate();
-                      if (nextStepKey === "lector") return void handleRunAuditor();
-                      if (nextStepKey === "preview") return void handlePublishToPreview();
-                      if (nextStepKey === "publish") return void handlePublish();
-                    }}
-                  >
-                    Run next step: {nextStepLabel}
-                  </Button>
-
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="edit">
-                      <AccordionTrigger>Edit Content</AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label className="text-sm">Target section</Label>
-                            <select
-                              className="rounded border bg-background px-2 py-1.5 text-sm"
-                              value={expandSection}
-                              onChange={(e) => setExpandSection(e.target.value as SectionId)}
-                            >
-                              {SECTION_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <Textarea
-                            value={expandInstruction}
-                            onChange={(e) => setExpandInstruction(e.target.value)}
-                            placeholder="Describe what you want to change…"
-                            className="min-h-[110px]"
-                          />
-                          <Button
-                            className="w-full"
-                            onClick={handleSectionRevise}
-                            disabled={isBusy || !selectedDraftId || !expandInstruction.trim()}
-                          >
-                            {runningSectionRevise ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                            {runningSectionRevise ? "Applying…" : "Apply Changes"}
-                          </Button>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-
-                    <AccordionItem value="advanced">
-                      <AccordionTrigger>Advanced</AccordionTrigger>
-                      <AccordionContent>
-                        <div className="grid gap-2">
-                          <Button variant="outline" onClick={handleRunSpecialist} disabled={isBusy || !selectedDraftId}>
-                            Run Creator
-                          </Button>
-                          <Button variant="outline" onClick={handleRunValidate} disabled={isBusy || !selectedDraftId}>
-                            Run Validator
-                          </Button>
-                          <Button variant="outline" onClick={handleRunAuditor} disabled={isBusy || !selectedDraftId || !canRunLector}>
-                            Run Lector
-                          </Button>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </CardContent>
-              </Card>
-
               <Card>
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -3800,7 +3790,7 @@ export default function ContentStudioAdmin() {
                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                   This action cannot be undone. This will permanently delete <b>Unit {selected.draft.unitNumber}</b>,
-                                  including all drafts, snapshots, and <b>PUBLISHED CONTENT</b> (Metadata, Content, Tests, Vocabulary).
+                                  including all drafts, snapshots, <b>PUBLISHED CONTENT</b> (Metadata, Content, Tests, Vocabulary), and related user progress/gamification data.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <div className="py-4">

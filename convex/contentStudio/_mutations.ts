@@ -285,6 +285,29 @@ export const deleteUnitFull = mutation({
       throw new Error(`Confirmation mismatch. Expected "${expected}", got "${confirm}"`);
     }
 
+    const deleted: Record<string, number> = {
+      drafts: 0,
+      draftSnapshots: 0,
+      draftFindings: 0,
+      draftAiRuns: 0,
+      draftHumanReviews: 0,
+      unitMetadata: 0,
+      unitContent: 0,
+      unitInteractiveTests: 0,
+      courseVocabulary: 0,
+      vocabularyProgress: 0,
+      unitContentAudio: 0,
+      unitExplanations: 0,
+      exerciseQuestionProgress: 0,
+      questionProgress: 0,
+      exerciseResults: 0,
+      exerciseCompletions: 0,
+      quizProgress: 0,
+      legacyVocabulary: 0,
+      legacyVocabularyTranslations: 0,
+      userProgressPatched: 0,
+    };
+
     // 1. Delete all drafts for this unit
     const drafts = await ctx.db
       .query("contentDrafts")
@@ -292,33 +315,46 @@ export const deleteUnitFull = mutation({
       .collect();
 
     for (const d of drafts) {
+      deleted.drafts += 1;
       // Delete snapshots
       const snaps = await ctx.db
         .query("contentDraftSnapshots")
         .withIndex("by_draft", (q) => q.eq("draftId", d._id))
         .collect();
-      for (const s of snaps) await ctx.db.delete(s._id);
+      for (const s of snaps) {
+        await ctx.db.delete(s._id);
+        deleted.draftSnapshots += 1;
+      }
 
       // Delete findings
       const findings = await ctx.db
         .query("contentDraftFindings")
         .withIndex("by_draft", (q) => q.eq("draftId", d._id))
         .collect();
-      for (const f of findings) await ctx.db.delete(f._id);
+      for (const f of findings) {
+        await ctx.db.delete(f._id);
+        deleted.draftFindings += 1;
+      }
 
       // Delete AI runs
       const runs = await ctx.db
         .query("contentDraftAiRuns")
         .withIndex("by_draft", (q) => q.eq("draftId", d._id))
         .collect();
-      for (const r of runs) await ctx.db.delete(r._id);
+      for (const r of runs) {
+        await ctx.db.delete(r._id);
+        deleted.draftAiRuns += 1;
+      }
 
       // Delete human reviews
       const reviews = await ctx.db
         .query("contentDraftHumanReviews")
         .withIndex("by_draft", (q) => q.eq("draftId", d._id))
         .collect();
-      for (const r of reviews) await ctx.db.delete(r._id);
+      for (const r of reviews) {
+        await ctx.db.delete(r._id);
+        deleted.draftHumanReviews += 1;
+      }
 
       // Delete draft itself
       await ctx.db.delete(d._id);
@@ -330,30 +366,159 @@ export const deleteUnitFull = mutation({
       .query("unitMetadata")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
       .collect();
-    for (const m of metas) await ctx.db.delete(m._id);
+    for (const m of metas) {
+      await ctx.db.delete(m._id);
+      deleted.unitMetadata += 1;
+    }
 
     // unitContent
     const contents = await ctx.db
       .query("unitContent")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
       .collect();
-    for (const c of contents) await ctx.db.delete(c._id);
+    for (const c of contents) {
+      await ctx.db.delete(c._id);
+      deleted.unitContent += 1;
+    }
 
     // unitInteractiveTests
     const tests = await ctx.db
       .query("unitInteractiveTests")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
       .collect();
-    for (const t of tests) await ctx.db.delete(t._id);
+    for (const t of tests) {
+      await ctx.db.delete(t._id);
+      deleted.unitInteractiveTests += 1;
+    }
 
     // courseVocabulary (only those belonging primarily to this unit)
     const vocabs = await ctx.db
       .query("courseVocabulary")
       .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
       .collect();
-    for (const v of vocabs) await ctx.db.delete(v._id);
+    const courseVocabIds = (vocabs as any[]).map((v) => v._id);
+    // vocabularyProgress (FK: courseVocabularyId)
+    for (const vid of courseVocabIds) {
+      const progressRows = await ctx.db
+        .query("vocabularyProgress")
+        .withIndex("by_course_vocab", (q) => q.eq("courseVocabularyId", vid))
+        .collect();
+      for (const p of progressRows as any[]) {
+        await ctx.db.delete(p._id);
+        deleted.vocabularyProgress += 1;
+      }
+    }
+    for (const v of vocabs) {
+      await ctx.db.delete(v._id);
+      deleted.courseVocabulary += 1;
+    }
 
-    return { ok: true, deletedDrafts: drafts.length };
+    // unitContentAudio (TTS cache)
+    const audios = await ctx.db
+      .query("unitContentAudio")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    for (const a of audios as any[]) {
+      await ctx.db.delete(a._id);
+      deleted.unitContentAudio += 1;
+    }
+
+    // legacy unitExplanations (if any)
+    const legacyExpl = await ctx.db
+      .query("unitExplanations")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    for (const e of legacyExpl as any[]) {
+      await ctx.db.delete(e._id);
+      deleted.unitExplanations += 1;
+    }
+
+    // 3. Delete gamification / progress data for this unit (cascade)
+    const eqp = await ctx.db
+      .query("exerciseQuestionProgress")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    for (const row of eqp as any[]) {
+      await ctx.db.delete(row._id);
+      deleted.exerciseQuestionProgress += 1;
+    }
+
+    const qp = await ctx.db
+      .query("questionProgress")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    for (const row of qp as any[]) {
+      await ctx.db.delete(row._id);
+      deleted.questionProgress += 1;
+    }
+
+    const results = await ctx.db
+      .query("exerciseResults")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    for (const row of results as any[]) {
+      await ctx.db.delete(row._id);
+      deleted.exerciseResults += 1;
+    }
+
+    const completions = await ctx.db
+      .query("exerciseCompletions")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    for (const row of completions as any[]) {
+      await ctx.db.delete(row._id);
+      deleted.exerciseCompletions += 1;
+    }
+
+    const quizzes = await ctx.db
+      .query("quizProgress")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    for (const row of quizzes as any[]) {
+      await ctx.db.delete(row._id);
+      deleted.quizProgress += 1;
+    }
+
+    const legacyVocab = await ctx.db
+      .query("vocabulary")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+
+    const legacyVocabIds = (legacyVocab as any[]).map((v) => v._id);
+    for (const vid of legacyVocabIds) {
+      const translations = await ctx.db
+        .query("vocabularyTranslations")
+        .withIndex("by_vocab_lang", (q) => q.eq("vocabularyId", vid))
+        .collect();
+      for (const tr of translations as any[]) {
+        await ctx.db.delete(tr._id);
+        deleted.legacyVocabularyTranslations += 1;
+      }
+    }
+
+    for (const row of legacyVocab as any[]) {
+      await ctx.db.delete(row._id);
+      deleted.legacyVocabulary += 1;
+    }
+
+    // 4. Patch userProgress to remove deleted unit references
+    const allUserProgress = await ctx.db.query("userProgress").collect();
+    for (const up of allUserProgress as any[]) {
+      const completedUnits: number[] = Array.isArray(up.completedUnits) ? up.completedUnits : [];
+      const nextCompleted = completedUnits.filter((n) => n !== unitNumber);
+      const wasCompleted = nextCompleted.length !== completedUnits.length;
+      const currentUnit = typeof up.currentUnit === "number" ? up.currentUnit : 1;
+      const nextCurrent = currentUnit === unitNumber ? Math.max(1, unitNumber - 1) : currentUnit;
+      const currentChanged = nextCurrent !== currentUnit;
+      if (!wasCompleted && !currentChanged) continue;
+      await ctx.db.patch(up._id, {
+        ...(wasCompleted ? { completedUnits: nextCompleted } : {}),
+        ...(currentChanged ? { currentUnit: nextCurrent } : {}),
+      });
+      deleted.userProgressPatched += 1;
+    }
+
+    return { ok: true, unitNumber, deletedDrafts: drafts.length, deleted };
   },
 });
 

@@ -113,6 +113,8 @@ export default function ContentImportAdmin() {
   const updateModuleMutation = useMutation(api.modules.updateModuleMetadata);
   const updateUnitDescriptionMutation = useMutation(api.units.updateUnitDescription);
   const migrateUnitDescriptionsMutation = useMutation(api.units.migrateUnitDescriptionsFromTopics);
+  const setUnitOfflineMutation = useMutation(api.units.setUnitOffline);
+  const deleteUnitFullMutation = useMutation(api.contentStudio.deleteUnitFull);
   
   // JSON Import states
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -164,6 +166,13 @@ export default function ContentImportAdmin() {
   const [editUnitDescriptionDe, setEditUnitDescriptionDe] = useState<string>("");
   const [migratingUnitDescriptions, setMigratingUnitDescriptions] = useState(false);
   const [lastMigrationPreview, setLastMigrationPreview] = useState<any | null>(null);
+
+  // Unit management (offline/delete) - Superadmin-only
+  const [manageUnitOpen, setManageUnitOpen] = useState(false);
+  const [manageUnitNumber, setManageUnitNumber] = useState<number | null>(null);
+  const [offlineConfirmText, setOfflineConfirmText] = useState("");
+  const [deleteUnitConfirmText, setDeleteUnitConfirmText] = useState("");
+  const [manageUnitBusy, setManageUnitBusy] = useState(false);
   
   const getRun = useQuery(
     api.contentImportAdmin.getRun,
@@ -837,11 +846,39 @@ export default function ContentImportAdmin() {
         descriptionEn: (pair.en as any)?.description ?? "",
         titleDe: pair.de?.title ?? "—",
         descriptionDe: (pair.de as any)?.description ?? "",
+        isOffline: Boolean((pair.en as any)?.isOffline || (pair.de as any)?.isOffline),
         hasEn: Boolean(pair.en),
         hasDe: Boolean(pair.de),
       }))
       .sort((a, b) => a.unitNumber - b.unitNumber);
   }, [dbUnitsEn, dbUnitsDe]);
+
+  const manageUnitRow = useMemo(() => {
+    if (!manageUnitNumber) return null;
+    return unitsTableRows.find((r) => r.unitNumber === manageUnitNumber) ?? null;
+  }, [manageUnitNumber, unitsTableRows]);
+
+  const unitRemovalSummary = useQuery(
+    api.contentStudio.getUnitRemovalSummary,
+    manageUnitNumber ? { unitNumber: manageUnitNumber } : "skip"
+  ) as any;
+
+  const expectedOfflineConfirm = useMemo(() => {
+    if (!manageUnitNumber || !manageUnitRow) return "";
+    return manageUnitRow.isOffline ? `ONLINE UNIT ${manageUnitNumber}` : `OFFLINE UNIT ${manageUnitNumber}`;
+  }, [manageUnitNumber, manageUnitRow]);
+
+  const expectedDeleteConfirm = useMemo(() => {
+    if (!manageUnitNumber) return "";
+    return `DELETE UNIT ${manageUnitNumber}`;
+  }, [manageUnitNumber]);
+
+  const openManageUnit = useCallback((row: (typeof unitsTableRows)[number]) => {
+    setManageUnitNumber(row.unitNumber);
+    setOfflineConfirmText("");
+    setDeleteUnitConfirmText("");
+    setManageUnitOpen(true);
+  }, []);
 
   const openEditUnit = useCallback((row: (typeof unitsTableRows)[number]) => {
     setEditingUnitNumber(row.unitNumber);
@@ -897,6 +934,48 @@ export default function ContentImportAdmin() {
     unitsTableRows,
     updateUnitDescriptionMutation,
   ]);
+
+  const handleToggleUnitOffline = useCallback(async () => {
+    if (!manageUnitNumber || !manageUnitRow) return;
+    const nextOffline = !manageUnitRow.isOffline;
+    const expected = nextOffline ? `OFFLINE UNIT ${manageUnitNumber}` : `ONLINE UNIT ${manageUnitNumber}`;
+    if (offlineConfirmText.trim() !== expected) {
+      toast.error("Confirmation required", { description: `Type exactly: ${expected}` });
+      return;
+    }
+    setManageUnitBusy(true);
+    try {
+      await setUnitOfflineMutation({ unitNumber: manageUnitNumber, offline: nextOffline, confirm: expected });
+      toast.success(nextOffline ? `Unit ${manageUnitNumber} is now offline` : `Unit ${manageUnitNumber} is now online`);
+      setOfflineConfirmText("");
+    } catch (error: any) {
+      toast.error("Failed to update unit status", { description: String(error?.message || error) });
+    } finally {
+      setManageUnitBusy(false);
+    }
+  }, [manageUnitNumber, manageUnitRow, offlineConfirmText, setUnitOfflineMutation]);
+
+  const handleDeleteUnitCascade = useCallback(async () => {
+    if (!manageUnitNumber) return;
+    const expected = `DELETE UNIT ${manageUnitNumber}`;
+    if (deleteUnitConfirmText.trim() !== expected) {
+      toast.error("Confirmation required", { description: `Type exactly: ${expected}` });
+      return;
+    }
+    setManageUnitBusy(true);
+    try {
+      await deleteUnitFullMutation({ unitNumber: manageUnitNumber, confirm: expected });
+      toast.success(`Unit ${manageUnitNumber} deleted`);
+      setManageUnitOpen(false);
+      setManageUnitNumber(null);
+      setOfflineConfirmText("");
+      setDeleteUnitConfirmText("");
+    } catch (error: any) {
+      toast.error("Failed to delete unit", { description: String(error?.message || error) });
+    } finally {
+      setManageUnitBusy(false);
+    }
+  }, [manageUnitNumber, deleteUnitConfirmText, deleteUnitFullMutation]);
 
   const runUnitDescriptionMigration = useCallback(async (dryRun: boolean) => {
     setMigratingUnitDescriptions(true);
@@ -1535,6 +1614,7 @@ export default function ContentImportAdmin() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>#</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Title (EN)</TableHead>
                       <TableHead>Description (EN)</TableHead>
                       <TableHead>Title (DE)</TableHead>
@@ -1546,6 +1626,11 @@ export default function ContentImportAdmin() {
                     {unitsTableRows.map((r) => (
                       <TableRow key={r.unitNumber}>
                         <TableCell className="font-medium">{r.unitNumber}</TableCell>
+                        <TableCell>
+                          <Badge variant={r.isOffline ? "destructive" : "secondary"}>
+                            {r.isOffline ? "Offline" : "Online"}
+                          </Badge>
+                        </TableCell>
                         <TableCell>{r.titleEn}</TableCell>
                         <TableCell className="max-w-[360px] truncate" title={r.descriptionEn || ""}>
                           {r.descriptionEn ? String(r.descriptionEn) : "—"}
@@ -1555,10 +1640,17 @@ export default function ContentImportAdmin() {
                           {r.descriptionDe ? String(r.descriptionDe) : "—"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditUnit(r)}>
-                            <Pencil className="h-4 w-4" />
-                            Edit
-                          </Button>
+                          <div className="inline-flex items-center gap-2">
+                            <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditUnit(r)}>
+                              <Pencil className="h-4 w-4" />
+                              Edit
+                            </Button>
+                            {user?.role === "superadmin" && (
+                              <Button variant="secondary" size="sm" onClick={() => openManageUnit(r)}>
+                                Manage
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1606,6 +1698,156 @@ export default function ContentImportAdmin() {
                 <AlertDialogAction onClick={() => void handleSaveEditUnit()}>
                   Save
                 </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog
+            open={manageUnitOpen}
+            onOpenChange={(open) => {
+              setManageUnitOpen(open);
+              if (!open) {
+                setManageUnitNumber(null);
+                setOfflineConfirmText("");
+                setDeleteUnitConfirmText("");
+              }
+            }}
+          >
+            <AlertDialogContent className="max-w-2xl">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Manage Unit {manageUnitNumber ?? "—"}</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <div>
+                    Reversible <b>offline</b> toggle and irreversible <b>cascade delete</b>.
+                  </div>
+                  <div className="text-xs">
+                    Delete will remove content + drafts + all unit-related gamification/progress data to avoid orphaned records.
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              {!manageUnitRow ? (
+                <div className="py-2 text-sm text-muted-foreground">No unit selected.</div>
+              ) : (
+                <div className="grid gap-4 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">
+                        Unit {manageUnitRow.unitNumber}: {String(manageUnitRow.titleEn || "").trim() || "—"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Current status:{" "}
+                        <span className={manageUnitRow.isOffline ? "text-destructive" : ""}>
+                          {manageUnitRow.isOffline ? "Offline" : "Online"}
+                        </span>
+                      </div>
+                    </div>
+                    <Badge variant={manageUnitRow.isOffline ? "destructive" : "secondary"}>
+                      {manageUnitRow.isOffline ? "Offline" : "Online"}
+                    </Badge>
+                  </div>
+
+                  <div className="rounded border p-3 space-y-2">
+                    <div className="font-medium">Offline toggle</div>
+                    <div className="text-xs text-muted-foreground">
+                      Type exactly to confirm: <code>{expectedOfflineConfirm || "OFFLINE UNIT <n>"}</code>
+                    </div>
+                    <Input
+                      value={offlineConfirmText}
+                      onChange={(e) => setOfflineConfirmText(e.target.value)}
+                      placeholder={expectedOfflineConfirm || "OFFLINE UNIT <n>"}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        variant={manageUnitRow.isOffline ? "secondary" : "outline"}
+                        disabled={manageUnitBusy || !expectedOfflineConfirm || offlineConfirmText.trim() !== expectedOfflineConfirm}
+                        onClick={() => void handleToggleUnitOffline()}
+                      >
+                        {manageUnitBusy ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Working...
+                          </>
+                        ) : manageUnitRow.isOffline ? (
+                          "Bring online"
+                        ) : (
+                          "Take offline"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded border border-destructive/30 p-3 space-y-3">
+                    <div className="font-medium text-destructive">Danger Zone: Delete Unit (Cascade)</div>
+
+                    <div className="text-xs text-muted-foreground">
+                      This action cannot be undone. It will permanently delete Unit {manageUnitRow.unitNumber} and all related data.
+                    </div>
+
+                    <div className="rounded bg-muted/30 p-2 text-xs">
+                      {unitRemovalSummary === undefined ? (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading impact summary...
+                        </div>
+                      ) : (unitRemovalSummary as any)?.counts ? (
+                        <div className="grid gap-1">
+                          <div>
+                            <b>Drafts:</b> {(unitRemovalSummary as any).counts.drafts} drafts,{" "}
+                            {(unitRemovalSummary as any).counts.draftSnapshots} snapshots
+                          </div>
+                          <div>
+                            <b>Content:</b> {(unitRemovalSummary as any).counts.unitMetadata} metadata,{" "}
+                            {(unitRemovalSummary as any).counts.unitContent} content,{" "}
+                            {(unitRemovalSummary as any).counts.unitInteractiveTests} tests,{" "}
+                            {(unitRemovalSummary as any).counts.courseVocabulary} vocabulary
+                          </div>
+                          <div>
+                            <b>Progress:</b> {(unitRemovalSummary as any).counts.questionProgress} questionProgress,{" "}
+                            {(unitRemovalSummary as any).counts.exerciseQuestionProgress} exerciseQuestionProgress,{" "}
+                            {(unitRemovalSummary as any).counts.quizProgress} quizProgress
+                          </div>
+                          <div>
+                            <b>User impact:</b> {(unitRemovalSummary as any).counts.userProgressWouldPatch} userProgress docs patched
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-muted-foreground">No summary available.</div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground">
+                        Type exactly to confirm: <code>{expectedDeleteConfirm || "DELETE UNIT <n>"}</code>
+                      </div>
+                      <Input
+                        value={deleteUnitConfirmText}
+                        onChange={(e) => setDeleteUnitConfirmText(e.target.value)}
+                        placeholder={expectedDeleteConfirm || "DELETE UNIT <n>"}
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          variant="destructive"
+                          disabled={manageUnitBusy || !expectedDeleteConfirm || deleteUnitConfirmText.trim() !== expectedDeleteConfirm}
+                          onClick={() => void handleDeleteUnitCascade()}
+                        >
+                          {manageUnitBusy ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            "Delete Unit"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={manageUnitBusy}>Close</AlertDialogCancel>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

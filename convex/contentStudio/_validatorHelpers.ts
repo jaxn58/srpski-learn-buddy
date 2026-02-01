@@ -531,7 +531,9 @@ export function pickVocabPairsForExercises(pkg: any, count: number): Array<{ en:
   if (pairs.length >= count) return pairs.slice(0, count);
 
   const needed = count - pairs.length;
-  const extras = FALLBACK_VOCAB_PAIRS.filter((p) => !pairs.some((x) => x.serbian.toLowerCase() === p.serbian.toLowerCase()));
+  const extras = FALLBACK_VOCAB_PAIRS.filter(
+    (p) => !pairs.some((x: { serbian: string }) => x.serbian.toLowerCase() === p.serbian.toLowerCase())
+  );
   return [...pairs, ...extras.slice(0, needed)];
 }
 
@@ -710,20 +712,22 @@ export function upgradeDialogueCompletionQuestions(pkg: any): void {
     });
   }
 
-  const dialogueTemplate = [
-    "Complete the dialogue (fill the blank):",
-    "",
-    "Waiter: Šta želite?",
-    "Customer: Ja bih _____.",
-  ].join("\n");
+  const dialogueTemplates = [
+    ["Waiter: Šta želite?", "Customer: Ja bih _____."],
+    ["Waiter: Šta biste želeli?", "Customer: Molim _____."],
+    ["Waiter: Izvolite?", "Customer: Može _____."],
+    ["Waiter: Šta ćete popiti?", "Customer: Ja bih _____."],
+  ].map((lines) => lines.join("\n"));
 
   for (const cat of cats) {
     if (String(cat?.category || "") !== "dialogueCompletion") continue;
     if (!Array.isArray(cat?.questions)) continue;
 
     cat.questions = cat.questions.map((q: any) => {
-      // Enforce a single, consistent dialogue format across all questions in this category.
-      let nextQ: any = { ...q, question: dialogueTemplate };
+      // Keep a consistent dialogue SNIPPET format, but vary the prompt text a bit to avoid repetition.
+      const idx = (Number(q?.order ?? 0) || 0) % dialogueTemplates.length;
+      const chosen = dialogueTemplates[idx] ?? dialogueTemplates[0];
+      let nextQ: any = { ...q, question: chosen };
 
       // Grammar guard: for "Ja bih _____", prefer accusative for feminine nouns (kafa->kafu).
       const qText = String(nextQ?.question || "");
@@ -789,7 +793,8 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
           questionId,
           order: orderCounter,
           questionType: "translation",
-          question: `Translate into Serbian: ${pair.en}`,
+          // Question text must be only the prompt (instructions belong in categoryInstructions / UI header).
+          question: String(pair.en || "").trim(),
           correctAnswer: pair.serbian,
         });
         continue;
@@ -801,7 +806,7 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
           order: orderCounter,
           questionType: "fillInBlank",
           // Auditor expects a sentence containing the blank, not just a standalone blank token.
-          question: `Complete the sentence: Ja bih _____.`,
+          question: `Ja bih _____. (I would like ____.)`,
           correctAnswer: pair.serbian,
         });
         continue;
@@ -813,7 +818,7 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
           questionId,
           order: orderCounter,
           questionType: "multipleChoice",
-          question: `Choose the Serbian for: ${pair.en}`,
+          question: String(pair.en || "").trim(),
           correctAnswer: pair.serbian,
           options,
         });
@@ -825,7 +830,7 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
           questionId,
           order: orderCounter,
           questionType: "matching",
-          question: `Match: ${pair.en} → _____`,
+          question: String(pair.en || "").trim(),
           correctAnswer: pair.serbian,
         });
         continue;
@@ -840,8 +845,6 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
           order: orderCounter,
           questionType: "multipleChoice",
           question: [
-            "Complete the dialogue (fill the blank):",
-            "",
             "Waiter: Šta želite?",
             "Customer: Ja bih _____.",
           ].join("\n"),
