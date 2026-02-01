@@ -6,6 +6,23 @@ import { internal } from "./_generated/api";
 
 // ============= COURSE VOCABULARY (Master Data) =============
 
+function isPublishedStatus(s: unknown): boolean {
+  return s === undefined || s === "published";
+}
+
+function isPreviewStatus(s: unknown): boolean {
+  return s === "preview";
+}
+
+function filterByReleaseStatus<T extends { releaseStatus?: any }>(rows: T[], allowPreview: boolean): T[] {
+  return rows.filter((r) => {
+    const s = (r as any).releaseStatus;
+    if (s === "offline") return false;
+    if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
+    return isPublishedStatus(s);
+  });
+}
+
 // Upsert course vocabulary (for migration script)
 export const upsertCourseVocabulary = mutation({
   args: {
@@ -32,11 +49,14 @@ export const upsertCourseVocabulary = mutation({
       .filter((q) => q.eq(q.field("serbian"), args.serbian))
       .first();
 
+    const serbianNormalized = args.serbian.toLowerCase().trim();
+
     if (existing) {
       const updates: Partial<Doc<"courseVocabulary">> = {
         translations: args.translations, // Overwrite translations (source of truth is Markdown)
         gender: args.gender,
         pronunciation: args.pronunciation,
+        serbianNormalized, // Keep normalized field in sync
       };
       
       if (args.noteEn !== undefined) updates.noteEn = args.noteEn;
@@ -52,6 +72,7 @@ export const upsertCourseVocabulary = mutation({
     const insertData: Omit<Doc<"courseVocabulary">, "_id" | "_creationTime"> = {
       unitNumber: args.unitNumber,
       serbian: args.serbian,
+      serbianNormalized, // Lowercase for case-insensitive search
       translations: args.translations,
       ...(args.gender !== undefined ? { gender: args.gender } : {}),
       ...(args.pronunciation !== undefined ? { pronunciation: args.pronunciation } : {}),
@@ -75,6 +96,30 @@ export const getAllCourseVocabulary = query({
     
     // Versioning/soft-archive: treat undefined isActive as active; unitVersion defaults to 1
     const active = allVocab.filter((v: any) => v.isActive !== false);
+    const __agentNorm = (s: unknown) =>
+      String(s ?? "")
+        .normalize("NFC")
+        .trim()
+        .toLowerCase();
+    const __agentByNorm = new Map<string, any[]>();
+    for (const v of active as any[]) {
+      const k = __agentNorm((v as any).serbianNormalized ?? (v as any).serbian);
+      if (!k) continue;
+      const arr = __agentByNorm.get(k) ?? [];
+      arr.push(v);
+      __agentByNorm.set(k, arr);
+    }
+    const __agentCollisions = Array.from(__agentByNorm.entries())
+      .filter(([, arr]) => arr.length > 1)
+      .slice(0, 6)
+      .map(([k, arr]) => ({
+        k,
+        count: arr.length,
+        sample: arr.slice(0, 3).map((d: any) => ({ id: String(d._id), unitNumber: d.unitNumber, serbian: d.serbian, serbianJson: JSON.stringify(String(d.serbian ?? "")), unitVersion: d.unitVersion ?? 1, isActive: d.isActive !== false })),
+      }));
+    // #region agent log
+    if (process.env.NODE_ENV !== "production" && __agentCollisions.length > 0) fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'vocab-dup-pre',hypothesisId:'VOC-H4',location:'convex/vocabulary.ts:getAllCourseVocabulary:collisions',message:'normalized collisions detected in active courseVocabulary',data:{activeCount:active.length,normalizedKeys:__agentByNorm.size,collisionKeysCount:__agentCollisions.length,collisionSample:__agentCollisions},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     // If multiple active versions exist (shouldn't, but possible during rollout), keep highest unitVersion per (unitNumber, serbian)
     const latestByKey = new Map<string, any>();
     for (const v of active as any[]) {
@@ -132,24 +177,33 @@ export const getCourseVocabularyByUnit = query({
     unitNumber: v.number(),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    const allowPreview = user?.role === "superadmin";
+
     // Try with index first
     const withIndex = await ctx.db
       .query("courseVocabulary")
       .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
       .collect();
-    const active = withIndex.filter((v: any) => v.isActive !== false);
+    const active = (withIndex as any[]).filter((v: any) => v.isActive !== false);
+    const eligible = filterByReleaseStatus(active, allowPreview);
+    const hasPreview = allowPreview && eligible.some((v: any) => isPreviewStatus(v.releaseStatus));
+    const pool = hasPreview ? eligible.filter((v: any) => isPreviewStatus(v.releaseStatus)) : eligible;
     
     // If empty, try without index (fallback)
-    if (active.length === 0) {
+    if (pool.length === 0) {
       const allVocab = await ctx.db
         .query("courseVocabulary")
         .collect();
-      return allVocab.filter((v: any) => v.unitNumber === args.unitNumber && v.isActive !== false);
+      const activeAll = (allVocab as any[]).filter((v: any) => v.unitNumber === args.unitNumber && v.isActive !== false);
+      const eligibleAll = filterByReleaseStatus(activeAll, allowPreview);
+      const hasPreviewAll = allowPreview && eligibleAll.some((v: any) => isPreviewStatus(v.releaseStatus));
+      return hasPreviewAll ? eligibleAll.filter((v: any) => isPreviewStatus(v.releaseStatus)) : eligibleAll;
     }
     
     // If multiple active versions exist, keep highest unitVersion per serbian
     const latestBySerbian = new Map<string, any>();
-    for (const v of active as any[]) {
+    for (const v of pool as any[]) {
       const key = String(v.serbian);
       const ver = v.unitVersion ?? 1;
       const prev = latestBySerbian.get(key);
@@ -168,6 +222,7 @@ export const getVocabularyWithProgress = query({
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
+    const allowPreview = user?.role === "superadmin";
     
     // Get all course vocabulary (or filtered by unit)
     const rawCourseVocab =
@@ -177,10 +232,23 @@ export const getVocabularyWithProgress = query({
             .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber!))
             .collect()
         : await ctx.db.query("courseVocabulary").collect();
-    const activeCourseVocab = rawCourseVocab.filter((v: any) => v.isActive !== false);
+    const activeCourseVocab = (rawCourseVocab as any[]).filter((v: any) => v.isActive !== false);
+    const eligibleCourseVocab = filterByReleaseStatus(activeCourseVocab, allowPreview);
+
+    // If preview exists for a unit, superadmin should see preview only for that unit.
+    // Keep it simple: if unitNumber is specified, prefer preview pool for that unit.
+    const pool =
+      args.unitNumber !== undefined && allowPreview
+        ? (() => {
+            const hasPreview = eligibleCourseVocab.some((v: any) => v.unitNumber === args.unitNumber && isPreviewStatus(v.releaseStatus));
+            return hasPreview
+              ? eligibleCourseVocab.filter((v: any) => v.unitNumber === args.unitNumber && isPreviewStatus(v.releaseStatus))
+              : eligibleCourseVocab.filter((v: any) => v.unitNumber === args.unitNumber && isPublishedStatus(v.releaseStatus));
+          })()
+        : eligibleCourseVocab;
     // If multiple active versions exist, keep highest unitVersion per (unitNumber, serbian)
     const latestByKey = new Map<string, any>();
-    for (const v of activeCourseVocab as any[]) {
+    for (const v of pool as any[]) {
       const key = `${v.unitNumber}::${v.serbian}`;
       const ver = v.unitVersion ?? 1;
       const prev = latestByKey.get(key);
@@ -1089,6 +1157,31 @@ export const findVocabularyId = query({
 
 // ============= MIGRATION HELPERS (Phase 1) =============
 
+// Populate serbianNormalized field for case-insensitive search
+export const migrateSerbianNormalized = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const allVocab = await ctx.db.query("courseVocabulary").collect();
+    let updated = 0;
+    let skipped = 0;
+
+    for (const vocab of allVocab) {
+      const normalized = String(vocab.serbian || "").toLowerCase().trim();
+      
+      // Skip if already set correctly
+      if ((vocab as any).serbianNormalized === normalized) {
+        skipped++;
+        continue;
+      }
+
+      await ctx.db.patch(vocab._id, { serbianNormalized: normalized });
+      updated++;
+    }
+
+    return { total: allVocab.length, updated, skipped };
+  },
+});
+
 // Update courseVocabulary columns (for migration script)
 export const updateCourseVocabularyColumns = mutation({
   args: {
@@ -1151,10 +1244,21 @@ export const findVocabularyBySerbian = query({
     serbian: v.string(),
   },
   handler: async (ctx, args) => {
-    const allVocab = await ctx.db
+    const normalized = args.serbian.toLowerCase().trim();
+    
+    // Try normalized index first (case-insensitive)
+    let allVocab = await ctx.db
       .query("courseVocabulary")
-      .withIndex("by_serbian", (q) => q.eq("serbian", args.serbian))
+      .withIndex("by_serbian_normalized", (q) => q.eq("serbianNormalized", normalized))
       .collect();
+    
+    // Fallback: if no results (migration not run yet), try exact match
+    if (allVocab.length === 0) {
+      allVocab = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_serbian", (q) => q.eq("serbian", args.serbian))
+        .collect();
+    }
     
     return allVocab.map(word => ({
       _id: word._id,
@@ -1164,6 +1268,9 @@ export const findVocabularyBySerbian = query({
       de: word.de,
       gender: word.gender,
       pronunciation: word.pronunciation,
+      // Needed for Content Studio continuity checks
+      isActive: (word as any).isActive,
+      releaseStatus: (word as any).releaseStatus,
     }));
   },
 });

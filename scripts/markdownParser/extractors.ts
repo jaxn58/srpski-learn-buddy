@@ -126,7 +126,10 @@ function extractCulturalNote(
   markdown: string
 ): { title?: string; bodyMd: string } | null {
   const match = markdown.match(
-    /^##\s+(?:(?:[A-Z])\.\s+|(?:\d+)\.\s+)?Cultural Note:?\s*(.*?)\s*\n([\s\S]+?)(?=^##\s+|$)/m
+    // IMPORTANT: Do not use `\s*` around the heading/title boundary here.
+    // `\s` matches newlines in JS, which would incorrectly treat the first body line
+    // (often a `### ...` subheading) as the Cultural Note *title*.
+    /^##\s+(?:(?:[A-Z])\.\s+|(?:\d+)\.\s+)?Cultural Note:?[ \t]*(.*?)[ \t]*\r?\n([\s\S]+?)(?=^##\s+|$)/m
   );
 
   if (!match) return null;
@@ -319,7 +322,7 @@ export function extractDialogues(markdown: string): string {
  */
 export function extractTestIntroduction(markdown: string): string {
   const testIntroMatch = markdown.match(
-    /##\s+5\.\s+Interactive Test[^\n]*\n([\s\S]+?)(?=###\s+Exercise|##\s+\d+\.|$)/
+    /##\s+5\.\s+Interactive Test[^\n]*\n([\s\S]+?)(?=###\s+(?:Exercise\s+\d+|ex\s*\d+)\s*:|##\s+\d+\.|$)/i
   );
 
   if (!testIntroMatch) return "";
@@ -345,9 +348,12 @@ export function extractExercises(markdown: string): ParsedExercise[] {
     const line = lines[i];
     
     // Check if this is an exercise heading
-    const exerciseMatch = line.match(/^###\s+Exercise\s+(\d+):\s+(.+)/);
+    const exerciseMatch = line.match(/^###\s+(?:Exercise\s+(\d+)|ex\s*(\d+))\s*:\s+(.+)/i);
     
     if (exerciseMatch) {
+      const exNumberRaw = exerciseMatch[1] || exerciseMatch[2];
+      const exNumber = parseInt(exNumberRaw, 10);
+      const exTitle = exerciseMatch[3].trim();
       // Save previous exercise if exists
       if (currentExercise) {
         const parsedExercise = parseExerciseSection(
@@ -362,8 +368,8 @@ export function extractExercises(markdown: string): ParsedExercise[] {
       
       // Start new exercise
       currentExercise = {
-        number: parseInt(exerciseMatch[1], 10),
-        title: exerciseMatch[2].trim(),
+        number: exNumber,
+        title: exTitle,
         content: []
       };
     } else if (currentExercise && !line.startsWith("##")) {

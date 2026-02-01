@@ -107,6 +107,7 @@ function AdminSidebar() {
         items: [
           { label: "Prompt Admin", path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
           { label: "Content Import", path: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+          { label: "Content Studio", path: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
           { label: "Changelog", path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
           { label: "Database Backups", path: "/admin/backup", icon: <Database className="h-4 w-4" /> },
         ],
@@ -205,7 +206,7 @@ function AdminSidebar() {
                               className={cn(
                                 "h-9 transition-all font-normal",
                                 isActive
-                                  ? "bg-red-100 text-red-700 hover:bg-red-100 hover:text-red-700"
+                                  ? "bg-accent text-accent-foreground hover:bg-accent/90 hover:text-accent-foreground font-medium"
                                   : "text-muted-foreground hover:text-foreground"
                               )}
                             >

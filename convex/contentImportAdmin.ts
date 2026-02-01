@@ -352,6 +352,9 @@ export const internalImportUnitPackage = internalMutation({
     if (isReplace && (typeof targetUnitVersion !== "number" || targetUnitVersion < 1)) {
       throw new Error(`Replace mode requires a valid unitVersion for ${args.fileName}`);
     }
+    // #region agent log
+    if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'vocab-dup-pre',hypothesisId:'VOC-H2',location:'convex/contentImportAdmin.ts:internalImportUnitPackage:start',message:'internalImportUnitPackage start',data:{fileName:args.fileName,unitNumber:(fixed as any).unitNumber,mode,unitVersion:(args as any).unitVersion ?? null,languages:(fixed as any).languages ?? []},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     // Module link: prefer manually selected, fallback to JSON moduleNumber
     let module = null;
@@ -477,11 +480,60 @@ export const internalImportUnitPackage = internalMutation({
 
     // 3) Vocabulary (courseVocabulary master data) — English only for now
     const vocabEn: any[] = ((fixed as any).vocabulary?.en as any[]) ?? [];
+    const __agentNorm = (s: unknown) =>
+      String(s ?? "")
+        .normalize("NFC")
+        .trim();
+    const __agentNormLower = (s: unknown) => __agentNorm(s).toLowerCase();
+    const __agentIncomingCounts = new Map<string, number>();
+    for (const e of vocabEn) {
+      const k = __agentNormLower(e?.serbian);
+      if (!k) continue;
+      __agentIncomingCounts.set(k, (__agentIncomingCounts.get(k) ?? 0) + 1);
+    }
+    const __agentIncomingDupes = Array.from(__agentIncomingCounts.entries())
+      .filter(([, c]) => c > 1)
+      .slice(0, 8)
+      .map(([k, c]) => ({ k, c }));
+    // #region agent log
+    if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'vocab-dup-pre',hypothesisId:'VOC-H4',location:'convex/contentImportAdmin.ts:internalImportUnitPackage:vocab:incoming',message:'incoming vocab normalized duplicates (within file)',data:{unitNumber:fixed.unitNumber,incomingCount:vocabEn.length,dupesCount:__agentIncomingDupes.length,dupes:__agentIncomingDupes,mode},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    // Preload existing (active) vocabulary for this unit and group by normalized key.
+    const __agentExistingAll = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", fixed.unitNumber))
+      .collect();
+    const __agentExistingActive = (__agentExistingAll as any[]).filter((v: any) => v.isActive !== false);
+    const __agentExistingByNorm = new Map<string, any[]>();
+    for (const vdoc of __agentExistingActive) {
+      const k = __agentNormLower(vdoc?.serbianNormalized ?? vdoc?.serbian);
+      if (!k) continue;
+      const arr = __agentExistingByNorm.get(k) ?? [];
+      arr.push(vdoc);
+      __agentExistingByNorm.set(k, arr);
+    }
+    const __agentExistingDupes = Array.from(__agentExistingByNorm.entries())
+      .filter(([, arr]) => arr.length > 1)
+      .slice(0, 6)
+      .map(([k, arr]) => ({
+        k,
+        count: arr.length,
+        sample: arr.slice(0, 3).map((d: any) => ({ id: String(d._id), serbian: d.serbian, unitVersion: d.unitVersion ?? 1, isActive: d.isActive !== false })),
+      }));
+    // #region agent log
+    if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'vocab-dup-pre',hypothesisId:'VOC-H5',location:'convex/contentImportAdmin.ts:internalImportUnitPackage:vocab:existing',message:'existing active vocab normalized duplicates (in DB)',data:{unitNumber:fixed.unitNumber,existingActiveCount:__agentExistingActive.length,normalizedKeys:__agentExistingByNorm.size,dupeKeysCount:__agentExistingDupes.length,dupeKeysSample:__agentExistingDupes,mode},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     for (const entry of vocabEn) {
+      const __agentRawSerbian = String(entry?.serbian ?? "");
+      const __agentNormSerbian = __agentNorm(__agentRawSerbian);
+      const __agentNormKey = __agentNormLower(__agentRawSerbian);
       if (isReplace) {
         const payload: any = {
           unitNumber: fixed.unitNumber,
           serbian: entry.serbian,
+          serbianNormalized: String(entry.serbian || "").toLowerCase().trim(), // Case-insensitive search
           translations: [
             { language: "en", translation: entry.en, alt: entry.enAlt || undefined },
           ],
@@ -502,6 +554,17 @@ export const internalImportUnitPackage = internalMutation({
         .withIndex("by_unit_serbian", (q) => q.eq("unitNumber", fixed.unitNumber).eq("serbian", entry.serbian))
         .collect();
       const active = candidates.filter((v: any) => v.isActive !== false);
+      const __agentNormCandidates = __agentExistingByNorm.get(__agentNormKey) ?? [];
+      if (candidates.length === 0 && __agentNormKey && __agentNormCandidates.length > 0) {
+        // #region agent log
+        if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'vocab-dup-pre',hypothesisId:'VOC-H1',location:'convex/contentImportAdmin.ts:internalImportUnitPackage:vocab:mismatch',message:'no exact match, but normalized match exists (likely whitespace/case/unicode)',data:{unitNumber:fixed.unitNumber,entrySerbian:__agentRawSerbian,entrySerbianJson:JSON.stringify(__agentRawSerbian),entryLen:__agentRawSerbian.length,entryTrimmed:__agentNormSerbian,entryTrimmedJson:JSON.stringify(__agentNormSerbian),normKey:__agentNormKey,existingSameNormSample:__agentNormCandidates.slice(0,3).map((d:any)=>({id:String(d._id),serbian:d.serbian,serbianJson:JSON.stringify(String(d.serbian ?? "")),len:String(d.serbian ?? "").length,unitVersion:d.unitVersion ?? 1,isActive:d.isActive !== false}))},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+      }
+      if (active.length > 1) {
+        // #region agent log
+        if (process.env.NODE_ENV !== "production") fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'vocab-dup-pre',hypothesisId:'VOC-H5',location:'convex/contentImportAdmin.ts:internalImportUnitPackage:vocab:multiple-active',message:'multiple active docs for same exact (unitNumber, serbian) candidates',data:{unitNumber:fixed.unitNumber,entrySerbian:__agentRawSerbian,candidatesCount:candidates.length,activeCount:active.length,activeSample:active.slice(0,3).map((d:any)=>({id:String(d._id),serbian:d.serbian,unitVersion:d.unitVersion ?? 1,isActive:d.isActive !== false}))},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+      }
       let existing: any | null = null;
       let bestV = -1;
       for (const v of active) {
@@ -523,6 +586,7 @@ export const internalImportUnitPackage = internalMutation({
       const payload: any = {
         unitNumber: fixed.unitNumber,
         serbian: entry.serbian,
+        serbianNormalized: String(entry.serbian || "").toLowerCase().trim(), // Case-insensitive search
         translations,
         gender: entry.gender || undefined,
         noteEn: entry.noteEn || undefined,

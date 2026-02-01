@@ -114,6 +114,17 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
      ```
    - **Warum diese Reihenfolge?** Frontend benötigt die aktuellen Convex Functions. Wenn Frontend zuerst deployed wird, könnte es auf alte Functions zugreifen → Server Error.
 
+### SEO / Landingpage (statisch HTML) aktualisieren
+
+Die Landingpage (`/`) wird beim Frontend-Build als **statisches HTML** prerendered (inkl. SEO-Head-Tags). Das passiert automatisch bei jedem normalen Vercel-Deploy.
+
+**Wenn sich nur Content (Convex) geändert hat** und kein Code deployt wurde, dann die Landingpage so aktualisieren:
+
+- In Vercel beim **letzten erfolgreichen Production Deployment** auf **Redeploy** klicken.
+- Optional: Build Cache deaktivieren, wenn du sicherstellen willst, dass alle Daten frisch gezogen werden.
+
+Wichtig: Kein In-App „Deploy Hook“-Trigger verwenden. Deployments werden bewusst nur über Vercel (manuell) angestoßen.
+
 ### Daten-Migration
 
 Nach Schema-Änderungen oder Content-Updates muss eine Migration durchgeführt werden:

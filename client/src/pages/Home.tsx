@@ -1,4 +1,4 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "../_core/hooks/useAuth";
 import { SignUp } from "@clerk/clerk-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

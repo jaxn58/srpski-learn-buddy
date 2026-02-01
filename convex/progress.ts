@@ -25,6 +25,16 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
+async function isPreviewUnit(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
+  // We treat a unit as "preview" if there is any active unitMetadata row marked releaseStatus="preview"
+  // for English (current base language). Undefined releaseStatus counts as published.
+  const metas = await ctx.db
+    .query("unitMetadata")
+    .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
+    .collect();
+  return (metas as any[]).some((m) => (m as any).releaseStatus === "preview");
+}
+
 // Get user progress
 // Automatically corrects currentUnit if it doesn't match completedUnits
 export const getUserProgress = query({
@@ -120,6 +130,12 @@ export const completeUnit = mutation({
     if (!user) {
       console.error(`[Progress] completeUnit: User not authenticated`);
       throw new Error("Not authenticated");
+    }
+
+    // Preview units are read-only (no progress writes)
+    if (user.role === "superadmin" && (await isPreviewUnit(ctx, args.unitNumber))) {
+      console.log(`[Progress] completeUnit: Preview mode - skipping progress write for unit ${args.unitNumber}`);
+      return;
     }
 
     console.log(`[Progress] completeUnit: User found: ${user._id}`);
@@ -596,6 +612,13 @@ export const submitCategoryResult = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
+
+    // Preview units are read-only (no XP/progress writes). Still return a successful response
+    // so the UI can show correctness feedback without persisting anything.
+    if (user.role === "superadmin" && (await isPreviewUnit(ctx, args.unitNumber))) {
+      console.log(`[Progress] submitCategoryResult: Preview mode - no writes for unit ${args.unitNumber}`);
+      return { earnedXP: 0, updatedProgress: [] as any[] };
+    }
 
     let totalXP = 0;
     const updatedProgress: Array<{

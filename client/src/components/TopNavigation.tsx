@@ -123,7 +123,7 @@ export function TopNavigation() {
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isBetaTester = Boolean(user?.isBetaTester);
-  const activeClass = "bg-[color:var(--accent)] text-white hover:brightness-95 hover:text-white";
+  const activeClass = "bg-accent text-accent-foreground hover:bg-accent/90 hover:text-accent-foreground";
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const stats = useQuery(api.progress.getDashboardStats, user ? undefined : "skip");
   // Protected layout already requires auth; mirror `/units` data access here.
@@ -331,6 +331,7 @@ export function TopNavigation() {
         items: [
           { label: "Prompt Admin", href: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
           { label: "Content Import", href: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+          { label: "Content Studio", href: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
           { label: "Changelog", href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
           { label: "Database Backups", href: "/admin/backup", icon: <Database className="h-4 w-4" /> },
         ],

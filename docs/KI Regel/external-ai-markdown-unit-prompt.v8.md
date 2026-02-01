@@ -1,9 +1,13 @@
-# External AI Prompt (Markdown Unit Authoring) — v4 (Alias)
+# External AI Prompt (Markdown Unit Authoring) — v8
 
-**Status:** Alias / Compatibility  
-**Created:** 2026-01-20  
-**Updated:** 2026-01-29  
-**Purpose:** Compatibility alias. The canonical versioned prompt is `external-ai-markdown-unit-prompt.v7.md`.
+**Status:** Active  
+**Created:** 2026-01-30  
+**Updated:** 2026-01-30  
+**Purpose:** Copy/paste prompt for external AI (e.g., Manus) to generate ONE Markdown file for ONE unit, compatible with our Markdown parser + import pipeline.
+
+**Changelog from v7:**
+- Added **cases/declension rule**: if any Serbian case is used beyond dictionary form, explicitly cover it in Grammar (trigger + case name + 3 examples).
+- Added **dialogue table requirement** for audio: dialogues must use the Unit 1/2 table format `| Role | Serbian | English |`.
 
 **Changelog from v6:**
 - Clarified **polysemy rule**: one Serbian key = one row (NOT one meaning). Additional meanings/usages go into Notes via `AlsoMeaning: ...`.
@@ -204,12 +208,21 @@ CONTEXT LOGIC RULE (CRITICAL): Drinks vs. Fruits
 Explain the unit’s grammar focus in Markdown.
 - Keep it minimal and beginner-friendly.
 - Provide examples (Serbian + English translation).
+- CASES (CRITICAL): If you use ANY Serbian case beyond the base dictionary form (declension), you MUST explicitly cover it here:
+  - Name the case (accusative/genitive/dative/instrumental/locative/vocative) and the trigger (preposition/verb pattern).
+  - Provide at least 3 examples with Serbian + English translation.
+  - Ensure phrases/dialogues/exercises consistently use the explained forms.
+  - Keep Vocabulary Serbian cells in base form; inflected forms belong in phrases/dialogues/exercises, not in the Serbian Vocabulary column.
 
 ## 4. Phrases (Practical Application)
 Include:
 - A table of essential phrases used in this unit.
-- 2–4 short dialogues with roles.
+- 2–4 short dialogues with roles (Unit 1/2 format).
 All Serbian used here must be covered by Vocabulary (A or B).
+CRITICAL: Dialogues must be written as a GFM table with EXACT columns:
+| Role | Serbian | English |
+| :--- | :--- | :--- |
+Audio playback relies on the "Serbian" column header.
 
 ## 5. Interactive Test (Exercises)
 Add a short test introduction paragraph.
@@ -249,6 +262,9 @@ Exercise rules:
   - Include an "Options" column
   - Options format: "A) ...  B) ...  C) ..." (or newline-separated)
   - "Answer (for database)" must match exactly one option (either full option text or "B) ..."; both acceptable)
+
+## 6. Cultural Note (recommended)
+Add ONE short cultural note at the end of the document. See the Cultural Note rules/template below.
 
 CRITICAL: Options + Answer matching (Multiple Choice + Dialogue Completion)
 - The "Options" cell MUST use consistent punctuation (commas etc.).
@@ -292,6 +308,25 @@ Dialogue Completion (ex5):
 | :--- | :--- | :--- | :--- |
 | u<UNIT>_ex5_q01 | A: Dobar dan! B: _____ | A) Hvala  B) Dobar dan  C) Doviđenja | B) Dobar dan |
 
+CULTURAL NOTE (Section 6) (recommended)
+Add ONE short cultural note at the end of the document (1–3 short paragraphs or bullets).
+
+CRITICAL: Use one of these supported H2 headings (must start at beginning of the line):
+- `## 6. Cultural Note: <Title>` (recommended)
+- `## C. Cultural Note: <Title>`
+- `## Cultural Note: <Title>`
+
+IMPORTANT:
+- Do NOT write heading mixes like `Cultural Note: ### <Title>` on one line.
+- If you use subheadings inside the Cultural Note, put them on their own lines, e.g. `### <Subtopic>`.
+
+Template:
+`## 6. Cultural Note: <Short Title>`
+`<1–3 short paragraphs OR a short bullet list>`
+OPTIONAL:
+`### <Subtopic>`
+`<short text>`
+
 FINAL SELF-CHECK (must do silently before output)
 - Scan ALL vocabulary tables: no duplicate Serbian keys anywhere (merge duplicates into Notes and delete extra rows).
 - Drinks sanity-check: no plain fruit nouns listed as drinks; use "Sok od <fruit>" where relevant.
@@ -299,6 +334,7 @@ FINAL SELF-CHECK (must do silently before output)
 - Ensure every exercise has a `**Instructions:**` line.
 - Ensure every exercise table has "Question ID" as first column and correct ID format.
 - Ensure every Serbian used outside Vocabulary is covered by Vocabulary or KnownFrom.
+- If you include a Cultural Note, ensure its heading is one of the supported H2 formats and NOT mixed with `###` on the same line.
 ```
 
 ---

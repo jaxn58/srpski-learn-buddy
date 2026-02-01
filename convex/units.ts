@@ -118,6 +118,36 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .first();
 }
 
+type ReleaseStatus = "published" | "preview" | "offline";
+
+function isPublishedStatus(s: unknown): boolean {
+  // Backward compatibility: undefined => published
+  return s === undefined || s === "published";
+}
+
+function isPreviewStatus(s: unknown): boolean {
+  return s === "preview";
+}
+
+function pickBestByRelease<T extends { releaseStatus?: any; _creationTime: number }>(rows: T[], allowPreview: boolean): T | null {
+  // Prefer preview (superadmin) else published; never include offline.
+  const candidates = rows.filter((r) => {
+    const s = (r as any).releaseStatus;
+    if (s === "offline") return false;
+    if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
+    return isPublishedStatus(s);
+  });
+  if (candidates.length === 0) return null;
+  // Prefer preview over published; then most recent creationTime.
+  candidates.sort((a, b) => {
+    const aRank = isPreviewStatus((a as any).releaseStatus) ? 2 : 1;
+    const bRank = isPreviewStatus((b as any).releaseStatus) ? 2 : 1;
+    if (aRank !== bRank) return bRank - aRank;
+    return b._creationTime - a._creationTime;
+  });
+  return candidates[0] ?? null;
+}
+
 async function requireSuperadmin(ctx: QueryCtx | MutationCtx) {
   const user = await getCurrentUser(ctx);
   if (!user || user.role !== "superadmin") {
@@ -340,24 +370,24 @@ export const getUnitMetadata = query({
   },
   handler: async (ctx, args) => {
     const language = args.language || "en";
-    
-    const metadata = await ctx.db
+
+    const user = await getCurrentUser(ctx);
+    const allowPreview = user?.role === "superadmin";
+
+    const allForLang = await ctx.db
       .query("unitMetadata")
-      .withIndex("by_unit_lang", (q) =>
-        q.eq("unitNumber", args.unitNumber).eq("language", language)
-      )
-      .first();
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", language))
+      .collect();
+    const metadata = pickBestByRelease(allForLang as any[], allowPreview);
 
     // Fallback to English if requested language not found
     if (!metadata && language !== "en") {
-      const enMetadata = await ctx.db
+      const allEn = await ctx.db
         .query("unitMetadata")
-        .withIndex("by_unit_lang", (q) =>
-          q.eq("unitNumber", args.unitNumber).eq("language", "en")
-        )
-        .first();
-      
-      if (enMetadata) return enMetadata;
+        .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", "en"))
+        .collect();
+      const picked = pickBestByRelease(allEn as any[], allowPreview);
+      if (picked) return picked;
     }
 
     return metadata;
@@ -371,23 +401,44 @@ export const getAllUnitsMetadata = query({
   },
   handler: async (ctx, args) => {
     const language = args.language || "en";
+    const user = await getCurrentUser(ctx);
+    const allowPreview = user?.role === "superadmin";
     
     // This is not perfectly efficient as we can't sort by unitNumber with the language index easily
     // But for <100 units it's fine
-    const allMetadata = await ctx.db
-      .query("unitMetadata")
-      .filter((q) => q.eq(q.field("language"), language))
-      .collect();
+    const allMetadata = await ctx.db.query("unitMetadata").filter((q) => q.eq(q.field("language"), language)).collect();
+    const filtered = (allMetadata as any[]).filter((m) => {
+      const s = (m as any).releaseStatus;
+      if (s === "offline") return false;
+      if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
+      return isPublishedStatus(s);
+    });
       
     // If empty and not English, try fallback
-    if (allMetadata.length === 0 && language !== "en") {
-      return await ctx.db
-        .query("unitMetadata")
-        .filter((q) => q.eq(q.field("language"), "en"))
-        .collect();
+    if (filtered.length === 0 && language !== "en") {
+      const allEn = await ctx.db.query("unitMetadata").filter((q) => q.eq(q.field("language"), "en")).collect();
+      const filteredEn = (allEn as any[]).filter((m) => {
+        const s = (m as any).releaseStatus;
+        if (s === "offline") return false;
+        if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
+        return isPublishedStatus(s);
+      });
+      return filteredEn.sort((a, b) => a.unitNumber - b.unitNumber);
     }
 
-    return allMetadata.sort((a, b) => a.unitNumber - b.unitNumber);
+    // Deduplicate by unitNumber: prefer preview (superadmin) else published.
+    const bestByUnit = new Map<number, any>();
+    for (const m of filtered as any[]) {
+      const existing = bestByUnit.get(m.unitNumber);
+      if (!existing) {
+        bestByUnit.set(m.unitNumber, m);
+        continue;
+      }
+      const picked = pickBestByRelease([existing, m], allowPreview);
+      if (picked) bestByUnit.set(m.unitNumber, picked);
+    }
+
+    return Array.from(bestByUnit.values()).sort((a, b) => a.unitNumber - b.unitNumber);
   },
 });
 
@@ -784,6 +835,8 @@ export const getUnitInteractiveTest = query({
   },
   handler: async (ctx, args) => {
     const language = args.language || "en";
+    const user = await getCurrentUser(ctx);
+    const allowPreview = user?.role === "superadmin";
     
     // Fetch all questions for this unit/language
     const all = await ctx.db
@@ -794,9 +847,21 @@ export const getUnitInteractiveTest = query({
       .collect();
 
     // Versioning/soft-archive: treat undefined isActive as active; unitVersion defaults to 1
-    const active = all.filter((q: any) => q.isActive !== false);
-    const maxVersion = active.reduce((m: number, q: any) => Math.max(m, q.unitVersion ?? 1), 1);
-    const questions = active.filter((q: any) => (q.unitVersion ?? 1) === maxVersion);
+    const active = (all as any[]).filter((q: any) => q.isActive !== false);
+
+    const eligible = active.filter((q: any) => {
+      const s = q.releaseStatus;
+      if (s === "offline") return false;
+      if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
+      return isPublishedStatus(s);
+    });
+
+    // Prefer preview questions if any exist (superadmin), else published.
+    const hasPreview = allowPreview && eligible.some((q: any) => isPreviewStatus(q.releaseStatus));
+    const pool = hasPreview ? eligible.filter((q: any) => isPreviewStatus(q.releaseStatus)) : eligible;
+
+    const maxVersion = pool.reduce((m: number, q: any) => Math.max(m, q.unitVersion ?? 1), 1);
+    const questions = pool.filter((q: any) => (q.unitVersion ?? 1) === maxVersion);
 
     // Sort by order only (Q1, Q2, ... Q45)
     return questions.sort((a, b) => a.order - b.order);
@@ -812,6 +877,8 @@ export const getUnitContentSections = query({
   },
   handler: async (ctx, args) => {
     const language = args.language || "en";
+    const user = await getCurrentUser(ctx);
+    const allowPreview = user?.role === "superadmin";
     
     // Referential Integrity: Check if unitMetadata exists (Master-Table)
     let metadata = await ctx.db
@@ -819,17 +886,19 @@ export const getUnitContentSections = query({
       .withIndex("by_unit_lang", (q) =>
         q.eq("unitNumber", args.unitNumber).eq("language", language)
       )
-      .first();
+      .collect();
+
+    const pickedMeta = pickBestByRelease(metadata as any[], allowPreview);
+    const finalLanguage = pickedMeta ? language : (language !== "en" ? "en" : language);
 
     // Fallback to English if requested language not found
-    const finalLanguage = metadata ? language : (language !== "en" ? "en" : language);
-    if (!metadata && finalLanguage === "en") {
-      metadata = await ctx.db
+    if (!pickedMeta && finalLanguage === "en") {
+      const metaEn = await ctx.db
         .query("unitMetadata")
-        .withIndex("by_unit_lang", (q) =>
-          q.eq("unitNumber", args.unitNumber).eq("language", "en")
-        )
-        .first();
+        .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", "en"))
+        .collect();
+      // Not used further except as existence check; keep behavior consistent.
+      pickBestByRelease(metaEn as any[], allowPreview);
     }
 
     // Get content (FK: unitNumber + language)
@@ -845,18 +914,43 @@ export const getUnitContentSections = query({
     // - treat undefined isActive as active
     // - pick highest unitVersion per contentType (defaults to 1)
     const byType = new Map<string, any>();
-    for (const c of all as any[]) {
-      if (c.isActive === false) continue;
+    const eligible = (all as any[]).filter((c: any) => {
+      if (c.isActive === false) return false;
+      const s = c.releaseStatus;
+      if (s === "offline") return false;
+      if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
+      return isPublishedStatus(s);
+    });
+
+    // Prefer preview content per contentType if present (superadmin)
+    for (const c of eligible) {
+      const type = String(c.contentType);
+      const prev = byType.get(type);
+
+      const prevStatus = prev?.releaseStatus;
+      const cStatus = c?.releaseStatus;
+      const prevRank = allowPreview && isPreviewStatus(prevStatus) ? 2 : 1;
+      const cRank = allowPreview && isPreviewStatus(cStatus) ? 2 : 1;
+
       const v = c.unitVersion ?? c.version ?? 1;
-      const prev = byType.get(String(c.contentType));
       const prevV = prev ? (prev.unitVersion ?? prev.version ?? 1) : -1;
-      if (!prev || v > prevV) {
-        byType.set(String(c.contentType), c);
+
+      if (!prev) {
+        byType.set(type, c);
+        continue;
+      }
+
+      if (cRank > prevRank) {
+        byType.set(type, c);
+        continue;
+      }
+
+      if (cRank === prevRank && v > prevV) {
+        byType.set(type, c);
       }
     }
-    for (const [type, c] of byType.entries()) {
-      result[type] = c.content;
-    }
+
+    for (const [type, c] of byType.entries()) result[type] = c.content;
     
     return result;
   },
@@ -1442,6 +1536,7 @@ export const copyUnitData = mutation({
         await ctx.db.insert("courseVocabulary", {
           unitNumber: args.toUnitNumber,
           serbian: vocab.serbian,
+          serbianNormalized: String(vocab.serbian || "").toLowerCase().trim(), // Case-insensitive search
           translations: vocab.translations,
           gender: vocab.gender,
           pronunciation: vocab.pronunciation,

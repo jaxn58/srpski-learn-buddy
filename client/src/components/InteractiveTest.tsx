@@ -21,6 +21,52 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
   const testIntro = useQuery(api.units.getUnitContentSections, { unitNumber, language });
   const questionProgress = useQuery(api.progress.getQuestionProgress, { unitNumber });
   const submitCategoryResultMutation = useMutation(api.progress.submitCategoryResult);
+
+  // Some older units have the full exercise tables stored in `testIntroduction`.
+  // We only want to show a short intro paragraph there (not the exercise tables / answer keys).
+  const sanitizeTestIntroduction = (md: string): string => {
+    const s = String(md || "").replace(/\r\n/g, "\n");
+    if (!s.trim()) return "";
+
+    const cutPoints = [
+      s.search(/^\s*###\s+Exercise\b/im), // new format
+      s.search(/^\s*ex1\b/im), // legacy format (ex1 Translation)
+      s.search(/\|\s*QUESTION\s+ID\s*\|/i), // legacy table header
+      s.search(/\|\s*Answer\s*\(for database\)\s*\|/i), // legacy answer key header
+    ].filter((n) => typeof n === "number" && n >= 0) as number[];
+
+    if (cutPoints.length === 0) return s.trim();
+    const idx = Math.min(...cutPoints);
+    return s.slice(0, idx).trim();
+  };
+
+  /**
+   * Some generated/legacy question strings repeat the category instruction, e.g.
+   * "Translate into Serbian: day". We already show the category header + instruction,
+   * so strip redundant prefixes for display only (do NOT change stored data/validation).
+   */
+  const formatQuestionForDisplay = (category: string, question: string): string => {
+    const raw = String(question || "").trim();
+    if (!raw) return raw;
+
+    const cat = String(category || "").trim().toLowerCase();
+    if (!cat.includes("translation")) return raw;
+
+    // Common variants seen in generated content (case-insensitive).
+    const patterns: RegExp[] = [
+      /^translate\s+into\s+serbian\s*:\s*/i,
+      /^translate\s+to\s+serbian\s*:\s*/i,
+      /^translate\s+(?:the\s+following\s+)?(?:english\s+)?(?:sentences?\s+)?(?:into|to)\s+serbian\s*:\s*/i,
+      /^translation\s+into\s+serbian\s*:\s*/i,
+    ];
+
+    let next = raw;
+    for (const re of patterns) {
+      next = next.replace(re, "");
+    }
+    next = next.trim();
+    return next || raw;
+  };
   
   const normalizeAnswer = (value: string) => {
     return (value ?? "")
@@ -220,9 +266,9 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
   return (
     <div className="space-y-12 w-full">
       {/* Test Introduction */}
-      {testIntro?.testIntroduction && (
+      {testIntro?.testIntroduction && sanitizeTestIntroduction(testIntro.testIntroduction) && (
         <div className="mb-8">
-          <MarkdownContent content={testIntro.testIntroduction} className="text-gray-700" />
+          <MarkdownContent content={sanitizeTestIntroduction(testIntro.testIntroduction)} className="text-gray-700" />
         </div>
       )}
 
@@ -283,7 +329,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                               value={answers[q.questionId] || ""}
                               onChange={(e) => handleAnswerChange(q.questionId, category, e.target.value)}
                               disabled={isCategoryChecked}
-                              className={`inline-block ${inputWidth} h-8 text-sm ${
+                              className={`inline-block ${inputWidth} h-9 text-sm ${
                                 isCorrect ? "border-green-500" : isIncorrect ? "border-red-500" : ""
                               }`}
                             />
@@ -309,25 +355,25 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                         onValueChange={(val) => handleAnswerChange(q.questionId, category, val)}
                         disabled={isCategoryChecked}
                       >
-                        <div className="space-y-2">
-                          {q.options?.map((option, optIdx) => (
-                            <div
-                              key={optIdx}
-                              className={`flex items-center space-x-2 ${
-                                isSubmitted && option === q.correctAnswer
-                                  ? "text-green-600 font-medium"
-                                  : isSubmitted && answers[q.questionId] === option && option !== q.correctAnswer
-                                    ? "text-red-600"
-                                    : ""
-                              }`}
-                            >
-                              <RadioGroupItem value={option} id={`${q.questionId}-${optIdx}`} />
-                              <Label htmlFor={`${q.questionId}-${optIdx}`} className="cursor-pointer">
-                                {option}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="space-y-2">
+                        {q.options?.map((option, optIdx) => (
+                          <div
+                            key={optIdx}
+                            className={`flex items-center space-x-2 ${
+                              isSubmitted && option === q.correctAnswer
+                                ? "text-green-600 font-medium"
+                                : isSubmitted && answers[q.questionId] === option && option !== q.correctAnswer
+                                  ? "text-red-600"
+                                  : ""
+                            }`}
+                          >
+                            <RadioGroupItem value={option} id={`${q.questionId}-${optIdx}`} />
+                            <Label htmlFor={`${q.questionId}-${optIdx}`} className="cursor-pointer">
+                              {option}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
                       </RadioGroup>
                     );
                   }
@@ -363,7 +409,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                         <div className="min-w-0 flex-1 space-y-2">
                           {/* Question text */}
                           {q.questionType === "fillInBlank" || q.questionType === "matching" || q.questionType === "dialogue" ? null : (
-                            <p className="text-foreground">{q.question}</p>
+                            <p className="text-foreground">{formatQuestionForDisplay(category, q.question)}</p>
                           )}
 
                           {/* Input */}

@@ -27,34 +27,12 @@ export const triggerVercelDeployHook = action({
   args: {
     reason: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, _args) => {
     await requireSuperadminAction(ctx);
 
-    const hookUrl = process.env.VERCEL_DEPLOY_HOOK_URL;
-    if (!hookUrl) {
-      throw new Error("Missing VERCEL_DEPLOY_HOOK_URL env var");
-    }
-
-    const res = await fetch(hookUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        reason: args.reason || "manual",
-        triggeredAt: new Date().toISOString(),
-      }),
-    });
-
-    const text = await res.text().catch(() => "");
-    if (!res.ok) {
-      throw new Error(`Deploy hook failed: HTTP ${res.status}${text ? ` - ${text.slice(0, 200)}` : ""}`);
-    }
-
-    return {
-      ok: true,
-      status: res.status,
-      // Some deploy hook endpoints return empty bodies; keep a small preview for debugging.
-      bodyPreview: text ? text.slice(0, 200) : "",
-    };
+    // Safety: This deploy hook caused confusing "stale/old frontend" incidents when misconfigured.
+    // It is intentionally disabled. If we ever re-enable it, do so behind an explicit, audited workflow.
+    throw new Error("Vercel deploy hook is disabled.");
   },
 });
 

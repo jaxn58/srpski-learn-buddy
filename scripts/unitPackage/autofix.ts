@@ -28,6 +28,19 @@ function stripChoicePrefix(input: unknown): string {
   return normalizeWhitespace(s.replace(/^\s*[A-Da-d](\)|\.)\s+/, ""));
 }
 
+function normalizeChoiceValue(input: unknown): string {
+  // Normalize for robust matching (without changing displayed text semantics too much)
+  return normalizeWhitespace(String(input ?? "").replace(/[.?!,:;]+$/g, ""));
+}
+
+function mapLetterAnswerToOption(correct: string, options: string[]): string | null {
+  const trimmed = String(correct ?? "").trim();
+  const m = trimmed.match(/^([A-Da-d])(\)|\.)?$/);
+  if (!m) return null;
+  const idx = m[1].toUpperCase().charCodeAt(0) - "A".charCodeAt(0);
+  return options[idx] ?? null;
+}
+
 function detectGenderMarker(s: string): "m" | "f" | "n" | null {
   const lower = s.toLowerCase();
   // We only trust explicit markers in parentheses to avoid false positives.
@@ -248,7 +261,40 @@ export function autofixUnitPackage(pkg: UnitPackage): {
       }
     }
 
-    vocabFixed[lang] = newList;
+    // d) Merge duplicate Serbian entries (keep first, merge notes)
+    const deduped: UnitPackageVocabularyEntry[] = [];
+    const seenKeys = new Map<string, number>(); // normalized serbian -> index in deduped
+    for (const entry of newList) {
+      const key = entry.serbian.toLowerCase().trim();
+      const existingIdx = seenKeys.get(key);
+      
+      if (existingIdx !== undefined) {
+        // Merge into existing entry
+        const existing = deduped[existingIdx];
+        const mergedNotes: string[] = [];
+        if (existing.noteEn) mergedNotes.push(existing.noteEn);
+        if (entry.noteEn && entry.noteEn !== existing.noteEn) mergedNotes.push(entry.noteEn);
+        if (entry.en && entry.en !== existing.en) {
+          mergedNotes.push(`AlsoMeaning: ${entry.en}`);
+        }
+        
+        if (mergedNotes.length > 0) {
+          existing.noteEn = mergedNotes.join("; ");
+        }
+        
+        changes.push({
+          kind: "mergeDuplicateVocabulary" as any,
+          path: ["vocabulary", lang],
+          before: entry.serbian,
+          after: `merged into existing '${existing.serbian}'`,
+        });
+      } else {
+        seenKeys.set(key, deduped.length);
+        deduped.push(entry);
+      }
+    }
+
+    vocabFixed[lang] = deduped;
   }
 
   // 2) Exercises: merge duplicate categories per language; normalize options/correctAnswer
@@ -264,7 +310,7 @@ export function autofixUnitPackage(pkg: UnitPackage): {
         }
 
         const beforeOptions = q.options ?? [];
-        const afterOptions = beforeOptions.map((opt) => stripChoicePrefix(opt)).filter(Boolean);
+        const afterOptions = beforeOptions.map((opt) => normalizeChoiceValue(stripChoicePrefix(opt))).filter(Boolean);
         if (JSON.stringify(beforeOptions) !== JSON.stringify(afterOptions)) {
           changes.push({
             kind: "normalizeChoiceOption",
@@ -275,7 +321,7 @@ export function autofixUnitPackage(pkg: UnitPackage): {
         }
 
         const beforeCorrect = q.correctAnswer;
-        const afterCorrect = stripChoicePrefix(beforeCorrect);
+        let afterCorrect = normalizeChoiceValue(stripChoicePrefix(beforeCorrect));
         if (beforeCorrect !== afterCorrect) {
           changes.push({
             kind: "normalizeCorrectAnswer",
@@ -283,6 +329,29 @@ export function autofixUnitPackage(pkg: UnitPackage): {
             before: beforeCorrect,
             after: afterCorrect,
           });
+        }
+
+        // Ensure correctAnswer exactly matches one of the normalized options.
+        // Common model failure: correctAnswer is "A" / "B" / "C" / "D".
+        if (afterOptions.length > 0 && afterCorrect && !afterOptions.includes(afterCorrect)) {
+          const mapped = mapLetterAnswerToOption(String(beforeCorrect ?? ""), afterOptions);
+          if (mapped) {
+            changes.push({
+              kind: "normalizeCorrectAnswer",
+              path: ["exercises", lang, cIdx, "questions", qIdx, "correctAnswer"],
+              before: afterCorrect,
+              after: mapped,
+              note: "Mapped letter answer (A/B/C/D) to option text",
+            });
+            afterCorrect = mapped;
+          } else {
+            // Try a looser match (case-insensitive) to find the exact stored option string.
+            const target = afterCorrect.toLowerCase();
+            const found = afterOptions.find((o) => o.toLowerCase() === target);
+            if (found) {
+              afterCorrect = found;
+            }
+          }
         }
 
         return {

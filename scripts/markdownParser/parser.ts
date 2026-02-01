@@ -88,16 +88,47 @@ function convertExercisesToUnitPackageFormat(
   const result: UnitPackage["exercises"]["en"] = [];
   let orderCounter = 1;
 
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const exNumberForType = (type: ParsedExercise["type"]): number => {
+    switch (type) {
+      case "translation":
+        return 1;
+      case "fill_in_blank":
+        return 2;
+      case "multiple_choice":
+        return 3;
+      case "vocabulary_matching":
+        return 4;
+      case "dialogue_completion":
+        return 5;
+      default:
+        return 1;
+    }
+  };
+
   for (const exercise of exercises) {
     const category = mapExerciseTypeToCategory(exercise.type);
     const questionType = mapExerciseTypeToQuestionType(exercise.type);
+    const exNumber = exNumberForType(exercise.type);
 
     // Build questions array with proper structure
-    const questions: any[] = exercise.questions.map((question) => {
+    const questions: any[] = exercise.questions.map((question, localIdx) => {
       const order = orderCounter++;
       const providedId = String(question.questionId || "").trim();
-      const questionId =
-        providedId && !providedId.startsWith("ex") ? providedId : `u${unitNumber}_${questionType}_q${order}`;
+      let questionId = "";
+      if (providedId && !providedId.toLowerCase().startsWith("ex")) {
+        questionId = providedId;
+      } else if (providedId) {
+        // Our parser may generate stable IDs like "ex3_q1" when the table lacks a "Question ID" column.
+        // Convert those to the canonical template shape: u<UNIT>_ex<EX>_q<NN>
+        const m = providedId.match(/^ex(\d+)_q(\d+)$/i);
+        if (m) {
+          questionId = `u${unitNumber}_ex${parseInt(m[1], 10)}_q${pad2(parseInt(m[2], 10))}`;
+        }
+      }
+      if (!questionId) {
+        questionId = `u${unitNumber}_ex${exNumber}_q${pad2(localIdx + 1)}`;
+      }
       const questionEntry: any = {
         questionId,
         order,
@@ -193,8 +224,34 @@ export function validateMarkdownStructure(markdown: string): {
     errors.push("Missing required section: '## 2. Vocabulary'");
   }
 
+  if (!markdown.includes("## 3. Grammar")) {
+    errors.push("Missing required section: '## 3. Grammar'");
+  }
+
+  if (!markdown.includes("## 4. Phrases")) {
+    errors.push("Missing required section: '## 4. Phrases'");
+  }
+
   if (!markdown.includes("## 5. Interactive Test")) {
     errors.push("Missing required section: '## 5. Interactive Test'");
+  }
+
+  // Dialogues are required for Unit UI consistency (Unit 1/2 format):
+  // - Either a dedicated "## 5. Dialogues" section exists, OR
+  // - Dialogue blocks exist inside Phrases as "### ... Dialogue ..."
+  const hasDedicatedDialogues = /##\s+5\.\s+Dialogues\b/i.test(markdown);
+  const phrasesSectionMatch = markdown.match(/##\s+4\.\s+Phrases[\s\S]+?(?=##\s+\d+\.|$)/);
+  const hasDialogueBlocksInPhrases = !!phrasesSectionMatch?.[0]?.match(/###\s+.*Dialogue/i);
+  if (!hasDedicatedDialogues && !hasDialogueBlocksInPhrases) {
+    errors.push("Missing dialogues: add '### ... Dialogue ...' blocks in Phrases (Unit 1/2 format) or a dedicated '## 5. Dialogues' section.");
+  }
+
+  // Audio requirement: dialogues must use a table with Role/Serbian/English columns (Unit 1/2 canonical).
+  const hasDialogueTable = /\|\s*Role\s*\|\s*Serbian\s*\|\s*English\s*\|/i.test(markdown);
+  if (hasDedicatedDialogues || hasDialogueBlocksInPhrases) {
+    if (!hasDialogueTable) {
+      errors.push("Dialogues must be written as a table with columns: '| Role | Serbian | English |' (required for audio playback).");
+    }
   }
 
   // Check for module/unit headers
@@ -210,6 +267,24 @@ export function validateMarkdownStructure(markdown: string): {
   // Accept EN/DE label for author convenience.
   if (!markdown.match(/^\*\*(Description|Beschreibung):\*\*\s+.+/m)) {
     errors.push("Missing unit description line (e.g., '**Description:** One short sentence.')");
+  }
+
+  // Validate Grammar section is substantial (not truncated)
+  // Grammar should have subsections like "### The Locative Case" and at least 500 chars of content
+  const grammarMatch = markdown.match(/##\s+3\.\s+Grammar[\s\S]+?(?=##\s+\d+\.|$)/);
+  if (grammarMatch) {
+    const grammarContent = grammarMatch[0];
+    const hasSubsections = /###\s+.+/.test(grammarContent);
+    const isSubstantial = grammarContent.length > 500;
+    
+    if (!hasSubsections && !isSubstantial) {
+      errors.push("Grammar section appears truncated or empty. Must contain subsections (### ...) or substantial content (500+ chars).");
+    }
+    
+    // Check for truncation marker (single # at end without content)
+    if (grammarContent.trim().endsWith("#") || grammarContent.trim().endsWith("##")) {
+      errors.push("Grammar section appears to be cut off mid-generation (ends with incomplete header).");
+    }
   }
 
   return {
