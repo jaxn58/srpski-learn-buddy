@@ -574,8 +574,9 @@ export default defineSchema({
 
     // Payment metadata (optional for backwards compatibility)
     paymentMode: v.optional(v.union(v.literal("prepaid"), v.literal("installments"))),
-    // Billing provider / external IDs (optional for backwards compatibility)
-    billingProvider: v.optional(v.literal("dodo")),
+    // Billing provider identifier (optional for backwards compatibility).
+    // Keep this as a free-form string to avoid schema breaks on legacy records.
+    billingProvider: v.optional(v.string()),
     // Unified subscription id for the active billing provider (e.g., Dodo subscription_id)
     providerSubscriptionId: v.optional(v.string()),
     // Set once we've requested provider-side cancellation (fixed-term subscriptions).
