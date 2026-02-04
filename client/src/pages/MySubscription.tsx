@@ -5,13 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { useQuery, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Calendar, Check, Clock, CreditCard, TrendingUp } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { initPaddleWithToken, openCheckout } from "@/lib/paddle";
+import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
 import { formatDateEU } from "@/lib/utils";
 
 type SubscriptionPlan = {
@@ -32,9 +32,12 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0 });
-  const paddleConfig = useQuery(api.subscriptions.getPaddleCheckoutConfig);
-  const paddleConfigured = paddleConfig?.clientTokenConfigured === true;
-  const [paddleReady, setPaddleReady] = useState(false);
+
+  const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
+  const dodoConfigured = billingConfig?.dodo?.configured === true;
+  const [dodoReady, setDodoReady] = useState(false);
+
+  const createDodoCheckoutSession = useAction(api.subscriptions.createDodoCheckoutSession);
 
   // Fetch subscription data from Convex
   const subscription = useQuery(api.subscriptions.getCurrent);
@@ -103,70 +106,28 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
   const [isCalculating, setIsCalculating] = useState(false);
 
-  const priceIdMap = useMemo(() => {
-    const normal = paddleConfig?.priceIds?.normal;
-    return {
-      beta: "",
-      intensive: normal?.intensive || "",
-      balanced: normal?.balanced || "",
-      standard: normal?.standard || "",
-      relaxed: normal?.relaxed || "",
-    };
-  }, [paddleConfig]);
-
-  const beta50PriceIdMap = useMemo(() => {
-    const beta50 = paddleConfig?.priceIds?.beta50;
-    return {
-      beta: "",
-      intensive: beta50?.intensive || "",
-      balanced: beta50?.balanced || "",
-      standard: beta50?.standard || "",
-      relaxed: beta50?.relaxed || "",
-    };
-  }, [paddleConfig]);
-
-  const installmentsPriceIdMap = useMemo(() => {
-    const installments = paddleConfig?.priceIds?.installments;
-    return {
-      beta: "",
-      intensive: installments?.intensive || "",
-      balanced: installments?.balanced || "",
-      standard: installments?.standard || "",
-      relaxed: installments?.relaxed || "",
-    };
-  }, [paddleConfig]);
-
   const formatCurrency = (cents: number) => {
     const euros = cents / 100;
     return `€${euros.toFixed(2)}`;
   };
 
   useEffect(() => {
-    if (!paddleConfigured) {
-      setPaddleReady(false);
+    if (!dodoConfigured) {
+      setDodoReady(false);
       return;
     }
 
-    // Additional check: ensure clientToken is actually present
-    const clientToken = paddleConfig?.clientToken;
-    if (!clientToken || clientToken.trim() === "") {
-      console.warn("[MySubscription] Paddle client token not available yet");
-      setPaddleReady(false);
-      return;
+    const env = billingConfig?.dodo?.environment === "live_mode" ? "live" : "test";
+    try {
+      initDodoPayments({ mode: env });
+      setDodoReady(true);
+    } catch (error) {
+      console.error("[MySubscription] Dodo initialization failed:", error);
+      setDodoReady(false);
     }
+  }, [dodoConfigured, billingConfig?.dodo?.environment]);
 
-    initPaddleWithToken({
-      token: clientToken,
-      environment: paddleConfig?.environment === "production" ? "production" : "sandbox",
-    }).then((instance) => {
-      if (!instance) {
-        toast.error("Paddle could not be initialized.");
-        return;
-      }
-
-      setPaddleReady(true);
-    });
-  }, [paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
+  const checkoutReady = dodoReady;
 
   type PaymentMode = "prepaid" | "installments";
   const handlePurchase = async (
@@ -176,52 +137,35 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   ) => {
     if (!user) return;
 
-    if (!paddleConfigured) {
-      toast.error("Paddle is not configured.");
+    if (!dodoConfigured) {
+      toast.error("Dodo Payments is not configured.");
       return;
     }
 
     const effectiveUseBetaPrice = paymentMode === "prepaid" && useBetaPrice;
-    const priceId =
-      paymentMode === "installments"
-        ? installmentsPriceIdMap[planId]
-        : (effectiveUseBetaPrice ? beta50PriceIdMap : priceIdMap)[planId];
-    if (!priceId) {
-      toast.error("No Paddle Price ID configured for this plan.");
-      return;
-    }
 
     try {
-      await openCheckout({
-        items: [{ priceId, quantity: 1 }],
-        customer: user.email ? { email: user.email } : undefined,
-        customData: {
-          clerkId: user.clerkId,
-          planType: planId,
-          paymentMode,
-          source: "my_subscription",
-          beta50: effectiveUseBetaPrice,
-        },
-        settings: {
-          successUrl: `${window.location.origin}/dashboard?purchase=success`,
-        },
+      const result = await createDodoCheckoutSession({
+        planType: planId as any,
+        paymentMode,
+        flow: "purchase",
+        returnUrl: `${window.location.origin}/dashboard?purchase=success`,
+        source: "my_subscription",
+        beta50: effectiveUseBetaPrice,
       });
+
+      await openDodoCheckout({ checkoutUrl: result.checkoutUrl });
     } catch (error: any) {
-      toast.error(t("subscription.upgradeError", { error: error.message }));
+      const msg = error?.message || String(error);
+      toast.error(t("subscription.upgradeError", { error: msg }));
     }
+
   };
 
   const handleUpgrade = async (newPlan: string) => {
     if (!subscription || !user) return;
-
-    if (!paddleConfigured) {
-      toast.error("Paddle is not configured.");
-      return;
-    }
-
-    const priceId = priceIdMap[newPlan as keyof typeof priceIdMap];
-    if (!priceId) {
-      toast.error("No Paddle Price ID configured for this plan.");
+    if (!dodoConfigured) {
+      toast.error("Dodo Payments is not configured.");
       return;
     }
 
@@ -236,19 +180,16 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
         toast.info(t("subscription.upgradeCost", { cost: formatCurrency(result.cost) }));
       }
 
-      await openCheckout({
-        items: [{ priceId, quantity: 1 }],
-        customer: user.email ? { email: user.email } : undefined,
-        customData: {
-          clerkId: user.clerkId,
-          planType: newPlan,
-          previousPlan: subscriptionPlan || subscription.planType,
-          upgradeCostCents: result?.cost ?? 0,
-        },
-        settings: {
-          successUrl: `${window.location.origin}/dashboard?upgrade=success`,
-        },
+      const session = await createDodoCheckoutSession({
+        planType: newPlan as any,
+        paymentMode: "prepaid",
+        flow: "upgrade",
+        returnUrl: `${window.location.origin}/dashboard?upgrade=success`,
+        source: "my_subscription_upgrade",
+        beta50: false,
       });
+
+      await openDodoCheckout({ checkoutUrl: session.checkoutUrl });
     } catch (error: any) {
       toast.error(t("subscription.upgradeError", { error: error.message }));
     } finally {
@@ -433,7 +374,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                     isBetaPrice
                                   )
                                 }
-                                disabled={!paddleReady}
+                                disabled={!checkoutReady}
                                 className="w-full"
                               >
                                 <CreditCard className="h-4 w-4 mr-2" />
@@ -503,7 +444,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             </RadioGroup>
                             <Button
                               onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, false)}
-                              disabled={!paddleReady}
+                              disabled={!checkoutReady}
                               className="w-full"
                             >
                               <CreditCard className="h-4 w-4 mr-2" />
@@ -598,7 +539,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                               </RadioGroup>
                               <Button
                                 onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, isBetaPrice)}
-                                disabled={!paddleReady}
+                                disabled={!checkoutReady}
                                 className="w-full"
                               >
                                 <CreditCard className="h-4 w-4 mr-2" />
@@ -819,7 +760,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                         </ul>
                         <Button
                           onClick={() => handleUpgrade(plan.id)}
-                          disabled={isCalculating || !paddleReady}
+                          disabled={isCalculating || !checkoutReady}
                           className="w-full"
                         >
                           <CreditCard className="h-4 w-4 mr-2" />

@@ -7,7 +7,7 @@
 
 ## 1. Introduction
 
-This document provides a comprehensive, step-by-step guide for migrating the **Srpski AI Tutor** application from its current setup (custom authentication, TiDB database, self-hosted) to a modern, scalable, and fully-managed serverless stack. The new stack will leverage **Clerk** for authentication, **Convex** as the real-time database and backend, **Paddle** for payment processing, and **Vercel** for hosting.
+This document provides a comprehensive, step-by-step guide for migrating the **Srpski AI Tutor** application from its current setup (custom authentication, TiDB database, self-hosted) to a modern, scalable, and fully-managed serverless stack. The new stack will leverage **Clerk** for authentication, **Convex** as the real-time database and backend, **Dodo Payments** for payment processing, and **Vercel** for hosting.
 
 ### 1.1. Benefits of the New Stack
 
@@ -17,7 +17,7 @@ The proposed architecture offers significant advantages over the existing implem
 | :--- | :--- | :--- |
 | **Clerk** | **Robust Authentication** | Provides a complete, pre-built authentication solution with features like OAuth, multi-factor authentication (MFA), session management, and a user management dashboard. This eliminates the need to maintain custom, and often less secure, authentication logic. |
 | **Convex** | **Real-time Database & Backend** | A serverless platform that combines a real-time database with server-side functions. It simplifies data management with TypeScript-native schemas, automatic real-time updates in the frontend, and eliminates the need for a separate backend server. |
-| **Paddle** | **Merchant of Record** | Handles all aspects of payment processing, including global sales tax, VAT, and fraud detection. This simplifies compliance and allows you to focus on the product rather than financial administration. |
+| **Dodo Payments** | **Payment Processing** | Handles checkout sessions, subscriptions, and webhooks to keep your app in sync with billing events. |
 | **Vercel** | **Effortless Hosting** | A platform optimized for modern frontend frameworks like React. It offers seamless Git integration, automatic deployments, a global CDN, and serverless functions, ensuring high performance and scalability. |
 
 By the end of this guide, the application will be more secure, scalable, easier to maintain, and provide a superior user experience.
@@ -74,20 +74,18 @@ Convex will replace the TiDB database and the Express backend server. It provide
     *   After initialization, the Convex CLI will output your project's **Deployment URL**. It will look something like `https://<your-project-name>.convex.cloud`.
     *   This URL is used by the Convex client in your frontend to connect to your backend. Copy this URL and save it.
 
-### 2.3. Paddle: Payment Setup
+### 2.3. Dodo Payments: Payment Setup
 
-Paddle will manage subscriptions and payments. Setting it up involves configuring your products and payment methods.
+Dodo Payments will manage subscriptions and payments. Setting it up involves configuring your products and webhooks.
 
-1.  **Create a Paddle Account:** Sign up for a Paddle account at [paddle.com](https://www.paddle.com/). You may need to go through an approval process.
+1.  **Create a Dodo Payments Account:** Sign up in the Dodo Payments dashboard and create a test-mode environment.
 
 2.  **Configure Your Product Catalog:**
-    *   In your Paddle dashboard, navigate to **"Catalog"** -> **"Products"** and create a new product for your subscription (e.g., "Srpski AI Tutor Pro").
-    *   Add a price for this product, specifying the currency and billing interval (e.g., monthly).
+    *   Create products for each plan (e.g., Intensive/Balanced/Standard/Relaxed) and for each payment mode (prepaid vs installments), depending on your pricing model.
 
 3.  **Obtain API Keys and Webhook Secret:**
-    *   Go to **"Developer Tools"** -> **"Authentication"** to get your API keys.
-    *   You will also need to set up a webhook to receive notifications about subscription events (e.g., `subscription.created`, `subscription.updated`). Under **"Developer Tools"** -> **"Events"** -> **"Notifications"**, you can configure the destination URL for your webhooks. We will create this webhook endpoint in Convex later.
-    *   Make sure to copy your **Webhook Secret** to verify incoming webhook requests.
+    *   Create an API key (server-side) for calling the Dodo API.
+    *   Create a webhook endpoint in the Dodo dashboard and copy the **Webhook Signing Secret** (Standard Webhooks, typically `whsec_...`) for signature verification.
 
 ### 2.4. Vercel: Hosting Setup
 
@@ -109,8 +107,9 @@ Vercel will be used to host the frontend of the application and connect to all t
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk Frontend Key | `pk_test_...` |
 | `CLERK_SECRET_KEY` | Clerk Backend Key | `sk_test_...` |
 | `VITE_CONVEX_URL` | Convex Deployment URL | `https://...` |
-| `PADDLE_API_KEY` | Paddle API Key | `...` |
-| `PADDLE_WEBHOOK_SECRET` | Paddle Webhook Secret | `...` |
+| `DODO_PAYMENTS_API_KEY` | Dodo API Key | `dp_...` |
+| `DODO_PAYMENTS_WEBHOOK_KEY` | Dodo Webhook Signing Secret | `whsec_...` |
+| `DODO_PAYMENTS_ENVIRONMENT` | Dodo Environment | `test_mode` |
 | `GEMINI_API_KEY` | Gemini API Key | `AIza...` |
 
     *   The `VITE_` prefix for the Clerk and Convex keys makes them available in the frontend (browser) environment. The other keys are only accessible in the backend environment (Vercel Serverless Functions or Convex functions).
@@ -272,7 +271,7 @@ Convex has three types of backend functions:
 
 -   **Queries (`query`)**: Read-only functions to fetch data. They are fast and automatically cached.
 -   **Mutations (`mutation`)**: Functions that write or modify data (create, update, delete).
--   **Actions (`action`)**: For running side effects, like calling third-party APIs (e.g., Gemini, Paddle). Actions can read and write data by calling queries and mutations.
+-   **Actions (`action`)**: For running side effects, like calling third-party APIs (e.g., Gemini, Dodo Payments). Actions can read and write data by calling queries and mutations.
 
 ### 4.2. Refactoring tRPC Endpoints
 
@@ -456,86 +455,33 @@ The key benefit here is that `useQuery` provides **real-time updates**. When new
 
 ---
 
-## 6. Phase 5: Payment Integration (Paddle)
+## 6. Phase 5: Payment Integration (Dodo Payments)
 
-With the core application logic migrated, the final step is to integrate Paddle for handling subscriptions.
+With the core application logic migrated, the final step is to integrate Dodo Payments for handling purchases/subscriptions.
 
-### 6.1. Paddle Checkout
+### 6.1. Checkout Sessions
 
-Paddle.js provides a simple way to initiate a checkout process from the frontend.
+Dodo Payments provides hosted checkout sessions. Your backend creates a session and returns a hosted `checkout_url` to the client.
 
-1.  **Install Paddle.js:**
+Implementation pattern:
 
-    ```bash
-    npm install @paddle/paddle-js
-    ```
-
-2.  **Initialize Paddle:** In your frontend, initialize Paddle with your client-side token.
-
-3.  **Trigger Checkout:** Create a button that, when clicked, opens the Paddle checkout overlay with the ID of the product you configured.
-
-```tsx
-import { initializePaddle, Paddle } from "@paddle/paddle-js";
-
-// Initialize outside of your component
-let paddle: Paddle | undefined;
-initializePaddle({ token: "YOUR_CLIENT_SIDE_TOKEN" }).then(
-  (paddleInstance) => (paddle = paddleInstance)
-);
-
-function SubscribeButton() {
-  const handleSubscribe = () => {
-    paddle?.Checkout.open({
-      items: [{ priceId: "YOUR_PRICE_ID", quantity: 1 }],
-    });
-  };
-
-  return <button onClick={handleSubscribe}>Subscribe Now</button>;
-}
-```
+1. Create a Convex **action** that calls `POST /checkouts` (Dodo API) with your `product_cart`, `return_url`, and `metadata` (e.g. `clerkId`, `planType`, `paymentMode`).
+2. In the frontend, open the returned `checkout_url` (overlay or redirect).
 
 ### 6.2. Handling Webhooks in Convex
 
-To grant users access to premium features after they subscribe, we need to listen for webhooks from Paddle.
+To grant users access to premium features after they pay, listen for webhooks from Dodo Payments.
 
 1.  **Create an HTTP Endpoint in Convex:** Convex allows you to create public HTTP endpoints. Create a file `convex/http.ts`.
 
 2.  **Define the Webhook Handler:** This handler will verify the webhook signature and update the user's subscription status in the database.
 
-```typescript
-// convex/http.ts
-import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+Implementation pattern:
 
-const http = httpRouter();
-
-http.route({
-  path: "/paddle-webhook",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    const signature = request.headers.get("paddle-signature")!;
-    const rawBody = await request.text();
-
-    // Verify webhook signature (implementation depends on Paddle library)
-    // ...
-
-    const event = JSON.parse(rawBody);
-
-    if (event.event_type === "subscription.created") {
-      const userId = event.data.custom_data.user_id;
-      await ctx.runMutation(api.users.updateSubscription, {
-        userId,
-        status: "active",
-      });
-    }
-
-    return new Response(null, { status: 200 });
-  }),
-});
-
-export default http;
-```
+- Create a Convex HTTP endpoint (e.g. `POST /dodo/webhook`).
+- Verify the Standard Webhooks signature (`webhook-id`, `webhook-signature`, `webhook-timestamp`) using your webhook secret.
+- Use the `webhook-id` header for idempotency.
+- Apply side effects based on `event.type` (e.g., `payment.succeeded`, `subscription.renewed`, `subscription.cancelled`).
 
 ---
 
@@ -544,7 +490,7 @@ export default http;
 ### 7.1. Local Development and Testing
 
 -   Run the frontend and Convex backend locally using `npx convex dev`.
--   Thoroughly test all features: authentication, chat, quizzes, and the subscription flow (using Paddle's test mode).
+-   Thoroughly test all features: authentication, chat, quizzes, and the billing flow (using Dodo's `test_mode`).
 
 ### 7.2. Deployment to Vercel
 
@@ -578,4 +524,4 @@ By leveraging Windsurf, you can significantly reduce development time and focus 
 
 ## 9. Conclusion
 
-This migration, while involving several steps, will result in a far more powerful, scalable, and maintainable application. The combination of Clerk, Convex, Paddle, and Vercel provides a best-in-class foundation for the future of the **Srpski AI Tutor**. The addition of Windsurf to your development workflow will further enhance your ability to iterate and improve the product quickly.
+This migration, while involving several steps, will result in a far more powerful, scalable, and maintainable application. The combination of Clerk, Convex, Dodo Payments, and Vercel provides a best-in-class foundation for the future of the **Srpski AI Tutor**. The addition of Windsurf to your development workflow will further enhance your ability to iterate and improve the product quickly.

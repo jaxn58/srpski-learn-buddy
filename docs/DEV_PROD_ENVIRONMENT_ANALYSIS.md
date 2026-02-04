@@ -120,17 +120,17 @@ RESEND_API_KEY=<production-key>
 # Beta Mode (optional)
 BETA_MODE=off
 
-# Paddle (Production)
-PADDLE_API_KEY=<production-key>
-PADDLE_WEBHOOK_SECRET=<production-secret>
-VITE_PADDLE_CLIENT_TOKEN=<production-token>
+# Dodo Payments (Production)
+DODO_PAYMENTS_API_KEY=<production-key>
+DODO_PAYMENTS_WEBHOOK_KEY=<production-secret>
+DODO_PAYMENTS_ENVIRONMENT=live_mode
 ```
 
 **Empfehlung:**
 1. ✅ Prüfe beide Dashboards manuell
 2. ⚠️ Stelle sicher, dass alle Production-Keys gesetzt sind
 3. ⚠️ Stelle sicher, dass `ADMIN_SECRET` in beiden Umgebungen unterschiedlich ist
-4. ⚠️ Prüfe, ob Production-spezifische Keys (Paddle, etc.) nur in Production gesetzt sind
+4. ⚠️ Prüfe, ob Production-spezifische Keys (Dodo Payments, etc.) nur in Production gesetzt sind
 
 ---
 

@@ -92,7 +92,7 @@ Content-Security-Policy:
   frame-src 'self' 
     [+ Turnstile iframe domains aus Phase 2]
     https://js.stripe.com 
-    https://checkout.paddle.com 
+    https://checkout.dodopayments.com 
     https://vercel.live;
   [... rest bleibt gleich]
 ```

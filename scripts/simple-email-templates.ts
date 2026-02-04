@@ -290,7 +290,7 @@ This email was sent to {{USER_EMAIL}}
 <h3>Need Help?</h3>
 <p>Use the "Send Feedback" button in your dashboard if you have any questions, encounter bugs, or want to share suggestions. I'm here to help!</p>
 
-<p><strong>Receipt:</strong> You'll receive a separate invoice from Paddle with your payment details.</p>
+<p><strong>Receipt:</strong> You'll receive a separate invoice/receipt from our payment provider (Dodo Payments) with your payment details.</p>
 
 <p>Thank you for choosing Serbian AI Tutor. I'm excited to support you on your language learning journey!</p>
 

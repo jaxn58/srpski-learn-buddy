@@ -12,11 +12,12 @@ import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, He
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { WaitlistModal } from "@/components/WaitlistModal";
 import { AppFooter } from "@/components/AppFooter";
 import { buildLandingModuleCards, computeLandingCounts } from "./home/landingData";
+import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
 // During beta phase, we do not offer paid plans/checkout.
 
 export default function Home() {
@@ -47,8 +48,22 @@ export default function Home() {
   const installmentsSelectable = true;
   const paymentToggleHint: string | null = null;
   
+  type SubscriptionPlan = {
+    id: "beta" | "intensive" | "balanced" | "standard" | "relaxed";
+    name: string;
+    months: number;
+    price: number; // cents
+    unitsPerWeek: number;
+    paymentOptions?: {
+      prepaidTotal: number;
+      installmentsMonthly?: number;
+      installmentsTotal?: number;
+      installmentsUpliftPercent?: number;
+    };
+  };
+
   // Load plans from Convex
-  const availablePlans = useQuery(api.subscriptions.getPlans);
+  const availablePlans = useQuery(api.subscriptions.getPlans) as SubscriptionPlan[] | undefined;
   const planById = useMemo(() => {
     const map = new Map<string, any>();
     if (availablePlans) {
@@ -70,59 +85,27 @@ export default function Home() {
   // Loading state for essential data
   const plansLoading = availablePlans === undefined;
   
-  // Paddle configuration
-  const paddleConfig = useQuery(api.subscriptions.getPaddleCheckoutConfig);
-  const paddleConfigured = paddleConfig?.clientTokenConfigured === true;
-  const [paddleReady, setPaddleReady] = useState(false);
-  
-  const priceIdMap = useMemo(() => {
-    const normal = paddleConfig?.priceIds?.normal;
-    return {
-      intensive: normal?.intensive || "",
-      balanced: normal?.balanced || "",
-      standard: normal?.standard || "",
-      relaxed: normal?.relaxed || "",
-    };
-  }, [paddleConfig]);
-  
-  const installmentsPriceIdMap = useMemo(() => {
-    const installments = paddleConfig?.priceIds?.installments;
-    return {
-      intensive: installments?.intensive || "",
-      balanced: installments?.balanced || "",
-      standard: installments?.standard || "",
-      relaxed: installments?.relaxed || "",
-    };
-  }, [paddleConfig]);
-  
-  // Initialize Paddle
+  const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
+  const dodoConfigured = billingConfig?.dodo?.configured === true;
+  const [dodoReady, setDodoReady] = useState(false);
+  const createDodoCheckoutSession = useAction(api.subscriptions.createDodoCheckoutSession);
+  const checkoutReady = dodoReady;
+
   useEffect(() => {
-    if (!ENABLE_PURCHASE_FOR_TESTING || !paddleConfigured) {
-      setPaddleReady(false);
+    if (!ENABLE_PURCHASE_FOR_TESTING || !dodoConfigured) {
+      setDodoReady(false);
       return;
     }
-    
-    // Additional check: ensure clientToken is actually present
-    const clientToken = paddleConfig?.clientToken;
-    if (!clientToken || clientToken.trim() === "") {
-      console.warn("[Home] Paddle client token not available yet");
-      setPaddleReady(false);
-      return;
+
+    const mode = billingConfig?.dodo?.environment === "live_mode" ? "live" : "test";
+    try {
+      initDodoPayments({ mode });
+      setDodoReady(true);
+    } catch (error) {
+      console.error("[Home] Dodo initialization failed:", error);
+      setDodoReady(false);
     }
-    
-    import("@/lib/paddle").then(({ initPaddleWithToken }) => {
-      initPaddleWithToken({
-        token: clientToken,
-        environment: paddleConfig?.environment === "production" ? "production" : "sandbox",
-      }).then((instance) => {
-        if (!instance) {
-          toast.error("Paddle could not be initialized.");
-          return;
-        }
-        setPaddleReady(true);
-      });
-    });
-  }, [ENABLE_PURCHASE_FOR_TESTING, paddleConfigured, paddleConfig?.clientToken, paddleConfig?.environment]);
+  }, [ENABLE_PURCHASE_FOR_TESTING, dodoConfigured, billingConfig?.dodo?.environment]);
 
   // After successful signup, automatically continue with purchase (from localStorage)
   useEffect(() => {
@@ -221,36 +204,26 @@ export default function Home() {
       return;
     }
     
-    if (!paddleConfigured) {
-      toast.error("Paddle is not configured.");
+    if (!dodoConfigured) {
+      toast.error("Dodo Payments is not configured.");
       return;
     }
-    
-    const priceId = paymentMode === "installments" 
-      ? installmentsPriceIdMap[planId as keyof typeof installmentsPriceIdMap]
-      : priceIdMap[planId as keyof typeof priceIdMap];
-      
-    if (!priceId) {
-      toast.error("No Paddle Price ID configured for this plan.");
+
+    if (!dodoReady) {
+      toast.error("Dodo Payments checkout is not ready yet.");
       return;
     }
-    
+
     try {
-      const { openCheckout } = await import("@/lib/paddle");
-      
-      await openCheckout({
-        items: [{ priceId, quantity: 1 }],
-        customer: user.email ? { email: user.email } : undefined,
-        customData: {
-          clerkId: user.clerkId,
-          planType: planId,
-          paymentMode,
-          source: "home_page",
-        },
-        settings: {
-          successUrl: `${window.location.origin}/dashboard?purchase=success`,
-        },
+      const session = await createDodoCheckoutSession({
+        planType: planId as any,
+        paymentMode,
+        flow: "purchase",
+        returnUrl: `${window.location.origin}/dashboard?purchase=success`,
+        source: "home_page",
+        beta50: false,
       });
+      await openDodoCheckout({ checkoutUrl: session.checkoutUrl });
     } catch (error: any) {
       toast.error(`Purchase error: ${error.message}`);
     }
@@ -587,7 +560,7 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!paddleReady || getPlanAction("intensive") === "current") : false) : showWaitlist}
+                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!checkoutReady || getPlanAction("intensive") === "current") : false) : showWaitlist}
                   onClick={() => void startPurchase("intensive")}
                   variant={getPlanAction("intensive") === "current" ? "secondary" : "default"}
                 >
@@ -675,7 +648,7 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!paddleReady || getPlanAction("balanced") === "current") : false) : showWaitlist}
+                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!checkoutReady || getPlanAction("balanced") === "current") : false) : showWaitlist}
                   onClick={() => void startPurchase("balanced")}
                   variant={getPlanAction("balanced") === "current" ? "secondary" : "default"}
                 >
@@ -767,7 +740,7 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full bg-primary"
-                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!paddleReady || getPlanAction("standard") === "current") : false) : showWaitlist}
+                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!checkoutReady || getPlanAction("standard") === "current") : false) : showWaitlist}
                   onClick={() => void startPurchase("standard")}
                   variant={getPlanAction("standard") === "current" ? "secondary" : "default"}
                 >
@@ -855,7 +828,7 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!paddleReady || getPlanAction("relaxed") === "current") : false) : showWaitlist}
+                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!checkoutReady || getPlanAction("relaxed") === "current") : false) : showWaitlist}
                   onClick={() => void startPurchase("relaxed")}
                   variant={getPlanAction("relaxed") === "current" ? "secondary" : "default"}
                 >

@@ -218,65 +218,156 @@ export const getBetaDiscountStatus = query({
   },
 });
 
-export const getPaddleCheckoutConfig = query({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
+function getBillingProviderFromEnv(): "dodo" {
+  // Only Dodo is supported currently; keep the env var for future flexibility.
+  return "dodo";
+}
 
-    const environment =
-      (process.env.PADDLE_ENVIRONMENT || process.env.VITE_PADDLE_ENVIRONMENT || "").trim() === "production"
-        ? ("production" as const)
-        : ("sandbox" as const);
+function getDodoEnvironmentFromEnv(): "test_mode" | "live_mode" {
+  const raw = (process.env.DODO_PAYMENTS_ENVIRONMENT || "").trim().toLowerCase();
+  if (raw === "live_mode" || raw === "live") return "live_mode";
+  return "test_mode";
+}
 
-    // Client token is safe to expose to authenticated clients (similar to a publishable key).
-    const clientToken = (process.env.PADDLE_CLIENT_TOKEN || "").trim();
+export const getBillingProviderConfig = query({
+  handler: async () => {
+    const provider = getBillingProviderFromEnv();
 
-    const normal = {
-      intensive: (process.env.PADDLE_PRODUCT_INTENSIVE || "").trim(),
-      balanced: (process.env.PADDLE_PRODUCT_BALANCED || "").trim(),
-      standard: (process.env.PADDLE_PRODUCT_STANDARD || "").trim(),
-      relaxed: (process.env.PADDLE_PRODUCT_RELAXED || "").trim(),
-    } as const;
+    const dodoEnv = getDodoEnvironmentFromEnv();
+    const dodoApiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
+    const dodoWebhookKey = (process.env.DODO_PAYMENTS_WEBHOOK_KEY || "").trim();
 
-    const installments = {
-      intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_MONTHLY || "").trim(),
-      balanced: (process.env.PADDLE_PRODUCT_BALANCED_MONTHLY || "").trim(),
-      standard: (process.env.PADDLE_PRODUCT_STANDARD_MONTHLY || "").trim(),
-      relaxed: (process.env.PADDLE_PRODUCT_RELAXED_MONTHLY || "").trim(),
-    } as const;
+    return {
+      provider,
+      dodo: {
+        environment: dodoEnv,
+        // API key is server-only; expose only whether it exists.
+        configured: dodoApiKey.length > 0,
+        webhookConfigured: dodoWebhookKey.length > 0,
+      },
+    };
+  },
+});
 
-    // IMPORTANT:
-    // Do NOT expose beta50 price IDs to ineligible users. Otherwise they could purchase a discounted price,
-    // get charged, and then be denied access by server-side enforcement.
+type DodoPlanId = "intensive" | "balanced" | "standard" | "relaxed";
+type DodoPaymentMode = "prepaid" | "installments";
+
+function dodoEnvToBaseUrl(env: "test_mode" | "live_mode"): string {
+  return env === "live_mode" ? "https://live.dodopayments.com" : "https://test.dodopayments.com";
+}
+
+function getDodoProductId(args: { planType: DodoPlanId; paymentMode: DodoPaymentMode }): string {
+  const planKey = args.planType.toUpperCase();
+  const modeKey = args.paymentMode === "prepaid" ? "PREPAID" : "INSTALLMENTS";
+  const envKey = `DODO_PRODUCT_${planKey}_${modeKey}`;
+  const value = (process.env[envKey] || "").trim();
+  if (!value) {
+    throw new Error(`missing_dodo_product_id:${envKey}`);
+  }
+  return value;
+}
+
+function getPlanDurationMonths(planType: DodoPlanId): number {
+  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
+  return plan?.months ?? 0;
+}
+
+// Creates a Dodo checkout session and returns the hosted checkout URL.
+// Client should only open the returned URL (never handle API keys).
+export const createDodoCheckoutSession = action({
+  args: {
+    planType: v.union(v.literal("intensive"), v.literal("balanced"), v.literal("standard"), v.literal("relaxed")),
+    paymentMode: v.union(v.literal("prepaid"), v.literal("installments")),
+    flow: v.union(v.literal("purchase"), v.literal("upgrade")),
+    returnUrl: v.string(),
+    source: v.optional(v.string()),
+    beta50: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<{ checkoutUrl: string; provider: "dodo" }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.runQuery(api.users.me);
+    if (!user) throw new Error("User not found");
+
+    // Guardrail: Dodo checkout always creates a new subscription/payment session.
+    // Avoid duplicate charges by blocking purchase for already active subscribers.
+    if (args.flow === "purchase") {
+      const existingActive = await ctx.runQuery(api.subscriptions.getCurrent);
+      if (existingActive && (existingActive as any)?.status === "active") {
+        throw new Error("already_subscribed");
+      }
+    }
+
+    const environment = getDodoEnvironmentFromEnv();
+    const baseUrl = dodoEnvToBaseUrl(environment);
+
+    const apiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
+    if (!apiKey) throw new Error("DODO_PAYMENTS_API_KEY not configured");
+
+    const planType = args.planType as DodoPlanId;
+    const paymentMode = args.paymentMode as DodoPaymentMode;
+    const months = getPlanDurationMonths(planType);
+    if (!months) throw new Error("invalid_plan_months");
+
+    const productId = getDodoProductId({ planType, paymentMode });
+
+    const beta50Requested = args.beta50 === true && paymentMode === "prepaid";
+    const discountCode =
+      beta50Requested && (process.env.DODO_BETA50_DISCOUNT_CODE || "").trim()
+        ? (process.env.DODO_BETA50_DISCOUNT_CODE || "").trim()
+        : null;
+
+    // Server-side eligibility: only allow beta50 after beta ends.
     const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
     const betaEnded = Number.isFinite(betaEndTs) ? Date.now() > betaEndTs : false;
     const betaEligible =
-      user?.isBetaTester === true && betaEnded && (user.betaDiscountUsedAt ?? null) === null;
+      beta50Requested && betaEnded && user.isBetaTester === true && (user.betaDiscountUsedAt ?? null) === null;
 
-    const beta50 = betaEligible
-      ? ({
-          intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_BETA50 || "").trim(),
-          balanced: (process.env.PADDLE_PRODUCT_BALANCED_BETA50 || "").trim(),
-          standard: (process.env.PADDLE_PRODUCT_STANDARD_BETA50 || "").trim(),
-          relaxed: (process.env.PADDLE_PRODUCT_RELAXED_BETA50 || "").trim(),
-        } as const)
-      : ({
-          intensive: "",
-          balanced: "",
-          standard: "",
-          relaxed: "",
-        } as const);
+    const effectiveDiscountCode = betaEligible ? discountCode : null;
 
-    return {
-      environment,
-      clientTokenConfigured: clientToken.length > 0,
-      clientToken,
-      priceIds: {
-        normal,
-        installments,
-        beta50,
+    const body = {
+      confirm: true,
+      allowed_payment_method_types: ["credit", "debit"],
+      product_cart: [{ product_id: productId, quantity: 1 }],
+      return_url: args.returnUrl,
+      discount_code: effectiveDiscountCode,
+      customer: user.email ? { email: user.email, name: user.name ?? undefined } : undefined,
+      metadata: {
+        clerkId: user.clerkId,
+        planType,
+        paymentMode,
+        flow: args.flow,
+        source: args.source ?? "app",
+        beta50: betaEligible,
+        planDurationMonths: months,
       },
-      beta50Eligible: betaEligible,
     };
+
+    const resp = await fetch(`${baseUrl}/checkouts`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => "<failed_to_read_body>");
+      console.warn("[Dodo] Failed to create checkout session", {
+        status: resp.status,
+        errorText,
+        environment,
+      });
+      throw new Error("dodo_checkout_session_failed");
+    }
+
+    const json: any = await resp.json();
+    const checkoutUrl: string = String(json?.checkout_url || "");
+    if (!checkoutUrl) throw new Error("dodo_missing_checkout_url");
+
+    return { checkoutUrl, provider: "dodo" };
   },
 });
 
@@ -596,94 +687,393 @@ function getPlanPriceCentsFromConfig(args: { planType: string; isBeta50: boolean
   return Math.round(plan.price / 2);
 }
 
-function getPaddlePriceMapFromEnv() {
-  const normal = {
-    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE || "").trim(),
-    balanced: (process.env.PADDLE_PRODUCT_BALANCED || "").trim(),
-    standard: (process.env.PADDLE_PRODUCT_STANDARD || "").trim(),
-    relaxed: (process.env.PADDLE_PRODUCT_RELAXED || "").trim(),
-  } as const;
+export const internalListDodoInstallmentsToCancel = internalQuery({
+  handler: async (ctx) => {
+    // Cancel Dodo subscriptions that reached their fixed term and haven't been cancelled yet.
+    const subs = await ctx.db
+      .query("userSubscriptions")
+      .filter((q) => q.eq(q.field("billingProvider"), "dodo"))
+      .filter((q) => q.eq(q.field("paymentMode"), "installments"))
+      .collect();
 
-  const installments = {
-    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_MONTHLY || "").trim(),
-    balanced: (process.env.PADDLE_PRODUCT_BALANCED_MONTHLY || "").trim(),
-    standard: (process.env.PADDLE_PRODUCT_STANDARD_MONTHLY || "").trim(),
-    relaxed: (process.env.PADDLE_PRODUCT_RELAXED_MONTHLY || "").trim(),
-  } as const;
+    return subs
+      .filter((s) => {
+        if (s.providerCancelRequestedAt !== undefined) return false;
+        if (s.installmentsCompletedAt === undefined) return false;
+        const total = s.installmentsTotalMonths ?? s.planDurationMonths;
+        const paid = s.installmentsPaidMonths ?? 0;
+        return (
+          total > 0 &&
+          paid >= total &&
+          typeof s.providerSubscriptionId === "string" &&
+          s.providerSubscriptionId.length > 0
+        );
+      })
+      .map((s) => ({ id: s._id, providerSubscriptionId: s.providerSubscriptionId as string }));
+  },
+});
 
-  const beta50 = {
-    intensive: (process.env.PADDLE_PRODUCT_INTENSIVE_BETA50 || "").trim(),
-    balanced: (process.env.PADDLE_PRODUCT_BALANCED_BETA50 || "").trim(),
-    standard: (process.env.PADDLE_PRODUCT_STANDARD_BETA50 || "").trim(),
-    relaxed: (process.env.PADDLE_PRODUCT_RELAXED_BETA50 || "").trim(),
-  } as const;
+export const internalMarkProviderCancelRequested = internalMutation({
+  args: { id: v.id("userSubscriptions") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { providerCancelRequestedAt: Date.now() });
+  },
+});
 
-  const monthsByPlan = {
-    intensive: 3,
-    balanced: 6,
-    standard: 9,
-    relaxed: 12,
-  } as const;
-
-  const map = new Map<
-    string,
-    {
-      planType: keyof typeof monthsByPlan;
-      planDurationMonths: number;
-      isBeta50: boolean;
-      paymentMode: "prepaid" | "installments";
+export const processDodoInstallmentCancellations = internalAction({
+  handler: async (ctx): Promise<{ attempted: number; cancelled: number }> => {
+    if (getBillingProviderFromEnv() !== "dodo") {
+      return { attempted: 0, cancelled: 0 };
     }
-  >();
 
-  for (const plan of Object.keys(monthsByPlan) as Array<keyof typeof monthsByPlan>) {
-    if (normal[plan]) {
-      map.set(normal[plan], {
-        planType: plan,
-        planDurationMonths: monthsByPlan[plan],
-        isBeta50: false,
-        paymentMode: "prepaid",
-      });
+    const apiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
+    if (!apiKey) {
+      console.warn("[Dodo] DODO_PAYMENTS_API_KEY not configured; skipping installment cancellations.");
+      return { attempted: 0, cancelled: 0 };
     }
-    if (beta50[plan]) {
-      map.set(beta50[plan], {
-        planType: plan,
-        planDurationMonths: monthsByPlan[plan],
-        isBeta50: true,
-        paymentMode: "prepaid",
-      });
-    }
-    if (installments[plan]) {
-      map.set(installments[plan], {
-        planType: plan,
-        planDurationMonths: monthsByPlan[plan],
-        isBeta50: false,
-        paymentMode: "installments",
-      });
-    }
-  }
 
-  return map;
+    const env = getDodoEnvironmentFromEnv();
+    const baseUrl = dodoEnvToBaseUrl(env);
+
+    const toCancel: Array<{ id: Id<"userSubscriptions">; providerSubscriptionId: string }> =
+      (await ctx.runQuery(internal.subscriptions.internalListDodoInstallmentsToCancel)) as any;
+    let cancelled = 0;
+
+    for (const item of toCancel) {
+      try {
+        const resp = await fetch(`${baseUrl}/subscriptions/${encodeURIComponent(item.providerSubscriptionId)}`, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ cancel_at_next_billing_date: true }),
+        });
+
+        if (!resp.ok) {
+          const errorText = await resp.text().catch(() => "<failed_to_read_body>");
+          console.warn("[Dodo] Failed to cancel subscription at next billing date", {
+            providerSubscriptionId: item.providerSubscriptionId,
+            status: resp.status,
+            errorText,
+          });
+          continue;
+        }
+
+        await ctx.runMutation(internal.subscriptions.internalMarkProviderCancelRequested, { id: item.id });
+        cancelled += 1;
+      } catch (err) {
+        console.warn("[Dodo] Failed to cancel subscription", { providerSubscriptionId: item.providerSubscriptionId, err });
+      }
+    }
+
+    return { attempted: toCancel.length, cancelled };
+  },
+});
+
+function getDodoEnvironmentForEvent(): "test_mode" | "live_mode" {
+  return getDodoEnvironmentFromEnv();
 }
 
-// ===== Paddle webhook helpers (internal) =====
-// Applies a prepaid Paddle purchase to our subscription tables.
-export const internalApplyPaddlePrepaidPurchase = internalMutation({
+function safeObject(input: unknown): Record<string, any> {
+  return input && typeof input === "object" ? (input as any) : {};
+}
+
+function extractDodoMetadata(evt: any): Record<string, any> {
+  const data = safeObject(evt?.data);
+  const meta = safeObject((data as any)?.metadata);
+  return meta;
+}
+
+function parseDodoPlanType(meta: Record<string, any>): DodoPlanId | null {
+  const raw = String(meta?.planType || meta?.plan || "").trim().toLowerCase();
+  if (raw === "intensive" || raw === "balanced" || raw === "standard" || raw === "relaxed") return raw;
+  return null;
+}
+
+function parseDodoPaymentMode(meta: Record<string, any>): DodoPaymentMode | null {
+  const raw = String(meta?.paymentMode || "").trim().toLowerCase();
+  if (raw === "prepaid" || raw === "installments") return raw;
+  return null;
+}
+
+function parseDodoBeta50(meta: Record<string, any>): boolean {
+  return meta?.beta50 === true || meta?.beta50 === "true" || meta?.beta50 === 1 || meta?.beta50 === "1";
+}
+
+async function findSubscriptionByDodoSubscriptionId(ctx: MutationCtx, subscriptionId: string) {
+  return await ctx.db
+    .query("userSubscriptions")
+    .filter((q) => q.eq(q.field("providerSubscriptionId"), subscriptionId))
+    .first();
+}
+
+export const internalCancelDodoSubscriptionAtNextBillingDate = internalAction({
+  args: { subscriptionId: v.string() },
+  handler: async (ctx, args): Promise<{ ok: boolean }> => {
+    const apiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
+    if (!apiKey) {
+      console.warn("[Dodo] DODO_PAYMENTS_API_KEY not configured; skipping cancellation request.");
+      return { ok: false };
+    }
+
+    const env = getDodoEnvironmentFromEnv();
+    const baseUrl = dodoEnvToBaseUrl(env);
+
+    try {
+      const resp = await fetch(`${baseUrl}/subscriptions/${encodeURIComponent(args.subscriptionId)}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ cancel_at_next_billing_date: true }),
+      });
+
+      if (!resp.ok) {
+        const errorText = await resp.text().catch(() => "<failed_to_read_body>");
+        console.warn("[Dodo] Failed to request cancel_at_next_billing_date", {
+          subscriptionId: args.subscriptionId,
+          status: resp.status,
+          errorText,
+        });
+        return { ok: false };
+      }
+
+      return { ok: true };
+    } catch (err) {
+      console.warn("[Dodo] Failed to request cancel_at_next_billing_date", { subscriptionId: args.subscriptionId, err });
+      return { ok: false };
+    }
+  },
+});
+
+// Receives a verified Dodo webhook payload and applies side effects idempotently.
+export const internalProcessDodoWebhook = internalMutation({
   args: {
-    paddleEventId: v.string(),
+    rawBody: v.string(),
+    receivedAt: v.number(),
+    webhookId: v.string(),
+    environment: v.optional(v.union(v.literal("test_mode"), v.literal("live_mode"))),
+  },
+  handler: async (ctx, args) => {
+    let evt: any;
+    try {
+      evt = JSON.parse(args.rawBody);
+    } catch {
+      throw new Error("invalid_json");
+    }
+
+    const eventType: string = String(evt?.type || evt?.event_type || evt?.eventType || "").trim();
+    if (!eventType) {
+      throw new Error("missing_event_type");
+    }
+
+    const already = await ctx.db
+      .query("dodoWebhookEvents")
+      .withIndex("by_webhook_id", (q) => q.eq("webhookId", args.webhookId))
+      .first();
+    if (already) {
+      return { status: "duplicate" as const };
+    }
+
+    const data = safeObject(evt?.data);
+    const meta = extractDodoMetadata(evt);
+
+    const clerkId: string | undefined = meta?.clerkId ? String(meta.clerkId) : undefined;
+    const subscriptionId: string | undefined =
+      (data as any)?.subscription_id ? String((data as any).subscription_id) :
+      (data as any)?.subscriptionId ? String((data as any).subscriptionId) :
+      undefined;
+    const paymentId: string | undefined =
+      (data as any)?.payment_id ? String((data as any).payment_id) :
+      (data as any)?.paymentId ? String((data as any).paymentId) :
+      undefined;
+
+    const eventDocId = await ctx.db.insert("dodoWebhookEvents", {
+      webhookId: args.webhookId,
+      eventType,
+      receivedAt: args.receivedAt,
+      processedAt: undefined,
+      rawPayload: args.rawBody,
+      clerkId,
+      subscriptionId,
+      paymentId,
+      environment: args.environment,
+    });
+
+    // ===== Payment failures: pause access =====
+    if (eventType === "payment.failed" || eventType === "subscription.on_hold") {
+      if (subscriptionId) {
+        const sub = await findSubscriptionByDodoSubscriptionId(ctx, subscriptionId);
+        if (sub) {
+          await ctx.db.patch(sub._id, { status: "past_due", pausedAt: Date.now() });
+          await ctx.db.insert("subscriptionHistory", {
+            userId: sub.userId,
+            action: "payment_failed",
+            previousPlanType: sub.planType,
+            newPlanType: sub.planType,
+            notes: `dodo_webhook:${args.webhookId} ${eventType}`,
+          });
+        }
+      }
+
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "applied" as const };
+    }
+
+    // ===== Subscription cancelled/expired: mirror state =====
+    if (eventType === "subscription.cancelled" || eventType === "subscription.expired") {
+      if (subscriptionId) {
+        const sub = await findSubscriptionByDodoSubscriptionId(ctx, subscriptionId);
+        if (sub) {
+          await ctx.db.patch(sub._id, {
+            status: eventType === "subscription.cancelled" ? "cancelled" : "expired",
+            cancelledAt: eventType === "subscription.cancelled" ? Date.now() : sub.cancelledAt,
+          });
+          await ctx.db.insert("subscriptionHistory", {
+            userId: sub.userId,
+            action: eventType === "subscription.cancelled" ? "cancelled" : "expired",
+            previousPlanType: sub.planType,
+            newPlanType: sub.planType,
+            notes: `dodo_webhook:${args.webhookId} ${eventType}`,
+          });
+        }
+      }
+
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "applied" as const };
+    }
+
+    // ===== Prepaid one-time purchase: grant access after payment succeeds =====
+    if (eventType === "payment.succeeded") {
+      const paymentMode = parseDodoPaymentMode(meta);
+      const planType = parseDodoPlanType(meta);
+      const beta50 = parseDodoBeta50(meta);
+
+      if (paymentMode !== "prepaid") {
+        // Subscription renewals are handled via subscription.renewed to avoid double-counting.
+        await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+        return { status: "ignored" as const };
+      }
+
+      if (!clerkId || !planType) {
+        await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+        return { status: "ignored" as const };
+      }
+
+      const months = getPlanDurationMonths(planType);
+      const planPriceCents = getPlanPriceCentsFromConfig({ planType, isBeta50: beta50 });
+
+      await ctx.runMutation(internal.subscriptions.internalApplyDodoPurchase, {
+        dodoWebhookId: args.webhookId,
+        clerkId,
+        planType,
+        planDurationMonths: months,
+        planPriceCents,
+        paymentMode: "prepaid",
+        dodoSubscriptionId: undefined,
+        isBeta50: beta50,
+      });
+
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "applied" as const };
+    }
+
+    // ===== Installments (subscription): count renewals and enforce fixed-term cancellation =====
+    if (eventType === "subscription.renewed") {
+      if (!subscriptionId) {
+        await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+        return { status: "ignored" as const };
+      }
+
+      const existing = await findSubscriptionByDodoSubscriptionId(ctx, subscriptionId);
+      if (existing) {
+        // Increment paid months only for installments.
+        if (existing.paymentMode === "installments") {
+          const totalMonths = (existing.installmentsTotalMonths ?? existing.planDurationMonths) || 0;
+          const paidMonths = (existing.installmentsPaidMonths ?? 0) + 1;
+          const monthlyPrice = existing.installmentMonthlyPrice ?? 0;
+
+          await ctx.db.patch(existing._id, {
+            status: "active",
+            installmentsPaidMonths: paidMonths,
+            pausedAt: undefined,
+          });
+
+          await ctx.db.insert("subscriptionHistory", {
+            userId: existing.userId,
+            action: "renewed",
+            previousPlanType: existing.planType,
+            newPlanType: existing.planType,
+            previousExpiresAt: existing.expiresAt,
+            newExpiresAt: existing.expiresAt,
+            cost: monthlyPrice,
+            notes: `dodo_webhook:${args.webhookId} installments_charge:${paidMonths}/${totalMonths}`,
+          });
+
+          // When the fixed term is fully paid, request cancellation at next billing date.
+          if (totalMonths > 0 && paidMonths >= totalMonths) {
+            const now = Date.now();
+            const shouldRequestCancel = existing.providerCancelRequestedAt === undefined;
+            await ctx.db.patch(existing._id, {
+              installmentsCompletedAt: now,
+              providerCancelRequestedAt: existing.providerCancelRequestedAt ?? now,
+            });
+            if (shouldRequestCancel) {
+              await ctx.scheduler.runAfter(0, internal.subscriptions.internalCancelDodoSubscriptionAtNextBillingDate, {
+                subscriptionId,
+              });
+            }
+          }
+        }
+
+        await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+        return { status: "applied" as const };
+      }
+
+      // First renewal we see (some setups emit subscription.renewed even for the first month).
+      // Provision the local subscription if we can.
+      const planType = parseDodoPlanType(meta);
+      const paymentMode = parseDodoPaymentMode(meta);
+      if (!clerkId || !planType || paymentMode !== "installments") {
+        await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+        return { status: "ignored" as const };
+      }
+
+      const months = getPlanDurationMonths(planType);
+      const planPriceCents = getInstallmentTotalCents(planType);
+
+      await ctx.runMutation(internal.subscriptions.internalApplyDodoPurchase, {
+        dodoWebhookId: args.webhookId,
+        clerkId,
+        planType,
+        planDurationMonths: months,
+        planPriceCents,
+        paymentMode: "installments",
+        dodoSubscriptionId: subscriptionId,
+        isBeta50: false,
+      });
+
+      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+      return { status: "applied" as const };
+    }
+
+    await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+    return { status: "ignored" as const };
+  },
+});
+
+export const internalApplyDodoPurchase = internalMutation({
+  args: {
+    dodoWebhookId: v.string(),
     clerkId: v.string(),
-    planType: v.union(
-      v.literal("intensive"),
-      v.literal("balanced"),
-      v.literal("standard"),
-      v.literal("relaxed")
-    ),
+    planType: v.union(v.literal("intensive"), v.literal("balanced"), v.literal("standard"), v.literal("relaxed")),
     planDurationMonths: v.number(),
     planPriceCents: v.number(),
-    priceId: v.string(),
-    transactionId: v.optional(v.string()),
+    paymentMode: v.union(v.literal("prepaid"), v.literal("installments")),
+    dodoSubscriptionId: v.optional(v.string()),
     isBeta50: v.boolean(),
-    paymentMode: v.optional(v.union(v.literal("prepaid"), v.literal("installments"))),
-    paddleSubscriptionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -701,15 +1091,9 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
       const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
       const betaEnded = Number.isFinite(betaEndTs) ? now > betaEndTs : false;
 
-      if (!betaEnded) {
-        throw new Error("beta_discount_not_active");
-      }
-      if (user.isBetaTester !== true) {
-        throw new Error("beta_discount_not_eligible");
-      }
-      if (user.betaDiscountUsedAt !== undefined) {
-        throw new Error("beta_discount_already_used");
-      }
+      if (!betaEnded) throw new Error("beta_discount_not_active");
+      if (user.isBetaTester !== true) throw new Error("beta_discount_not_eligible");
+      if (user.betaDiscountUsedAt !== undefined) throw new Error("beta_discount_already_used");
 
       await ctx.db.patch(user._id, { betaDiscountUsedAt: now });
     }
@@ -724,29 +1108,30 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
 
     const maxAccessibleUnits = await getTotalUnitsCount(ctx);
 
-    const paymentMode = (args.paymentMode || "prepaid") as "prepaid" | "installments";
     const installmentMonthlyPrice =
-      paymentMode === "installments" ? getInstallmentMonthlyChargeCents(args.planType) : undefined;
-    const installmentsTotalMonths = paymentMode === "installments" ? args.planDurationMonths : undefined;
+      args.paymentMode === "installments" ? getInstallmentMonthlyChargeCents(args.planType) : undefined;
+    const installmentsTotalMonths = args.paymentMode === "installments" ? args.planDurationMonths : undefined;
+
+    const payload = {
+      planType: args.planType,
+      planDurationMonths: args.planDurationMonths,
+      planPrice: args.planPriceCents,
+      expiresAt,
+      status: "active" as const,
+      autoRenew: false,
+      cancelledAt: undefined as number | undefined,
+      maxAccessibleUnits,
+      paymentMode: args.paymentMode as "prepaid" | "installments",
+      billingProvider: "dodo" as const,
+      providerSubscriptionId: args.dodoSubscriptionId,
+      installmentsTotalMonths,
+      installmentsPaidMonths: args.paymentMode === "installments" ? 1 : undefined,
+      installmentMonthlyPrice,
+      pausedAt: undefined as number | undefined,
+    };
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        planType: args.planType,
-        planDurationMonths: args.planDurationMonths,
-        planPrice: args.planPriceCents,
-        expiresAt,
-        status: "active",
-        autoRenew: false,
-        cancelledAt: undefined,
-        maxAccessibleUnits,
-        paymentMode,
-        paddleSubscriptionId: args.paddleSubscriptionId,
-        installmentsTotalMonths,
-        installmentsPaidMonths: paymentMode === "installments" ? 1 : undefined,
-        installmentMonthlyPrice,
-        pausedAt: undefined,
-      });
-
+      await ctx.db.patch(existing._id, payload);
       await ctx.db.insert("subscriptionHistory", {
         userId: user._id,
         action: existing.planType === args.planType ? "renewed" : "upgraded",
@@ -754,40 +1139,15 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
         newPlanType: args.planType,
         previousExpiresAt: existing.expiresAt,
         newExpiresAt: expiresAt,
-        // For installments we record revenue per successful charge.
-        cost: paymentMode === "installments" ? installmentMonthlyPrice : args.planPriceCents,
-        notes: `paddle_event:${args.paddleEventId}${args.transactionId ? ` tx:${args.transactionId}` : ""}`,
+        cost: args.paymentMode === "installments" ? installmentMonthlyPrice : args.planPriceCents,
+        notes: `dodo_webhook:${args.dodoWebhookId}`,
       });
-
-      // Send purchase confirmation email for renewals/upgrades
-      if (user.email) {
-        await ctx.scheduler.runAfter(0, internal.email.sendPurchaseConfirmationEmail, {
-          email: user.email,
-          name: user.name || "Customer",
-          planType: args.planType,
-          planDurationMonths: args.planDurationMonths,
-          expiresAt,
-          paymentMode: paymentMode,
-        });
-      }
-
       return { subscriptionId: existing._id, userId: user._id };
     }
 
     const subscriptionId = await ctx.db.insert("userSubscriptions", {
       userId: user._id,
-      planType: args.planType,
-      planDurationMonths: args.planDurationMonths,
-      planPrice: args.planPriceCents,
-      expiresAt,
-      status: "active",
-      autoRenew: false,
-      maxAccessibleUnits,
-      paymentMode,
-      paddleSubscriptionId: args.paddleSubscriptionId,
-      installmentsTotalMonths,
-      installmentsPaidMonths: paymentMode === "installments" ? 1 : undefined,
-      installmentMonthlyPrice,
+      ...payload,
     });
 
     await ctx.db.insert("subscriptionHistory", {
@@ -795,326 +1155,11 @@ export const internalApplyPaddlePrepaidPurchase = internalMutation({
       action: "purchased",
       newPlanType: args.planType,
       newExpiresAt: expiresAt,
-      cost: paymentMode === "installments" ? installmentMonthlyPrice : args.planPriceCents,
-      notes: `paddle_event:${args.paddleEventId}${args.transactionId ? ` tx:${args.transactionId}` : ""}`,
+      cost: args.paymentMode === "installments" ? installmentMonthlyPrice : args.planPriceCents,
+      notes: `dodo_webhook:${args.dodoWebhookId}`,
     });
-
-    // Send purchase confirmation email
-    if (user.email) {
-      await ctx.scheduler.runAfter(0, internal.email.sendPurchaseConfirmationEmail, {
-        email: user.email,
-        name: user.name || "Customer",
-        planType: args.planType,
-        planDurationMonths: args.planDurationMonths,
-        expiresAt,
-        paymentMode: paymentMode,
-      });
-    }
 
     return { subscriptionId, userId: user._id };
-  },
-});
-
-async function applyInstallmentRenewal(ctx: MutationCtx, args: { paddleEventId: string; subscriptionId: string }) {
-  const now = Date.now();
-  const sub = await ctx.db
-    .query("userSubscriptions")
-    .filter((q) => q.eq(q.field("paddleSubscriptionId"), args.subscriptionId))
-    .first();
-  if (!sub) return;
-
-  const totalMonths = (sub.installmentsTotalMonths ?? sub.planDurationMonths) || 0;
-  const paidMonths = (sub.installmentsPaidMonths ?? 0) + 1;
-  const monthlyPrice = sub.installmentMonthlyPrice ?? 0;
-
-  await ctx.db.patch(sub._id, {
-    status: "active",
-    installmentsPaidMonths: paidMonths,
-    pausedAt: undefined,
-  });
-
-  await ctx.db.insert("subscriptionHistory", {
-    userId: sub.userId,
-    action: "renewed",
-    previousPlanType: sub.planType,
-    newPlanType: sub.planType,
-    previousExpiresAt: sub.expiresAt,
-    newExpiresAt: sub.expiresAt,
-    cost: monthlyPrice,
-    notes: `paddle_event:${args.paddleEventId} installments_charge:${paidMonths}/${totalMonths}`,
-  });
-
-  if (totalMonths > 0 && paidMonths >= totalMonths) {
-    await ctx.db.patch(sub._id, { installmentsCompletedAt: now });
-  }
-}
-
-async function pauseAccessForFailedInstallment(ctx: MutationCtx, args: { paddleEventId: string; subscriptionId: string }) {
-  const now = Date.now();
-  const sub = await ctx.db
-    .query("userSubscriptions")
-    .filter((q) => q.eq(q.field("paddleSubscriptionId"), args.subscriptionId))
-    .first();
-  if (!sub) return;
-
-  await ctx.db.patch(sub._id, {
-    status: "past_due",
-    pausedAt: now,
-  });
-
-  await ctx.db.insert("subscriptionHistory", {
-    userId: sub.userId,
-    action: "payment_failed",
-    previousPlanType: sub.planType,
-    newPlanType: sub.planType,
-    cost: undefined,
-    notes: `paddle_event:${args.paddleEventId} installments_payment_failed`,
-  });
-}
-
-export const internalListInstallmentsToCancel = internalQuery({
-  handler: async (ctx) => {
-    // Cancel subscriptions that reached their fixed term and haven't been cancelled in Paddle yet.
-    const subs = await ctx.db
-      .query("userSubscriptions")
-      .filter((q) => q.eq(q.field("paymentMode"), "installments"))
-      .collect();
-
-    return subs
-      .filter((s) => {
-        if (s.paddleCancelRequestedAt !== undefined) return false;
-        if (s.installmentsCompletedAt === undefined) return false;
-        const total = s.installmentsTotalMonths ?? s.planDurationMonths;
-        const paid = s.installmentsPaidMonths ?? 0;
-        return total > 0 && paid >= total && typeof s.paddleSubscriptionId === "string" && s.paddleSubscriptionId.length > 0;
-      })
-      .map((s) => ({ id: s._id, paddleSubscriptionId: s.paddleSubscriptionId as string }));
-  },
-});
-
-export const internalMarkPaddleCancelRequested = internalMutation({
-  args: { id: v.id("userSubscriptions") },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, { paddleCancelRequestedAt: Date.now() });
-  },
-});
-
-export const processInstallmentCancellations = internalAction({
-  handler: async (ctx): Promise<{ attempted: number; cancelled: number }> => {
-    const apiKey = (process.env.PADDLE_API_KEY || "").trim();
-    if (!apiKey) {
-      console.warn("[Paddle] PADDLE_API_KEY not configured; skipping installment cancellations.");
-      return { attempted: 0, cancelled: 0 };
-    }
-
-    const environment =
-      (process.env.PADDLE_ENVIRONMENT || process.env.VITE_PADDLE_ENVIRONMENT || "").trim() === "production"
-        ? "production"
-        : "sandbox";
-    const baseUrl = environment === "production" ? "https://api.paddle.com" : "https://sandbox-api.paddle.com";
-
-    const toCancel: Array<{ id: Id<"userSubscriptions">; paddleSubscriptionId: string }> =
-      (await ctx.runQuery(internal.subscriptions.internalListInstallmentsToCancel)) as any;
-    let cancelled = 0;
-
-    for (const item of toCancel) {
-      try {
-        await fetch(`${baseUrl}/subscriptions/${encodeURIComponent(item.paddleSubscriptionId)}/cancel`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ effective_from: "next_billing_period" }),
-        });
-
-        await ctx.runMutation(internal.subscriptions.internalMarkPaddleCancelRequested, { id: item.id });
-        cancelled += 1;
-      } catch (err) {
-        console.warn("[Paddle] Failed to cancel subscription", { paddleSubscriptionId: item.paddleSubscriptionId, err });
-      }
-    }
-
-    return { attempted: toCancel.length, cancelled };
-  },
-});
-
-// Receives a verified Paddle webhook payload and applies side effects in an idempotent way.
-export const internalProcessPaddleWebhook = internalMutation({
-  args: {
-    rawBody: v.string(),
-    receivedAt: v.number(),
-    environment: v.optional(v.union(v.literal("sandbox"), v.literal("production"))),
-  },
-  handler: async (ctx, args) => {
-    let evt: any;
-    try {
-      evt = JSON.parse(args.rawBody);
-    } catch {
-      throw new Error("invalid_json");
-    }
-
-    const eventId: string =
-      evt?.event_id ?? evt?.eventId ?? evt?.id ?? evt?.notification_id ?? evt?.notificationId ?? "";
-    const eventType: string = evt?.event_type ?? evt?.eventType ?? evt?.type ?? "";
-
-    if (!eventId || !eventType) {
-      throw new Error("missing_event_id_or_type");
-    }
-
-    const already = await ctx.db
-      .query("paddleWebhookEvents")
-      .withIndex("by_event_id", (q) => q.eq("eventId", eventId))
-      .first();
-    if (already) {
-      return { status: "duplicate" as const };
-    }
-
-    const occurredAtStr: string | undefined = evt?.occurred_at ?? evt?.occurredAt;
-    const occurredAt = occurredAtStr ? Date.parse(occurredAtStr) : undefined;
-
-    // Best-effort extraction (kept denormalized for debugging).
-    const data = evt?.data ?? {};
-    const transactionId: string | undefined =
-      data?.id ?? data?.transaction_id ?? data?.transactionId ?? data?.transaction?.id;
-    const subscriptionId: string | undefined =
-      data?.subscription_id ??
-      data?.subscriptionId ??
-      data?.subscription?.id ??
-      data?.subscription?.subscription_id ??
-      data?.subscription?.subscriptionId;
-    const firstItem = Array.isArray(data?.items) ? data.items[0] : undefined;
-    const priceId: string | undefined =
-      firstItem?.price_id ??
-      firstItem?.priceId ??
-      firstItem?.price?.id ??
-      data?.price_id ??
-      data?.priceId ??
-      data?.price?.id;
-    const customData = data?.custom_data ?? data?.customData ?? {};
-    const clerkId: string | undefined =
-      customData?.clerkId ??
-      customData?.clerk_id ??
-      customData?.userId ??
-      customData?.user_id ??
-      customData?.clerk_user_id;
-
-    const eventDocId = await ctx.db.insert("paddleWebhookEvents", {
-      eventId,
-      eventType,
-      receivedAt: args.receivedAt,
-      occurredAt: Number.isFinite(occurredAt) ? occurredAt : undefined,
-      processedAt: undefined,
-      rawPayload: args.rawBody,
-      clerkId,
-      priceId,
-      transactionId,
-      environment: args.environment,
-    });
-
-    // Handle installment payment failures: pause access.
-    if (eventType.includes("payment_failed") && subscriptionId) {
-      await pauseAccessForFailedInstallment(ctx, { paddleEventId: eventId, subscriptionId });
-      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
-      return { status: "applied" as const };
-    }
-
-    // We only apply access after the payment is finalized.
-    if (!eventType.startsWith("transaction.")) {
-      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
-      return { status: "ignored" as const };
-    }
-
-    if (eventType !== "transaction.completed") {
-      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
-      return { status: "ignored" as const };
-    }
-
-    if (!priceId) {
-      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
-      return { status: "ignored" as const };
-    }
-
-    const mapping = getPaddlePriceMapFromEnv().get(priceId);
-    if (!mapping) {
-      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
-      return { status: "ignored" as const };
-    }
-
-    if (mapping.paymentMode === "installments") {
-      // Initial charge: we require clerkId to provision the subscription.
-      // Renewals: we can match by stored paddleSubscriptionId.
-      if (subscriptionId) {
-        const existingInstallment = await ctx.db
-          .query("userSubscriptions")
-          .filter((q) => q.eq(q.field("paddleSubscriptionId"), subscriptionId))
-          .first();
-
-        if (existingInstallment) {
-          await applyInstallmentRenewal(ctx, { paddleEventId: eventId, subscriptionId });
-        } else if (clerkId) {
-          const planPriceCents = getInstallmentTotalCents(mapping.planType);
-          await ctx.runMutation(internal.subscriptions.internalApplyPaddlePrepaidPurchase, {
-            paddleEventId: eventId,
-            clerkId,
-            planType: mapping.planType,
-            planDurationMonths: mapping.planDurationMonths,
-            planPriceCents,
-            priceId,
-            transactionId,
-            isBeta50: false,
-            paymentMode: "installments",
-            paddleSubscriptionId: subscriptionId,
-          });
-        }
-      } else if (clerkId) {
-        // Fallback: should not happen for recurring prices, but keep deterministic behavior.
-        const planPriceCents = getInstallmentTotalCents(mapping.planType);
-        await ctx.runMutation(internal.subscriptions.internalApplyPaddlePrepaidPurchase, {
-          paddleEventId: eventId,
-          clerkId,
-          planType: mapping.planType,
-          planDurationMonths: mapping.planDurationMonths,
-          planPriceCents,
-          priceId,
-          transactionId,
-          isBeta50: false,
-          paymentMode: "installments",
-          paddleSubscriptionId: undefined,
-        });
-      }
-
-      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
-      return { status: "applied" as const };
-    }
-
-    // Prepaid (one-time) purchase flow (supports beta50)
-    if (!clerkId) {
-      await ctx.db.patch(eventDocId, { processedAt: Date.now() });
-      return { status: "ignored" as const };
-    }
-
-    // Do not rely on webhook money formatting. Use our configured plan prices instead.
-    const planPriceCents = getPlanPriceCentsFromConfig({
-      planType: mapping.planType,
-      isBeta50: mapping.isBeta50,
-    });
-
-    await ctx.runMutation(internal.subscriptions.internalApplyPaddlePrepaidPurchase, {
-      paddleEventId: eventId,
-      clerkId,
-      planType: mapping.planType,
-      planDurationMonths: mapping.planDurationMonths,
-      planPriceCents,
-      priceId,
-      transactionId,
-      isBeta50: mapping.isBeta50,
-      paymentMode: "prepaid",
-      paddleSubscriptionId: undefined,
-    });
-
-    await ctx.db.patch(eventDocId, { processedAt: Date.now() });
-    return { status: "applied" as const };
   },
 });
 

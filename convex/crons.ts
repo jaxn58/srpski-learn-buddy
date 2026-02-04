@@ -16,8 +16,8 @@ crons.daily(
   internal.backup.createDatabaseBackup
 );
 
-// Cancels installment subscriptions in Paddle after the fixed term has been fully paid.
+// Safety-net: cancels fixed-term installment subscriptions in Dodo after the term is fully paid.
 // Runs hourly to ensure we cancel well before the next billing date.
-crons.hourly("hourly-installment-cancellations", { minuteUTC: 5 }, internal.subscriptions.processInstallmentCancellations);
+crons.hourly("hourly-dodo-installment-cancellations", { minuteUTC: 10 }, internal.subscriptions.processDodoInstallmentCancellations);
 
 export default crons;

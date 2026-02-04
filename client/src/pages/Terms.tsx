@@ -110,7 +110,7 @@ export default function Terms() {
             <CardContent className="space-y-3">
               <ul className="list-disc pl-5 space-y-2">
                 <Li>
-                  Payments are processed by Paddle as Merchant of Record; taxes/VAT may be collected automatically.
+                  Payments are processed via Dodo Payments; taxes/VAT may be collected automatically where applicable.
                 </Li>
                 <Li>
                   We offer a <strong>14-day money-back guarantee</strong> from purchase date (see Refund Policy below).
@@ -165,7 +165,7 @@ export default function Terms() {
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">1.4 Payments</h3>
                 <P>
-                  Purchases are processed by Paddle (Merchant of Record). Paddle may collect taxes/VAT where applicable.
+                  Purchases are processed via Dodo Payments. Taxes/VAT may be collected automatically where applicable.
                   Pricing, available plans, and durations are shown in the checkout flow and/or pricing pages.
                 </P>
               </div>
@@ -250,7 +250,7 @@ export default function Terms() {
                   <Li>Account data (e.g., name, email) used for authentication and account management.</Li>
                   <Li>Learning progress (e.g., completed units, XP, streaks) stored to provide the Service.</Li>
                   <Li>Technical data (e.g., IP address, device/browser data) for security and performance.</Li>
-                  <Li>Payment metadata (handled primarily by Paddle as Merchant of Record).</Li>
+                  <Li>Payment metadata (handled by our payment provider, Dodo Payments).</Li>
                 </ul>
               </div>
 
@@ -268,7 +268,7 @@ export default function Terms() {
                     <strong>Clerk</strong>: authentication and user identity management.
                   </Li>
                   <Li>
-                    <strong>Paddle</strong>: payment processing as Merchant of Record (tax/VAT handling).
+                    <strong>Dodo Payments</strong>: payment processing (including tax/VAT handling where applicable).
                   </Li>
                 </ul>
               </div>
@@ -307,8 +307,7 @@ export default function Terms() {
                 <Li>Refund requests must be submitted within 14 days of the purchase date.</Li>
                 <Li>After 14 days, refunds are not available.</Li>
                 <Li>
-                  Because payments are processed by Paddle as Merchant of Record, refunds may be issued through Paddle’s
-                  systems.
+                  Refunds may be issued through our payment provider’s systems (Dodo Payments).
                 </Li>
               </ul>
               <P>
@@ -357,7 +356,7 @@ export default function Terms() {
                 <br />
                 Authentication: Clerk
                 <br />
-                Payments: Paddle
+                Payments: Dodo Payments
               </P>
             </CardContent>
           </Card>

@@ -18,14 +18,13 @@ export const ENV = {
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: (process.env.BUILT_IN_FORGE_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY) ?? "",
 
-  // Paddle Payments
-  paddleApiKey: process.env.PADDLE_API_KEY ?? "",
-  paddleWebhookSecret: process.env.PADDLE_WEBHOOK_SECRET ?? "",
-  paddleClientToken: process.env.VITE_PADDLE_CLIENT_TOKEN ?? "",
-  paddleProductIntensive: process.env.PADDLE_PRODUCT_INTENSIVE ?? "",
-  paddleProductBalanced: process.env.PADDLE_PRODUCT_BALANCED ?? "",
-  paddleProductStandard: process.env.PADDLE_PRODUCT_STANDARD ?? "",
-  paddleProductRelaxed: process.env.PADDLE_PRODUCT_RELAXED ?? "",
+  // Billing provider switch
+  billingProvider: (process.env.BILLING_PROVIDER || process.env.VITE_BILLING_PROVIDER || "dodo") ?? "dodo",
+
+  // Dodo Payments
+  dodoPaymentsApiKey: process.env.DODO_PAYMENTS_API_KEY ?? "",
+  dodoPaymentsWebhookKey: process.env.DODO_PAYMENTS_WEBHOOK_KEY ?? "",
+  dodoPaymentsEnvironment: process.env.DODO_PAYMENTS_ENVIRONMENT ?? "test_mode",
 
   // Google Cloud Text-to-Speech
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
@@ -36,6 +35,6 @@ if (!ENV.clerkSecretKey) {
   console.warn("[ENV] Missing CLERK_SECRET_KEY - Clerk authentication may not work");
 }
 
-if (!ENV.paddleApiKey || !ENV.paddleWebhookSecret) {
-  console.warn("[ENV] Paddle keys missing - payment webhooks disabled until configured");
+if (!ENV.dodoPaymentsApiKey || !ENV.dodoPaymentsWebhookKey) {
+  console.warn("[ENV] Dodo Payments keys missing - billing webhooks/checkout disabled until configured");
 }

@@ -35,17 +35,15 @@ Content-Security-Policy:
     https://clerk.learn-with.me
     https://challenges.cloudflare.com
     wss://*.convex.cloud
-    https://api.paddle.com
-    https://buy.paddle.com
-    https://sandbox-api.paddle.com
-    https://sandbox-buy.paddle.com
+    https://checkout.dodopayments.com
+    https://test.dodopayments.com
+    https://live.dodopayments.com
     https://vercel.live;
   
   frame-src 'self'
     https://challenges.cloudflare.com
     https://js.stripe.com
-    https://checkout.paddle.com
-    https://sandbox-checkout.paddle.com
+    https://checkout.dodopayments.com
     https://vercel.live;
   
   child-src 'self'
@@ -108,8 +106,8 @@ Content-Security-Policy:
 - `clerk.learn-with.me` - Custom Clerk Domain
 - `challenges.cloudflare.com` - Turnstile API
 - `wss://*.convex.cloud` - Convex WebSocket
-- `api.paddle.com` + `buy.paddle.com` - Paddle Payment
-- `sandbox-api.paddle.com` + `sandbox-buy.paddle.com` - Paddle Sandbox
+- `checkout.dodopayments.com` - Dodo hosted checkout
+- `test.dodopayments.com` + `live.dodopayments.com` - Dodo Payments API
 - `vercel.live` - Vercel Live Preview
 
 **Sicherheit:** ⭐⭐⭐⭐⭐ (Maximal - nur spezifische Domains)
@@ -119,7 +117,7 @@ Content-Security-Policy:
 - `'self'` - Eigene iframes
 - `challenges.cloudflare.com` - Turnstile iframe
 - `js.stripe.com` - Stripe Payment (falls verwendet)
-- `checkout.paddle.com` + `sandbox-checkout.paddle.com` - Paddle Checkout
+- `checkout.dodopayments.com` - Dodo hosted checkout
 - `vercel.live` - Vercel Live Preview
 
 **Sicherheit:** ⭐⭐⭐⭐⭐ (Maximal - nur vertrauenswürdige Payment/Security Provider)
@@ -226,7 +224,7 @@ Nach Deployment testen:
 - [ ] Keine Console CSP-Violations
 - [ ] Images laden (User Avatare, etc.)
 - [ ] Convex Queries funktionieren
-- [ ] Payment-Flow funktioniert (Paddle)
+- [ ] Payment-Flow funktioniert (Dodo Payments)
 - [ ] Keine Regression in bestehenden Features
 
 ---

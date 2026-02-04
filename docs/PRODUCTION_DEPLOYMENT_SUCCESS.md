@@ -57,7 +57,7 @@
 - `*.clerk.accounts.dev` - Clerk Authentication
 - `*.convex.cloud` - Convex Database
 - `challenges.cloudflare.com` - Turnstile CAPTCHA
-- `api.paddle.com` / `buy.paddle.com` - Payment Provider
+- `checkout.dodopayments.com` / `test.dodopayments.com` / `live.dodopayments.com` - Payment Provider
 - `vercel.live` - Vercel Preview
 
 ### 2. Security Headers

@@ -33,7 +33,7 @@ export default defineSchema({
     // Privacy guardrail: default OFF (treat undefined as false)
     leaderboardPublicEnabled: v.optional(v.boolean()),
 
-    // ===== Paddle / Billing =====
+    // ===== Billing =====
     // Tracks one-time 50% beta discount usage after beta ends.
     // If set, the user already consumed the beta discount.
     betaDiscountUsedAt: v.optional(v.number()), // timestamp
@@ -574,15 +574,18 @@ export default defineSchema({
 
     // Payment metadata (optional for backwards compatibility)
     paymentMode: v.optional(v.union(v.literal("prepaid"), v.literal("installments"))),
-    // Paddle subscription id for recurring installment plans
-    paddleSubscriptionId: v.optional(v.string()),
+    // Billing provider / external IDs (optional for backwards compatibility)
+    billingProvider: v.optional(v.literal("dodo")),
+    // Unified subscription id for the active billing provider (e.g., Dodo subscription_id)
+    providerSubscriptionId: v.optional(v.string()),
+    // Set once we've requested provider-side cancellation (fixed-term subscriptions).
+    providerCancelRequestedAt: v.optional(v.number()),
     // Installments tracking (only for paymentMode="installments")
     installmentsTotalMonths: v.optional(v.number()),
     installmentsPaidMonths: v.optional(v.number()),
     installmentMonthlyPrice: v.optional(v.number()), // in cents
     pausedAt: v.optional(v.number()),
     installmentsCompletedAt: v.optional(v.number()),
-    paddleCancelRequestedAt: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   // ============= SUBSCRIPTION HISTORY =============
@@ -606,25 +609,24 @@ export default defineSchema({
     notes: v.optional(v.string()),
   }).index("by_user", ["userId"]),
 
-  // ============= PADDLE WEBHOOK EVENTS (Idempotency / Audit) =============
-  // Stores received webhook events so we can safely ignore duplicates and debug issues.
-  paddleWebhookEvents: defineTable({
-    eventId: v.string(), // unique id from Paddle (idempotency key)
-    eventType: v.string(),
-    receivedAt: v.number(), // timestamp when our endpoint received the event
-    occurredAt: v.optional(v.number()), // timestamp when Paddle says it occurred (if provided)
-    processedAt: v.optional(v.number()), // timestamp when we applied side effects
+  // ============= DODO WEBHOOK EVENTS (Idempotency / Audit) =============
+  // Stores received Dodo Payments webhooks (Standard Webhooks) for idempotency and debugging.
+  dodoWebhookEvents: defineTable({
+    webhookId: v.string(), // from `webhook-id` header (idempotency key)
+    eventType: v.string(), // e.g. payment.succeeded, subscription.renewed
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
 
     // Raw JSON payload for debugging/audit (stringified to keep schema simple)
     rawPayload: v.string(),
 
-    // Useful extracted fields (optional)
+    // Extracted fields (best-effort, optional)
     clerkId: v.optional(v.string()),
-    priceId: v.optional(v.string()),
-    transactionId: v.optional(v.string()),
-    environment: v.optional(v.union(v.literal("sandbox"), v.literal("production"))),
+    subscriptionId: v.optional(v.string()),
+    paymentId: v.optional(v.string()),
+    environment: v.optional(v.union(v.literal("test_mode"), v.literal("live_mode"))),
   })
-    .index("by_event_id", ["eventId"])
+    .index("by_webhook_id", ["webhookId"])
     .index("by_type", ["eventType"]),
 
   // ============= QUIZ PROGRESS =============

@@ -2,7 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { api } from "./_generated/api";
-import { Webhook } from "svix";
+import { Webhook as SvixWebhook } from "svix";
 
 const http = httpRouter();
 
@@ -11,70 +11,105 @@ function isProductionDeployment() {
   return process.env.CONVEX_CLOUD_URL?.includes("fleet-labrador-324") === true;
 }
 
-function parsePaddleSignatureHeader(header: string): { timestamp: string; signatureHex: string } | null {
-  // Paddle docs describe a `Paddle-Signature` header similar to: "t=1700000000;h1=<hex>"
-  const parts = header
-    .split(";")
-    .map((p) => p.trim())
-    .filter(Boolean);
-
-  const kv = new Map<string, string>();
-  for (const p of parts) {
-    const idx = p.indexOf("=");
-    if (idx === -1) continue;
-    const k = p.slice(0, idx).trim();
-    const v = p.slice(idx + 1).trim();
-    if (k && v) kv.set(k, v);
-  }
-
-  const timestamp = kv.get("t") ?? kv.get("ts") ?? kv.get("timestamp");
-  const signatureHex = kv.get("h1") ?? kv.get("sig") ?? kv.get("signature");
-  if (!timestamp || !signatureHex) return null;
-  return { timestamp, signatureHex };
-}
-
-function toHex(bytes: ArrayBuffer): string {
-  return Array.from(new Uint8Array(bytes))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function timingSafeEqualHex(a: string, b: string): boolean {
-  const aa = a.toLowerCase();
-  const bb = b.toLowerCase();
-  if (aa.length !== bb.length) return false;
+function timingSafeEqualString(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
   let out = 0;
-  for (let i = 0; i < aa.length; i++) {
-    out |= aa.charCodeAt(i) ^ bb.charCodeAt(i);
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return out === 0;
 }
 
-async function hmacSha256Hex(secret: string, message: string): Promise<string> {
-  const enc = new TextEncoder();
-  const keyData = enc.encode(secret);
-  const msg = enc.encode(message);
-  const key = await crypto.subtle.importKey(
-    "raw",
-    keyData,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, msg);
-  return toHex(sig);
+function base64ToBytes(b64: string): Uint8Array {
+  // Prefer Node Buffer when available, otherwise fall back to atob.
+  // Convex runtime typically supports Web APIs; keep both paths for safety.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyGlobal: any = globalThis as any;
+  if (typeof anyGlobal?.Buffer?.from === "function") {
+    return new Uint8Array(anyGlobal.Buffer.from(b64, "base64"));
+  }
+  if (typeof anyGlobal?.atob === "function") {
+    const bin = anyGlobal.atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  throw new Error("base64_decode_unavailable");
 }
 
-async function verifyPaddleSignature(args: {
-  header: string;
+function bytesToBase64(bytes: ArrayBuffer): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyGlobal: any = globalThis as any;
+  if (typeof anyGlobal?.Buffer?.from === "function") {
+    return anyGlobal.Buffer.from(new Uint8Array(bytes)).toString("base64");
+  }
+  if (typeof anyGlobal?.btoa === "function") {
+    const bin = String.fromCharCode(...new Uint8Array(bytes));
+    return anyGlobal.btoa(bin);
+  }
+  throw new Error("base64_encode_unavailable");
+}
+
+async function hmacSha256Base64(keyBytes: Uint8Array, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  // Avoid TS lib mismatch between ArrayBuffer and SharedArrayBuffer by copying into a fresh Uint8Array.
+  // (Some runtimes type Uint8Array.buffer as ArrayBufferLike which includes SharedArrayBuffer.)
+  const keyData = Uint8Array.from(keyBytes);
+  const key = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return bytesToBase64(sig);
+}
+
+function verifyDodoWebhookTimestamp(timestampHeader: string): number | null {
+  const ts = Number.parseInt(timestampHeader, 10);
+  if (!Number.isFinite(ts)) return null;
+  const now = Math.floor(Date.now() / 1000);
+  const tolerance = 5 * 60; // 5 minutes, Standard Webhooks default
+  if (now - ts > tolerance) return null;
+  if (ts > now + tolerance) return null;
+  return ts;
+}
+
+async function verifyDodoWebhookSignature(args: {
+  webhookId: string;
+  signatureHeader: string;
+  timestampHeader: string;
   secret: string;
   rawBody: string;
 }): Promise<boolean> {
-  const parsed = parsePaddleSignatureHeader(args.header);
-  if (!parsed) return false;
-  const signedPayload = `${parsed.timestamp}:${args.rawBody}`;
-  const expected = await hmacSha256Hex(args.secret, signedPayload);
-  return timingSafeEqualHex(expected, parsed.signatureHex);
+  // Standard Webhooks spec (as used by Dodo): signature header contains one or more "v1,<sig>" entries separated by spaces.
+  // Secret is typically "whsec_<base64>" where the base64 is the raw signing key.
+  let secret = (args.secret || "").trim();
+  if (!secret) return false;
+
+  const ts = verifyDodoWebhookTimestamp(args.timestampHeader);
+  if (ts === null) return false;
+
+  const prefix = "whsec_";
+  if (secret.startsWith(prefix)) secret = secret.slice(prefix.length);
+
+  let keyBytes: Uint8Array;
+  try {
+    keyBytes = base64ToBytes(secret);
+  } catch {
+    return false;
+  }
+
+  const toSign = `${args.webhookId}.${ts}.${args.rawBody}`;
+  const expected = await hmacSha256Base64(keyBytes, toSign);
+
+  const candidates = args.signatureHeader
+    .split(" ")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  for (const versioned of candidates) {
+    const [version, sig] = versioned.split(",");
+    if (version !== "v1") continue;
+    if (sig && timingSafeEqualString(sig, expected)) return true;
+  }
+
+  return false;
 }
 http.route({
   path: "/clerk-webhook",
@@ -100,7 +135,7 @@ http.route({
         return new Response("Server configuration error", { status: 500 });
       }
 
-      const wh = new Webhook(webhookSecret);
+      const wh = new SvixWebhook(webhookSecret);
       const evt = wh.verify(payloadString, {
         "svix-id": svix_id,
         "svix-timestamp": svix_timestamp,
@@ -547,46 +582,56 @@ http.route({
   }),
 });
 
-// ============= PADDLE BILLING WEBHOOK =============
+// ============= DODO PAYMENTS WEBHOOK (Standard Webhooks) =============
 http.route({
-  path: "/paddle/webhook",
+  path: "/dodo/webhook",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const receivedAt = Date.now();
 
     const rawBody = await request.text();
-    const sigHeader = request.headers.get("Paddle-Signature") ?? request.headers.get("paddle-signature");
-    if (!sigHeader) {
-      return new Response("Missing Paddle-Signature", { status: 400 });
+    const webhookId = request.headers.get("webhook-id") ?? "";
+    const webhookSignature = request.headers.get("webhook-signature") ?? "";
+    const webhookTimestamp = request.headers.get("webhook-timestamp") ?? "";
+
+    if (!webhookId || !webhookSignature || !webhookTimestamp) {
+      return new Response("Missing Dodo webhook headers", { status: 400 });
     }
 
-    const secret = process.env.PADDLE_WEBHOOK_SECRET;
+    const secret = (process.env.DODO_PAYMENTS_WEBHOOK_KEY || "").trim();
     if (!secret) {
-      console.error("[Paddle] PADDLE_WEBHOOK_SECRET not configured");
+      console.error("[Dodo] DODO_PAYMENTS_WEBHOOK_KEY not configured");
       return new Response("Server configuration error", { status: 500 });
     }
 
-    const valid = await verifyPaddleSignature({ header: sigHeader, secret, rawBody });
+    const valid = await verifyDodoWebhookSignature({
+      webhookId,
+      signatureHeader: webhookSignature,
+      timestampHeader: webhookTimestamp,
+      secret,
+      rawBody,
+    });
     if (!valid) {
-      console.warn("[Paddle] Invalid webhook signature");
+      console.warn("[Dodo] Invalid webhook signature");
       return new Response("Invalid signature", { status: 401 });
     }
 
     const environment =
-      (process.env.PADDLE_ENVIRONMENT || process.env.VITE_PADDLE_ENVIRONMENT || "").trim() === "production"
-        ? "production"
-        : "sandbox";
+      (process.env.DODO_PAYMENTS_ENVIRONMENT || "").trim().toLowerCase() === "live_mode"
+        ? ("live_mode" as const)
+        : ("test_mode" as const);
 
     try {
-      await ctx.runMutation(internal.subscriptions.internalProcessPaddleWebhook, {
+      await ctx.runMutation(internal.subscriptions.internalProcessDodoWebhook, {
         rawBody,
         receivedAt,
+        webhookId,
         environment,
       });
       return new Response("OK", { status: 200 });
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error("[Paddle] Failed to process webhook", { msg });
+      console.error("[Dodo] Failed to process webhook", { msg });
 
       // Non-retryable enforcement failures: acknowledge to stop retries.
       if (
@@ -594,13 +639,13 @@ http.route({
         msg.includes("not_eligible") ||
         msg.includes("already_used") ||
         msg.includes("not_active") ||
-        msg.includes("missing_event_id_or_type") ||
+        msg.includes("missing_event_type") ||
         msg.includes("invalid_json")
       ) {
         return new Response("OK", { status: 200 });
       }
 
-      // Retryable/unknown failure: return 500 so Paddle can retry.
+      // Retryable/unknown failure: return 500 so Dodo can retry.
       return new Response("Failed", { status: 500 });
     }
   }),

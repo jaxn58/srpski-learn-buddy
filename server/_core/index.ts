@@ -44,9 +44,9 @@ async function startServer() {
   // Email sending is now handled by Convex Actions (convex/email.ts)
   // The Express endpoint has been removed
   
-  // Paddle Billing webhook is handled by Convex HTTP actions:
-  // - Dev:  https://reminiscent-panda-57.convex.site/paddle/webhook
-  // - Prod: https://fleet-labrador-324.convex.site/paddle/webhook
+  // Dodo Payments webhooks are handled by Convex HTTP actions:
+  // - Dev:  https://reminiscent-panda-57.convex.site/dodo/webhook
+  // - Prod: https://fleet-labrador-324.convex.site/dodo/webhook
 
   // Audio generation endpoint for Google Cloud TTS
   app.post("/api/audio/generate", async (req, res) => {

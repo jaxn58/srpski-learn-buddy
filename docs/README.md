@@ -66,19 +66,20 @@ pnpm install
 
 **Note:** The `.env` file is gitignored and will not be committed. Use `.env.example` as a template.
 
-#### Paddle (optional, for Checkout/Billing)
+#### Dodo Payments (Checkout/Billing)
 
-Add the following variables to enable Paddle Sandbox payments:
+Add the following variables to enable Dodo Payments (test mode by default):
 
-- `VITE_PADDLE_CLIENT_TOKEN` – Client token for the Paddle JS SDK.
-- `VITE_PADDLE_PRODUCT_INTENSIVE`, `VITE_PADDLE_PRODUCT_BALANCED`, `VITE_PADDLE_PRODUCT_STANDARD`, `VITE_PADDLE_PRODUCT_RELAXED` – Price IDs created in Paddle (one per plan).
-- `PADDLE_API_KEY` – Server-side API key (used for future management tasks).
-- `PADDLE_WEBHOOK_SECRET` – Secret used to verify incoming webhooks.
-- `PADDLE_PRODUCT_INTENSIVE`, `PADDLE_PRODUCT_BALANCED`, `PADDLE_PRODUCT_STANDARD`, `PADDLE_PRODUCT_RELAXED` – Same price IDs for backend validation.
+- `DODO_PAYMENTS_API_KEY` – Server-side API key (Convex only).
+- `DODO_PAYMENTS_ENVIRONMENT` – `"test_mode"` or `"live_mode"`.
+- `DODO_PAYMENTS_WEBHOOK_KEY` – Webhook signing secret (Standard Webhooks, typically `whsec_...`).
+- `DODO_PRODUCT_<PLAN>_<MODE>` – Product IDs per plan and payment mode:
+  - Prepaid: `DODO_PRODUCT_INTENSIVE_PREPAID`, `..._BALANCED_PREPAID`, `..._STANDARD_PREPAID`, `..._RELAXED_PREPAID`
+  - Installments: `DODO_PRODUCT_INTENSIVE_INSTALLMENTS`, `..._BALANCED_INSTALLMENTS`, `..._STANDARD_INSTALLMENTS`, `..._RELAXED_INSTALLMENTS`
 
-Configure your Paddle Dashboard webhook to point to the Convex HTTP Actions domain (not `learn-with.me` due to SPA rewrites):
-- Dev: `https://reminiscent-panda-57.convex.site/paddle/webhook`
-- Prod: `https://fleet-labrador-324.convex.site/paddle/webhook`
+Configure your Dodo Payments webhook to point to the Convex HTTP Actions domain:
+- Dev: `https://reminiscent-panda-57.convex.site/dodo/webhook`
+- Prod: `https://fleet-labrador-324.convex.site/dodo/webhook`
 
 ### **5. Set Up Convex**
 
