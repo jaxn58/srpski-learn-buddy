@@ -18,9 +18,6 @@ export const ENV = {
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: (process.env.BUILT_IN_FORGE_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY) ?? "",
 
-  // Billing provider switch
-  billingProvider: (process.env.BILLING_PROVIDER || process.env.VITE_BILLING_PROVIDER || "dodo") ?? "dodo",
-
   // Dodo Payments
   dodoPaymentsApiKey: process.env.DODO_PAYMENTS_API_KEY ?? "",
   dodoPaymentsWebhookKey: process.env.DODO_PAYMENTS_WEBHOOK_KEY ?? "",

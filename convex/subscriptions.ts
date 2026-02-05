@@ -219,13 +219,14 @@ export const getBetaDiscountStatus = query({
 });
 
 function getBillingProviderFromEnv(): "dodo" {
-  // Only Dodo is supported currently; keep the env var for future flexibility.
+  // Paddle support removed; Dodo is the only billing provider.
   return "dodo";
 }
 
-function getDodoEnvironmentFromEnv(): "test_mode" | "live_mode" {
+function getDodoEnvironmentFromEnv(): "test_mode" | "live_mode" | "dev_mode" {
   const raw = (process.env.DODO_PAYMENTS_ENVIRONMENT || "").trim().toLowerCase();
   if (raw === "live_mode" || raw === "live") return "live_mode";
+  if (raw === "dev_mode" || raw === "dev") return "dev_mode";
   return "test_mode";
 }
 
@@ -252,7 +253,8 @@ export const getBillingProviderConfig = query({
 type DodoPlanId = "intensive" | "balanced" | "standard" | "relaxed";
 type DodoPaymentMode = "prepaid" | "installments";
 
-function dodoEnvToBaseUrl(env: "test_mode" | "live_mode"): string {
+function dodoEnvToBaseUrl(env: "test_mode" | "live_mode" | "dev_mode"): string {
+  // Treat dev_mode like test_mode (same host), while keeping the enum explicit.
   return env === "live_mode" ? "https://live.dodopayments.com" : "https://test.dodopayments.com";
 }
 
@@ -299,7 +301,7 @@ export const createDodoCheckoutSession = action({
       }
     }
 
-    const environment = getDodoEnvironmentFromEnv();
+    const environment = args.environment ?? getDodoEnvironmentFromEnv();
     const baseUrl = dodoEnvToBaseUrl(environment);
 
     const apiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
@@ -771,7 +773,7 @@ export const processDodoInstallmentCancellations = internalAction({
   },
 });
 
-function getDodoEnvironmentForEvent(): "test_mode" | "live_mode" {
+function getDodoEnvironmentForEvent(): "test_mode" | "live_mode" | "dev_mode" {
   return getDodoEnvironmentFromEnv();
 }
 
@@ -854,7 +856,7 @@ export const internalProcessDodoWebhook = internalMutation({
     rawBody: v.string(),
     receivedAt: v.number(),
     webhookId: v.string(),
-    environment: v.optional(v.union(v.literal("test_mode"), v.literal("live_mode"))),
+    environment: v.optional(v.union(v.literal("test_mode"), v.literal("live_mode"), v.literal("dev_mode"))),
   },
   handler: async (ctx, args) => {
     let evt: any;
