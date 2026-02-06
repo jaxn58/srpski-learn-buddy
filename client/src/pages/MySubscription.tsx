@@ -65,6 +65,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       : subscription?.expiresAt ?? null;
 
   const availablePlans = useQuery(api.subscriptions.getPlans) as SubscriptionPlan[] | undefined;
+  const currentPlanListPriceCents =
+    availablePlans?.find((p) => p.id === (normalizedPlan as any))?.price ??
+    (typeof (subscription as any)?.planPrice === "number" ? (subscription as any).planPrice : 0);
   const [paymentModeByPlan, setPaymentModeByPlan] = useState<Record<string, "prepaid" | "installments">>({});
 
   const containerClass = embedded ? "w-full" : "p-8 w-full";
@@ -73,9 +76,6 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   // Calculate upgrade cost mutation
   const calculateUpgradeMutation = useMutation(api.subscriptions.calculateUpgradeCost);
   
-  // Cancel subscription mutation
-  const cancelMutation = useMutation(api.subscriptions.cancel);
-  const [isCancelling, setIsCancelling] = useState(false);
 
   // Calculate time remaining
   useEffect(() => {
@@ -128,6 +128,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   }, [dodoConfigured, billingConfig?.dodo?.environment]);
 
   const checkoutReady = dodoReady;
+  const missingUpgradeEnvKeys = (billingConfig as any)?.dodo?.missingUpgradeEnvKeys as string[] | undefined;
+  const isDev = import.meta.env.DEV === true;
+
+  const getUpgradeEnvKey = (fromPlanId: string, toPlanId: string) =>
+    `DODO_UPG_${String(fromPlanId).trim().toUpperCase()}_${String(toPlanId).trim().toUpperCase()}`;
 
   type PaymentMode = "prepaid" | "installments";
   const handlePurchase = async (
@@ -149,7 +154,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
         planType: planId as any,
         paymentMode,
         flow: "purchase",
-        returnUrl: `${window.location.origin}/dashboard?purchase=success`,
+        // NOTE: Dodo will redirect to return_url even if the payment is not successful
+        // (e.g. user closes checkout, card declined). Never encode "success" in the URL.
+        returnUrl: `${window.location.origin}/dashboard?purchase=return`,
         source: "my_subscription",
         beta50: effectiveUseBetaPrice,
       });
@@ -169,6 +176,54 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       return;
     }
 
+    const fromPlan = String(subscriptionPlan || (subscription as any)?.planType || (subscription as any)?.plan || "")
+      .trim()
+      .toLowerCase();
+    const envKey = getUpgradeEnvKey(fromPlan, newPlan);
+    const upgradeEnvMissing = Array.isArray(missingUpgradeEnvKeys) && missingUpgradeEnvKeys.includes(envKey);
+    if (upgradeEnvMissing) {
+      // #region agent log
+      fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "debug-session",
+          runId: "pre-fix",
+          hypothesisId: "C",
+          location: "client/src/pages/MySubscription.tsx:handleUpgrade",
+          message: "blocked upgrade due to missing env key",
+          data: { fromPlan, newPlan, envKey, missingUpgradeEnvKeysCount: missingUpgradeEnvKeys?.length ?? null },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+
+      toast.error(isDev ? `Upgrade config missing: ${envKey}` : t("subscription.upgradeUnavailable"));
+      return;
+    }
+
+    // #region agent log
+    fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "pre-fix",
+        hypothesisId: "B",
+        location: "client/src/pages/MySubscription.tsx:handleUpgrade",
+        message: "user clicked upgrade",
+        data: {
+          newPlan,
+          currentPlan: String(subscriptionPlan || (subscription as any)?.planType || (subscription as any)?.plan || ""),
+          dodoConfigured,
+          dodoEnv: (billingConfig as any)?.dodo?.environment ?? null,
+          missingUpgradeEnvKeys: (billingConfig as any)?.dodo?.missingUpgradeEnvKeys ?? null,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
     setIsCalculating(true);
     try {
       const result = await calculateUpgradeMutation({
@@ -184,7 +239,8 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
         planType: newPlan as any,
         paymentMode: "prepaid",
         flow: "upgrade",
-        returnUrl: `${window.location.origin}/dashboard?upgrade=success`,
+        // Same rationale as purchase return URL.
+        returnUrl: `${window.location.origin}/dashboard?upgrade=return`,
         source: "my_subscription_upgrade",
         beta50: false,
       });
@@ -196,25 +252,6 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       setIsCalculating(false);
     }
   };
-
-  const handleCancel = async () => {
-    if (!subscription) return;
-
-    const confirmed = window.confirm(t('subscription.cancelConfirm'));
-
-    if (confirmed) {
-      setIsCancelling(true);
-      try {
-        await cancelMutation({});
-        toast.success(t('subscription.cancelSuccess'));
-      } catch (error: any) {
-        toast.error(t('subscription.cancelError', { error: error.message }));
-      } finally {
-        setIsCancelling(false);
-      }
-    }
-  };
-
 
   if (authLoading || subLoading) {
     return (
@@ -333,11 +370,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                         const displayPrice = isBetaPrice ? Math.round(plan.price / 2) : plan.price;
                         const installmentMonthly = plan.paymentOptions?.installmentsMonthly ?? 0;
                         return (
-                          <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
-                            <CardHeader>
-                              <CardTitle className="capitalize">{plan.name}</CardTitle>
-                              <CardDescription>{plan.months} months</CardDescription>
-                            </CardHeader>
+                        <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
+                          <CardHeader>
+                            <CardTitle className="capitalize">{plan.name}</CardTitle>
+                            <CardDescription>{plan.months} {t('subscription.months')}</CardDescription>
+                          </CardHeader>
                             <CardContent className="space-y-4">
                               <div className="text-3xl font-bold text-primary">
                                 {selectedPaymentMode === "installments"
@@ -416,11 +453,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                         <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
                           <CardHeader>
                             <CardTitle className="capitalize">{plan.name}</CardTitle>
-                            <CardDescription>{plan.months} months</CardDescription>
+                            <CardDescription>{plan.months} {t('subscription.months')}</CardDescription>
                           </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="text-3xl font-bold text-primary">
-                              {selectedPaymentMode === "installments"
+                            <CardContent className="space-y-4">
+                              <div className="text-3xl font-bold text-primary">
+                                {selectedPaymentMode === "installments"
                                 ? `${formatCurrency(installmentMonthly)}/mo`
                                 : formatCurrency(plan.price)}
                             </div>
@@ -505,11 +542,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                         const displayPrice = isBetaPrice ? Math.round(plan.price / 2) : plan.price;
                         const installmentMonthly = plan.paymentOptions?.installmentsMonthly ?? 0;
                         return (
-                          <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
-                            <CardHeader>
-                              <CardTitle className="capitalize">{plan.name}</CardTitle>
-                              <CardDescription>{plan.months} months</CardDescription>
-                            </CardHeader>
+                        <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
+                          <CardHeader>
+                            <CardTitle className="capitalize">{plan.name}</CardTitle>
+                            <CardDescription>{plan.months} {t('subscription.months')}</CardDescription>
+                          </CardHeader>
                             <CardContent className="space-y-4">
                               <div className="text-3xl font-bold text-primary">
                                 {selectedPaymentMode === "installments"
@@ -697,18 +734,6 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                 </div>
               </div>
             </div>
-
-            {/* Cancel Button */}
-            {subscription.status === "active" && (
-              <Button
-                variant="outline"
-                onClick={handleCancel}
-                disabled={isCancelling}
-                className="w-full"
-              >
-                {isCancelling ? t('subscription.cancelling') : t('subscription.cancelSubscription')}
-              </Button>
-            )}
           </CardContent>
         </Card>
 
@@ -732,14 +757,21 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                     const planOrder = ["intensive", "balanced", "standard", "relaxed"].indexOf(plan.id);
                     return planOrder > currentOrder;
                   })
-                  .map((plan: SubscriptionPlan) => (
+                  .map((plan: SubscriptionPlan) => {
+                    const upgradeCostCents = Math.max(0, plan.price - (currentPlanListPriceCents || 0));
+                    return (
                     <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
                       <CardHeader>
                         <CardTitle className="capitalize">{plan.name}</CardTitle>
-                        <CardDescription>{plan.months} {t('subscription.days')}</CardDescription>
+                        <CardDescription>{plan.months} {t('subscription.months')}</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div className="text-3xl font-bold text-primary">{formatCurrency(plan.price)}</div>
+                        <div>
+                          <div className="text-3xl font-bold text-primary">{formatCurrency(upgradeCostCents)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t("subscription.upgradePayDifferenceNote", { total: formatCurrency(plan.price) })}
+                          </div>
+                        </div>
                         <ul className="space-y-2 text-sm">
                           <li className="flex items-center gap-2">
                             <Check className="h-4 w-4 text-green-600" />
@@ -768,7 +800,8 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                         </Button>
                       </CardContent>
                     </Card>
-                  ))}
+                    );
+                  })}
               </div>
             </CardContent>
           </Card>

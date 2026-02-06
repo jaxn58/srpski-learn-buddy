@@ -598,9 +598,13 @@ http.route({
       return new Response("Missing Dodo webhook headers", { status: 400 });
     }
 
-    const secret = (process.env.DODO_PAYMENTS_WEBHOOK_KEY || "").trim();
+    const secret = (
+      process.env.DODO_PAYMENTS_WEBHOOK_SECRET ||
+      process.env.DODO_PAYMENTS_WEBHOOK_KEY ||
+      ""
+    ).trim();
     if (!secret) {
-      console.error("[Dodo] DODO_PAYMENTS_WEBHOOK_KEY not configured");
+      console.error("[Dodo] DODO_PAYMENTS_WEBHOOK_SECRET not configured");
       return new Response("Server configuration error", { status: 500 });
     }
 

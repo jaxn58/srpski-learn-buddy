@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins,
+    // Use a dedicated cache dir to avoid corrupted optimize-deps cache states on Windows.
+    // Keeps the cache inside ignored `node_modules/`.
+    cacheDir: path.resolve(import.meta.dirname, "node_modules", ".vite-client"),
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
       __AGENT_LOG_ENABLED__: JSON.stringify(mode !== "production"),
@@ -30,6 +33,8 @@ export default defineConfig(({ mode }) => {
         "@assets": path.resolve(import.meta.dirname, "attached_assets"),
       },
     },
+    // Note: we avoid `optimizeDeps.include` here because pnpm may not create top-level
+    // links for transitive deps (Vite would log "Failed to resolve dependency ...").
     envDir,
     root: path.resolve(import.meta.dirname, "client"),
     publicDir: path.resolve(import.meta.dirname, "client", "public"),

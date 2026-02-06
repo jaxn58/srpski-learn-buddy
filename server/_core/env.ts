@@ -20,7 +20,8 @@ export const ENV = {
 
   // Dodo Payments
   dodoPaymentsApiKey: process.env.DODO_PAYMENTS_API_KEY ?? "",
-  dodoPaymentsWebhookKey: process.env.DODO_PAYMENTS_WEBHOOK_KEY ?? "",
+  dodoPaymentsWebhookKey:
+    (process.env.DODO_PAYMENTS_WEBHOOK_SECRET ?? process.env.DODO_PAYMENTS_WEBHOOK_KEY) ?? "",
   dodoPaymentsEnvironment: process.env.DODO_PAYMENTS_ENVIRONMENT ?? "test_mode",
 
   // Google Cloud Text-to-Speech
