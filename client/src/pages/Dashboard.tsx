@@ -11,6 +11,7 @@ import { api } from "../../../convex/_generated/api";
 import { BookOpen, Brain, Home, Lock, Star, TrendingUp, Volume2, Loader2, X, Gift, Search } from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { FeedbackForm } from "@/components/FeedbackForm";
@@ -33,6 +34,40 @@ export default function Dashboard() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  // Checkout return handling:
+  // Dodo redirects to `return_url` even when the payment is NOT successful (declines, user closes checkout).
+  // We therefore treat URL params as "return", never as "success". Confirmation happens via Convex state (webhook).
+  const [checkoutReturn, setCheckoutReturn] = useState<null | { kind: "purchase" | "upgrade"; startedAt: number }>(
+    null
+  );
+
+  const clearCheckoutReturnParams = () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("purchase");
+      url.searchParams.delete("upgrade");
+      const qs = url.searchParams.toString();
+      window.history.replaceState({}, "", `${url.pathname}${qs ? `?${qs}` : ""}${url.hash || ""}`);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const purchase = params.get("purchase");
+    const upgrade = params.get("upgrade");
+    const kind = purchase ? ("purchase" as const) : upgrade ? ("upgrade" as const) : null;
+    const value = purchase ?? upgrade;
+
+    // Backwards compatibility: older URLs used "...=success" even though it isn't reliable.
+    if (!kind || (value !== "return" && value !== "success")) return;
+
+    setCheckoutReturn({ kind, startedAt: Date.now() });
+    toast.info("Checkout closed. Verifying payment status…");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Use user's learning language or fallback to UI language or 'en'
   const displayLanguage = user?.learningLanguage || (i18n.language === 'de' ? 'de' : 'en');
@@ -40,11 +75,47 @@ export default function Dashboard() {
   const progress = useQuery(api.progress.getUserProgress);
   const progressLoading = progress === undefined;
   const accessibleUnits = useQuery(api.subscriptions.getAccessibleUnits);
+  const currentSubscription = useQuery(api.subscriptions.getCurrent);
   const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
   const safeCurrentUnit =
     typeof progress?.currentUnit === "number" && Number.isFinite(progress.currentUnit) && progress.currentUnit > 0
       ? progress.currentUnit
       : 1;
+
+  useEffect(() => {
+    if (!checkoutReturn) return;
+    const sub: any = currentSubscription;
+    if (sub === undefined) return; // still loading
+
+    const status = String(sub?.status || "");
+    const planType = String(sub?.planType ?? sub?.plan ?? "").trim().toLowerCase();
+    const isPaidPlan = planType === "intensive" || planType === "balanced" || planType === "standard" || planType === "relaxed";
+
+    if (status === "active" && isPaidPlan) {
+      toast.success("Payment confirmed. Your subscription is active.");
+      clearCheckoutReturnParams();
+      setCheckoutReturn(null);
+      return;
+    }
+
+    if (status === "past_due") {
+      toast.error("Payment failed. Please try again with a different card.");
+      clearCheckoutReturnParams();
+      setCheckoutReturn(null);
+    }
+  }, [checkoutReturn, currentSubscription]);
+
+  useEffect(() => {
+    if (!checkoutReturn) return;
+
+    const timeoutId = window.setTimeout(() => {
+      toast.info("We couldn't confirm your payment yet. If it was successful, it may take a moment—please refresh soon.");
+      clearCheckoutReturnParams();
+      setCheckoutReturn(null);
+    }, 30_000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [checkoutReturn]);
   
   // Check if user has started the current unit (for Current vs Next Unit label)
   const currentUnitActivity = useQuery(

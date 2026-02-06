@@ -40,8 +40,9 @@ export default function Home() {
   // Keep the old pricing JSX gated behind a constant false to avoid a large UI rewrite here.
   // (Plans go live after beta.)
   
-  // Disabled again after testing - will be enabled after beta phase
-  const ENABLE_PURCHASE_FOR_TESTING = false;
+  // Dev-only: enable purchase buttons so we can test Dodo payments locally.
+  // Production builds remain disabled until the beta phase ends.
+  const ENABLE_PURCHASE_FOR_TESTING = import.meta.env.DEV;
   
   type PaymentMode = "prepaid" | "installments";
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
@@ -133,41 +134,62 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.clerkId, loading]);
   
-  // Determine plan relationship (current, upgrade, renew)
-  const getPlanAction = (planId: PlanId): "current" | "upgrade" | "renew" | "choose" => {
+  function getPlanMonths(planId: PlanId): number {
+    const fallback: Record<PlanId, number> = {
+      intensive: 3,
+      balanced: 6,
+      standard: 9,
+      relaxed: 12,
+    };
+    const fromDb = Number((planById.get(planId) as any)?.months);
+    return Number.isFinite(fromDb) && fromDb > 0 ? fromDb : fallback[planId];
+  }
+
+  // Determine plan relationship (current, upgrade, downgrade, choose).
+  // IMPORTANT: Our FAQ promises "upgrade to a longer plan" and explicitly says downgrades are not available.
+  const getPlanAction = (planId: PlanId): "current" | "upgrade" | "downgrade" | "choose" => {
     if (!hasActiveSubscription) return "choose";
     if (currentPlan === planId) return "current";
     if (!currentPlan) return "choose";
     
-    // Plan hierarchy (lower number = higher tier)
-    const planHierarchy: Record<PlanId, number> = {
-      intensive: 1,
-      balanced: 2,
-      standard: 3,
-      relaxed: 4,
-    };
-    
-    const currentTier = planHierarchy[currentPlan];
-    const targetTier = planHierarchy[planId];
-    
-    if (targetTier < currentTier) return "upgrade";
-    return "choose"; // Downgrade not supported (could be "renew" for same tier)
+    const currentMonths = getPlanMonths(currentPlan);
+    const targetMonths = getPlanMonths(planId);
+
+    if (targetMonths > currentMonths) return "upgrade";
+    if (targetMonths < currentMonths) return "downgrade";
+    return "choose";
   };
   
   const getButtonText = (planId: PlanId): string => {
     const action = getPlanAction(planId);
     
     if (action === "current") {
-      return "Current Plan";
+      return t("home.pricing.cta.currentPlan");
+    }
+
+    if (action === "downgrade") {
+      return t("home.pricing.cta.downgradeNotAvailable");
     }
     
-    // If user has active subscription and this is not the current plan -> always "Upgrade Plan"
-    if (hasActiveSubscription) {
-      return "Upgrade Plan";
+    if (hasActiveSubscription && action === "upgrade") {
+      return t("home.pricing.cta.upgradePlan");
     }
     
     // No active subscription -> "Choose Plan"
     return t('home.pricing.choosePlan');
+  };
+
+  const handlePlanCTA = async (planId: PlanId) => {
+    const action = getPlanAction(planId);
+    if (action === "current" || action === "downgrade") return;
+
+    // Logged-in users should manage upgrades from inside the app.
+    if (hasActiveSubscription) {
+      setLocation("/profile");
+      return;
+    }
+
+    await startPurchase(planId);
   };
   
   const getCardClasses = (planId: PlanId): string => {
@@ -219,7 +241,9 @@ export default function Home() {
         planType: planId as any,
         paymentMode,
         flow: "purchase",
-        returnUrl: `${window.location.origin}/dashboard?purchase=success`,
+        // NOTE: Dodo will redirect to return_url even if the payment is not successful
+        // (e.g. user closes checkout, card declined). Never encode "success" in the URL.
+        returnUrl: `${window.location.origin}/dashboard?purchase=return`,
         source: "home_page",
         beta50: false,
       });
@@ -489,7 +513,7 @@ export default function Home() {
               {getPlanAction("intensive") === "current" && (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
                   <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
-                    Your Current Plan
+                    {t("home.pricing.currentPlanBadge")}
                   </span>
                 </div>
               )}
@@ -560,8 +584,14 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!checkoutReady || getPlanAction("intensive") === "current") : false) : showWaitlist}
-                  onClick={() => void startPurchase("intensive")}
+                  disabled={
+                    ENABLE_PURCHASE_FOR_TESTING
+                      ? user?.clerkId
+                        ? (!checkoutReady || getPlanAction("intensive") === "current" || getPlanAction("intensive") === "downgrade")
+                        : false
+                      : showWaitlist
+                  }
+                  onClick={() => void handlePlanCTA("intensive")}
                   variant={getPlanAction("intensive") === "current" ? "secondary" : "default"}
                 >
                   {getButtonText("intensive")}
@@ -577,7 +607,7 @@ export default function Home() {
               {getPlanAction("balanced") === "current" && (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
                   <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
-                    Your Current Plan
+                    {t("home.pricing.currentPlanBadge")}
                   </span>
                 </div>
               )}
@@ -648,8 +678,14 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!checkoutReady || getPlanAction("balanced") === "current") : false) : showWaitlist}
-                  onClick={() => void startPurchase("balanced")}
+                  disabled={
+                    ENABLE_PURCHASE_FOR_TESTING
+                      ? user?.clerkId
+                        ? (!checkoutReady || getPlanAction("balanced") === "current" || getPlanAction("balanced") === "downgrade")
+                        : false
+                      : showWaitlist
+                  }
+                  onClick={() => void handlePlanCTA("balanced")}
                   variant={getPlanAction("balanced") === "current" ? "secondary" : "default"}
                 >
                   {getButtonText("balanced")}
@@ -665,7 +701,7 @@ export default function Home() {
               {getPlanAction("standard") === "current" ? (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
                   <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
-                    Your Current Plan
+                    {t("home.pricing.currentPlanBadge")}
                   </span>
                 </div>
               ) : (
@@ -740,8 +776,14 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full bg-primary"
-                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!checkoutReady || getPlanAction("standard") === "current") : false) : showWaitlist}
-                  onClick={() => void startPurchase("standard")}
+                  disabled={
+                    ENABLE_PURCHASE_FOR_TESTING
+                      ? user?.clerkId
+                        ? (!checkoutReady || getPlanAction("standard") === "current" || getPlanAction("standard") === "downgrade")
+                        : false
+                      : showWaitlist
+                  }
+                  onClick={() => void handlePlanCTA("standard")}
                   variant={getPlanAction("standard") === "current" ? "secondary" : "default"}
                 >
                   {getButtonText("standard")}
@@ -757,7 +799,7 @@ export default function Home() {
               {getPlanAction("relaxed") === "current" && (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
                   <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
-                    Your Current Plan
+                    {t("home.pricing.currentPlanBadge")}
                   </span>
                 </div>
               )}
@@ -828,8 +870,14 @@ export default function Home() {
                 </ul>
                 <Button
                   className="w-full"
-                  disabled={ENABLE_PURCHASE_FOR_TESTING ? (user?.clerkId ? (!checkoutReady || getPlanAction("relaxed") === "current") : false) : showWaitlist}
-                  onClick={() => void startPurchase("relaxed")}
+                  disabled={
+                    ENABLE_PURCHASE_FOR_TESTING
+                      ? user?.clerkId
+                        ? (!checkoutReady || getPlanAction("relaxed") === "current" || getPlanAction("relaxed") === "downgrade")
+                        : false
+                      : showWaitlist
+                  }
+                  onClick={() => void handlePlanCTA("relaxed")}
                   variant={getPlanAction("relaxed") === "current" ? "secondary" : "default"}
                 >
                   {getButtonText("relaxed")}
