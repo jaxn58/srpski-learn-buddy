@@ -656,12 +656,44 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
     );
   }
 
-  const planDuration = normalizedPlan === "intensive" ? 90 : 
-                       normalizedPlan === "balanced" ? 180 : 
-                       normalizedPlan === "standard" ? 270 : 365;
-  
-  const daysElapsed = planDuration - (daysRemaining || 0);
-  const progressPercentage = (daysElapsed / planDuration) * 100;
+  const planDurationMonths =
+    typeof (subscription as any)?.planDurationMonths === "number"
+      ? (subscription as any).planDurationMonths
+      : availablePlans?.find((p) => p.id === normalizedPlan)?.months ?? 0;
+
+  const addMonthsUtc = (timestampMs: number, monthsToAdd: number) => {
+    const d = new Date(timestampMs);
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth();
+    const day = d.getUTCDate();
+    const hr = d.getUTCHours();
+    const min = d.getUTCMinutes();
+    const sec = d.getUTCSeconds();
+    const ms = d.getUTCMilliseconds();
+
+    const base = new Date(Date.UTC(year, month + monthsToAdd, 1, hr, min, sec, ms));
+    const lastDay = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate();
+    base.setUTCDate(Math.min(day, lastDay));
+    return base.getTime();
+  };
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const planStartTs =
+    subscriptionEndsAt && planDurationMonths > 0 ? addMonthsUtc(subscriptionEndsAt, -planDurationMonths) : null;
+  const planDurationDays =
+    subscriptionEndsAt && planStartTs
+      ? Math.max(1, Math.ceil((subscriptionEndsAt - planStartTs) / dayMs))
+      : normalizedPlan === "intensive"
+        ? 90
+        : normalizedPlan === "balanced"
+          ? 180
+          : normalizedPlan === "standard"
+            ? 270
+            : 365;
+
+  const safeDaysRemaining = typeof daysRemaining === "number" ? daysRemaining : 0;
+  const daysElapsed = Math.min(planDurationDays, Math.max(0, planDurationDays - safeDaysRemaining));
+  const progressPercentage = (daysElapsed / planDurationDays) * 100;
 
   return (
     <div className={embedded ? "w-full" : "p-8 w-full overflow-y-auto"}>
@@ -693,7 +725,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                   })()}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {planDuration} {t('subscription.days')}
+                  {planDurationDays} {t('subscription.days')}
                 </div>
               </div>
             </div>
@@ -718,7 +750,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
               <Progress value={progressPercentage} className="h-3" />
               <div className="flex justify-between text-sm text-muted-foreground mt-1">
                 <span>{t('subscription.daysElapsed', { count: daysElapsed })}</span>
-                <span>{t('subscription.daysRemaining', { count: daysRemaining })}</span>
+                <span>{t('subscription.daysRemaining', { count: safeDaysRemaining })}</span>
               </div>
             </div>
 

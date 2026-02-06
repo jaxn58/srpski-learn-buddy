@@ -255,41 +255,6 @@ export const getBillingProviderConfig = query({
 
     const missingProductEnvKeys = requiredProductEnvKeys.filter((k) => !(process.env[k] || "").trim());
 
-    // Upgrade top-up products (one-time) so upgrades can charge only the difference.
-    const requiredUpgradeEnvKeys = [
-      "DODO_UPG_INTENSIVE_BALANCED",
-      "DODO_UPG_INTENSIVE_STANDARD",
-      "DODO_UPG_INTENSIVE_RELAXED",
-      "DODO_UPG_BALANCED_STANDARD",
-      "DODO_UPG_BALANCED_RELAXED",
-      "DODO_UPG_STANDARD_RELAXED",
-    ] as const;
-
-    const missingUpgradeEnvKeys = requiredUpgradeEnvKeys.filter((k) => !(process.env[k] || "").trim());
-
-    // #region agent log
-    fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: "pre-fix",
-        hypothesisId: "A",
-        location: "convex/subscriptions.ts:getBillingProviderConfig",
-        message: "billing env config snapshot",
-        data: {
-          provider,
-          dodoEnv,
-          dodoConfigured: dodoApiKey.length > 0,
-          webhookConfigured: dodoWebhookSecret.length > 0,
-          missingProductEnvKeys,
-          missingUpgradeEnvKeys,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     return {
       provider,
       dodo: {
@@ -298,7 +263,6 @@ export const getBillingProviderConfig = query({
         configured: dodoApiKey.length > 0,
         webhookConfigured: dodoWebhookSecret.length > 0,
         missingProductEnvKeys,
-        missingUpgradeEnvKeys,
       },
     };
   },
@@ -306,6 +270,24 @@ export const getBillingProviderConfig = query({
 
 type DodoPlanId = "intensive" | "balanced" | "standard" | "relaxed";
 type DodoPaymentMode = "prepaid" | "installments";
+
+function addMonthsUtc(timestampMs: number, monthsToAdd: number): number {
+  // Add calendar months in UTC, clamping to the last day of the target month if needed.
+  // Example: Jan 31 + 1 month => Feb 28 (or 29 in leap years).
+  const d = new Date(timestampMs);
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth();
+  const day = d.getUTCDate();
+  const hr = d.getUTCHours();
+  const min = d.getUTCMinutes();
+  const sec = d.getUTCSeconds();
+  const ms = d.getUTCMilliseconds();
+
+  const base = new Date(Date.UTC(year, month + monthsToAdd, 1, hr, min, sec, ms));
+  const lastDay = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate();
+  base.setUTCDate(Math.min(day, lastDay));
+  return base.getTime();
+}
 
 function dodoEnvToBaseUrl(env: "test_mode" | "live_mode" | "dev_mode"): string {
   // Treat dev_mode like test_mode (same host), while keeping the enum explicit.
@@ -323,39 +305,148 @@ function getDodoProductId(args: { planType: DodoPlanId; paymentMode: DodoPayment
   return value;
 }
 
-function getDodoUpgradeProductId(args: { fromPlanType: DodoPlanId; toPlanType: DodoPlanId }): string {
-  const fromKey = args.fromPlanType.toUpperCase();
-  const toKey = args.toPlanType.toUpperCase();
-  const envKey = `DODO_UPG_${fromKey}_${toKey}`;
-  const value = (process.env[envKey] || "").trim();
-  // #region agent log
-  fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sessionId: "debug-session",
-      runId: "pre-fix",
-      hypothesisId: "E",
-      location: "convex/subscriptions.ts:getDodoUpgradeProductId",
-      message: "upgrade product env lookup",
-      data: {
-        fromPlanType: args.fromPlanType,
-        toPlanType: args.toPlanType,
-        fromKey,
-        toKey,
-        envKey,
-        envKeyLength: envKey.length,
-        hasValue: value.length > 0,
-        trimmedLength: value.length,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-  if (!value) {
-    throw new Error(`missing_dodo_upgrade_product_id:${envKey}`);
+async function dodoListProducts(args: {
+  baseUrl: string;
+  apiKey: string;
+  page_number: number;
+  page_size: number;
+  recurring: boolean;
+  archived: boolean;
+}): Promise<any[]> {
+  const url = new URL(`${args.baseUrl}/products`);
+  url.searchParams.set("page_number", String(args.page_number));
+  url.searchParams.set("page_size", String(args.page_size));
+  url.searchParams.set("recurring", args.recurring ? "true" : "false");
+  url.searchParams.set("archived", args.archived ? "true" : "false");
+
+  const resp = await fetch(url.toString(), {
+    method: "GET",
+    headers: { Authorization: `Bearer ${args.apiKey}` },
+  });
+  if (!resp.ok) {
+    const errorText = await resp.text().catch(() => "<failed_to_read_body>");
+    console.warn("[Dodo] Failed to list products", { status: resp.status, errorText });
+    throw new Error("dodo_list_products_failed");
   }
-  return value;
+
+  const json: any = await resp.json();
+  const items = Array.isArray(json?.items) ? json.items : Array.isArray(json) ? json : [];
+  return items;
+}
+
+function toLowerString(v: unknown): string {
+  return String(v ?? "").trim().toLowerCase();
+}
+
+function parseIntSafe(v: unknown): number | null {
+  const n = typeof v === "number" ? v : Number.parseInt(String(v ?? ""), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function getProductIdFromListItem(p: any): string | null {
+  const id = String(p?.product_id ?? p?.productId ?? p?.id ?? "").trim();
+  return id ? id : null;
+}
+
+function isUpgradeTopupProduct(p: any, args: { from: DodoPlanId; to: DodoPlanId; chargedCents: number }): boolean {
+  const meta = p?.metadata && typeof p.metadata === "object" ? p.metadata : {};
+  const app = toLowerString(meta?.app);
+  const kind = toLowerString(meta?.kind);
+  const from = toLowerString(meta?.fromPlanType ?? meta?.from ?? meta?.upgradeFromPlanType);
+  const to = toLowerString(meta?.toPlanType ?? meta?.to ?? meta?.upgradeToPlanType);
+  const charged = parseIntSafe(meta?.chargedCents ?? meta?.upgradeChargedCents);
+
+  const priceObj = p?.price && typeof p.price === "object" ? p.price : {};
+  const currency = toLowerString(priceObj?.currency);
+  const price = parseIntSafe(priceObj?.price);
+  const type = toLowerString(priceObj?.type);
+
+  return (
+    app === "serbian-ai-tutor" &&
+    kind === "upgrade_topup" &&
+    from === args.from &&
+    to === args.to &&
+    charged === args.chargedCents &&
+    currency === "eur" &&
+    price === args.chargedCents &&
+    type === "one_time_price"
+  );
+}
+
+async function resolveOrCreateDodoUpgradeTopupProductId(args: {
+  baseUrl: string;
+  apiKey: string;
+  fromPlanType: DodoPlanId;
+  toPlanType: DodoPlanId;
+  chargedCents: number;
+}): Promise<string> {
+  const pageSize = 100;
+  for (let page = 0; page < 10; page++) {
+    const items = await dodoListProducts({
+      baseUrl: args.baseUrl,
+      apiKey: args.apiKey,
+      page_number: page,
+      page_size: pageSize,
+      recurring: false,
+      archived: false,
+    });
+
+    for (const p of items) {
+      if (!isUpgradeTopupProduct(p, { from: args.fromPlanType, to: args.toPlanType, chargedCents: args.chargedCents })) {
+        continue;
+      }
+      const id = getProductIdFromListItem(p);
+      if (id) return id;
+    }
+
+    if (items.length < pageSize) break;
+  }
+
+  const euros = (args.chargedCents / 100).toFixed(2);
+  const body = {
+    name: `Upgrade Top-up: ${args.fromPlanType} → ${args.toPlanType} (€${euros})`,
+    description: `Top-up product for plan upgrade (${args.fromPlanType} to ${args.toPlanType}).`,
+    tax_category: "edtech",
+    price: {
+      currency: "EUR",
+      discount: 0,
+      price: args.chargedCents,
+      purchasing_power_parity: false,
+      type: "one_time_price",
+    },
+    metadata: {
+      app: "serbian-ai-tutor",
+      kind: "upgrade_topup",
+      fromPlanType: args.fromPlanType,
+      toPlanType: args.toPlanType,
+      chargedCents: String(args.chargedCents),
+    },
+  };
+
+  const resp = await fetch(`${args.baseUrl}/products`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const errorText = await resp.text().catch(() => "<failed_to_read_body>");
+    console.warn("[Dodo] Failed to create upgrade top-up product", {
+      status: resp.status,
+      errorText,
+      from: args.fromPlanType,
+      to: args.toPlanType,
+      chargedCents: args.chargedCents,
+    });
+    throw new Error("dodo_create_upgrade_product_failed");
+  }
+
+  const json: any = await resp.json();
+  const productId = String(json?.product_id ?? json?.productId ?? "").trim();
+  if (!productId) throw new Error("dodo_missing_created_product_id");
+  return productId;
 }
 
 // Creates the missing Dodo upgrade top-up products (one-time) in the configured Dodo environment
@@ -554,26 +645,6 @@ export const createDodoCheckoutSession = action({
 
       const existing = await ctx.runQuery(api.subscriptions.getCurrent);
       const fromPlan = String((existing as any)?.planType ?? (existing as any)?.plan ?? "").trim().toLowerCase() as DodoPlanId;
-      // #region agent log
-      fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "debug-session",
-          runId: "pre-fix",
-          hypothesisId: "D",
-          location: "convex/subscriptions.ts:createDodoCheckoutSession",
-          message: "upgrade flow inputs",
-          data: {
-            flow: args.flow,
-            paymentMode,
-            requestedToPlan: planType,
-            fromPlan,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       const fromMonths = getPlanDurationMonths(fromPlan);
       const addedMonths = months - fromMonths;
 
@@ -585,7 +656,13 @@ export const createDodoCheckoutSession = action({
         throw new Error("downgrade_not_supported");
       }
 
-      productId = getDodoUpgradeProductId({ fromPlanType: fromPlan, toPlanType: planType });
+      productId = await resolveOrCreateDodoUpgradeTopupProductId({
+        baseUrl,
+        apiKey,
+        fromPlanType: fromPlan,
+        toPlanType: planType,
+        chargedCents,
+      });
       upgradeMeta.upgradeFromPlanType = String(fromPlan);
       upgradeMeta.upgradeToPlanType = String(planType);
       upgradeMeta.upgradeAddedMonths = String(addedMonths);
@@ -828,7 +905,7 @@ export const createSubscription = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
 
-    const expiresAt = Date.now() + args.planDurationMonths * 30 * 24 * 60 * 60 * 1000;
+    const expiresAt = addMonthsUtc(Date.now(), args.planDurationMonths);
 
     // Check if subscription exists
     const existing = await ctx.db
@@ -1418,7 +1495,7 @@ export const internalApplyDodoPurchase = internalMutation({
       .first();
 
     const baseStart = existing?.expiresAt && existing.expiresAt > now ? existing.expiresAt : now;
-    const expiresAt = baseStart + args.planDurationMonths * 30 * 24 * 60 * 60 * 1000;
+    const expiresAt = addMonthsUtc(baseStart, args.planDurationMonths);
 
     const maxAccessibleUnits = await getTotalUnitsCount(ctx);
 
@@ -1523,7 +1600,7 @@ export const internalApplyDodoUpgrade = internalMutation({
     }
 
     const baseStart = existing.expiresAt && existing.expiresAt > now ? existing.expiresAt : now;
-    const expiresAt = baseStart + addedMonths * 30 * 24 * 60 * 60 * 1000;
+    const expiresAt = addMonthsUtc(baseStart, addedMonths);
     const maxAccessibleUnits = await getTotalUnitsCount(ctx);
 
     await ctx.db.patch(existing._id, {
@@ -1552,6 +1629,169 @@ export const internalApplyDodoUpgrade = internalMutation({
     });
 
     return { subscriptionId: existing._id, userId: user._id };
+  },
+});
+
+export const repairSubscriptionExpiryFromWebhooks = mutation({
+  args: {
+    // Superadmin can repair a specific user by clerkId (optional).
+    clerkId: v.optional(v.string()),
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getCurrentUser(ctx);
+    if (!admin || (admin.role !== "admin" && admin.role !== "superadmin")) {
+      throw new Error("Unauthorized");
+    }
+
+    const targetClerkId =
+      admin.role === "superadmin" && args.clerkId ? String(args.clerkId).trim() : String(admin.clerkId);
+    if (!targetClerkId) throw new Error("missing_clerk_id");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", targetClerkId))
+      .first();
+    if (!user) throw new Error("User not found");
+
+    const subscription = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .first();
+    if (!subscription) throw new Error("No subscription found");
+
+    // Collect prepaid payment.succeeded events for this user.
+    // NOTE: There is no index on clerkId, so we query by type and filter (acceptable for repair tooling).
+    const raw = await ctx.db
+      .query("dodoWebhookEvents")
+      .withIndex("by_type", (q) => q.eq("eventType", "payment.succeeded"))
+      .filter((q) => q.eq(q.field("clerkId"), targetClerkId))
+      .collect();
+
+    const events = raw
+      .filter((e) => typeof e.receivedAt === "number" && typeof e.rawPayload === "string")
+      .sort((a, b) => a.receivedAt - b.receivedAt);
+
+    type State = {
+      planType: DodoPlanId;
+      planDurationMonths: number;
+      planPriceCents: number;
+      expiresAt: number;
+      lastWebhookId: string | null;
+      appliedEvents: number;
+    };
+
+    let state: State | null = null;
+
+    const applyBaseStart = (currentExpiresAt: number | null, eventReceivedAt: number) => {
+      // Mirror our "extend from existing expiry if still active" behavior.
+      if (typeof currentExpiresAt === "number" && Number.isFinite(currentExpiresAt) && currentExpiresAt > eventReceivedAt) {
+        return currentExpiresAt;
+      }
+      return eventReceivedAt;
+    };
+
+    for (const e of events) {
+      let evt: any;
+      try {
+        evt = JSON.parse(e.rawPayload);
+      } catch {
+        continue;
+      }
+
+      const meta = extractDodoMetadata(evt);
+      const flow = String(meta?.flow ?? "").trim().toLowerCase();
+      const paymentMode = String(meta?.paymentMode ?? "").trim().toLowerCase();
+      if (paymentMode !== "prepaid") continue;
+
+      if (flow === "purchase") {
+        const planType = parseDodoPlanType(meta);
+        if (!planType) continue;
+
+        const months = getPlanDurationMonths(planType);
+        if (!months) continue;
+
+        const baseStart = applyBaseStart(state?.expiresAt ?? null, e.receivedAt);
+        const expiresAt = addMonthsUtc(baseStart, months);
+        const beta50 = parseDodoBeta50(meta);
+        const planPriceCents = getPlanPriceCentsFromConfig({ planType, isBeta50: beta50 });
+
+        state = {
+          planType,
+          planDurationMonths: months,
+          planPriceCents,
+          expiresAt,
+          lastWebhookId: e.webhookId ?? null,
+          appliedEvents: (state?.appliedEvents ?? 0) + 1,
+        };
+        continue;
+      }
+
+      if (flow === "upgrade") {
+        if (!state) continue;
+
+        const toPlanType = parseDodoPlanType(meta);
+        const addedMonthsRaw = String((meta as any)?.upgradeAddedMonths ?? "").trim();
+        const addedMonths = Number.parseInt(addedMonthsRaw, 10);
+        if (!toPlanType) continue;
+        if (!Number.isFinite(addedMonths) || addedMonths <= 0) continue;
+
+        const months = getPlanDurationMonths(toPlanType);
+        if (!months) continue;
+
+        const baseStart = applyBaseStart(state.expiresAt, e.receivedAt);
+        const expiresAt = addMonthsUtc(baseStart, addedMonths);
+        const planPriceCents = getPlanPriceCentsFromConfig({ planType: toPlanType, isBeta50: false });
+
+        state = {
+          planType: toPlanType,
+          planDurationMonths: months,
+          planPriceCents,
+          expiresAt,
+          lastWebhookId: e.webhookId ?? null,
+          appliedEvents: state.appliedEvents + 1,
+        };
+      }
+    }
+
+    if (!state) {
+      throw new Error("no_applicable_payment_events");
+    }
+
+    const before = {
+      planType: subscription.planType,
+      planDurationMonths: subscription.planDurationMonths,
+      planPrice: subscription.planPrice,
+      expiresAt: subscription.expiresAt,
+      status: subscription.status,
+    };
+
+    const after = {
+      planType: state.planType,
+      planDurationMonths: state.planDurationMonths,
+      planPrice: state.planPriceCents,
+      expiresAt: state.expiresAt,
+    };
+
+    if (!args.dryRun) {
+      await ctx.db.patch(subscription._id, {
+        planType: state.planType,
+        planDurationMonths: state.planDurationMonths,
+        planPrice: state.planPriceCents,
+        expiresAt: state.expiresAt,
+      });
+    }
+
+    return {
+      ok: true,
+      dryRun: args.dryRun === true,
+      clerkId: targetClerkId,
+      before,
+      after,
+      deltaMs: after.expiresAt - before.expiresAt,
+      appliedEvents: state.appliedEvents,
+      lastWebhookId: state.lastWebhookId,
+    };
   },
 });
 
