@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import {
@@ -66,8 +66,29 @@ import {
 type NavItem = {
   label: string;
   href: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   isActive?: (location: string) => boolean;
+};
+
+type DbModuleForQuickSwitch = {
+  _id: unknown;
+  slug?: string | null;
+  moduleNumber?: number | null;
+  titleEn?: string | null;
+};
+
+type DbUnitMetadataForQuickSwitch = {
+  moduleMetadataId?: unknown;
+  moduleId?: unknown;
+  unitNumber?: number | string | null;
+  title?: string | null;
+};
+
+type QuickSwitchModule = {
+  slug: string;
+  number: number;
+  title: string;
+  _id: unknown;
 };
 
 function MobileAdminGroup({ group, location, activeClass, closeMobile }: { 
@@ -127,8 +148,12 @@ export function TopNavigation() {
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const stats = useQuery(api.progress.getDashboardStats, user ? undefined : "skip");
   // Protected layout already requires auth; mirror `/units` data access here.
-  const dbModules = useQuery(api.modules.getAllModulesConsolidated);
-  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" });
+  const dbModules = useQuery(api.modules.getAllModulesConsolidated) as
+    | DbModuleForQuickSwitch[]
+    | undefined;
+  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" }) as
+    | DbUnitMetadataForQuickSwitch[]
+    | undefined;
   const XP_PER_LEVEL = 300;
   const totalXP = Math.floor(stats?.totalXP || 0);
   const currentLevel =
@@ -164,7 +189,7 @@ export function TopNavigation() {
     [t]
   );
 
-  const modulesForQuickSwitch = useMemo(() => {
+  const modulesForQuickSwitch = useMemo<QuickSwitchModule[]>(() => {
     if (!dbModules || dbModules.length === 0) return [];
     return dbModules
       .map((m) => ({

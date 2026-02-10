@@ -9,10 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,22 +27,41 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-// Sidebar import removed
-import { Sparkles, History, Eye, RotateCcw, Trash2 } from "lucide-react";
+import { 
+  Sparkles, 
+  History, 
+  Eye, 
+  RotateCcw, 
+  Trash2, 
+  Loader2, 
+  XCircle, 
+  HelpCircle,
+  ChevronRight,
+  FileText,
+  Save,
+  Undo2
+} from "lucide-react";
 import { Link } from "wouter";
+import { cn } from "@/lib/utils";
 
 type PromptKey =
   | "default"
   | "feedback_reply_system"
   | "support_knowledge_facts"
   | "support_knowledge_tone"
-  | "support_knowledge_future";
+  | "support_knowledge_future"
+  | "content_studio_specialist";
 
 const PROMPT_OPTIONS: Array<{ key: PromptKey; label: string; hint: string }> = [
   {
     key: "default",
     label: "Chat Prompt (default)",
     hint: "System prompt for AI chat interactions (AI Learn Buddy).",
+  },
+  {
+    key: "content_studio_specialist",
+    label: "Content Studio – Specialist Prompt",
+    hint: "Main system prompt for the Content Studio Specialist (Unit Creation).",
   },
   {
     key: "feedback_reply_system",
@@ -70,10 +87,12 @@ const PROMPT_OPTIONS: Array<{ key: PromptKey; label: string; hint: string }> = [
 
 export default function PromptAdmin() {
   const { user, loading: authLoading } = useAuth();
-  const [promptName, setPromptName] = useState<PromptKey>("default");
-
-  const currentPrompt = useQuery(api.admin.getChatPrompt, { name: promptName });
-  const promptHistory = useQuery(api.admin.getChatPromptHistory, { name: promptName, limit: 50 });
+  const [selectedKey, setSelectedKey] = useState<PromptKey>("default");
+  
+  const currentPrompt = useQuery(api.admin.getChatPrompt, { name: selectedKey });
+  const allPrompts = useQuery(api.admin.getAllChatPrompts);
+  const promptHistory = useQuery(api.admin.getChatPromptHistory, { name: selectedKey, limit: 50 });
+  
   const updatePromptMutation = useMutation(api.admin.updateChatPrompt);
   const restorePromptMutation = useMutation(api.admin.restoreChatPromptVersion);
   const deletePromptMutation = useMutation(api.admin.deleteChatPromptVersion);
@@ -81,21 +100,23 @@ export default function PromptAdmin() {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [description, setDescription] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  
   const [previewVersion, setPreviewVersion] = useState<any>(null);
   const [restoreVersion, setRestoreVersion] = useState<Id<"chatPromptHistory"> | null>(null);
   const [deleteVersion, setDeleteVersion] = useState<Id<"chatPromptHistory"> | null>(null);
 
   // Load current prompt when available
   useEffect(() => {
-    // `currentPrompt` is either: undefined (loading), null (not created yet), or a prompt doc.
     if (currentPrompt === undefined) return;
     setSystemPrompt(currentPrompt?.content || "");
   }, [currentPrompt]);
 
-  // Reset description when switching prompt types (helps keep history descriptions relevant)
+  // Reset description when switching prompt types
   useEffect(() => {
     setDescription("");
-  }, [promptName]);
+    setShowHistory(false);
+  }, [selectedKey]);
 
   const handleSave = async () => {
     if (!systemPrompt.trim()) {
@@ -106,13 +127,13 @@ export default function PromptAdmin() {
     setIsLoading(true);
     try {
       await updatePromptMutation({
-        name: promptName,
+        name: selectedKey,
         content: systemPrompt,
         description: description.trim() || undefined,
       });
       
       toast.success("Prompt saved successfully");
-      setDescription(""); // Clear description after save
+      setDescription("");
     } catch (error) {
       console.error("Error saving prompt:", error);
       toast.error("Failed to save prompt");
@@ -123,7 +144,6 @@ export default function PromptAdmin() {
 
   const handleRestore = async () => {
     if (!restoreVersion) return;
-    
     setIsLoading(true);
     try {
       await restorePromptMutation({ historyId: restoreVersion });
@@ -139,7 +159,6 @@ export default function PromptAdmin() {
 
   const handleDelete = async () => {
     if (!deleteVersion) return;
-    
     setIsLoading(true);
     try {
       await deletePromptMutation({ historyId: deleteVersion });
@@ -153,7 +172,7 @@ export default function PromptAdmin() {
     }
   };
 
-  if (authLoading || currentPrompt === undefined || promptHistory === undefined) {
+  if (authLoading || allPrompts === undefined) {
     return (
       <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -180,238 +199,258 @@ export default function PromptAdmin() {
   }
 
   const isSuperadmin = user.role === 'superadmin';
+  const selectedOption = PROMPT_OPTIONS.find(o => o.key === selectedKey);
 
   return (
-    <div className="flex flex-col h-full">
-        <header className="border-b bg-card">
-          <div className="container py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-6 w-6 text-primary" />
-                <h1 className="text-xl font-bold">Prompt Administration</h1>
-              </div>
-              <div className="flex gap-2">
-                <Link href="/admin">
-                  <Button variant="outline" size="sm">
-                    Back to Admin Panel
-                  </Button>
-                </Link>
-              </div>
-            </div>
+    <div className="flex flex-col h-full bg-background">
+      <header className="border-b bg-card px-6 py-4 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="bg-primary/10 p-2 rounded-lg">
+            <Sparkles className="h-5 w-5 text-primary" />
           </div>
-        </header>
+          <div>
+            <h1 className="text-lg font-bold leading-none">Prompt Administration</h1>
+            <p className="text-xs text-muted-foreground mt-1">Manage AI instructions and knowledge base</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/admin">
+            <Button variant="outline" size="sm">
+              <Undo2 className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          </Link>
+        </div>
+      </header>
 
-        <main className="container py-8">
-          <div className="max-w-6xl mx-auto">
-            <Tabs defaultValue="editor" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 max-w-md">
-                <TabsTrigger value="editor">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Editor
-                </TabsTrigger>
-                <TabsTrigger value="history">
-                  <History className="h-4 w-4 mr-2" />
-                  Version History ({promptHistory.length})
-                </TabsTrigger>
-              </TabsList>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar: Prompt List */}
+        <aside className="w-80 border-r bg-muted/30 overflow-y-auto p-4 shrink-0">
+          <div className="space-y-1">
+            <Label className="px-2 mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Available Prompts
+            </Label>
+            {PROMPT_OPTIONS.map((opt) => {
+              const exists = allPrompts?.some(p => p.name === opt.key);
+              const isActive = selectedKey === opt.key;
+              
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setSelectedKey(opt.key)}
+                  className={cn(
+                    "w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all group",
+                    isActive 
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" 
+                      : "hover:bg-muted text-foreground"
+                  )}
+                >
+                  <div className={cn(
+                    "mt-0.5 shrink-0",
+                    isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-primary"
+                  )}>
+                    {exists ? <FileText className="h-4 w-4" /> : <XCircle className="h-4 w-4 opacity-50" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate">{opt.label}</div>
+                    <div className={cn(
+                      "text-[10px] line-clamp-1 mt-0.5",
+                      isActive ? "text-primary-foreground/80" : "text-muted-foreground"
+                    )}>
+                      {opt.hint}
+                    </div>
+                  </div>
+                  {isActive && <ChevronRight className="h-4 w-4 mt-1 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
 
-              {/* Editor Tab */}
-              <TabsContent value="editor" className="mt-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      System Prompt
-                      {user.role === 'admin' && (
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      Configure and version AI prompts (chat + support reply + knowledge blocks)
-                      {user.role === 'admin' && ' (View only - no edit permissions)'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div>
-                        <Label>Prompt Type</Label>
-                        <Select
-                          value={promptName}
-                          onValueChange={(value) => setPromptName(value as PromptKey)}
-                        >
-                          <SelectTrigger className="mt-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PROMPT_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.key} value={opt.key}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {PROMPT_OPTIONS.find((o) => o.key === promptName)?.hint}
+        {/* Main Content: Editor */}
+        <main className="flex-1 flex flex-col overflow-hidden bg-background">
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto space-y-6">
+              {/* Editor Header */}
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">{selectedOption?.label}</h2>
+                  <p className="text-muted-foreground mt-1">{selectedOption?.hint}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant={showHistory ? "secondary" : "outline"} 
+                    size="sm"
+                    onClick={() => setShowHistory(!showHistory)}
+                  >
+                    <History className="h-4 w-4 mr-2" />
+                    {showHistory ? "Show Editor" : `History (${promptHistory?.length || 0})`}
+                  </Button>
+                </div>
+              </div>
+
+              {!showHistory ? (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* Editor Card */}
+                  <Card className="border-2 shadow-sm">
+                    <CardHeader className="pb-3 border-b bg-muted/10">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Prompt Status:</Label>
+                            {currentPrompt ? (
+                              <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold uppercase">Active</span>
+                            ) : (
+                              <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold uppercase">Not configured</span>
+                            )}
+                          </div>
+                        </div>
+                        {user.role === 'admin' && (
+                          <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold uppercase">👁️ Read-Only</span>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="bg-amber-50/50 border-b border-amber-100 p-3">
+                        <p className="text-[11px] text-amber-800 flex items-center gap-2 leading-relaxed">
+                          <HelpCircle className="h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            <strong>Best Practice:</strong> System instructions should preferably be written in <strong>English</strong>. 
+                            The output language for the user is controlled dynamically by the system.
+                          </span>
                         </p>
                       </div>
-
-                      <div>
-                        <Label htmlFor="system-prompt">
-                          Prompt Content *
-                        </Label>
-                        <Textarea
-                          id="system-prompt"
-                          value={systemPrompt}
-                          onChange={(e) => setSystemPrompt(e.target.value)}
-                          placeholder="Enter system prompt..."
-                          rows={15}
-                          className="font-mono text-sm mt-2"
+                      <Textarea
+                        id="system-prompt"
+                        value={systemPrompt}
+                        onChange={(e) => setSystemPrompt(e.target.value)}
+                        placeholder="Enter system prompt here..."
+                        className="min-h-[500px] border-none focus-visible:ring-0 font-mono text-sm p-6 resize-none leading-relaxed"
+                        disabled={!isSuperadmin}
+                      />
+                    </CardContent>
+                    <CardFooter className="flex items-center justify-between p-4 border-t bg-muted/5">
+                      <div className="flex-1 max-w-md">
+                        <Input
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="What was changed? (Optional)"
+                          className="h-9 text-sm"
                           disabled={!isSuperadmin}
                         />
-                        <p className="text-xs text-muted-foreground mt-2">
-                          This content is stored in Convex and takes effect immediately for new generations that use this prompt.
-                        </p>
                       </div>
-
-                      {isSuperadmin && (
-                        <div>
-                          <Label htmlFor="description">
-                            Description of Changes (Optional)
-                          </Label>
-                          <Input
-                            id="description"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="e.g., Made tone more friendly, Added context about Serbian grammar..."
-                            className="mt-2"
-                          />
-                          <p className="text-xs text-muted-foreground mt-2">
-                            This helps track what changed in each version.
-                          </p>
-                        </div>
-                      )}
-                      
-                      {isSuperadmin && (
-                        <div className="flex justify-end gap-3 pt-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              if (currentPrompt) {
-                                setSystemPrompt(currentPrompt.content || "");
-                                setDescription("");
-                              }
-                            }}
-                          >
-                            Reset to Current
-                          </Button>
-                          <Button onClick={handleSave} disabled={isLoading}>
-                            {isLoading ? "Saving..." : "Save Prompt"}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="mt-6">
-                  <CardHeader>
-                    <CardTitle>Usage Tips</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
-                      <li>Use separate prompt types for chat, feedback replies, and knowledge blocks</li>
-                      <li>Keep Product Facts strictly verified (avoid unconfirmed claims)</li>
-                      <li>Keep Future Plans defensive (no ETA, no guarantees)</li>
-                      <li>Be specific about the AI's role and constraints</li>
-                      <li>Add a description when saving to track changes over time</li>
-                      <li>Changes take effect immediately for new chat sessions and feedback reply generation</li>
-                    </ul>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* History Tab */}
-              <TabsContent value="history" className="mt-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Version History</CardTitle>
-                    <CardDescription>
-                      View and restore previous versions for the selected prompt type
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {promptHistory.length === 0 ? (
-                      <div className="text-center py-12">
-                        <History className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-muted-foreground">No version history yet</p>
+                      <div className="flex gap-3">
+                        {isSuperadmin && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (currentPrompt) {
+                                  setSystemPrompt(currentPrompt.content || "");
+                                  setDescription("");
+                                }
+                              }}
+                            >
+                              <RotateCcw className="h-4 w-4 mr-2" />
+                              Reset
+                            </Button>
+                            <Button size="sm" onClick={handleSave} disabled={isLoading}>
+                              {isLoading ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Save className="h-4 w-4 mr-2" />
+                              )}
+                              Save
+                            </Button>
+                          </>
+                        )}
                       </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date & Time</TableHead>
-                            <TableHead>Changed By</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {promptHistory.map((version: any) => (
-                            <TableRow key={version._id}>
-                              <TableCell className="font-medium">
-                                {formatDateTimeEU(version.updatedAt)}
-                              </TableCell>
-                              <TableCell>{version.updatedByName}</TableCell>
-                              <TableCell>
-                                {version.description ? (
-                                  <span className="text-sm">{version.description}</span>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground italic">No description</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setPreviewVersion(version)}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  {isSuperadmin && (
-                                    <>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setRestoreVersion(version._id)}
-                                      >
-                                        <RotateCcw className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setDeleteVersion(version._id)}
-                                      >
-                                        <Trash2 className="h-4 w-4 text-red-600" />
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                              </TableCell>
+                    </CardFooter>
+                  </Card>
+                </div>
+              ) : (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* History List */}
+                  <Card>
+                    <CardContent className="p-0">
+                      {promptHistory && promptHistory.length === 0 ? (
+                        <div className="text-center py-20">
+                          <History className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
+                          <p className="text-muted-foreground">No history available for this prompt yet.</p>
+                        </div>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="w-48">Date & Time</TableHead>
+                              <TableHead className="w-40">User</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead className="text-right w-32">Actions</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+                          </TableHeader>
+                          <TableBody>
+                            {promptHistory?.map((version: any) => (
+                              <TableRow key={version._id} className="group">
+                                <TableCell className="text-xs font-medium">
+                                  {formatDateTimeEU(version.updatedAt)}
+                                </TableCell>
+                                <TableCell className="text-xs">{version.updatedByName}</TableCell>
+                                <TableCell className="text-xs">
+                                  {version.description || <span className="text-muted-foreground italic">No description</span>}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => setPreviewVersion(version)}
+                                      title="Preview"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    {isSuperadmin && (
+                                      <>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          onClick={() => setRestoreVersion(version._id)}
+                                          title="Restore"
+                                        >
+                                          <RotateCcw className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                          onClick={() => setDeleteVersion(version._id)}
+                                          title="Delete"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
           </div>
         </main>
+      </div>
 
       {/* Preview Dialog */}
       <Dialog open={!!previewVersion} onOpenChange={() => setPreviewVersion(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Version Preview</DialogTitle>
             <DialogDescription>
@@ -422,27 +461,24 @@ export default function PromptAdmin() {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto space-y-4 py-4">
             {previewVersion?.description && (
-              <div>
-                <Label>Description</Label>
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Change Description</Label>
                 <p className="text-sm mt-1">{previewVersion.description}</p>
               </div>
             )}
-            <div>
-              <Label>Prompt Content</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Prompt Content</Label>
               <Textarea
                 value={previewVersion?.content || ""}
                 readOnly
-                rows={20}
-                className="font-mono text-sm mt-2"
+                className="min-h-[400px] font-mono text-xs bg-muted/20 leading-relaxed"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewVersion(null)}>
-              Close
-            </Button>
+            <Button variant="outline" onClick={() => setPreviewVersion(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -458,9 +494,7 @@ export default function PromptAdmin() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRestore}>
-              Restore Version
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleRestore}>Restore</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -471,17 +505,21 @@ export default function PromptAdmin() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this version?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This version will be permanently removed from the history.
+              This action cannot be undone. The version will be permanently removed from history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete Version
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
+}
+
+function CardFooter({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("flex items-center p-6 pt-0", className)}>{children}</div>;
 }

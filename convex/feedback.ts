@@ -460,7 +460,7 @@ export const generateAiForFeedback = internalAction({
         feedbackType: feedback.type,
         feedbackTitle: feedback.title,
         feedbackDescription: feedback.description,
-        systemPromptOverride: replySystem?.content,
+        systemPromptOverride: replySystem?.content?.replace(/\[LANGUAGE\]/g, "English"), // Feedback is currently English-only
         supportKnowledgeFacts: facts?.content,
         supportKnowledgeTone: tone?.content,
         supportKnowledgeFuture: future?.content,

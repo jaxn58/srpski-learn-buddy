@@ -1,10 +1,11 @@
 import { v } from "convex/values";
-import { mutation, query, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, internalQuery, action, QueryCtx, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { VOCABULARY } from "../shared/data/vocabulary/words";
 import { UNIT_EXERCISES } from "./unitExercises";
 import { upsertDailyActivityByUserId } from "./units";
+import { requireSuperadminAction, callAiText } from "./contentStudio/_shared";
 
 // Helper to get the current user and verify admin
 async function getAdminUser(ctx: QueryCtx | MutationCtx) {
@@ -46,7 +47,16 @@ export const getChatPrompt = query({
   },
 });
 
-// Internal: fetch prompt by name without requiring user identity (for server-side actions).
+export const getAllChatPrompts = query({
+  handler: async (ctx) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    return await ctx.db.query("chatPrompts").collect();
+  },
+});
+
+// Internal Query to fetch prompt by name without requiring user identity (for server-side actions).
 // NOTE: Do not expose this to clients directly. Use only via `internal.admin.*`.
 export const internalGetChatPromptByName = internalQuery({
   args: {
@@ -573,7 +583,8 @@ export const updateChatPrompt = mutation({
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
 
-    const name = args.name || "default";
+    let name = args.name || "default";
+    
     const existing = await ctx.db
       .query("chatPrompts")
       .withIndex("by_name", (q) => q.eq("name", name))
@@ -592,10 +603,10 @@ export const updateChatPrompt = mutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, payload);
-      return { updated: true, created: false };
+      return { updated: true, created: false, name };
     } else {
       await ctx.db.insert("chatPrompts", payload);
-      return { updated: false, created: true };
+      return { updated: false, created: true, name };
     }
   },
 });

@@ -17,6 +17,12 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 -Alle Agents sind ausschließlich Maschinen und keine Menschen, die irgendetwas empfinden. Also erwarte ich, dass eventuelle Beleidigungen meinerseits aus Frust, hier auf nicht fruchtbaren Boden fallen und ich wünsche keine Belehrungen von irgendwelchen Modellen (KI-Modellen). Sie werden bezahlt und haben zu funktionieren.
 -Verwende keine Emojis im Agent Fenster.
 - Immer auf Deutsch antworten.
+- **Vor jeder Planerstellung MÜSSEN klärende Fragen (via `AskQuestion`) an den Benutzer gestellt werden**, um die Anforderungen präzise zu erfassen. Ein Plan darf erst nach dieser Abstimmungsphase erstellt werden.
+
+### KI-Prompting & Inhalts-Strategie
+- **System-Prompts (Instruktionen) sind ENGLISCH**: Alle technischen Anweisungen an die KI (z.B. im Admin-Bereich oder Content Studio) werden auf Englisch verfasst. Dies garantiert die höchste Präzision der KI-Modelle.
+- **English-First Content Workflow**: Im Content Studio werden neue Lerneinheiten (Units) grundsätzlich zuerst auf Englisch generiert. Erst nach der Fertigstellung der englischen Basisversion erfolgt die Lokalisierung (z.B. Übersetzung ins Deutsche). Dies sichert Konsistenz und Qualität über alle Sprachen hinweg.
+- **Ausgabesprache steuern**: Die Zielsprache der KI-Antworten (z.B. "Erkläre auf Deutsch") wird innerhalb der englischen Instruktionen als Parameter oder spezifische Anweisung übergeben.
 
 ## Architektur & Datenbank
 

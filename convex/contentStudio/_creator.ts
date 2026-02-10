@@ -1,8 +1,8 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "../_generated/server";
-import { api } from "../_generated/api";
+import { action, internalAction } from "../_generated/server";
+import { api, internal } from "../_generated/api";
 import { requireSuperadminAction, callAiText } from "./_shared";
 import pdfParse from "pdf-parse";
 import {
@@ -385,8 +385,14 @@ export const runAiSpecialistGenerate = action({
     // ═══════════════════════════════════════════════════════════════════════════
     // SPECIALIST SYSTEM PROMPT - Based on Unit 1/2 proven format
     // ═══════════════════════════════════════════════════════════════════════════
+    const dynamicPromptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, {
+      name: "content_studio_specialist",
+    });
+    const baseSystemPrompt = dynamicPromptDoc?.content || SPECIALIST_SYSTEM_PROMPT;
+
+    // Replace [LANGUAGE] placeholder if present
     const system = [
-      SPECIALIST_SYSTEM_PROMPT,
+      baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
       skillBlock ? `\n${skillBlock}\n` : ``,
       referenceBlock ? `\n${referenceBlock}\n` : ``,
     ].join("\n");
@@ -637,8 +643,14 @@ export const runAiCreatorRevise = action({
       ? `HUMAN REVIEW NOTES:\n${humanNotes}`
       : "";
 
+    const dynamicPromptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, {
+      name: "content_studio_specialist",
+    });
+    const baseSystemPrompt = dynamicPromptDoc?.content || CREATOR_REVISE_SYSTEM_PROMPT;
+
+    // Replace [LANGUAGE] placeholder if present
     const system = [
-      CREATOR_REVISE_SYSTEM_PROMPT,
+      baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
       skillBlock ? `\n${skillBlock}\n` : ``,
       `\nCONTEXT:`,
       `Unit ${d.unitNumber}: ${d.title}`,
