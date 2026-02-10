@@ -10,6 +10,7 @@ import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { MasteryIndicator, MistakesIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
+import { useTranslation } from "react-i18next";
 
 interface InteractiveTestProps {
   unitNumber: number;
@@ -17,6 +18,7 @@ interface InteractiveTestProps {
 }
 
 export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) {
+  const { t } = useTranslation();
   const questions = useQuery(api.units.getUnitInteractiveTest, { unitNumber, language });
   const testIntro = useQuery(api.units.getUnitContentSections, { unitNumber, language });
   const questionProgress = useQuery(api.progress.getQuestionProgress, { unitNumber });
@@ -189,18 +191,18 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
 
       // Show toast with result
       if (result.earnedXP > 0) {
-        toast.success(`You earned ${result.earnedXP} XP!`);
+        toast.success(t("interactiveTest.toastEarnedXp", { xp: result.earnedXP }));
       } else {
         const incorrectInThisCheck = categoryQuestions.length - correctCount;
         if (incorrectInThisCheck > 0) {
-          toast.info("Saved. No XP earned for incorrect answers.");
+          toast.info(t("interactiveTest.toastSavedNoXp"));
         } else {
-          toast.info("All questions in this category are mastered!");
+          toast.info(t("interactiveTest.toastAllMastered"));
         }
       }
     } catch (error) {
       console.error("Failed to submit category result:", error);
-      toast.error("Failed to save progress");
+      toast.error(t("interactiveTest.toastSaveFailed"));
     }
   };
 
@@ -243,16 +245,16 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
     const percentage = (result.correct / result.total) * 100;
     
     if (percentage === 100) {
-      if (earnedXP === 0) return "Perfect! All mastered!";
-      return "Perfect! Outstanding work!";
+      if (earnedXP === 0) return t("interactiveTest.encouragement.perfectMastered");
+      return t("interactiveTest.encouragement.perfectOutstanding");
     } else if (percentage >= 80) {
-      return "Excellent! Keep it up!";
+      return t("interactiveTest.encouragement.excellent");
     } else if (percentage >= 60) {
-      return "Good job! You're making progress!";
+      return t("interactiveTest.encouragement.goodJob");
     } else if (percentage >= 40) {
-      return "Not bad! Try again for more XP!";
+      return t("interactiveTest.encouragement.notBad");
     } else {
-      return "Keep practicing! You'll get there!";
+      return t("interactiveTest.encouragement.keepPracticing");
     }
   };
 

@@ -50,6 +50,7 @@ import {
 import { toast } from "sonner";
 import { formatDateTimeEU } from "@/lib/utils";
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 type FileResult = {
   fileName: string;
@@ -96,6 +97,7 @@ type ImportRun = {
 
 export default function ContentImportAdmin() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   // Prefer Markdown as primary import method; keep JSON import behind a toggle.
   const ENABLE_JSON_IMPORT = false;
   const runs = useQuery(api.contentImportAdmin.listRuns, { limit: 50 }) as ImportRun[] | undefined;
@@ -283,8 +285,8 @@ export default function ContentImportAdmin() {
 
   const processFile = useCallback((file: File) => {
     if (!file.name.endsWith('.json')) {
-      toast.error("Invalid file type", {
-        description: "Please upload a JSON file"
+      toast.error(t("admin.contentImport.toast.invalidFileType.title"), {
+        description: t("admin.contentImport.toast.invalidFileType.desc"),
       });
       return;
     }
@@ -299,7 +301,7 @@ export default function ContentImportAdmin() {
       setFileContent(content);
     };
     reader.onerror = () => {
-      toast.error("Failed to read file");
+      toast.error(t("admin.contentImport.toast.readFailed"));
       setUploadedFile(null);
       setFileContent(null);
     };
@@ -342,7 +344,7 @@ export default function ContentImportAdmin() {
 
   const handleValidate = async () => {
     if (!fileContent || !uploadedFile) {
-      toast.error("No file uploaded");
+      toast.error(t("admin.contentImport.toast.noFile"));
       return;
     }
 
@@ -352,8 +354,8 @@ export default function ContentImportAdmin() {
       try {
         unitPackage = JSON.parse(fileContent);
       } catch (e: any) {
-        toast.error("Invalid JSON", {
-          description: e.message
+        toast.error(t("admin.contentImport.toast.invalidJson.title"), {
+          description: String(e?.message || e),
         });
         return;
       }
@@ -367,18 +369,18 @@ export default function ContentImportAdmin() {
       
       if (result.report.status === "success") {
         const firstFile = result.report.files[0];
-        toast.success("Validation passed", {
-          description: `Unit ${firstFile.unitNumber} is valid. You can now import it.`
+        toast.success(t("admin.contentImport.toast.validationPassed.title"), {
+          description: t("admin.contentImport.toast.validationPassed.desc", { unit: firstFile.unitNumber }),
         });
       } else {
-        toast.error("Validation failed", {
-          description: `Found ${result.report.summary.totalErrors} error(s). Please fix them before importing.`
+        toast.error(t("admin.contentImport.toast.validationFailed.title"), {
+          description: t("admin.contentImport.toast.validationFailed.desc", { count: result.report.summary.totalErrors }),
         });
       }
     } catch (error: any) {
       console.error("Validation error:", error);
-      toast.error("Validation failed", {
-        description: error.message || "An unknown error occurred"
+      toast.error(t("admin.contentImport.toast.validationFailed.title"), {
+        description: error?.message || t("admin.contentImport.toast.unknownError"),
       });
       setValidationReport(null);
     } finally {
@@ -403,20 +405,20 @@ export default function ContentImportAdmin() {
       linkElement.setAttribute('download', exportFileDefaultName);
       linkElement.click();
       
-      toast.success("Download started", {
-        description: "The fixed JSON file is being downloaded."
+      toast.success(t("admin.contentImport.toast.downloadStarted.title"), {
+        description: t("admin.contentImport.toast.downloadStarted.desc"),
       });
     } catch (error: any) {
-      toast.error("Download failed", {
-        description: error.message || "An unknown error occurred"
+      toast.error(t("admin.contentImport.toast.downloadFailed.title"), {
+        description: error?.message || t("admin.contentImport.toast.unknownError"),
       });
     }
   };
 
   const handleImport = async (override?: { fileName: string; unitPackage: any; unitNumber?: number; onReset?: () => void }) => {
     if (!override && (!fileContent || !uploadedFile || validationReport?.status !== "success")) {
-      toast.error("Cannot import", {
-        description: "Please validate the file first and ensure it has no errors."
+      toast.error(t("admin.contentImport.toast.cannotImport.title"), {
+        description: t("admin.contentImport.toast.cannotImport.desc"),
       });
       return;
     }
@@ -429,7 +431,7 @@ export default function ContentImportAdmin() {
         try {
           unitPackage = JSON.parse(fileContent!);
         } catch (e: any) {
-          toast.error("Invalid JSON", { description: e.message });
+          toast.error(t("admin.contentImport.toast.invalidJson.title"), { description: String(e?.message || e) });
           return;
         }
       }
@@ -449,11 +451,15 @@ export default function ContentImportAdmin() {
 
       if (importMode === "replace") {
         if (!unitNumber) {
-          toast.error("Cannot replace", { description: "Unit number is missing." });
+          toast.error(t("admin.contentImport.toast.cannotReplace.title"), {
+            description: t("admin.contentImport.toast.cannotReplace.unitMissing"),
+          });
           return;
         }
         if (replaceConfirmText.trim() !== confirm) {
-          toast.error("Confirmation required", { description: `Type exactly: ${confirm}` });
+          toast.error(t("admin.contentImport.toast.confirmRequired.title"), {
+            description: t("admin.contentImport.toast.confirmRequired.desc", { expected: confirm }),
+          });
           return;
         }
       }
@@ -467,16 +473,17 @@ export default function ContentImportAdmin() {
       
       if (result.report.status === "success") {
         const firstFile = result.report.files[0];
-        toast.success("Import completed", {
-          description: `Unit ${firstFile.unitNumber} has been successfully imported to the database.`
+        toast.success(t("admin.contentImport.toast.importCompleted.title"), {
+          description: t("admin.contentImport.toast.importCompleted.desc", { unit: firstFile.unitNumber }),
         });
       } else {
         const firstFile = result.report.files[0];
         const firstIssue = firstFile?.parseErrors?.[0] || firstFile?.errors?.[0];
-        toast.error("Import failed", {
-          description: `Errors: ${result.report.summary.totalErrors}${
-            firstIssue ? ` | ${firstIssue.path}: ${firstIssue.message}` : ""
-          }`
+        toast.error(t("admin.contentImport.toast.importFailed.title"), {
+          description: t("admin.contentImport.toast.importFailed.desc", {
+            count: result.report.summary.totalErrors,
+            details: firstIssue ? ` | ${firstIssue.path}: ${firstIssue.message}` : "",
+          }),
         });
         return;
       }
@@ -502,8 +509,8 @@ export default function ContentImportAdmin() {
       
     } catch (error: any) {
       console.error("Import error:", error);
-      toast.error("Import failed", {
-        description: error.message || "An unknown error occurred"
+      toast.error(t("admin.contentImport.toast.importFailed.title"), {
+        description: error?.message || t("admin.contentImport.toast.unknownError"),
       });
     } finally {
       setImporting(false);
@@ -547,8 +554,8 @@ export default function ContentImportAdmin() {
   
   const processMarkdownFile = useCallback((file: File) => {
     if (!file.name.endsWith('.md')) {
-      toast.error("Invalid file type", {
-        description: "Please upload a Markdown file (.md)"
+      toast.error(t("admin.contentImport.toast.invalidFileType.title"), {
+        description: t("admin.contentImport.toast.invalidMarkdownType.desc"),
       });
       return;
     }
@@ -562,7 +569,7 @@ export default function ContentImportAdmin() {
       setMarkdownContent(content);
     };
     reader.onerror = () => {
-      toast.error("Failed to read file");
+      toast.error(t("admin.contentImport.toast.readFailed"));
       setMarkdownFile(null);
       setMarkdownContent(null);
     };
@@ -605,7 +612,7 @@ export default function ContentImportAdmin() {
 
   const handleParseMarkdown = async () => {
     if (!markdownContent || !markdownFile) {
-      toast.error("No file uploaded");
+      toast.error(t("admin.contentImport.toast.noFile"));
       return;
     }
 
@@ -630,20 +637,20 @@ export default function ContentImportAdmin() {
       const failedCount = result.results.length - successCount;
       
       if (successCount > 0) {
-        toast.success("Parsing completed", {
-          description: `${successCount} file(s) successfully parsed to JSON.`
+        toast.success(t("admin.contentImport.toast.parsingCompleted.title"), {
+          description: t("admin.contentImport.toast.parsingCompleted.desc", { count: successCount }),
         });
       }
       
       if (failedCount > 0) {
-        toast.error("Parsing failed", {
-          description: `${failedCount} file(s) failed to parse. Check results for details.`
+        toast.error(t("admin.contentImport.toast.parsingFailed.title"), {
+          description: t("admin.contentImport.toast.parsingFailed.desc", { count: failedCount }),
         });
       }
     } catch (error: any) {
       console.error("Parsing error:", error);
-      toast.error("Parsing failed", {
-        description: error.message || "An unknown error occurred"
+      toast.error(t("admin.contentImport.toast.parsingFailed.title"), {
+        description: error?.message || t("admin.contentImport.toast.unknownError"),
       });
       setParseResults(null);
     } finally {
@@ -653,7 +660,7 @@ export default function ContentImportAdmin() {
 
   const handleDownloadGeneratedJson = (result: any) => {
     if (!result.unitPackage) {
-      toast.error("No JSON available");
+      toast.error(t("admin.contentImport.toast.noJsonAvailable"));
       return;
     }
 
@@ -667,18 +674,18 @@ export default function ContentImportAdmin() {
       linkElement.setAttribute('download', exportFileDefaultName);
       linkElement.click();
 
-      toast.success("Download started");
+      toast.success(t("admin.contentImport.toast.downloadStarted.title"));
     } catch (error: any) {
-      toast.error("Download failed", {
-        description: error.message
+      toast.error(t("admin.contentImport.toast.downloadFailed.title"), {
+        description: error?.message || t("admin.contentImport.toast.unknownError"),
       });
     }
   };
 
   const handleImportFromMarkdown = async (result: any) => {
     if (!result.success || !result.unitPackage) {
-      toast.error("Cannot import", {
-        description: "This file has errors. Please fix them first."
+      toast.error(t("admin.contentImport.toast.cannotImport.title"), {
+        description: t("admin.contentImport.toast.cannotImportMarkdown.desc"),
       });
       return;
     }
@@ -705,8 +712,8 @@ export default function ContentImportAdmin() {
       });
 
       if (importResult.report.status === "success") {
-        toast.success("Import completed", {
-          description: `Unit ${result.unitNumber} has been successfully imported.`
+        toast.success(t("admin.contentImport.toast.importCompleted.title"), {
+          description: t("admin.contentImport.toast.importCompleted.desc", { unit: result.unitNumber }),
         });
 
         // Reset Markdown form
@@ -721,16 +728,17 @@ export default function ContentImportAdmin() {
       } else {
         const firstFile = importResult.report.files[0];
         const firstIssue = firstFile?.parseErrors?.[0] || firstFile?.errors?.[0];
-        toast.error("Import failed", {
-          description: `Errors: ${importResult.report.summary.totalErrors}${
-            firstIssue ? ` | ${firstIssue.path}: ${firstIssue.message}` : ""
-          }`
+        toast.error(t("admin.contentImport.toast.importFailed.title"), {
+          description: t("admin.contentImport.toast.importFailed.desc", {
+            count: importResult.report.summary.totalErrors,
+            details: firstIssue ? ` | ${firstIssue.path}: ${firstIssue.message}` : "",
+          }),
         });
       }
     } catch (error: any) {
       console.error("Import error:", error);
-      toast.error("Import failed", {
-        description: error.message
+      toast.error(t("admin.contentImport.toast.importFailed.title"), {
+        description: error?.message || t("admin.contentImport.toast.unknownError"),
       });
     } finally {
       setImporting(false);
@@ -783,10 +791,10 @@ export default function ContentImportAdmin() {
         descriptionDe: newDescriptionDe,
       });
 
-      toast.success("Module created");
+      toast.success(t("admin.contentImport.toast.moduleCreated"));
       resetNewModuleForm();
     } catch (error: any) {
-      toast.error("Failed to create module", {
+      toast.error(t("admin.contentImport.toast.moduleCreateFailed.title"), {
         description: humanizeModuleError(String(error?.message || error)),
       });
     }
@@ -817,11 +825,11 @@ export default function ContentImportAdmin() {
         descriptionDe: editDescriptionDe,
       });
 
-      toast.success("Module updated");
+      toast.success(t("admin.contentImport.toast.moduleUpdated"));
       setEditDialogOpen(false);
       setEditingModuleId(null);
     } catch (error: any) {
-      toast.error("Failed to update module", {
+      toast.error(t("admin.contentImport.toast.moduleUpdateFailed.title"), {
         description: humanizeModuleError(String(error?.message || error)),
       });
     }
@@ -894,7 +902,9 @@ export default function ContentImportAdmin() {
     const deDesc = String(editUnitDescriptionDe ?? "").trim();
 
     if (!enDesc && !deDesc) {
-      toast.error("Nothing to save", { description: "Provide at least one description (EN or DE)." });
+      toast.error(t("admin.contentImport.toast.nothingToSave.title"), {
+        description: t("admin.contentImport.toast.nothingToSave.desc"),
+      });
       return;
     }
 
@@ -905,14 +915,18 @@ export default function ContentImportAdmin() {
       const ops: Array<Promise<any>> = [];
       if (enDesc) {
         if (!row.hasEn) {
-          toast.error("Missing EN metadata", { description: `Unit ${editingUnitNumber} has no EN unitMetadata row.` });
+          toast.error(t("admin.contentImport.toast.missingMetadata.title", { lang: "EN" }), {
+            description: t("admin.contentImport.toast.missingMetadata.desc", { unit: editingUnitNumber, lang: "EN" }),
+          });
         } else {
           ops.push(updateUnitDescriptionMutation({ unitNumber: editingUnitNumber, language: "en", description: enDesc }));
         }
       }
       if (deDesc) {
         if (!row.hasDe) {
-          toast.error("Missing DE metadata", { description: `Unit ${editingUnitNumber} has no DE unitMetadata row.` });
+          toast.error(t("admin.contentImport.toast.missingMetadata.title", { lang: "DE" }), {
+            description: t("admin.contentImport.toast.missingMetadata.desc", { unit: editingUnitNumber, lang: "DE" }),
+          });
         } else {
           ops.push(updateUnitDescriptionMutation({ unitNumber: editingUnitNumber, language: "de", description: deDesc }));
         }
@@ -921,11 +935,13 @@ export default function ContentImportAdmin() {
       if (ops.length === 0) return;
       await Promise.all(ops);
 
-      toast.success("Unit description updated");
+      toast.success(t("admin.contentImport.toast.unitDescriptionUpdated"));
       setEditUnitDialogOpen(false);
       setEditingUnitNumber(null);
     } catch (error: any) {
-      toast.error("Failed to update unit description", { description: String(error?.message || error) });
+      toast.error(t("admin.contentImport.toast.unitDescriptionUpdateFailed.title"), {
+        description: String(error?.message || error),
+      });
     }
   }, [
     editingUnitNumber,
@@ -940,16 +956,24 @@ export default function ContentImportAdmin() {
     const nextOffline = !manageUnitRow.isOffline;
     const expected = nextOffline ? `OFFLINE UNIT ${manageUnitNumber}` : `ONLINE UNIT ${manageUnitNumber}`;
     if (offlineConfirmText.trim() !== expected) {
-      toast.error("Confirmation required", { description: `Type exactly: ${expected}` });
+      toast.error(t("admin.contentImport.toast.confirmRequired.title"), {
+        description: t("admin.contentImport.toast.confirmRequired.desc", { expected }),
+      });
       return;
     }
     setManageUnitBusy(true);
     try {
       await setUnitOfflineMutation({ unitNumber: manageUnitNumber, offline: nextOffline, confirm: expected });
-      toast.success(nextOffline ? `Unit ${manageUnitNumber} is now offline` : `Unit ${manageUnitNumber} is now online`);
+      toast.success(
+        nextOffline
+          ? t("admin.contentImport.toast.unitOffline", { unit: manageUnitNumber })
+          : t("admin.contentImport.toast.unitOnline", { unit: manageUnitNumber })
+      );
       setOfflineConfirmText("");
     } catch (error: any) {
-      toast.error("Failed to update unit status", { description: String(error?.message || error) });
+      toast.error(t("admin.contentImport.toast.unitStatusUpdateFailed.title"), {
+        description: String(error?.message || error),
+      });
     } finally {
       setManageUnitBusy(false);
     }
@@ -959,19 +983,23 @@ export default function ContentImportAdmin() {
     if (!manageUnitNumber) return;
     const expected = `DELETE UNIT ${manageUnitNumber}`;
     if (deleteUnitConfirmText.trim() !== expected) {
-      toast.error("Confirmation required", { description: `Type exactly: ${expected}` });
+      toast.error(t("admin.contentImport.toast.confirmRequired.title"), {
+        description: t("admin.contentImport.toast.confirmRequired.desc", { expected }),
+      });
       return;
     }
     setManageUnitBusy(true);
     try {
       await deleteUnitFullMutation({ unitNumber: manageUnitNumber, confirm: expected });
-      toast.success(`Unit ${manageUnitNumber} deleted`);
+      toast.success(t("admin.contentImport.toast.unitDeleted", { unit: manageUnitNumber }));
       setManageUnitOpen(false);
       setManageUnitNumber(null);
       setOfflineConfirmText("");
       setDeleteUnitConfirmText("");
     } catch (error: any) {
-      toast.error("Failed to delete unit", { description: String(error?.message || error) });
+      toast.error(t("admin.contentImport.toast.unitDeleteFailed.title"), {
+        description: String(error?.message || error),
+      });
     } finally {
       setManageUnitBusy(false);
     }
@@ -982,11 +1010,18 @@ export default function ContentImportAdmin() {
     try {
       const res = await migrateUnitDescriptionsMutation({ dryRun, limit: 1000 });
       setLastMigrationPreview(res);
-      toast.success(dryRun ? "Migration preview ready" : "Migration executed", {
-        description: `Migrated: ${res.migrated} / Considered: ${res.considered} (dryRun=${res.dryRun})`,
-      });
+      toast.success(
+        dryRun ? t("admin.contentImport.toast.migrationPreviewReady") : t("admin.contentImport.toast.migrationExecuted"),
+        {
+          description: t("admin.contentImport.toast.migration.desc", {
+            migrated: res.migrated,
+            considered: res.considered,
+            dryRun: String(res.dryRun),
+          }),
+        }
+      );
     } catch (error: any) {
-      toast.error("Migration failed", { description: String(error?.message || error) });
+      toast.error(t("admin.contentImport.toast.migrationFailed.title"), { description: String(error?.message || error) });
     } finally {
       setMigratingUnitDescriptions(false);
     }

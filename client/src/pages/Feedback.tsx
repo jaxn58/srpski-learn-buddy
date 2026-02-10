@@ -84,7 +84,7 @@ export default function Feedback() {
       descriptionTrimmed.length > 0 && descriptionTrimmed.length < DESCRIPTION_MIN;
 
     if (titleMissing || descriptionMissing || titleTooShort || descriptionTooShort) {
-      toast.error("Please fix the highlighted fields");
+      toast.error(t("feedback.error.fixFields"));
 
       const focusId = titleMissing || titleTooShort ? "title" : "description";
       const el = document.getElementById(focusId) as HTMLElement | null;

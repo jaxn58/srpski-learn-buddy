@@ -10,6 +10,7 @@ import { ListTodo } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
 
 type WishlistFormState = {
   title: string;
@@ -43,6 +44,7 @@ function formatNextAllowedAt(ts: number) {
 
 export default function WishlistNew() {
   const { user, loading } = useAuth();
+  const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const createWishlistItem = useMutation(api.wishlist.createWishlistItem);
   const cooldown = useQuery(api.wishlist.getMySubmitCooldown);
@@ -178,30 +180,36 @@ export default function WishlistNew() {
 
     if (raw.includes("Rate limit:")) {
       return {
-        title: "Too many submissions",
-        description: "You can submit 1 wishlist suggestion every 24 hours. Please try again later.",
+        title: t("wishlistNew.error.rateLimit.title"),
+        description: t("wishlistNew.error.rateLimit.desc"),
       };
     }
 
     if (raw.includes("A similar wishlist item already exists")) {
       return {
-        title: "Similar wishlist item exists",
-        description: "You’ve already submitted a wishlist item with a similar title. Please check your wishlist.",
+        title: t("wishlistNew.error.similar.title"),
+        description: t("wishlistNew.error.similar.desc"),
       };
     }
 
     if (raw.includes("Title is too short")) {
-      return { title: "Title is too short", description: `Please use at least ${TITLE_MIN} characters.` };
+      return {
+        title: t("wishlistNew.error.titleTooShort.title"),
+        description: t("wishlistNew.error.titleTooShort.desc", { min: TITLE_MIN }),
+      };
     }
 
     if (raw.includes("Description is too short")) {
       return {
-        title: "Description is too short",
-        description: `Please use at least ${DESCRIPTION_MIN} characters.`,
+        title: t("wishlistNew.error.descTooShort.title"),
+        description: t("wishlistNew.error.descTooShort.desc", { min: DESCRIPTION_MIN }),
       };
     }
 
-    return { title: "Submission failed", description: "Please try again later." };
+    return {
+      title: t("wishlistNew.error.generic.title"),
+      description: t("wishlistNew.error.generic.desc"),
+    };
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -216,7 +224,7 @@ export default function WishlistNew() {
     const shortDescription = description.length > 0 && description.length < DESCRIPTION_MIN;
 
     if (missingTitle || missingDescription || shortTitle || shortDescription) {
-      toast.error("Please fix the highlighted fields");
+      toast.error(t("wishlistNew.toast.fixFields"));
       const focusId = missingTitle || shortTitle ? "wishlist-title" : "wishlist-description";
       const el = document.getElementById(focusId) as HTMLElement | null;
       el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
@@ -227,8 +235,8 @@ export default function WishlistNew() {
     setSubmitting(true);
     try {
       await createWishlistItem({ title, description });
-      toast.success("Submitted for review", {
-        description: "After approval, your suggestion becomes visible and can receive upvotes.",
+      toast.success(t("wishlistNew.toast.submitted.title"), {
+        description: t("wishlistNew.toast.submitted.desc"),
         duration: 6000,
       });
       setForm({ title: "", description: "" });

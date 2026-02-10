@@ -35,6 +35,11 @@ type VocabItem = {
   enAlt?: string;
   deAlt?: string;
   translations: Array<{ language: string; translation: string; alt?: string }>;
+  noteEn?: string;
+  noteDe?: string;
+  noteEs?: string;
+  noteFr?: string;
+  noteSr?: string;
 };
 
 type VocabWithProgressItem = {
@@ -63,15 +68,17 @@ type UserVocabProgressRow = {
 
 export default function Vocabulary() {
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const progress = useQuery(api.progress.getUserProgress);
   const [location] = useLocation();
 
   // Get accessible units from Convex
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
   
-  // BETA: Force English for all users
-  const userLanguage: SupportedLanguage = "en";
+  // UI language: source of truth is DB user setting; fallback to current i18n language.
+  const rawLang = user?.learningLanguage ?? i18n.language;
+  const userLanguage: SupportedLanguage =
+    rawLang === "de" || rawLang === "es" || rawLang === "fr" ? rawLang : "en";
   
   // Helper function to get note for current language
   const getNoteForLanguage = (word: any, language: SupportedLanguage): string | null => {
@@ -516,6 +523,11 @@ export default function Vocabulary() {
         deAlt: word.deAlt,
         // Include old translations array for backward compatibility during migration
         translations: (word.translations || []) as VocabItem["translations"],
+        noteEn: word.noteEn,
+        noteDe: word.noteDe,
+        noteEs: word.noteEs,
+        noteFr: word.noteFr,
+        noteSr: word.noteSr,
       }));
       
       // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
@@ -567,6 +579,11 @@ export default function Vocabulary() {
         deAlt: word.deAlt,
         // Include old translations array for backward compatibility during migration
         translations: (word.translations || []) as VocabItem["translations"],
+        noteEn: word.noteEn,
+        noteDe: word.noteDe,
+        noteEs: word.noteEs,
+        noteFr: word.noteFr,
+        noteSr: word.noteSr,
       }));
       
       // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
@@ -1207,6 +1224,15 @@ export default function Vocabulary() {
                     })()}
                   </div>
                 )}
+                    {/* Note im Quiz-Modus unter der Vokabel anzeigen (vor der Antwort) */}
+                    {mode === 'quiz' && !showAnswer && (() => {
+                      const note = getNoteForLanguage(displayWord, userLanguage);
+                      return note ? (
+                        <p className="text-muted-foreground mt-2 italic text-[0.85rem]">
+                          {note}
+                        </p>
+                      ) : null;
+                    })()}
                     {/* Übersetzung nur im Learn-Mode anzeigen (im Quiz-Modus wird sie im Feedback-Bereich angezeigt) */}
                     {mode === 'learn' && (
                       <>

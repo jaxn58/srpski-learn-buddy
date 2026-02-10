@@ -5,11 +5,27 @@ import { useMemo, useEffect, useRef } from "react";
 import { logger } from "@/lib/logger";
 
 /**
- * BETA: Force English for all users
- * TODO: Re-enable multi-language after beta
+ * Determine preferred UI language for initial user sync (first login).
+ * Source of truth after that is `users.learningLanguage` in Convex.
  */
-function detectPreferredLanguage(): "en" {
-  return 'en'; // BETA: Force English for all users
+function detectPreferredLanguage(): "en" | "de" {
+  // 1) localStorage (used by LanguageContext)
+  try {
+    const stored = localStorage.getItem("app-language");
+    if (stored === "en" || stored === "de") return stored;
+  } catch {
+    // ignore
+  }
+
+  // 2) browser language
+  try {
+    const navLang = (navigator.language || "").toLowerCase();
+    if (navLang.startsWith("de")) return "de";
+  } catch {
+    // ignore
+  }
+
+  return "en";
 }
 
 /**
@@ -45,7 +61,9 @@ export function useAuth() {
 
     syncAttemptedRef.current = true;
 
-    syncUser({ learningLanguage: "en" })
+    // Provide preferred language for FIRST sync only.
+    // Server-side `syncUser` will not overwrite existing users' languages.
+    syncUser({ learningLanguage: detectPreferredLanguage() })
       .catch((error) => {
         logger.error("[useAuth] Failed to sync user:", error);
         syncAttemptedRef.current = false;

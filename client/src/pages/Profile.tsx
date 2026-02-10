@@ -3,6 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -15,6 +22,8 @@ import { UserCircle } from "lucide-react";
 import { MySubscriptionContent } from "./MySubscription";
 import { GamificationModal } from "@/components/GamificationModal";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const AVATAR_MAX_INPUT_BYTES = 2 * 1024 * 1024; // 2 MB
 const AVATAR_TARGET_SIZE = 256; // px (square)
@@ -60,7 +69,10 @@ async function processAvatarImage(file: File): Promise<Blob> {
 
 export default function Profile() {
   const { user, loading } = useAuth();
+  const { t } = useTranslation();
+  const { setLanguage } = useLanguage();
   const updatePublicProfile = useMutation(api.users.updatePublicProfile);
+  const updateLearningLanguage = useMutation(api.users.updateLearningLanguage);
   const generateAvatarUploadUrl = useMutation(api.users.generateAvatarUploadUrl);
   const setPublicAvatarFromUpload = useMutation(api.users.setPublicAvatarFromUpload);
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl);
@@ -76,6 +88,8 @@ export default function Profile() {
   const [publicEnabled, setPublicEnabled] = useState(false);
   const [onboardingEnabled, setOnboardingEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [languageSaving, setLanguageSaving] = useState(false);
+  const [uiLanguage, setUiLanguage] = useState<"en" | "de">("en");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -83,6 +97,7 @@ export default function Profile() {
     setNickname(user.publicNickname ?? "");
     setAvatarUrlInput(user.publicAvatarUrl ?? "");
     setPublicEnabled(user.leaderboardPublicEnabled ?? false);
+    setUiLanguage(user.learningLanguage === "de" ? "de" : "en");
 
     // Onboarding toggle is currently controlled via localStorage in Dashboard.tsx.
     // If the key exists, onboarding is disabled.
@@ -117,7 +132,7 @@ export default function Profile() {
   useEffect(() => {
     if (publicEnabled && !canEnablePublic) {
       setPublicEnabled(false);
-      toast.info("Public Top 10 display was disabled because nickname or avatar is missing.");
+      toast.info(t("profile.public.toastAutoDisabled"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicEnabled, canEnablePublic]);
@@ -140,13 +155,31 @@ export default function Profile() {
       <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card className="max-w-md">
           <CardHeader>
-            <CardTitle>Login required</CardTitle>
-            <CardDescription>Please sign in to manage your profile.</CardDescription>
+            <CardTitle>{t("profile.loginRequired.title")}</CardTitle>
+            <CardDescription>{t("profile.loginRequired.desc")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
     );
   }
+
+  const handleChangeLanguage = async (next: "en" | "de") => {
+    if (!user) return;
+    if (next === uiLanguage) return;
+
+    setLanguageSaving(true);
+    try {
+      await updateLearningLanguage({ learningLanguage: next });
+      setUiLanguage(next);
+      setLanguage(next);
+      toast.success(t("profile.language.toastUpdated"));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t("profile.language.toastFailed");
+      toast.error(message);
+    } finally {
+      setLanguageSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -156,9 +189,9 @@ export default function Profile() {
         publicAvatarUrl: avatarUrlInput,
         leaderboardPublicEnabled: publicEnabled,
       });
-      toast.success("Profile updated");
+      toast.success(t("profile.toastSaved"));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to update profile";
+      const message = err instanceof Error ? err.message : t("profile.toastSaveFailed");
       toast.error(message);
     } finally {
       setSaving(false);
@@ -172,12 +205,12 @@ export default function Profile() {
   const handleAvatarFileSelected = async (file: File | null) => {
     if (!file || !user) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file.");
+      toast.error(t("profile.avatar.toastSelectImage"));
       return;
     }
     // 2 MB input limit to keep uploads snappy and save storage.
     if (file.size > AVATAR_MAX_INPUT_BYTES) {
-      toast.error("Please choose an image under 2 MB.");
+      toast.error(t("profile.avatar.toastUnder2mb"));
       return;
     }
 
@@ -209,9 +242,9 @@ export default function Profile() {
       // Only update preview; do not put a signed URL into the manual override input.
       setAvatarPreviewUrl(res.url);
       setAvatarUrlInput("");
-      toast.success("Avatar updated");
+      toast.success(t("profile.avatar.toastUpdated"));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to upload avatar";
+      const message = err instanceof Error ? err.message : t("profile.avatar.toastUploadFailed");
       toast.error(message);
     } finally {
       setSaving(false);
@@ -224,18 +257,18 @@ export default function Profile() {
       <div className="flex items-center gap-3">
         <UserCircle className="h-7 w-7 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold">Profile</h1>
+          <h1 className="text-2xl font-bold">{t("profile.title")}</h1>
           <p className="text-sm text-muted-foreground">
-            Manage your public Leaderboard identity.
+            {t("profile.subtitle")}
           </p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Profile Settings</CardTitle>
+          <CardTitle>{t("profile.settings.title")}</CardTitle>
           <CardDescription>
-            Keep it simple: nickname + avatar, plus a couple of switches.
+            {t("profile.settings.desc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -244,11 +277,11 @@ export default function Profile() {
               type="button"
               onClick={handleAvatarClick}
               className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Upload avatar"
+              aria-label={t("profile.avatar.ariaUpload")}
               disabled={saving}
             >
               <Avatar className="h-14 w-14 border">
-              <AvatarImage src={avatarPreviewUrl || undefined} alt={nickname || "Avatar"} />
+              <AvatarImage src={avatarPreviewUrl || undefined} alt={nickname || t("profile.avatar.alt")} />
               <AvatarFallback className="text-base font-semibold">
                 {previewInitial}
               </AvatarFallback>
@@ -264,38 +297,57 @@ export default function Profile() {
               disabled={saving}
             />
             <div className="flex-1 min-w-[220px] space-y-1">
-              <div className="text-sm font-medium">{nickname || "Your nickname"}</div>
+              <div className="text-sm font-medium">{nickname || t("profile.nickname.fallback")}</div>
               <div className="text-xs text-muted-foreground">
-                Click the avatar to upload. {publicEnabled ? "Public display is enabled." : "Public display is disabled."}
+                {t("profile.avatar.hintClick")}{" "}
+                {publicEnabled ? t("profile.public.enabled") : t("profile.public.disabled")}
               </div>
               <div className="text-xs text-muted-foreground">
-                Image requirements: JPG/PNG/WebP, max 2 MB. We automatically crop + resize to 256×256 and compress (WebP/JPEG) to save storage.
+                {t("profile.avatar.requirements")}
               </div>
             </div>
           </div>
 
           <div className="grid gap-4">
             <div className="space-y-2">
-              <Label htmlFor="nickname">Nickname</Label>
+              <Label htmlFor="nickname">{t("profile.nickname.label")}</Label>
               <Input
                 id="nickname"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="e.g. SerbianExplorer"
+                placeholder={t("profile.nickname.placeholder")}
                 maxLength={32}
                 disabled={saving}
               />
               <p className="text-xs text-muted-foreground">{nickname.length}/32</p>
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">{t("profile.language.label")}</Label>
+              <Select
+                value={uiLanguage}
+                onValueChange={(v) => void handleChangeLanguage(v as "en" | "de")}
+                disabled={saving || languageSaving}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t("profile.language.placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="de">Deutsch</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{t("profile.language.hint")}</p>
+            </div>
+
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-3">
-                <Label className="text-sm font-medium">Public Top 10 display</Label>
+                <Label className="text-sm font-medium">{t("profile.public.label")}</Label>
                 <Switch
                   checked={publicEnabled}
                   onCheckedChange={(checked) => {
                     if (checked && !canEnablePublic) {
-                      toast.error("Set a nickname and upload an avatar before enabling public display.");
+                      toast.error(t("profile.public.toastMissingRequirements"));
                       return;
                     }
                     setPublicEnabled(checked);
@@ -305,13 +357,13 @@ export default function Profile() {
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Default is off. When enabled, nickname + avatar are required.
+                {t("profile.public.hint")}
               </p>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-3">
-                <Label className="text-sm font-medium">Show onboarding on login</Label>
+                <Label className="text-sm font-medium">{t("profile.onboarding.label")}</Label>
                 <Switch
                   checked={onboardingEnabled}
                   onCheckedChange={(checked) => {
@@ -325,13 +377,13 @@ export default function Profile() {
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Turn it off and back on anytime.
+                {t("profile.onboarding.hint")}
               </p>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-3">
-                <Label className="text-sm font-medium">Email updates (double opt-in)</Label>
+                <Label className="text-sm font-medium">{t("profile.emails.label")}</Label>
                 <Switch
                   checked={communityChecked}
                   onCheckedChange={async (checked) => {
@@ -340,14 +392,14 @@ export default function Profile() {
                       setSaving(true);
                       if (checked) {
                         await requestCommunityOptIn({ requested: true });
-                        toast.success("Check your email to confirm the subscription.");
+                        toast.success(t("profile.emails.toastConfirm"));
                       } else {
                         await unsubscribeCommunity({});
-                        toast.success("You will no longer receive these emails.");
+                        toast.success(t("profile.emails.toastUnsubscribed"));
                       }
                     } catch (err) {
                       const message =
-                        err instanceof Error ? err.message : "Failed to update email preference";
+                        err instanceof Error ? err.message : t("profile.emails.toastFailed");
                       toast.error(message);
                     } finally {
                       setSaving(false);
@@ -357,17 +409,17 @@ export default function Profile() {
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Send me product updates, community news, and learning tips.
-                {communityStatus?.pending ? " (Pending email confirmation)" : ""}
+                {t("profile.emails.hint")}
+                {communityStatus?.pending ? ` (${t("profile.emails.pending")})` : ""}
               </p>
             </div>
 
             <Accordion type="single" collapsible>
               <AccordionItem value="advanced">
-                <AccordionTrigger>Advanced</AccordionTrigger>
+                <AccordionTrigger>{t("profile.advanced.title")}</AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-2 pt-2">
-                    <Label htmlFor="avatarUrl">Avatar URL (https://)</Label>
+                    <Label htmlFor="avatarUrl">{t("profile.advanced.avatarUrl.label")}</Label>
                     <Input
                       id="avatarUrl"
                       value={avatarUrlInput}
@@ -376,7 +428,7 @@ export default function Profile() {
                       disabled={saving}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Optional: use a public image URL. Upload is recommended.
+                      {t("profile.advanced.avatarUrl.hint")}
                     </p>
                   </div>
                 </AccordionContent>
@@ -387,7 +439,7 @@ export default function Profile() {
 
             <div className="flex items-center gap-3">
               <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : "Save"}
+                {saving ? t("common.saving") : t("common.save")}
               </Button>
               <Button
                 variant="outline"
@@ -400,7 +452,7 @@ export default function Profile() {
                 }}
                 disabled={saving}
               >
-                Reset
+                {t("common.reset")}
               </Button>
             </div>
           </div>
@@ -410,19 +462,19 @@ export default function Profile() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Gamification System</span>
+            <span>{t("profile.gamification.title")}</span>
             <GamificationModal />
           </CardTitle>
           <CardDescription>
-            Learn how XP, levels, and rewards work
+            {t("profile.gamification.desc")}
           </CardDescription>
         </CardHeader>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>My Subscription</CardTitle>
-          <CardDescription>View your current plan, remaining time, and upgrade options.</CardDescription>
+          <CardTitle>{t("profile.subscription.title")}</CardTitle>
+          <CardDescription>{t("profile.subscription.desc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <MySubscriptionContent embedded />
@@ -431,18 +483,18 @@ export default function Profile() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Wishlist</CardTitle>
+          <CardTitle>{t("profile.wishlist.title")}</CardTitle>
           <CardDescription>
-            Submit feature ideas for review and upvote suggestions from the community.
+            {t("profile.wishlist.desc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             <Link href="/wishlist">
-              <Button variant="outline">Open Wishlist</Button>
+              <Button variant="outline">{t("profile.wishlist.open")}</Button>
             </Link>
             <Link href="/wishlist/new">
-              <Button>Submit a wishlist item</Button>
+              <Button>{t("profile.wishlist.submit")}</Button>
             </Link>
           </div>
         </CardContent>

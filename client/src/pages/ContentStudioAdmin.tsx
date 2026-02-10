@@ -51,6 +51,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { CheckCircle, XCircle, Sparkles, Upload, Info, Loader2, Settings, Plus, Search } from "lucide-react";
 
@@ -224,6 +225,7 @@ function buildSideBySideDiffRows(aText: string, bText: string): Array<{
 
 export default function ContentStudioAdmin() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const drafts = useQuery(api.contentStudio.listDrafts);
   const studioMetrics = useQuery(api.contentStudio.getStudioMetrics);
   const [selectedDraftId, setSelectedDraftId] = useState<Id<"contentDrafts"> | null>(null);
@@ -1018,9 +1020,9 @@ export default function ContentStudioAdmin() {
       setSelectedDraftId(id);
       setCreateDraftOpen(false);
       setNewTemplateId("");
-      toast.success("Draft created");
+      toast.success(t("admin.contentStudio.toast.draftCreated"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to create draft");
+      toast.error(e?.message || t("admin.contentStudio.toast.draftCreateFailed"));
     }
   };
 
@@ -1030,9 +1032,9 @@ export default function ContentStudioAdmin() {
         specialist: { provider: cfgSpecialistProvider, model: cfgSpecialistModel.trim() },
         auditor: { provider: cfgAuditorProvider, model: cfgAuditorModel.trim() },
       });
-      toast.success("Model config saved");
+      toast.success(t("admin.contentStudio.toast.modelConfigSaved"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to save model config");
+      toast.error(e?.message || t("admin.contentStudio.toast.modelConfigSaveFailed"));
     }
   };
 
@@ -1040,8 +1042,8 @@ export default function ContentStudioAdmin() {
     try {
       const name = newSkillName.trim();
       const prompt = newSkillPrompt.trim();
-      if (!name) throw new Error("Skill name required");
-      if (!prompt) throw new Error("Skill prompt required");
+      if (!name) throw new Error(t("admin.contentStudio.error.skillNameRequired"));
+      if (!prompt) throw new Error(t("admin.contentStudio.error.skillPromptRequired"));
       await upsertStageSkill({
         skillId: editSkillId ? (editSkillId as any) : undefined,
         stage: skillsStage,
@@ -1053,9 +1055,11 @@ export default function ContentStudioAdmin() {
       setNewSkillName("");
       setNewSkillPrompt("");
       setEditSkillId("");
-      toast.success(editSkillId ? "Skill updated" : "Skill created");
+      toast.success(
+        editSkillId ? t("admin.contentStudio.toast.skillUpdated") : t("admin.contentStudio.toast.skillCreated")
+      );
     } catch (e: any) {
-      toast.error(e?.message || "Failed to create skill");
+      toast.error(e?.message || t("admin.contentStudio.toast.skillCreateFailed"));
     }
   };
 
@@ -1069,27 +1073,27 @@ export default function ContentStudioAdmin() {
   const handleDeactivateSkill = async (id: string) => {
     try {
       await deactivateSkill({ skillId: id as any });
-      toast.success("Skill deactivated");
+      toast.success(t("admin.contentStudio.toast.skillDeactivated"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to deactivate skill");
+      toast.error(e?.message || t("admin.contentStudio.toast.skillDeactivateFailed"));
     }
   };
 
   const handleCreateReference = async () => {
     try {
       const title = newRefTitle.trim();
-      if (!title) throw new Error("Reference title required");
+      if (!title) throw new Error(t("admin.contentStudio.error.referenceTitleRequired"));
       const url = newRefUrl.trim();
       let storageId = newRefStorageId.trim();
 
       // Convenience: if a PDF was selected but not uploaded yet, upload it automatically here.
       if (!storageId && newRefFile) {
         if (newRefFile.type !== "application/pdf") {
-          throw new Error("Please select a PDF (application/pdf).");
+          throw new Error(t("admin.contentStudio.error.pdfMustBePdf"));
         }
         const maxBytes = 25 * 1024 * 1024; // 25 MB
         if (newRefFile.size > maxBytes) {
-          throw new Error("Please choose a PDF under 25 MB.");
+          throw new Error(t("admin.contentStudio.error.pdfUnder25mb"));
         }
 
         setNewRefUploading(true);
@@ -1131,9 +1135,9 @@ export default function ContentStudioAdmin() {
       setNewRefUrl("");
       setNewRefFile(null);
       setNewRefStorageId("");
-      toast.success("Reference created");
+      toast.success(t("admin.contentStudio.toast.referenceCreated"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to create reference");
+      toast.error(e?.message || t("admin.contentStudio.toast.referenceCreateFailed"));
     } finally {
       setNewRefUploading(false);
     }
@@ -1141,12 +1145,12 @@ export default function ContentStudioAdmin() {
 
   const handleCreateTemplateFromSelectedDraft = async () => {
     if (!selectedDraftId) {
-      toast.error("Select a draft first");
+      toast.error(t("admin.contentStudio.toast.selectDraftFirst"));
       return;
     }
     const name = newTemplateName.trim();
     if (!name) {
-      toast.error("Template name required");
+      toast.error(t("admin.contentStudio.toast.templateNameRequired"));
       return;
     }
     try {
@@ -1157,18 +1161,18 @@ export default function ContentStudioAdmin() {
       } as any);
       setNewTemplateName("");
       setNewTemplateDescription("");
-      toast.success("Template created from current draft");
+      toast.success(t("admin.contentStudio.toast.templateCreatedFromDraft"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to create template");
+      toast.error(e?.message || t("admin.contentStudio.toast.templateCreateFailed"));
     }
   };
 
   const handleDeactivateTemplate = async (templateId: string) => {
     try {
       await deactivateDraftTemplate({ templateId: templateId as any } as any);
-      toast.success("Template deactivated");
+      toast.success(t("admin.contentStudio.toast.templateDeactivated"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to deactivate template");
+      toast.error(e?.message || t("admin.contentStudio.toast.templateDeactivateFailed"));
     }
   };
 
@@ -1182,17 +1186,17 @@ export default function ContentStudioAdmin() {
   const handleUploadReferencePdf = async () => {
     const file = newRefFile;
     if (!file) {
-      toast.error("Please select a PDF file first.");
+      toast.error(t("admin.contentStudio.error.pdfSelectFirst"));
       return;
     }
     if (file.type !== "application/pdf") {
-      toast.error("Please select a PDF (application/pdf).");
+      toast.error(t("admin.contentStudio.error.pdfMustBePdf"));
       return;
     }
     // Keep reasonable default; can be increased later.
     const maxBytes = 25 * 1024 * 1024; // 25 MB
     if (file.size > maxBytes) {
-      toast.error("Please choose a PDF under 25 MB.");
+      toast.error(t("admin.contentStudio.error.pdfUnder25mb"));
       return;
     }
 
@@ -1214,9 +1218,9 @@ export default function ContentStudioAdmin() {
       const sid = json.storageId;
       if (!sid) throw new Error("Upload failed: missing storageId.");
       setNewRefStorageId(sid);
-      toast.success("PDF uploaded (storageId stored). You can now click Create Reference.");
+      toast.success(t("admin.contentStudio.toast.pdfUploaded"));
     } catch (e: any) {
-      toast.error(e?.message || "PDF upload failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.pdfUploadFailed"));
     } finally {
       setNewRefUploading(false);
     }
@@ -1252,10 +1256,10 @@ export default function ContentStudioAdmin() {
         provider: "manual",
         model: "manual",
       } as any);
-      toast.success("Guidelines saved");
+      toast.success(t("admin.contentStudio.toast.guidelinesSaved"));
       setEditRefOpen(false);
     } catch (e: any) {
-      toast.error(e?.message || "Failed to save guidelines");
+      toast.error(e?.message || t("admin.contentStudio.toast.guidelinesSaveFailed"));
     } finally {
       setEditRefSaving(false);
     }
@@ -1271,10 +1275,10 @@ export default function ContentStudioAdmin() {
         provider: "manual",
         model: "manual",
       } as any);
-      toast.success("Guidelines cleared (will re-generate on next use)");
+      toast.success(t("admin.contentStudio.toast.guidelinesCleared"));
       setEditRefOpen(false);
     } catch (e: any) {
-      toast.error(e?.message || "Failed to clear guidelines");
+      toast.error(e?.message || t("admin.contentStudio.toast.guidelinesClearFailed"));
     } finally {
       setEditRefSaving(false);
     }
@@ -1288,9 +1292,9 @@ export default function ContentStudioAdmin() {
         referenceId: editRef._id,
         version,
       } as any);
-      toast.success(`Reverted guidelines to v${version}`);
+      toast.success(t("admin.contentStudio.toast.guidelinesReverted", { version }));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to revert guidelines");
+      toast.error(e?.message || t("admin.contentStudio.toast.guidelinesRevertFailed"));
     } finally {
       setEditRefSaving(false);
     }
@@ -1300,16 +1304,16 @@ export default function ContentStudioAdmin() {
     if (!editRef?._id) return;
     const file = editRefNewPdfFile;
     if (!file) {
-      toast.error("Please select a PDF file first.");
+      toast.error(t("admin.contentStudio.error.pdfSelectFirst"));
       return;
     }
     if (file.type !== "application/pdf") {
-      toast.error("Please select a PDF (application/pdf).");
+      toast.error(t("admin.contentStudio.error.pdfMustBePdf"));
       return;
     }
     const maxBytes = 25 * 1024 * 1024;
     if (file.size > maxBytes) {
-      toast.error("Please choose a PDF under 25 MB.");
+      toast.error(t("admin.contentStudio.error.pdfUnder25mb"));
       return;
     }
 
@@ -1338,9 +1342,9 @@ export default function ContentStudioAdmin() {
       } as any);
 
       setEditRefNewPdfFile(null);
-      toast.success("PDF added to reference");
+      toast.success(t("admin.contentStudio.toast.pdfAdded"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to add PDF");
+      toast.error(e?.message || t("admin.contentStudio.toast.pdfAddFailed"));
     } finally {
       setEditRefPdfUploading(false);
     }
@@ -1353,9 +1357,9 @@ export default function ContentStudioAdmin() {
         referenceId: editRef._id,
         storageId,
       } as any);
-      toast.success("PDF removed");
+      toast.success(t("admin.contentStudio.toast.pdfRemoved"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to remove PDF");
+      toast.error(e?.message || t("admin.contentStudio.toast.pdfRemoveFailed"));
     }
   };
 
@@ -1387,9 +1391,9 @@ export default function ContentStudioAdmin() {
         },
       });
 
-      toast.success("Draft settings saved");
+      toast.success(t("admin.contentStudio.toast.draftSettingsSaved"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to save draft settings");
+      toast.error(e?.message || t("admin.contentStudio.toast.draftSettingsSaveFailed"));
     }
   };
 
@@ -1466,9 +1470,9 @@ export default function ContentStudioAdmin() {
     try {
       await deleteDraft({ draftId: selectedDraftId });
       setSelectedDraftId(null);
-      toast.success("Draft deleted");
+      toast.success(t("admin.contentStudio.toast.draftDeleted"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to delete draft");
+      toast.error(e?.message || t("admin.contentStudio.toast.draftDeleteFailed"));
     }
   };
 
@@ -1476,7 +1480,7 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return;
     try {
       const json = unitPackageJson.trim();
-      if (!json) throw new Error("Empty JSON");
+      if (!json) throw new Error(t("admin.contentStudio.error.emptyJson"));
       await saveSnapshot({
         draftId: selectedDraftId,
         unitPackageJson: json,
@@ -1485,9 +1489,9 @@ export default function ContentStudioAdmin() {
         replaceFindings: true,
         findings: [],
       });
-      toast.success("Snapshot saved");
+      toast.success(t("admin.contentStudio.toast.snapshotSaved"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to save snapshot");
+      toast.error(e?.message || t("admin.contentStudio.toast.snapshotSaveFailed"));
     }
   };
 
@@ -1496,30 +1500,30 @@ export default function ContentStudioAdmin() {
     const md = String(snap?.markdownSource || "");
     if (md.trim()) {
       setMarkdownText(md);
-      toast.success("Loaded markdown from snapshot");
+      toast.success(t("admin.contentStudio.toast.loadedMarkdownFromSnapshot"));
       return;
     }
-    toast.error("No markdown found in the latest snapshot. Run Creator first (or save Markdown once).");
+    toast.error(t("admin.contentStudio.toast.noMarkdownInSnapshot"));
   };
 
   const handleSaveMarkdown = async () => {
     if (!selectedDraftId) return;
     try {
       const md = markdownText.trim();
-      if (!md) throw new Error("Empty markdown");
+      if (!md) throw new Error(t("admin.contentStudio.error.emptyMarkdown"));
       await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md } as any);
-      toast.success("Markdown snapshot saved. Run Validator next.");
+      toast.success(t("admin.contentStudio.toast.markdownSnapshotSaved"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to save markdown snapshot");
+      toast.error(e?.message || t("admin.contentStudio.toast.markdownSnapshotSaveFailed"));
     }
   };
 
   const handleCopyMarkdown = async () => {
     try {
       await navigator.clipboard.writeText(markdownText);
-      toast.success("Copied markdown to clipboard");
+      toast.success(t("admin.contentStudio.toast.copiedMarkdown"));
     } catch (e: any) {
-      toast.error(e?.message || "Copy failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.copyFailed"));
     }
   };
 
@@ -1536,9 +1540,9 @@ export default function ContentStudioAdmin() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success("Downloaded markdown");
+      toast.success(t("admin.contentStudio.toast.downloadedMarkdown"));
     } catch (e: any) {
-      toast.error(e?.message || "Download failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.downloadFailed"));
     }
   };
 
@@ -1548,9 +1552,13 @@ export default function ContentStudioAdmin() {
     setRunningApprovePreview(true);
     try {
       const res = await approveAfterPreview({ draftId: selectedDraftId } as any);
-      toast.success(`Preview approved (${String((res as any)?.approvedSnapshotId || "").slice(0, 12)}…)`);
+      toast.success(
+        t("admin.contentStudio.toast.previewApproved", {
+          id: String((res as any)?.approvedSnapshotId || "").slice(0, 12),
+        })
+      );
     } catch (e: any) {
-      toast.error(e?.message || "Approve failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.approveFailed"));
     } finally {
       setRunningApprovePreview(false);
     }
@@ -1560,7 +1568,7 @@ export default function ContentStudioAdmin() {
     try {
       const md = String((approvedMarkdown as any)?.markdownSource || "");
       if (!md.trim()) {
-        toast.error("No approved markdown available");
+        toast.error(t("admin.contentStudio.toast.noApprovedMarkdown"));
         return;
       }
       const unitNumber = Number((selected as any)?.draft?.unitNumber);
@@ -1574,9 +1582,9 @@ export default function ContentStudioAdmin() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success("Downloaded approved markdown");
+      toast.success(t("admin.contentStudio.toast.downloadedApprovedMarkdown"));
     } catch (e: any) {
-      toast.error(e?.message || "Download failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.downloadFailed"));
     }
   };
 
@@ -1584,14 +1592,18 @@ export default function ContentStudioAdmin() {
     const snap = selected?.snapshot as any;
     if (snap?.unitPackageJson) {
       setUnitPackageJson(String(snap.unitPackageJson));
-      toast.success("Loaded snapshot into editor");
+      toast.success(t("admin.contentStudio.toast.loadedSnapshot"));
       return;
     }
     const lastRun = (selected as any)?.aiRuns?.[0];
     if (lastRun?.status === "failed" && lastRun?.error) {
-      toast.error(`No snapshot yet. Last run failed: ${String(lastRun.error).slice(0, 180)}`);
+      toast.error(
+        t("admin.contentStudio.toast.noSnapshotLastRunFailed", {
+          error: String(lastRun.error).slice(0, 180),
+        })
+      );
     } else {
-      toast.error("No snapshot yet. Run Creator first (and check errors if it fails).");
+      toast.error(t("admin.contentStudio.toast.noSnapshotRunCreator"));
     }
   };
 
@@ -1601,13 +1613,13 @@ export default function ContentStudioAdmin() {
     setProgressPercent(25);
     setProgressMessage("Creator: generating markdown…");
     try {
-      toast.info("Creator is running…");
+      toast.info(t("admin.contentStudio.toast.creatorRunning"));
       await runSpecialist({ draftId: selectedDraftId });
-      toast.success("Creator generated a draft. Run Validator next.");
+      toast.success(t("admin.contentStudio.toast.creatorGenerated"));
       setProgressPercent(40);
       setProgressMessage("Creator finished.");
     } catch (e: any) {
-      toast.error(e?.message || "Creator failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.creatorFailed"));
     }
     finally {
       setRunningCreator(false);
@@ -1620,14 +1632,14 @@ export default function ContentStudioAdmin() {
     setProgressPercent(60);
     setProgressMessage("Validator: checking structure…");
     try {
-      toast.info("Validator is running…");
+      toast.info(t("admin.contentStudio.toast.validatorRunning"));
       const res = await runValidate({ draftId: selectedDraftId });
-      if (res.ok) toast.success("Validator passed");
-      else toast.error("Validator failed (see findings)");
+      if (res.ok) toast.success(t("admin.contentStudio.toast.validatorPassed"));
+      else toast.error(t("admin.contentStudio.toast.validatorFailedSeeFindings"));
       setProgressPercent(res?.ok ? 80 : 70);
       setProgressMessage(res?.ok ? "Validator passed." : "Validator failed.");
     } catch (e: any) {
-      toast.error(e?.message || "Validator failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.validatorFailed"));
     }
     finally {
       setRunningValidator(false);
@@ -1639,13 +1651,13 @@ export default function ContentStudioAdmin() {
     setRunningCreateValidate(true);
     try {
       // Step 1: Creator
-      toast.info("Creating content…");
+      toast.info(t("admin.contentStudio.toast.creatingContent"));
       setProgressPercent(10);
       setProgressMessage("Creator: generating content…");
       await runSpecialist({ draftId: selectedDraftId });
       
       // Step 2: Validator (includes auto-fix)
-      toast.info("Validating…");
+      toast.info(t("admin.contentStudio.toast.validating"));
       setProgressPercent(60);
       setProgressMessage("Validator: validating + autofix…");
       const valRes = await runValidate({ draftId: selectedDraftId });
@@ -1660,7 +1672,7 @@ export default function ContentStudioAdmin() {
         );
         
         if (hasTruncatedGrammar) {
-          toast.info("Auto-fixing truncated Grammar section…");
+          toast.info(t("admin.contentStudio.toast.autoFixingGrammar"));
           setProgressPercent(70);
           setProgressMessage("Auto-fix: regenerating Grammar section…");
           await runSectionRevise({
@@ -1670,46 +1682,46 @@ export default function ContentStudioAdmin() {
           });
           
           // Re-validate after fix
-          toast.info("Re-validating after fix…");
+          toast.info(t("admin.contentStudio.toast.revalidatingAfterFix"));
           setProgressPercent(75);
           setProgressMessage("Validator: re-validating after fix…");
           const revalidateRes = await runValidate({ draftId: selectedDraftId });
           if (!revalidateRes.ok) {
-            toast.error("Validation still failed after auto-fix. Check findings or use 'Edit Content'.");
+            toast.error(t("admin.contentStudio.toast.validationStillFailedAfterAutofix"));
             setProgressPercent(75);
             setProgressMessage("Validation failed after auto-fix.");
             return;
           }
         } else {
-          toast.error("Validation failed. Check findings or use 'Edit Content' to fix issues.");
+          toast.error(t("admin.contentStudio.toast.validationFailedCheckFindings"));
           setProgressPercent(65);
           setProgressMessage("Validation failed.");
           return;
         }
       } else if (!valRes.ok) {
-        toast.error("Validation failed. Check findings or use 'Edit Content' to fix issues.");
+        toast.error(t("admin.contentStudio.toast.validationFailedCheckFindings"));
         setProgressPercent(65);
         setProgressMessage("Validation failed.");
         return;
       }
       
       // Step 3: Lector
-      toast.info("Running Lector…");
+      toast.info(t("admin.contentStudio.toast.runningLector"));
       setProgressPercent(85);
       setProgressMessage("Lector: reviewing content…");
       const lecRes = await runAuditor({ draftId: selectedDraftId });
       
       if (lecRes.ok) {
-        toast.success("Done! Content is ready. Preview it, then publish.");
+        toast.success(t("admin.contentStudio.toast.doneReady"));
         setProgressPercent(100);
         setProgressMessage("Done. Ready for preview.");
       } else {
-        toast.warning("Lector found issues. Check findings or use 'Edit Content'.");
+        toast.warning(t("admin.contentStudio.toast.lectorFoundIssues"));
         setProgressPercent(92);
         setProgressMessage("Lector found issues.");
       }
     } catch (e: any) {
-      toast.error(e?.message || "Generation failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.generationFailed"));
       setProgressPercent(0);
       setProgressMessage("Generation failed.");
     } finally {
@@ -1720,11 +1732,11 @@ export default function ContentStudioAdmin() {
   const runBatch = async (action: "generate" | "validate" | "preview") => {
     const ids = Array.from(new Set(batchSelectedDraftIds.map(String))).filter(Boolean);
     if (ids.length === 0) {
-      toast.error("No drafts selected");
+      toast.error(t("admin.contentStudio.toast.noDraftsSelected"));
       return;
     }
     if (isBusy) {
-      toast.error("Another task is running. Please wait.");
+      toast.error(t("admin.contentStudio.toast.anotherTaskRunning"));
       return;
     }
     setBatchRunning(true);
@@ -1801,7 +1813,7 @@ export default function ContentStudioAdmin() {
 
       const fails = results.filter((r) => r.status === "failed").length;
       const successes = results.filter((r) => r.status === "success").length;
-      toast.success(`Batch ${action} finished (${successes} ok, ${fails} failed)`);
+      toast.success(t("admin.contentStudio.toast.batchFinished", { action, ok: successes, failed: fails }));
     } finally {
       setBatchRunning(false);
       setBatchProgress(null);
@@ -1812,17 +1824,17 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return;
     setRunningRevise(true);
     try {
-      toast.info("Running AI Revision (Fixing findings)...");
+      toast.info(t("admin.contentStudio.toast.revisionRunning"));
       const res = await runRevise({
         draftId: selectedDraftId,
         preferredProvider: cfgSpecialistProvider,
         maxTokens: 12000,
       });
       if (res.ok) {
-        toast.success("Revision applied + Validator run.");
+        toast.success(t("admin.contentStudio.toast.revisionApplied"));
       }
     } catch (e: any) {
-      toast.error(e?.message || "Revision failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.revisionFailed"));
     } finally {
       setRunningRevise(false);
     }
@@ -1832,12 +1844,12 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return;
     setRunningLector(true);
     try {
-      toast.info("Lector is running…");
+      toast.info(t("admin.contentStudio.toast.runningLector"));
       const res = await runAuditor({ draftId: selectedDraftId });
-      if (res.ok) toast.success("Lector passed");
-      else toast.error("Lector flagged issues (see findings)");
+      if (res.ok) toast.success(t("admin.contentStudio.toast.lectorPassed"));
+      else toast.error(t("admin.contentStudio.toast.lectorFlagged"));
     } catch (e: any) {
-      toast.error(e?.message || "Lector failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.lectorFailed"));
     }
     finally {
       setRunningLector(false);
@@ -1847,7 +1859,7 @@ export default function ContentStudioAdmin() {
   const handleSectionRevise = async () => {
     if (!selectedDraftId) return;
     if (!expandInstruction.trim()) {
-      toast.error("Please enter an instruction (e.g., 'Add 2 more dialogues about ordering coffee')");
+      toast.error(t("admin.contentStudio.toast.instructionRequired"));
       return;
     }
     setRunningSectionRevise(true);
@@ -1855,24 +1867,24 @@ export default function ContentStudioAdmin() {
     setProgressMessage("Applying section changes…");
     try {
       const sectionLabel = SECTION_OPTIONS.find((s) => s.value === expandSection)?.label || expandSection;
-      toast.info(`Applying changes to ${sectionLabel}…`);
+      toast.info(t("admin.contentStudio.toast.applyingChanges", { section: sectionLabel }));
       const res = await runSectionRevise({
         draftId: selectedDraftId,
         sectionId: expandSection,
         instruction: expandInstruction.trim(),
       });
       if (res?.ok) {
-        toast.success(`${sectionLabel} updated. Validator ran automatically.`);
+        toast.success(t("admin.contentStudio.toast.sectionUpdated", { section: sectionLabel }));
         setExpandInstruction(""); // Clear after success
         setProgressPercent(80);
         setProgressMessage("Section updated.");
       } else {
-        toast.error("Changes failed. Check findings.");
+        toast.error(t("admin.contentStudio.toast.changesFailed"));
         setProgressPercent(0);
         setProgressMessage("Section update failed.");
       }
     } catch (e: any) {
-      toast.error(e?.message || "Section expansion failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.sectionReviseFailed"));
       setProgressPercent(0);
       setProgressMessage("Section update failed.");
     } finally {
@@ -1884,15 +1896,15 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return;
     setRunningPublish(true);
     try {
-      toast.info("Publishing…");
+      toast.info(t("admin.contentStudio.toast.publishing"));
       await publishDraft({
         draftId: selectedDraftId,
         mode: publishMode,
         moduleId: publishModuleId ? (publishModuleId as any) : undefined,
       });
-      toast.success("Published");
+      toast.success(t("admin.contentStudio.toast.published"));
     } catch (e: any) {
-      toast.error(e?.message || "Publish failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.publishFailed"));
     } finally {
       setRunningPublish(false);
     }
@@ -1902,16 +1914,16 @@ export default function ContentStudioAdmin() {
     if (!selected) return;
     const unitNum = selected.draft.unitNumber;
     if (deleteConfirmation !== `DELETE UNIT ${unitNum}`) {
-      toast.error("Confirmation text does not match");
+      toast.error(t("admin.contentStudio.toast.confirmationTextMismatch"));
       return;
     }
     try {
       await deleteUnitFull({ unitNumber: unitNum, confirm: deleteConfirmation });
-      toast.success(`Unit ${unitNum} deleted successfully`);
+      toast.success(t("admin.contentStudio.toast.unitDeleted", { unit: unitNum }));
       setDeleteUnitOpen(false);
       setSelectedDraftId(null);
     } catch (e: any) {
-      toast.error(e.message || "Failed to delete unit");
+      toast.error(e.message || t("admin.contentStudio.toast.unitDeleteFailed"));
     }
   };
 
@@ -1919,18 +1931,18 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return;
     setRunningPublish(true);
     try {
-      toast.info("Publishing to preview…");
+      toast.info(t("admin.contentStudio.toast.publishingToPreview"));
       await publishDraftToPreview({
         draftId: selectedDraftId,
         moduleId: publishModuleId ? (publishModuleId as any) : undefined,
       });
-      toast.success("Preview is live for Superadmin");
+      toast.success(t("admin.contentStudio.toast.previewLive"));
       const unitNumber = Number((selected as any)?.draft?.unitNumber);
       if (Number.isFinite(unitNumber) && unitNumber > 0) {
         window.open(`/unit/${unitNumber}`, "_blank", "noopener,noreferrer");
       }
     } catch (e: any) {
-      toast.error(e?.message || "Preview publish failed");
+      toast.error(e?.message || t("admin.contentStudio.toast.previewPublishFailed"));
     } finally {
       setRunningPublish(false);
     }
@@ -1940,11 +1952,11 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return;
     setRunningPublish(true);
     try {
-      toast.info("Taking preview offline…");
+      toast.info(t("admin.contentStudio.toast.takingPreviewOffline"));
       await takePreviewOffline({ draftId: selectedDraftId });
-      toast.success("Preview taken offline");
+      toast.success(t("admin.contentStudio.toast.previewTakenOffline"));
     } catch (e: any) {
-      toast.error(e?.message || "Failed to take preview offline");
+      toast.error(e?.message || t("admin.contentStudio.toast.previewOfflineFailed"));
     } finally {
       setRunningPublish(false);
     }
@@ -3351,7 +3363,7 @@ export default function ContentStudioAdmin() {
                               type="button"
                               onClick={() => {
                                 setMarkdownText(restoreMarkdownText);
-                                toast.success("Restored markdown from local autosave");
+                                toast.success(t("admin.contentStudio.toast.autosaveRestored"));
                               }}
                             >
                               Restore
@@ -3368,7 +3380,7 @@ export default function ContentStudioAdmin() {
                                 }
                                 setRestoreMarkdownText("");
                                 setRestoreMarkdownUpdatedAt(null);
-                                toast.success("Discarded local autosave");
+                                toast.success(t("admin.contentStudio.toast.autosaveDiscarded"));
                               }}
                             >
                               Discard

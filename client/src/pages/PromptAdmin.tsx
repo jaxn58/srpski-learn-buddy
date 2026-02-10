@@ -27,6 +27,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { useTranslation } from "react-i18next";
 import { 
   Sparkles, 
   History, 
@@ -87,6 +88,7 @@ const PROMPT_OPTIONS: Array<{ key: PromptKey; label: string; hint: string }> = [
 
 export default function PromptAdmin() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const [selectedKey, setSelectedKey] = useState<PromptKey>("default");
   
   const currentPrompt = useQuery(api.admin.getChatPrompt, { name: selectedKey });
@@ -120,7 +122,7 @@ export default function PromptAdmin() {
 
   const handleSave = async () => {
     if (!systemPrompt.trim()) {
-      toast.error("System prompt cannot be empty");
+      toast.error(t("admin.prompt.toastEmpty"));
       return;
     }
 
@@ -132,11 +134,11 @@ export default function PromptAdmin() {
         description: description.trim() || undefined,
       });
       
-      toast.success("Prompt saved successfully");
+      toast.success(t("admin.prompt.toastSaved"));
       setDescription("");
     } catch (error) {
       console.error("Error saving prompt:", error);
-      toast.error("Failed to save prompt");
+      toast.error(t("admin.prompt.toastSaveFailed"));
     } finally {
       setIsLoading(false);
     }
@@ -147,11 +149,11 @@ export default function PromptAdmin() {
     setIsLoading(true);
     try {
       await restorePromptMutation({ historyId: restoreVersion });
-      toast.success("Version restored successfully");
+      toast.success(t("admin.prompt.toastRestored"));
       setRestoreVersion(null);
     } catch (error) {
       console.error("Error restoring version:", error);
-      toast.error("Failed to restore version");
+      toast.error(t("admin.prompt.toastRestoreFailed"));
     } finally {
       setIsLoading(false);
     }
@@ -162,11 +164,11 @@ export default function PromptAdmin() {
     setIsLoading(true);
     try {
       await deletePromptMutation({ historyId: deleteVersion });
-      toast.success("Version deleted successfully");
+      toast.success(t("admin.prompt.toastDeleted"));
       setDeleteVersion(null);
     } catch (error) {
       console.error("Error deleting version:", error);
-      toast.error("Failed to delete version");
+      toast.error(t("admin.prompt.toastDeleteFailed"));
     } finally {
       setIsLoading(false);
     }
@@ -185,12 +187,12 @@ export default function PromptAdmin() {
       <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card>
           <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>You don't have permission to access this page.</CardDescription>
+            <CardTitle>{t("admin.common.accessDenied.title")}</CardTitle>
+            <CardDescription>{t("admin.common.accessDenied.desc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/dashboard">
-              <Button>Go to Dashboard</Button>
+              <Button>{t("admin.common.goToDashboard")}</Button>
             </Link>
           </CardContent>
         </Card>

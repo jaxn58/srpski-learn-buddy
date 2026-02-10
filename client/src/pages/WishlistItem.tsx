@@ -20,6 +20,7 @@ import { ArrowLeft, ThumbsUp, Shield } from "lucide-react";
 import { formatDateTimeEU } from "@/lib/utils";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const LIVE_STATUSES = new Set(["on_todo_list", "im_working_on_it", "shipped"]);
 
@@ -67,6 +68,7 @@ function statusBadgeClass(status: string) {
 
 export default function WishlistItem() {
   const { user, loading } = useAuth();
+  const { t } = useTranslation();
   const params = useParams();
   const id = params.id as Id<"wishlistItems">;
 
@@ -299,16 +301,16 @@ export default function WishlistItem() {
                           ? (duplicateOfId.trim() as any)
                           : undefined,
                     });
-                    toast.success("Wishlist item updated");
+                    toast.success(t("wishlist.toast.updated"));
                   } catch (e: any) {
-                    toast.error(e?.message || "Failed to update wishlist item");
+                    toast.error(e?.message || t("wishlist.toast.updateFailed"));
                   } finally {
                     setAdminSaving(false);
                   }
                 }}
                 disabled={adminSaving}
               >
-                {adminSaving ? "Saving..." : "Save"}
+                {adminSaving ? t("common.saving") : t("common.save")}
               </Button>
             </div>
           </CardContent>

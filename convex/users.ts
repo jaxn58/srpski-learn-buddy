@@ -80,8 +80,10 @@ export const syncUser = mutation({
         lastActiveDate: Date.now(),
       };
       
-      // BETA FIX: Update learningLanguage if provided and different from current
-      if (args.learningLanguage && args.learningLanguage !== existing.learningLanguage) {
+      // Do NOT overwrite an existing user's language via sync.
+      // Language changes are handled explicitly via `updateLearningLanguage`.
+      // We only backfill language for legacy users that don't have it set yet.
+      if (args.learningLanguage && existing.learningLanguage === undefined) {
         updates.learningLanguage = args.learningLanguage;
       }
       

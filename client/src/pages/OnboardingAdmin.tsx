@@ -27,9 +27,11 @@ import { useState } from "react";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 
 export default function OnboardingAdmin() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   
   // Load onboarding steps (V2: column-based)
   const allSteps = useQuery(api.onboarding.getAllOnboardingStepsV2);
@@ -170,11 +172,11 @@ export default function OnboardingAdmin() {
         backgroundColor: formData.backgroundColor || undefined,
       });
       
-      toast.success("Onboarding step created successfully");
+      toast.success(t("admin.onboarding.toast.created"));
       setCreateDialogOpen(false);
       resetForm();
     } catch (error) {
-      toast.error("Failed to create onboarding step");
+      toast.error(t("admin.onboarding.toast.createFailed"));
       console.error(error);
     }
   };
@@ -229,11 +231,11 @@ export default function OnboardingAdmin() {
         backgroundColor: formData.backgroundColor || undefined,
       });
       
-      toast.success("Onboarding step updated successfully");
+      toast.success(t("admin.onboarding.toast.updated"));
       setEditDialogOpen(false);
       resetForm();
     } catch (error) {
-      toast.error("Failed to update onboarding step");
+      toast.error(t("admin.onboarding.toast.updateFailed"));
       console.error(error);
     }
   };
@@ -244,11 +246,11 @@ export default function OnboardingAdmin() {
     
     try {
       await deleteStepMutation({ stepId: deletingStepId });
-      toast.success("Onboarding step deleted successfully");
+      toast.success(t("admin.onboarding.toast.deleted"));
       setDeleteDialogOpen(false);
       setDeletingStepId(null);
     } catch (error) {
-      toast.error("Failed to delete onboarding step");
+      toast.error(t("admin.onboarding.toast.deleteFailed"));
       console.error(error);
     }
   };
@@ -257,9 +259,9 @@ export default function OnboardingAdmin() {
   const handleToggleActive = async (stepId: Id<"onboardingSteps">) => {
     try {
       await toggleStepActiveMutation({ stepId });
-      toast.success("Step status updated");
+      toast.success(t("admin.onboarding.toast.statusUpdated"));
     } catch (error) {
-      toast.error("Failed to update step status");
+      toast.error(t("admin.onboarding.toast.statusUpdateFailed"));
       console.error(error);
     }
   };

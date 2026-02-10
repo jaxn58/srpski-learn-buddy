@@ -21,11 +21,13 @@ import { Mail, Users, CheckCircle, Clock, Bell, Loader2, Download, Trash2 } from
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { formatDateEU, formatDateTimeEU, formatTimeEU } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 type WaitlistEntry = Doc<"waitlist">;
 
 export default function AdminWaitlist() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const waitlistEntries = useQuery(api.waitlist.getAll) as WaitlistEntry[] | undefined;
   const stats = useQuery(api.waitlist.getStats);
   const notifyAllMutation = useMutation(api.waitlist.notifyAll);
@@ -58,8 +60,8 @@ export default function AdminWaitlist() {
       <div className="container py-8">
         <Card>
           <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>You don't have permission to view this page.</CardDescription>
+            <CardTitle>{t("admin.common.accessDenied.title")}</CardTitle>
+            <CardDescription>{t("admin.common.accessDenied.desc")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -70,12 +72,13 @@ export default function AdminWaitlist() {
     setIsNotifying(true);
     try {
       const result = await notifyAllMutation();
-      toast.success(
-        `Successfully notified ${result.successCount} users! ${result.errorCount > 0 ? `${result.errorCount} failed.` : ""}`
-      );
+      const ok = t("admin.waitlist.toast.notified", { count: result.successCount });
+      const failed =
+        result.errorCount > 0 ? ` ${t("admin.waitlist.toast.notifiedFailed", { count: result.errorCount })}` : "";
+      toast.success(`${ok}${failed}`);
     } catch (error: any) {
       console.error("[AdminWaitlist] Error notifying users:", error);
-      toast.error(error.message || "Failed to notify users");
+      toast.error(error.message || t("admin.waitlist.toast.notifyFailed"));
     } finally {
       setIsNotifying(false);
     }
@@ -85,10 +88,10 @@ export default function AdminWaitlist() {
     setDeletingId(waitlistId);
     try {
       await removeMutation({ waitlistId });
-      toast.success(`Successfully deleted ${email}`);
+      toast.success(t("admin.waitlist.toast.deleted", { email }));
     } catch (error: any) {
       console.error("[AdminWaitlist] Error deleting entry:", error);
-      toast.error(error.message || "Failed to delete entry");
+      toast.error(error.message || t("admin.waitlist.toast.deleteFailed"));
     } finally {
       setDeletingId(null);
     }
@@ -96,7 +99,7 @@ export default function AdminWaitlist() {
 
   const handleExportCSV = () => {
     if (!waitlistEntries || waitlistEntries.length === 0) {
-      toast.error("No data to export");
+      toast.error(t("admin.waitlist.toast.noDataToExport"));
       return;
     }
 
@@ -126,7 +129,7 @@ export default function AdminWaitlist() {
     link.click();
     document.body.removeChild(link);
 
-    toast.success("CSV exported successfully");
+    toast.success(t("admin.waitlist.toast.csvExported"));
   };
 
   const getStatusBadge = (status: string) => {

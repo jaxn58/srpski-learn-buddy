@@ -9,6 +9,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export interface TranslationQuestion {
   id: string;
@@ -54,6 +55,7 @@ const persistAwarded = (storageKey: string, awarded: Set<string>) => {
 };
 
 export function TranslationExercise({ title, instructions, questions, exerciseId, unitNumber }: TranslationExerciseProps) {
+  const { t } = useTranslation();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [checked, setChecked] = useState<Record<string, boolean | null>>({});
   const [showSolutions, setShowSolutions] = useState(false);
@@ -181,8 +183,8 @@ export function TranslationExercise({ title, instructions, questions, exerciseId
     // Update session XP and show toast
     if (totalEarnedXP > 0) {
       setSessionXP(prev => prev + totalEarnedXP);
-      toast.success(`+${totalEarnedXP} XP earned!`, {
-        description: `Total session XP: ${sessionXP + totalEarnedXP}`,
+      toast.success(t("exercise.toast.xpEarned", { xp: totalEarnedXP }), {
+        description: t("exercise.toast.sessionTotal", { xp: sessionXP + totalEarnedXP }),
         icon: '⭐',
       });
     }

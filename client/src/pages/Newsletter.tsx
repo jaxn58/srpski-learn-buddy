@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 export default function Newsletter() {
   const [activeTab, setActiveTab] = useState("campaigns");
@@ -44,6 +45,7 @@ export default function Newsletter() {
 
 // ============= CAMPAIGNS TAB =============
 function CampaignsTab() {
+  const { t } = useTranslation();
   const campaigns = useQuery(api.newsletter.getAllCampaigns, {});
   const emailTemplates = useQuery(api.emailTemplates.getAll);
   const createCampaign = useMutation(api.newsletter.createCampaign);
@@ -72,7 +74,7 @@ function CampaignsTab() {
         targetSource: newCampaign.targetSource !== "all" ? newCampaign.targetSource : undefined,
         testMode: newCampaign.testMode,
       });
-      toast.success("Campaign created successfully");
+      toast.success(t("admin.newsletter.toast.campaignCreated"));
       setIsCreateDialogOpen(false);
       setNewCampaign({
         name: "",
@@ -84,7 +86,7 @@ function CampaignsTab() {
         testMode: true,
       });
     } catch (error: any) {
-      toast.error(error.message || "Failed to create campaign");
+      toast.error(error.message || t("admin.newsletter.toast.campaignCreateFailed"));
     }
   };
 
@@ -93,9 +95,14 @@ function CampaignsTab() {
 
     try {
       const result = await sendCampaign({ campaignId: campaignId as any });
-      toast.success(`Campaign scheduled! Sending to ${result.totalRecipients} recipients in ${result.batches} batches`);
+      toast.success(
+        t("admin.newsletter.toast.campaignScheduled", {
+          recipients: result.totalRecipients,
+          batches: result.batches,
+        })
+      );
     } catch (error: any) {
-      toast.error(error.message || "Failed to send campaign");
+      toast.error(error.message || t("admin.newsletter.toast.campaignSendFailed"));
     }
   };
 
@@ -104,9 +111,9 @@ function CampaignsTab() {
 
     try {
       await deleteCampaign({ campaignId: campaignId as any });
-      toast.success("Campaign deleted");
+      toast.success(t("admin.newsletter.toast.campaignDeleted"));
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete campaign");
+      toast.error(error.message || t("admin.newsletter.toast.campaignDeleteFailed"));
     }
   };
 

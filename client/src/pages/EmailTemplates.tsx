@@ -27,6 +27,7 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 // Sidebar import removed
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -116,6 +117,7 @@ function getVariableDescription(variable: string): string {
 
 export default function EmailTemplates() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const templates = useQuery(api.emailTemplates.getAll) as EmailTemplateDoc[] | undefined;
   const templatesLoading = templates === undefined;
   const runId = "email-design-fix";
@@ -417,11 +419,11 @@ export default function EmailTemplates() {
 
   const handleSendTestEmail = async () => {
     if (!formData.name) {
-      toast.error("Please save the template first (Template Name is required).");
+      toast.error(t("admin.emailTemplates.toast.saveTemplateFirst"));
       return;
     }
     if (!testToEmail || !testToEmail.includes("@")) {
-      toast.error("Please enter a valid recipient email.");
+      toast.error(t("admin.emailTemplates.toast.invalidRecipientEmail"));
       return;
     }
 
@@ -438,13 +440,13 @@ export default function EmailTemplates() {
       });
 
       if (result?.success) {
-        toast.success("Test email sent. Check your inbox.");
+        toast.success(t("admin.emailTemplates.toast.testSent"));
         setTestEmailOpen(false);
       } else {
-        toast.error(result?.error || "Failed to send test email");
+        toast.error(result?.error || t("admin.emailTemplates.toast.testSendFailed"));
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to send test email");
+      toast.error(error.message || t("admin.emailTemplates.toast.testSendFailed"));
     } finally {
       setIsSendingTestEmail(false);
     }
@@ -453,12 +455,12 @@ export default function EmailTemplates() {
   const handleSaveAndSendTestEmail = async () => {
     // Save first, then immediately send using defaults (single-click flow).
     if (!formData.name || !formData.subject || !formData.htmlContent) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("admin.emailTemplates.toast.fillRequired"));
       return;
     }
 
     if (!user?.email) {
-      toast.error("No admin email found for test send.");
+      toast.error(t("admin.emailTemplates.toast.noAdminEmail"));
       return;
     }
 
@@ -501,12 +503,12 @@ export default function EmailTemplates() {
       });
 
       if (result?.success) {
-        toast.success("Saved and sent test email. Check your inbox.");
+        toast.success(t("admin.emailTemplates.toast.savedAndTestSent"));
       } else {
-        toast.error(result?.error || "Failed to send test email");
+        toast.error(result?.error || t("admin.emailTemplates.toast.testSendFailed"));
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to save & send test email");
+      toast.error(error.message || t("admin.emailTemplates.toast.saveAndTestSendFailed"));
     } finally {
       setIsSendingTestEmail(false);
     }
@@ -529,9 +531,9 @@ export default function EmailTemplates() {
   async function copyToClipboard(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Copied to clipboard");
+      toast.success(t("common.copiedToClipboard"));
     } catch {
-      toast.error("Copy failed (clipboard permission?)");
+      toast.error(t("common.copyFailed"));
     }
   }
 
@@ -577,12 +579,12 @@ export default function EmailTemplates() {
     if (hasSignaturePlaceholder) return;
     const next = insertBeforeClosingBody(formData.htmlContent || "", SIGNATURE_FOOTER_BLOCK);
     setFormData((prev) => ({ ...prev, htmlContent: next }));
-    toast.success("Inserted signature placeholder");
+    toast.success(t("admin.emailTemplates.toast.signaturePlaceholderInserted"));
   }
 
   const handleSave = async () => {
     if (!formData.name || !formData.subject || !formData.htmlContent) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("admin.emailTemplates.toast.fillRequired"));
       return;
     }
 
@@ -611,11 +613,13 @@ export default function EmailTemplates() {
         variables,
       });
 
-      toast.success(editingTemplate ? "Template updated successfully" : "Template created successfully");
+      toast.success(
+        editingTemplate ? t("admin.emailTemplates.toast.templateUpdated") : t("admin.emailTemplates.toast.templateCreated")
+      );
       setViewMode("list");
       setEditingTemplate(null);
     } catch (error: any) {
-      toast.error(error.message || "Failed to save template");
+      toast.error(error.message || t("admin.emailTemplates.toast.templateSaveFailed"));
     }
   };
 
@@ -624,9 +628,9 @@ export default function EmailTemplates() {
     
     try {
       await deleteMutation({ id });
-      toast.success('Template deleted successfully');
+      toast.success(t("admin.emailTemplates.toast.templateDeleted"));
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete template');
+      toast.error(error.message || t("admin.emailTemplates.toast.templateDeleteFailed"));
     }
   };
 
@@ -638,9 +642,9 @@ export default function EmailTemplates() {
         htmlContent: data.htmlContent,
         isActive: data.isActive,
       });
-      toast.success(`Signature saved: ${category}`);
+      toast.success(t("admin.emailTemplates.toast.signatureSaved", { category }));
     } catch (error: any) {
-      toast.error(error.message || "Failed to save signature");
+      toast.error(error.message || t("admin.emailTemplates.toast.signatureSaveFailed"));
     }
   };
 
@@ -648,9 +652,9 @@ export default function EmailTemplates() {
     if (!confirm(`Delete signature for "${category}"?`)) return;
     try {
       await removeSignatureMutation({ category });
-      toast.success(`Signature deleted: ${category}`);
+      toast.success(t("admin.emailTemplates.toast.signatureDeleted", { category }));
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete signature");
+      toast.error(error.message || t("admin.emailTemplates.toast.signatureDeleteFailed"));
     }
   };
 

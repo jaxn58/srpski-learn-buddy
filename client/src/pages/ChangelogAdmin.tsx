@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Edit, Trash2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 type CategoryType = "added" | "changed" | "fixed" | "removed";
 type EnvironmentType = "beta" | "production" | "staging";
@@ -65,6 +66,7 @@ const categoryLabels: Record<CategoryType, string> = {
 };
 
 export default function ChangelogAdmin() {
+  const { t } = useTranslation();
   const versions = useQuery(api.versions.getAllVersions, { limit: 50 });
   const [selectedVersionId, setSelectedVersionId] = useState<Id<"appVersions"> | null>(null);
   const [newVersionDialogOpen, setNewVersionDialogOpen] = useState(false);
@@ -100,19 +102,19 @@ export default function ChangelogAdmin() {
         version: newVersion,
         environment: newEnvironment,
       });
-      toast.success(`Version ${newVersion} created successfully`);
+      toast.success(t("admin.changelog.toastVersionCreated", { version: newVersion }));
       setNewVersionDialogOpen(false);
       setNewVersion("");
       setNewEnvironment("beta");
       setSelectedVersionId(versionId);
     } catch (error: any) {
-      toast.error(error.message || "Failed to create version");
+      toast.error(error.message || t("admin.changelog.toastVersionCreateFailed"));
     }
   };
 
   const handleAddEntry = async () => {
     if (!selectedVersionId) {
-      toast.error("Please select a version first");
+      toast.error(t("admin.changelog.toastSelectVersionFirst"));
       return;
     }
 
@@ -124,14 +126,14 @@ export default function ChangelogAdmin() {
         description: entryDescription || undefined,
         language: entryLanguage,
       });
-      toast.success("Changelog entry added successfully");
+      toast.success(t("admin.changelog.toastEntryAdded"));
       setNewEntryDialogOpen(false);
       setEntryTitle("");
       setEntryDescription("");
       setEntryCategory("added");
       setEntryLanguage("en");
     } catch (error: any) {
-      toast.error(error.message || "Failed to add changelog entry");
+      toast.error(error.message || t("admin.changelog.toastEntryAddFailed"));
     }
   };
 
@@ -145,14 +147,14 @@ export default function ChangelogAdmin() {
         description: entryDescription || undefined,
         category: entryCategory,
       });
-      toast.success("Changelog entry updated successfully");
+      toast.success(t("admin.changelog.toastEntryUpdated"));
       setEditEntryDialogOpen(false);
       setEditingEntry(null);
       setEntryTitle("");
       setEntryDescription("");
       setEntryCategory("added");
     } catch (error: any) {
-      toast.error(error.message || "Failed to update changelog entry");
+      toast.error(error.message || t("admin.changelog.toastEntryUpdateFailed"));
     }
   };
 
@@ -161,11 +163,11 @@ export default function ChangelogAdmin() {
 
     try {
       await deleteChangelogEntryMutation({ entryId: entryToDelete });
-      toast.success("Changelog entry deleted successfully");
+      toast.success(t("admin.changelog.toastEntryDeleted"));
       setDeleteEntryDialogOpen(false);
       setEntryToDelete(null);
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete changelog entry");
+      toast.error(error.message || t("admin.changelog.toastEntryDeleteFailed"));
     }
   };
 

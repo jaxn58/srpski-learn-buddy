@@ -15,6 +15,7 @@ import {
 import { Loader2, Mail, Check } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateEU, formatTimeEU } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface WaitlistModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ interface WaitlistModalProps {
 }
 
 export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [wantsWaitlistUpdates, setWantsWaitlistUpdates] = useState(false);
@@ -37,7 +39,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
     // Validate email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      toast.error("Please enter a valid email address");
+      toast.error(t("waitlist.toast.invalidEmail"));
       return;
     }
 
@@ -52,10 +54,10 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
 
       setIsSuccess(true);
       setCreatedAt(result?.createdAt ?? null);
-      toast.success("Check your email to confirm your registration!");
+      toast.success(t("waitlist.toast.checkEmail"));
     } catch (error: any) {
       console.error("[WaitlistModal] Error joining waitlist:", error);
-      toast.error(error.message || "Failed to join waitlist. Please try again.");
+      toast.error(error.message || t("waitlist.toast.failed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -75,10 +77,10 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-center">
-            Join the Waitlist
+            {t("waitlist.title")}
           </DialogTitle>
           <DialogDescription className="text-center">
-            Be the first to know when Serbian AI Tutor Beta launches
+            {t("waitlist.desc")}
           </DialogDescription>
         </DialogHeader>
 
@@ -86,11 +88,11 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
           <form onSubmit={handleSubmit} className="space-y-6 mt-4">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name (optional)</Label>
+                <Label htmlFor="name">{t("waitlist.name.label")}</Label>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Your name"
+                  placeholder={t("waitlist.name.placeholder")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   disabled={isSubmitting}
@@ -99,12 +101,12 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="email">
-                  Email <span className="text-red-500">*</span>
+                  {t("waitlist.email.label")} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your.email@example.com"
+                  placeholder={t("waitlist.email.placeholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -123,10 +125,10 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                 />
                 <div className="space-y-1">
                   <Label htmlFor="waitlistUpdates" className="cursor-pointer leading-snug">
-                    I’d like behind-the-scenes updates: the idea, the story, and progress toward the beta.
+                    {t("waitlist.updates.label")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Double opt-in required. If unchecked, we’ll only notify you at beta launch.
+                    {t("waitlist.updates.hint")}
                   </p>
                 </div>
               </div>
@@ -140,7 +142,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                 disabled={isSubmitting}
                 className="flex-1"
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -150,12 +152,12 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Joining...
+                    {t("waitlist.joining")}
                   </>
                 ) : (
                   <>
                     <Mail className="mr-2 h-4 w-4" />
-                    Join Waitlist
+                    {t("waitlist.join")}
                   </>
                 )}
               </Button>
@@ -170,16 +172,16 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-semibold">Check Your Email!</h3>
+              <h3 className="text-xl font-semibold">{t("waitlist.success.title")}</h3>
               <p className="text-muted-foreground">
-                I sent a confirmation link to <strong>{email}</strong>
+                {t("waitlist.success.sentTo")} <strong>{email}</strong>
               </p>
               <p className="text-sm text-muted-foreground">
-                Please click the link in the email to complete your registration.
+                {t("waitlist.success.instruction")}
               </p>
               {createdAt && (
                 <div className="pt-2 text-xs text-muted-foreground">
-                  <div>Created</div>
+                  <div>{t("waitlist.success.created")}</div>
                   <div className="text-sm text-foreground">{formatDateEU(createdAt)}</div>
                   <div className="text-xs text-muted-foreground/80">{formatTimeEU(createdAt)}</div>
                 </div>
@@ -190,7 +192,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
               onClick={handleClose}
               className="w-full bg-primary hover:bg-primary/90"
             >
-              Got it!
+              {t("waitlist.success.gotIt")}
             </Button>
           </div>
         )}

@@ -33,6 +33,7 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateTimeEU } from "@/lib/utils";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 type BackupStatus = "completed" | "failed" | "in_progress";
 type BackupEnvironment = "production" | "development";
@@ -50,6 +51,7 @@ interface BackupMetadata extends Doc<"backupMetadata"> {
 
 export default function BackupManagement() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const backups = useQuery(api.backupAdmin.listBackups) as BackupMetadata[] | undefined;
   const backupsLoading = backups === undefined;
   
@@ -77,13 +79,13 @@ export default function BackupManagement() {
     try {
       setTriggeringBackup(true);
       await triggerBackupMutation({});
-      toast.success("Backup triggered successfully", {
-        description: "The backup process has been started. It may take 30-60 seconds to complete."
+      toast.success(t("admin.backup.toast.triggered.title"), {
+        description: t("admin.backup.toast.triggered.desc"),
       });
     } catch (error: any) {
       console.error("Backup trigger error:", error);
-      toast.error("Failed to trigger backup", {
-        description: error.message || "An unknown error occurred"
+      toast.error(t("admin.backup.toast.triggerFailed.title"), {
+        description: error.message || t("admin.contentImport.toast.unknownError"),
       });
     } finally {
       setTriggeringBackup(false);
@@ -118,14 +120,14 @@ export default function BackupManagement() {
         // Clean up blob URL after download
         setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
         
-        toast.success("Download started", {
-          description: "The backup file is being downloaded."
+        toast.success(t("admin.backup.toast.downloadStarted.title"), {
+          description: t("admin.backup.toast.downloadStarted.desc"),
         });
       }
     } catch (error: any) {
       console.error("Download error:", error);
-      toast.error("Failed to download backup", {
-        description: error.message || "An unknown error occurred"
+      toast.error(t("admin.backup.toast.downloadFailed.title"), {
+        description: error.message || t("admin.contentImport.toast.unknownError"),
       });
     } finally {
       setDownloadingBackupId(null);

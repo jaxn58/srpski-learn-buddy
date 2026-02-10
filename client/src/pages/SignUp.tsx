@@ -2,8 +2,10 @@ import { SignUp } from "@clerk/clerk-react";
 import { BookOpen } from "lucide-react";
 import { Link } from "wouter";
 import { AppFooter } from "@/components/AppFooter";
+import { useTranslation } from "react-i18next";
 
 export default function SignUpPage() {
+  const { t } = useTranslation();
   const redirectUrl = (() => {
     const params = new URLSearchParams(window.location.search);
     const candidate = (params.get("redirect_url") || "").trim();
@@ -25,7 +27,7 @@ export default function SignUpPage() {
               <div className="flex items-center gap-2 cursor-pointer">
                 <BookOpen className="h-8 w-8 text-primary" />
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  Serbian AI Tutor
+                  {t("app.title")}
                 </h1>
               </div>
             </Link>

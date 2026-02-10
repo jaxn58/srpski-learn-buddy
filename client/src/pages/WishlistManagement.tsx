@@ -22,6 +22,7 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateTimeEU } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 type ReviewRow = {
   _id: Id<"wishlistItems">;
@@ -83,6 +84,7 @@ function statusBadgeClass(status: string) {
 
 export default function WishlistManagement() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   const [showAll, setShowAll] = useState(true);
@@ -305,18 +307,18 @@ export default function WishlistManagement() {
                                               ? (duplicateOf.trim() as any)
                                               : undefined,
                                         });
-                                        toast.success("Wishlist item updated");
+                                        toast.success(t("wishlist.toast.updated"));
                                         setDialogOpen(false);
                                         setSelected(null);
                                       } catch (e: any) {
-                                        toast.error(e?.message || "Failed to update wishlist item");
+                                        toast.error(e?.message || t("wishlist.toast.updateFailed"));
                                       } finally {
                                         setSaving(false);
                                       }
                                     }}
                                     disabled={saving}
                                   >
-                                    {saving ? "Saving..." : "Save"}
+                                    {saving ? t("common.saving") : t("common.save")}
                                   </Button>
                                 </div>
                               </div>

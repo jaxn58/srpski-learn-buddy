@@ -9,6 +9,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export interface GenderRecognitionQuestion {
   id: string;
@@ -47,6 +48,7 @@ const persistAwarded = (storageKey: string, awarded: Set<string>) => {
 };
 
 export function GenderRecognitionExercise({ title, instructions, questions, exerciseId, unitNumber }: GenderRecognitionExerciseProps) {
+  const { t } = useTranslation();
   const [answers, setAnswers] = useState<Record<string, "masculine" | "feminine" | "neuter" | null>>({});
   const [checked, setChecked] = useState<Record<string, boolean | null>>({});
   const [hasChecked, setHasChecked] = useState(false);
@@ -160,8 +162,8 @@ export function GenderRecognitionExercise({ title, instructions, questions, exer
     
     if (totalEarnedXP > 0) {
       setSessionXP(prev => prev + totalEarnedXP);
-      toast.success(`+${totalEarnedXP} XP earned!`, {
-        description: `Total session XP: ${sessionXP + totalEarnedXP}`,
+      toast.success(t("exercise.toast.xpEarned", { xp: totalEarnedXP }), {
+        description: t("exercise.toast.sessionTotal", { xp: sessionXP + totalEarnedXP }),
         icon: '⭐',
       });
     }

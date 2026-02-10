@@ -126,7 +126,7 @@ export default function Home() {
         
         // Auto-trigger purchase after short delay
         setTimeout(() => {
-          toast.success("Welcome! Opening checkout for your selected plan...");
+          toast.success(t("billing.checkout.welcomeOpening"));
           void startPurchase(pendingPlan);
         }, 1000);
       }
@@ -212,7 +212,7 @@ export default function Home() {
   
   const startPurchase = async (planId: string) => {
     if (!ENABLE_PURCHASE_FOR_TESTING) {
-      toast.info("Paid plans will be available after the beta phase.");
+      toast.info(t("billing.paidPlansAfterBeta"));
       return;
     }
     
@@ -221,18 +221,18 @@ export default function Home() {
       // Store plan selection in localStorage to resume after signup
       localStorage.setItem('pendingPurchasePlan', planId);
       localStorage.setItem('pendingPaymentMode', paymentMode);
-      toast.info("Please sign up to continue with your purchase.");
+      toast.info(t("billing.signupToContinue"));
       setLocation("/sign-up?redirect_url=/");
       return;
     }
     
     if (!dodoConfigured) {
-      toast.error("Dodo Payments is not configured.");
+      toast.error(t("billing.dodoNotConfigured"));
       return;
     }
 
     if (!dodoReady) {
-      toast.error("Dodo Payments checkout is not ready yet.");
+      toast.error(t("billing.checkoutNotReady"));
       return;
     }
 
@@ -249,15 +249,11 @@ export default function Home() {
       });
       await openDodoCheckout({ checkoutUrl: session.checkoutUrl });
     } catch (error: any) {
-      toast.error(`Purchase error: ${error.message}`);
+      toast.error(t("billing.purchaseError", { error: error?.message || String(error) }));
     }
   };
   
-  // BETA: Force English for all users
-  useEffect(() => {
-    i18n.changeLanguage('en');
-    localStorage.removeItem('preferredLanguage');
-  }, [i18n]);
+  // Language is controlled globally (LanguageProvider + DB user setting).
   
   // Fetch data from database
   const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
@@ -330,7 +326,7 @@ export default function Home() {
                     className="border-primary text-primary hover:bg-primary/10"
                     onClick={() => setIsWaitlistModalOpen(true)}
                   >
-                    Join Waitlist
+                    {t("waitlist.title")}
                   </Button>
                 )}
                 <Link href="/sign-in">
@@ -379,7 +375,7 @@ export default function Home() {
                     className="bg-primary hover:bg-primary/90 text-lg px-8"
                     onClick={() => setIsWaitlistModalOpen(true)}
                   >
-                    Join Waitlist
+                    {t("waitlist.title")}
                   </Button>
                 )}
                 <Link href="/sign-in">
@@ -495,10 +491,10 @@ export default function Home() {
               className="bg-muted p-1 rounded-lg"
             >
               <ToggleGroupItem value="prepaid" className="px-3">
-                Pay once
+                {t("home.pricing.paymentToggle.payOnce")}
               </ToggleGroupItem>
               <ToggleGroupItem value="installments" disabled={!installmentsSelectable} className="px-3">
-                Pay monthly
+                {t("home.pricing.paymentToggle.payMonthly")}
               </ToggleGroupItem>
             </ToggleGroup>
             {paymentToggleHint ? (
@@ -538,17 +534,20 @@ export default function Home() {
                     <div>
                       <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                         {plansLoading ? (
-                          <span className="animate-pulse">Loading...</span>
+                          <span className="animate-pulse">{t("common.loading")}</span>
                         ) : (
                           <>€{(((planById.get("intensive") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}</>
                         )}
-                        <span className="text-sm text-muted-foreground">/month</span>
+                        <span className="text-sm text-muted-foreground">{t("home.pricing.perMonth")}</span>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {plansLoading ? (
-                          <span className="animate-pulse">Calculating...</span>
+                          <span className="animate-pulse">{t("common.calculating")}</span>
                         ) : (
-                          <>Total €{(((planById.get("intensive") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • {(planById.get("intensive") as any)?.months ?? 3} monthly payments</>
+                          t("home.pricing.installmentsTotalLine", {
+                            total: (((planById.get("intensive") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2),
+                            months: (planById.get("intensive") as any)?.months ?? 3,
+                          })
                         )}
                       </div>
                     </div>
@@ -632,17 +631,20 @@ export default function Home() {
                     <div>
                       <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                         {plansLoading ? (
-                          <span className="animate-pulse">Loading...</span>
+                          <span className="animate-pulse">{t("common.loading")}</span>
                         ) : (
                           <>€{(((planById.get("balanced") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}</>
                         )}
-                        <span className="text-sm text-muted-foreground">/month</span>
+                        <span className="text-sm text-muted-foreground">{t("home.pricing.perMonth")}</span>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {plansLoading ? (
-                          <span className="animate-pulse">Calculating...</span>
+                          <span className="animate-pulse">{t("common.calculating")}</span>
                         ) : (
-                          <>Total €{(((planById.get("balanced") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • {(planById.get("balanced") as any)?.months ?? 6} monthly payments</>
+                          t("home.pricing.installmentsTotalLine", {
+                            total: (((planById.get("balanced") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2),
+                            months: (planById.get("balanced") as any)?.months ?? 6,
+                          })
                         )}
                       </div>
                     </div>
@@ -730,17 +732,20 @@ export default function Home() {
                     <div>
                       <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                         {plansLoading ? (
-                          <span className="animate-pulse">Loading...</span>
+                          <span className="animate-pulse">{t("common.loading")}</span>
                         ) : (
                           <>€{(((planById.get("standard") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}</>
                         )}
-                        <span className="text-sm text-muted-foreground">/month</span>
+                        <span className="text-sm text-muted-foreground">{t("home.pricing.perMonth")}</span>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {plansLoading ? (
-                          <span className="animate-pulse">Calculating...</span>
+                          <span className="animate-pulse">{t("common.calculating")}</span>
                         ) : (
-                          <>Total €{(((planById.get("standard") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • {(planById.get("standard") as any)?.months ?? 9} monthly payments</>
+                          t("home.pricing.installmentsTotalLine", {
+                            total: (((planById.get("standard") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2),
+                            months: (planById.get("standard") as any)?.months ?? 9,
+                          })
                         )}
                       </div>
                     </div>
@@ -824,17 +829,20 @@ export default function Home() {
                     <div>
                       <div className={`font-bold ${paymentMode === "installments" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
                         {plansLoading ? (
-                          <span className="animate-pulse">Loading...</span>
+                          <span className="animate-pulse">{t("common.loading")}</span>
                         ) : (
                           <>€{(((planById.get("relaxed") as any)?.paymentOptions?.installmentsMonthly ?? 0) / 100).toFixed(2)}</>
                         )}
-                        <span className="text-sm text-muted-foreground">/month</span>
+                        <span className="text-sm text-muted-foreground">{t("home.pricing.perMonth")}</span>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {plansLoading ? (
-                          <span className="animate-pulse">Calculating...</span>
+                          <span className="animate-pulse">{t("common.calculating")}</span>
                         ) : (
-                          <>Total €{(((planById.get("relaxed") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2)} • {(planById.get("relaxed") as any)?.months ?? 12} monthly payments</>
+                          t("home.pricing.installmentsTotalLine", {
+                            total: (((planById.get("relaxed") as any)?.paymentOptions?.installmentsTotal ?? 0) / 100).toFixed(2),
+                            months: (planById.get("relaxed") as any)?.months ?? 12,
+                          })
                         )}
                       </div>
                     </div>

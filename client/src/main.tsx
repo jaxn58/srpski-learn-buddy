@@ -3,6 +3,8 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { I18nextProvider } from "react-i18next";
+import { useTranslation } from "react-i18next";
+import { deDE } from "@clerk/localizations";
 import App from "./App";
 import "./index.css";
 import i18n from "./i18n";
@@ -23,9 +25,8 @@ const convex = new ConvexReactClient(CONVEX_URL);
 
 // Dynamic ClerkProvider wrapper that responds to language changes
 function DynamicClerkProvider({ children }: { children: React.ReactNode }) {
-  // BETA: Since we force English everywhere, we don't need dynamic locale switching
-  // This prevents unnecessary re-renders and re-mounts of ClerkProvider
-  const locale = undefined; // Always use default (English)
+  const { i18n: i18nInstance } = useTranslation();
+  const locale = i18nInstance.language === "de" ? deDE : undefined;
 
   return (
     <ClerkProvider 

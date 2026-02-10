@@ -143,7 +143,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
     if (!user) return;
 
     if (!dodoConfigured) {
-      toast.error("Dodo Payments is not configured.");
+      toast.error(t("billing.dodoNotConfigured"));
       return;
     }
 
@@ -172,7 +172,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   const handleUpgrade = async (newPlan: string) => {
     if (!subscription || !user) return;
     if (!dodoConfigured) {
-      toast.error("Dodo Payments is not configured.");
+      toast.error(t("billing.dodoNotConfigured"));
       return;
     }
 

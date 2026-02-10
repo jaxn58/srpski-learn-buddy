@@ -8,7 +8,8 @@ import { DashboardLayoutSkeleton } from "./components/DashboardLayoutSkeleton";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import i18n from "./i18n";
+import { useLanguage } from "./contexts/LanguageContext";
+import { useAuth as useAppAuth } from "@/_core/hooks/useAuth";
 
 // Route-based code splitting: keep the initial bundle small and load pages on demand.
 const Home = lazy(() => import("./pages/Home"));
@@ -431,19 +432,49 @@ function Router() {
   );
 }
 
-function App() {
-  // BETA: Force English for all users
+function detectDefaultLanguage(): "en" | "de" {
+  try {
+    const stored = localStorage.getItem("app-language");
+    if (stored === "en" || stored === "de") return stored;
+  } catch {
+    // ignore
+  }
+
+  try {
+    const navLang = (navigator.language || "").toLowerCase();
+    if (navLang.startsWith("de")) return "de";
+  } catch {
+    // ignore
+  }
+
+  return "en";
+}
+
+function LanguageSync() {
+  const { user } = useAppAuth();
+  const { language, setLanguage } = useLanguage();
+
   useEffect(() => {
-    i18n.changeLanguage('en');
-    localStorage.removeItem('preferredLanguage');
-  }, []);
+    const next = user?.learningLanguage;
+    if (next !== "en" && next !== "de") return;
+    if (next === language) return;
+    // Persist + update i18n via LanguageProvider
+    setLanguage(next);
+  }, [user?.learningLanguage, language, setLanguage]);
+
+  return null;
+}
+
+function App() {
+  const defaultLanguage = detectDefaultLanguage();
 
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light" switchable={true}>
-        <LanguageProvider defaultLanguage="en">
+        <LanguageProvider defaultLanguage={defaultLanguage}>
           <TooltipProvider>
             <Toaster />
+            <LanguageSync />
             <Router />
           </TooltipProvider>
         </LanguageProvider>

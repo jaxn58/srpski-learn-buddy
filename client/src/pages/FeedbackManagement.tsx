@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU, formatDateTimeEU } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 // Sidebar import removed
 
 
@@ -23,6 +24,7 @@ type FeedbackType = "bug" | "feature" | "improvement" | "other";
 
 export default function FeedbackManagement() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const adminSubmissions = useQuery(api.feedback.getAllSubmissions) as FeedbackSubmissionDoc[] | undefined;
   const superadminSubmissions = useQuery(
     api.feedback.getAllSubmissionsForSuperadmin,
@@ -97,7 +99,7 @@ export default function FeedbackManagement() {
         id: selectedFeedback._id,
         status: currentStatus,
       });
-      toast.success('Feedback updated successfully');
+      toast.success(t("admin.feedback.toast.updated"));
       // Update selectedFeedback with new values to reflect changes in dialog
       setSelectedFeedback({
         ...selectedFeedback,
@@ -105,7 +107,7 @@ export default function FeedbackManagement() {
       });
     } catch (error: any) {
       console.error('Update error:', error);
-      toast.error(error?.message || 'Failed to update feedback');
+      toast.error(error?.message || t("admin.feedback.toast.updateFailed"));
     }
   };
 
@@ -114,9 +116,9 @@ export default function FeedbackManagement() {
     
     try {
       await deleteFeedbackMutation({ id });
-      toast.success('Feedback deleted successfully');
+      toast.success(t("admin.feedback.toast.deleted"));
     } catch (error) {
-      toast.error('Failed to delete feedback');
+      toast.error(t("admin.feedback.toast.deleteFailed"));
     }
   };
 
@@ -411,9 +413,9 @@ export default function FeedbackManagement() {
                                                 try {
                                                   setAiBusy(true);
                                                   await regenerateAiAction({ feedbackId: selectedFeedback._id });
-                                                  toast.success("AI suggestion regenerated");
+                                                  toast.success(t("admin.feedback.toast.aiRegenerated"));
                                                 } catch (e: any) {
-                                                  toast.error(e?.message || "Failed to regenerate AI suggestion");
+                                                  toast.error(e?.message || t("admin.feedback.toast.aiRegenerateFailed"));
                                                 } finally {
                                                   setAiBusy(false);
                                                 }
@@ -435,16 +437,18 @@ export default function FeedbackManagement() {
                                                   replyText: aiReplyText.trim(),
                                                 });
                                                 if (res?.emailSent === false) {
-                                                  toast.success("Reply posted in tool", {
-                                                    description: `Email not sent: ${String(res?.emailError || "unknown")}`,
+                                                  toast.success(t("admin.feedback.toast.replyPostedTool.title"), {
+                                                    description: t("admin.feedback.toast.replyPostedTool.desc", {
+                                                      error: String(res?.emailError || "unknown"),
+                                                    }),
                                                   });
                                                 } else {
-                                                  toast.success("Reply sent to user (tool + email)");
+                                                  toast.success(t("admin.feedback.toast.replySent"));
                                                 }
                                                 // Close dialog after successful send
                                                 setDialogOpenId(null);
                                               } catch (e: any) {
-                                                toast.error(e?.message || "Failed to send reply");
+                                                toast.error(e?.message || t("admin.feedback.toast.replySendFailed"));
                                               } finally {
                                                 setAiSendBusy(false);
                                               }

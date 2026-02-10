@@ -29,6 +29,21 @@ import { useMemo, useState, useEffect, memo, useCallback } from "react";
 export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
   const { t, i18n } = useTranslation();
+  const preferredSyncLanguage = (() => {
+    try {
+      const stored = localStorage.getItem("app-language");
+      if (stored === "en" || stored === "de") return stored;
+    } catch {
+      // ignore
+    }
+    try {
+      const navLang = (navigator.language || "").toLowerCase();
+      if (navLang.startsWith("de")) return "de";
+    } catch {
+      // ignore
+    }
+    return i18n.language === "de" ? "de" : "en";
+  })();
   
   // Fix: Scroll to top on mount to prevent auto-scroll to units
   useEffect(() => {
@@ -65,7 +80,7 @@ export default function Dashboard() {
     if (!kind || (value !== "return" && value !== "success")) return;
 
     setCheckoutReturn({ kind, startedAt: Date.now() });
-    toast.info("Checkout closed. Verifying payment status…");
+    toast.info(t("billing.checkout.closedVerifying"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
@@ -92,14 +107,14 @@ export default function Dashboard() {
     const isPaidPlan = planType === "intensive" || planType === "balanced" || planType === "standard" || planType === "relaxed";
 
     if (status === "active" && isPaidPlan) {
-      toast.success("Payment confirmed. Your subscription is active.");
+      toast.success(t("billing.checkout.paymentConfirmed"));
       clearCheckoutReturnParams();
       setCheckoutReturn(null);
       return;
     }
 
     if (status === "past_due") {
-      toast.error("Payment failed. Please try again with a different card.");
+      toast.error(t("billing.checkout.paymentFailed"));
       clearCheckoutReturnParams();
       setCheckoutReturn(null);
     }
@@ -109,7 +124,7 @@ export default function Dashboard() {
     if (!checkoutReturn) return;
 
     const timeoutId = window.setTimeout(() => {
-      toast.info("We couldn't confirm your payment yet. If it was successful, it may take a moment—please refresh soon.");
+      toast.info(t("billing.checkout.notConfirmedYet"));
       clearCheckoutReturnParams();
       setCheckoutReturn(null);
     }, 30_000);
@@ -139,7 +154,7 @@ export default function Dashboard() {
     if (clerkUser && !authLoading && !user) {
       // Wait a moment to let useAuth hook handle it first, then retry if needed
       const timeoutId = setTimeout(() => {
-        syncUserMutation({ learningLanguage: 'en' })
+        syncUserMutation({ learningLanguage: preferredSyncLanguage })
           .catch((error) => {
             logger.error('[Dashboard] Manual sync failed:', error);
           });
@@ -147,7 +162,7 @@ export default function Dashboard() {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [clerkUser, user, authLoading, syncUserMutation]);
+  }, [clerkUser, user, authLoading, syncUserMutation, preferredSyncLanguage]);
   
   const updateProgressMutation = useMutation(api.progress.updateProgress);
   const completedBadgeClass = "bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm";

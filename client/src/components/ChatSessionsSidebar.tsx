@@ -7,6 +7,7 @@ import type { Doc } from "../../../convex/_generated/dataModel";
 import { MessageSquarePlus, MessageSquare, Trash, Archive, RotateCcw, Trash2 } from "lucide-react";
 import { cn, formatDateEU } from "@/lib/utils";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,7 @@ interface ChatSessionsSidebarProps {
 type ChatSession = Doc<"chatSessions">;
 
 export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewChat }: ChatSessionsSidebarProps) {
+  const { t } = useTranslation();
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
   const archivedSessions = useQuery(api.chat.getArchivedSessions) as ChatSession[] | undefined;
   const isLoading = sessions === undefined;
@@ -49,8 +51,8 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
     // Non-blocking confirmation dialog
     setConfirmDialog({
       open: true,
-      title: "Archive chat?",
-      description: "The chat will be archived and can be permanently deleted afterwards.",
+      title: t("chatSessions.confirm.archive.title"),
+      description: t("chatSessions.confirm.archive.desc"),
       onConfirm: () => {
         // Sofortiges visuelles Feedback ohne Blockierung
         startTransition(() => {
@@ -67,7 +69,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
             })
             .catch((error) => {
               console.error("Failed to archive session:", error);
-              toast.error("Could not archive chat.");
+              toast.error(t("chatSessions.toast.archiveFailed"));
             })
             .finally(() => {
               setProcessingIds(prev => {
@@ -94,11 +96,11 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
 
       unarchiveSessionMutation({ sessionId: sessionId as any })
         .then(() => {
-          toast.success("Chat restored.");
+          toast.success(t("chatSessions.toast.restored"));
         })
         .catch((error) => {
           console.error("Failed to unarchive session:", error);
-          toast.error("Could not restore chat.");
+          toast.error(t("chatSessions.toast.restoreFailed"));
         })
         .finally(() => {
           setProcessingIds(prev => {
@@ -114,8 +116,8 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
     // Non-blocking confirmation dialog
     setConfirmDialog({
       open: true,
-      title: "Delete archived chat?",
-      description: "This archived chat will be permanently deleted. This action cannot be undone.",
+      title: t("chatSessions.confirm.deleteArchived.title"),
+      description: t("chatSessions.confirm.deleteArchived.desc"),
       onConfirm: () => {
         startTransition(() => {
       
@@ -123,11 +125,11 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           
           deleteArchivedMutation({ sessionId: sessionId as any })
             .then(() => {
-              toast.success("Archived chat deleted.");
+              toast.success(t("chatSessions.toast.deleted"));
             })
             .catch((error) => {
               console.error("Failed to delete archived session:", error);
-              toast.error("Could not delete archived chat.");
+              toast.error(t("chatSessions.toast.deleteFailed"));
             })
             .finally(() => {
               setProcessingIds(prev => {
@@ -150,7 +152,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           size="sm"
         >
           <MessageSquarePlus className="h-4 w-4 mr-2" />
-          New Chat
+          {t("chatSessions.button.newChat")}
         </Button>
         
 
@@ -161,7 +163,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           size="sm"
         >
           <Archive className="h-3 w-3 mr-2" />
-          {showArchived ? "Hide Archive" : "Show Archive"}
+          {showArchived ? t("chatSessions.toggle.hideArchive") : t("chatSessions.toggle.showArchive")}
         </Button>
       </div>
 
@@ -169,13 +171,13 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
         <div className="space-y-1 bg-card border rounded-xl shadow-sm p-2">
           {isLoading && (
             <div className="text-sm text-muted-foreground text-center py-4">
-              Loading...
+              {t("common.loading")}
             </div>
           )}
           
           {!isLoading && sessions?.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-4">
-              No chats yet
+              {t("chatSessions.empty")}
             </div>
           )}
 
@@ -238,12 +240,12 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
 
           {showArchived && (
             <div className="mt-4 border-t border-border/60 pt-3 space-y-2">
-              <div className="text-xs font-semibold text-muted-foreground px-2">Archived</div>
+              <div className="text-xs font-semibold text-muted-foreground px-2">{t("chatSessions.section.archived")}</div>
               {archivedSessions === undefined && (
-                <div className="text-sm text-muted-foreground text-center py-2">Loading...</div>
+                <div className="text-sm text-muted-foreground text-center py-2">{t("common.loading")}</div>
               )}
               {archivedSessions !== undefined && archivedSessions.length === 0 && (
-                <div className="text-sm text-muted-foreground text-center py-2">No archived chats</div>
+                <div className="text-sm text-muted-foreground text-center py-2">{t("chatSessions.emptyArchived")}</div>
               )}
               {archivedSessions?.map((session: ChatSession) => (
                 <div
