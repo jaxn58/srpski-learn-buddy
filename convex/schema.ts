@@ -651,8 +651,17 @@ export default defineSchema({
   emailTemplates: defineTable({
     name: v.string(), // e.g., "beta-registration", "user-activation", "feedback-confirmation"
     subject: v.string(), // Email subject line (can contain {{VARIABLES}})
+    // Column-based multilanguage (preferred). Legacy `subject` remains as fallback.
+    subjectEn: v.optional(v.string()),
+    subjectDe: v.optional(v.string()),
     htmlContent: v.string(), // Full HTML template with {{VARIABLES}}
+    // Column-based multilanguage (preferred). Legacy `htmlContent` remains as fallback.
+    htmlContentEn: v.optional(v.string()),
+    htmlContentDe: v.optional(v.string()),
     description: v.optional(v.string()), // What this template is for
+    // Column-based multilanguage (preferred). Legacy `description` remains as fallback.
+    descriptionEn: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
     variables: v.array(v.string()), // Available variables like ["USER_NAME", "PLAN_NAME"]
     isActive: v.boolean(), // Enable/disable template
     category: v.union(
@@ -676,6 +685,9 @@ export default defineSchema({
       v.literal("marketing")
     ),
     htmlContent: v.string(),
+    // Column-based multilanguage (preferred). Legacy `htmlContent` remains as fallback.
+    htmlContentEn: v.optional(v.string()),
+    htmlContentDe: v.optional(v.string()),
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),

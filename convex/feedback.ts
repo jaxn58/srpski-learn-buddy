@@ -582,6 +582,7 @@ export const sendAiReplyToUser = action({
         userEmail,
         feedbackTitle: feedback.title,
         adminReply: args.replyText,
+        language: submitter?.learningLanguage === "de" ? "de" : "en",
       });
 
       if (!emailResult?.success) {

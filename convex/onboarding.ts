@@ -1,6 +1,8 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { action, ActionCtx, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
+import { callAiJson } from "./contentStudio/_shared";
 
 // ============= HELPER FUNCTIONS =============
 
@@ -23,6 +25,18 @@ async function requireAdmin(ctx: any) {
     throw new Error("Unauthorized - admin access required");
   }
 
+  return user;
+}
+
+async function requireAdminAction(ctx: ActionCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new Error("Unauthorized - not authenticated");
+  const user = await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+    clerkId: identity.subject,
+  });
+  if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+    throw new Error("Unauthorized - admin access required");
+  }
   return user;
 }
 
@@ -726,5 +740,110 @@ export const deleteOnboardingStepWithSecret = mutation({
     });
 
     return args.stepId;
+  },
+});
+
+function extractVariables(content: string): string[] {
+  const variableRegex = /\{\{(\w+)\}\}/g;
+  const foundVariables = new Set<string>();
+  let match;
+  while ((match = variableRegex.exec(content)) !== null) {
+    foundVariables.add(match[1]);
+  }
+  return Array.from(foundVariables);
+}
+
+function diffVariables(params: { source: string[]; target: string[] }) {
+  const s = new Set(params.source);
+  const t = new Set(params.target);
+  const missing = Array.from(s).filter((vName) => !t.has(vName));
+  const added = Array.from(t).filter((vName) => !s.has(vName));
+  return { missing, added };
+}
+
+/**
+ * Admin-only: translate onboarding EN -> DE (no DB writes).
+ * The admin UI uses this to prefill German fields.
+ */
+export const translateOnboardingEnToDe = action({
+  args: {
+    titleEn: v.string(),
+    descriptionEn: v.string(),
+    contentEn: v.string(),
+    preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
+  },
+  handler: async (ctx, args) => {
+    await requireAdminAction(ctx);
+
+    const sourceVars = new Set([
+      ...extractVariables(args.titleEn || ""),
+      ...extractVariables(args.descriptionEn || ""),
+      ...extractVariables(args.contentEn || ""),
+    ]);
+
+    const system = [
+      "You are a translation engine.",
+      "Translate the provided onboarding copy from English to German (de-DE).",
+      "Preserve ALL placeholder variables in double curly braces exactly (e.g. {{USER_NAME}}). Do not translate, rename, add, or remove placeholders.",
+      "Preserve HTML tags and formatting as much as possible.",
+      "Return ONLY valid JSON with keys: titleDe, descriptionDe, contentDe.",
+    ].join("\n");
+
+    const user = [
+      "Title (EN):",
+      args.titleEn,
+      "",
+      "Description (EN):",
+      args.descriptionEn,
+      "",
+      "Content (EN):",
+      args.contentEn,
+      "",
+      `Placeholders that must remain unchanged: ${Array.from(sourceVars).sort().join(", ") || "(none)"}`,
+    ].join("\n");
+
+    const ai = await callAiJson(ctx, {
+      stage: "specialist",
+      preferredProvider: args.preferredProvider ?? "gemini",
+      system,
+      user,
+      maxTokens: 2500,
+    });
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(ai.raw);
+    } catch {
+      throw new Error("AI returned invalid JSON.");
+    }
+
+    const titleDe = typeof parsed?.titleDe === "string" ? parsed.titleDe : "";
+    const descriptionDe = typeof parsed?.descriptionDe === "string" ? parsed.descriptionDe : "";
+    const contentDe = typeof parsed?.contentDe === "string" ? parsed.contentDe : "";
+
+    if (!titleDe || !contentDe) throw new Error("AI returned empty translation fields.");
+
+    const targetVars = [
+      ...extractVariables(titleDe),
+      ...extractVariables(descriptionDe),
+      ...extractVariables(contentDe),
+    ];
+    const { missing, added } = diffVariables({ source: Array.from(sourceVars), target: targetVars });
+    const warnings: string[] = [];
+    if (missing.length) warnings.push(`Missing placeholders in DE output: ${missing.join(", ")}`);
+    if (added.length) warnings.push(`New placeholders in DE output: ${added.join(", ")}`);
+
+    return {
+      titleDe,
+      descriptionDe,
+      contentDe,
+      warnings,
+      meta: {
+        provider: ai.provider,
+        model: ai.model,
+        usage: ai.usage,
+        estimatedCostUsd: ai.estimatedCostUsd,
+      },
+    };
   },
 });

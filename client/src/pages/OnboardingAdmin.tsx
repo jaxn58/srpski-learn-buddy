@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Plus, Edit, Trash2, Eye, ChevronUp, ChevronDown, ToggleLeft, ToggleRight } from "lucide-react";
 import { toast } from "sonner";
@@ -42,6 +42,7 @@ export default function OnboardingAdmin() {
   const updateStepMutation = useMutation(api.onboarding.updateOnboardingStepV2);
   const deleteStepMutation = useMutation(api.onboarding.deleteOnboardingStep);
   const toggleStepActiveMutation = useMutation(api.onboarding.toggleStepActive);
+  const translateOnboardingEnToDeAction = useAction(api.onboarding.translateOnboardingEnToDe);
   
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -75,6 +76,7 @@ export default function OnboardingAdmin() {
   const [deletingStepId, setDeletingStepId] = useState<Id<"onboardingSteps"> | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+  const [isTranslatingDe, setIsTranslatingDe] = useState(false);
 
   // Authorization check
   if (authLoading) {
@@ -237,6 +239,34 @@ export default function OnboardingAdmin() {
     } catch (error) {
       toast.error(t("admin.onboarding.toast.updateFailed"));
       console.error(error);
+    }
+  };
+
+  const handleAiTranslateDe = async () => {
+    try {
+      setIsTranslatingDe(true);
+      const res = await translateOnboardingEnToDeAction({
+        titleEn: formData.titleEn,
+        descriptionEn: formData.descriptionEn,
+        contentEn: formData.contentEn,
+      });
+      updateFormData({
+        titleDe: res.titleDe,
+        descriptionDe: res.descriptionDe,
+        contentDe: res.contentDe,
+      });
+      if (Array.isArray(res.warnings) && res.warnings.length) {
+        toast.warning(t("admin.onboarding.toast.aiTranslatedDeWithWarnings"), {
+          description: res.warnings.join("\n"),
+        });
+      } else {
+        toast.success(t("admin.onboarding.toast.aiTranslatedDe"));
+      }
+    } catch (error) {
+      toast.error(t("admin.onboarding.toast.aiTranslateDeFailed"));
+      console.error(error);
+    } finally {
+      setIsTranslatingDe(false);
     }
   };
 
@@ -532,6 +562,16 @@ export default function OnboardingAdmin() {
               </TabsContent>
               
               <TabsContent value="de" className="space-y-4">
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleAiTranslateDe}
+                    disabled={isTranslatingDe || (!formData.titleEn && !formData.descriptionEn && !formData.contentEn)}
+                  >
+                    {isTranslatingDe ? t("common.loading") : t("admin.onboarding.actions.aiTranslateDe")}
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="titleDe">Title (Deutsch)</Label>
                   <Input
@@ -727,6 +767,16 @@ export default function OnboardingAdmin() {
               </TabsContent>
               
               <TabsContent value="de" className="space-y-4">
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleAiTranslateDe}
+                    disabled={isTranslatingDe || (!formData.titleEn && !formData.descriptionEn && !formData.contentEn)}
+                  >
+                    {isTranslatingDe ? t("common.loading") : t("admin.onboarding.actions.aiTranslateDe")}
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   <Label>Title (Deutsch)</Label>
                   <Input

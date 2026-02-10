@@ -127,6 +127,8 @@ export default function EmailTemplates() {
   const upsertSignatureMutation = useMutation(api.emailTemplates.upsertSignature);
   const removeSignatureMutation = useMutation(api.emailTemplates.removeSignature);
   const sendTestEmailAction = useAction(api.email.sendTestEmail);
+  const translateTemplateEnToDeAction = useAction(api.emailTemplates.translateTemplateEnToDe);
+  const translateSignatureEnToDeAction = useAction(api.emailTemplates.translateSignatureEnToDe);
   
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplateDoc | null>(null);
@@ -137,22 +139,42 @@ export default function EmailTemplates() {
   const [testToEmail, setTestToEmail] = useState("");
   const [testVariables, setTestVariables] = useState<Record<string, string>>({});
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailLanguage, setTestEmailLanguage] = useState<"en" | "de">("en");
   const [contentTab, setContentTab] = useState<ContentTab>("wysiwyg");
   const [variableSearch, setVariableSearch] = useState("");
+  const [templateEditLanguage, setTemplateEditLanguage] = useState<"en" | "de">("en");
+  const [signatureEditLanguage, setSignatureEditLanguage] = useState<"en" | "de">("en");
+  const [isTranslatingTemplateDe, setIsTranslatingTemplateDe] = useState(false);
+  const [isTranslatingSignatureDe, setIsTranslatingSignatureDe] = useState<
+    Record<SignatureCategory, boolean>
+  >({
+    transactional: false,
+    subscription: false,
+    marketing: false,
+  });
 
   const subjectInputRef = useRef<HTMLInputElement | null>(null);
   const codeTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [signatureForm, setSignatureForm] = useState<Record<SignatureCategory, { htmlContent: string; isActive: boolean }>>({
-    transactional: { htmlContent: "", isActive: true },
-    subscription: { htmlContent: "", isActive: true },
-    marketing: { htmlContent: "", isActive: true },
+  const templateLangRef = useRef<"en" | "de">("en");
+  const [signatureForm, setSignatureForm] = useState<
+    Record<SignatureCategory, { htmlContentEn: string; htmlContentDe: string; isActive: boolean }>
+  >({
+    transactional: { htmlContentEn: "", htmlContentDe: "", isActive: true },
+    subscription: { htmlContentEn: "", htmlContentDe: "", isActive: true },
+    marketing: { htmlContentEn: "", htmlContentDe: "", isActive: true },
   });
   
   const [formData, setFormData] = useState({
     name: "",
     subject: "",
+    subjectEn: "",
+    subjectDe: "",
     htmlContent: "",
+    htmlContentEn: "",
+    htmlContentDe: "",
     description: "",
+    descriptionEn: "",
+    descriptionDe: "",
     category: "transactional" as TemplateCategory,
     isActive: true,
     variables: [] as string[],
@@ -165,21 +187,26 @@ export default function EmailTemplates() {
 
   useEffect(() => {
     if (!signatures) return;
-    const next: Record<SignatureCategory, { htmlContent: string; isActive: boolean }> = {
-      transactional: { htmlContent: "", isActive: true },
-      subscription: { htmlContent: "", isActive: true },
-      marketing: { htmlContent: "", isActive: true },
+    const next: Record<SignatureCategory, { htmlContentEn: string; htmlContentDe: string; isActive: boolean }> = {
+      transactional: { htmlContentEn: "", htmlContentDe: "", isActive: true },
+      subscription: { htmlContentEn: "", htmlContentDe: "", isActive: true },
+      marketing: { htmlContentEn: "", htmlContentDe: "", isActive: true },
     };
     for (const s of signatures) {
       if (s?.category && s.category in next) {
         next[s.category as SignatureCategory] = {
-          htmlContent: s.htmlContent || "",
+          htmlContentEn: s.htmlContentEn || s.htmlContent || "",
+          htmlContentDe: s.htmlContentDe || "",
           isActive: s.isActive ?? true,
         };
       }
     }
     setSignatureForm(next);
   }, [signatures]);
+
+  useEffect(() => {
+    templateLangRef.current = templateEditLanguage;
+  }, [templateEditLanguage]);
 
   // Tiptap editor instance
   const editor = useEditor({
@@ -192,9 +219,13 @@ export default function EmailTemplates() {
     content: formData.htmlContent,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      if (html !== formData.htmlContent) {
-        setFormData(prev => ({ ...prev, htmlContent: html }));
-      }
+      setFormData((prev) => {
+        if (html === prev.htmlContent) return prev;
+        if (templateLangRef.current === "de") {
+          return { ...prev, htmlContent: html, htmlContentDe: html };
+        }
+        return { ...prev, htmlContent: html, htmlContentEn: html };
+      });
     },
     editorProps: {
       attributes: {
@@ -267,10 +298,16 @@ export default function EmailTemplates() {
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
       html = html.replace(regex, previewVariables[key]);
     });
-    const signatureHtml = signatureForCategory?.isActive ? signatureForCategory?.htmlContent : "";
+    const sigAny = signatureForCategory as any;
+    const signatureHtml =
+      signatureForCategory?.isActive
+        ? templateEditLanguage === "de"
+          ? sigAny?.htmlContentDe || sigAny?.htmlContentEn || sigAny?.htmlContent || ""
+          : sigAny?.htmlContentEn || sigAny?.htmlContent || ""
+        : "";
     html = html.replace(/\{\{EMAIL_SIGNATURE\}\}/g, signatureHtml || "");
     return html;
-  }, [formData.htmlContent, previewVariables, signatureForCategory]);
+  }, [formData.htmlContent, previewVariables, signatureForCategory, templateEditLanguage]);
 
   const availableVariables = useMemo(() => {
     const set = new Set<string>();
@@ -352,11 +389,25 @@ export default function EmailTemplates() {
 
   const handleEdit = (template: EmailTemplateDoc) => {
     setEditingTemplate(template);
+    setTemplateEditLanguage("en");
+    templateLangRef.current = "en";
+    const subjectEn = template.subjectEn || template.subject || "";
+    const subjectDe = template.subjectDe || "";
+    const htmlContentEn = template.htmlContentEn || template.htmlContent || "";
+    const htmlContentDe = template.htmlContentDe || "";
+    const descriptionEn = template.descriptionEn || template.description || "";
+    const descriptionDe = template.descriptionDe || "";
     setFormData({
       name: template.name,
-      subject: template.subject,
-      htmlContent: template.htmlContent,
-      description: template.description || "",
+      subject: subjectEn,
+      subjectEn,
+      subjectDe,
+      htmlContent: htmlContentEn,
+      htmlContentEn,
+      htmlContentDe,
+      description: descriptionEn || "",
+      descriptionEn: descriptionEn || "",
+      descriptionDe,
       category: template.category,
       isActive: template.isActive,
       variables: template.variables || [],
@@ -372,11 +423,20 @@ export default function EmailTemplates() {
 
   const handleCreate = () => {
     setEditingTemplate(null);
+    setTemplateEditLanguage("en");
+    templateLangRef.current = "en";
+    const html = `<div>\n  <!-- Footer (auto-injected) -->\n  <div style=\"margin-top:16px;padding-top:12px;border-top:1px solid #eee;\">\n    {{EMAIL_SIGNATURE}}\n  </div>\n</div>`;
     setFormData({
       name: "",
       subject: "",
-      htmlContent: `<div>\n  <!-- Footer (auto-injected) -->\n  <div style=\"margin-top:16px;padding-top:12px;border-top:1px solid #eee;\">\n    {{EMAIL_SIGNATURE}}\n  </div>\n</div>`,
+      subjectEn: "",
+      subjectDe: "",
+      htmlContent: html,
+      htmlContentEn: html,
+      htmlContentDe: "",
       description: "",
+      descriptionEn: "",
+      descriptionDe: "",
       category: "transactional",
       isActive: true,
       variables: [],
@@ -414,6 +474,7 @@ export default function EmailTemplates() {
   const openTestEmailDialog = () => {
     setTestToEmail(user?.email || "");
     setTestVariables(buildDefaultTestVariables());
+    setTestEmailLanguage(templateEditLanguage);
     setTestEmailOpen(true);
   };
 
@@ -437,6 +498,7 @@ export default function EmailTemplates() {
         templateName: formData.name,
         to: testToEmail,
         variables: vars,
+        language: testEmailLanguage,
       });
 
       if (result?.success) {
@@ -454,7 +516,7 @@ export default function EmailTemplates() {
 
   const handleSaveAndSendTestEmail = async () => {
     // Save first, then immediately send using defaults (single-click flow).
-    if (!formData.name || !formData.subject || !formData.htmlContent) {
+    if (!formData.name || !formData.subjectEn || !formData.htmlContentEn) {
       toast.error(t("admin.emailTemplates.toast.fillRequired"));
       return;
     }
@@ -471,10 +533,10 @@ export default function EmailTemplates() {
       const foundVariables = new Set<string>();
       let match;
 
-      while ((match = variableRegex.exec(formData.subject)) !== null) {
+      while ((match = variableRegex.exec(formData.subjectEn)) !== null) {
         foundVariables.add(match[1]);
       }
-      while ((match = variableRegex.exec(formData.htmlContent)) !== null) {
+      while ((match = variableRegex.exec(formData.htmlContentEn)) !== null) {
         foundVariables.add(match[1]);
       }
 
@@ -482,9 +544,15 @@ export default function EmailTemplates() {
 
       await upsertMutation({
         name: formData.name,
-        subject: formData.subject,
-        htmlContent: formData.htmlContent,
-        description: formData.description || undefined,
+        subject: formData.subjectEn,
+        subjectEn: formData.subjectEn,
+        subjectDe: formData.subjectDe || undefined,
+        htmlContent: formData.htmlContentEn,
+        htmlContentEn: formData.htmlContentEn,
+        htmlContentDe: formData.htmlContentDe || undefined,
+        description: formData.descriptionEn || undefined,
+        descriptionEn: formData.descriptionEn || undefined,
+        descriptionDe: formData.descriptionDe || undefined,
         category: formData.category,
         isActive: formData.isActive,
         variables,
@@ -500,6 +568,7 @@ export default function EmailTemplates() {
         templateName: formData.name,
         to,
         variables: vars,
+        language: testEmailLanguage,
       });
 
       if (result?.success) {
@@ -537,15 +606,165 @@ export default function EmailTemplates() {
     }
   }
 
+  const updateSubjectValue = (nextSubject: string) => {
+    setFormData((prev) => {
+      if (templateEditLanguage === "de") {
+        return { ...prev, subject: nextSubject, subjectDe: nextSubject };
+      }
+      return { ...prev, subject: nextSubject, subjectEn: nextSubject };
+    });
+  };
+
+  const updateDescriptionValue = (nextDescription: string) => {
+    setFormData((prev) => {
+      if (templateEditLanguage === "de") {
+        return { ...prev, description: nextDescription, descriptionDe: nextDescription };
+      }
+      return { ...prev, description: nextDescription, descriptionEn: nextDescription };
+    });
+  };
+
+  const updateHtmlContentValue = (nextHtml: string) => {
+    setFormData((prev) => {
+      if (templateEditLanguage === "de") {
+        return { ...prev, htmlContent: nextHtml, htmlContentDe: nextHtml };
+      }
+      return { ...prev, htmlContent: nextHtml, htmlContentEn: nextHtml };
+    });
+  };
+
+  const switchTemplateLanguage = (nextLang: "en" | "de") => {
+    setFormData((prev) => {
+      const persisted =
+        templateEditLanguage === "de"
+          ? {
+              ...prev,
+              subjectDe: prev.subject,
+              htmlContentDe: prev.htmlContent,
+              descriptionDe: prev.description,
+            }
+          : {
+              ...prev,
+              subjectEn: prev.subject,
+              htmlContentEn: prev.htmlContent,
+              descriptionEn: prev.description,
+            };
+
+      const nextSubject = nextLang === "de" ? persisted.subjectDe : persisted.subjectEn;
+      const nextHtml = nextLang === "de" ? persisted.htmlContentDe : persisted.htmlContentEn;
+      const nextDesc = nextLang === "de" ? persisted.descriptionDe : persisted.descriptionEn;
+
+      return {
+        ...persisted,
+        subject: nextSubject || "",
+        htmlContent: nextHtml || "",
+        description: nextDesc || "",
+      };
+    });
+    setTemplateEditLanguage(nextLang);
+  };
+
+  const handleAiTranslateTemplateDe = async () => {
+    try {
+      setIsTranslatingTemplateDe(true);
+      const subjectEn = formData.subjectEn || (templateEditLanguage === "en" ? formData.subject : "");
+      const htmlContentEn = formData.htmlContentEn || (templateEditLanguage === "en" ? formData.htmlContent : "");
+      const descriptionEn =
+        formData.descriptionEn || (templateEditLanguage === "en" ? formData.description : "");
+
+      if (!subjectEn || !htmlContentEn) {
+        toast.error(t("admin.emailTemplates.toast.aiTranslateNeedsEnglish"));
+        return;
+      }
+
+      const res = await translateTemplateEnToDeAction({
+        subjectEn,
+        htmlContentEn,
+        descriptionEn: descriptionEn || undefined,
+        variables: formData.variables,
+        preferredProvider: "gemini",
+      });
+
+      setFormData((prev) => {
+        const next = {
+          ...prev,
+          subjectEn,
+          htmlContentEn,
+          descriptionEn,
+          subjectDe: res.subjectDe,
+          htmlContentDe: res.htmlContentDe,
+          descriptionDe: res.descriptionDe || "",
+        };
+        if (templateEditLanguage === "de") {
+          return {
+            ...next,
+            subject: res.subjectDe,
+            htmlContent: res.htmlContentDe,
+            description: res.descriptionDe || "",
+          };
+        }
+        return next;
+      });
+
+      if (Array.isArray(res.warnings) && res.warnings.length) {
+        toast.warning(t("admin.emailTemplates.toast.aiTranslatedDeWithWarnings"), {
+          description: res.warnings.join("\n"),
+        });
+      } else {
+        toast.success(t("admin.emailTemplates.toast.aiTranslatedDe"));
+      }
+    } catch (error: any) {
+      toast.error(error?.message || t("admin.emailTemplates.toast.aiTranslateFailed"));
+    } finally {
+      setIsTranslatingTemplateDe(false);
+    }
+  };
+
+  const handleAiTranslateSignatureDe = async (category: SignatureCategory) => {
+    try {
+      setIsTranslatingSignatureDe((prev) => ({ ...prev, [category]: true }));
+      const htmlContentEn = signatureForm[category]?.htmlContentEn || "";
+      if (!htmlContentEn) {
+        toast.error(t("admin.emailTemplates.toast.aiTranslateNeedsEnglish"));
+        return;
+      }
+
+      const res = await translateSignatureEnToDeAction({
+        htmlContentEn,
+        preferredProvider: "gemini",
+      });
+
+      setSignatureForm((prev) => ({
+        ...prev,
+        [category]: {
+          ...prev[category],
+          htmlContentDe: res.htmlContentDe,
+        },
+      }));
+
+      if (Array.isArray(res.warnings) && res.warnings.length) {
+        toast.warning(t("admin.emailTemplates.toast.aiTranslatedDeWithWarnings"), {
+          description: res.warnings.join("\n"),
+        });
+      } else {
+        toast.success(t("admin.emailTemplates.toast.aiTranslatedDe"));
+      }
+    } catch (error: any) {
+      toast.error(error?.message || t("admin.emailTemplates.toast.aiTranslateFailed"));
+    } finally {
+      setIsTranslatingSignatureDe((prev) => ({ ...prev, [category]: false }));
+    }
+  };
+
   function insertVariableIntoSubject(variable: string) {
     const token = `{{${variable}}}`;
     const el = subjectInputRef.current;
     if (!el) {
-      setFormData((prev) => ({ ...prev, subject: `${prev.subject}${token}` }));
+      updateSubjectValue(`${formData.subject}${token}`);
       return;
     }
     const { next, nextPos } = insertTextAtCursor(el, token);
-    setFormData((prev) => ({ ...prev, subject: next }));
+    updateSubjectValue(next);
     requestAnimationFrame(() => {
       el.focus();
       el.setSelectionRange(nextPos, nextPos);
@@ -562,7 +781,7 @@ export default function EmailTemplates() {
       const el = codeTextareaRef.current;
       if (el) {
         const { next, nextPos } = insertTextAtCursor(el, text);
-        setFormData((prev) => ({ ...prev, htmlContent: next }));
+        updateHtmlContentValue(next);
         requestAnimationFrame(() => {
           el.focus();
           el.setSelectionRange(nextPos, nextPos);
@@ -572,18 +791,18 @@ export default function EmailTemplates() {
     }
 
     // Fallback: append
-    setFormData((prev) => ({ ...prev, htmlContent: `${prev.htmlContent}${text}` }));
+    updateHtmlContentValue(`${formData.htmlContent}${text}`);
   }
 
   function insertSignatureFooter() {
     if (hasSignaturePlaceholder) return;
     const next = insertBeforeClosingBody(formData.htmlContent || "", SIGNATURE_FOOTER_BLOCK);
-    setFormData((prev) => ({ ...prev, htmlContent: next }));
+    updateHtmlContentValue(next);
     toast.success(t("admin.emailTemplates.toast.signaturePlaceholderInserted"));
   }
 
   const handleSave = async () => {
-    if (!formData.name || !formData.subject || !formData.htmlContent) {
+    if (!formData.name || !formData.subjectEn || !formData.htmlContentEn) {
       toast.error(t("admin.emailTemplates.toast.fillRequired"));
       return;
     }
@@ -594,10 +813,10 @@ export default function EmailTemplates() {
       const foundVariables = new Set<string>();
       let match;
       
-      while ((match = variableRegex.exec(formData.subject)) !== null) {
+      while ((match = variableRegex.exec(formData.subjectEn)) !== null) {
         foundVariables.add(match[1]);
       }
-      while ((match = variableRegex.exec(formData.htmlContent)) !== null) {
+      while ((match = variableRegex.exec(formData.htmlContentEn)) !== null) {
         foundVariables.add(match[1]);
       }
       
@@ -605,9 +824,15 @@ export default function EmailTemplates() {
 
       await upsertMutation({
         name: formData.name,
-        subject: formData.subject,
-        htmlContent: formData.htmlContent,
-        description: formData.description || undefined,
+        subject: formData.subjectEn,
+        subjectEn: formData.subjectEn,
+        subjectDe: formData.subjectDe || undefined,
+        htmlContent: formData.htmlContentEn,
+        htmlContentEn: formData.htmlContentEn,
+        htmlContentDe: formData.htmlContentDe || undefined,
+        description: formData.descriptionEn || undefined,
+        descriptionEn: formData.descriptionEn || undefined,
+        descriptionDe: formData.descriptionDe || undefined,
         category: formData.category,
         isActive: formData.isActive,
         variables,
@@ -639,7 +864,9 @@ export default function EmailTemplates() {
       const data = signatureForm[category];
       await upsertSignatureMutation({
         category,
-        htmlContent: data.htmlContent,
+        htmlContent: data.htmlContentEn,
+        htmlContentEn: data.htmlContentEn,
+        htmlContentDe: data.htmlContentDe || undefined,
         isActive: data.isActive,
       });
       toast.success(t("admin.emailTemplates.toast.signatureSaved", { category }));
@@ -755,6 +982,19 @@ export default function EmailTemplates() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label>Language</Label>
+                  <Select value={testEmailLanguage} onValueChange={(v) => setTestEmailLanguage(v as "en" | "de")}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="de">Deutsch</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Variables</Label>
                   {testVariableKeys.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No variables detected in this template.</p>
@@ -800,6 +1040,31 @@ export default function EmailTemplates() {
                         <CardDescription>Basic information about the email template</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <Tabs
+                            value={templateEditLanguage}
+                            onValueChange={(v) => switchTemplateLanguage(v as "en" | "de")}
+                            className="w-auto"
+                          >
+                            <TabsList>
+                              <TabsTrigger value="en">English</TabsTrigger>
+                              <TabsTrigger value="de">Deutsch</TabsTrigger>
+                            </TabsList>
+                          </Tabs>
+
+                          {isSuperadmin && templateEditLanguage === "de" && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={handleAiTranslateTemplateDe}
+                              disabled={isTranslatingTemplateDe}
+                            >
+                              {isTranslatingTemplateDe
+                                ? t("common.loading")
+                                : t("admin.emailTemplates.actions.aiTranslateDe")}
+                            </Button>
+                          )}
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label htmlFor="name">Template Name *</Label>
@@ -837,7 +1102,7 @@ export default function EmailTemplates() {
                           <Input
                             id="description"
                             value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                            onChange={(e) => updateDescriptionValue(e.target.value)}
                             placeholder="What is this template used for?"
                           />
                         </div>
@@ -848,7 +1113,7 @@ export default function EmailTemplates() {
                             id="subject"
                             ref={subjectInputRef}
                             value={formData.subject}
-                            onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                            onChange={(e) => updateSubjectValue(e.target.value)}
                             placeholder="e.g., Welcome to Serbian AI Tutor!"
                           />
                           <p className="text-xs text-muted-foreground mt-1">
@@ -1143,7 +1408,7 @@ export default function EmailTemplates() {
                             <textarea
                               ref={codeTextareaRef}
                               value={formData.htmlContent}
-                              onChange={(e) => setFormData({ ...formData, htmlContent: e.target.value })}
+                              onChange={(e) => updateHtmlContentValue(e.target.value)}
                               className="w-full h-[400px] font-mono text-sm border rounded-lg p-4 resize-none"
                               placeholder="<html>...</html>"
                             />
@@ -1294,13 +1559,46 @@ export default function EmailTemplates() {
                   </div>
 
                   <div>
-                    <Label>Signature HTML</Label>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label>Signature HTML</Label>
+                      <div className="flex items-center gap-2">
+                        <Tabs
+                          value={signatureEditLanguage}
+                          onValueChange={(v) => setSignatureEditLanguage(v as "en" | "de")}
+                          className="w-auto"
+                        >
+                          <TabsList>
+                            <TabsTrigger value="en">EN</TabsTrigger>
+                            <TabsTrigger value="de">DE</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                        {signatureEditLanguage === "de" && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => handleAiTranslateSignatureDe(category)}
+                            disabled={isTranslatingSignatureDe[category]}
+                          >
+                            {isTranslatingSignatureDe[category]
+                              ? t("common.loading")
+                              : t("admin.emailTemplates.actions.aiTranslateDe")}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                     <Textarea
-                      value={signatureForm[category].htmlContent}
+                      value={
+                        signatureEditLanguage === "de"
+                          ? signatureForm[category].htmlContentDe
+                          : signatureForm[category].htmlContentEn
+                      }
                       onChange={(e) =>
                         setSignatureForm((prev) => ({
                           ...prev,
-                          [category]: { ...prev[category], htmlContent: e.target.value },
+                          [category]:
+                            signatureEditLanguage === "de"
+                              ? { ...prev[category], htmlContentDe: e.target.value }
+                              : { ...prev[category], htmlContentEn: e.target.value },
                         }))
                       }
                       className="mt-2 min-h-[220px] font-mono text-sm"
@@ -1329,7 +1627,9 @@ export default function EmailTemplates() {
   </head>
   <body>
     <div class="email-canvas">
-      ${signatureForm[category].htmlContent || "<p style='color:#666;font-size:12px'>(empty)</p>"}
+      ${(signatureEditLanguage === "de"
+        ? signatureForm[category].htmlContentDe
+        : signatureForm[category].htmlContentEn) || "<p style='color:#666;font-size:12px'>(empty)</p>"}
     </div>
   </body>
 </html>`}

@@ -15,6 +15,7 @@ async function renderAndSendTemplateEmail(
     variables: Record<string, string | number>;
     to: string;
     replyTo?: string;
+    language?: "en" | "de";
   }
 ): Promise<SendEmailResult> {
   if (!process.env.RESEND_API_KEY) {
@@ -31,6 +32,7 @@ async function renderAndSendTemplateEmail(
     const template = await ctx.runQuery(api.emailTemplates.render, {
       templateName: args.templateName,
       variables: args.variables,
+      language: args.language,
     });
 
     if (!template) {
@@ -95,6 +97,7 @@ export const sendEmail = internalAction({
     variables: v.record(v.string(), v.union(v.string(), v.number())),
     to: v.string(),
     replyTo: v.optional(v.string()),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args): Promise<SendEmailResult> => {
     return await renderAndSendTemplateEmail(ctx, {
@@ -102,6 +105,7 @@ export const sendEmail = internalAction({
       variables: args.variables as Record<string, string | number>,
       to: args.to,
       replyTo: args.replyTo,
+      language: args.language,
     });
   },
 });
@@ -129,6 +133,7 @@ export const sendTestEmail = action({
     to: v.string(),
     variables: v.optional(v.record(v.string(), v.union(v.string(), v.number()))),
     replyTo: v.optional(v.string()),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args) => {
     const superadmin = await getSuperadminUser(ctx);
@@ -150,17 +155,38 @@ export const sendTestEmail = action({
 
     const vars = (args.variables || {}) as Record<string, string | number>;
 
+    const lang = args.language === "de" ? "de" : "en";
+    const pickLocalized = (params: { legacy: string; en?: string; de?: string }) => {
+      if (lang === "de") return params.de || params.en || params.legacy;
+      return params.en || params.legacy;
+    };
+
     // Signature injection (placeholder-based)
-    let renderedHtml = template.htmlContent;
+    let renderedHtml = pickLocalized({
+      legacy: template.htmlContent,
+      en: template.htmlContentEn,
+      de: template.htmlContentDe,
+    });
     if (renderedHtml.includes("{{EMAIL_SIGNATURE}}")) {
       const sig = await ctx.runQuery(api.emailTemplates.getSignatureByCategory, {
         category: template.category,
       });
-      const signatureHtml = sig && sig.isActive ? sig.htmlContent : "";
+      const signatureHtml =
+        sig && sig.isActive
+          ? pickLocalized({
+              legacy: sig.htmlContent || "",
+              en: sig.htmlContentEn,
+              de: sig.htmlContentDe,
+            })
+          : "";
       renderedHtml = renderedHtml.replace(/\{\{EMAIL_SIGNATURE\}\}/g, signatureHtml);
     }
 
-    let renderedSubject = template.subject;
+    let renderedSubject = pickLocalized({
+      legacy: template.subject,
+      en: template.subjectEn,
+      de: template.subjectDe,
+    });
 
     // Replace variables
     for (const [key, value] of Object.entries(vars)) {
@@ -196,12 +222,14 @@ export const sendBetaRegistrationEmail = internalAction({
   args: {
     name: v.string(),
     email: v.string(),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args): Promise<SendEmailResult> => {
     return await renderAndSendTemplateEmail(ctx, {
       templateName: "beta-registration",
       variables: { USER_NAME: args.name, USER_EMAIL: args.email },
       to: args.email,
+      language: args.language,
     });
   },
 });
@@ -216,6 +244,7 @@ export const sendFeedbackConfirmationEmail = internalAction({
     email: v.string(),
     feedbackType: v.string(),
     feedbackTitle: v.string(),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args): Promise<SendEmailResult> => {
     return await renderAndSendTemplateEmail(ctx, {
@@ -227,6 +256,7 @@ export const sendFeedbackConfirmationEmail = internalAction({
         FEEDBACK_TITLE: args.feedbackTitle,
       },
       to: args.email,
+      language: args.language,
     });
   },
 });
@@ -242,6 +272,7 @@ export const sendFeedbackAdminNotificationEmail = internalAction({
     feedbackTitle: v.string(),
     feedbackDescription: v.string(),
     adminEmail: v.string(),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args): Promise<SendEmailResult> => {
     return await renderAndSendTemplateEmail(ctx, {
@@ -255,6 +286,7 @@ export const sendFeedbackAdminNotificationEmail = internalAction({
         ADMIN_EMAIL: args.adminEmail,
       },
       to: args.adminEmail,
+      language: args.language,
     });
   },
 });
@@ -268,6 +300,7 @@ export const sendFeedbackAdminReplyEmail = internalAction({
     userEmail: v.string(),
     feedbackTitle: v.string(),
     adminReply: v.string(),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args): Promise<SendEmailResult> => {
     return await renderAndSendTemplateEmail(ctx, {
@@ -279,6 +312,7 @@ export const sendFeedbackAdminReplyEmail = internalAction({
         ADMIN_REPLY: args.adminReply,
       },
       to: args.userEmail,
+      language: args.language,
     });
   },
 });
@@ -294,30 +328,48 @@ export const sendPurchaseConfirmationEmail = internalAction({
     planDurationMonths: v.number(),
     expiresAt: v.number(),
     paymentMode: v.optional(v.string()),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args): Promise<SendEmailResult> => {
+    const lang = args.language === "de" ? "de" : "en";
+
     // Map plan type to display name
-    const planNames: Record<string, string> = {
-      intensive: "Intensive Plan",
-      balanced: "Balanced Plan",
-      standard: "Standard Plan",
-      relaxed: "Relaxed Plan",
-    };
-    
-    const planName = planNames[args.planType] || args.planType;
+    const planName =
+      lang === "de"
+        ? (
+            {
+              intensive: "Intensivplan",
+              balanced: "Ausgewogener Plan",
+              standard: "Standardplan",
+              relaxed: "Entspannter Plan",
+            } as Record<string, string>
+          )[args.planType] || args.planType
+        : (
+            {
+              intensive: "Intensive Plan",
+              balanced: "Balanced Plan",
+              standard: "Standard Plan",
+              relaxed: "Relaxed Plan",
+            } as Record<string, string>
+          )[args.planType] || args.planType;
     
     // Format expiration date (EU format: DD.MM.YYYY)
     const expiresDate = new Date(args.expiresAt);
-    const expiresAt = expiresDate.toLocaleDateString("de-DE", {
+    const expiresAt = expiresDate.toLocaleDateString(lang === "de" ? "de-DE" : "en-US", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     });
     
     // Format payment mode
-    const paymentModeDisplay = args.paymentMode === "installments" 
-      ? "Monthly Installments" 
-      : "One-time Payment";
+    const paymentModeDisplay =
+      args.paymentMode === "installments"
+        ? lang === "de"
+          ? "Monatliche Raten"
+          : "Monthly Installments"
+        : lang === "de"
+          ? "Einmalzahlung"
+          : "One-time Payment";
     
     return await renderAndSendTemplateEmail(ctx, {
       templateName: "purchase-confirmation",
@@ -330,6 +382,7 @@ export const sendPurchaseConfirmationEmail = internalAction({
         PAYMENT_MODE: paymentModeDisplay,
       },
       to: args.email,
+      language: args.language,
     });
   },
 });

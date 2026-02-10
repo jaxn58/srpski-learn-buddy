@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx, internalMutation, action, ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { callAiJson } from "./contentStudio/_shared";
 
 // Helper to get the current user and verify admin
 type AnyCtx = QueryCtx | MutationCtx | ActionCtx;
@@ -92,8 +93,14 @@ export const upsert = mutation({
   args: {
     name: v.string(),
     subject: v.string(),
+    subjectEn: v.optional(v.string()),
+    subjectDe: v.optional(v.string()),
     htmlContent: v.string(),
+    htmlContentEn: v.optional(v.string()),
+    htmlContentDe: v.optional(v.string()),
     description: v.optional(v.string()),
+    descriptionEn: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
     variables: v.array(v.string()),
     category: v.union(
       v.literal("transactional"),
@@ -106,6 +113,11 @@ export const upsert = mutation({
     const superadmin = await getSuperadminUser(ctx);
     if (!superadmin) throw new Error("Superadmin access required");
 
+    // Keep legacy fields as EN fallback for backward compatibility.
+    const subjectEn = args.subjectEn ?? args.subject;
+    const htmlContentEn = args.htmlContentEn ?? args.htmlContent;
+    const descriptionEn = args.descriptionEn ?? args.description;
+
     const existing = await ctx.db
       .query("emailTemplates")
       .withIndex("by_name", (q) => q.eq("name", args.name))
@@ -114,9 +126,15 @@ export const upsert = mutation({
     if (existing) {
       // Update
       await ctx.db.patch(existing._id, {
-        subject: args.subject,
-        htmlContent: args.htmlContent,
-        description: args.description,
+        subject: subjectEn,
+        subjectEn,
+        subjectDe: args.subjectDe,
+        htmlContent: htmlContentEn,
+        htmlContentEn,
+        htmlContentDe: args.htmlContentDe,
+        description: descriptionEn,
+        descriptionEn,
+        descriptionDe: args.descriptionDe,
         variables: args.variables,
         category: args.category,
         isActive: args.isActive,
@@ -127,9 +145,15 @@ export const upsert = mutation({
       // Create
       return await ctx.db.insert("emailTemplates", {
         name: args.name,
-        subject: args.subject,
-        htmlContent: args.htmlContent,
-        description: args.description,
+        subject: subjectEn,
+        subjectEn,
+        subjectDe: args.subjectDe,
+        htmlContent: htmlContentEn,
+        htmlContentEn,
+        htmlContentDe: args.htmlContentDe,
+        description: descriptionEn,
+        descriptionEn,
+        descriptionDe: args.descriptionDe,
         variables: args.variables,
         category: args.category,
         isActive: args.isActive,
@@ -146,8 +170,14 @@ export const internalUpsert = internalMutation({
   args: {
     name: v.string(),
     subject: v.string(),
+    subjectEn: v.optional(v.string()),
+    subjectDe: v.optional(v.string()),
     htmlContent: v.string(),
+    htmlContentEn: v.optional(v.string()),
+    htmlContentDe: v.optional(v.string()),
     description: v.optional(v.string()),
+    descriptionEn: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
     variables: v.array(v.string()),
     category: v.union(
       v.literal("transactional"),
@@ -157,6 +187,10 @@ export const internalUpsert = internalMutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const subjectEn = args.subjectEn ?? args.subject;
+    const htmlContentEn = args.htmlContentEn ?? args.htmlContent;
+    const descriptionEn = args.descriptionEn ?? args.description;
+
     const existing = await ctx.db
       .query("emailTemplates")
       .withIndex("by_name", (q) => q.eq("name", args.name))
@@ -165,9 +199,15 @@ export const internalUpsert = internalMutation({
     if (existing) {
       // Update
       await ctx.db.patch(existing._id, {
-        subject: args.subject,
-        htmlContent: args.htmlContent,
-        description: args.description,
+        subject: subjectEn,
+        subjectEn,
+        subjectDe: args.subjectDe,
+        htmlContent: htmlContentEn,
+        htmlContentEn,
+        htmlContentDe: args.htmlContentDe,
+        description: descriptionEn,
+        descriptionEn,
+        descriptionDe: args.descriptionDe,
         variables: args.variables,
         category: args.category,
         isActive: args.isActive,
@@ -178,9 +218,15 @@ export const internalUpsert = internalMutation({
       // Create
       return await ctx.db.insert("emailTemplates", {
         name: args.name,
-        subject: args.subject,
-        htmlContent: args.htmlContent,
-        description: args.description,
+        subject: subjectEn,
+        subjectEn,
+        subjectDe: args.subjectDe,
+        htmlContent: htmlContentEn,
+        htmlContentEn,
+        htmlContentDe: args.htmlContentDe,
+        description: descriptionEn,
+        descriptionEn,
+        descriptionDe: args.descriptionDe,
         variables: args.variables,
         category: args.category,
         isActive: args.isActive,
@@ -197,8 +243,14 @@ export const setupTemplate = action({
   args: {
     name: v.string(),
     subject: v.string(),
+    subjectEn: v.optional(v.string()),
+    subjectDe: v.optional(v.string()),
     htmlContent: v.string(),
+    htmlContentEn: v.optional(v.string()),
+    htmlContentDe: v.optional(v.string()),
     description: v.optional(v.string()),
+    descriptionEn: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
     variables: v.array(v.string()),
     category: v.union(
       v.literal("transactional"),
@@ -235,6 +287,7 @@ export const render = query({
   args: {
     templateName: v.string(),
     variables: v.optional(v.record(v.string(), v.union(v.string(), v.number()))),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args) => {
     const template = await ctx.db
@@ -254,17 +307,39 @@ export const render = query({
 
     // Inject signature via placeholder (per category) before variable replacement,
     // so signature HTML can also use template variables like {{USER_EMAIL}}.
-    let renderedHtml = template.htmlContent;
+    const lang = args.language === "de" ? "de" : "en";
+
+    const pickLocalized = (params: { legacy: string; en?: string; de?: string }) => {
+      if (lang === "de") return params.de || params.en || params.legacy;
+      return params.en || params.legacy;
+    };
+
+    let renderedHtml = pickLocalized({
+      legacy: template.htmlContent,
+      en: template.htmlContentEn,
+      de: template.htmlContentDe,
+    });
     if (renderedHtml.includes("{{EMAIL_SIGNATURE}}")) {
       const signature = await ctx.db
         .query("emailSignatures")
         .withIndex("by_category", (q) => q.eq("category", template.category))
         .first();
-      const signatureHtml = signature && signature.isActive ? signature.htmlContent : "";
+      const signatureHtml =
+        signature && signature.isActive
+          ? pickLocalized({
+              legacy: signature.htmlContent || "",
+              en: signature.htmlContentEn,
+              de: signature.htmlContentDe,
+            })
+          : "";
       renderedHtml = renderedHtml.replace(/\{\{EMAIL_SIGNATURE\}\}/g, signatureHtml);
     }
 
-    let renderedSubject = template.subject;
+    let renderedSubject = pickLocalized({
+      legacy: template.subject,
+      en: template.subjectEn,
+      de: template.subjectDe,
+    });
 
     // Replace all {{VARIABLE}} with values
     for (const [key, value] of Object.entries(vars)) {
@@ -309,11 +384,15 @@ export const upsertSignature = mutation({
   args: {
     category: v.union(v.literal("transactional"), v.literal("subscription"), v.literal("marketing")),
     htmlContent: v.string(),
+    htmlContentEn: v.optional(v.string()),
+    htmlContentDe: v.optional(v.string()),
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
     const superadmin = await getSuperadminUser(ctx);
     if (!superadmin) throw new Error("Superadmin access required");
+
+    const htmlContentEn = args.htmlContentEn ?? args.htmlContent;
 
     const existing = await ctx.db
       .query("emailSignatures")
@@ -322,7 +401,9 @@ export const upsertSignature = mutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
-        htmlContent: args.htmlContent,
+        htmlContent: htmlContentEn,
+        htmlContentEn,
+        htmlContentDe: args.htmlContentDe,
         isActive: args.isActive,
         updatedAt: Date.now(),
       });
@@ -331,7 +412,9 @@ export const upsertSignature = mutation({
 
     return await ctx.db.insert("emailSignatures", {
       category: args.category,
-      htmlContent: args.htmlContent,
+      htmlContent: htmlContentEn,
+      htmlContentEn,
+      htmlContentDe: args.htmlContentDe,
       isActive: args.isActive,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -380,6 +463,163 @@ export const detectVariables = query({
     const htmlVars = extractVariables(args.htmlContent);
     const allVars = new Set([...subjectVars, ...htmlVars]);
     return Array.from(allVars);
+  },
+});
+
+function diffVariables(params: { source: string[]; target: string[] }) {
+  const s = new Set(params.source);
+  const t = new Set(params.target);
+  const missing = Array.from(s).filter((vName) => !t.has(vName));
+  const added = Array.from(t).filter((vName) => !s.has(vName));
+  return { missing, added };
+}
+
+export const translateTemplateEnToDe = action({
+  args: {
+    subjectEn: v.string(),
+    htmlContentEn: v.string(),
+    descriptionEn: v.optional(v.string()),
+    variables: v.optional(v.array(v.string())),
+    preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
+  },
+  handler: async (ctx, args) => {
+    const superadmin = await getSuperadminUser(ctx);
+    if (!superadmin) throw new Error("Superadmin access required");
+
+    const sourceVars = new Set([
+      ...extractVariables(args.subjectEn || ""),
+      ...extractVariables(args.htmlContentEn || ""),
+    ]);
+    for (const vName of args.variables || []) sourceVars.add(vName);
+
+    const system = [
+      "You are a translation engine.",
+      "Translate the provided email template from English to German (de-DE).",
+      "Preserve ALL placeholder variables in double curly braces exactly (e.g. {{USER_NAME}}, {{EMAIL_SIGNATURE}}). Do not translate, rename, add, or remove placeholders.",
+      "Preserve HTML tags, inline CSS, and formatting as much as possible.",
+      "Return ONLY valid JSON with keys: subjectDe, htmlContentDe, descriptionDe.",
+    ].join("\n");
+
+    const user = [
+      "Subject (EN):",
+      args.subjectEn,
+      "",
+      "HTML (EN):",
+      args.htmlContentEn,
+      "",
+      "Description (EN):",
+      args.descriptionEn ?? "",
+      "",
+      `Placeholders that must remain unchanged: ${Array.from(sourceVars).sort().join(", ") || "(none)"}`,
+    ].join("\n");
+
+    const ai = await callAiJson(ctx, {
+      stage: "specialist",
+      preferredProvider: args.preferredProvider ?? "gemini",
+      system,
+      user,
+      maxTokens: 3000,
+    });
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(ai.raw);
+    } catch {
+      throw new Error("AI returned invalid JSON.");
+    }
+
+    const subjectDe = typeof parsed?.subjectDe === "string" ? parsed.subjectDe : "";
+    const htmlContentDe = typeof parsed?.htmlContentDe === "string" ? parsed.htmlContentDe : "";
+    const descriptionDe = typeof parsed?.descriptionDe === "string" ? parsed.descriptionDe : "";
+
+    if (!subjectDe || !htmlContentDe) {
+      throw new Error("AI returned empty translation fields.");
+    }
+
+    const targetVars = [
+      ...extractVariables(subjectDe),
+      ...extractVariables(htmlContentDe),
+    ];
+    const { missing, added } = diffVariables({ source: Array.from(sourceVars), target: targetVars });
+    const warnings: string[] = [];
+    if (missing.length) warnings.push(`Missing placeholders in DE output: ${missing.join(", ")}`);
+    if (added.length) warnings.push(`New placeholders in DE output: ${added.join(", ")}`);
+
+    return {
+      subjectDe,
+      htmlContentDe,
+      descriptionDe: descriptionDe || undefined,
+      warnings,
+      meta: {
+        provider: ai.provider,
+        model: ai.model,
+        usage: ai.usage,
+        estimatedCostUsd: ai.estimatedCostUsd,
+      },
+    };
+  },
+});
+
+export const translateSignatureEnToDe = action({
+  args: {
+    htmlContentEn: v.string(),
+    preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
+  },
+  handler: async (ctx, args) => {
+    const superadmin = await getSuperadminUser(ctx);
+    if (!superadmin) throw new Error("Superadmin access required");
+
+    const sourceVars = extractVariables(args.htmlContentEn || "");
+
+    const system = [
+      "You are a translation engine.",
+      "Translate the provided email signature HTML from English to German (de-DE).",
+      "Preserve ALL placeholder variables in double curly braces exactly (e.g. {{USER_EMAIL}}). Do not translate, rename, add, or remove placeholders.",
+      "Preserve HTML tags, inline CSS, and formatting as much as possible.",
+      "Return ONLY valid JSON with key: htmlContentDe.",
+    ].join("\n");
+
+    const user = [
+      "Signature HTML (EN):",
+      args.htmlContentEn,
+      "",
+      `Placeholders that must remain unchanged: ${sourceVars.sort().join(", ") || "(none)"}`,
+    ].join("\n");
+
+    const ai = await callAiJson(ctx, {
+      stage: "specialist",
+      preferredProvider: args.preferredProvider ?? "gemini",
+      system,
+      user,
+      maxTokens: 1500,
+    });
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(ai.raw);
+    } catch {
+      throw new Error("AI returned invalid JSON.");
+    }
+
+    const htmlContentDe = typeof parsed?.htmlContentDe === "string" ? parsed.htmlContentDe : "";
+    if (!htmlContentDe) throw new Error("AI returned empty signature translation.");
+
+    const targetVars = extractVariables(htmlContentDe);
+    const { missing, added } = diffVariables({ source: sourceVars, target: targetVars });
+    const warnings: string[] = [];
+    if (missing.length) warnings.push(`Missing placeholders in DE output: ${missing.join(", ")}`);
+    if (added.length) warnings.push(`New placeholders in DE output: ${added.join(", ")}`);
+
+    return {
+      htmlContentDe,
+      warnings,
+      meta: {
+        provider: ai.provider,
+        model: ai.model,
+        usage: ai.usage,
+        estimatedCostUsd: ai.estimatedCostUsd,
+      },
+    };
   },
 });
 
