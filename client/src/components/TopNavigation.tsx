@@ -356,6 +356,7 @@ export function TopNavigation() {
         items: [
           { label: "Prompt Admin", href: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
           { label: "Content Import", href: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+          { label: t("sidebar.translationCoverage"), href: "/admin/translation-coverage", icon: <FileText className="h-4 w-4" /> },
           { label: "Content Studio", href: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
           { label: "Changelog", href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
           { label: "Database Backups", href: "/admin/backup", icon: <Database className="h-4 w-4" /> },

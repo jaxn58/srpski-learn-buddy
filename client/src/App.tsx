@@ -50,6 +50,7 @@ const EmailTemplates = lazy(() => import("./pages/EmailTemplates"));
 const BackupManagement = lazy(() => import("./pages/BackupManagement"));
 const ContentImportAdmin = lazy(() => import("./pages/ContentImportAdmin"));
 const ContentStudioAdmin = lazy(() => import("./pages/ContentStudioAdmin"));
+const TranslationCoverageAdmin = lazy(() => import("./pages/TranslationCoverageAdmin"));
 const AdminWaitlist = lazy(() => import("./pages/AdminWaitlist"));
 const Newsletter = lazy(() => import("./pages/Newsletter"));
 
@@ -372,6 +373,17 @@ function Router() {
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
                   <ContentStudioAdmin />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/admin/translation-coverage">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <TranslationCoverageAdmin />
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>

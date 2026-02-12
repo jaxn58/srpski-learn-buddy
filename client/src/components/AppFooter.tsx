@@ -21,19 +21,19 @@ export function AppFooter({ className }: { className?: string }) {
               className="underline underline-offset-4 hover:text-foreground"
               href="/terms#terms"
             >
-              Terms
+              {t("footer.terms")}
             </a>
             <a
               className="underline underline-offset-4 hover:text-foreground"
               href="/terms#privacy"
             >
-              Privacy Policy
+              {t("footer.privacy")}
             </a>
             <a
               className="underline underline-offset-4 hover:text-foreground"
               href="/terms#refunds"
             >
-              Refund Policy
+              {t("footer.refunds")}
             </a>
           </nav>
 

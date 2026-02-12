@@ -4,8 +4,9 @@ import { Link } from "wouter";
 import { AppFooter } from "@/components/AppFooter";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export default function SignUpPage() {
   const { t } = useTranslation();
@@ -68,25 +69,38 @@ export default function SignUpPage() {
                 <CardTitle className="text-lg">{t("home.learningLanguage.title")}</CardTitle>
                 <CardDescription>{t("home.learningLanguage.hint")}</CardDescription>
               </CardHeader>
-              <CardContent className="pt-0 flex flex-col items-center gap-2">
-                <ToggleGroup
-                  type="single"
+              <CardContent className="pt-0 flex flex-col items-center gap-3">
+                <RadioGroup
                   value={learningLanguage ?? ""}
                   onValueChange={(value) => {
                     if (value !== "en" && value !== "de") return;
                     chooseLearningLanguage(value);
                   }}
-                  size="sm"
-                  className="bg-muted p-1 rounded-lg"
+                  className="grid w-full gap-3 sm:grid-cols-2"
+                  aria-describedby="learning-language-note"
                 >
-                  <ToggleGroupItem value="en" className="px-3">
-                    {t("home.learningLanguage.option.en")}
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="de" className="px-3">
-                    {t("home.learningLanguage.option.de")}
-                  </ToggleGroupItem>
-                </ToggleGroup>
-                <div className="text-xs text-muted-foreground text-center">
+                  <div className="relative">
+                    <RadioGroupItem value="de" id="learning-language-de" className="peer sr-only" />
+                    <Label
+                      htmlFor="learning-language-de"
+                      className="flex items-center justify-center rounded-xl border-2 bg-white/70 px-4 py-4 text-sm font-semibold shadow-sm transition-all hover:border-primary/60 hover:bg-white peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-accent/20 peer-data-[state=checked]:shadow-md peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background cursor-pointer select-none"
+                    >
+                      {t("home.learningLanguage.option.de")}
+                    </Label>
+                  </div>
+
+                  <div className="relative">
+                    <RadioGroupItem value="en" id="learning-language-en" className="peer sr-only" />
+                    <Label
+                      htmlFor="learning-language-en"
+                      className="flex items-center justify-center rounded-xl border-2 bg-white/70 px-4 py-4 text-sm font-semibold shadow-sm transition-all hover:border-primary/60 hover:bg-white peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-accent/20 peer-data-[state=checked]:shadow-md peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background cursor-pointer select-none"
+                    >
+                      {t("home.learningLanguage.option.en")}
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                <div id="learning-language-note" className="text-xs text-muted-foreground text-center">
                   {t("home.learningLanguage.note")}
                 </div>
               </CardContent>

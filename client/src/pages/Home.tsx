@@ -7,6 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2, Volume2, ListTodo } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -325,6 +326,12 @@ export default function Home() {
   const MODULES_DATA = useMemo(() => {
     if (!dbModules || dbModules.length === 0 || !courseVocabulary) return [];
 
+    const bySlug = new Map<string, any>();
+    for (const m of dbModules as any[]) {
+      const slug = String((m as any)?.slug ?? "");
+      if (slug) bySlug.set(slug, m);
+    }
+
     const base = buildLandingModuleCards({
       modules: dbModules as any,
       unitsEn: dbUnitsEn as any,
@@ -333,13 +340,15 @@ export default function Home() {
 
     // Keep existing shape used throughout Home.tsx
     return base.map((m) => ({
+      // Use slug as stable key to look up multilingual fields.
+      // (buildLandingModuleCards focuses on EN; we enrich here from the DB.)
       id: m.id,
       number: m.number,
       title: m.title,
       titleEnglish: m.title,
-      titleGerman: "", // BETA: currently force English UI
+      titleGerman: String((bySlug.get(m.id) as any)?.titleDe ?? ""),
       description: m.description,
-      descriptionGerman: "",
+      descriptionGerman: String((bySlug.get(m.id) as any)?.descriptionDe ?? ""),
       unitCount: m.unitCount,
       vocabCount: m.vocabCount,
     }));
@@ -538,6 +547,22 @@ export default function Home() {
               </CardDescription>
             </CardHeader>
           </Card>
+
+          <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
+            <CardHeader>
+              <Volume2 className="h-12 w-12 text-primary mb-2" />
+              <CardTitle>{t("home.features.audio.title")}</CardTitle>
+              <CardDescription>{t("home.features.audio.desc")}</CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
+            <CardHeader>
+              <ListTodo className="h-12 w-12 text-primary mb-2" />
+              <CardTitle>{t("home.features.wishlist.title")}</CardTitle>
+              <CardDescription>{t("home.features.wishlist.desc")}</CardDescription>
+            </CardHeader>
+          </Card>
           </div>
         </div>
       </section>
@@ -561,25 +586,38 @@ export default function Home() {
                 <CardTitle className="text-lg">{t("home.learningLanguage.title")}</CardTitle>
                 <CardDescription>{t("home.learningLanguage.hint")}</CardDescription>
               </CardHeader>
-              <CardContent className="pt-0 flex flex-col items-center gap-2">
-                <ToggleGroup
-                  type="single"
+              <CardContent className="pt-0 flex flex-col items-center gap-3">
+                <RadioGroup
                   value={learningLanguage ?? ""}
                   onValueChange={(value) => {
                     if (value !== "en" && value !== "de") return;
                     updateLearningLanguageChoice(value);
                   }}
-                  size="sm"
-                  className="bg-muted p-1 rounded-lg"
+                  className="grid w-full max-w-2xl gap-3 sm:grid-cols-2"
+                  aria-describedby="learning-language-note"
                 >
-                  <ToggleGroupItem value="en" className="px-3">
-                    {t("home.learningLanguage.option.en")}
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="de" className="px-3">
-                    {t("home.learningLanguage.option.de")}
-                  </ToggleGroupItem>
-                </ToggleGroup>
-                <div className="text-xs text-muted-foreground text-center max-w-2xl">
+                  <div className="relative">
+                    <RadioGroupItem value="de" id="learning-language-de" className="peer sr-only" />
+                    <Label
+                      htmlFor="learning-language-de"
+                      className="flex items-center justify-center rounded-xl border-2 bg-white/70 px-4 py-4 text-sm font-semibold shadow-sm transition-all hover:border-primary/60 hover:bg-white peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-accent/20 peer-data-[state=checked]:shadow-md peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background cursor-pointer select-none"
+                    >
+                      {t("home.learningLanguage.option.de")}
+                    </Label>
+                  </div>
+
+                  <div className="relative">
+                    <RadioGroupItem value="en" id="learning-language-en" className="peer sr-only" />
+                    <Label
+                      htmlFor="learning-language-en"
+                      className="flex items-center justify-center rounded-xl border-2 bg-white/70 px-4 py-4 text-sm font-semibold shadow-sm transition-all hover:border-primary/60 hover:bg-white peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-accent/20 peer-data-[state=checked]:shadow-md peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background cursor-pointer select-none"
+                    >
+                      {t("home.learningLanguage.option.en")}
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                <div id="learning-language-note" className="text-xs text-muted-foreground text-center max-w-2xl">
                   {t("home.learningLanguage.note")}
                 </div>
               </CardContent>
@@ -1395,9 +1433,20 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {MODULES_DATA.map((module: any) => {
-              // BETA: Always use English
-              const displayTitle = module.titleEnglish;
-              const displayDescription = module.description;
+              const pickText = (preferred: unknown, fallback: unknown): string => {
+                const p = typeof preferred === "string" ? preferred.trim() : "";
+                if (p) return preferred as string;
+                return typeof fallback === "string" ? fallback : "";
+              };
+
+              const displayTitle =
+                displayLanguage === "de"
+                  ? pickText(module.titleGerman, module.titleEnglish)
+                  : pickText(module.titleEnglish, module.titleGerman);
+              const displayDescription =
+                displayLanguage === "de"
+                  ? pickText(module.descriptionGerman, module.description)
+                  : pickText(module.description, module.descriptionGerman);
               
               return (
               <Card 
