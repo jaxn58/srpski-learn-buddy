@@ -4,8 +4,8 @@ import remarkGfm from "remark-gfm";
 /**
  * Chat-only Markdown renderer.
  *
- * Intentionally uses tighter spacing than unit content.
- * Keep this separate from `MarkdownContent` so chat/units can evolve independently.
+ * Kept minimal and flat: one dominant text size, little hierarchy (like WhatsApp/Viber).
+ * No large headings or heavy bold – focus on readable conversation, not document layout.
  */
 function extractTextFromReactNode(node: any): string {
   if (node == null || typeof node === "boolean") return "";
@@ -17,13 +17,14 @@ function extractTextFromReactNode(node: any): string {
   return "";
 }
 
+/** Same size as body, minimal emphasis – chat-style, not document-style */
 const chatMarkdownComponents = {
-  p: ({ node, ...props }: any) => <p className="mb-2 leading-snug" {...props} />,
+  p: ({ node, ...props }: any) => <p className="mb-3 leading-snug" {...props} />,
   ul: ({ node, ...props }: any) => (
-    <ul className="list-disc list-outside ml-4 mb-3 space-y-1.5" {...props} />
+    <ul className="list-disc list-outside ml-4 mb-2 space-y-0.5" {...props} />
   ),
   ol: ({ node, ...props }: any) => (
-    <ol className="list-decimal list-outside ml-4 mb-3 space-y-1.5" {...props} />
+    <ol className="list-decimal list-outside ml-4 mb-2 space-y-0.5" {...props} />
   ),
   li: ({ node, children, ...props }: any) =>
     extractTextFromReactNode(children).trim().length === 0 ? null : (
@@ -33,36 +34,37 @@ const chatMarkdownComponents = {
     ),
   code: ({ node, inline, ...props }: any) =>
     inline ? (
-      <code className="bg-muted/80 px-1.5 py-0.5 rounded text-xs font-mono" {...props} />
+      <code className="bg-muted/70 px-1 py-0.5 rounded font-mono" {...props} />
     ) : (
-      <code className="block bg-muted/80 p-3 rounded-md text-xs font-mono overflow-x-auto mb-3" {...props} />
+      <code className="block bg-muted/70 p-2 rounded font-mono overflow-x-auto mb-2" {...props} />
     ),
   pre: ({ node, children, ...props }: any) => (
-    <pre className="mb-3" {...props}>
+    <pre className="mb-2" {...props}>
       {children}
     </pre>
   ),
   table: ({ node, ...props }: any) => (
-    <div className="overflow-x-auto mb-3">
-      <table className="w-full text-sm border-collapse border border-border" {...props} />
+    <div className="overflow-x-auto mb-2">
+      <table className="w-full border-collapse border border-border" {...props} />
     </div>
   ),
-  thead: ({ node, ...props }: any) => <thead className="bg-muted/60" {...props} />,
+  thead: ({ node, ...props }: any) => <thead className="bg-muted/50" {...props} />,
   tbody: ({ node, ...props }: any) => <tbody {...props} />,
   tr: ({ node, ...props }: any) => <tr className="border-b border-border" {...props} />,
   th: ({ node, ...props }: any) => (
-    <th className="text-left font-semibold p-2 border-r border-border last:border-r-0" {...props} />
+    <th className="text-left font-medium p-2 border-r border-border last:border-r-0" {...props} />
   ),
   td: ({ node, ...props }: any) => <td className="p-2 border-r border-border last:border-r-0" {...props} />,
   blockquote: ({ node, ...props }: any) => (
-    <blockquote className="border-l-4 border-primary/50 pl-3 italic mb-3 text-muted-foreground" {...props} />
+    <blockquote className="border-l-2 border-border pl-3 mb-2 opacity-90" {...props} />
   ),
-  h1: ({ node, ...props }: any) => <h1 className="text-lg font-bold mb-2 mt-4 first:mt-0" {...props} />,
-  h2: ({ node, ...props }: any) => <h2 className="text-base font-bold mb-2 mt-3 first:mt-0" {...props} />,
-  h3: ({ node, ...props }: any) => <h3 className="text-sm font-bold mb-2 mt-2 first:mt-0" {...props} />,
-  strong: ({ node, ...props }: any) => <strong className="font-bold text-foreground" {...props} />,
+  /* Headings as same-size lines with light emphasis only (no big type scale) */
+  h1: ({ node, ...props }: any) => <p className="font-medium mb-1.5 mt-3 first:mt-0" {...props} />,
+  h2: ({ node, ...props }: any) => <p className="font-medium mb-1 mt-2 first:mt-0" {...props} />,
+  h3: ({ node, ...props }: any) => <p className="font-medium mb-1 mt-1.5 first:mt-0" {...props} />,
+  strong: ({ node, ...props }: any) => <strong className="font-medium text-foreground" {...props} />,
   em: ({ node, ...props }: any) => <em className="italic" {...props} />,
-  hr: ({ node, ...props }: any) => <hr className="my-4 border-border" {...props} />,
+  hr: ({ node, ...props }: any) => <hr className="my-3 border-border" {...props} />,
 };
 
 export function ChatMarkdownContent({ content }: { content: string }) {

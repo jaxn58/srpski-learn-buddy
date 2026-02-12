@@ -204,7 +204,7 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0">
+      <DialogContent className="w-[90vw] min-w-[80vw] max-w-5xl max-h-[90vh] min-h-[70vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
@@ -272,7 +272,7 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
                 
                 <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div
-                    className={`rounded-2xl px-4 py-3 text-sm ${
+                    className={`rounded-2xl px-4 py-3 text-[clamp(0.72rem,1.2vw+0.62rem,0.825rem)] leading-snug ${
                       msg.role === 'user'
                         ? 'bg-primary text-primary-foreground rounded-br-none'
                         : 'bg-muted text-foreground rounded-bl-none'
@@ -281,7 +281,7 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
                     {msg.role === 'assistant' ? (
                       <ChatMarkdownContent content={msg.content} />
                     ) : (
-                      <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      <p className="whitespace-pre-wrap leading-snug">{msg.content}</p>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-2">

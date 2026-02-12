@@ -238,6 +238,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isAdminRoute = location === "/admin" || location.startsWith("/admin/");
+  const isChatRoute = location === "/chat" || location.startsWith("/chat/");
 
   if (loading) {
     return <DashboardLayoutSkeleton />;
@@ -247,23 +248,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <>
       <SignedIn>
         {isAdmin && !isMobile ? (
-          <SidebarProvider>
+          <SidebarProvider className={cn(isChatRoute && "h-svh overflow-hidden")}>
             <AdminSidebar />
             <SidebarInset className="bg-muted/20">
               <TopNavigation />
-              <div className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pt-6">
+              <div
+                className={cn(
+                  "flex-1 w-full max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pt-6",
+                  isChatRoute && "flex flex-col min-h-0 overflow-hidden"
+                )}
+              >
                 {children}
               </div>
             </SidebarInset>
-            <FloatingChatButton />
+            {!isChatRoute && <FloatingChatButton />}
           </SidebarProvider>
         ) : (
-          <div className="min-h-screen bg-muted/20">
+          <div
+            className={cn(
+              "min-h-screen bg-muted/20",
+              isChatRoute && "h-svh flex flex-col overflow-hidden"
+            )}
+          >
             <TopNavigation />
-            <main className="w-full max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pt-6">
+            <main
+              className={cn(
+                "w-full max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pt-6",
+                isChatRoute && "flex-1 flex flex-col min-h-0 overflow-hidden"
+              )}
+            >
               {children}
             </main>
-            <FloatingChatButton />
+            {!isChatRoute && <FloatingChatButton />}
           </div>
         )}
       </SignedIn>

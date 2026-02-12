@@ -4,7 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, Lock } from "lucide-react";
+import { ChevronDown, Lock, Trophy } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,59 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 
 type Period = "all" | "30d" | "7d";
+
+function RankBadge({ rank }: { rank: number }) {
+  const base =
+    "h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 border";
+
+  if (rank === 1) {
+    return (
+      <div
+        className={cn(base, "bg-[color:var(--accent)] text-white border-white/35")}
+        aria-label={`Rank ${rank}`}
+      >
+        <Trophy className="h-4 w-4" aria-hidden="true" />
+        <span className="sr-only">{`Rank ${rank}`}</span>
+      </div>
+    );
+  }
+
+  if (rank === 2) {
+    return (
+      <div
+        className={cn(
+          base,
+          "bg-slate-300 text-slate-900 border-slate-200 dark:bg-slate-500 dark:text-white dark:border-slate-400/40"
+        )}
+        aria-label={`Rank ${rank}`}
+      >
+        <Trophy className="h-4 w-4" aria-hidden="true" />
+        <span className="sr-only">{`Rank ${rank}`}</span>
+      </div>
+    );
+  }
+
+  if (rank === 3) {
+    return (
+      <div
+        className={cn(
+          base,
+          "bg-amber-700 text-white border-amber-600/50 dark:bg-amber-600 dark:border-amber-500/40"
+        )}
+        aria-label={`Rank ${rank}`}
+      >
+        <Trophy className="h-4 w-4" aria-hidden="true" />
+        <span className="sr-only">{`Rank ${rank}`}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn(base, "bg-serbian-blue text-white border-white/55 dark:border-white/20")}>
+      {rank}
+    </div>
+  );
+}
 
 export default function Leaderboards() {
   const { user, loading } = useAuth();
@@ -351,16 +404,7 @@ export default function Leaderboards() {
                         )}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={cn(
-                              "h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0",
-                              e.rank <= 3
-                                ? "bg-[color:var(--accent)] text-white"
-                                : "bg-muted text-muted-foreground"
-                            )}
-                          >
-                            {e.rank}
-                          </div>
+                          <RankBadge rank={e.rank} />
                           <Avatar className="h-8 w-8 border flex-shrink-0">
                             <AvatarImage src={e.avatarUrl} alt={e.nickname} />
                             <AvatarFallback>{e.nickname.charAt(0).toUpperCase()}</AvatarFallback>
@@ -403,12 +447,12 @@ export default function Leaderboards() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="text-xs text-muted-foreground">
             {user.leaderboardPublicEnabled
-              ? "Your public leaderboard display is enabled."
-              : "Want to appear on the public leaderboards? Enable public display in your profile (nickname + avatar required)."}{" "}
+              ? t("leaderboards.publicDisplay.enabled")
+              : t("leaderboards.publicDisplay.disabled")}{" "}
           </div>
           <Link href="/profile">
             <Button size="sm" variant="outline">
-              Go to Profile
+              {t("leaderboards.goToProfile")}
             </Button>
           </Link>
         </div>
