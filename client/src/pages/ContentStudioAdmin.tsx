@@ -252,6 +252,7 @@ export default function ContentStudioAdmin() {
   const addReferencePdfFile = useMutation(api.contentStudio.addReferencePdfFile);
   const removeReferencePdfFile = useMutation(api.contentStudio.removeReferencePdfFile);
   const revertReferenceGuidelinesToVersion = useMutation(api.contentStudio.revertReferenceGuidelinesToVersion);
+  const deleteReferenceGuidelineVersion = useMutation(api.contentStudio.deleteReferenceGuidelineVersion);
   const draftTemplates = useQuery(api.contentStudio.listDraftTemplates);
   const createDraftFromTemplate = useMutation(api.contentStudio.createDraftFromTemplate);
   const createDraftTemplateFromDraft = useMutation(api.contentStudio.createDraftTemplateFromDraft);
@@ -419,6 +420,8 @@ export default function ContentStudioAdmin() {
   const [editRefOpen, setEditRefOpen] = useState(false);
   const [editRefId, setEditRefId] = useState<string>("");
   const [editRefGuidelines, setEditRefGuidelines] = useState<string>("");
+  // If set, the editor currently shows a past version. Editing + saving will create a NEW version.
+  const [editRefLoadedFromVersion, setEditRefLoadedFromVersion] = useState<number | null>(null);
   const [editRefSaving, setEditRefSaving] = useState<boolean>(false);
   const [editRefNewPdfFile, setEditRefNewPdfFile] = useState<File | null>(null);
   const [editRefPdfUploading, setEditRefPdfUploading] = useState<boolean>(false);
@@ -1240,13 +1243,33 @@ export default function ContentStudioAdmin() {
   useEffect(() => {
     if (!editRefOpen) return;
     setEditRefGuidelines(String((editRef as any)?.guidelines || ""));
+    setEditRefLoadedFromVersion(null);
   }, [editRefOpen, (editRef as any)?.guidelinesUpdatedAt, editRefId]);
 
   const handleOpenEditReferenceGuidelines = (r: any) => {
     setEditRefId(String(r?._id || ""));
     setEditRefGuidelines(String(r?.guidelines || ""));
     setEditRefNewPdfFile(null);
+    setEditRefLoadedFromVersion(null);
     setEditRefOpen(true);
+  };
+
+  const handleLoadGuidelinesVersionIntoEditor = (version: number) => {
+    const list = Array.isArray(guidelineVersions) ? (guidelineVersions as any[]) : [];
+    const found = list.find((v) => Number((v as any)?.version) === Number(version));
+    if (!found) {
+      toast.error("Guideline version not found.");
+      return;
+    }
+    setEditRefGuidelines(String((found as any)?.guidelines || ""));
+    setEditRefLoadedFromVersion(Number(version));
+    toast.success(`Loaded v${Number(version)} into editor. Edit + save to create a new version.`);
+  };
+
+  const handleReloadCurrentGuidelinesIntoEditor = () => {
+    setEditRefGuidelines(String((editRef as any)?.guidelines || ""));
+    setEditRefLoadedFromVersion(null);
+    toast.info("Loaded current guidelines.");
   };
 
   const handleSaveReferenceGuidelines = async () => {
@@ -1299,6 +1322,20 @@ export default function ContentStudioAdmin() {
       toast.success(t("admin.contentStudio.toast.guidelinesReverted", { version }));
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.guidelinesRevertFailed"));
+    } finally {
+      setEditRefSaving(false);
+    }
+  };
+
+  const handleDeleteGuidelinesVersion = async (params: { versionId: string; version: number }) => {
+    setEditRefSaving(true);
+    try {
+      await deleteReferenceGuidelineVersion({
+        versionId: params.versionId as any,
+      });
+      toast.success(`Deleted v${params.version}.`);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to delete guideline version.");
     } finally {
       setEditRefSaving(false);
     }
@@ -2234,6 +2271,7 @@ export default function ContentStudioAdmin() {
           if (!open) {
             setEditRefId("");
             setEditRefGuidelines("");
+            setEditRefLoadedFromVersion(null);
           }
         }}
       >
@@ -2267,6 +2305,26 @@ export default function ContentStudioAdmin() {
                         {(editRef as any)?.guidelinesModel ? `/${String((editRef as any).guidelinesModel)}` : ""}
                       </span>
                     ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {typeof editRefLoadedFromVersion === "number" ? (
+                      <>
+                        <Badge variant="secondary">Loaded v{editRefLoadedFromVersion}</Badge>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          type="button"
+                          onClick={handleReloadCurrentGuidelinesIntoEditor}
+                          disabled={editRefSaving}
+                        >
+                          Back to current
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">
+                        Tip: Saving always creates a new version in history.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2367,7 +2425,7 @@ export default function ContentStudioAdmin() {
                         <TableHead>Version</TableHead>
                         <TableHead>When</TableHead>
                         <TableHead>Source</TableHead>
-                        <TableHead className="w-[120px]">Actions</TableHead>
+                        <TableHead className="w-[180px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2384,15 +2442,60 @@ export default function ContentStudioAdmin() {
                               {v.isManual ? " (manual)" : ""}
                             </TableCell>
                             <TableCell>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                type="button"
-                                onClick={() => handleRevertGuidelinesToVersion(Number(v.version))}
-                                disabled={editRefSaving}
-                              >
-                                Revert
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  type="button"
+                                  onClick={() => handleLoadGuidelinesVersionIntoEditor(Number(v.version))}
+                                  disabled={editRefSaving}
+                                >
+                                  Open
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  type="button"
+                                  onClick={() => handleRevertGuidelinesToVersion(Number(v.version))}
+                                  disabled={editRefSaving}
+                                >
+                                  Revert
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      type="button"
+                                      disabled={editRefSaving}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete guideline version v{String(v.version)}?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This permanently removes the selected history entry. The current guidelines remain unchanged.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel disabled={editRefSaving}>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        disabled={editRefSaving}
+                                        onClick={() =>
+                                          handleDeleteGuidelinesVersion({
+                                            versionId: String(v._id),
+                                            version: Number(v.version),
+                                          })
+                                        }
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))

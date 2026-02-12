@@ -9,6 +9,14 @@ import { logger } from "@/lib/logger";
  * Source of truth after that is `users.learningLanguage` in Convex.
  */
 function detectPreferredLanguage(): "en" | "de" {
+  // 0) explicit learning language selection (required during registration)
+  try {
+    const storedLearning = localStorage.getItem("learning-language");
+    if (storedLearning === "en" || storedLearning === "de") return storedLearning;
+  } catch {
+    // ignore
+  }
+
   // 1) localStorage (used by LanguageContext)
   try {
     const stored = localStorage.getItem("app-language");

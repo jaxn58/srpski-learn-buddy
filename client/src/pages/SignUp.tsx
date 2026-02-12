@@ -3,9 +3,33 @@ import { BookOpen } from "lucide-react";
 import { Link } from "wouter";
 import { AppFooter } from "@/components/AppFooter";
 import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SignUpPage() {
   const { t } = useTranslation();
+  const LEARNING_LANGUAGE_STORAGE_KEY = "learning-language";
+  const [learningLanguage, setLearningLanguage] = useState<"en" | "de" | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LEARNING_LANGUAGE_STORAGE_KEY);
+      if (stored === "en" || stored === "de") setLearningLanguage(stored);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const chooseLearningLanguage = (next: "en" | "de") => {
+    setLearningLanguage(next);
+    try {
+      localStorage.setItem(LEARNING_LANGUAGE_STORAGE_KEY, next);
+    } catch {
+      // ignore
+    }
+  };
+
   const redirectUrl = (() => {
     const params = new URLSearchParams(window.location.search);
     const candidate = (params.get("redirect_url") || "").trim();
@@ -37,21 +61,56 @@ export default function SignUpPage() {
 
       {/* Sign Up Form */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <SignUp
-          routing="virtual"
-          signInUrl={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
-          afterSignUpUrl={redirectUrl}
-          appearance={{
-            elements: {
-              rootBox: "mx-auto",
-              card: "shadow-xl border-2",
-              headerTitle: "text-2xl font-bold",
-              headerSubtitle: "text-muted-foreground",
-              formButtonPrimary: "bg-primary hover:bg-primary/90",
-              footerActionLink: "text-primary hover:text-primary/90",
-            },
-          }}
-        />
+        <div className="w-full max-w-md space-y-4">
+          {!learningLanguage ? (
+            <Card className="border-2">
+              <CardHeader>
+                <CardTitle className="text-lg">{t("home.learningLanguage.title")}</CardTitle>
+                <CardDescription>{t("home.learningLanguage.hint")}</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0 flex flex-col items-center gap-2">
+                <ToggleGroup
+                  type="single"
+                  value={learningLanguage ?? ""}
+                  onValueChange={(value) => {
+                    if (value !== "en" && value !== "de") return;
+                    chooseLearningLanguage(value);
+                  }}
+                  size="sm"
+                  className="bg-muted p-1 rounded-lg"
+                >
+                  <ToggleGroupItem value="en" className="px-3">
+                    {t("home.learningLanguage.option.en")}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="de" className="px-3">
+                    {t("home.learningLanguage.option.de")}
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <div className="text-xs text-muted-foreground text-center">
+                  {t("home.learningLanguage.note")}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {learningLanguage ? (
+            <SignUp
+              routing="virtual"
+              signInUrl={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
+              afterSignUpUrl={redirectUrl}
+              appearance={{
+                elements: {
+                  rootBox: "mx-auto",
+                  card: "shadow-xl border-2",
+                  headerTitle: "text-2xl font-bold",
+                  headerSubtitle: "text-muted-foreground",
+                  formButtonPrimary: "bg-primary hover:bg-primary/90",
+                  footerActionLink: "text-primary hover:text-primary/90",
+                },
+              }}
+            />
+          ) : null}
+        </div>
       </div>
 
       <AppFooter />

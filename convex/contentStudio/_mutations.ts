@@ -888,6 +888,29 @@ export const revertReferenceGuidelinesToVersion = mutation({
   },
 });
 
+// Hard-delete a single guideline version entry (admin-only).
+// This does NOT change the current `contentStudioReferences.guidelines` field.
+export const deleteReferenceGuidelineVersion = mutation({
+  args: {
+    versionId: v.id("contentStudioReferenceGuidelineVersions"),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const row = await ctx.db.get(args.versionId);
+    if (!row) {
+      // Idempotent delete: treat missing row as success.
+      return { ok: true, deleted: false };
+    }
+    await ctx.db.delete(args.versionId);
+    return {
+      ok: true,
+      deleted: true,
+      referenceId: row.referenceId,
+      version: row.version,
+    };
+  },
+});
+
 export const setReferenceGuidelines = mutation({
   args: {
     referenceId: v.id("contentStudioReferences"),

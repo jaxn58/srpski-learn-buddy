@@ -27,6 +27,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 const AVATAR_MAX_INPUT_BYTES = 2 * 1024 * 1024; // 2 MB
 const AVATAR_TARGET_SIZE = 256; // px (square)
+const SHOW_LANGUAGE_SELECTOR = false;
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
   return new Promise<Blob | null>((resolve) => {
@@ -322,23 +323,25 @@ export default function Profile() {
               <p className="text-xs text-muted-foreground">{nickname.length}/32</p>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">{t("profile.language.label")}</Label>
-              <Select
-                value={uiLanguage}
-                onValueChange={(v) => void handleChangeLanguage(v as "en" | "de")}
-                disabled={saving || languageSaving}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("profile.language.placeholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="de">Deutsch</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">{t("profile.language.hint")}</p>
-            </div>
+            {SHOW_LANGUAGE_SELECTOR ? (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">{t("profile.language.label")}</Label>
+                <Select
+                  value={uiLanguage}
+                  onValueChange={(v) => void handleChangeLanguage(v as "en" | "de")}
+                  disabled={saving || languageSaving}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={t("profile.language.placeholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="de">Deutsch</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{t("profile.language.hint")}</p>
+              </div>
+            ) : null}
 
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-3">

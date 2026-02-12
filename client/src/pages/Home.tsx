@@ -8,6 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
@@ -23,6 +31,7 @@ import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
 export default function Home() {
   const { isAuthenticated, loading, user } = useAuth();
   const { t, i18n } = useTranslation();
+  const { language: displayLanguage, setLanguage: setDisplayLanguage } = useLanguage();
   const [, setLocation] = useLocation();
   
   // Waitlist modal state
@@ -48,6 +57,44 @@ export default function Home() {
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
   const installmentsSelectable = true;
   const paymentToggleHint: string | null = null;
+
+  type LearningLanguage = "en" | "de";
+  const LEARNING_LANGUAGE_STORAGE_KEY = "learning-language";
+  const [learningLanguage, setLearningLanguage] = useState<LearningLanguage | null>(() => {
+    try {
+      const stored = localStorage.getItem(LEARNING_LANGUAGE_STORAGE_KEY);
+      if (stored === "en" || stored === "de") return stored;
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
+  const updateLearningLanguageChoice = (next: LearningLanguage) => {
+    setLearningLanguage(next);
+    try {
+      localStorage.setItem(LEARNING_LANGUAGE_STORAGE_KEY, next);
+    } catch {
+      // ignore
+    }
+  };
+
+  const scrollToLearningLanguageSelector = () => {
+    try {
+      const el = document.getElementById("learning-language-selector");
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch {
+      // ignore
+    }
+  };
+
+  const requireLearningLanguageSelection = (): boolean => {
+    if (learningLanguage === "en" || learningLanguage === "de") return true;
+    toast.error(t("home.learningLanguage.requiredToast"));
+    scrollToLearningLanguageSelector();
+    return false;
+  };
   
   type SubscriptionPlan = {
     id: "beta" | "intensive" | "balanced" | "standard" | "relaxed";
@@ -115,6 +162,19 @@ export default function Home() {
       const pendingMode = localStorage.getItem('pendingPaymentMode');
       
       if (pendingPlan) {
+        // Safety guard: do not auto-open checkout unless a learning language was explicitly chosen.
+        // (Normally ensured by CTA gating before signup.)
+        try {
+          const storedLearning = localStorage.getItem(LEARNING_LANGUAGE_STORAGE_KEY);
+          if (storedLearning !== "en" && storedLearning !== "de") {
+            toast.error(t("home.learningLanguage.requiredToast"));
+            return;
+          }
+        } catch {
+          toast.error(t("home.learningLanguage.requiredToast"));
+          return;
+        }
+
         // Clear from localStorage
         localStorage.removeItem('pendingPurchasePlan');
         localStorage.removeItem('pendingPaymentMode');
@@ -218,6 +278,7 @@ export default function Home() {
     
     // Check if user is logged in - if not, redirect to sign-up
     if (!user?.clerkId) {
+      if (!requireLearningLanguageSelection()) return;
       // Store plan selection in localStorage to resume after signup
       localStorage.setItem('pendingPurchasePlan', planId);
       localStorage.setItem('pendingPaymentMode', paymentMode);
@@ -314,28 +375,43 @@ export default function Home() {
             </div>
             
             <div className="flex items-center gap-3">
-            {isAuthenticated ? (
-              <Link href="/dashboard">
+              {!isAuthenticated ? (
+                <Select
+                  value={displayLanguage}
+                  onValueChange={(v) => setDisplayLanguage(v as "en" | "de")}
+                >
+                  <SelectTrigger className="w-[140px]" aria-label={t("settings.language")}>
+                    <SelectValue placeholder={t("settings.language")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="de">Deutsch</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : null}
+
+              {isAuthenticated ? (
+                <Link href="/dashboard">
                   <Button className="bg-primary hover:bg-primary/90">{t('home.header.dashboard')}</Button>
-              </Link>
-            ) : (
-              <>
-                {showWaitlist && (
-                  <Button 
-                    variant="outline"
-                    className="border-primary text-primary hover:bg-primary/10"
-                    onClick={() => setIsWaitlistModalOpen(true)}
-                  >
-                    {t("waitlist.title")}
-                  </Button>
-                )}
-                <Link href="/sign-in">
-                  <Button className="bg-primary hover:bg-primary/90">
-                      {t('home.header.login')}
-                  </Button>
                 </Link>
-              </>
-            )}
+              ) : (
+                <>
+                  {showWaitlist && (
+                    <Button 
+                      variant="outline"
+                      className="border-primary text-primary hover:bg-primary/10"
+                      onClick={() => setIsWaitlistModalOpen(true)}
+                    >
+                      {t("waitlist.title")}
+                    </Button>
+                  )}
+                  <Link href="/sign-in">
+                    <Button className="bg-primary hover:bg-primary/90">
+                      {t('home.header.login')}
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -478,6 +554,38 @@ export default function Home() {
             />
           </div>
 
+          {/* Learning Language (required before signup/purchase) */}
+          {!isAuthenticated ? (
+            <Card id="learning-language-selector" className="border-2">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg">{t("home.learningLanguage.title")}</CardTitle>
+                <CardDescription>{t("home.learningLanguage.hint")}</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0 flex flex-col items-center gap-2">
+                <ToggleGroup
+                  type="single"
+                  value={learningLanguage ?? ""}
+                  onValueChange={(value) => {
+                    if (value !== "en" && value !== "de") return;
+                    updateLearningLanguageChoice(value);
+                  }}
+                  size="sm"
+                  className="bg-muted p-1 rounded-lg"
+                >
+                  <ToggleGroupItem value="en" className="px-3">
+                    {t("home.learningLanguage.option.en")}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="de" className="px-3">
+                    {t("home.learningLanguage.option.de")}
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <div className="text-xs text-muted-foreground text-center max-w-2xl">
+                  {t("home.learningLanguage.note")}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {/* Global Payment Mode Toggle */}
           <div className="flex flex-col items-center gap-2">
             <ToggleGroup
@@ -584,11 +692,12 @@ export default function Home() {
                 <Button
                   className="w-full"
                   disabled={
-                    ENABLE_PURCHASE_FOR_TESTING
+                    (!user?.clerkId && !learningLanguage) ||
+                    (ENABLE_PURCHASE_FOR_TESTING
                       ? user?.clerkId
                         ? (!checkoutReady || getPlanAction("intensive") === "current" || getPlanAction("intensive") === "downgrade")
                         : false
-                      : showWaitlist
+                      : showWaitlist)
                   }
                   onClick={() => void handlePlanCTA("intensive")}
                   variant={getPlanAction("intensive") === "current" ? "secondary" : "default"}
@@ -681,11 +790,12 @@ export default function Home() {
                 <Button
                   className="w-full"
                   disabled={
-                    ENABLE_PURCHASE_FOR_TESTING
+                    (!user?.clerkId && !learningLanguage) ||
+                    (ENABLE_PURCHASE_FOR_TESTING
                       ? user?.clerkId
                         ? (!checkoutReady || getPlanAction("balanced") === "current" || getPlanAction("balanced") === "downgrade")
                         : false
-                      : showWaitlist
+                      : showWaitlist)
                   }
                   onClick={() => void handlePlanCTA("balanced")}
                   variant={getPlanAction("balanced") === "current" ? "secondary" : "default"}
@@ -782,11 +892,12 @@ export default function Home() {
                 <Button
                   className="w-full bg-primary"
                   disabled={
-                    ENABLE_PURCHASE_FOR_TESTING
+                    (!user?.clerkId && !learningLanguage) ||
+                    (ENABLE_PURCHASE_FOR_TESTING
                       ? user?.clerkId
                         ? (!checkoutReady || getPlanAction("standard") === "current" || getPlanAction("standard") === "downgrade")
                         : false
-                      : showWaitlist
+                      : showWaitlist)
                   }
                   onClick={() => void handlePlanCTA("standard")}
                   variant={getPlanAction("standard") === "current" ? "secondary" : "default"}
@@ -879,11 +990,12 @@ export default function Home() {
                 <Button
                   className="w-full"
                   disabled={
-                    ENABLE_PURCHASE_FOR_TESTING
+                    (!user?.clerkId && !learningLanguage) ||
+                    (ENABLE_PURCHASE_FOR_TESTING
                       ? user?.clerkId
                         ? (!checkoutReady || getPlanAction("relaxed") === "current" || getPlanAction("relaxed") === "downgrade")
                         : false
-                      : showWaitlist
+                      : showWaitlist)
                   }
                   onClick={() => void handlePlanCTA("relaxed")}
                   variant={getPlanAction("relaxed") === "current" ? "secondary" : "default"}
@@ -1336,15 +1448,30 @@ export default function Home() {
             </CardHeader>
             <CardContent className="pt-6">
               {!isAuthenticated ? (
-                <div className="space-y-4 flex flex-col items-center">
-                  <SignUp
-                    routing="virtual"
-                    signInUrl="/sign-in"
-                  />
-                  <p className="text-sm text-center text-muted-foreground max-w-xl">
-                    {t('home.beta.signupNote')}
-                  </p>
-                </div>
+                learningLanguage ? (
+                  <div className="space-y-4 flex flex-col items-center">
+                    <SignUp
+                      routing="virtual"
+                      signInUrl="/sign-in"
+                    />
+                    <p className="text-sm text-center text-muted-foreground max-w-xl">
+                      {t('home.beta.signupNote')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 flex flex-col items-center text-center">
+                    <p className="text-sm text-muted-foreground max-w-xl">
+                      {t("home.learningLanguage.requiredInline")}
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="border-primary text-primary hover:bg-primary/10"
+                      onClick={scrollToLearningLanguageSelector}
+                    >
+                      {t("home.learningLanguage.requiredCta")}
+                    </Button>
+                  </div>
+                )
               ) : (
                 <div className="space-y-4 text-center">
                   <p className="text-lg font-semibold">
