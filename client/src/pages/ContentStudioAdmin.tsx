@@ -77,6 +77,10 @@ const STAGE_HELP: Record<StageKey, string> = {
     "Lector: reviews consistency/risk/obvious issues and can block publishing (structured findings).",
 };
 
+// Content Studio dialogs should be wide enough for comfortable editing.
+// Desktop: ~80% viewport. Mobile: almost full width (as before).
+const CONTENT_STUDIO_DIALOG_WIDTH = "w-[98vw] max-w-[98vw] sm:w-[90vw] sm:max-w-[90vw] md:w-[80vw] md:max-w-[80vw]";
+
 const DRAFT_STATUS_LABEL: Record<
   "draft" | "qc_failed" | "qc_passed" | "audit_failed" | "ready_to_publish" | "published",
   string
@@ -2233,7 +2237,7 @@ export default function ContentStudioAdmin() {
           }
         }}
       >
-        <DialogContent className="w-[98vw] max-w-[900px]">
+        <DialogContent className={CONTENT_STUDIO_DIALOG_WIDTH}>
           <DialogHeader>
             <DialogTitle>Edit Reference Guidelines</DialogTitle>
             <DialogDescription>
@@ -2595,7 +2599,7 @@ export default function ContentStudioAdmin() {
 
       {/* Create Draft Dialog */}
       <Dialog open={createDraftOpen} onOpenChange={setCreateDraftOpen}>
-        <DialogContent className="w-[98vw] max-w-[980px]">
+        <DialogContent className={CONTENT_STUDIO_DIALOG_WIDTH}>
           <DialogHeader>
             <DialogTitle>Create Draft</DialogTitle>
             <DialogDescription>
