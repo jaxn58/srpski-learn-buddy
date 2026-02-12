@@ -316,7 +316,7 @@ export function TopNavigation() {
         icon: <MessageSquare className="h-4 w-4" />,
       },
       {
-        label: "Wishlist",
+        label: t("sidebar.wishlist"),
         href: "/wishlist",
         icon: <ListTodo className="h-4 w-4" />,
       },
@@ -331,8 +331,8 @@ export function TopNavigation() {
         icon: <Users className="h-4 w-4" />,
         items: [
           { label: t("sidebar.userManagement"), href: "/admin", icon: <Users className="h-4 w-4" /> },
-          { label: "Waitlist", href: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
-          { label: "Onboarding", href: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
+          { label: t("sidebar.waitlist"), href: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
+          { label: t("sidebar.onboarding"), href: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
           {
             label: t("sidebar.subscriptionAnalytics"),
             href: "/admin/subscription-analytics",
@@ -341,25 +341,25 @@ export function TopNavigation() {
         ],
       },
       {
-        title: "Communication",
+        title: t("sidebar.communication"),
         icon: <Mail className="h-4 w-4" />,
         items: [
           { label: t("sidebar.emailTemplates"), href: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
-          { label: "Newsletter", href: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
+          { label: t("sidebar.newsletter"), href: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
           { label: t("sidebar.feedback"), href: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
-          { label: "Wishlist", href: "/admin/wishlist", icon: <ListTodo className="h-4 w-4" /> },
+          { label: t("sidebar.wishlist"), href: "/admin/wishlist", icon: <ListTodo className="h-4 w-4" /> },
         ],
       },
       {
-        title: "Content & System",
+        title: t("sidebar.contentAndSystem"),
         icon: <Database className="h-4 w-4" />,
         items: [
-          { label: "Prompt Admin", href: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
-          { label: "Content Import", href: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+          { label: t("sidebar.promptAdmin"), href: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+          { label: t("sidebar.contentImport"), href: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
           { label: t("sidebar.translationCoverage"), href: "/admin/translation-coverage", icon: <FileText className="h-4 w-4" /> },
-          { label: "Content Studio", href: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
-          { label: "Changelog", href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
-          { label: "Database Backups", href: "/admin/backup", icon: <Database className="h-4 w-4" /> },
+          { label: t("sidebar.contentStudio"), href: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
+          { label: t("sidebar.changelog"), href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
+          { label: t("sidebar.databaseBackups"), href: "/admin/backup", icon: <Database className="h-4 w-4" /> },
         ],
       },
     ],
@@ -387,7 +387,7 @@ export function TopNavigation() {
                 variant="ghost"
                 size="icon"
                 className="md:hidden"
-                aria-label="Open menu"
+                aria-label={t("topNav.openMenu")}
               >
                 <Menu className="h-5 w-5" />
               </Button>
@@ -424,7 +424,7 @@ export function TopNavigation() {
                 })}
 
                 <div className="px-2 pt-4 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  More
+                  {t("sidebar.more")}
                 </div>
                 {moreItems.map((item) => {
                   const active = isItemActive(item);
@@ -506,23 +506,23 @@ export function TopNavigation() {
                           "px-2",
                           unitsQuickSwitchOpen && "bg-accent text-accent-foreground"
                         )}
-                        aria-label="Jump to unit"
+                        aria-label={t("topNav.jumpToUnit")}
                       >
                         <ChevronDown className="h-4 w-4 opacity-70" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent align="start" className="w-80 p-3">
                       <div className="space-y-3">
-                        <div className="text-sm font-medium">Jump to Unit</div>
+                        <div className="text-sm font-medium">{t("topNav.unitsQuickSwitch.title")}</div>
 
                         {quickSwitchModulesWithUnits.length === 0 ? (
                           <div className="text-sm text-muted-foreground">
-                            No units available yet.
+                            {t("topNav.unitsQuickSwitch.noUnits")}
                           </div>
                         ) : (
                           <div className="space-y-3">
                             <div className="space-y-1">
-                              <div className="text-xs text-muted-foreground">Module</div>
+                              <div className="text-xs text-muted-foreground">{t("topNav.unitsQuickSwitch.moduleLabel")}</div>
                               <Select
                                 value={selectedModuleSlug}
                                 onValueChange={(v) => {
@@ -531,12 +531,12 @@ export function TopNavigation() {
                                 }}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select module" />
+                                  <SelectValue placeholder={t("topNav.unitsQuickSwitch.selectModulePlaceholder")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {quickSwitchModulesWithUnits.map((m) => (
                                     <SelectItem key={m.slug} value={m.slug}>
-                                      {`Module ${m.number}: ${m.title || m.slug}`}
+                                      {`${t("units.module", { number: m.number })}: ${m.title || m.slug}`}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -544,7 +544,7 @@ export function TopNavigation() {
                             </div>
 
                             <div className="space-y-1">
-                              <div className="text-xs text-muted-foreground">Unit</div>
+                              <div className="text-xs text-muted-foreground">{t("topNav.unitsQuickSwitch.unitLabel")}</div>
                               <Select
                                 value={selectedUnitNumber}
                                 onValueChange={(v) => {
@@ -558,7 +558,7 @@ export function TopNavigation() {
                                 disabled={!selectedModuleSlug}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select unit" />
+                                  <SelectValue placeholder={t("topNav.unitsQuickSwitch.selectUnitPlaceholder")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {(unitsByModuleSlugForQuickSwitch[selectedModuleSlug] || []).map(
@@ -572,7 +572,7 @@ export function TopNavigation() {
                                           disabled={locked}
                                         >
                                           <span className="inline-flex items-center gap-2">
-                                            <span>{`Unit ${u.unitNumber}`}</span>
+                                            <span>{t("units.lesson", { number: u.unitNumber })}</span>
                                             {u.title ? (
                                               <span className="text-muted-foreground">
                                                 — {u.title}
@@ -608,9 +608,9 @@ export function TopNavigation() {
                   "gap-2 px-3",
                   isMoreActive && activeClass
                 )}
-                aria-label="More"
+                aria-label={t("sidebar.more")}
               >
-                <span>More</span>
+                <span>{t("sidebar.more")}</span>
                 <ChevronDown className="h-4 w-4 opacity-70" />
               </Button>
             </DropdownMenuTrigger>
@@ -635,7 +635,7 @@ export function TopNavigation() {
               size="icon"
               onClick={toggleTheme}
               className="h-9 w-9"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label={theme === "dark" ? t("topNav.theme.switchToLight") : t("topNav.theme.switchToDark")}
             >
               {theme === "dark" ? (
                 <Sun className="h-4 w-4" />

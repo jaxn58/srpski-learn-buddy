@@ -38,28 +38,6 @@ type ReviewRow = {
   duplicateOfWishlistItemId?: Id<"wishlistItems">;
 };
 
-function statusLabel(status: string) {
-  switch (status) {
-    case "pending":
-    case "submitted":
-      return "Submitted";
-    case "in_review":
-      return "In review";
-    case "on_todo_list":
-      return "On to-do list";
-    case "im_working_on_it":
-      return "I'm working on it";
-    case "shipped":
-      return "Shipped";
-    case "duplicate":
-      return "Duplicate";
-    case "rejected":
-      return "Rejected";
-    default:
-      return status;
-  }
-}
-
 function statusBadgeClass(status: string) {
   switch (status) {
     case "pending":
@@ -120,18 +98,40 @@ export default function WishlistManagement() {
       <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card>
           <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>You don't have permission to access this page.</CardDescription>
+            <CardTitle>{t("admin.common.accessDenied.title")}</CardTitle>
+            <CardDescription>{t("admin.common.accessDenied.desc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/dashboard">
-              <Button variant="outline">Go to Dashboard</Button>
+              <Button variant="outline">{t("admin.common.goToDashboard")}</Button>
             </Link>
           </CardContent>
         </Card>
       </div>
     );
   }
+
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "pending":
+      case "submitted":
+        return t("wishlist.status.submitted");
+      case "in_review":
+        return t("wishlist.status.inReview");
+      case "on_todo_list":
+        return t("wishlist.status.onTodoList");
+      case "im_working_on_it":
+        return t("wishlist.status.imWorkingOnIt");
+      case "shipped":
+        return t("wishlist.status.shipped");
+      case "duplicate":
+        return t("wishlist.status.duplicate");
+      case "rejected":
+        return t("wishlist.status.rejected");
+      default:
+        return status;
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -140,11 +140,11 @@ export default function WishlistManagement() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Shield className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">Wishlist Management</h1>
+              <h1 className="text-xl font-bold">{t("wishlistManagement.title")}</h1>
             </div>
             <Link href="/admin">
               <Button variant="outline" size="sm">
-                Back to Admin Panel
+                {t("wishlistManagement.backToAdmin")}
               </Button>
             </Link>
           </div>
@@ -155,14 +155,14 @@ export default function WishlistManagement() {
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Review Queue</CardTitle>
+              <CardTitle>{t("wishlistManagement.reviewQueue.title")}</CardTitle>
               <CardDescription>
-                {showAll ? "All wishlist items." : "Items in submitted or in review."}
+                {showAll ? t("wishlistManagement.reviewQueue.descAll") : t("wishlistManagement.reviewQueue.descPending")}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Label htmlFor="show-all" className="text-sm cursor-pointer">
-                Show all items
+                {t("wishlistManagement.showAllLabel")}
               </Label>
               <input
                 id="show-all"
@@ -177,18 +177,18 @@ export default function WishlistManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Submitter</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("wishlistManagement.table.title")}</TableHead>
+                  <TableHead>{t("wishlistManagement.table.submitter")}</TableHead>
+                  <TableHead>{t("wishlistManagement.table.status")}</TableHead>
+                  <TableHead>{t("wishlistManagement.table.submitted")}</TableHead>
+                  <TableHead className="text-right">{t("wishlistManagement.table.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(rows || []).length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No items in review.
+                      {t("wishlistManagement.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -201,7 +201,7 @@ export default function WishlistManagement() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
-                        <div className="font-medium">{r.submitterName || "Unknown"}</div>
+                        <div className="font-medium">{r.submitterName || t("common.unknown")}</div>
                         {r.submitterEmail ? (
                           <div className="text-xs text-muted-foreground">{r.submitterEmail}</div>
                         ) : null}
@@ -236,15 +236,17 @@ export default function WishlistManagement() {
                                   setDialogOpen(true);
                                 }}
                               >
-                                Review
+                                {t("wishlistManagement.review")}
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="!w-[95vw] !max-w-[900px] max-h-[85vh] overflow-y-auto">
                               <DialogHeader>
                                 <DialogTitle>{r.title}</DialogTitle>
                                 <DialogDescription>
-                                  Submitted by {r.submitterName || "Unknown"} on{" "}
-                                  {r.createdAt ? formatDateTimeEU(r.createdAt) : "—"}
+                                  {t("wishlistManagement.dialog.submittedByOn", {
+                                    name: r.submitterName || t("common.unknown"),
+                                    date: r.createdAt ? formatDateTimeEU(r.createdAt) : "—",
+                                  })}
                                 </DialogDescription>
                               </DialogHeader>
 
@@ -252,43 +254,43 @@ export default function WishlistManagement() {
                                 <div className="text-sm whitespace-pre-wrap">{r.description}</div>
 
                                 <div className="space-y-2">
-                                  <Label>Status</Label>
+                                  <Label>{t("wishlistItem.admin.statusLabel")}</Label>
                                   <Select value={status} onValueChange={setStatus}>
                                     <SelectTrigger>
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="submitted">Submitted</SelectItem>
-                                      <SelectItem value="in_review">In review</SelectItem>
-                                      <SelectItem value="on_todo_list">On to-do list</SelectItem>
-                                      <SelectItem value="im_working_on_it">I'm working on it</SelectItem>
-                                      <SelectItem value="shipped">Shipped</SelectItem>
-                                      <SelectItem value="duplicate">Duplicate</SelectItem>
-                                      <SelectItem value="rejected">Rejected</SelectItem>
+                                      <SelectItem value="submitted">{t("wishlist.status.submitted")}</SelectItem>
+                                      <SelectItem value="in_review">{t("wishlist.status.inReview")}</SelectItem>
+                                      <SelectItem value="on_todo_list">{t("wishlist.status.onTodoList")}</SelectItem>
+                                      <SelectItem value="im_working_on_it">{t("wishlist.status.imWorkingOnIt")}</SelectItem>
+                                      <SelectItem value="shipped">{t("wishlist.status.shipped")}</SelectItem>
+                                      <SelectItem value="duplicate">{t("wishlist.status.duplicate")}</SelectItem>
+                                      <SelectItem value="rejected">{t("wishlist.status.rejected")}</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
 
                                 {status === "duplicate" && (
                                   <div className="space-y-2">
-                                    <Label htmlFor="duplicateOf">Duplicate of (wishlist item id)</Label>
+                                    <Label htmlFor="duplicateOf">{t("wishlistItem.admin.duplicateOfLabel")}</Label>
                                     <Input
                                       id="duplicateOf"
                                       value={duplicateOf}
                                       onChange={(e) => setDuplicateOf(e.target.value)}
-                                      placeholder="e.g. wli_..."
+                                      placeholder={t("wishlistItem.admin.duplicateOfPlaceholder")}
                                     />
                                   </div>
                                 )}
 
                                 <div className="space-y-2">
-                                  <Label htmlFor="note">Admin note (optional)</Label>
+                                  <Label htmlFor="note">{t("wishlistItem.admin.noteLabel")}</Label>
                                   <Textarea
                                     id="note"
                                     value={note}
                                     onChange={(e) => setNote(e.target.value)}
                                     rows={4}
-                                    placeholder="Short explanation (English)."
+                                    placeholder={t("wishlistItem.admin.notePlaceholder")}
                                   />
                                 </div>
 

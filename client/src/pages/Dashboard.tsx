@@ -367,7 +367,7 @@ export default function Dashboard() {
     <>
       {showOnboarding && user && (
         <WelcomeOnboarding 
-          userName={user.name || user.email || 'there'} 
+          userName={user.name || user.email || t("common.there")} 
           onClose={handleCloseOnboarding}
         />
       )}
@@ -389,7 +389,7 @@ export default function Dashboard() {
                     size="sm"
                     className="h-6 w-6 p-0 flex-shrink-0"
                     onClick={handleDismissBetaBanner}
-                    aria-label="Dismiss banner"
+                    aria-label={t("dashboard.betaBanner.dismissAria")}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -419,7 +419,7 @@ export default function Dashboard() {
 
         <div className="mb-4 md:mb-6">
           <h1 className="text-xl md:text-2xl font-semibold text-foreground">
-            {t('dashboard.welcome', { name: user.name?.split(' ')[0] || 'Learner' })}
+            {t('dashboard.welcome', { name: user.name?.split(' ')[0] || t("dashboard.welcomeFallbackName") })}
           </h1>
         </div>
 
@@ -492,16 +492,16 @@ export default function Dashboard() {
               <CardHeader className="pb-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <CardTitle className="text-lg font-semibold mb-1">Practice Preview</CardTitle>
+                    <CardTitle className="text-lg font-semibold mb-1">{t("dashboard.practicePreview.title")}</CardTitle>
                     <CardDescription className="text-sm">
-                      A quick taste of Learn Mode — no commitment, just start.
+                      {t("dashboard.practicePreview.subtitle")}
                     </CardDescription>
                   </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
                     <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
                       <Button size="sm" variant="default" className="gap-2 w-full sm:w-auto">
                         <BookOpen className="h-4 w-4" />
-                        Learn
+                        {t("dashboard.practicePreview.learnCta")}
                       </Button>
                     </Link>
                     <Link href={`/vocabulary?mode=quiz&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
@@ -511,7 +511,7 @@ export default function Dashboard() {
                         className="gap-2 w-full sm:w-auto"
                       >
                         <Star className="h-4 w-4" />
-                        Quiz
+                        {t("dashboard.practicePreview.quizCta")}
                       </Button>
                     </Link>
                   </div>
@@ -525,7 +525,7 @@ export default function Dashboard() {
                   </div>
                 ) : !practicePreviewWord ? (
                   <div className="text-sm text-muted-foreground py-10 text-center">
-                    No vocabulary available for practice preview yet.
+                    {t("dashboard.practicePreview.empty")}
                   </div>
                 ) : (
                   <div className="grid gap-4 items-stretch">
@@ -536,10 +536,10 @@ export default function Dashboard() {
                       front={
                         <div className="rounded-xl border bg-muted/10 p-6 flex flex-col justify-center text-center h-full">
                           <div className="inline-flex items-center justify-center gap-2 mb-2">
-                            <Badge variant="outline">Unit {safeCurrentUnit}</Badge>
+                            <Badge variant="outline">{t("dashboard.unit", { number: safeCurrentUnit })}</Badge>
                             {practicePreviewWord.mastered && (
                               <Badge className="bg-amber-500 text-white border-amber-500">
-                                Mastered
+                                {t("common.mastered")}
                               </Badge>
                             )}
                           </div>
@@ -547,17 +547,17 @@ export default function Dashboard() {
                             {practicePreviewWord.serbian}
                           </div>
                           <div className="text-xs md:text-sm text-muted-foreground">
-                            Click to reveal translation
+                            {t("dashboard.practicePreview.clickToReveal")}
                           </div>
                         </div>
                       }
                       back={
                         <div className="rounded-xl border bg-primary/5 p-6 flex flex-col justify-center text-center h-full">
                           <div className="inline-flex items-center justify-center gap-2 mb-2">
-                            <Badge variant="outline">Unit {safeCurrentUnit}</Badge>
+                            <Badge variant="outline">{t("dashboard.unit", { number: safeCurrentUnit })}</Badge>
                             {practicePreviewWord.mastered && (
                               <Badge className="bg-amber-500 text-white border-amber-500">
-                                Mastered
+                                {t("common.mastered")}
                               </Badge>
                             )}
                           </div>
@@ -576,10 +576,10 @@ export default function Dashboard() {
                         onClick={() => setShowPracticeAnswer((s) => !s)}
                         className="w-full sm:w-auto"
                       >
-                        {showPracticeAnswer ? "Show word" : "Show translation"}
+                        {showPracticeAnswer ? t("dashboard.practicePreview.showWord") : t("dashboard.practicePreview.showTranslation")}
                       </Button>
                       <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
-                        <Button className="w-full sm:w-auto">Open Trainer</Button>
+                        <Button className="w-full sm:w-auto">{t("dashboard.practicePreview.openTrainer")}</Button>
                       </Link>
                     </div>
 
@@ -587,14 +587,14 @@ export default function Dashboard() {
                     <div className="rounded-xl border bg-muted/10 p-5">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <div className="font-semibold">Listen & repeat</div>
+                          <div className="font-semibold">{t("dashboard.practicePreview.audio.title")}</div>
                           <div className="text-sm text-muted-foreground">
-                            Tap a word to hear a native-like pronunciation.
+                            {t("dashboard.practicePreview.audio.subtitle")}
                           </div>
                         </div>
                         <Link href="/vocabulary-list">
                           <Button variant="outline" size="sm">
-                            View all words
+                            {t("dashboard.practicePreview.audio.viewAllWords")}
                           </Button>
                         </Link>
                       </div>
@@ -602,7 +602,7 @@ export default function Dashboard() {
                       <div className="mt-4 grid gap-2 sm:grid-cols-2">
                         {audioSamples.length === 0 ? (
                           <div className="text-sm text-muted-foreground py-6">
-                            No vocabulary available for audio preview yet.
+                            {t("dashboard.practicePreview.audio.empty")}
                           </div>
                         ) : (
                           audioSamples.map((s) => {
@@ -639,7 +639,7 @@ export default function Dashboard() {
                                 </span>
                                 {isPlaying && (
                                   <span className="text-xs font-semibold text-serbian-red">
-                                    Playing
+                                    {t("common.playing")}
                                   </span>
                                 )}
                               </button>
@@ -659,8 +659,8 @@ export default function Dashboard() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-base">Weekly Goal</CardTitle>
-                      <CardDescription>Small steps, consistent progress.</CardDescription>
+                      <CardTitle className="text-base">{t("progress.cards.weeklyGoal.title")}</CardTitle>
+                      <CardDescription>{t("dashboard.weeklyGoal.subtitle")}</CardDescription>
                     </div>
                     <TrendingUp className="h-5 w-5 text-primary" />
                   </div>
@@ -671,14 +671,14 @@ export default function Dashboard() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">XP this week</span>
+                      <span className="text-muted-foreground">{t("progress.cards.weeklyGoal.xpThisWeek")}</span>
                       <span className="font-medium">{weeklyXp}</span>
                     </div>
                     <ProgressBar value={Math.min(100, (weeklyXp / Math.max(1, weeklyXpTarget)) * 100)} />
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Active days</span>
+                      <span className="text-muted-foreground">{t("progress.cards.weeklyGoal.activeDays")}</span>
                       <span className="font-medium">
                         {weeklyActiveDays} / {weeklyActiveDaysTarget}
                       </span>
@@ -691,28 +691,28 @@ export default function Dashboard() {
               {/* Course progress compact */}
               <Card className="hover:shadow-md transition-shadow">
                 <CardHeader>
-                  <CardTitle className="text-base">Course Progress</CardTitle>
-                  <CardDescription>Your current snapshot.</CardDescription>
+                  <CardTitle className="text-base">{t("dashboard.courseProgress.title")}</CardTitle>
+                  <CardDescription>{t("dashboard.courseProgress.subtitle")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Course progress</span>
+                    <span className="text-muted-foreground">{t("progress.cards.summary.courseMastery")}</span>
                     <span className="font-semibold">
                       {courseMasteryPercent === null ? "—" : `${courseMasteryPercent}%`}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Units completed</span>
+                    <span className="text-muted-foreground">{t("progress.cards.summary.unitsCompleted")}</span>
                     <span className="font-semibold">
                       {(dashboardStats?.completedUnits?.length ?? completedUnits.length) || 0} / {totalUnits}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Words mastered</span>
+                    <span className="text-muted-foreground">{t("progress.cards.summary.wordsMastered")}</span>
                     <span className="font-semibold">{wordsMastered}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Mastery efficiency</span>
+                    <span className="text-muted-foreground">{t("progress.cards.summary.masteryEfficiency")}</span>
                     <span className="font-semibold">
                       {typeof masteryEfficiency === "number"
                         ? `${Math.round(masteryEfficiency * 100)}%`
@@ -720,15 +720,15 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Started</span>
+                    <span className="text-muted-foreground">{t("progress.cards.summary.started")}</span>
                     <span className="font-semibold">
-                      {startedDaysAgo === null ? "—" : `${startedDaysAgo}d ago`}
+                      {startedDaysAgo === null ? "—" : t("progress.cards.summary.startedAgo", { days: startedDaysAgo })}
                     </span>
                   </div>
                   <div className="pt-2">
                     <Link href="/progress">
                       <Button variant="outline" className="w-full">
-                        Open Progress
+                        {t("dashboard.openProgress")}
                       </Button>
                     </Link>
                   </div>
@@ -743,10 +743,10 @@ export default function Dashboard() {
           {completedUnits.length === 0 && visibleUnits && visibleUnits.length === 0 ? (
             <EmptyState
               icon={BookOpen}
-              title="Start Your Learning Journey"
-              description="Complete your first unit to see your progress here and unlock more content."
+              title={t("dashboard.emptyLearning.title")}
+              description={t("dashboard.emptyLearning.desc")}
               action={{
-                label: "Start First Unit",
+                label: t("dashboard.emptyLearning.actionStartFirstUnit"),
                 href: `/unit/1`,
               }}
             />
@@ -764,7 +764,7 @@ export default function Dashboard() {
                   </div>
                   {isAdmin && (
                     <Badge variant="outline" className="flex-shrink-0">
-                      Admin access
+                      {t("dashboard.adminAccessBadge")}
                     </Badge>
                   )}
                 </div>
@@ -778,21 +778,21 @@ export default function Dashboard() {
                       size="sm"
                       onClick={() => setUnitFilter('all')}
                     >
-                      All
+                      {t("dashboard.units.filter.all")}
                     </Button>
                     <Button
                       variant={unitFilter === 'in-progress' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setUnitFilter('in-progress')}
                     >
-                      In Progress
+                      {t("dashboard.units.filter.inProgress")}
                     </Button>
                     <Button
                       variant={unitFilter === 'completed' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setUnitFilter('completed')}
                     >
-                      Completed
+                      {t("dashboard.units.filter.completed")}
                     </Button>
                     {user.isBetaTester && (
                       <Button
@@ -800,7 +800,7 @@ export default function Dashboard() {
                         size="sm"
                         onClick={() => setUnitFilter('locked')}
                       >
-                        Locked
+                        {t("dashboard.units.filter.locked")}
                       </Button>
                     )}
                   </div>
@@ -808,18 +808,18 @@ export default function Dashboard() {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     <Input
                       type="text"
-                      placeholder="Search units..."
+                      placeholder={t("dashboard.units.searchPlaceholder")}
                       value={unitSearchQuery}
                       onChange={(e) => setUnitSearchQuery(e.target.value)}
                       className="pl-9"
-                      aria-label="Search units"
+                      aria-label={t("dashboard.units.searchAria")}
                     />
                   </div>
                 </div>
                 <div className="grid gap-5">
                       {filteredUnits.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                          No units found matching your criteria.
+                          {t("dashboard.units.emptyNoMatch")}
                         </div>
                       ) : (
                         filteredUnits.map(unitNum => {
@@ -892,7 +892,7 @@ export default function Dashboard() {
                                   {isMastered && (
                                     <Badge className={masteredBadgeClass}>
                                       <Star className="mr-1 h-3 w-3 text-white" fill="currentColor" strokeWidth={0} />
-                                      {t('dashboard.masteredBadge', 'Mastered')}
+                                      {t("common.mastered")}
                                     </Badge>
                                   )}
                                   {isCurrent && !isCompleted && (

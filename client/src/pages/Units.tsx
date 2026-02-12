@@ -302,7 +302,7 @@ export default function Units() {
                                       {isMastered && !locked && (
                                         <Badge className="bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 shadow-sm">
                                           <Star className="mr-1 h-3 w-3 text-white" fill="currentColor" strokeWidth={0} />
-                                          {t("dashboard.masteredBadge", "Mastered")}
+                                          {t("common.mastered")}
                                         </Badge>
                                       )}
                                       {isCurrent && !isCompleted && !locked && (

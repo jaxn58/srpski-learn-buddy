@@ -457,7 +457,9 @@ export default function Progress() {
               <CardContent className="p-6 relative z-10 flex items-center justify-between h-full">
                 <div>
                   <div className="text-blue-100 text-sm font-medium mb-1">{t("progress.cards.currentLevel.title")}</div>
-                  <div className="text-4xl font-bold mb-2">Level {currentLevel}</div>
+                  <div className="text-4xl font-bold mb-2">
+                    {t("progress.cards.currentLevel.levelValue", { level: currentLevel })}
+                  </div>
                   <div className="text-blue-100 text-sm mb-4">{t("progress.cards.currentLevel.totalXp", { xp: totalXP })}</div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs text-blue-100">
@@ -487,7 +489,9 @@ export default function Progress() {
               <CardContent className="p-6 relative z-10 flex items-center justify-between h-full">
                 <div>
                   <div className="text-orange-100 text-sm font-medium mb-1">{t("progress.cards.activeDays.title")}</div>
-                  <div className="text-4xl font-bold mb-2">{stats?.activeDaysCurrentStreak || 0} Days</div>
+                  <div className="text-4xl font-bold mb-2">
+                    {t("progress.cards.activeDays.daysValue", { count: stats?.activeDaysCurrentStreak || 0 })}
+                  </div>
                   <div className="text-orange-100 text-sm space-y-1">
                     <div>{t("progress.cards.activeDays.keepItUp")}</div>
                     <div className="text-xs">
@@ -553,11 +557,11 @@ export default function Progress() {
                       : t("progress.cards.weeklyGoal.nextWin", { xp: weeklyXpRemaining, days: weeklyDaysRemaining })}
                   </div>
                   <div className="pt-3 border-t flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">How is XP calculated?</span>
+                    <span className="text-sm text-muted-foreground">{t("progress.cards.weeklyGoal.howXpCalculated")}</span>
                     <GamificationModal trigger={
                       <Button variant="ghost" size="sm" className="gap-2 h-8">
                         <Info className="h-4 w-4" />
-                        Learn More
+                        {t("progress.cards.weeklyGoal.learnMore")}
                       </Button>
                     } />
                   </div>
@@ -677,8 +681,8 @@ export default function Progress() {
                             <Calendar className="h-5 w-5 text-muted-foreground" />
                           </div>
                           <div className="space-y-1">
-                            <div className="text-sm font-semibold text-slate-800">Loading activity…</div>
-                            <div className="text-xs text-muted-foreground">Fetching your timeline.</div>
+                            <div className="text-sm font-semibold text-slate-800">{t("progress.activity.loading.title")}</div>
+                            <div className="text-xs text-muted-foreground">{t("progress.activity.loading.desc")}</div>
                           </div>
                         </div>
                       </div>
@@ -842,7 +846,9 @@ export default function Progress() {
                         </div>
                       </div>
 
-                      <div className="text-xs text-muted-foreground">{totalAttempts} total attempts</div>
+                      <div className="text-xs text-muted-foreground">
+                        {t("progress.accuracy.totalAttempts", { count: totalAttempts })}
+                      </div>
                     </div>
                   ) : (
                     <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm text-center px-8">

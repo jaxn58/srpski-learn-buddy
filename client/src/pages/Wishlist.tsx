@@ -17,32 +17,11 @@ import { Link } from "wouter";
 import { ListTodo, ArrowRight } from "lucide-react";
 import { formatDateTimeEU } from "@/lib/utils";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 type WishlistItemDoc = Doc<"wishlistItems">;
 
 const LIVE_STATUSES = new Set(["on_todo_list", "im_working_on_it", "shipped"]);
-
-function statusLabel(status: string) {
-  switch (status) {
-    case "pending":
-    case "submitted":
-      return "Submitted";
-    case "in_review":
-      return "In review";
-    case "on_todo_list":
-      return "On to-do list";
-    case "im_working_on_it":
-      return "I'm working on it";
-    case "shipped":
-      return "Shipped";
-    case "duplicate":
-      return "Duplicate";
-    case "rejected":
-      return "Rejected";
-    default:
-      return status;
-  }
-}
 
 function statusBadgeClass(status: string) {
   switch (status) {
@@ -74,6 +53,7 @@ function preview(text: string, max = 160) {
 
 export default function Wishlist() {
   const { user, loading } = useAuth();
+  const { t } = useTranslation();
   const [sort, setSort] = useState<"newest" | "top">("newest");
 
   const items = useQuery(api.wishlist.listWishlistItems, {
@@ -103,13 +83,35 @@ export default function Wishlist() {
       <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card className="max-w-md">
           <CardHeader>
-            <CardTitle>Login required</CardTitle>
-            <CardDescription>Please sign in to use the wishlist.</CardDescription>
+            <CardTitle>{t("wishlist.loginRequired.title")}</CardTitle>
+            <CardDescription>{t("wishlist.loginRequired.desc")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
     );
   }
+
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "pending":
+      case "submitted":
+        return t("wishlist.status.submitted");
+      case "in_review":
+        return t("wishlist.status.inReview");
+      case "on_todo_list":
+        return t("wishlist.status.onTodoList");
+      case "im_working_on_it":
+        return t("wishlist.status.imWorkingOnIt");
+      case "shipped":
+        return t("wishlist.status.shipped");
+      case "duplicate":
+        return t("wishlist.status.duplicate");
+      case "rejected":
+        return t("wishlist.status.rejected");
+      default:
+        return status;
+    }
+  };
 
   return (
     <div className="container py-8 md:py-10">
@@ -117,21 +119,21 @@ export default function Wishlist() {
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <ListTodo className="h-7 w-7 text-primary" />
-            <h1 className="text-3xl md:text-4xl font-bold">Wishlist</h1>
+            <h1 className="text-3xl md:text-4xl font-bold">{t("wishlist.title")}</h1>
           </div>
           <p className="text-sm md:text-base text-muted-foreground max-w-3xl">
-            Submit feature ideas and vote on suggestions from the community. Wishlist items are reviewed before they become public.
+            {t("wishlist.subtitle")}
           </p>
           <div>
             <Link href="/wishlist/new">
               <Button variant="outline">
-                Submit a wishlist item <ArrowRight className="ml-2 h-4 w-4" />
+                {t("wishlist.submitCta")} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>
           {hasMyNonPublic && (
             <p className="text-xs text-muted-foreground">
-              Note: Your recently submitted wishlist items may appear here while they are still in review.
+              {t("wishlist.noteMyNonPublic")}
             </p>
           )}
         </div>
@@ -139,17 +141,17 @@ export default function Wishlist() {
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Suggestions</CardTitle>
-              <CardDescription>Newest first. Use “Top” to sort by votes.</CardDescription>
+              <CardTitle>{t("wishlist.suggestions.title")}</CardTitle>
+              <CardDescription>{t("wishlist.suggestions.desc")}</CardDescription>
             </div>
             <div className="w-[220px]">
               <Select value={sort} onValueChange={(v) => setSort(v as any)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sort" />
+                  <SelectValue placeholder={t("wishlist.sort.placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="newest">Newest</SelectItem>
-                  <SelectItem value="top">Top (votes)</SelectItem>
+                  <SelectItem value="newest">{t("wishlist.sort.newest")}</SelectItem>
+                  <SelectItem value="top">{t("wishlist.sort.top")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -158,18 +160,18 @@ export default function Wishlist() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Suggestion</TableHead>
-                  <TableHead>Live</TableHead>
-                  <TableHead className="text-right">Votes</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Details</TableHead>
+                  <TableHead>{t("wishlist.table.suggestion")}</TableHead>
+                  <TableHead>{t("wishlist.table.live")}</TableHead>
+                  <TableHead className="text-right">{t("wishlist.table.votes")}</TableHead>
+                  <TableHead>{t("wishlist.table.created")}</TableHead>
+                  <TableHead className="text-right">{t("wishlist.table.details")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(items || []).length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No wishlist items yet.
+                      {t("wishlist.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -190,16 +192,16 @@ export default function Wishlist() {
                         {LIVE_STATUSES.has(String(item.status)) ? (
                           <span
                             className="inline-flex items-center rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-[0_0_10px_rgba(16,185,129,0.6)]"
-                            aria-label="Live"
+                            aria-label={t("wishlist.liveAria")}
                           >
-                            Live
+                            {t("wishlist.live")}
                           </span>
                         ) : (
                           <span
                             className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white shadow-[0_0_10px_rgba(220,38,38,0.55)]"
-                            aria-label="Not live"
+                            aria-label={t("wishlist.notLiveAria")}
                           >
-                            Not live
+                            {t("wishlist.notLive")}
                           </span>
                         )}
                       </TableCell>
@@ -210,7 +212,7 @@ export default function Wishlist() {
                       <TableCell className="text-right">
                         <Link href={`/wishlist/${item._id}`}>
                           <Button variant="outline" size="sm">
-                            View
+                            {t("wishlist.view")}
                           </Button>
                         </Link>
                       </TableCell>

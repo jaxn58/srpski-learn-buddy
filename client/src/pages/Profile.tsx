@@ -464,6 +464,25 @@ export default function Profile() {
 
       <Card>
         <CardHeader>
+          <CardTitle>{t("profile.wishlist.title")}</CardTitle>
+          <CardDescription>
+            {t("profile.wishlist.desc")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/wishlist">
+              <Button variant="outline">{t("profile.wishlist.open")}</Button>
+            </Link>
+            <Link href="/wishlist/new">
+              <Button>{t("profile.wishlist.submit")}</Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>{t("profile.gamification.title")}</span>
             <GamificationModal />
@@ -481,25 +500,6 @@ export default function Profile() {
         </CardHeader>
         <CardContent>
           <MySubscriptionContent embedded />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("profile.wishlist.title")}</CardTitle>
-          <CardDescription>
-            {t("profile.wishlist.desc")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/wishlist">
-              <Button variant="outline">{t("profile.wishlist.open")}</Button>
-            </Link>
-            <Link href="/wishlist/new">
-              <Button>{t("profile.wishlist.submit")}</Button>
-            </Link>
-          </div>
         </CardContent>
       </Card>
     </div>

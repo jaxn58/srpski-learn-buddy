@@ -10,18 +10,14 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 type Period = "all" | "30d" | "7d";
-
-function formatPeriodLabel(period: Period) {
-  if (period === "all") return "All-time";
-  if (period === "30d") return "Last 30 days";
-  return "Last 7 days";
-}
 
 export default function Leaderboards() {
   const { user, loading } = useAuth();
   const convex = useConvex();
+  const { t } = useTranslation();
 
   const stats = useQuery(api.progress.getDashboardStats, user ? undefined : "skip");
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
@@ -60,11 +56,11 @@ export default function Leaderboards() {
   const boards = useMemo(
     () =>
       [
-        { period: "7d" as const, label: "Leaderboard (7-day)", data: lb7d },
-        { period: "30d" as const, label: "Leaderboard (30-day)", data: lb30d },
-        { period: "all" as const, label: "Leaderboard (all-time)", data: lball },
+        { period: "7d" as const, label: t("leaderboards.boardLabel.7d"), data: lb7d },
+        { period: "30d" as const, label: t("leaderboards.boardLabel.30d"), data: lb30d },
+        { period: "all" as const, label: t("leaderboards.boardLabel.all"), data: lball },
       ] satisfies Array<{ period: Period; label: string; data: typeof lb7d }>,
-    [lb7d, lb30d, lball]
+    [lb7d, lb30d, lball, t]
   );
 
   const isLoadingTop =
@@ -96,7 +92,7 @@ export default function Leaderboards() {
 
   return (
     <div className="w-full space-y-8">
-      <h1 className="sr-only">Leaderboards</h1>
+      <h1 className="sr-only">{t("sidebar.leaderboards")}</h1>
 
       {/* Top: Level progress + distribution (Scroll-inspired) */}
       <Card className="shadow-sm">
@@ -164,27 +160,27 @@ export default function Leaderboards() {
                 </div>
 
                 <div className="mt-4">
-                  <div className="text-xl font-semibold">{user?.publicNickname || user?.name || "You"}</div>
+                  <div className="text-xl font-semibold">{user?.publicNickname || user?.name || t("leaderboards.you")}</div>
                   <div className="text-sm text-muted-foreground">
                     <span className="font-medium text-[color:var(--brand-blue-strong-text)]">
-                      Level {currentLevel}
+                      {t("progress.hero.levelBadge", { level: currentLevel })}
                     </span>
                     <span className="mx-2 text-muted-foreground/60">·</span>
-                    <span>{xpToNextLevel} XP to level {currentLevel + 1}</span>
+                    <span>{t("leaderboards.xpToNextLevel", { xp: xpToNextLevel, level: currentLevel + 1 })}</span>
                   </div>
                   <div className="mt-2 text-xs text-muted-foreground">
                     {xpToLastLevel === 0 ? (
-                      <span>You reached Level {LAST_LEVEL}.</span>
+                      <span>{t("leaderboards.reachedLastLevel", { level: LAST_LEVEL })}</span>
                     ) : (
                       <span>
-                        {xpToLastLevel} XP to reach Level {LAST_LEVEL}
+                        {t("leaderboards.xpToReachLevel", { xp: xpToLastLevel, level: LAST_LEVEL })}
                       </span>
                     )}
                   </div>
 
                   <div className="mt-3 w-full max-w-sm space-y-2">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Progress to Level {LAST_LEVEL}</span>
+                      <span>{t("leaderboards.progressToLevel", { level: LAST_LEVEL })}</span>
                       <span className="tabular-nums">{Math.round(progressToLastRatio * 100)}%</span>
                     </div>
                     <div className="h-2 rounded-full bg-muted/35 overflow-hidden">
@@ -200,10 +196,10 @@ export default function Leaderboards() {
               <div className="flex-1">
                 <Collapsible open={roadmapExpanded} onOpenChange={setRoadmapExpanded}>
                   <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="text-sm font-semibold">Level roadmap</div>
+                    <div className="text-sm font-semibold">{t("leaderboards.roadmap.title")}</div>
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
-                        {roadmapExpanded ? "Show less" : "Show all levels"}
+                        {roadmapExpanded ? t("leaderboards.roadmap.showLess") : t("leaderboards.roadmap.showAllLevels")}
                         <ChevronDown
                           className={cn(
                             "ml-1.5 h-4 w-4 transition-transform",
@@ -245,12 +241,12 @@ export default function Leaderboards() {
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <div className="text-sm font-semibold">Level {level}</div>
+                                <div className="text-sm font-semibold">{t("progress.hero.levelBadge", { level })}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  Requires {requiredXp} total XP
+                                  {t("leaderboards.roadmap.requiresXp", { xp: requiredXp })}
                                   {distRow ? (
                                     <span className="ml-2 text-muted-foreground/70">
-                                      · {distRow.percent}% of members
+                                      · {t("leaderboards.roadmap.membersPercent", { percent: distRow.percent })}
                                     </span>
                                   ) : null}
                                 </div>
@@ -286,12 +282,12 @@ export default function Leaderboards() {
                               {isLocked ? <Lock className="h-4 w-4" /> : <span className="font-bold">{level}</span>}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-sm font-semibold">Level {level}</div>
+                              <div className="text-sm font-semibold">{t("progress.hero.levelBadge", { level })}</div>
                               <div className="text-xs text-muted-foreground">
-                                Requires {requiredXp} total XP
+                                {t("leaderboards.roadmap.requiresXp", { xp: requiredXp })}
                                 {distRow ? (
                                   <span className="ml-2 text-muted-foreground/70">
-                                    · {distRow.percent}% of members
+                                    · {t("leaderboards.roadmap.membersPercent", { percent: distRow.percent })}
                                   </span>
                                 ) : null}
                               </div>
@@ -329,8 +325,10 @@ export default function Leaderboards() {
                 <CardTitle className="text-base">{b.label}</CardTitle>
                 <CardDescription>
                   {b.period === "all"
-                    ? "All-time total XP (public profiles only)."
-                    : `XP earned in ${formatPeriodLabel(b.period).toLowerCase()} (public profiles only).`}
+                    ? t("leaderboards.boardSubtitle.all")
+                    : b.period === "30d"
+                      ? t("leaderboards.boardSubtitle.30d")
+                      : t("leaderboards.boardSubtitle.7d")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -341,7 +339,7 @@ export default function Leaderboards() {
                     <div className="h-10 rounded-lg bg-muted/30 animate-pulse" />
                   </div>
                 ) : entries.length === 0 ? (
-                  <div className="py-6 text-sm text-muted-foreground">No public entries yet.</div>
+                  <div className="py-6 text-sm text-muted-foreground">{t("leaderboards.empty")}</div>
                 ) : (
                   <div className="space-y-2">
                     {entries.map((e) => (
@@ -381,7 +379,7 @@ export default function Leaderboards() {
                                     variant="secondary"
                                     className="h-5 px-2 text-[10px] border-[color:var(--brand-blue-soft-border)] bg-[color:var(--brand-blue-soft)] text-[color:var(--brand-blue-strong-text)]"
                                   >
-                                    Lvl {entryLevel}
+                                    {t("progress.hero.levelBadge", { level: entryLevel })}
                                   </Badge>
                                 );
                               })()}

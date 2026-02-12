@@ -222,7 +222,7 @@ export default function Chat() {
                 <Button variant="outline" size="sm" className="gap-2">
                   <Info className="h-4 w-4" />
                   <span className="hidden sm:inline">{t('chat.usage.title')}</span>
-                  <span className="sm:hidden">Info</span>
+                  <span className="sm:hidden">{t("common.info")}</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

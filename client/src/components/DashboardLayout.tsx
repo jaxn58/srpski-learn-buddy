@@ -82,8 +82,8 @@ function AdminSidebar() {
         icon: <Users className="h-4 w-4" />,
         items: [
           { label: t("sidebar.userManagement"), path: "/admin", icon: <Users className="h-4 w-4" /> },
-          { label: "Waitlist", path: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
-          { label: "Onboarding", path: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
+          { label: t("sidebar.waitlist"), path: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
+          { label: t("sidebar.onboarding"), path: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
           {
             label: t("sidebar.subscriptionAnalytics"),
             path: "/admin/subscription-analytics",
@@ -92,24 +92,24 @@ function AdminSidebar() {
         ],
       },
       {
-        title: "Communication",
+        title: t("sidebar.communication"),
         icon: <Mail className="h-4 w-4" />,
         items: [
           { label: t("sidebar.emailTemplates"), path: "/admin/email-templates", icon: <Mail className="h-4 w-4" /> },
-          { label: "Newsletter", path: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
+          { label: t("sidebar.newsletter"), path: "/admin/newsletter", icon: <Send className="h-4 w-4" /> },
           { label: t("sidebar.feedback"), path: "/admin/feedback", icon: <MessageCircle className="h-4 w-4" /> },
-          { label: "Wishlist", path: "/admin/wishlist", icon: <ListTodo className="h-4 w-4" /> },
+          { label: t("sidebar.wishlist"), path: "/admin/wishlist", icon: <ListTodo className="h-4 w-4" /> },
         ],
       },
       {
-        title: "Content & System",
+        title: t("sidebar.contentAndSystem"),
         icon: <Database className="h-4 w-4" />,
         items: [
-          { label: "Prompt Admin", path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
-          { label: "Content Import", path: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
-          { label: "Content Studio", path: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
-          { label: "Changelog", path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
-          { label: "Database Backups", path: "/admin/backup", icon: <Database className="h-4 w-4" /> },
+          { label: t("sidebar.promptAdmin"), path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+          { label: t("sidebar.contentImport"), path: "/admin/content-import", icon: <Upload className="h-4 w-4" /> },
+          { label: t("sidebar.contentStudio"), path: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
+          { label: t("sidebar.changelog"), path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
+          { label: t("sidebar.databaseBackups"), path: "/admin/backup", icon: <Database className="h-4 w-4" /> },
         ],
       },
     ],
@@ -135,7 +135,7 @@ function AdminSidebar() {
           "ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-emerald-500 text-white text-[11px] font-semibold",
           "group-data-[collapsible=icon]:hidden"
         )}
-        aria-label={`${label} pending`}
+        aria-label={t("admin.pendingCountAria", { count: label })}
         title={`${label}`}
       >
         {label}
@@ -151,7 +151,7 @@ function AdminSidebar() {
             <button
               onClick={toggleSidebar}
               className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={isCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
             >
               {isCollapsed ? (
                 <ChevronRight className="h-4 w-4" />

@@ -84,8 +84,8 @@ export default function WishlistNew() {
       <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card className="max-w-md">
           <CardHeader>
-            <CardTitle>Login required</CardTitle>
-            <CardDescription>Please sign in to submit a wishlist item.</CardDescription>
+            <CardTitle>{t("wishlistNew.loginRequired.title")}</CardTitle>
+            <CardDescription>{t("wishlistNew.loginRequired.desc")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -102,12 +102,12 @@ export default function WishlistNew() {
             <div className="flex items-center gap-3">
               <ListTodo className="h-7 w-7 text-primary" />
               <div>
-                <h1 className="text-3xl md:text-4xl font-bold">Submit a Wishlist item</h1>
-                <p className="text-sm text-muted-foreground">Checking if you can submit right now...</p>
+                <h1 className="text-3xl md:text-4xl font-bold">{t("wishlistNew.title")}</h1>
+                <p className="text-sm text-muted-foreground">{t("wishlistNew.checking")}</p>
               </div>
             </div>
             <Link href="/wishlist">
-              <Button variant="outline">Back to Wishlist</Button>
+              <Button variant="outline">{t("wishlistNew.backToWishlist")}</Button>
             </Link>
           </div>
 
@@ -135,34 +135,36 @@ export default function WishlistNew() {
             <div className="flex items-center gap-3">
               <ListTodo className="h-7 w-7 text-primary" />
               <div>
-                <h1 className="text-3xl md:text-4xl font-bold">Submit a Wishlist item</h1>
-                <p className="text-sm text-muted-foreground">One request per 24 hours.</p>
+                <h1 className="text-3xl md:text-4xl font-bold">{t("wishlistNew.title")}</h1>
+                <p className="text-sm text-muted-foreground">{t("wishlistNew.cooldown.subtitle")}</p>
               </div>
             </div>
             <Link href="/wishlist">
-              <Button variant="outline">Back to Wishlist</Button>
+              <Button variant="outline">{t("wishlistNew.backToWishlist")}</Button>
             </Link>
           </div>
 
           <Card className="shadow-sm border-l-4 border-l-primary">
             <CardHeader>
-              <CardTitle>You’ve recently submitted a request</CardTitle>
+              <CardTitle>{t("wishlistNew.cooldown.cardTitle")}</CardTitle>
               <CardDescription>
-                To keep the wishlist manageable, you can submit 1 suggestion every 24 hours.
+                {t("wishlistNew.cooldown.cardDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 <p className="text-sm">
-                  You can submit again in <span className="font-semibold">{remainingLabel}</span>.
+                  {t("wishlistNew.cooldown.canSubmitAgainInPrefix")}{" "}
+                  <span className="font-semibold">{remainingLabel}</span>.
                 </p>
                 {nextAllowedAtLabel && (
                   <p className="text-xs text-muted-foreground">
-                    Next allowed at: <span className="font-medium text-foreground">{nextAllowedAtLabel}</span>
+                    {t("wishlistNew.cooldown.nextAllowedAtPrefix")}{" "}
+                    <span className="font-medium text-foreground">{nextAllowedAtLabel}</span>
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Tip: You can still upvote existing wishlist items while you wait.
+                  {t("wishlistNew.cooldown.tip")}
                 </p>
               </div>
             </CardContent>
@@ -257,33 +259,34 @@ export default function WishlistNew() {
           <div className="flex items-center gap-3">
             <ListTodo className="h-7 w-7 text-primary" />
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold">Submit a Wishlist item</h1>
+              <h1 className="text-3xl md:text-4xl font-bold">{t("wishlistNew.title")}</h1>
               <p className="text-sm text-muted-foreground">
-                Wishlist items are reviewed before they become public.
+                {t("wishlistNew.subtitle")}
               </p>
             </div>
           </div>
           <Link href="/wishlist">
-            <Button variant="outline">Back to Wishlist</Button>
+            <Button variant="outline">{t("wishlistNew.backToWishlist")}</Button>
           </Link>
         </div>
 
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Feature request</CardTitle>
+            <CardTitle>{t("wishlistNew.form.cardTitle")}</CardTitle>
             <CardDescription>
-              Keep it focused: one idea per item. Please don’t include personal data.
+              {t("wishlistNew.form.cardDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSubmit} className="space-y-5">
               <p className="text-xs text-muted-foreground">
-                <span className="text-destructive">*</span> Required
+                <span className="text-destructive">*</span> {t("wishlistNew.form.requiredHint")}
               </p>
 
               <div className="space-y-2">
                 <Label htmlFor="wishlist-title">
-                  Title {requiredMark} <span className="text-xs text-muted-foreground">(min {TITLE_MIN})</span>
+                  {t("wishlistNew.form.titleLabel")} {requiredMark}{" "}
+                  <span className="text-xs text-muted-foreground">{t("wishlistNew.form.minHint", { min: TITLE_MIN })}</span>
                 </Label>
                 <Input
                   id="wishlist-title"
@@ -295,13 +298,13 @@ export default function WishlistNew() {
                   required
                   aria-invalid={titleError}
                   aria-describedby={titleError ? "wishlist-title-error" : undefined}
-                  placeholder="Short, specific title"
+                  placeholder={t("wishlistNew.form.titlePlaceholder")}
                 />
                 {titleError && (
                   <p id="wishlist-title-error" className="text-xs text-destructive">
                     {titleMissing
-                      ? "This field is required."
-                      : `Please enter at least ${TITLE_MIN} characters.`}
+                      ? t("wishlistNew.form.requiredField")
+                      : t("wishlistNew.form.minChars", { min: TITLE_MIN })}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">{form.title.length}/200</p>
@@ -309,8 +312,8 @@ export default function WishlistNew() {
 
               <div className="space-y-2">
                 <Label htmlFor="wishlist-description">
-                  Description {requiredMark}{" "}
-                  <span className="text-xs text-muted-foreground">(min {DESCRIPTION_MIN})</span>
+                  {t("wishlistNew.form.descriptionLabel")} {requiredMark}{" "}
+                  <span className="text-xs text-muted-foreground">{t("wishlistNew.form.minHint", { min: DESCRIPTION_MIN })}</span>
                 </Label>
                 <Textarea
                   id="wishlist-description"
@@ -324,20 +327,20 @@ export default function WishlistNew() {
                   required
                   aria-invalid={descriptionError}
                   aria-describedby={descriptionError ? "wishlist-description-error" : undefined}
-                  placeholder="What should be improved and why?"
+                  placeholder={t("wishlistNew.form.descriptionPlaceholder")}
                 />
                 {descriptionError && (
                   <p id="wishlist-description-error" className="text-xs text-destructive">
                     {descriptionMissing
-                      ? "This field is required."
-                      : `Please enter at least ${DESCRIPTION_MIN} characters.`}
+                      ? t("wishlistNew.form.requiredField")
+                      : t("wishlistNew.form.minChars", { min: DESCRIPTION_MIN })}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">{form.description.length}/5000</p>
               </div>
 
               <Button type="submit" size="lg" className="w-full" disabled={submitting}>
-                {submitting ? "Submitting..." : "Submit for review"}
+                {submitting ? t("wishlistNew.form.submitting") : t("wishlistNew.form.submit")}
               </Button>
             </form>
           </CardContent>

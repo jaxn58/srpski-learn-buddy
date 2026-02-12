@@ -24,27 +24,6 @@ import { useTranslation } from "react-i18next";
 
 const LIVE_STATUSES = new Set(["on_todo_list", "im_working_on_it", "shipped"]);
 
-function statusLabel(status: string) {
-  switch (status) {
-    case "submitted":
-      return "Submitted";
-    case "in_review":
-      return "In review";
-    case "on_todo_list":
-      return "On to-do list";
-    case "im_working_on_it":
-      return "I'm working on it";
-    case "shipped":
-      return "Shipped";
-    case "duplicate":
-      return "Duplicate";
-    case "rejected":
-      return "Rejected";
-    default:
-      return status;
-  }
-}
-
 function statusBadgeClass(status: string) {
   switch (status) {
     case "submitted":
@@ -120,27 +99,48 @@ export default function WishlistItem() {
       <div className="flex items-center justify-center h-full min-h-[50vh]">
         <Card className="max-w-md">
           <CardHeader>
-            <CardTitle>Login required</CardTitle>
-            <CardDescription>Please sign in to view wishlist items.</CardDescription>
+            <CardTitle>{t("wishlist.loginRequired.title")}</CardTitle>
+            <CardDescription>{t("wishlistItem.loginRequired.desc")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
     );
   }
 
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "submitted":
+        return t("wishlist.status.submitted");
+      case "in_review":
+        return t("wishlist.status.inReview");
+      case "on_todo_list":
+        return t("wishlist.status.onTodoList");
+      case "im_working_on_it":
+        return t("wishlist.status.imWorkingOnIt");
+      case "shipped":
+        return t("wishlist.status.shipped");
+      case "duplicate":
+        return t("wishlist.status.duplicate");
+      case "rejected":
+        return t("wishlist.status.rejected");
+      default:
+        return status;
+    }
+  };
+
   if (!data) {
     return (
       <div className="max-w-3xl mx-auto space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Wishlist item not found</CardTitle>
-            <CardDescription>This item may have been removed.</CardDescription>
+            <CardTitle>{t("wishlistItem.notFound.title")}</CardTitle>
+            <CardDescription>{t("wishlistItem.notFound.desc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/wishlist">
               <Button variant="outline">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Wishlist
+                {t("wishlist.backToList")}
               </Button>
             </Link>
           </CardContent>
@@ -155,7 +155,7 @@ export default function WishlistItem() {
         <Link href="/wishlist">
           <Button variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            {t("common.back")}
           </Button>
         </Link>
       </div>
@@ -169,21 +169,21 @@ export default function WishlistItem() {
                 <Badge className={statusBadgeClass(item.status)}>{statusLabel(item.status)}</Badge>
                 {isLive ? (
                   <span className="inline-flex items-center rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-[0_0_10px_rgba(16,185,129,0.6)]">
-                    Live
+                    {t("wishlist.live")}
                   </span>
                 ) : (
                   <span className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white shadow-[0_0_10px_rgba(220,38,38,0.55)]">
-                    Not live
+                    {t("wishlist.notLive")}
                   </span>
                 )}
                 <span className="text-xs text-muted-foreground">
-                  Created {item.createdAt ? formatDateTimeEU(item.createdAt) : "—"}
+                  {t("wishlistItem.createdAtLabel")} {item.createdAt ? formatDateTimeEU(item.createdAt) : "—"}
                 </span>
               </CardDescription>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold">{item.upvoteCount || 0}</div>
-              <div className="text-xs text-muted-foreground">votes</div>
+              <div className="text-xs text-muted-foreground">{t("wishlist.table.votes")}</div>
             </div>
           </div>
         </CardHeader>
@@ -195,13 +195,13 @@ export default function WishlistItem() {
               {item.adminStatusNote ? (
                 <div className="whitespace-pre-wrap">{String(item.adminStatusNote)}</div>
               ) : (
-                <div className="text-muted-foreground">No note provided.</div>
+                <div className="text-muted-foreground">{t("wishlistItem.noNote")}</div>
               )}
               {item.status === "duplicate" && duplicateTargetId && (
                 <div className="mt-2">
                   <Link href={`/wishlist/${duplicateTargetId}`}>
                     <Button variant="outline" size="sm">
-                      View canonical suggestion
+                      {t("wishlistItem.viewCanonical")}
                     </Button>
                   </Link>
                 </div>
@@ -215,9 +215,9 @@ export default function WishlistItem() {
                 try {
                   setVoteBusy(true);
                   const res = await toggleUpvote({ wishlistItemId: item._id });
-                  toast.success(res.upvoted ? "Upvoted" : "Upvote removed");
+                  toast.success(res.upvoted ? t("wishlistItem.toast.upvoted") : t("wishlistItem.toast.upvoteRemoved"));
                 } catch (e: any) {
-                  toast.error(e?.message || "Failed to update vote");
+                  toast.error(e?.message || t("wishlistItem.toast.upvoteFailed"));
                 } finally {
                   setVoteBusy(false);
                 }
@@ -225,11 +225,11 @@ export default function WishlistItem() {
               disabled={voteBusy || !canUpvote}
             >
               <ThumbsUp className="mr-2 h-4 w-4" />
-              {myHasUpvoted ? "Remove upvote" : "Upvote"}
+              {myHasUpvoted ? t("wishlistItem.upvote.remove") : t("wishlistItem.upvote.add")}
             </Button>
             {!canUpvote && (
               <span className="text-xs text-muted-foreground">
-                Upvotes are available when an item is on the to-do list or being worked on.
+                {t("wishlistItem.upvote.disabledHint")}
               </span>
             )}
           </div>
@@ -241,49 +241,49 @@ export default function WishlistItem() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
-              Admin
+              {t("wishlistItem.admin.title")}
             </CardTitle>
-            <CardDescription>Update status, set duplicate target, and add an optional note.</CardDescription>
+            <CardDescription>{t("wishlistItem.admin.desc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t("wishlistItem.admin.statusLabel")}</Label>
               <Select value={adminStatus} onValueChange={setAdminStatus}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="in_review">In review</SelectItem>
-                  <SelectItem value="on_todo_list">On to-do list</SelectItem>
-                  <SelectItem value="im_working_on_it">I'm working on it</SelectItem>
-                  <SelectItem value="shipped">Shipped</SelectItem>
-                  <SelectItem value="duplicate">Duplicate</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="submitted">{t("wishlist.status.submitted")}</SelectItem>
+                  <SelectItem value="in_review">{t("wishlist.status.inReview")}</SelectItem>
+                  <SelectItem value="on_todo_list">{t("wishlist.status.onTodoList")}</SelectItem>
+                  <SelectItem value="im_working_on_it">{t("wishlist.status.imWorkingOnIt")}</SelectItem>
+                  <SelectItem value="shipped">{t("wishlist.status.shipped")}</SelectItem>
+                  <SelectItem value="duplicate">{t("wishlist.status.duplicate")}</SelectItem>
+                  <SelectItem value="rejected">{t("wishlist.status.rejected")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {adminStatus === "duplicate" && (
               <div className="space-y-2">
-                <Label htmlFor="duplicateOf">Duplicate of (wishlist item id)</Label>
+                <Label htmlFor="duplicateOf">{t("wishlistItem.admin.duplicateOfLabel")}</Label>
                 <Input
                   id="duplicateOf"
                   value={duplicateOfId}
                   onChange={(e) => setDuplicateOfId(e.target.value)}
-                  placeholder="e.g. wli_..."
+                  placeholder={t("wishlistItem.admin.duplicateOfPlaceholder")}
                 />
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="adminNote">Admin note (optional)</Label>
+              <Label htmlFor="adminNote">{t("wishlistItem.admin.noteLabel")}</Label>
               <Textarea
                 id="adminNote"
                 value={adminNote}
                 onChange={(e) => setAdminNote(e.target.value)}
                 rows={4}
-                placeholder="Short explanation (English)."
+                placeholder={t("wishlistItem.admin.notePlaceholder")}
               />
             </div>
 
