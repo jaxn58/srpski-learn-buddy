@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, action, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 
 // Central default system prompts by language (Emergency Fallback)
