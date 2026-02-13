@@ -27,7 +27,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 const AVATAR_MAX_INPUT_BYTES = 2 * 1024 * 1024; // 2 MB
 const AVATAR_TARGET_SIZE = 256; // px (square)
-const SHOW_LANGUAGE_SELECTOR = false;
+
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
   return new Promise<Blob | null>((resolve) => {
@@ -323,7 +323,7 @@ export default function Profile() {
               <p className="text-xs text-muted-foreground">{nickname.length}/32</p>
             </div>
 
-            {SHOW_LANGUAGE_SELECTOR ? (
+            {user?.role === "superadmin" ? (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">{t("profile.language.label")}</Label>
                 <Select

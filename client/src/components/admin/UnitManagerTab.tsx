@@ -314,8 +314,7 @@ export function UnitManagerTab() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const langParam = detailLang !== "en" ? `?lang=${detailLang}` : "";
-                    window.open(`/unit/${selectedOverview.unitNumber}${langParam}`, "_blank");
+                    window.open(`/unit/${selectedOverview.unitNumber}?lang=${detailLang}`, "_blank");
                   }}
                 >
                   <ExternalLink className="mr-1 h-3.5 w-3.5" />
@@ -371,8 +370,7 @@ export function UnitManagerTab() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const langParam = lang !== "en" ? `?lang=${lang}` : "";
-                            window.open(`/unit/${selectedOverview.unitNumber}${langParam}`, "_blank");
+                            window.open(`/unit/${selectedOverview.unitNumber}?lang=${lang}`, "_blank");
                           }}
                         >
                           <ExternalLink className="mr-1 h-3.5 w-3.5" />

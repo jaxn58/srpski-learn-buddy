@@ -946,35 +946,52 @@ export const getUnitManagementOverview = query({
           }
         }
 
-        // Count ALL active, non-offline tests.
+        // Count tests — use the same pool+maxVersion strategy as units.ts:getUnitInteractiveTest.
+        // 1) Filter active, non-offline. 2) Prefer preview pool if any, else published pool.
+        // 3) Within the chosen pool, only count tests at the highest unitVersion.
         const testRows = await ctx.db
           .query("unitInteractiveTests")
           .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", lang))
           .collect();
-        const activeTests = (testRows as any[]).filter(isVisibleForAdmin);
+        const eligibleTests = (testRows as any[]).filter(isVisibleForAdmin);
+        const hasPreviewTests = eligibleTests.some((t: any) => isPreviewStatus(t.releaseStatus));
+        const testPool = hasPreviewTests
+          ? eligibleTests.filter((t: any) => isPreviewStatus(t.releaseStatus))
+          : eligibleTests.filter((t: any) => isPublishedStatus(t.releaseStatus));
+        const maxTestVersion = testPool.reduce((m: number, t: any) => Math.max(m, Number(t.unitVersion ?? 1) || 1), 1);
+        const finalTests = testPool.filter((t: any) => (Number(t.unitVersion ?? 1) || 1) === maxTestVersion);
 
-        // Count vocab.
+        // Count vocab — deduplicate by serbianNormalized key.
+        // Prefer preview over published, then highest unitVersion.
         let vocabCount = 0;
+        const vocabRows = await ctx.db
+          .query("courseVocabulary")
+          .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+          .collect();
+        const bestVocabByKey = new Map<string, any>();
+        for (const v of (vocabRows as any[]).filter(isVisibleForAdmin)) {
+          const key = String((v as any).serbianNormalized ?? (v as any).serbian ?? "").trim().toLowerCase();
+          if (!key) continue;
+          const prev = bestVocabByKey.get(key);
+          if (!prev) { bestVocabByKey.set(key, v); continue; }
+          const vPrio = isPreviewStatus(v.releaseStatus) ? 2 : 1;
+          const pPrio = isPreviewStatus(prev.releaseStatus) ? 2 : 1;
+          if (vPrio > pPrio || (vPrio === pPrio && (Number((v as any).unitVersion ?? 1) || 1) > (Number((prev as any).unitVersion ?? 1) || 1))) {
+            bestVocabByKey.set(key, v);
+          }
+        }
         if (lang === "en") {
-          const vocabRows = await ctx.db
-            .query("courseVocabulary")
-            .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
-            .collect();
-          vocabCount = (vocabRows as any[]).filter(isVisibleForAdmin).length;
+          vocabCount = bestVocabByKey.size;
         } else if (lang === "de") {
-          const vocabRows = await ctx.db
-            .query("courseVocabulary")
-            .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
-            .collect();
-          // Count rows that have a DE translation AND are visible.
-          vocabCount = (vocabRows as any[]).filter((v) =>
-            isVisibleForAdmin(v) && typeof v.de === "string" && String(v.de).trim()
+          // Only count deduplicated rows that have a DE translation.
+          vocabCount = Array.from(bestVocabByKey.values()).filter(
+            (v) => typeof v.de === "string" && String(v.de).trim()
           ).length;
         }
 
         // Only include this language version if it has actual content (not just metadata).
         const sectionCount = bestByType.size;
-        const testCount = activeTests.length;
+        const testCount = finalTests.length;
         if (sectionCount === 0 && testCount === 0 && vocabCount === 0 && lang !== "en") {
           // Skip languages with only metadata but no content (avoids false "published" badges).
           continue;
@@ -1060,13 +1077,21 @@ export const getUnitLanguageDetail = query({
       }))
       .sort((a, b) => sectionOrder.indexOf(a.contentType) - sectionOrder.indexOf(b.contentType));
 
-    // 3) Tests — include ALL active non-offline rows.
+    // 3) Tests — use pool+maxVersion strategy (mirrors units.ts:getUnitInteractiveTest).
+    //    1) Filter active, non-offline. 2) Prefer preview pool if any, else published.
+    //    3) Within pool, only take tests at the highest unitVersion.
     const testRows = await ctx.db
       .query("unitInteractiveTests")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
       .collect();
-    const tests = (testRows as any[])
-      .filter(isVisibleForAdmin)
+    const eligibleTests = (testRows as any[]).filter(isVisibleForAdmin);
+    const hasPreviewTests = eligibleTests.some((t: any) => isPreviewStatus(t.releaseStatus));
+    const testPool = hasPreviewTests
+      ? eligibleTests.filter((t: any) => isPreviewStatus(t.releaseStatus))
+      : eligibleTests.filter((t: any) => isPublishedStatus(t.releaseStatus));
+    const maxTestVersion = testPool.reduce((m: number, t: any) => Math.max(m, Number(t.unitVersion ?? 1) || 1), 1);
+    const tests = testPool
+      .filter((t: any) => (Number(t.unitVersion ?? 1) || 1) === maxTestVersion)
       .map((t) => ({
         category: String(t.category ?? ""),
         questionId: String(t.questionId ?? ""),
@@ -1079,25 +1104,36 @@ export const getUnitLanguageDetail = query({
       }))
       .sort((a, b) => a.category.localeCompare(b.category) || a.order - b.order);
 
-    // 4) Vocabulary — include ALL active non-offline rows.
+    // 4) Vocabulary — deduplicate by serbianNormalized key.
+    //    Prefer preview over published, then highest unitVersion.
     const vocabRows = await ctx.db
       .query("courseVocabulary")
       .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
       .collect();
+    const bestVocabByKey = new Map<string, any>();
+    for (const v of (vocabRows as any[]).filter(isVisibleForAdmin)) {
+      const key = String((v as any).serbianNormalized ?? (v as any).serbian ?? "").trim().toLowerCase();
+      if (!key) continue;
+      const prev = bestVocabByKey.get(key);
+      if (!prev) { bestVocabByKey.set(key, v); continue; }
+      const vPrio = isPreviewStatus(v.releaseStatus) ? 2 : 1;
+      const pPrio = isPreviewStatus(prev.releaseStatus) ? 2 : 1;
+      if (vPrio > pPrio || (vPrio === pPrio && (Number((v as any).unitVersion ?? 1) || 1) > (Number((prev as any).unitVersion ?? 1) || 1))) {
+        bestVocabByKey.set(key, v);
+      }
+    }
 
     let vocabulary: Array<{ serbian: string; translation: string; alternatives?: string; note?: string }>;
     if (language === "en") {
-      vocabulary = (vocabRows as any[])
-        .filter(isVisibleForAdmin)
-        .map((v) => ({
-          serbian: String(v.serbian ?? ""),
-          translation: String(v.en ?? ""),
-          alternatives: typeof v.enAlt === "string" ? v.enAlt : undefined,
-          note: typeof v.noteEn === "string" ? v.noteEn : undefined,
-        }));
+      vocabulary = Array.from(bestVocabByKey.values()).map((v) => ({
+        serbian: String(v.serbian ?? ""),
+        translation: String(v.en ?? ""),
+        alternatives: typeof v.enAlt === "string" ? v.enAlt : undefined,
+        note: typeof v.noteEn === "string" ? v.noteEn : undefined,
+      }));
     } else if (language === "de") {
-      vocabulary = (vocabRows as any[])
-        .filter((v) => isVisibleForAdmin(v) && typeof v.de === "string" && String(v.de).trim())
+      vocabulary = Array.from(bestVocabByKey.values())
+        .filter((v) => typeof v.de === "string" && String(v.de).trim())
         .map((v) => ({
           serbian: String(v.serbian ?? ""),
           translation: String(v.de ?? ""),
