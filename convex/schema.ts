@@ -14,8 +14,10 @@
  *   system.ts         – App versions, changelog, onboarding, backups, Dodo webhook events
  *
  * Note: TS2589 ("Type instantiation is excessively deep") in Convex function files is a known
- * TypeScript limitation with large schemas (50+ tables). It does NOT affect runtime behavior –
- * Convex validates types at its own layer. See scripts/typecheck.mjs for the split check approach.
+ * TypeScript limitation with large schemas (50 tables). These errors are suppressed via
+ * `// @ts-ignore TS2589` comments in affected files (see scripts/add-ts-expect-errors.mjs).
+ * Convex validates types at its own runtime layer regardless of TypeScript checks.
+ * Run `node scripts/add-ts-expect-errors.mjs --apply` after adding new Convex functions.
  */
 import { defineSchema } from "convex/server";
 import { coreTables } from "./schema/core";

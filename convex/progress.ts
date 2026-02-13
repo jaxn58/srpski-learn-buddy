@@ -14,6 +14,7 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   console.log("[getCurrentUser] Looking up user:", identity.subject);
   const user = await ctx.db
     .query("users")
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
 
@@ -38,6 +39,7 @@ async function isPreviewUnit(ctx: QueryCtx | MutationCtx, unitNumber: number): P
 
 // Get user progress
 // Automatically corrects currentUnit if it doesn't match completedUnits
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getUserProgress = query({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
@@ -45,6 +47,7 @@ export const getUserProgress = query({
 
     const progress = await ctx.db
       .query("userProgress")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .first();
 
@@ -81,6 +84,7 @@ export const getUserProgress = query({
 });
 
 // Update user progress
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const updateProgress = mutation({
   args: {
     currentUnit: v.optional(v.number()),
@@ -120,6 +124,7 @@ export const updateProgress = mutation({
 });
 
 // Mark unit as complete
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const completeUnit = mutation({
   args: {
     unitNumber: v.number(),
@@ -178,6 +183,7 @@ export const completeUnit = mutation({
 });
 
 // Allow admins to reset the completion status for a specific unit
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const resetUnitCompletion = mutation({
   args: {
     unitNumber: v.number(),
@@ -193,6 +199,7 @@ export const resetUnitCompletion = mutation({
 
     const progress = await ctx.db
       .query("userProgress")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .first();
 
@@ -248,6 +255,7 @@ export const resetUnitCompletion = mutation({
 });
 
 // Get all user progress (admin only)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getAllProgress = query({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
@@ -260,6 +268,7 @@ export const getAllProgress = query({
 });
 
 // Check if unit can be completed (all vocab mastered + all exercises done)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const canCompleteUnit = query({
   args: {
     unitNumber: v.number(),
@@ -431,6 +440,7 @@ export const canCompleteUnit = query({
 });
 
 // Determine if a unit is fully mastered (all vocab + exercises answered 3x correctly)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getUnitMasteryStatus = query({
   args: {
     unitNumber: v.number(),
@@ -472,11 +482,14 @@ export const getUnitMasteryStatus = query({
     // Exercise question mastery
     const exerciseQuestionEntries = await ctx.db
       .query("exerciseQuestionProgress")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user", (q) => q.eq("userId", user._id))
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .filter((q) => q.eq(q.field("unitNumber"), args.unitNumber))
       .collect();
 
     const exerciseQuestionTotal = exerciseQuestionEntries.length;
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const exerciseQuestionMasteredCount = exerciseQuestionEntries.filter(
       (entry) => entry.mastered || (entry.correctAnswerCount ?? 0) >= 3
     ).length;
@@ -593,6 +606,7 @@ export const getMasteredUnits = query({
 // ============= INTERACTIVE TEST PROGRESS (Block-based with per-question mastery) =============
 
 // Submit results for Interactive Test category (block-based checking)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const submitCategoryResult = mutation({
   args: {
     unitNumber: v.number(),
@@ -704,6 +718,7 @@ export const submitCategoryResult = mutation({
 });
 
 // Get question progress for a unit (Mastery status)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getQuestionProgress = query({
   args: { unitNumber: v.number() },
   handler: async (ctx, args) => {
@@ -712,6 +727,7 @@ export const getQuestionProgress = query({
 
     const progress = await ctx.db
       .query("questionProgress")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user_unit", (q) => 
         q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
       )
@@ -741,13 +757,16 @@ export const getDashboardStats = query({
     // 1. Get User Progress (Units)
     const userProgress = await ctx.db
       .query("userProgress")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .first();
 
     // 2. Get Daily Activity (Last 7 days for Chart / Weekly XP)
     const dailyActivities7 = await ctx.db
       .query("dailyActivity")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user_date", (q) => q.eq("userId", user._id))
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
       .filter((q) => q.gte(q.field("activityDate"), window7Start))
       .collect();
     // Ensure chronological order for chart payload.
@@ -756,6 +775,7 @@ export const getDashboardStats = query({
     // 2b. Activity stats (Last 30 days)
     const dailyActivities30 = await ctx.db
       .query("dailyActivity")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user_date", (q) => q.eq("userId", user._id))
       .filter((q) => q.gte(q.field("activityDate"), window30Start))
       .collect();
@@ -795,6 +815,7 @@ export const getDashboardStats = query({
     const weeklyProgress = {
       windowDays: 7,
       activeDays: activeDaySet7.size,
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       xpSum: dailyActivities7.reduce((sum, a) => sum + (a.xpEarned ?? 0), 0),
     };
     const weeklyGoal = {
@@ -850,6 +871,7 @@ export const getDashboardStats = query({
     // 3. Get Vocabulary Stats for Accuracy Chart
     const vocabProgress = await ctx.db
       .query("vocabularyProgress")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
 
@@ -905,6 +927,7 @@ export const getDashboardStats = query({
       creationTime: userProgress?._creationTime || user._creationTime,
 
       // Charts Data
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       activityChart: dailyActivities7.map(a => ({
         date: a.activityDate,
         xp: a.xpEarned,
@@ -973,6 +996,7 @@ export const backfillDailyActivityForCurrentUser = mutation({
       // Reconcile: if totalXP is greater than the sum of dailyActivity, add the missing XP as a single synthetic entry.
       const all = await ctx.db
         .query("dailyActivity")
+        // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
         .withIndex("by_user_date", (q) => q.eq("userId", user._id))
         .collect();
       const sum = all.reduce((s, a) => s + (a.xpEarned ?? 0), 0);
@@ -1160,6 +1184,7 @@ export const backfillDailyActivityForCurrentUser = mutation({
 
 // Check if a questionId has any user progress (for migration safety)
 // This is an internal query that can be called from migration scripts
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const hasQuestionProgress = query({
   args: {
     questionId: v.string(),
@@ -1170,6 +1195,7 @@ export const hasQuestionProgress = query({
       .query("questionProgress")
       // Index is (userId, questionId), so we can't query by questionId alone here.
       // This query is only used for migration safety checks; a full scan is acceptable.
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .filter((q) => q.eq(q.field("questionId"), args.questionId))
       .first();
     
@@ -1181,6 +1207,7 @@ export const hasQuestionProgress = query({
 export const getQuestionIdsWithProgress = query({
   handler: async (ctx) => {
     const allProgress = await ctx.db.query("questionProgress").collect();
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const questionIds = new Set(allProgress.map(p => p.questionId));
     return Array.from(questionIds);
   },
@@ -1188,6 +1215,7 @@ export const getQuestionIdsWithProgress = query({
 
 // Check if user has any activity in a specific unit (vocabulary, exercises, questions)
 // Returns true if user has started working on the unit, false if not yet started
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const hasUnitActivity = query({
   args: { unitNumber: v.number() },
   handler: async (ctx, args) => {

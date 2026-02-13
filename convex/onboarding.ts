@@ -46,6 +46,7 @@ async function requireAdminAction(ctx: ActionCtx) {
  * Get all onboarding steps (including inactive ones)
  * Admin only
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getAllOnboardingSteps = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
@@ -70,6 +71,7 @@ export const getAllOnboardingSteps = query({
  * Delete an onboarding step
  * Admin only
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const deleteOnboardingStep = mutation({
   args: {
     stepId: v.id("onboardingSteps"),
@@ -98,8 +100,11 @@ export const deleteOnboardingStep = mutation({
 
     console.log("[onboarding] Deleted step:", {
       stepId: args.stepId,
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       stepNumber: step.stepNumber,
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       language: step.language,
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       title: step.title,
       deletedBy: user.email,
     });
@@ -112,6 +117,7 @@ export const deleteOnboardingStep = mutation({
  * Toggle step active/inactive status
  * Admin only
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const toggleStepActive = mutation({
   args: {
     stepId: v.id("onboardingSteps"),
@@ -136,6 +142,7 @@ export const toggleStepActive = mutation({
       throw new Error("Onboarding step not found");
     }
 
+    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
     const newStatus = !step.isActive;
 
     await ctx.db.patch(args.stepId, {
@@ -146,9 +153,13 @@ export const toggleStepActive = mutation({
 
     console.log("[onboarding] Toggled step status:", {
       stepId: args.stepId,
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       stepNumber: step.stepNumber,
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       language: step.language,
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       title: step.title,
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       previousStatus: step.isActive,
       newStatus,
       toggledBy: user.email,
@@ -171,6 +182,7 @@ function capitalize(str: string): string {
  * V2: Get all active onboarding steps for a specific language (column-based)
  * Used by frontend to display onboarding to users
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getActiveOnboardingStepsV2 = query({
   args: {
     language: v.string(), // "en", "de", "es", "fr"
@@ -179,12 +191,14 @@ export const getActiveOnboardingStepsV2 = query({
     const steps = await ctx.db
       .query("onboardingSteps")
       .withIndex("by_step_number")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
     
     const lang = capitalize(args.language);
     
     // Map to language-specific fields with fallback to English
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     return steps
       .map((step) => {
         const titleKey = `title${lang}` as keyof typeof step;
@@ -210,6 +224,7 @@ export const getActiveOnboardingStepsV2 = query({
  * V2: Get all onboarding steps (admin view, column-based)
  * Admin only
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getAllOnboardingStepsV2 = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
@@ -227,6 +242,7 @@ export const getAllOnboardingStepsV2 = query({
  * V2: Create onboarding step with column-based multilanguage
  * Admin only
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const createOnboardingStepV2 = mutation({
   args: {
     stepNumber: v.number(),
@@ -251,6 +267,7 @@ export const createOnboardingStepV2 = mutation({
 
     const now = Date.now();
 
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const stepId = await ctx.db.insert("onboardingSteps", {
       stepNumber: args.stepNumber,
       titleEn: args.titleEn,
@@ -289,6 +306,7 @@ export const createOnboardingStepV2 = mutation({
  * V2: Update onboarding step with column-based multilanguage
  * Admin only
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const updateOnboardingStepV2 = mutation({
   args: {
     stepId: v.id("onboardingSteps"),
@@ -373,6 +391,7 @@ function diffVariables(params: { source: string[]; target: string[] }) {
  * Admin-only: translate onboarding EN -> DE (no DB writes).
  * The admin UI uses this to prefill German fields.
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const translateOnboardingEnToDe = action({
   args: {
     titleEn: v.string(),

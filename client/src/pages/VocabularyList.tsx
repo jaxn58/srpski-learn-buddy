@@ -9,12 +9,25 @@ import { useState, useMemo, useEffect } from "react";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import type { Doc } from "../../../convex/_generated/dataModel";
 import { useTranslation } from "react-i18next";
 import { VocabularyDictionaryTable, type VocabularyDictionaryRow } from "@/components/vocabulary/VocabularyDictionaryTable";
 import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
 
-type VocabularyProgressDoc = Doc<"vocabulary">;
+/** Return type of getUserVocabularyProgress (mapped from vocabularyProgress + courseVocabulary) */
+type VocabularyProgressDoc = {
+  _id: string;
+  userId: string;
+  courseVocabularyId: string;
+  serbianWord: string;
+  englishTranslation?: string;
+  unitNumber: number;
+  mastered: boolean;
+  reviewCount: number;
+  lastReviewedAt?: number;
+  correctAnswerCount: number;
+  incorrectAnswerCount: number;
+  lastAnsweredAt?: number;
+};
 
 export default function VocabularyList() {
   const { user } = useAuth();

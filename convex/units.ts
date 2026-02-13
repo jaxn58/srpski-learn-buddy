@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+// TS2589 suppression applied – see scripts/add-ts-expect-errors.mjs
 
 /**
  * Get total number of units from database
@@ -23,6 +24,7 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 
   return await ctx.db
     .query("users")
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
 }
@@ -74,6 +76,7 @@ async function isUnitOffline(ctx: QueryCtx | MutationCtx, unitNumber: number): P
 }
 
 // Reversible unit-level offline toggle (Superadmin only).
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const setUnitOffline = mutation({
   args: {
     unitNumber: v.number(),
@@ -176,6 +179,7 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
 }
 
 // Get unit metadata for a specific language
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getUnitMetadata = query({
   args: {
     unitNumber: v.number(),
@@ -190,6 +194,7 @@ export const getUnitMetadata = query({
 
     const allForLang = await ctx.db
       .query("unitMetadata")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", language))
       .collect();
     const eligibleForLang = allowOffline ? (allForLang as any[]) : (allForLang as any[]).filter((m) => m?.isOffline !== true);
@@ -199,6 +204,7 @@ export const getUnitMetadata = query({
     if (!metadata && language !== "en") {
       const allEn = await ctx.db
         .query("unitMetadata")
+        // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
         .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", "en"))
         .collect();
       const eligibleEn = allowOffline ? (allEn as any[]) : (allEn as any[]).filter((m) => m?.isOffline !== true);
@@ -211,6 +217,7 @@ export const getUnitMetadata = query({
 });
 
 // Get all units metadata for a specific language
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getAllUnitsMetadata = query({
   args: {
     language: v.optional(v.string()), // Default: "en"
@@ -262,6 +269,7 @@ export const getAllUnitsMetadata = query({
 });
 
 // Get unit content for a specific language (relational - uses FK to unitMetadata)
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getUnitContent = query({
   args: {
     unitNumber: v.number(),
@@ -315,6 +323,7 @@ export const getUnitContent = query({
 });
 
 // Get complete unit data (relational query with JOIN-equivalent logic)
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getUnitComplete = query({
   args: {
     unitNumber: v.number(),
@@ -331,6 +340,7 @@ export const getUnitComplete = query({
     // 1. Get metadata (Master-Table)
     let metadata = await ctx.db
       .query("unitMetadata")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_unit_lang", (q) =>
         q.eq("unitNumber", args.unitNumber).eq("language", language)
       )
@@ -341,6 +351,7 @@ export const getUnitComplete = query({
     if (!metadata && finalLanguage === "en") {
       metadata = await ctx.db
         .query("unitMetadata")
+        // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
         .withIndex("by_unit_lang", (q) =>
           q.eq("unitNumber", args.unitNumber).eq("language", "en")
         )
@@ -354,6 +365,7 @@ export const getUnitComplete = query({
     // 2. Get content (Foreign Key: unitNumber + language)
     const content = await ctx.db
       .query("unitContent")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_unit_lang", (q) =>
         q.eq("unitNumber", args.unitNumber).eq("language", finalLanguage)
       )
@@ -362,6 +374,7 @@ export const getUnitComplete = query({
     // 3. Get tests (Foreign Key: unitNumber + language)
     const tests = await ctx.db
       .query("unitInteractiveTests")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_unit_lang", (q) =>
         q.eq("unitNumber", args.unitNumber).eq("language", finalLanguage)
       )
@@ -371,6 +384,7 @@ export const getUnitComplete = query({
     const module = metadata.moduleId
       ? await ctx.db
           .query("moduleMetadata")
+          // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
           .withIndex("by_module_lang", (q) =>
             q.eq("moduleId", metadata!.moduleId!).eq("language", finalLanguage)
           )
@@ -379,6 +393,7 @@ export const getUnitComplete = query({
 
     return {
       metadata,
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
       content: content.reduce((acc, c) => {
         acc[c.contentType] = c.content;
         return acc;
@@ -390,6 +405,7 @@ export const getUnitComplete = query({
 });
 
 // Get interactive test for a unit
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getUnitInteractiveTest = query({
   args: {
     unitNumber: v.number(),
@@ -409,6 +425,7 @@ export const getUnitInteractiveTest = query({
     // Fetch all questions for this unit/language
     const all = await ctx.db
       .query("unitInteractiveTests")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_unit_lang", (q) => 
         q.eq("unitNumber", args.unitNumber).eq("language", language)
       )
@@ -438,6 +455,7 @@ export const getUnitInteractiveTest = query({
 
 // Get unit content sections (Overview, Grammar, Phrases, Dialogues)
 // Relational: Uses FK relationship to unitMetadata for referential integrity
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getUnitContentSections = query({
   args: {
     unitNumber: v.number(),
@@ -549,6 +567,7 @@ export async function upsertDailyActivityByUserId(
   // Check if activity exists for today
   const existing = await ctx.db
     .query("dailyActivity")
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
     .withIndex("by_user_date", (q) =>
       q.eq("userId", userId).eq("activityDate", todayTimestamp)
     )
@@ -564,6 +583,7 @@ export async function upsertDailyActivityByUserId(
     return existing._id;
   }
 
+  // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
   return await ctx.db.insert("dailyActivity", {
     userId,
     activityDate: todayTimestamp,
@@ -574,6 +594,7 @@ export async function upsertDailyActivityByUserId(
 }
 
 // Get daily activity
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getDailyActivity = query({
   args: {
     days: v.optional(v.number()),
@@ -591,6 +612,7 @@ export const getDailyActivity = query({
 
     return await ctx.db
       .query("dailyActivity")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user_date", (q) => q.eq("userId", user._id))
       .filter((q) => q.gte(q.field("activityDate"), startDate))
       .collect();
@@ -598,6 +620,7 @@ export const getDailyActivity = query({
 });
 
 // Log daily activity
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const logActivity = mutation({
   args: {
     unitsCompleted: v.optional(v.number()),

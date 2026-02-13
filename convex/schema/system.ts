@@ -23,7 +23,7 @@ export const systemTables = {
     clerkId: v.optional(v.string()),
     subscriptionId: v.optional(v.string()),
     paymentId: v.optional(v.string()),
-    environment: v.optional(v.union(v.literal("test_mode"), v.literal("live_mode"))),
+    environment: v.optional(v.union(v.literal("test_mode"), v.literal("live_mode"), v.literal("dev_mode"))),
   })
     .index("by_webhook_id", ["webhookId"])
     .index("by_type", ["eventType"]),

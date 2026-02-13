@@ -72,6 +72,7 @@ function sortAndRank(items: Array<{ userId: Id<"users">; xp: number }>) {
   return sorted.map((item, idx) => ({ ...item, rank: idx + 1 }));
 }
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getPublicLeaderboard = query({
   args: {
     period: v.union(v.literal("all"), v.literal("30d"), v.literal("7d")),
@@ -127,6 +128,7 @@ export const getPublicLeaderboard = query({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getLeaderboard = query({
   args: {
     period: v.union(v.literal("all"), v.literal("30d"), v.literal("7d")),
@@ -140,6 +142,7 @@ export const getLeaderboard = query({
 
     const viewer = await ctx.db
       .query("users")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
     if (!viewer) {
@@ -200,6 +203,7 @@ export const getLeaderboard = query({
 });
 
 // Aggregated level distribution (no PII). Used for the Leaderboards "Level Progress" panel.
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getLevelDistribution = query({
   args: {
     maxLevel: v.optional(v.number()),

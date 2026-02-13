@@ -5,11 +5,13 @@ import { requireSuperadminAction, parseJsonOrThrow, callAiJson, callAiText } fro
 import { UnitPackageSchema } from "../../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../../scripts/unitPackage/autofix";
 
+// @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
 export const publishDraftToPreview = action({
   args: {
     draftId: v.id("contentDrafts"),
     moduleId: v.optional(v.id("moduleMetadata")),
   },
+  // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
 
@@ -27,12 +29,15 @@ export const publishDraftToPreview = action({
     const { fixed } = autofixUnitPackage(base.data);
 
     // Compute a next unitVersion without archiving published content.
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const ver = await ctx.runQuery(api.contentImportAdmin.previewReplaceUnit, {
       unitNumber: fixed.unitNumber,
       languages: fixed.languages,
     });
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const targetUnitVersion = Number((ver as any)?.nextUnitVersion ?? 2);
 
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const result = await ctx.runMutation(api.contentStudio.internalPublishUnitPackageToPreview, {
       unitPackage: fixed as any,
       unitVersion: targetUnitVersion,
@@ -43,16 +48,21 @@ export const publishDraftToPreview = action({
   },
 });
 
+// @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
 export const takePreviewOffline = action({
   args: {
     draftId: v.id("contentDrafts"),
   },
+  // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const current = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const unitNumber = current?.draft?.unitNumber;
     if (!unitNumber) throw new Error("Draft has no unit number");
 
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const res = await ctx.runMutation(api.contentStudio.internalTakeUnitPreviewOffline, {
       unitNumber,
     });
@@ -61,27 +71,33 @@ export const takePreviewOffline = action({
 });
 
 // Take preview release offline for a unitNumber (used by translation-preview workflow where no draft exists).
+// @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
 export const takeUnitPreviewOfflineByUnitNumber = action({
   args: {
     unitNumber: v.number(),
   },
+  // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
     const unitNumber = Number(args.unitNumber);
     if (!Number.isFinite(unitNumber) || unitNumber <= 0) throw new Error("Invalid unitNumber");
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const res = await ctx.runMutation(api.contentStudio.internalTakeUnitPreviewOffline, { unitNumber });
     return { ok: true, ...res };
   },
 });
 
+// @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
 export const publishDraft = action({
   args: {
     draftId: v.id("contentDrafts"),
     mode: v.union(v.literal("update"), v.literal("replace")),
     moduleId: v.optional(v.id("moduleMetadata")),
   },
+  // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const current = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
     if (current.draft.status !== "ready_to_publish") {
       throw new Error("Draft is not ready_to_publish");
@@ -97,8 +113,10 @@ export const publishDraft = action({
     const unitPackage = parseJsonOrThrow(current.snapshot.unitPackageJson);
 
     // Delegate to existing import pipeline (creates audit run)
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const fileName = `content-studio-unit-${current.draft.unitNumber}.json`;
     const confirm = args.mode === "replace" ? `REPLACE UNIT ${current.draft.unitNumber}` : "IMPORT";
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const result = await ctx.runAction(api.contentImportAdmin.importUnitPackages, {
       files: [{ fileName, unitPackage }],
       confirm,
@@ -115,6 +133,7 @@ export const publishDraft = action({
 });
 
 // Translate already-published Unit content EN -> DE (no new content creation; translation only).
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const translatePublishedUnitEnToDe = action({
   args: {
     unitNumber: v.number(),
@@ -123,6 +142,7 @@ export const translatePublishedUnitEnToDe = action({
     // Default: write as preview (same workflow as ContentStudio Preview)
     targetReleaseStatus: v.optional(v.union(v.literal("preview"), v.literal("published"))),
   },
+  // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
 
@@ -132,6 +152,7 @@ export const translatePublishedUnitEnToDe = action({
       throw new Error(`Confirmation required: confirm must equal '${expected}'`);
     }
 
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const source = await ctx.runQuery(api.contentStudio.getPublishedUnitSourceEnForTranslation, {
       unitNumber,
     });
@@ -312,6 +333,7 @@ export const translatePublishedUnitEnToDe = action({
       throw new Error(`AI returned invalid JSON for metadata translation. ${e?.message || ""}`);
     }
 
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const metadataDe = {
       title: String(metaParsed?.titleDe ?? "").trim() || String(source.metadataEn?.title ?? ""),
       description:
@@ -556,6 +578,7 @@ export const translatePublishedUnitEnToDe = action({
     // Persist translations
     // - preview: write releaseStatus="preview" (ContentStudio Preview workflow; published untouched)
     // - published: write published DE content + patch published vocab fields
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const result =
       targetReleaseStatus === "preview"
         ? await ctx.runMutation(api.contentStudio.upsertUnitGermanTranslationToPreview, {

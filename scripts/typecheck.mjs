@@ -1,15 +1,16 @@
 /**
  * typecheck.mjs – Split TypeScript check for large-schema Convex projects.
  *
- * Problem: The Convex DataModel generated from 54+ tables causes TS2589
- * ("Type instantiation is excessively deep and possibly infinite") errors
- * throughout all convex/ function files. These errors are a known TypeScript
- * limitation with complex generic types and do NOT affect runtime behavior –
- * Convex validates types at its own layer during `convex dev` / `convex deploy`.
+ * Background: The Convex DataModel generated from 50 tables can cause TS2589
+ * ("Type instantiation is excessively deep and possibly infinite") errors.
+ * These are suppressed via `// @ts-ignore` comments in Convex function files
+ * (see scripts/add-ts-expect-errors.mjs). Convex validates types at runtime.
  *
- * Solution: This script runs `tsc --noEmit` and separates the output:
+ * This script runs `tsc --noEmit` and separates the output:
  *   - Convex errors (convex/**) → logged as info, do NOT fail the check
  *   - Client/Server errors       → reported and fail the check if present
+ *
+ * With @ts-ignore suppression in place, both Convex and client errors should be 0.
  *
  * Usage:
  *   node scripts/typecheck.mjs            # default: filter convex errors

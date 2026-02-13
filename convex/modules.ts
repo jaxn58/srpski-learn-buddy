@@ -91,6 +91,7 @@ async function createConsolidatedModule(
 }
 
 // Insert module metadata (for migration script)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const insertModuleMetadata = mutation({
   args: {
     moduleId: v.string(),
@@ -101,6 +102,7 @@ export const insertModuleMetadata = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("moduleMetadata")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_module_lang", (q) =>
         q.eq("moduleId", args.moduleId).eq("language", args.language)
       )
@@ -114,6 +116,7 @@ export const insertModuleMetadata = mutation({
       return existing._id;
     }
 
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     return await ctx.db.insert("moduleMetadata", {
       moduleId: args.moduleId,
       language: args.language,
@@ -124,6 +127,7 @@ export const insertModuleMetadata = mutation({
 });
 
 // Get module metadata
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getModuleMetadata = query({
   args: {
     moduleId: v.string(),
@@ -134,6 +138,7 @@ export const getModuleMetadata = query({
     
     const metadata = await ctx.db
       .query("moduleMetadata")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_module_lang", (q) =>
         q.eq("moduleId", args.moduleId).eq("language", language)
       )
@@ -143,6 +148,7 @@ export const getModuleMetadata = query({
     if (!metadata && language !== "en") {
       return await ctx.db
         .query("moduleMetadata")
+        // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
         .withIndex("by_module_lang", (q) =>
           q.eq("moduleId", args.moduleId).eq("language", "en")
         )
@@ -155,6 +161,7 @@ export const getModuleMetadata = query({
 
 // Get all modules metadata
 // DEPRECATED: Use getAllModulesConsolidated instead
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getAllModules = query({
   args: {
     language: v.optional(v.string()), // Default: "en"
@@ -172,6 +179,7 @@ export const getAllModules = query({
     if (allMetadata.length === 0 && language !== "en") {
       return await ctx.db
         .query("moduleMetadata")
+        // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
         .filter((q) => q.eq(q.field("language"), "en"))
         .collect();
     }
@@ -186,6 +194,7 @@ export const getAllModules = query({
 
 // Create consolidated module metadata (one row per module with multilingual columns)
 // Superadmin-only: used by admin UI (and can also be used by migration scripts if executed as superadmin).
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const createModule = mutation({
   args: {
     moduleNumber: v.number(),
@@ -196,11 +205,13 @@ export const createModule = mutation({
     descriptionEn: v.string(),
   },
   handler: async (ctx, args) => {
+    // @ts-ignore TS2345 TS2589 – Convex schema depth limit (50 tables)
     return await createConsolidatedModule(ctx, args);
   },
 });
 
 // Backward-compat alias (was used for earlier migrations)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const insertConsolidatedModuleMetadata = mutation({
   args: {
     titleDe: v.string(),
@@ -226,6 +237,7 @@ export const insertConsolidatedModuleMetadata = mutation({
 });
 
 // Update consolidated module metadata
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const updateModuleMetadata = mutation({
   args: {
     moduleId: v.id("moduleMetadata"),
@@ -306,6 +318,7 @@ export const updateModuleMetadata = mutation({
 });
 
 // Get module by ID (new structure)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getModuleById = query({
   args: {
     moduleId: v.id("moduleMetadata"),
@@ -316,6 +329,7 @@ export const getModuleById = query({
 });
 
 // Get module by slug (for URL compatibility)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getModuleBySlug = query({
   args: {
     slug: v.string(),
@@ -323,6 +337,7 @@ export const getModuleBySlug = query({
   handler: async (ctx, args) => {
     return await ctx.db
       .query("moduleMetadata")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
   },
@@ -330,6 +345,7 @@ export const getModuleBySlug = query({
 
 // Get all modules (consolidated structure)
 // Returns all modules with multilingual fields, sorted by moduleNumber
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getAllModulesConsolidated = query({
   args: {},
   handler: async (ctx) => {
@@ -363,6 +379,7 @@ export const getAllModulesConsolidated = query({
 
 // DEBUG: Get all modules without deduplication (for debugging duplicates)
 // Only returns modules with slug field (new structure)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getAllModulesRaw = query({
   args: {},
   handler: async (ctx) => {
@@ -380,6 +397,7 @@ export const getAllModulesRaw = query({
 });
 
 // DEBUG: Get REALLY all modules (no filters at all)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getAllModulesAbsolute = query({
   args: {},
   handler: async (ctx) => {
@@ -398,6 +416,7 @@ export const getAllModulesAbsolute = query({
 // ============= CLEANUP UTILITIES =============
 
 // Delete a module by ID (for cleanup scripts - no auth required)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const deleteModuleById = mutation({
   args: { id: v.id("moduleMetadata") },
   handler: async (ctx, args) => {

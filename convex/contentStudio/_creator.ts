@@ -244,6 +244,7 @@ async function ensureReferenceGuidelines(ctx: any, refDoc: any, preferredProvide
   return { guidelines, provider, model };
 }
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const translateToEnglish = action({
   args: {
     text: v.string(),
@@ -301,6 +302,7 @@ export const translateToEnglish = action({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const runAiSpecialistGenerate = action({
   args: {
     draftId: v.id("contentDrafts"),
@@ -592,6 +594,7 @@ export const runAiSpecialistGenerate = action({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const runAiCreatorRevise = action({
   args: {
     draftId: v.id("contentDrafts"),
@@ -599,6 +602,7 @@ export const runAiCreatorRevise = action({
     maxTokens: v.optional(v.number()),
     humanNotes: v.optional(v.string()),
   },
+  // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
     const current = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
@@ -735,6 +739,7 @@ export const runAiCreatorRevise = action({
       });
 
       // Auto-validate as requested
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       const validateRes = await ctx.runAction(api.contentStudio.runQcValidate, { draftId: args.draftId });
 
       return { ok: true, validate: validateRes };

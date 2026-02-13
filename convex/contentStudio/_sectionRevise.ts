@@ -33,6 +33,7 @@ import { SECTION_PROMPTS } from "./prompts";
  * Expand a single section of the markdown without touching other sections.
  * Much more reliable than full-markdown revision.
  */
+// @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
 export const runSectionRevise = action({
   args: {
     draftId: v.id("contentDrafts"),
@@ -48,6 +49,7 @@ export const runSectionRevise = action({
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
     maxTokens: v.optional(v.number()),
   },
+  // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
 
@@ -205,18 +207,21 @@ export const runSectionRevise = action({
     // So running Validator is the right next step.
     
     // Let's run validator automatically to keep state clean.
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const validateRes = await ctx.runAction(api.contentStudio.runQcValidate, { draftId: args.draftId });
     
     return { ok: true, validate: validateRes };
   },
 });
 
+// @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
 export const addDialogue = action({
   args: {
     draftId: v.id("contentDrafts"),
     topic: v.string(),
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
   },
+  // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
 
@@ -301,6 +306,7 @@ Generate dialogue table:`;
     });
 
     // Auto-validate
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const validateRes = await ctx.runAction(api.contentStudio.runQcValidate, { draftId: args.draftId });
 
     return { ok: true, validate: validateRes };

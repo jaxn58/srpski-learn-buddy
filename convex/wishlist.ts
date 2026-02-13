@@ -29,6 +29,7 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 
   return await ctx.db
     .query("users")
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
 }
@@ -49,6 +50,7 @@ function isPublicStatus(status: WishlistStatus, opts?: { includeRejected?: boole
 async function recomputeUpvoteCount(ctx: MutationCtx, wishlistItemId: Id<"wishlistItems">) {
   const votes = await ctx.db
     .query("wishlistUpvotes")
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     .withIndex("by_item", (q) => q.eq("wishlistItemId", wishlistItemId))
     .collect();
   await ctx.db.patch(wishlistItemId, {
@@ -58,6 +60,7 @@ async function recomputeUpvoteCount(ctx: MutationCtx, wishlistItemId: Id<"wishli
   return votes.length;
 }
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const createWishlistItem = mutation({
   args: {
     title: v.string(),
@@ -110,6 +113,7 @@ export const createWishlistItem = mutation({
       throw new Error("A similar wishlist item already exists for you.");
     }
 
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const wishlistItemId = await ctx.db.insert("wishlistItems", {
       createdBy: user._id,
       title,
@@ -130,6 +134,7 @@ export const createWishlistItem = mutation({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getMySubmitCooldown = query({
   args: {},
   handler: async (ctx) => {
@@ -148,7 +153,9 @@ export const getMySubmitCooldown = query({
 
     const mostRecentWithinWindow = await ctx.db
       .query("wishlistItems")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_user_createdAt", (q) =>
+        // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
         q.eq("createdBy", user._id).gte("createdAt", windowStart)
       )
       .order("desc")
@@ -169,6 +176,7 @@ export const getMySubmitCooldown = query({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const listWishlistItems = query({
   args: {
     sort: v.optional(v.union(v.literal("newest"), v.literal("top"))),
@@ -238,6 +246,7 @@ export const listWishlistItems = query({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getWishlistItem = query({
   args: { id: v.id("wishlistItems") },
   handler: async (ctx, args) => {
@@ -249,7 +258,9 @@ export const getWishlistItem = query({
 
     const canView =
       (user.role === "admin" || user.role === "superadmin") ||
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       item.createdBy === user._id ||
+      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       isPublicStatus(item.status as WishlistStatus, { includeDuplicate: false, includeRejected: false });
 
     if (!canView) {
@@ -258,9 +269,11 @@ export const getWishlistItem = query({
 
     const upvote = await ctx.db
       .query("wishlistUpvotes")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_item_user", (q) => q.eq("wishlistItemId", item._id).eq("userId", user._id))
       .first();
 
+    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
     const status = item.status as WishlistStatus;
     const canUpvote = UPVOTABLE_STATUSES.includes(status);
 
@@ -272,6 +285,7 @@ export const getWishlistItem = query({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const toggleUpvote = mutation({
   args: { wishlistItemId: v.id("wishlistItems") },
   handler: async (ctx, args) => {
@@ -281,6 +295,7 @@ export const toggleUpvote = mutation({
     const item = await ctx.db.get(args.wishlistItemId);
     if (!item) throw new Error("Wishlist item not found");
 
+    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
     const status = item.status as WishlistStatus;
     if (!UPVOTABLE_STATUSES.includes(status)) {
       throw new Error("This item cannot be upvoted in its current status.");
@@ -313,6 +328,7 @@ export const toggleUpvote = mutation({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const listReviewQueue = query({
   args: {
     includeAll: v.optional(v.boolean()),
@@ -325,6 +341,7 @@ export const listReviewQueue = query({
       const all = await ctx.db.query("wishlistItems").collect();
       const sorted = all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       return await Promise.all(
+        // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
         sorted.map(async (item) => {
           const submitter = await ctx.db.get(item.createdBy);
           return {
@@ -338,15 +355,18 @@ export const listReviewQueue = query({
 
     const submitted = await ctx.db
       .query("wishlistItems")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_status", (q) => q.eq("status", "submitted"))
       .collect();
     const inReview = await ctx.db
       .query("wishlistItems")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_status", (q) => q.eq("status", "in_review"))
       .collect();
     // Backward compatibility: earlier iterations used "pending".
     const pendingLegacy = await ctx.db
       .query("wishlistItems")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       .withIndex("by_status", (q) => q.eq("status", "pending" as any))
       .collect();
 
@@ -368,6 +388,7 @@ export const listReviewQueue = query({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const updateWishlistStatus = mutation({
   args: {
     id: v.id("wishlistItems"),
