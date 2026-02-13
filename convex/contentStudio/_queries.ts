@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
 import { requireSuperadmin } from "./_shared";
+import { isPublishedStatus, isPreviewStatus } from "./_shared";
 import type { Doc, Id } from "../_generated/dataModel";
 
 export const listDrafts = query({
@@ -809,6 +810,327 @@ export const getUnitTranslationPreviewEnToDe = query({
         },
       },
       warnings,
+    };
+  },
+});
+
+// ===== Unit Manager: Overview of all units with per-language status =====
+const SUPPORTED_LANGUAGES = ["en", "de"] as const;
+
+// Helper: count active, non-offline rows (includes both published and preview for admin view).
+function isVisibleForAdmin(row: any): boolean {
+  if (row.isActive === false) return false;
+  const s = row.releaseStatus;
+  if (s === "offline") return false;
+  return true; // published (undefined/"published") or preview — both visible to superadmin
+}
+
+export const getUnitManagementOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireSuperadmin(ctx);
+
+    // 1) Collect all unitMetadata rows.
+    const allMeta = await ctx.db.query("unitMetadata").collect();
+
+    // Build map: unitNumber -> { lang -> best metadata row }.
+    // "best" = prefer preview over published (so admin sees latest state); then latest _creationTime.
+    // Uses the same logic as pickBestByRelease in units.ts.
+    type MetaBucket = { title: string; description?: string; releaseStatus: string; isOffline: boolean; _id: any; moduleMetadataId?: any };
+    const unitMap = new Map<number, Record<string, MetaBucket>>();
+
+    // Step 1: Group all eligible rows by unitNumber+lang.
+    const grouped = new Map<string, typeof allMeta>();
+    for (const m of allMeta as any[]) {
+      const n = Number(m.unitNumber);
+      const lang = String(m.language ?? "en");
+      if (!n || n <= 0) continue;
+      const status = m.releaseStatus ?? "published";
+      if (status === "offline") continue;
+      if (m.isActive === false) continue;
+      const key = `${n}|${lang}`;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(m);
+    }
+
+    // Step 2: For each group, sort by: preview first, then _creationTime desc. Pick the best.
+    const metaPrio = (s: any) => (isPreviewStatus(s) ? 3 : isPublishedStatus(s) ? 2 : 1);
+    for (const [key, rows] of grouped.entries()) {
+      const [nStr, lang] = key.split("|");
+      const n = Number(nStr);
+      (rows as any[]).sort((a, b) => {
+        const aP = metaPrio(a.releaseStatus);
+        const bP = metaPrio(b.releaseStatus);
+        if (aP !== bP) return bP - aP; // higher prio first
+        return (b._creationTime ?? 0) - (a._creationTime ?? 0); // newer first
+      });
+      const best = (rows as any[])[0];
+      if (!best) continue;
+      if (!unitMap.has(n)) unitMap.set(n, {});
+      unitMap.get(n)![lang] = {
+        title: String(best.title ?? ""),
+        description: typeof best.description === "string" ? best.description : undefined,
+        releaseStatus: String(best.releaseStatus ?? "published"),
+        isOffline: best.isOffline === true,
+        _id: best._id,
+        moduleMetadataId: best.moduleMetadataId ?? undefined,
+      };
+    }
+
+    // 2) For each unit, count content/tests/vocab per language.
+    const result: Array<{
+      unitNumber: number;
+      moduleName?: string;
+      moduleNumber?: number;
+      versions: Record<string, {
+        title: string;
+        description?: string;
+        releaseStatus: string;
+        isOffline: boolean;
+        sectionCount: number;
+        testCount: number;
+        vocabCount: number;
+      }>;
+    }> = [];
+
+    // Pre-fetch module metadata for names.
+    const moduleIds = new Set<string>();
+    for (const bucket of unitMap.values()) {
+      for (const v of Object.values(bucket)) {
+        if (v.moduleMetadataId) moduleIds.add(String(v.moduleMetadataId));
+      }
+    }
+    const moduleMap = new Map<string, { titleEn?: string; moduleNumber?: number }>();
+    for (const mid of moduleIds) {
+      try {
+        const mod: any = await ctx.db.get(mid as any);
+        if (mod) moduleMap.set(mid, { titleEn: mod.titleEn, moduleNumber: mod.moduleNumber });
+      } catch { /* ignore invalid ids */ }
+    }
+
+    for (const [unitNumber, langBucket] of Array.from(unitMap.entries()).sort((a, b) => a[0] - b[0])) {
+      const versions: Record<string, any> = {};
+
+      let moduleName: string | undefined;
+      let moduleNumber: number | undefined;
+      for (const v of Object.values(langBucket)) {
+        if (v.moduleMetadataId) {
+          const mod = moduleMap.get(String(v.moduleMetadataId));
+          if (mod) {
+            moduleName = mod.titleEn;
+            moduleNumber = mod.moduleNumber;
+            break;
+          }
+        }
+      }
+
+      for (const lang of SUPPORTED_LANGUAGES) {
+        const meta = langBucket[lang];
+        if (!meta) continue;
+
+        // Count ALL active, non-offline content sections (admin sees everything).
+        const contentRows = await ctx.db
+          .query("unitContent")
+          .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", lang))
+          .collect();
+        // Deduplicate by contentType (prefer preview over published, highest unitVersion).
+        const bestByType = new Map<string, any>();
+        for (const c of (contentRows as any[]).filter(isVisibleForAdmin)) {
+          const type = String(c.contentType);
+          const prev = bestByType.get(type);
+          if (!prev) { bestByType.set(type, c); continue; }
+          const cPrio = isPreviewStatus(c.releaseStatus) ? 2 : 1;
+          const pPrio = isPreviewStatus(prev.releaseStatus) ? 2 : 1;
+          if (cPrio > pPrio || (cPrio === pPrio && (c.unitVersion ?? 1) > (prev.unitVersion ?? 1))) {
+            bestByType.set(type, c);
+          }
+        }
+
+        // Count ALL active, non-offline tests.
+        const testRows = await ctx.db
+          .query("unitInteractiveTests")
+          .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", lang))
+          .collect();
+        const activeTests = (testRows as any[]).filter(isVisibleForAdmin);
+
+        // Count vocab.
+        let vocabCount = 0;
+        if (lang === "en") {
+          const vocabRows = await ctx.db
+            .query("courseVocabulary")
+            .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+            .collect();
+          vocabCount = (vocabRows as any[]).filter(isVisibleForAdmin).length;
+        } else if (lang === "de") {
+          const vocabRows = await ctx.db
+            .query("courseVocabulary")
+            .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+            .collect();
+          // Count rows that have a DE translation AND are visible.
+          vocabCount = (vocabRows as any[]).filter((v) =>
+            isVisibleForAdmin(v) && typeof v.de === "string" && String(v.de).trim()
+          ).length;
+        }
+
+        // Only include this language version if it has actual content (not just metadata).
+        const sectionCount = bestByType.size;
+        const testCount = activeTests.length;
+        if (sectionCount === 0 && testCount === 0 && vocabCount === 0 && lang !== "en") {
+          // Skip languages with only metadata but no content (avoids false "published" badges).
+          continue;
+        }
+
+        versions[lang] = {
+          title: meta.title,
+          description: meta.description,
+          releaseStatus: meta.releaseStatus,
+          isOffline: meta.isOffline,
+          sectionCount,
+          testCount,
+          vocabCount,
+        };
+      }
+
+      if (Object.keys(versions).length > 0) {
+        result.push({ unitNumber, moduleName, moduleNumber, versions });
+      }
+    }
+
+    return result;
+  },
+});
+
+// ===== Unit Manager: Full detail for a single unit + language =====
+export const getUnitLanguageDetail = query({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const unitNumber = Number(args.unitNumber);
+    const language = String(args.language);
+
+    // 1) Metadata — prefer preview over published (admin sees latest state).
+    const metaRows = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+
+    const sorted = (metaRows as any[])
+      .filter((m) => m.isActive !== false && m.releaseStatus !== "offline")
+      .sort((a, b) => {
+        // Admin view: preview has higher priority (latest state)
+        const aPrio = isPreviewStatus(a.releaseStatus) ? 3 : isPublishedStatus(a.releaseStatus) ? 2 : 1;
+        const bPrio = isPreviewStatus(b.releaseStatus) ? 3 : isPublishedStatus(b.releaseStatus) ? 2 : 1;
+        if (aPrio !== bPrio) return bPrio - aPrio; // higher prio first
+        return (b._creationTime ?? 0) - (a._creationTime ?? 0); // newer first
+      });
+    const meta = sorted[0] ?? null;
+    if (!meta) return null;
+
+    const releaseStatus = String(meta.releaseStatus ?? "published");
+
+    // 2) Content sections — include ALL active non-offline rows, deduplicate per contentType.
+    //    (Matches the logic in units.ts:getUnitContentSections for superadmin.)
+    const contentRows = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+
+    const bestByType = new Map<string, any>();
+    for (const c of (contentRows as any[]).filter(isVisibleForAdmin)) {
+      const type = String(c.contentType);
+      const prev = bestByType.get(type);
+      if (!prev) { bestByType.set(type, c); continue; }
+      // Prefer preview over published; then highest unitVersion.
+      const cPrio = isPreviewStatus(c.releaseStatus) ? 2 : 1;
+      const pPrio = isPreviewStatus(prev.releaseStatus) ? 2 : 1;
+      if (cPrio > pPrio || (cPrio === pPrio && (c.unitVersion ?? 1) > (prev.unitVersion ?? 1))) {
+        bestByType.set(type, c);
+      }
+    }
+
+    const sectionOrder = ["overview", "grammar", "phrases", "dialogues", "vocabulary", "testIntroduction"];
+    const sections = Array.from(bestByType.values())
+      .map((c) => ({
+        contentType: String(c.contentType),
+        content: String(c.content ?? ""),
+        unitVersion: Number(c.unitVersion ?? c.version ?? 1),
+      }))
+      .sort((a, b) => sectionOrder.indexOf(a.contentType) - sectionOrder.indexOf(b.contentType));
+
+    // 3) Tests — include ALL active non-offline rows.
+    const testRows = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+    const tests = (testRows as any[])
+      .filter(isVisibleForAdmin)
+      .map((t) => ({
+        category: String(t.category ?? ""),
+        questionId: String(t.questionId ?? ""),
+        questionType: String(t.questionType ?? ""),
+        question: String(t.question ?? ""),
+        correctAnswer: String(t.correctAnswer ?? ""),
+        options: Array.isArray(t.options) ? t.options : undefined,
+        hint: typeof t.hint === "string" ? t.hint : undefined,
+        order: Number(t.order ?? 0),
+      }))
+      .sort((a, b) => a.category.localeCompare(b.category) || a.order - b.order);
+
+    // 4) Vocabulary — include ALL active non-offline rows.
+    const vocabRows = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+
+    let vocabulary: Array<{ serbian: string; translation: string; alternatives?: string; note?: string }>;
+    if (language === "en") {
+      vocabulary = (vocabRows as any[])
+        .filter(isVisibleForAdmin)
+        .map((v) => ({
+          serbian: String(v.serbian ?? ""),
+          translation: String(v.en ?? ""),
+          alternatives: typeof v.enAlt === "string" ? v.enAlt : undefined,
+          note: typeof v.noteEn === "string" ? v.noteEn : undefined,
+        }));
+    } else if (language === "de") {
+      vocabulary = (vocabRows as any[])
+        .filter((v) => isVisibleForAdmin(v) && typeof v.de === "string" && String(v.de).trim())
+        .map((v) => ({
+          serbian: String(v.serbian ?? ""),
+          translation: String(v.de ?? ""),
+          alternatives: typeof v.deAlt === "string" ? v.deAlt : undefined,
+          note: typeof v.noteDe === "string" ? v.noteDe : undefined,
+        }));
+    } else {
+      vocabulary = [];
+    }
+
+    // 5) Test categories summary
+    const categoryMap = new Map<string, number>();
+    for (const t of tests) {
+      categoryMap.set(t.category, (categoryMap.get(t.category) ?? 0) + 1);
+    }
+    const testCategories = Array.from(categoryMap.entries())
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => a.category.localeCompare(b.category));
+
+    return {
+      metadata: {
+        title: String(meta.title ?? ""),
+        description: typeof meta.description === "string" ? meta.description : undefined,
+        topics: Array.isArray(meta.topics) ? meta.topics : [],
+        grammarFocus: Array.isArray(meta.grammarFocus) ? meta.grammarFocus : [],
+        vocabularyThemes: Array.isArray(meta.vocabularyThemes) ? meta.vocabularyThemes : [],
+        releaseStatus,
+        isOffline: meta.isOffline === true,
+      },
+      sections,
+      tests,
+      testCategories,
+      vocabulary,
     };
   },
 });

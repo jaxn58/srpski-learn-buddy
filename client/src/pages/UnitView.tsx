@@ -577,20 +577,20 @@ export default function UnitView() {
       <AnimatedItem>
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
-            <TabsTrigger value="overview" className="gap-2"><Lightbulb className="w-4 h-4"/> Overview</TabsTrigger>
-            <TabsTrigger value="vocabulary" className="gap-2"><BookOpen className="w-4 h-4"/> Vocabulary</TabsTrigger>
-            <TabsTrigger value="grammar" className="gap-2"><Brain className="w-4 h-4"/> Grammar</TabsTrigger>
-            <TabsTrigger value="phrases" className="gap-2"><MessageSquare className="w-4 h-4"/> Phrases</TabsTrigger>
-            <TabsTrigger value="dialogues" className="gap-2"><Mic className="w-4 h-4"/> Dialogues</TabsTrigger>
-            <TabsTrigger value="test" className="gap-2"><PenTool className="w-4 h-4"/> Exercises</TabsTrigger>
+            <TabsTrigger value="overview" className="gap-2"><Lightbulb className="w-4 h-4"/> {t("unit.tab.overview")}</TabsTrigger>
+            <TabsTrigger value="vocabulary" className="gap-2"><BookOpen className="w-4 h-4"/> {t("unit.tab.vocabulary")}</TabsTrigger>
+            <TabsTrigger value="grammar" className="gap-2"><Brain className="w-4 h-4"/> {t("unit.tab.grammar")}</TabsTrigger>
+            <TabsTrigger value="phrases" className="gap-2"><MessageSquare className="w-4 h-4"/> {t("unit.tab.phrases")}</TabsTrigger>
+            <TabsTrigger value="dialogues" className="gap-2"><Mic className="w-4 h-4"/> {t("unit.tab.dialogues")}</TabsTrigger>
+            <TabsTrigger value="test" className="gap-2"><PenTool className="w-4 h-4"/> {t("unit.tab.exercises")}</TabsTrigger>
           </TabsList>
 
             {/* 1. Overview */}
             <TabsContent value="overview" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>1. Overview</CardTitle>
-                  <CardDescription>What you'll learn in this unit.</CardDescription>
+                  <CardTitle>{t("unit.section.overview.title")}</CardTitle>
+                  <CardDescription>{t("unit.section.overview.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.overview ? (
@@ -606,8 +606,8 @@ export default function UnitView() {
             <TabsContent value="vocabulary" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>2. Vocabulary</CardTitle>
-                  <CardDescription>Master these words to complete the unit.</CardDescription>
+                  <CardTitle>{t("unit.section.vocabulary.title")}</CardTitle>
+                  <CardDescription>{t("unit.section.vocabulary.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {vocabularyWithProgress === undefined ? (
@@ -648,7 +648,7 @@ export default function UnitView() {
                   )}
                   <div className="mt-6 flex justify-end">
                     <Link href={`/vocabulary?unit=${unitNumber}`}>
-                      <Button>Practice in Vocabulary Trainer</Button>
+                      <Button>{t("unit.practiceInVocabTrainer")}</Button>
                     </Link>
                   </div>
                 </CardContent>
@@ -659,8 +659,8 @@ export default function UnitView() {
             <TabsContent value="grammar" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>3. Grammar</CardTitle>
-                  <CardDescription>Rules, patterns, and examples used in this unit.</CardDescription>
+                  <CardTitle>{t("unit.section.grammar.title")}</CardTitle>
+                  <CardDescription>{t("unit.section.grammar.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.grammar ? (
@@ -676,8 +676,8 @@ export default function UnitView() {
             <TabsContent value="phrases" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>4. Phrases</CardTitle>
-                  <CardDescription>Common phrases with audio.</CardDescription>
+                  <CardTitle>{t("unit.section.phrases.title")}</CardTitle>
+                  <CardDescription>{t("unit.section.phrases.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.phrases ? (
@@ -698,8 +698,8 @@ export default function UnitView() {
             <TabsContent value="dialogues" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>5. Dialogues</CardTitle>
-                  <CardDescription>Short dialogues to practice in context.</CardDescription>
+                  <CardTitle>{t("unit.section.dialogues.title")}</CardTitle>
+                  <CardDescription>{t("unit.section.dialogues.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.dialogues ? (
@@ -720,8 +720,8 @@ export default function UnitView() {
             <TabsContent value="test" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>6. Exercises</CardTitle>
-                  <CardDescription>Test your understanding and earn XP.</CardDescription>
+                  <CardTitle>{t("unit.section.exercises.title")}</CardTitle>
+                  <CardDescription>{t("unit.section.exercises.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <InteractiveTest unitNumber={unitNumber} language={displayLanguage} />

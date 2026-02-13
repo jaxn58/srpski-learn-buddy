@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Loader2, Volume2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { MasteryIndicator, MistakesIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
 
 export type VocabularyDictionaryRow = {
@@ -33,6 +34,7 @@ export function VocabularyDictionaryTable({
   playingAudioId: string | null;
   loadingAudioId: string | null;
 }) {
+  const { t } = useTranslation();
   if (!rows.length) return null;
 
   return (
@@ -42,12 +44,12 @@ export function VocabularyDictionaryTable({
         <div className="flex items-center justify-center" title="Audio">
           <Volume2 className="h-4 w-4" aria-hidden="true" />
         </div>
-        <div title="Word & meaning">Vocabulary</div>
+        <div title="Word & meaning">{t("unit.vocabTable.header")}</div>
         <div className="text-center" title="Progress toward mastery (3 correct)">
-          Mastery
+          {t("unit.vocabTable.mastery")}
         </div>
         <div className="text-center" title="Incorrect attempts">
-          Mistakes
+          {t("unit.vocabTable.mistakes")}
         </div>
       </div>
 

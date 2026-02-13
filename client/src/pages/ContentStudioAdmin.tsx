@@ -53,7 +53,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { CheckCircle, XCircle, Sparkles, Upload, Info, Loader2, Settings, Plus, Search } from "lucide-react";
+import { CheckCircle, XCircle, Sparkles, Upload, Info, Loader2, Settings, Plus, Search, LayoutList } from "lucide-react";
+import { UnitManagerTab } from "@/components/admin/UnitManagerTab";
 
 type Mode = "update" | "replace";
 type Provider = "gemini" | "openai";
@@ -351,6 +352,9 @@ export default function ContentStudioAdmin() {
     { value: "exercises", label: "Interactive Test (Exercises)" },
     { value: "cultural", label: "Cultural Note" },
   ];
+
+  // Top-level view toggle: "drafts" = Draft Studio (default), "units" = Unit Manager
+  const [studioView, setStudioView] = useState<"drafts" | "units">("drafts");
 
   // Settings sheet state
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -2865,15 +2869,40 @@ export default function ContentStudioAdmin() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold leading-tight">Content Studio</h1>
           <div className="text-sm text-muted-foreground">
-            Draft → Generate → QA → Preview → Publish
+            {studioView === "drafts"
+              ? "Draft \u2192 Generate \u2192 QA \u2192 Preview \u2192 Publish"
+              : "Manage all units across languages"}
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="default" size="sm" onClick={() => setCreateDraftOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Draft
-          </Button>
+          {/* View toggle */}
+          <div className="flex rounded-md border bg-muted p-0.5">
+            <Button
+              variant={studioView === "drafts" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setStudioView("drafts")}
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              Draft Studio
+            </Button>
+            <Button
+              variant={studioView === "units" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setStudioView("units")}
+            >
+              <LayoutList className="mr-1.5 h-3.5 w-3.5" />
+              Unit Manager
+            </Button>
+          </div>
+          {studioView === "drafts" && (
+            <Button variant="default" size="sm" onClick={() => setCreateDraftOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Draft
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
             <Settings className="mr-2 h-4 w-4" />
             Settings
@@ -2990,8 +3019,11 @@ export default function ContentStudioAdmin() {
         </DialogContent>
       </Dialog>
 
-      {/* Layout: always stacked (no multi-pane) */}
-      <div className="grid gap-6">
+      {/* Unit Manager view */}
+      {studioView === "units" && <UnitManagerTab />}
+
+      {/* Draft Studio view (original layout) */}
+      {studioView === "drafts" && <div className="grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Metrics</CardTitle>
@@ -4419,7 +4451,7 @@ export default function ContentStudioAdmin() {
             </>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

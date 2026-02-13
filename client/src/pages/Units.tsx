@@ -252,14 +252,14 @@ export default function Units() {
                       <AccordionTrigger className="hover:no-underline px-4 py-3 rounded-lg border bg-muted/10 hover:bg-muted/20 transition-colors">
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-semibold text-foreground">
-                            Units
+                            {t("units.label")}
                           </span>
                           <span className="text-sm text-muted-foreground">
                             {t("units.lessons", { count: moduleUnits.length })}
                           </span>
                           <span className="text-sm text-muted-foreground">•</span>
                           <span className="text-sm text-muted-foreground">
-                            {isOpen ? "Hide" : "Show"}
+                            {isOpen ? t("units.hide") : t("units.show")}
                           </span>
                         </div>
                       </AccordionTrigger>

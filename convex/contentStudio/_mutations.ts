@@ -1748,3 +1748,223 @@ export const upsertUnitGermanTranslationToPreview = mutation({
     };
   },
 });
+
+// ===== Unit Manager: Promote a language preview to published =====
+// Changes releaseStatus from "preview" to "published" for a specific language.
+// For vocabulary (column-based), merges DE fields from preview rows into published rows,
+// then archives the preview copies.
+export const promoteLanguagePreviewToPublished = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    confirm: v.string(), // Must be "PUBLISH <LANG> UNIT <N>"
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const unitNumber = Number(args.unitNumber);
+    const language = String(args.language).toLowerCase();
+    const expected = `PUBLISH ${language.toUpperCase()} UNIT ${unitNumber}`;
+    if (String(args.confirm) !== expected) {
+      throw new Error(`Confirmation mismatch. Expected "${expected}", got "${args.confirm}"`);
+    }
+    const now = Date.now();
+
+    let metaPromoted = 0;
+    let contentPromoted = 0;
+    let testsPromoted = 0;
+    let vocabMerged = 0;
+
+    // 1) unitMetadata: promote preview -> published for this language.
+    const metaRows = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+    for (const m of metaRows as any[]) {
+      if (m.releaseStatus !== "preview") continue;
+      await ctx.db.patch(m._id, { releaseStatus: "published" });
+      metaPromoted += 1;
+    }
+    if (metaPromoted === 0) {
+      throw new Error(`No preview metadata found for Unit ${unitNumber} language="${language}".`);
+    }
+
+    // 2) unitContent: promote preview -> published for this language.
+    //    Also archive any existing published rows of the same contentType to avoid duplicates.
+    const contentRows = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+    const previewContent = (contentRows as any[]).filter((c) => c.releaseStatus === "preview" && c.isActive !== false);
+    const publishedContent = (contentRows as any[]).filter((c) =>
+      (c.releaseStatus === undefined || c.releaseStatus === "published") && c.isActive !== false
+    );
+
+    for (const pc of previewContent) {
+      // Archive any published row with the same contentType.
+      for (const pub of publishedContent) {
+        if (pub.contentType === pc.contentType) {
+          await ctx.db.patch(pub._id, { isActive: false, archivedAt: now, releaseStatus: "published" });
+        }
+      }
+      await ctx.db.patch(pc._id, { releaseStatus: "published", isActive: true });
+      contentPromoted += 1;
+    }
+
+    // 3) unitInteractiveTests: promote preview -> published for this language.
+    //    Archive existing published tests for this language first.
+    const testRows = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+    const previewTests = (testRows as any[]).filter((t) => t.releaseStatus === "preview" && t.isActive !== false);
+    const publishedTests = (testRows as any[]).filter((t) =>
+      (t.releaseStatus === undefined || t.releaseStatus === "published") && t.isActive !== false
+    );
+
+    // Archive all currently published tests for this language.
+    for (const pub of publishedTests) {
+      await ctx.db.patch(pub._id, { isActive: false, archivedAt: now });
+    }
+    // Promote preview tests: strip the preview suffix from questionId if present.
+    for (const pt of previewTests) {
+      // Preview questionIds may have suffix like _preview_de_v2 — strip to base for published.
+      let qid = String(pt.questionId ?? "");
+      const previewSuffixMatch = qid.match(/^(.+?)_preview(?:_[a-z]{2})?_v\d+$/);
+      if (previewSuffixMatch) {
+        qid = previewSuffixMatch[1];
+      }
+      await ctx.db.patch(pt._id, {
+        releaseStatus: "published",
+        isActive: true,
+        questionId: qid,
+      });
+      testsPromoted += 1;
+    }
+
+    // 4) courseVocabulary: merge DE fields from preview rows into published rows, then archive previews.
+    if (language === "de") {
+      const vocabRows = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+        .collect();
+      const previewVocab = (vocabRows as any[]).filter((v) => v.releaseStatus === "preview" && v.isActive !== false);
+      const publishedVocab = (vocabRows as any[]).filter((v) =>
+        (v.releaseStatus === undefined || v.releaseStatus === "published") && v.isActive !== false
+      );
+
+      // Build a lookup: serbian (normalized) -> published row
+      const pubBySerbian = new Map<string, any>();
+      for (const pv of publishedVocab) {
+        const key = String(pv.serbian ?? "").toLowerCase().trim();
+        if (key) pubBySerbian.set(key, pv);
+      }
+
+      for (const prev of previewVocab) {
+        const key = String(prev.serbian ?? "").toLowerCase().trim();
+        const pubRow = pubBySerbian.get(key);
+        if (pubRow) {
+          // Merge DE fields into the published row.
+          const patch: any = {};
+          if (typeof prev.de === "string" && String(prev.de).trim()) patch.de = prev.de;
+          if (typeof prev.deAlt === "string" && String(prev.deAlt).trim()) patch.deAlt = prev.deAlt;
+          if (typeof prev.noteDe === "string" && String(prev.noteDe).trim()) patch.noteDe = prev.noteDe;
+          if (Object.keys(patch).length > 0) {
+            await ctx.db.patch(pubRow._id, patch);
+            vocabMerged += 1;
+          }
+        }
+        // Archive the preview copy.
+        await ctx.db.patch(prev._id, { isActive: false, archivedAt: now, releaseStatus: "offline" });
+      }
+    }
+
+    return {
+      ok: true,
+      unitNumber,
+      language,
+      promoted: { metaPromoted, contentPromoted, testsPromoted, vocabMerged },
+    };
+  },
+});
+
+// ===== Unit Manager: Take a language-specific preview offline =====
+// Only affects preview rows of the specified language (unlike internalTakeUnitPreviewOffline which affects all languages).
+export const takeLanguagePreviewOffline = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    confirm: v.string(), // Must be "OFFLINE <LANG> PREVIEW UNIT <N>"
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const unitNumber = Number(args.unitNumber);
+    const language = String(args.language).toLowerCase();
+    const expected = `OFFLINE ${language.toUpperCase()} PREVIEW UNIT ${unitNumber}`;
+    if (String(args.confirm) !== expected) {
+      throw new Error(`Confirmation mismatch. Expected "${expected}", got "${args.confirm}"`);
+    }
+    const now = Date.now();
+
+    let metaOfflined = 0;
+    let contentOfflined = 0;
+    let testsOfflined = 0;
+    let vocabOfflined = 0;
+
+    // 1) unitMetadata: mark preview rows offline for this language.
+    const metaRows = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+    for (const m of metaRows as any[]) {
+      if (m.releaseStatus !== "preview") continue;
+      await ctx.db.patch(m._id, { releaseStatus: "offline" });
+      metaOfflined += 1;
+    }
+
+    // 2) unitContent: archive preview rows for this language.
+    const contentRows = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+    for (const c of contentRows as any[]) {
+      if (c.releaseStatus !== "preview") continue;
+      if (c.isActive === false) continue;
+      await ctx.db.patch(c._id, { releaseStatus: "offline", isActive: false, archivedAt: now });
+      contentOfflined += 1;
+    }
+
+    // 3) unitInteractiveTests: archive preview rows for this language.
+    const testRows = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
+      .collect();
+    for (const t of testRows as any[]) {
+      if (t.releaseStatus !== "preview") continue;
+      if (t.isActive === false) continue;
+      await ctx.db.patch(t._id, { releaseStatus: "offline", isActive: false, archivedAt: now });
+      testsOfflined += 1;
+    }
+
+    // 4) courseVocabulary: archive preview rows for this unit.
+    //    Only if language is "de" — vocabulary is column-based, preview copies are separate rows.
+    if (language === "de") {
+      const vocabRows = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+        .collect();
+      for (const v of vocabRows as any[]) {
+        if (v.releaseStatus !== "preview") continue;
+        if (v.isActive === false) continue;
+        await ctx.db.patch(v._id, { releaseStatus: "offline", isActive: false, archivedAt: now });
+        vocabOfflined += 1;
+      }
+    }
+
+    return {
+      ok: true,
+      unitNumber,
+      language,
+      offlined: { metaOfflined, contentOfflined, testsOfflined, vocabOfflined },
+    };
+  },
+});
