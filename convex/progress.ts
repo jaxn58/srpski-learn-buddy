@@ -26,13 +26,14 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 }
 
 async function isPreviewUnit(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
-  // We treat a unit as "preview" if there is any active unitMetadata row marked releaseStatus="preview"
-  // for English (current base language). Undefined releaseStatus counts as published.
+  // We treat a unit as "preview" if there is any unitMetadata row marked releaseStatus="preview"
+  // in ANY language. This matches the ContentStudio Preview behavior and ensures preview
+  // content is always read-only (no XP/progress writes), including translation previews (DE).
   const metas = await ctx.db
     .query("unitMetadata")
-    .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
+    .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
     .collect();
-  return (metas as any[]).some((m) => (m as any).releaseStatus === "preview");
+  return (metas as any[]).some((m) => (m as any)?.releaseStatus === "preview");
 }
 
 // Get user progress

@@ -33,14 +33,16 @@ export default function AdminWaitlist() {
   const notifyAllMutation = useMutation(api.waitlist.notifyAll);
   const removeMutation = useMutation(api.waitlist.remove);
   const markAsViewedMutation = useMutation(api.waitlist.markAllPendingAsViewed);
+  const resendConfirmationMutation = useMutation(api.waitlist.resendConfirmationEmail);
 
   const [isNotifying, setIsNotifying] = useState(false);
   const [deletingId, setDeletingId] = useState<Id<"waitlist"> | null>(null);
+  const [resendingId, setResendingId] = useState<Id<"waitlist"> | null>(null);
 
   // Markiere alle pending Einträge als gesehen beim Laden der Seite
   useEffect(() => {
     if (!authLoading && user && (user.role === 'admin' || user.role === 'superadmin')) {
-      markAsViewedMutation().catch(err => {
+      markAsViewedMutation().catch((err: unknown) => {
         console.error('Failed to mark waitlist as viewed:', err);
       });
     }
@@ -94,6 +96,42 @@ export default function AdminWaitlist() {
       toast.error(error.message || t("admin.waitlist.toast.deleteFailed"));
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleResendConfirmation = async (waitlistId: Id<"waitlist">, email: string) => {
+    setResendingId(waitlistId);
+    try {
+      const result: any = await resendConfirmationMutation({ waitlistId });
+      if (result?.success) {
+        toast.success(`Confirmation email resent to ${email}`);
+        return;
+      }
+
+      if (result?.reason === "rate_limited") {
+        const nextAt =
+          typeof result?.nextAllowedAt === "number"
+            ? formatDateTimeEU(result.nextAllowedAt)
+            : null;
+        toast.warning(
+          nextAt
+            ? `Resend rate-limited. Try again after ${nextAt}.`
+            : "Resend rate-limited. Please try again later."
+        );
+        return;
+      }
+
+      if (result?.reason === "not_pending") {
+        toast("This entry is no longer pending.");
+        return;
+      }
+
+      toast.error("Failed to resend confirmation email.");
+    } catch (error: any) {
+      console.error("[AdminWaitlist] Error resending confirmation email:", error);
+      toast.error(error?.message || "Failed to resend confirmation email.");
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -313,7 +351,24 @@ export default function AdminWaitlist() {
                         {entry.notifiedAt ? formatDateEU(entry.notifiedAt) : "-"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <AlertDialog>
+                        <div className="flex justify-end gap-1">
+                          {entry.status === "pending" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendConfirmation(entry._id, entry.email)}
+                              disabled={resendingId === entry._id}
+                              title="Resend confirmation email"
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              {resendingId === entry._id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Mail className="h-4 w-4" />
+                              )}
+                            </Button>
+                          ) : null}
+                          <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
                               variant="ghost"
@@ -346,7 +401,8 @@ export default function AdminWaitlist() {
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
-                        </AlertDialog>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

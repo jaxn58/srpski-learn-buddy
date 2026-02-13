@@ -12,6 +12,49 @@ export const listDrafts = query({
   },
 });
 
+export const listPublishedEnglishUnitsForTranslation = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireSuperadmin(ctx);
+
+    const isPublishedStatus = (s: unknown) => s === undefined || s === "published";
+
+    // For <100 units, a simple filter query is fine.
+    const allEn = await ctx.db
+      .query("unitMetadata")
+      .filter((q) => q.eq(q.field("language"), "en"))
+      .collect();
+
+    // Keep only published (undefined or "published") and not offline (unit-level toggle).
+    const eligible = (allEn as any[]).filter((m) => {
+      if (!isPublishedStatus(m?.releaseStatus)) return false;
+      if (m?.isOffline === true) return false;
+      return typeof m?.unitNumber === "number" && m.unitNumber > 0;
+    });
+
+    // Deduplicate by unitNumber (prefer latest _creationTime).
+    const bestByUnit = new Map<number, any>();
+    for (const m of eligible) {
+      const n = Number(m.unitNumber);
+      const prev = bestByUnit.get(n);
+      if (!prev) {
+        bestByUnit.set(n, m);
+        continue;
+      }
+      const prevT = Number(prev?._creationTime ?? 0);
+      const t = Number(m?._creationTime ?? 0);
+      if (t > prevT) bestByUnit.set(n, m);
+    }
+
+    return Array.from(bestByUnit.values())
+      .sort((a, b) => Number(a.unitNumber) - Number(b.unitNumber))
+      .map((m) => ({
+        unitNumber: Number(m.unitNumber),
+        title: typeof m.title === "string" && m.title.trim() ? m.title.trim() : `Unit ${Number(m.unitNumber)}`,
+      }));
+  },
+});
+
 export const getUnitRemovalSummary = query({
   args: { unitNumber: v.number() },
   handler: async (ctx, args) => {
@@ -464,5 +507,308 @@ export const listReferenceGuidelineVersions = query({
       .withIndex("by_reference_version", (q) => q.eq("referenceId", args.referenceId))
       .order("desc")
       .take(lim);
+  },
+});
+
+// ===== Published unit export for translation (EN -> DE) =====
+export const getPublishedUnitSourceEnForTranslation = query({
+  args: { unitNumber: v.number() },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+
+    const unitNumber = Number(args.unitNumber);
+    if (!Number.isFinite(unitNumber) || unitNumber <= 0) throw new Error("Invalid unitNumber");
+
+    const isPublishedStatus = (s: unknown) => s === undefined || s === "published";
+
+    // 1) Unit metadata (EN)
+    const metaRows = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
+      .collect();
+    const metaEnCandidates = (metaRows as any[]).filter((m) => isPublishedStatus(m?.releaseStatus));
+    metaEnCandidates.sort((a, b) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0));
+    const metaEn = metaEnCandidates[0] ?? null;
+    if (!metaEn) {
+      throw new Error(`Published English unitMetadata not found for unit ${unitNumber}`);
+    }
+
+    // 2) Unit content sections (EN) - best per contentType by highest unitVersion
+    const contentRows = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
+      .collect();
+    const eligibleContent = (contentRows as any[]).filter(
+      (c) => c?.isActive !== false && isPublishedStatus(c?.releaseStatus)
+    );
+    const contentByType = new Map<string, any>();
+    const versionOf = (row: any) => Number(row?.unitVersion ?? row?.version ?? 1) || 1;
+    for (const c of eligibleContent) {
+      const type = String(c?.contentType ?? "");
+      if (!type) continue;
+      const prev = contentByType.get(type);
+      if (!prev) {
+        contentByType.set(type, c);
+        continue;
+      }
+      const v = versionOf(c);
+      const pv = versionOf(prev);
+      if (v > pv || (v === pv && (c?._creationTime ?? 0) > (prev?._creationTime ?? 0))) {
+        contentByType.set(type, c);
+      }
+    }
+
+    const contentEn = Array.from(contentByType.values()).map((c) => ({
+      contentType: String(c.contentType),
+      content: String(c.content ?? ""),
+      unitVersion: versionOf(c),
+    }));
+
+    // 3) Interactive tests (EN) - best published max unitVersion
+    const testRows = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
+      .collect();
+    const eligibleTests = (testRows as any[]).filter(
+      (t) => t?.isActive !== false && isPublishedStatus(t?.releaseStatus)
+    );
+    const maxTestVersion = eligibleTests.reduce((m, t) => Math.max(m, Number(t?.unitVersion ?? 1) || 1), 1);
+    const testsEn = eligibleTests
+      .filter((t) => (Number(t?.unitVersion ?? 1) || 1) === maxTestVersion)
+      .sort((a, b) => (a?.order ?? 0) - (b?.order ?? 0))
+      .map((t) => ({
+        category: String(t.category ?? ""),
+        categoryInstructions: typeof t.categoryInstructions === "string" ? t.categoryInstructions : "",
+        questionId: String(t.questionId ?? ""),
+        questionType: String(t.questionType ?? ""),
+        question: String(t.question ?? ""),
+        correctAnswer: String(t.correctAnswer ?? ""),
+        acceptableAlternatives: Array.isArray(t.acceptableAlternatives) ? t.acceptableAlternatives.map((x: any) => String(x)) : undefined,
+        options: Array.isArray(t.options) ? t.options.map((x: any) => String(x)) : undefined,
+        hint: typeof t.hint === "string" ? t.hint : undefined,
+        order: Number(t.order ?? 0) || 0,
+        unitVersion: Number(t.unitVersion ?? 1) || 1,
+      }));
+
+    // 4) Course vocabulary (published, active) - best per normalized key by highest unitVersion
+    const vocabRows = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    const eligibleVocab = (vocabRows as any[]).filter(
+      (v) => v?.isActive !== false && isPublishedStatus(v?.releaseStatus)
+    );
+    const vocabByKey = new Map<string, any>();
+    for (const vdoc of eligibleVocab) {
+      const key = String(vdoc?.serbianNormalized ?? vdoc?.serbian ?? "").trim().toLowerCase();
+      if (!key) continue;
+      const prev = vocabByKey.get(key);
+      if (!prev) {
+        vocabByKey.set(key, vdoc);
+        continue;
+      }
+      const v = Number(vdoc?.unitVersion ?? 1) || 1;
+      const pv = Number(prev?.unitVersion ?? 1) || 1;
+      if (v > pv || (v === pv && (vdoc?._creationTime ?? 0) > (prev?._creationTime ?? 0))) {
+        vocabByKey.set(key, vdoc);
+      }
+    }
+
+    const vocabEn = Array.from(vocabByKey.values())
+      .sort((a, b) => String(a?.serbian ?? "").localeCompare(String(b?.serbian ?? "")))
+      .map((vdoc) => ({
+        _id: vdoc._id,
+        serbian: String(vdoc.serbian ?? ""),
+        en: typeof vdoc.en === "string" ? vdoc.en : "",
+        enAlt: typeof vdoc.enAlt === "string" ? vdoc.enAlt : undefined,
+        noteEn: typeof vdoc.noteEn === "string" ? vdoc.noteEn : undefined,
+      }));
+
+    return {
+      unitNumber,
+      metadataEn: {
+        unitNumber: metaEn.unitNumber,
+        language: "en",
+        title: String(metaEn.title ?? ""),
+        description: typeof metaEn.description === "string" ? metaEn.description : undefined,
+        topics: Array.isArray(metaEn.topics) ? metaEn.topics.map((x: any) => String(x)) : [],
+        grammarFocus: Array.isArray(metaEn.grammarFocus) ? metaEn.grammarFocus.map((x: any) => String(x)) : [],
+        vocabularyThemes: Array.isArray(metaEn.vocabularyThemes) ? metaEn.vocabularyThemes.map((x: any) => String(x)) : [],
+        moduleMetadataId: (metaEn as any).moduleMetadataId,
+        moduleId: typeof (metaEn as any).moduleId === "string" ? (metaEn as any).moduleId : undefined,
+      },
+      contentEn,
+      testsEn,
+      vocabEn,
+    };
+  },
+});
+
+export const getUnitTranslationPreviewEnToDe = query({
+  args: { unitNumber: v.number() },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+
+    const unitNumber = Number(args.unitNumber);
+    if (!Number.isFinite(unitNumber) || unitNumber <= 0) throw new Error("Invalid unitNumber");
+
+    const isPublishedStatus = (s: unknown) => s === undefined || s === "published";
+
+    const warnings: string[] = [];
+
+    // Source EN (published)
+    const metaRowsEn = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
+      .collect();
+    const metaEnCandidates = (metaRowsEn as any[]).filter((m) => isPublishedStatus(m?.releaseStatus));
+    metaEnCandidates.sort((a, b) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0));
+    const metaEn = metaEnCandidates[0] ?? null;
+
+    if (!metaEn) {
+      warnings.push("No published English unitMetadata found. Translate requires published EN source.");
+      return {
+        unitNumber,
+        sourceEn: { exists: false as const },
+        existingDe: { metadata: { published: 0, preview: 0, offline: 0 } },
+        warnings,
+      };
+    }
+
+    const contentRowsEn = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
+      .collect();
+    const eligibleContentEn = (contentRowsEn as any[]).filter(
+      (c) => c?.isActive !== false && isPublishedStatus(c?.releaseStatus)
+    );
+    const versionOf = (row: any) => Number(row?.unitVersion ?? row?.version ?? 1) || 1;
+    const contentByType = new Map<string, any>();
+    for (const c of eligibleContentEn) {
+      const type = String(c?.contentType ?? "");
+      if (!type) continue;
+      const prev = contentByType.get(type);
+      if (!prev) {
+        contentByType.set(type, c);
+        continue;
+      }
+      const v = versionOf(c);
+      const pv = versionOf(prev);
+      if (v > pv || (v === pv && (c?._creationTime ?? 0) > (prev?._creationTime ?? 0))) {
+        contentByType.set(type, c);
+      }
+    }
+    const sourceContent = Array.from(contentByType.values()).map((c) => ({
+      contentType: String(c.contentType),
+      unitVersion: versionOf(c),
+      chars: String(c.content ?? "").length,
+    }));
+    if (sourceContent.length === 0) warnings.push("No published English unitContent found.");
+
+    const testRowsEn = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
+      .collect();
+    const eligibleTestsEn = (testRowsEn as any[]).filter((t) => t?.isActive !== false && isPublishedStatus(t?.releaseStatus));
+    const maxTestVersion = eligibleTestsEn.reduce((m, t) => Math.max(m, Number(t?.unitVersion ?? 1) || 1), 1);
+    const sourceTests = eligibleTestsEn
+      .filter((t) => (Number(t?.unitVersion ?? 1) || 1) === maxTestVersion)
+      .map((t) => ({ questionId: String(t.questionId), unitVersion: Number(t.unitVersion ?? 1) || 1 }));
+    if (sourceTests.length === 0) warnings.push("No published English interactive tests found.");
+
+    const vocabRows = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    const eligibleVocab = (vocabRows as any[]).filter((v) => v?.isActive !== false && isPublishedStatus(v?.releaseStatus));
+    const vocabByKey = new Map<string, any>();
+    for (const vdoc of eligibleVocab) {
+      const key = String(vdoc?.serbianNormalized ?? vdoc?.serbian ?? "").trim().toLowerCase();
+      if (!key) continue;
+      const prev = vocabByKey.get(key);
+      if (!prev) {
+        vocabByKey.set(key, vdoc);
+        continue;
+      }
+      const v = Number(vdoc?.unitVersion ?? 1) || 1;
+      const pv = Number(prev?.unitVersion ?? 1) || 1;
+      if (v > pv || (v === pv && (vdoc?._creationTime ?? 0) > (prev?._creationTime ?? 0))) {
+        vocabByKey.set(key, vdoc);
+      }
+    }
+    const sourceVocab = Array.from(vocabByKey.values());
+
+    // Existing DE state
+    const metaRowsDe = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+      .collect();
+    const metaPublishedDe = (metaRowsDe as any[]).filter((m) => isPublishedStatus(m?.releaseStatus)).length;
+    const metaPreviewDe = (metaRowsDe as any[]).filter((m) => m?.releaseStatus === "preview").length;
+    const metaOfflineDe = (metaRowsDe as any[]).filter((m) => m?.releaseStatus === "offline").length;
+
+    const contentRowsDe = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+      .collect();
+    const publishedActiveContentDe = (contentRowsDe as any[]).filter(
+      (c) => c?.isActive !== false && isPublishedStatus(c?.releaseStatus)
+    );
+    const srcContentKey = new Map<string, number>(); // type -> unitVersion
+    for (const c of sourceContent) srcContentKey.set(c.contentType, c.unitVersion);
+    const matchingDeContent = publishedActiveContentDe.filter((c) => {
+      const type = String(c?.contentType ?? "");
+      const srcV = srcContentKey.get(type);
+      if (!srcV) return false;
+      const v = Number(c?.unitVersion ?? c?.version ?? 1) || 1;
+      return v === srcV;
+    }).length;
+    if (matchingDeContent > 0) {
+      warnings.push(`Published DE content exists for ${matchingDeContent} section(s) at the same version and will be overwritten.`);
+    }
+
+    const testRowsDe = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+      .collect();
+    const publishedActiveTestsDe = (testRowsDe as any[]).filter((t) => t?.isActive !== false && isPublishedStatus(t?.releaseStatus));
+    const srcTestIds = new Set(sourceTests.map((t) => t.questionId));
+    const srcTestVersion = sourceTests[0]?.unitVersion ?? maxTestVersion;
+    const matchingDeTests = publishedActiveTestsDe.filter(
+      (t) => srcTestIds.has(String(t?.questionId ?? "")) && (Number(t?.unitVersion ?? 1) || 1) === srcTestVersion
+    ).length;
+    if (matchingDeTests > 0) {
+      warnings.push(`Published DE tests exist (${matchingDeTests} question rows) at the same version and will be overwritten.`);
+    }
+
+    // For vocabulary: we patch published rows from the EN source set (same ids), so show how many already have de filled.
+    const vocabDeFilled = sourceVocab.filter((v: any) => typeof v?.de === "string" && String(v.de).trim()).length;
+    const vocabNoteDeFilled = sourceVocab.filter((v: any) => typeof v?.noteDe === "string" && String(v.noteDe).trim()).length;
+    if (vocabDeFilled > 0) {
+      warnings.push(`Some vocabulary rows already have German translations (${vocabDeFilled}/${sourceVocab.length}). They will be updated/overwritten.`);
+    }
+
+    return {
+      unitNumber,
+      sourceEn: {
+        exists: true as const,
+        title: String(metaEn.title ?? ""),
+        contentSections: sourceContent.sort((a, b) => a.contentType.localeCompare(b.contentType)),
+        tests: { count: sourceTests.length, unitVersion: maxTestVersion },
+        vocabulary: { count: sourceVocab.length, deFilled: vocabDeFilled, noteDeFilled: vocabNoteDeFilled },
+      },
+      existingDe: {
+        metadata: { published: metaPublishedDe, preview: metaPreviewDe, offline: metaOfflineDe },
+        content: {
+          publishedActiveCount: publishedActiveContentDe.length,
+          matchingSourceCount: matchingDeContent,
+        },
+        tests: {
+          publishedActiveCount: publishedActiveTestsDe.length,
+          matchingSourceCount: matchingDeTests,
+        },
+      },
+      warnings,
+    };
   },
 });

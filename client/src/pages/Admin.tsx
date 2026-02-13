@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus, Mail, ArrowUpDown } from "lucide-react";
+import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus, Mail, ArrowUpDown, Copy, ExternalLink } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
@@ -189,6 +189,27 @@ export default function Admin() {
     }
   };
 
+  const handleCopyClerkId = async (clerkId: string) => {
+    try {
+      if (!clerkId) return;
+      await navigator.clipboard.writeText(clerkId);
+      toast("Clerk ID copied to clipboard");
+    } catch (error) {
+      console.error("[Admin] Failed to copy Clerk ID:", error);
+      toast.error("Failed to copy Clerk ID");
+    }
+  };
+
+  const handleOpenClerkDashboard = () => {
+    try {
+      window.open("https://dashboard.clerk.com", "_blank", "noopener,noreferrer");
+      toast("Opened Clerk Dashboard. Search the user by email and use “Resend verification”.");
+    } catch (error) {
+      console.error("[Admin] Failed to open Clerk Dashboard:", error);
+      toast.error("Failed to open Clerk Dashboard");
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     try {
       const result = await deleteUserMutation({ userId: userId as any });
@@ -315,7 +336,38 @@ export default function Admin() {
               {sortedUsers?.map((u: any) => (
                 <TableRow key={u._id}>
                   <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
-                  <TableCell>{u.email || 'N/A'}</TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div>{u.email || "N/A"}</div>
+                      {u.clerkId ? (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <span className="max-w-[220px] truncate font-mono" title={String(u.clerkId)}>
+                            {u.clerkId}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleCopyClerkId(String(u.clerkId))}
+                            title="Copy Clerk ID"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={handleOpenClerkDashboard}
+                            title="Open Clerk Dashboard"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     {user.role === 'superadmin' && u._id !== user._id ? (
                       <Select

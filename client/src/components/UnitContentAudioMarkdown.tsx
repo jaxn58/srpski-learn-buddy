@@ -110,7 +110,10 @@ function extractSerbianLinesFromMarkdownTables(content: string): string[] {
       .slice(1, -1)
       .map((h) => h.replace(/\*/g, "").trim().toLowerCase());
 
-    const serbianIdx = headers.findIndex((h) => h === "serbian" || h.includes("serbian"));
+    // Accept translated header labels too ("Serbisch", "Srpski", etc.).
+    const serbianIdx = headers.findIndex(
+      (h) => h === "serbian" || h.includes("serbian") || h.includes("serbisch") || h.includes("srpski") || h.includes("srp")
+    );
     if (serbianIdx < 0) continue;
 
     for (const row of tableLines.slice(2)) {
@@ -157,7 +160,9 @@ function AudioTable({
     .map((c) => mdastToPlainText(c).replace(/\*/g, "").trim());
 
   const headerKey = headers.map((h) => h.toLowerCase());
-  const serbianIdx = headerKey.findIndex((h) => h === "serbian" || h.includes("serbian"));
+  const serbianIdx = headerKey.findIndex(
+    (h) => h === "serbian" || h.includes("serbian") || h.includes("serbisch") || h.includes("srpski") || h.includes("srp")
+  );
   const hasSerbian = serbianIdx >= 0;
 
   // Some ASTs may not include explicit <tbody>; be robust and fall back to any direct <tr> children

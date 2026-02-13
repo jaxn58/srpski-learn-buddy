@@ -19,6 +19,8 @@ async function getAdminUser(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
+const RESEND_CONFIRMATION_COOLDOWN_MS = 15 * 60 * 1000;
+
 // Join waitlist (public mutation)
 export const join = mutation({
   args: {
@@ -248,6 +250,69 @@ export const markAllPendingAsViewed = mutation({
     );
 
     return { count: pendingEntries.length };
+  },
+});
+
+// Resend waitlist confirmation email for a pending entry (admin only)
+export const resendConfirmationEmail = mutation({
+  args: {
+    waitlistId: v.id("waitlist"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized - Admin access required");
+
+    const entry = await ctx.db.get(args.waitlistId);
+    if (!entry) {
+      throw new Error("Waitlist entry not found");
+    }
+
+    if (entry.status !== "pending") {
+      return { success: false, skipped: true, reason: "not_pending" as const };
+    }
+
+    const now = Date.now();
+    const lastSentAt =
+      typeof entry.confirmationEmailLastSentAt === "number"
+        ? entry.confirmationEmailLastSentAt
+        : null;
+
+    if (lastSentAt !== null && now - lastSentAt < RESEND_CONFIRMATION_COOLDOWN_MS) {
+      return {
+        success: false,
+        skipped: true,
+        reason: "rate_limited" as const,
+        lastSentAt,
+        nextAllowedAt: lastSentAt + RESEND_CONFIRMATION_COOLDOWN_MS,
+      };
+    }
+
+    const baseUrl = process.env.VITE_APP_URL || "https://learn-with.me";
+
+    await ctx.scheduler.runAfter(0, internal.email.sendEmail, {
+      templateName: "waitlist-opt-in",
+      variables: {
+        USER_NAME: entry.name || "there",
+        USER_EMAIL: entry.email,
+        CONFIRMATION_LINK: `${baseUrl}/waitlist/confirm?token=${entry.confirmationToken}`,
+      },
+      to: entry.email,
+    });
+
+    const nextSendCount = (entry.confirmationEmailSendCount || 0) + 1;
+    await ctx.db.patch(entry._id, {
+      confirmationEmailLastSentAt: now,
+      confirmationEmailSendCount: nextSendCount,
+    });
+
+    return {
+      success: true,
+      skipped: false,
+      sentTo: entry.email,
+      sendCount: nextSendCount,
+      lastSentAt: now,
+      nextAllowedAt: now + RESEND_CONFIRMATION_COOLDOWN_MS,
+    };
   },
 });
 

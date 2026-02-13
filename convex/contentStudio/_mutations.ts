@@ -1340,3 +1340,411 @@ export const approveAfterPreview = mutation({
     return { ok: true };
   },
 });
+
+// ===== EN -> DE published translation upsert (ContentStudio tool) =====
+export const upsertPublishedUnitGermanTranslation = mutation({
+  args: {
+    unitNumber: v.number(),
+    // NOTE: This mutation writes PUBLISHED rows (no preview writes).
+    metadataDe: v.object({
+      title: v.string(),
+      description: v.optional(v.string()),
+      topics: v.array(v.string()),
+      grammarFocus: v.array(v.string()),
+      vocabularyThemes: v.array(v.string()),
+      moduleMetadataId: v.optional(v.id("moduleMetadata")),
+      moduleId: v.optional(v.string()),
+    }),
+    contentDe: v.array(
+      v.object({
+        contentType: v.union(
+          v.literal("overview"),
+          v.literal("grammar"),
+          v.literal("phrases"),
+          v.literal("dialogues"),
+          v.literal("vocabulary"),
+          v.literal("testIntroduction")
+        ),
+        content: v.string(),
+        unitVersion: v.number(),
+      })
+    ),
+    testsDe: v.array(
+      v.object({
+        questionId: v.string(),
+        unitVersion: v.number(),
+        category: v.string(),
+        categoryInstructions: v.optional(v.string()),
+        questionType: v.string(),
+        question: v.string(),
+        correctAnswer: v.string(),
+        acceptableAlternatives: v.optional(v.array(v.string())),
+        options: v.optional(v.array(v.string())),
+        hint: v.optional(v.string()),
+        order: v.number(),
+      })
+    ),
+    vocabularyDe: v.array(
+      v.object({
+        courseVocabularyId: v.id("courseVocabulary"),
+        de: v.optional(v.string()),
+        deAlt: v.optional(v.string()),
+        noteDe: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const unitNumber = Number(args.unitNumber);
+    const now = Date.now();
+    const isPublishedStatus = (s: unknown) => s === undefined || s === "published";
+
+    // 1) unitMetadata (DE)
+    const metaRowsDe = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+      .collect();
+    const publishedMetaDe = (metaRowsDe as any[]).filter((m) => isPublishedStatus(m?.releaseStatus));
+    publishedMetaDe.sort((a, b) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0));
+    const existingMetaDe = publishedMetaDe[0] ?? null;
+    const metaPayload: any = {
+      unitNumber,
+      language: "de",
+      title: String(args.metadataDe.title ?? "").trim(),
+      ...(typeof args.metadataDe.description === "string" && String(args.metadataDe.description).trim()
+        ? { description: String(args.metadataDe.description).trim() }
+        : {}),
+      topics: Array.isArray(args.metadataDe.topics) ? args.metadataDe.topics : [],
+      grammarFocus: Array.isArray(args.metadataDe.grammarFocus) ? args.metadataDe.grammarFocus : [],
+      vocabularyThemes: Array.isArray(args.metadataDe.vocabularyThemes) ? args.metadataDe.vocabularyThemes : [],
+      ...(args.metadataDe.moduleMetadataId ? { moduleMetadataId: args.metadataDe.moduleMetadataId } : {}),
+      ...(typeof args.metadataDe.moduleId === "string" && args.metadataDe.moduleId.trim()
+        ? { moduleId: args.metadataDe.moduleId.trim() }
+        : {}),
+    };
+    if (existingMetaDe) {
+      await ctx.db.patch(existingMetaDe._id, metaPayload);
+    } else {
+      await ctx.db.insert("unitMetadata", metaPayload);
+    }
+
+    // 2) unitContent (DE) - upsert per contentType + unitVersion (published)
+    const existingContentDe = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+      .collect();
+    // IMPORTANT: Never patch preview rows here. This tool writes published DE content.
+    const activeDe = (existingContentDe as any[]).filter(
+      (c) => c?.isActive !== false && isPublishedStatus(c?.releaseStatus)
+    );
+
+    let contentUpserted = 0;
+    for (const row of args.contentDe as any[]) {
+      const type = String(row.contentType);
+      const ver = Number(row.unitVersion) || 1;
+      const match = activeDe.find(
+        (c) => String(c?.contentType) === type && (Number(c?.unitVersion ?? c?.version ?? 1) || 1) === ver
+      );
+      if (match) {
+        await ctx.db.patch(match._id, {
+          content: String(row.content ?? ""),
+          updatedAt: now,
+          isActive: true,
+          unitVersion: ver,
+          version: ver,
+        });
+      } else {
+        await ctx.db.insert("unitContent", {
+          unitNumber,
+          language: "de",
+          contentType: type,
+          content: String(row.content ?? ""),
+          createdAt: now,
+          updatedAt: now,
+          isActive: true,
+          archivedAt: undefined,
+          unitVersion: ver,
+          version: ver,
+        } as any);
+      }
+      contentUpserted += 1;
+    }
+
+    // 3) unitInteractiveTests (DE) - upsert per questionId + unitVersion (published)
+    const existingTestsDe = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+      .collect();
+    // IMPORTANT: Never patch preview rows here. This tool writes published DE tests.
+    const activeTestsDe = (existingTestsDe as any[]).filter(
+      (t) => t?.isActive !== false && isPublishedStatus(t?.releaseStatus)
+    );
+
+    let testsUpserted = 0;
+    for (const t of args.testsDe as any[]) {
+      const qid = String(t.questionId ?? "").trim();
+      if (!qid) continue;
+      const ver = Number(t.unitVersion ?? 1) || 1;
+
+      const existing = activeTestsDe.find(
+        (x) => String(x?.questionId) === qid && (Number(x?.unitVersion ?? 1) || 1) === ver
+      );
+
+      const payload: any = {
+        unitNumber,
+        language: "de",
+        category: String(t.category ?? ""),
+        categoryInstructions: typeof t.categoryInstructions === "string" ? t.categoryInstructions : undefined,
+        questionId: qid, // shared ID across languages (shared progress)
+        questionType: String(t.questionType ?? ""),
+        question: String(t.question ?? ""),
+        correctAnswer: String(t.correctAnswer ?? ""),
+        acceptableAlternatives: Array.isArray(t.acceptableAlternatives) ? t.acceptableAlternatives : undefined,
+        options: Array.isArray(t.options) ? t.options : undefined,
+        hint: typeof t.hint === "string" ? t.hint : undefined,
+        order: Number(t.order ?? 0) || 0,
+        isActive: true,
+        archivedAt: undefined,
+        unitVersion: ver,
+      };
+
+      if (existing) {
+        await ctx.db.patch(existing._id, payload);
+      } else {
+        await ctx.db.insert("unitInteractiveTests", payload);
+      }
+      testsUpserted += 1;
+    }
+
+    // 4) courseVocabulary (DE) - patch only; no new rows
+    let vocabPatched = 0;
+    for (const vrow of args.vocabularyDe as any[]) {
+      const id = vrow.courseVocabularyId;
+      const doc: any = await ctx.db.get(id);
+      if (!doc) continue;
+      if (Number(doc.unitNumber) !== unitNumber) continue;
+
+      const patch: any = {};
+      if (typeof vrow.de === "string") patch.de = vrow.de;
+      if (typeof vrow.deAlt === "string") patch.deAlt = vrow.deAlt;
+      if (typeof vrow.noteDe === "string") patch.noteDe = vrow.noteDe;
+      if (Object.keys(patch).length === 0) continue;
+
+      await ctx.db.patch(id, patch);
+      vocabPatched += 1;
+    }
+
+    return {
+      ok: true,
+      unitNumber,
+      updated: {
+        contentUpserted,
+        testsUpserted,
+        vocabPatched,
+        metadataUpserted: 1,
+      },
+    };
+  },
+});
+
+// ===== EN -> DE preview translation upsert (ContentStudio tool) =====
+// Writes DE rows as releaseStatus="preview" without touching any published rows.
+export const upsertUnitGermanTranslationToPreview = mutation({
+  args: {
+    unitNumber: v.number(),
+    unitVersion: v.number(),
+    metadataDe: v.object({
+      title: v.string(),
+      description: v.optional(v.string()),
+      topics: v.array(v.string()),
+      grammarFocus: v.array(v.string()),
+      vocabularyThemes: v.array(v.string()),
+      moduleMetadataId: v.optional(v.id("moduleMetadata")),
+      moduleId: v.optional(v.string()),
+    }),
+    contentDe: v.array(
+      v.object({
+        contentType: v.union(
+          v.literal("overview"),
+          v.literal("grammar"),
+          v.literal("phrases"),
+          v.literal("dialogues"),
+          v.literal("vocabulary"),
+          v.literal("testIntroduction")
+        ),
+        content: v.string(),
+      })
+    ),
+    testsDe: v.array(
+      v.object({
+        // questionId here is the BASE id (shared across languages). We'll suffix for preview storage.
+        questionId: v.string(),
+        category: v.string(),
+        categoryInstructions: v.optional(v.string()),
+        questionType: v.string(),
+        question: v.string(),
+        correctAnswer: v.string(),
+        acceptableAlternatives: v.optional(v.array(v.string())),
+        options: v.optional(v.array(v.string())),
+        hint: v.optional(v.string()),
+        order: v.number(),
+      })
+    ),
+    vocabularyDe: v.array(
+      v.object({
+        courseVocabularyId: v.id("courseVocabulary"),
+        de: v.optional(v.string()),
+        deAlt: v.optional(v.string()),
+        noteDe: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const unitNumber = Number(args.unitNumber);
+    const unitVersion = Number(args.unitVersion) || 1;
+    const now = Date.now();
+
+    // 1) unitMetadata (DE) — insert a new PREVIEW row (do not patch published rows)
+    await ctx.db.insert("unitMetadata", {
+      unitNumber,
+      language: "de",
+      title: String(args.metadataDe.title ?? "").trim(),
+      ...(typeof args.metadataDe.description === "string" && String(args.metadataDe.description).trim()
+        ? { description: String(args.metadataDe.description).trim() }
+        : {}),
+      topics: Array.isArray(args.metadataDe.topics) ? args.metadataDe.topics : [],
+      grammarFocus: Array.isArray(args.metadataDe.grammarFocus) ? args.metadataDe.grammarFocus : [],
+      vocabularyThemes: Array.isArray(args.metadataDe.vocabularyThemes) ? args.metadataDe.vocabularyThemes : [],
+      ...(args.metadataDe.moduleMetadataId ? { moduleMetadataId: args.metadataDe.moduleMetadataId } : {}),
+      ...(typeof args.metadataDe.moduleId === "string" && args.metadataDe.moduleId.trim()
+        ? { moduleId: args.metadataDe.moduleId.trim() }
+        : {}),
+      releaseStatus: "preview",
+    } as any);
+
+    // 2) unitContent (DE) — archive previous DE preview rows per type, then insert new preview version.
+    let contentInserted = 0;
+    for (const row of args.contentDe as any[]) {
+      const type = String(row?.contentType ?? "");
+      const content = String(row?.content ?? "");
+      if (!type) continue;
+
+      const candidates = await ctx.db
+        .query("unitContent")
+        .withIndex("by_unit_lang_type", (q) => q.eq("unitNumber", unitNumber).eq("language", "de").eq("contentType", type))
+        .collect();
+      for (const c of candidates as any[]) {
+        if (c.isActive === false) continue;
+        if (c.releaseStatus !== "preview") continue;
+        await ctx.db.patch(c._id, { isActive: false, archivedAt: now, updatedAt: now });
+      }
+
+      await ctx.db.insert("unitContent", {
+        unitNumber,
+        language: "de",
+        contentType: type,
+        content,
+        createdAt: now,
+        updatedAt: now,
+        isActive: true,
+        archivedAt: undefined,
+        unitVersion,
+        version: unitVersion, // legacy field; keep aligned
+        releaseStatus: "preview",
+      } as any);
+      contentInserted += 1;
+    }
+
+    // 3) unitInteractiveTests (DE) — archive previous DE preview rows, then insert new preview version.
+    {
+      const existing = await ctx.db
+        .query("unitInteractiveTests")
+        .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+        .collect();
+      for (const t of existing as any[]) {
+        if (t.isActive === false) continue;
+        if (t.releaseStatus !== "preview") continue;
+        await ctx.db.patch(t._id, { isActive: false, archivedAt: now });
+      }
+    }
+
+    let testsInserted = 0;
+    for (const t of args.testsDe as any[]) {
+      const baseQid = String(t?.questionId ?? "").trim();
+      if (!baseQid) continue;
+      // IMPORTANT: Keep preview questionIds globally unique to avoid collisions with published rows and other languages.
+      const previewQid = `${baseQid}_preview_de_v${unitVersion}`;
+
+      await ctx.db.insert("unitInteractiveTests", {
+        unitNumber,
+        language: "de",
+        category: String(t?.category ?? ""),
+        categoryInstructions: typeof t?.categoryInstructions === "string" ? t.categoryInstructions : undefined,
+        questionId: previewQid,
+        questionType: String(t?.questionType ?? ""),
+        question: String(t?.question ?? ""),
+        correctAnswer: String(t?.correctAnswer ?? ""),
+        acceptableAlternatives: Array.isArray(t?.acceptableAlternatives) ? t.acceptableAlternatives : undefined,
+        options: Array.isArray(t?.options) ? t.options : undefined,
+        hint: typeof t?.hint === "string" ? t.hint : undefined,
+        order: Number(t?.order ?? 0) || 0,
+        isActive: true,
+        archivedAt: undefined,
+        unitVersion,
+        releaseStatus: "preview",
+      } as any);
+      testsInserted += 1;
+    }
+
+    // 4) courseVocabulary — insert PREVIEW copies with DE fields set (no patching of published rows).
+    let vocabInserted = 0;
+    for (const vrow of args.vocabularyDe as any[]) {
+      const id = vrow.courseVocabularyId;
+      const src: any = await ctx.db.get(id);
+      if (!src) continue;
+      if (Number(src.unitNumber) !== unitNumber) continue;
+      if (src.isActive === false) continue;
+
+      await ctx.db.insert("courseVocabulary", {
+        unitNumber,
+        serbian: String(src.serbian ?? ""),
+        serbianNormalized: typeof src.serbianNormalized === "string"
+          ? src.serbianNormalized
+          : String(src.serbian ?? "").toLowerCase().trim(),
+        // copy base translations (EN etc) so preview behaves like normal vocab rows
+        en: typeof src.en === "string" ? src.en : undefined,
+        enAlt: typeof src.enAlt === "string" ? src.enAlt : undefined,
+        translations: Array.isArray(src.translations) ? src.translations : undefined,
+        gender: typeof src.gender === "string" ? src.gender : undefined,
+        pronunciation: typeof src.pronunciation === "string" ? src.pronunciation : undefined,
+        audioUrl: typeof src.audioUrl === "string" ? src.audioUrl : undefined,
+        audioStorageId: typeof src.audioStorageId === "string" ? src.audioStorageId : undefined,
+        noteEn: typeof src.noteEn === "string" ? src.noteEn : undefined,
+
+        // DE preview fields
+        ...(typeof vrow.de === "string" && String(vrow.de).trim() ? { de: String(vrow.de).trim() } : {}),
+        ...(typeof vrow.deAlt === "string" && String(vrow.deAlt).trim() ? { deAlt: String(vrow.deAlt).trim() } : {}),
+        ...(typeof vrow.noteDe === "string" && String(vrow.noteDe).trim() ? { noteDe: String(vrow.noteDe).trim() } : {}),
+
+        isActive: true,
+        archivedAt: undefined,
+        unitVersion,
+        releaseStatus: "preview",
+      } as any);
+      vocabInserted += 1;
+    }
+
+    return {
+      ok: true,
+      unitNumber,
+      unitVersion,
+      created: {
+        metadataInserted: 1,
+        contentInserted,
+        testsInserted,
+        vocabInserted,
+      },
+    };
+  },
+});

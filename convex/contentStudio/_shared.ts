@@ -118,10 +118,23 @@ export function resolveProviderAndModel(params: {
     return hasGemini ? { provider: "gemini", model: "gemini-2.5-flash" } : { provider: "openai", model: "gpt-4o-mini" };
   };
 
+  const defaultModelFor = (provider: Provider, stage: Stage): string => {
+    if (provider === "gemini") return stage === "specialist" ? "gemini-2.5-pro" : "gemini-2.5-flash";
+    return stage === "specialist" ? "gpt-4o" : "gpt-4o-mini";
+  };
+
   const cfgStage = params.stage === "specialist" ? params.config?.specialist : params.config?.auditor;
 
+  // If preferredProvider is specified and differs from configured provider,
+  // never reuse the configured model (it may be provider-specific).
   const chosen = preferred
-    ? { provider: preferred, model: cfgStage?.model || defaultByStage(params.stage).model }
+    ? {
+        provider: preferred,
+        model:
+          cfgStage && cfgStage.provider === preferred
+            ? cfgStage.model
+            : defaultModelFor(preferred, params.stage),
+      }
     : cfgStage
       ? cfgStage
       : defaultByStage(params.stage);
@@ -264,6 +277,7 @@ export async function callAiJson(ctx: ActionCtx, params: {
   system: string;
   user: string;
   maxTokens?: number;
+  timeoutMs?: number;
 }): Promise<{ provider: string; model: string; raw: string; usage: AiUsage | null; estimatedCostUsd: number | null }> {
   const configDoc = await ctx.runQuery(api.contentStudio.getModelConfig, {});
   const config = configDoc
@@ -278,7 +292,12 @@ export async function callAiJson(ctx: ActionCtx, params: {
     config,
   });
 
-  const res = await fetch(apiUrl, {
+  const controller = new AbortController();
+  const timeoutMs = typeof params.timeoutMs === "number" && params.timeoutMs > 0 ? params.timeoutMs : 90_000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -294,7 +313,14 @@ export async function callAiJson(ctx: ActionCtx, params: {
       temperature: 0.2,
       max_tokens: params.maxTokens ?? 2500,
     }),
-  });
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    clearTimeout(timeout);
+    if (e?.name === "AbortError") throw new Error(`AI API timeout (request aborted after ${timeoutMs}ms)`);
+    throw e;
+  }
+  clearTimeout(timeout);
 
   if (!res.ok) {
     const errorText = await res.text();
@@ -321,6 +347,7 @@ export async function callAiText(ctx: ActionCtx, params: {
   system: string;
   user: string;
   maxTokens?: number;
+  timeoutMs?: number;
 }): Promise<{ provider: string; model: string; raw: string; usage: AiUsage | null; estimatedCostUsd: number | null }> {
   const configDoc = await ctx.runQuery(api.contentStudio.getModelConfig, {});
   const config = configDoc
@@ -335,7 +362,12 @@ export async function callAiText(ctx: ActionCtx, params: {
     config,
   });
 
-  const res = await fetch(apiUrl, {
+  const controller = new AbortController();
+  const timeoutMs = typeof params.timeoutMs === "number" && params.timeoutMs > 0 ? params.timeoutMs : 90_000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -350,7 +382,14 @@ export async function callAiText(ctx: ActionCtx, params: {
       temperature: 0.2,
       max_tokens: params.maxTokens ?? 3500,
     }),
-  });
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    clearTimeout(timeout);
+    if (e?.name === "AbortError") throw new Error(`AI API timeout (request aborted after ${timeoutMs}ms)`);
+    throw e;
+  }
+  clearTimeout(timeout);
 
   if (!res.ok) {
     const errorText = await res.text();

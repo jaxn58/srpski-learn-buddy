@@ -31,7 +31,8 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
     if (!s.trim()) return "";
 
     const cutPoints = [
-      s.search(/^\s*###\s+Exercise\b/im), // new format
+      // new format (EN) + translated variants (DE)
+      s.search(/^\s*###\s+(Exercise|Exercises|Übung|Übungen|Aufgabe|Aufgaben)\b/im),
       s.search(/^\s*ex1\b/im), // legacy format (ex1 Translation)
       s.search(/\|\s*QUESTION\s+ID\s*\|/i), // legacy table header
       s.search(/\|\s*Answer\s*\(for database\)\s*\|/i), // legacy answer key header

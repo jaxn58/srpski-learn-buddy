@@ -114,9 +114,10 @@ function extractVocabularyGroupsFromMarkdown(markdown: string): VocabularyGroup[
   const md = String(markdown || "").replace(/\r\n/g, "\n");
   if (!md.trim()) return [];
 
-  // Grab "## 2. Vocabulary ..." section only
+  // Grab "## 2. ..." section only (language-agnostic).
   // IMPORTANT: Don't use multiline `$` here (it matches end-of-line). We want end-of-string.
-  const match = md.match(/##\s+2\.\s+Vocabulary[\s\S]+?(?=\n##\s+\d+\.|$)/);
+  // This must work for translated headings (e.g., "Vokabeln") too.
+  const match = md.match(/##\s+2\.\s+[^\n]*\n[\s\S]+?(?=\n##\s+\d+\.|$)/);
   if (!match) return [];
   const section = match[0];
 
@@ -159,7 +160,10 @@ function extractVocabularyGroupsFromMarkdown(markdown: string): VocabularyGroup[
     };
 
     const headers = parseRow(tableLines[0]).map((h) => h.toLowerCase());
-    const serbianIdx = headers.findIndex((h) => h.includes("serbian"));
+    // Accept translated header labels too ("Serbisch", "Srpski", etc.).
+    const serbianIdx = headers.findIndex(
+      (h) => h.includes("serbian") || h.includes("serbisch") || h.includes("srpski") || h.includes("srp")
+    );
     if (serbianIdx < 0) continue;
 
     const serbianKeys: string[] = [];
@@ -187,8 +191,21 @@ export default function UnitView() {
   const params = useParams();
   const unitNumber = parseInt(params.unitNumber || "1");
   
-  // Use user's learning language or fallback
-  const displayLanguage = user?.learningLanguage || (i18n.language === 'de' ? 'de' : 'en');
+  // Use user's learning language or fallback.
+  // ContentStudio Preview convenience: allow forcing language via URL, e.g. /unit/1?lang=de
+  const forcedLanguage = React.useMemo(() => {
+    try {
+      if (typeof window === "undefined") return null;
+      const p = new URLSearchParams(window.location.search);
+      const l = String(p.get("lang") || "").trim().toLowerCase();
+      if (!l) return null;
+      const allowed = new Set(["en", "de", "sr", "es", "fr"]);
+      return allowed.has(l) ? l : null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const displayLanguage = forcedLanguage || user?.learningLanguage || (i18n.language === "de" ? "de" : "en");
 
   // Load Unit Metadata & Content from DB
   const unitMetadata = useQuery(api.units.getUnitMetadata, { unitNumber, language: displayLanguage });

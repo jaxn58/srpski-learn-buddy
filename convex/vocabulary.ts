@@ -23,6 +23,14 @@ function filterByReleaseStatus<T extends { releaseStatus?: any }>(rows: T[], all
   });
 }
 
+async function isPreviewUnit(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
+  const metas = await ctx.db
+    .query("unitMetadata")
+    .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
+    .collect();
+  return (metas as any[]).some((m) => (m as any)?.releaseStatus === "preview");
+}
+
 // Upsert course vocabulary (for migration script)
 export const upsertCourseVocabulary = mutation({
   args: {
@@ -799,6 +807,16 @@ export const recordVocabularyAnswer = mutation({
 
     if (!courseVocabId || !unitNum) {
       throw new Error("Either courseVocabularyId or (serbianWord + unitNumber) must be provided");
+    }
+
+    // Preview units are read-only (no XP/progress writes).
+    // Keep behavior consistent with Interactive Tests preview gating.
+    if (user.role === "superadmin" && (await isPreviewUnit(ctx, unitNum))) {
+      console.log(`[Vocabulary] recordVocabularyAnswer: Preview mode - no writes for unit ${unitNum}`);
+      return {
+        vocabularyProgressId: null,
+        courseVocabularyId: courseVocabId,
+      } as any;
     }
 
     // ============= DUAL-WRITE: Update vocabularyProgress (NEW) =============

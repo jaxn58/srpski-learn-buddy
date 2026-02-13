@@ -632,7 +632,11 @@ export const internalImportUnitPackage = internalMutation({
           .query("unitInteractiveTests")
           .withIndex("by_question_id", (qq) => qq.eq("questionId", questionIdToWrite))
           .collect();
-        const active = candidates.filter((t: any) => t.isActive !== false);
+        // IMPORTANT: questionId is shared across languages (e.g. EN + DE).
+        // When importing EN, never patch DE rows.
+        const active = candidates.filter(
+          (t: any) => t.isActive !== false && t.unitNumber === fixed.unitNumber && t.language === "en"
+        );
         let existing: any | null = null;
         let bestV = -1;
         for (const t of active) {

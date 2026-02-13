@@ -1,6 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -233,6 +233,7 @@ export default function ContentStudioAdmin() {
   const drafts = useQuery(api.contentStudio.listDrafts);
   const studioMetrics = useQuery(api.contentStudio.getStudioMetrics);
   const [selectedDraftId, setSelectedDraftId] = useState<Id<"contentDrafts"> | null>(null);
+  const publishedEnglishUnits = useQuery(api.contentStudio.listPublishedEnglishUnitsForTranslation);
 
   const selected = useQuery(
     api.contentStudio.getDraft,
@@ -286,7 +287,9 @@ export default function ContentStudioAdmin() {
   const translateToEnglish = useAction(api.contentStudio._creator.translateToEnglish);
   const publishDraftToPreview = useAction(api.contentStudio.publishDraftToPreview);
   const takePreviewOffline = useAction(api.contentStudio.takePreviewOffline);
+  const takeUnitPreviewOfflineByUnitNumber = useAction(api.contentStudio.takeUnitPreviewOfflineByUnitNumber);
   const publishDraft = useAction(api.contentStudio.publishDraft);
+  const translatePublishedUnitEnToDe = useAction(api.contentStudio.translatePublishedUnitEnToDe);
   const deleteUnitFull = useMutation(api.contentStudio.deleteUnitFull);
 
   const [newUnitNumber, setNewUnitNumber] = useState("3");
@@ -312,6 +315,12 @@ export default function ContentStudioAdmin() {
   const [deleteUnitOpen, setDeleteUnitOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
+  const [translateDeOpen, setTranslateDeOpen] = useState(false);
+  const [translateDeConfirmation, setTranslateDeConfirmation] = useState("");
+  const [translateAnyOpen, setTranslateAnyOpen] = useState(false);
+  const [translateAnyUnitNumber, setTranslateAnyUnitNumber] = useState<string>("1");
+  const [translateAnyConfirmation, setTranslateAnyConfirmation] = useState("");
+
   // UI running indicators (so the user sees progress)
   const [runningCreator, setRunningCreator] = useState(false);
   const [runningValidator, setRunningValidator] = useState(false);
@@ -320,6 +329,7 @@ export default function ContentStudioAdmin() {
   const [runningRevise, setRunningRevise] = useState(false);
   const [runningCreateValidate, setRunningCreateValidate] = useState(false);
   const [runningSectionRevise, setRunningSectionRevise] = useState(false);
+  const [runningTranslateDe, setRunningTranslateDe] = useState(false);
 
   // Section-based revision (targeted edits)
   type SectionId = "overview" | "vocabulary" | "grammar" | "phrases" | "exercises" | "cultural";
@@ -387,7 +397,35 @@ export default function ContentStudioAdmin() {
     api.contentStudio.getApprovedMarkdown,
     selectedDraftId ? { draftId: selectedDraftId } : ("skip" as any)
   );
+  const translateDePreview = useQuery(
+    api.contentStudio.getUnitTranslationPreviewEnToDe,
+    translateDeOpen && selected?.draft?.unitNumber
+      ? { unitNumber: selected.draft.unitNumber }
+      : ("skip" as any)
+  );
+  const translateAnyUnitNumberParsed = useMemo(() => {
+    const n = Number(String(translateAnyUnitNumber || "").trim());
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+  }, [translateAnyUnitNumber]);
+  const translateAnyPreview = useQuery(
+    api.contentStudio.getUnitTranslationPreviewEnToDe,
+    translateAnyOpen && translateAnyUnitNumberParsed
+      ? { unitNumber: translateAnyUnitNumberParsed }
+      : ("skip" as any)
+  );
   const [runningApprovePreview, setRunningApprovePreview] = useState(false);
+
+  // Default selection for "translate any unit" dropdown.
+  useEffect(() => {
+    const list = (publishedEnglishUnits || []) as any[];
+    if (!list.length) return;
+    const current = translateAnyUnitNumberParsed;
+    const hasCurrent = current != null && list.some((u) => Number(u?.unitNumber) === current);
+    if (hasCurrent) return;
+    // If current selection is invalid/missing, default to first published EN unit.
+    const first = list[0];
+    if (first?.unitNumber) setTranslateAnyUnitNumber(String(first.unitNumber));
+  }, [publishedEnglishUnits, translateAnyUnitNumberParsed]);
 
   // Snapshot history (for diff view)
   const draftSnapshots = useQuery(
@@ -445,7 +483,8 @@ export default function ContentStudioAdmin() {
     runningRevise ||
     runningCreateValidate ||
     runningSectionRevise ||
-    runningApprovePreview;
+    runningApprovePreview ||
+    runningTranslateDe;
 
   const currentTaskLabel = useMemo(() => {
     if (runningCreator) return "Creator is generating content...";
@@ -456,8 +495,9 @@ export default function ContentStudioAdmin() {
     if (runningSectionRevise) return "Applying changes...";
     if (runningPublish) return "Publishing...";
     if (runningApprovePreview) return "Approving...";
+    if (runningTranslateDe) return "Translating to German...";
     return "";
-  }, [runningCreator, runningValidator, runningLector, runningCreateValidate, runningSectionRevise, runningPublish, runningApprovePreview]);
+  }, [runningCreator, runningValidator, runningLector, runningCreateValidate, runningSectionRevise, runningPublish, runningApprovePreview, runningTranslateDe]);
 
   type NextStepKey = "creator" | "validator" | "lector" | "preview" | "publish";
 
@@ -1968,6 +2008,109 @@ export default function ContentStudioAdmin() {
     }
   };
 
+  const handleTranslatePublishedToGerman = async () => {
+    if (!selected) return;
+    const unitNum = selected.draft.unitNumber;
+    const expected = `TRANSLATE UNIT ${unitNum} TO DE`;
+    if (translateDeConfirmation !== expected) {
+      toast.error(t("admin.contentStudio.toast.confirmationTextMismatch"));
+      return;
+    }
+
+    setRunningTranslateDe(true);
+    try {
+      toast.info(`Translating Unit ${unitNum} (EN → DE Preview)…`);
+      const res = await translatePublishedUnitEnToDe({
+        unitNumber: unitNum,
+        confirm: translateDeConfirmation,
+        preferredProvider: cfgSpecialistProvider,
+        targetReleaseStatus: "preview",
+      } as any);
+
+      const info = (res as any)?.updated;
+      const previewV = (res as any)?.previewUnitVersion;
+      if (info?.contentInserted != null || info?.testsInserted != null || info?.vocabInserted != null) {
+        toast.success(
+          `DE Preview created${previewV ? ` (v${previewV})` : ""}. Content: ${info.contentInserted ?? 0}, Tests: ${info.testsInserted ?? 0}, Vocabulary: ${info.vocabInserted ?? 0}.`
+        );
+      } else if (info?.contentUpserted != null || info?.testsUpserted != null || info?.vocabPatched != null) {
+        toast.success(
+          `DE Preview created${previewV ? ` (v${previewV})` : ""}. Content: ${info.contentUpserted ?? 0}, Tests: ${info.testsUpserted ?? 0}, Vocabulary: ${info.vocabPatched ?? 0}.`
+        );
+      } else {
+        toast.success(`DE Preview created for Unit ${unitNum}${previewV ? ` (v${previewV})` : ""}.`);
+      }
+      window.open(`/unit/${unitNum}?lang=de`, "_blank", "noopener,noreferrer");
+      setTranslateDeOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || `Failed to translate Unit ${unitNum} to German.`);
+    } finally {
+      setRunningTranslateDe(false);
+    }
+  };
+
+  const handleTranslateAnyUnitToGerman = async () => {
+    const unitNum = translateAnyUnitNumberParsed;
+    if (!unitNum) {
+      toast.error("Please select a valid unit.");
+      return;
+    }
+    const expected = `TRANSLATE UNIT ${unitNum} TO DE`;
+    if (translateAnyConfirmation !== expected) {
+      toast.error(t("admin.contentStudio.toast.confirmationTextMismatch"));
+      return;
+    }
+
+    setRunningTranslateDe(true);
+    try {
+      toast.info(`Translating Unit ${unitNum} (EN → DE Preview)…`);
+      const res = await translatePublishedUnitEnToDe({
+        unitNumber: unitNum,
+        confirm: translateAnyConfirmation,
+        preferredProvider: cfgSpecialistProvider,
+        targetReleaseStatus: "preview",
+      } as any);
+
+      const info = (res as any)?.updated;
+      const previewV = (res as any)?.previewUnitVersion;
+      if (info?.contentInserted != null || info?.testsInserted != null || info?.vocabInserted != null) {
+        toast.success(
+          `DE Preview created${previewV ? ` (v${previewV})` : ""}. Content: ${info.contentInserted ?? 0}, Tests: ${info.testsInserted ?? 0}, Vocabulary: ${info.vocabInserted ?? 0}.`
+        );
+      } else if (info?.contentUpserted != null || info?.testsUpserted != null || info?.vocabPatched != null) {
+        toast.success(
+          `DE Preview created${previewV ? ` (v${previewV})` : ""}. Content: ${info.contentUpserted ?? 0}, Tests: ${info.testsUpserted ?? 0}, Vocabulary: ${info.vocabPatched ?? 0}.`
+        );
+      } else {
+        toast.success(`DE Preview created for Unit ${unitNum}${previewV ? ` (v${previewV})` : ""}.`);
+      }
+      window.open(`/unit/${unitNum}?lang=de`, "_blank", "noopener,noreferrer");
+      setTranslateAnyOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || `Failed to translate Unit ${unitNum} to German.`);
+    } finally {
+      setRunningTranslateDe(false);
+    }
+  };
+
+  const handleTakeUnitPreviewOfflineForAny = async () => {
+    const unitNum = translateAnyUnitNumberParsed;
+    if (!unitNum) {
+      toast.error("Please select a valid unit.");
+      return;
+    }
+    setRunningPublish(true);
+    try {
+      toast.info(`Taking preview offline for Unit ${unitNum}…`);
+      await takeUnitPreviewOfflineByUnitNumber({ unitNumber: unitNum } as any);
+      toast.success(`Preview taken offline for Unit ${unitNum}.`);
+    } catch (e: any) {
+      toast.error(e?.message || `Failed to take preview offline for Unit ${unitNum}.`);
+    } finally {
+      setRunningPublish(false);
+    }
+  };
+
   const handlePublishToPreview = async () => {
     if (!selectedDraftId) return;
     setRunningPublish(true);
@@ -3036,14 +3179,155 @@ export default function ContentStudioAdmin() {
         {/* Middle pane: Workspace */}
         <div className="space-y-6">
           {!selectedDraftId || !selected?.draft ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Select a draft</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Choose a draft on the left or create a new one.
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Select a draft</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  Choose a draft on the left or create a new one.
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Translate existing published Unit (EN → DE)</CardTitle>
+                  <CardDescription>
+                    For units that already exist in the database (even without a ContentStudio draft).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid gap-3 md:grid-cols-[200px_1fr] items-end">
+                    <div className="space-y-2">
+                      <Label>English Unit</Label>
+                      <Select
+                        value={translateAnyUnitNumber}
+                        onValueChange={(v) => {
+                          setTranslateAnyUnitNumber(v);
+                          setTranslateAnyConfirmation("");
+                        }}
+                        disabled={!publishedEnglishUnits || (publishedEnglishUnits as any[]).length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              publishedEnglishUnits === undefined
+                                ? "Loading units…"
+                                : (publishedEnglishUnits as any[]).length === 0
+                                  ? "No published EN units found"
+                                  : "Select a unit"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(publishedEnglishUnits || []).map((u: any) => (
+                            <SelectItem key={String(u.unitNumber)} value={String(u.unitNumber)}>
+                              {`Unit ${u.unitNumber}: ${String(u.title || "").trim()}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <AlertDialog open={translateAnyOpen} onOpenChange={setTranslateAnyOpen}>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" disabled={isBusy || runningTranslateDe || !translateAnyUnitNumberParsed}>
+                            {runningTranslateDe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Preview & Translate
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Translate published content to German?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This translates the <b>published English</b> unit content into <b>German</b> and writes it as a <b>Preview</b> release
+                              (<code>releaseStatus="preview"</code>). Published content stays untouched.
+                              Serbian text and answers are preserved. Preview test <code>questionId</code>s are suffixed to avoid collisions.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+
+                          <div className="rounded border p-3 text-xs space-y-2">
+                            {translateAnyPreview === undefined ? (
+                              <div className="text-muted-foreground">Loading preview…</div>
+                            ) : !(translateAnyPreview as any)?.sourceEn?.exists ? (
+                              <div className="text-destructive">
+                                No published EN source found for this unit. Publish the unit live first (EN), then translate.
+                              </div>
+                            ) : (
+                              <>
+                                <div className="font-medium">
+                                  Source (EN): {(translateAnyPreview as any)?.sourceEn?.title || `Unit ${translateAnyUnitNumberParsed}`}
+                                </div>
+                                <div className="text-muted-foreground">
+                                  Sections: {((translateAnyPreview as any)?.sourceEn?.contentSections || []).length} · Tests:{" "}
+                                  {(translateAnyPreview as any)?.sourceEn?.tests?.count ?? 0} (v{(translateAnyPreview as any)?.sourceEn?.tests?.unitVersion ?? 1}) ·
+                                  Vocabulary: {(translateAnyPreview as any)?.sourceEn?.vocabulary?.count ?? 0}
+                                </div>
+                                {Array.isArray((translateAnyPreview as any)?.warnings) && (translateAnyPreview as any).warnings.length > 0 ? (
+                                  <div className="space-y-1">
+                                    <div className="font-medium">Warnings</div>
+                                    <ul className="list-disc pl-5 space-y-0.5">
+                                      {(translateAnyPreview as any).warnings.slice(0, 6).map((w: any, idx: number) => (
+                                        <li key={idx} className="text-muted-foreground">
+                                          {String(w)}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : null}
+                                <div className="text-muted-foreground">
+                                  Existing DE: metadata (published {(translateAnyPreview as any)?.existingDe?.metadata?.published ?? 0}, preview{" "}
+                                  {(translateAnyPreview as any)?.existingDe?.metadata?.preview ?? 0}) · content rows{" "}
+                                  {(translateAnyPreview as any)?.existingDe?.content?.publishedActiveCount ?? 0} · test rows{" "}
+                                  {(translateAnyPreview as any)?.existingDe?.tests?.publishedActiveCount ?? 0}
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="py-2 space-y-2">
+                            <Label>
+                              Type {translateAnyUnitNumberParsed ? `"TRANSLATE UNIT ${translateAnyUnitNumberParsed} TO DE"` : "the confirmation text"} to confirm:
+                            </Label>
+                            <Input
+                              value={translateAnyConfirmation}
+                              onChange={(e) => setTranslateAnyConfirmation(e.target.value)}
+                              placeholder={translateAnyUnitNumberParsed ? `TRANSLATE UNIT ${translateAnyUnitNumberParsed} TO DE` : "TRANSLATE UNIT <N> TO DE"}
+                            />
+                          </div>
+
+                          <AlertDialogFooter>
+                            <AlertDialogCancel disabled={runningTranslateDe}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleTranslateAnyUnitToGerman}
+                              disabled={
+                                runningTranslateDe ||
+                                !translateAnyUnitNumberParsed ||
+                                translateAnyConfirmation !== `TRANSLATE UNIT ${translateAnyUnitNumberParsed} TO DE` ||
+                                !(translateAnyPreview as any)?.sourceEn?.exists
+                              }
+                            >
+                              Translate & Save
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+
+                      <Button
+                        variant="outline"
+                        onClick={handleTakeUnitPreviewOfflineForAny}
+                        disabled={isBusy || runningTranslateDe || runningPublish || !translateAnyUnitNumberParsed}
+                      >
+                        Take Preview Offline
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Tip: This is the right tool for units that were imported/migrated outside ContentStudio and therefore don't appear as drafts.
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <>
               <Card>
@@ -3893,6 +4177,95 @@ export default function ContentStudioAdmin() {
                     <div className="text-xs text-muted-foreground">
                       Preview writes content as <code>releaseStatus=preview</code>. Live publish requires status <code>ready_to_publish</code> and latest snapshot approved.
                     </div>
+
+                    {selected?.draft?.status === "published" ? (
+                      <div className="rounded border p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="font-medium">Translate published EN → DE</div>
+                          <AlertDialog open={translateDeOpen} onOpenChange={setTranslateDeOpen}>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="outline" disabled={isBusy || runningTranslateDe}>
+                                {runningTranslateDe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Translate
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Translate published content to German?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                              This translates the <b>published English</b> unit content into <b>German</b> and writes it as a <b>Preview</b> release
+                              (<code>releaseStatus="preview"</code>). Published content stays untouched.
+                              Serbian text and answers are preserved. Preview test <code>questionId</code>s are suffixed to avoid collisions.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <div className="rounded border p-3 text-xs space-y-2">
+                                {translateDePreview === undefined ? (
+                                  <div className="text-muted-foreground">Loading preview…</div>
+                                ) : !(translateDePreview as any)?.sourceEn?.exists ? (
+                                  <div className="text-destructive">
+                                    No published EN source found for this unit. Publish the unit live first (EN), then translate.
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="font-medium">
+                                      Source (EN): {(translateDePreview as any)?.sourceEn?.title || `Unit ${selected.draft.unitNumber}`}
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                      Sections: {((translateDePreview as any)?.sourceEn?.contentSections || []).length} · Tests:{" "}
+                                      {(translateDePreview as any)?.sourceEn?.tests?.count ?? 0} (v{(translateDePreview as any)?.sourceEn?.tests?.unitVersion ?? 1}) ·
+                                      Vocabulary: {(translateDePreview as any)?.sourceEn?.vocabulary?.count ?? 0}
+                                    </div>
+                                    {Array.isArray((translateDePreview as any)?.warnings) && (translateDePreview as any).warnings.length > 0 ? (
+                                      <div className="space-y-1">
+                                        <div className="font-medium">Warnings</div>
+                                        <ul className="list-disc pl-5 space-y-0.5">
+                                          {(translateDePreview as any).warnings.slice(0, 6).map((w: any, idx: number) => (
+                                            <li key={idx} className="text-muted-foreground">
+                                              {String(w)}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    ) : null}
+                                    <div className="text-muted-foreground">
+                                      Existing DE: metadata (published {(translateDePreview as any)?.existingDe?.metadata?.published ?? 0}, preview{" "}
+                                      {(translateDePreview as any)?.existingDe?.metadata?.preview ?? 0}) · content rows{" "}
+                                      {(translateDePreview as any)?.existingDe?.content?.publishedActiveCount ?? 0} · test rows{" "}
+                                      {(translateDePreview as any)?.existingDe?.tests?.publishedActiveCount ?? 0}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                              <div className="py-4">
+                                <Label>Type "TRANSLATE UNIT {selected.draft.unitNumber} TO DE" to confirm:</Label>
+                                <Input
+                                  value={translateDeConfirmation}
+                                  onChange={(e) => setTranslateDeConfirmation(e.target.value)}
+                                  placeholder={`TRANSLATE UNIT ${selected.draft.unitNumber} TO DE`}
+                                  className="mt-2"
+                                />
+                              </div>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel disabled={runningTranslateDe}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={handleTranslatePublishedToGerman}
+                                  disabled={
+                                    runningTranslateDe ||
+                                    translateDeConfirmation !== `TRANSLATE UNIT ${selected.draft.unitNumber} TO DE` ||
+                                    !(translateDePreview as any)?.sourceEn?.exists
+                                  }
+                                >
+                                  Translate & Save
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Use this after the unit is live-published. It updates German content used when learners set their learning language to <code>de</code>.
+                        </div>
+                      </div>
+                    ) : null}
 
                     <Accordion type="single" collapsible className="w-full">
                       <AccordionItem value="danger">
