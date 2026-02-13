@@ -321,6 +321,14 @@ export default function ContentStudioAdmin() {
   const [translateAnyUnitNumber, setTranslateAnyUnitNumber] = useState<string>("1");
   const [translateAnyConfirmation, setTranslateAnyConfirmation] = useState("");
 
+  // DE Translation Preview workflow state (persists after dialog close)
+  const [translateDeResult, setTranslateDeResult] = useState<{
+    unitNumber: number;
+    previewVersion: number | null;
+    timestamp: number;
+    info: any;
+  } | null>(null);
+
   // UI running indicators (so the user sees progress)
   const [runningCreator, setRunningCreator] = useState(false);
   const [runningValidator, setRunningValidator] = useState(false);
@@ -2084,10 +2092,40 @@ export default function ContentStudioAdmin() {
       } else {
         toast.success(`DE Preview created for Unit ${unitNum}${previewV ? ` (v${previewV})` : ""}.`);
       }
-      window.open(`/unit/${unitNum}?lang=de`, "_blank", "noopener,noreferrer");
+      setTranslateDeResult({
+        unitNumber: unitNum,
+        previewVersion: typeof previewV === "number" ? previewV : null,
+        timestamp: Date.now(),
+        info,
+      });
       setTranslateAnyOpen(false);
     } catch (e: any) {
       toast.error(e?.message || `Failed to translate Unit ${unitNum} to German.`);
+    } finally {
+      setRunningTranslateDe(false);
+    }
+  };
+
+  const handlePublishDeTranslationLive = async () => {
+    if (!translateDeResult) return;
+    const unitNum = translateDeResult.unitNumber;
+    const expected = `TRANSLATE UNIT ${unitNum} TO DE`;
+    setRunningTranslateDe(true);
+    try {
+      toast.info(`Publishing DE translation for Unit ${unitNum} live…`);
+      // First take preview offline (clean up preview rows)
+      await takeUnitPreviewOfflineByUnitNumber({ unitNumber: unitNum } as any);
+      // Then write as published
+      await translatePublishedUnitEnToDe({
+        unitNumber: unitNum,
+        confirm: expected,
+        preferredProvider: cfgSpecialistProvider,
+        targetReleaseStatus: "published",
+      } as any);
+      toast.success(`DE translation for Unit ${unitNum} published live.`);
+      setTranslateDeResult(null);
+    } catch (e: any) {
+      toast.error(e?.message || `Failed to publish DE translation for Unit ${unitNum}.`);
     } finally {
       setRunningTranslateDe(false);
     }
@@ -3325,6 +3363,72 @@ export default function ContentStudioAdmin() {
                   <div className="text-xs text-muted-foreground">
                     Tip: This is the right tool for units that were imported/migrated outside ContentStudio and therefore don't appear as drafts.
                   </div>
+
+                  {/* ===== DE Translation Preview Status (persists after translate) ===== */}
+                  {translateDeResult && (
+                    <div className="rounded-lg border border-accent bg-accent/10 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-sm">
+                          DE Preview active: Unit {translateDeResult.unitNumber}
+                          {translateDeResult.previewVersion ? ` (v${translateDeResult.previewVersion})` : ""}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(translateDeResult.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground">
+                        The German translation was written as <code>releaseStatus="preview"</code>.
+                        Published EN content is untouched. Review the preview, then approve or discard.
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => {
+                            window.open(`/unit/${translateDeResult.unitNumber}?lang=de`, "_blank", "noopener,noreferrer");
+                          }}
+                        >
+                          Open DE Preview
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={handlePublishDeTranslationLive}
+                          disabled={isBusy || runningTranslateDe}
+                        >
+                          {runningTranslateDe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Publish DE Live
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            await handleTakeUnitPreviewOfflineForAny();
+                            setTranslateDeResult(null);
+                          }}
+                          disabled={isBusy || runningTranslateDe || runningPublish}
+                        >
+                          Take Preview Offline
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setTranslateDeResult(null)}
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground">
+                        To re-translate: select the unit above and click "Preview & Translate" again. Previous preview rows are archived automatically.
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

@@ -311,7 +311,11 @@ export async function callAiJson(ctx: ActionCtx, params: {
       ],
       response_format: { type: "json_object" },
       temperature: 0.2,
-      max_tokens: params.maxTokens ?? 2500,
+      // Gemini 2.5 thinking models consume thinking tokens from the max_tokens budget.
+      // Multiply requested output budget by 4x (min 16384) to leave room for thinking.
+      max_tokens: provider === "gemini" && model.includes("2.5")
+        ? Math.max((params.maxTokens ?? 2500) * 4, 16384)
+        : (params.maxTokens ?? 2500),
     }),
       signal: controller.signal,
     });
@@ -330,6 +334,12 @@ export async function callAiJson(ctx: ActionCtx, params: {
   const data = (await res.json()) as any;
   if (data?.error?.message) {
     throw new Error(`AI API error payload: ${String(data.error.message)}`);
+  }
+  // Detect finish_reason=length (truncated output) - treat as retryable error
+  const finishReason = data?.choices?.[0]?.finish_reason;
+  if (finishReason === "length") {
+    const completionTokens = data?.usage?.completion_tokens ?? 0;
+    throw new Error(`AI output truncated (finish_reason=length, completion_tokens=${completionTokens}). Increase max_tokens or reduce input.`);
   }
   const raw = extractRawFromAiResponse(data);
   const usage = extractUsageFromAiResponse(data);
@@ -380,7 +390,10 @@ export async function callAiText(ctx: ActionCtx, params: {
         { role: "user", content: params.user },
       ],
       temperature: 0.2,
-      max_tokens: params.maxTokens ?? 3500,
+      // Gemini 2.5 thinking models consume thinking tokens from the max_tokens budget.
+      max_tokens: provider === "gemini" && model.includes("2.5")
+        ? Math.max((params.maxTokens ?? 3500) * 4, 16384)
+        : (params.maxTokens ?? 3500),
     }),
       signal: controller.signal,
     });

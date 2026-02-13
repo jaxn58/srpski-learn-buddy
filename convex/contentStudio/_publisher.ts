@@ -158,7 +158,9 @@ export const translatePublishedUnitEnToDe = action({
         msg.includes("AI returned no content") ||
         msg.includes("returned no content") ||
         msg.includes("AI API timeout") ||
-        /UNAVAILABLE|overloaded|high demand|rate limit|timeout|request aborted/i.test(msg)
+        msg.includes("AI output truncated") ||
+        msg.includes("finish_reason=length") ||
+        /UNAVAILABLE|overloaded|high demand|rate limit|timeout|request aborted|truncated/i.test(msg)
       );
     };
     const hasGemini = !!process.env.GEMINI_API_KEY;
@@ -305,9 +307,9 @@ export const translatePublishedUnitEnToDe = action({
     });
     let metaParsed: any;
     try {
-      metaParsed = JSON.parse(metaAi.raw);
-    } catch {
-      throw new Error("AI returned invalid JSON for metadata translation.");
+      metaParsed = parseJsonOrThrow(metaAi.raw);
+    } catch (e: any) {
+      throw new Error(`AI returned invalid JSON for metadata translation. ${e?.message || ""}`);
     }
 
     const metadataDe = {
@@ -387,7 +389,7 @@ export const translatePublishedUnitEnToDe = action({
     // 3) Vocabulary translations (EN -> DE) - patch existing courseVocabulary rows only
     const vocabDe: Array<{ courseVocabularyId: any; de?: string; deAlt?: string; noteDe?: string }> = [];
     const vocabItems = Array.isArray(source.vocabEn) ? source.vocabEn : [];
-    const vocabChunkSize = 40;
+    const vocabChunkSize = 25;
     for (let i = 0; i < vocabItems.length; i += vocabChunkSize) {
       const chunk = vocabItems.slice(i, i + vocabChunkSize);
       const system = [
@@ -410,13 +412,13 @@ export const translatePublishedUnitEnToDe = action({
         stage: "specialist",
         system,
         user,
-        maxTokens: 2200,
+        maxTokens: 4000,
       });
       let parsed: any;
       try {
-        parsed = JSON.parse(ai.raw);
-      } catch {
-        throw new Error("AI returned invalid JSON for vocabulary translation.");
+        parsed = parseJsonOrThrow(ai.raw);
+      } catch (e: any) {
+        throw new Error(`AI returned invalid JSON for vocabulary translation (chunk ${i}-${i + chunk.length - 1}). ${e?.message || ""}`);
       }
       const itemsOut: any[] = Array.isArray(parsed?.items) ? parsed.items : [];
       const byId = new Map<string, any>();
@@ -485,9 +487,9 @@ export const translatePublishedUnitEnToDe = action({
       });
       let parsed: any;
       try {
-        parsed = JSON.parse(ai.raw);
-      } catch {
-        throw new Error(`AI returned invalid JSON for test translation (category=${category}).`);
+        parsed = parseJsonOrThrow(ai.raw);
+      } catch (e: any) {
+        throw new Error(`AI returned invalid JSON for test translation (category=${category}). ${e?.message || ""}`);
       }
       const categoryInstructionsDe =
         typeof parsed?.categoryInstructionsDe === "string" ? String(parsed.categoryInstructionsDe).trim() : "";
