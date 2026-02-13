@@ -1,8 +1,8 @@
 /**
- * Feedback, Wishlist & Beta Registration Tables
+ * Feedback & Wishlist Tables
  *
  * User feedback with AI-assisted replies, feature requests (wishlist)
- * with upvoting, and beta registration management.
+ * with upvoting.
  */
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
@@ -47,21 +47,6 @@ export const feedbackTables = {
     aiSentContent: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
-    .index("by_status", ["status"]),
-
-  // ============= BETA REGISTRATIONS =============
-  betaRegistrations: defineTable({
-    name: v.string(),
-    email: v.string(),
-    motivation: v.optional(v.string()),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("approved"),
-      v.literal("rejected")
-    ),
-    reviewedAt: v.optional(v.number()),
-  })
-    .index("by_email", ["email"])
     .index("by_status", ["status"]),
 
   // ============= FEEDBACK COMMENTS =============

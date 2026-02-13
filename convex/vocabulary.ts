@@ -523,7 +523,7 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
 }
 
 // Record vocabulary answer (quiz tracking)
-// DUAL-WRITE: Updates both vocabulary (old) and vocabularyProgress (new) tables
+// Updates vocabularyProgress table
 export const recordVocabularyAnswer = mutation({
   args: {
     // OLD: Support for backward compatibility
@@ -579,7 +579,7 @@ export const recordVocabularyAnswer = mutation({
       } as any;
     }
 
-    // ============= DUAL-WRITE: Update vocabularyProgress (NEW) =============
+    // ============= Update vocabularyProgress =============
     let vocabProgressId: Id<"vocabularyProgress"> | null = null;
     
     const existingProgress = await ctx.db
@@ -605,13 +605,6 @@ export const recordVocabularyAnswer = mutation({
       throw new Error(`courseVocabulary not found: ${courseVocabId}`);
     }
     
-    // Get serbianWord and unitNum for dual-write to vocabulary table
-    const serbianWord = args.serbianWord || courseVocab.serbian;
-    // unitNum is already set above, but ensure it's set
-    if (!unitNum) {
-      unitNum = args.unitNumber || courseVocab.unitNumber;
-    }
-
     if (existingProgress) {
       // Update existing progress: increment reviewCount
       await ctx.db.patch(existingProgress._id, {
@@ -637,118 +630,6 @@ export const recordVocabularyAnswer = mutation({
       });
     }
 
-    // ============= DUAL-WRITE: Update vocabulary (OLD - for backward compatibility) =============
-    // Always update vocabulary table if we have serbianWord and unitNumber
-    if (serbianWord && unitNum) {
-      // Use .collect() instead of .first() to find ALL duplicates
-      const existingEntries = await ctx.db
-        .query("vocabulary")
-        .withIndex("by_user_unit", (q) =>
-          q.eq("userId", user._id).eq("unitNumber", unitNum)
-        )
-        .filter((q) => q.eq(q.field("serbianWord"), serbianWord))
-        .collect();
-
-      if (existingEntries.length > 0) {
-        // Sort by creation time to get the oldest entry (keep this one)
-        const sortedEntries = existingEntries.sort(
-          (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
-        );
-        const oldestEntry = sortedEntries[0];
-        const duplicates = sortedEntries.slice(1);
-
-        // Merge counts from duplicates into oldest entry
-        let mergedReviewCount = oldestEntry.reviewCount || 0;
-        let mergedCorrectCount = oldestEntry.correctAnswerCount || 0;
-        let mergedIncorrectCount = oldestEntry.incorrectAnswerCount || 0;
-
-        for (const dup of duplicates) {
-          mergedReviewCount += dup.reviewCount || 0;
-          mergedCorrectCount += dup.correctAnswerCount || 0;
-          mergedIncorrectCount += dup.incorrectAnswerCount || 0;
-        }
-
-        // Update oldest entry with merged counts + new answer
-        await ctx.db.patch(oldestEntry._id, {
-          correctAnswerCount: newCorrectCount,
-          incorrectAnswerCount: newIncorrectCount,
-          mastered: isMastered,
-          reviewCount: mergedReviewCount + 1,
-          lastAnsweredAt: Date.now(),
-          lastReviewedAt: Date.now(),
-        });
-
-        // Delete duplicates immediately
-        for (const dup of duplicates) {
-          await ctx.db.delete(dup._id);
-        }
-      } else {
-        // Create new entry
-        // Get translation from courseVocab (already fetched above)
-        const englishTranslation = courseVocab.en || 
-          (Array.isArray(courseVocab.translations) 
-            ? courseVocab.translations.find((t: any) => t.language === "en")?.translation 
-            : "") || "";
-        
-        const newId = await ctx.db.insert("vocabulary", {
-          userId: user._id,
-          serbianWord: serbianWord,
-          englishTranslation: englishTranslation,
-          unitNumber: unitNum,
-          mastered: isMastered,
-          reviewCount: 1,
-          correctAnswerCount: newCorrectCount,
-          incorrectAnswerCount: newIncorrectCount,
-          lastAnsweredAt: Date.now(),
-          lastReviewedAt: Date.now(),
-        });
-
-        // Immediate cleanup check: verify no duplicates were created (race condition protection)
-        const verifyEntries = await ctx.db
-          .query("vocabulary")
-          .withIndex("by_user_unit", (q) =>
-            q.eq("userId", user._id).eq("unitNumber", unitNum)
-          )
-          .filter((q) => q.eq(q.field("serbianWord"), serbianWord))
-          .collect();
-
-        if (verifyEntries.length > 1) {
-          // Race condition detected! Clean up immediately
-          const sortedVerify = verifyEntries.sort(
-            (a, b) => (a._creationTime || 0) - (b._creationTime || 0)
-          );
-          const keepEntry = sortedVerify[0];
-          const verifyDuplicates = sortedVerify.slice(1);
-
-          // Merge counts
-          let mergedReviewCount = keepEntry.reviewCount || 0;
-          let mergedCorrectCount = keepEntry.correctAnswerCount || 0;
-          let mergedIncorrectCount = keepEntry.incorrectAnswerCount || 0;
-
-          for (const dup of verifyDuplicates) {
-            mergedReviewCount += dup.reviewCount || 0;
-            mergedCorrectCount += dup.correctAnswerCount || 0;
-            mergedIncorrectCount += dup.incorrectAnswerCount || 0;
-          }
-
-          // Update kept entry
-          await ctx.db.patch(keepEntry._id, {
-            reviewCount: mergedReviewCount,
-            correctAnswerCount: mergedCorrectCount,
-            incorrectAnswerCount: mergedIncorrectCount,
-            mastered: isMastered,
-            lastAnsweredAt: Date.now(),
-            lastReviewedAt: Date.now(),
-          });
-
-          // Delete duplicates
-          for (const dup of verifyDuplicates) {
-            await ctx.db.delete(dup._id);
-          }
-        }
-      }
-    }
-
     return { 
       vocabularyProgressId: vocabProgressId,
       courseVocabularyId: courseVocabId,
@@ -757,8 +638,7 @@ export const recordVocabularyAnswer = mutation({
 });
 
 // Get user vocabulary progress
-// NEW: Uses vocabularyProgress with JOIN to courseVocabulary
-// FALLBACK: Falls back to vocabulary table if vocabularyProgress is empty
+// Uses vocabularyProgress with JOIN to courseVocabulary
 export const getUserVocabularyProgress = query({
   args: { 
     unitNumber: v.optional(v.number()) 
@@ -820,21 +700,8 @@ export const getUserVocabularyProgress = query({
       }).filter((item): item is NonNullable<typeof item> => item !== null);
     }
 
-    // FALLBACK: Use old vocabulary table structure
-    let query = ctx.db
-      .query("vocabulary")
-      .withIndex("by_user", (q) => q.eq("userId", user._id));
-
-    if (args.unitNumber !== undefined) {
-      const unitNumber = args.unitNumber;
-      query = ctx.db
-        .query("vocabulary")
-        .withIndex("by_user_unit", (q) =>
-          q.eq("userId", user._id).eq("unitNumber", unitNumber)
-        );
-    }
-
-    return await query.collect();
+    // No progress entries found — return empty array
+    return [];
   },
 });
 

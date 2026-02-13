@@ -297,14 +297,11 @@ export const deleteUnitFull = mutation({
       courseVocabulary: 0,
       vocabularyProgress: 0,
       unitContentAudio: 0,
-      unitExplanations: 0,
       exerciseQuestionProgress: 0,
       questionProgress: 0,
       exerciseResults: 0,
       exerciseCompletions: 0,
       quizProgress: 0,
-      legacyVocabulary: 0,
-      legacyVocabularyTranslations: 0,
       userProgressPatched: 0,
     };
 
@@ -423,16 +420,6 @@ export const deleteUnitFull = mutation({
       deleted.unitContentAudio += 1;
     }
 
-    // legacy unitExplanations (if any)
-    const legacyExpl = await ctx.db
-      .query("unitExplanations")
-      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
-      .collect();
-    for (const e of legacyExpl as any[]) {
-      await ctx.db.delete(e._id);
-      deleted.unitExplanations += 1;
-    }
-
     // 3. Delete gamification / progress data for this unit (cascade)
     const eqp = await ctx.db
       .query("exerciseQuestionProgress")
@@ -477,28 +464,6 @@ export const deleteUnitFull = mutation({
     for (const row of quizzes as any[]) {
       await ctx.db.delete(row._id);
       deleted.quizProgress += 1;
-    }
-
-    const legacyVocab = await ctx.db
-      .query("vocabulary")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-
-    const legacyVocabIds = (legacyVocab as any[]).map((v) => v._id);
-    for (const vid of legacyVocabIds) {
-      const translations = await ctx.db
-        .query("vocabularyTranslations")
-        .withIndex("by_vocab_lang", (q) => q.eq("vocabularyId", vid))
-        .collect();
-      for (const tr of translations as any[]) {
-        await ctx.db.delete(tr._id);
-        deleted.legacyVocabularyTranslations += 1;
-      }
-    }
-
-    for (const row of legacyVocab as any[]) {
-      await ctx.db.delete(row._id);
-      deleted.legacyVocabulary += 1;
     }
 
     // 4. Patch userProgress to remove deleted unit references

@@ -4,13 +4,13 @@ import { v } from "convex/values";
 
 // Liste aller Tabellen aus dem Schema
 const ALL_TABLES = [
-  "users", "userProgress", "vocabulary", "vocabularyProgress",
+  "users", "userProgress", "vocabularyProgress",
   "exerciseQuestionProgress", "questionProgress",
   "chatSessions", "chatMessages", "exerciseResults", "exerciseCompletions",
-  "unitExplanations", "unitMetadata", "moduleMetadata",
-  "vocabularyTranslations", "unitInteractiveTests", "unitContent",
+  "unitMetadata", "moduleMetadata",
+  "unitInteractiveTests", "unitContent",
   "courseVocabulary", "userBadges", "dailyActivity",
-  "feedbackSubmissions", "betaRegistrations", "feedbackComments",
+  "feedbackSubmissions", "feedbackComments",
   "feedbackStatusHistory", "userSubscriptions", "subscriptionHistory",
   "quizProgress", "emailTemplates", "chatPrompts", "chatPromptHistory",
   "appVersions", "changelogEntries", "onboardingSteps"

@@ -2,33 +2,13 @@
  * Vocabulary Tables
  *
  * Course vocabulary master data, user vocabulary progress,
- * translations, and quiz progress.
- * Includes the legacy `vocabulary` table (deprecated).
+ * and quiz progress.
  */
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export const vocabularyTables = {
-  // ============= VOCABULARY (DEPRECATED - Legacy User Progress) =============
-  // @deprecated This table is deprecated. Use vocabularyProgress instead.
-  // Migration: vocabulary → vocabularyProgress
-  // This table will be removed after migration is complete.
-  vocabulary: defineTable({
-    userId: v.id("users"),
-    serbianWord: v.string(),
-    englishTranslation: v.string(),
-    unitNumber: v.number(),
-    mastered: v.boolean(),
-    reviewCount: v.number(),
-    lastReviewedAt: v.optional(v.number()), // timestamp
-    correctAnswerCount: v.number(), // Wie oft richtig beantwortet
-    incorrectAnswerCount: v.number(), // Wie oft falsch beantwortet
-    lastAnsweredAt: v.optional(v.number()), // Letzter Versuch (timestamp)
-  })
-    .index("by_user", ["userId"])
-    .index("by_user_unit", ["userId", "unitNumber"]),
-
-  // ============= VOCABULARY PROGRESS (NEW - User Progress with Foreign Key) =============
+  // ============= VOCABULARY PROGRESS (User Progress with Foreign Key) =============
   // Normalized user progress linked to courseVocabulary via Foreign Key
   vocabularyProgress: defineTable({
     userId: v.id("users"),
@@ -45,14 +25,6 @@ export const vocabularyTables = {
     .index("by_user", ["userId"])
     .index("by_course_vocab", ["courseVocabularyId"])
     .index("by_user_course_vocab", ["userId", "courseVocabularyId"]), // Unique constraint
-
-  // 3. Vocabulary Translations (Multi-language)
-  vocabularyTranslations: defineTable({
-    vocabularyId: v.id("vocabulary"),
-    language: v.string(), // "en", "de", "es", "fr"
-    translation: v.string(),
-    alternatives: v.optional(v.array(v.string())),
-  }).index("by_vocab_lang", ["vocabularyId", "language"]),
 
   // ============= CENTRAL COURSE VOCABULARY (Master Data) =============
   // Stores vocabulary definitions from Units (Markdown)

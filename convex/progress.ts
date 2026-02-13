@@ -278,13 +278,19 @@ export const canCompleteUnit = query({
     const reasons: string[] = [];
     
     // 1. Check if all vocabulary entries in DB are mastered
-    // Get all vocabulary progress for this unit
-    const userVocabProgress = await ctx.db
-      .query("vocabulary")
-      .withIndex("by_user_unit", (q) =>
-        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
-      )
+    // Get all vocabulary progress for this unit via vocabularyProgress + courseVocabulary join
+    const allUserVocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
+    
+    const userVocabProgress: Array<{ correctAnswerCount: number }> = [];
+    for (const vp of allUserVocabProgress) {
+      const courseVocab = await ctx.db.get(vp.courseVocabularyId);
+      if (courseVocab && courseVocab.unitNumber === args.unitNumber) {
+        userVocabProgress.push({ correctAnswerCount: vp.correctAnswerCount });
+      }
+    }
     
     console.log(`[Progress] canCompleteUnit: Found ${userVocabProgress.length} vocabulary entries for unit ${args.unitNumber}`);
     
@@ -455,14 +461,6 @@ export const getUnitMasteryStatus = query({
           });
         }
       }
-    } else {
-      // FALLBACK: Use old vocabulary table structure
-      vocabEntries = await ctx.db
-        .query("vocabulary")
-        .withIndex("by_user_unit", (q) =>
-          q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
-        )
-        .collect();
     }
 
     const vocabTotal = vocabEntries.length;
@@ -534,12 +532,6 @@ export const getMasteredUnits = query({
             });
           }
         }
-      } else {
-        // FALLBACK: Use old vocabulary table structure
-        vocabEntries = await ctx.db
-          .query("vocabulary")
-          .withIndex("by_user", (q) => q.eq("userId", user._id))
-          .take(500); // Reduced limit
       }
 
       const exerciseEntries = await ctx.db
@@ -1248,18 +1240,6 @@ export const hasUnitActivity = query({
           return { hasActivity: true };
         }
       }
-    }
-
-    // 4. Also check legacy vocabulary table (for backward compatibility)
-    const legacyVocab = await ctx.db
-      .query("vocabulary")
-      .withIndex("by_user_unit", (q) => 
-        q.eq("userId", user._id).eq("unitNumber", args.unitNumber)
-      )
-      .first();
-    
-    if (legacyVocab) {
-      return { hasActivity: true };
     }
 
     return { hasActivity: false };

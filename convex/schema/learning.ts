@@ -2,28 +2,13 @@
  * Learning Content Tables
  *
  * Unit metadata, module metadata, unit content (markdown sections),
- * audio cache, interactive tests, and the legacy unitExplanations table.
+ * audio cache, and interactive tests.
  */
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export const learningTables = {
-  // ============= UNIT EXPLANATIONS (DEPRECATED - Legacy table) =============
-  // @deprecated This table is deprecated. Use unitContent instead.
-  // Migration: unitExplanations → unitContent
-  // This table will be removed after migration is complete.
-  unitExplanations: defineTable({
-    unitNumber: v.number(),
-    overview: v.string(),
-    grammarExplained: v.string(),
-    practiceExamples: v.string(),
-    // German translations (optional for backward compatibility)
-    overviewGerman: v.optional(v.string()),
-    grammarExplainedGerman: v.optional(v.string()),
-    practiceExamplesGerman: v.optional(v.string()),
-  }).index("by_unit", ["unitNumber"]),
-
-  // ============= NEW CONTENT STRUCTURE METADATA =============
+  // ============= CONTENT STRUCTURE METADATA =============
 
   // 1. Unit Metadata (Master-Table for Units, Multi-language)
   // Primary Key: (unitNumber, language) - Composite Primary Key

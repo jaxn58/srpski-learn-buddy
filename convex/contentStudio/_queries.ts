@@ -74,14 +74,11 @@ export const getUnitRemovalSummary = query({
       courseVocabulary: 0,
       vocabularyProgress: 0,
       unitContentAudio: 0,
-      unitExplanations: 0,
       exerciseQuestionProgress: 0,
       questionProgress: 0,
       exerciseResults: 0,
       exerciseCompletions: 0,
       quizProgress: 0,
-      legacyVocabulary: 0,
-      legacyVocabularyTranslations: 0,
       userProgressWouldPatch: 0,
       userProgressCurrentUnitWouldChange: 0,
       userProgressCompletedUnitsWouldChange: 0,
@@ -160,12 +157,6 @@ export const getUnitRemovalSummary = query({
       .collect();
     counts.unitContentAudio = audios.length;
 
-    const legacyExpl = await ctx.db
-      .query("unitExplanations")
-      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
-      .collect();
-    counts.unitExplanations = legacyExpl.length;
-
     // Gamification / progress (unitNumber-based)
     const eqp = await ctx.db
       .query("exerciseQuestionProgress")
@@ -196,21 +187,6 @@ export const getUnitRemovalSummary = query({
       .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
       .collect();
     counts.quizProgress = quizzes.length;
-
-    const legacyVocab = await ctx.db
-      .query("vocabulary")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-    counts.legacyVocabulary = legacyVocab.length;
-
-    const legacyVocabIds = (legacyVocab as any[]).map((v) => v._id);
-    for (const vid of legacyVocabIds) {
-      const translations = await ctx.db
-        .query("vocabularyTranslations")
-        .withIndex("by_vocab_lang", (q) => q.eq("vocabularyId", vid))
-        .collect();
-      counts.legacyVocabularyTranslations += translations.length;
-    }
 
     // userProgress impact
     const allUserProgress = await ctx.db.query("userProgress").collect();
