@@ -1,0 +1,398 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\look\AppData\Roaming\n ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...version of npm.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+convex/contentStudio/_creator.ts(247,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/contentStudio/_creator.ts(304,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/contentStudio/_creator.ts(595,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/contentStudio/_creator.ts(738,47): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/contentStudio/_publisher.ts(8,14): error TS7022: 'publishDraftToPreview' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(13,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(30,11): error TS7022: 'ver' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(34,11): error TS7022: 'targetUnitVersion' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(36,11): error TS7022: 'result' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(46,14): error TS7022: 'takePreviewOffline' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(50,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(52,11): error TS7022: 'current' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(53,11): error TS7022: 'unitNumber' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(56,11): error TS7022: 'res' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(64,14): error TS7022: 'takeUnitPreviewOfflineByUnitNumber' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(68,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(72,11): error TS7022: 'res' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(77,14): error TS7022: 'publishDraft' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(83,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(85,11): error TS7022: 'current' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(100,11): error TS7022: 'fileName' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(102,11): error TS7022: 'result' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(118,14): error TS7022: 'translatePublishedUnitEnToDe' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(118,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/contentStudio/_publisher.ts(126,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(135,11): error TS7022: 'source' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(315,11): error TS7022: 'metadataDe' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(559,11): error TS7022: 'result' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_sectionRevise.ts(36,14): error TS7022: 'runSectionRevise' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_sectionRevise.ts(51,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_sectionRevise.ts(208,11): error TS7022: 'validateRes' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_sectionRevise.ts(214,14): error TS7022: 'addDialogue' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_sectionRevise.ts(220,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_sectionRevise.ts(304,11): error TS7022: 'validateRes' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/leaderboard.ts(75,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/leaderboard.ts(130,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/leaderboard.ts(143,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/leaderboard.ts(203,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(94,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(104,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(117,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(127,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(137,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(146,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(158,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(175,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(189,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(199,48): error TS2345: Argument of type '{ [x: string]: any; }' is not assignable to parameter of type '{ moduleNumber: number; slug: string; titleDe: string; titleEn: string; descriptionDe: string; descriptionEn: string; }'.
+  Type '{ [x: string]: any; }' is missing the following properties from type '{ moduleNumber: number; slug: string; titleDe: string; titleEn: string; descriptionDe: string; descriptionEn: string; }': moduleNumber, slug, titleDe, titleEn, and 2 more.
+convex/modules.ts(204,49): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(229,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(309,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(319,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(326,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(333,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(366,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(383,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(401,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(43,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(60,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(66,41): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(74,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(74,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(74,65): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(86,29): error TS2339: Property 'name' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'name' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(95,108): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(101,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(102,28): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(103,27): error TS2339: Property 'name' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'name' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(115,82): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(124,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(131,24): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(138,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(138,56): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(143,14): error TS2339: Property 'isBetaTester' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'isBetaTester' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(152,20): error TS2339: Property 'name' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'name' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(157,86): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(166,19): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(167,18): error TS2339: Property 'name' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'name' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(179,69): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(208,50): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(214,41): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(218,24): error TS2339: Property 'wantsWaitlistUpdates' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'wantsWaitlistUpdates' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(274,51): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(346,44): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(356,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(389,46): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(399,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(423,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(430,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(469,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(483,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(504,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(509,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(517,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(523,18): error TS2339: Property 'subscribed' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'subscribed' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(533,63): error TS2339: Property 'email' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'email' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(542,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(572,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(627,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(633,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(676,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(700,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(721,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(738,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(738,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(748,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(761,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(779,18): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(801,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(810,18): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(826,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(837,18): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(837,49): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(838,55): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(844,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(853,18): error TS2339: Property 'targetTags' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'targetTags' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(855,18): error TS2339: Property 'targetTags' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'targetTags' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(855,34): error TS7006: Parameter 'tag' implicitly has an 'any' type.
+convex/newsletter.ts(860,18): error TS2339: Property 'targetSource' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'targetSource' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(860,43): error TS2339: Property 'targetSource' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'targetSource' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(861,61): error TS2339: Property 'targetSource' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'targetSource' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(865,18): error TS2339: Property 'testMode' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'testMode' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(877,70): error TS2339: Property 'name' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'name' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(928,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1101,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1108,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1115,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1122,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1150,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1157,28): error TS2339: Property 'sentCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'sentCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1162,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1166,31): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1182,53): error TS2339: Property 'name' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'name' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(1192,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1197,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1197,46): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1205,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1225,49): error TS2339: Property 'emailLogId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'emailLogId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1227,60): error TS2339: Property 'clickedLinks' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'clickedLinks' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1227,84): error TS2339: Property 'originalUrl' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'originalUrl' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1229,36): error TS2339: Property 'emailLogId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'emailLogId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1231,29): error TS2339: Property 'clickedAt' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'clickedAt' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1232,32): error TS2339: Property 'clickedCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'clickedCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1238,50): error TS2339: Property 'campaignId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'campaignId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1240,37): error TS2339: Property 'campaignId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'campaignId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1241,35): error TS2339: Property 'clickedCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'clickedCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1246,57): error TS2339: Property 'originalUrl' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'originalUrl' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1254,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1264,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1281,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1286,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1286,49): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1294,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1319,48): error TS2339: Property 'campaignId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'campaignId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1325,50): error TS2339: Property 'deliveredCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'deliveredCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1327,47): error TS2339: Property 'openedCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'openedCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1329,48): error TS2339: Property 'bouncedCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'bouncedCount' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1333,35): error TS2339: Property 'campaignId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'campaignId' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1343,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1355,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1360,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1381,24): error TS2339: Property 'name' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'name' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/newsletter.ts(1382,27): error TS2339: Property 'subject' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'subject' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1383,26): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1384,29): error TS2339: Property 'createdAt' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'createdAt' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1385,26): error TS2339: Property 'sentAt' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'sentAt' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/newsletter.ts(1397,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(49,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(73,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(101,24): error TS2339: Property 'stepNumber' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'stepNumber' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/onboarding.ts(102,22): error TS2339: Property 'language' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'language' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/onboarding.ts(103,19): error TS2339: Property 'title' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'title' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/onboarding.ts(115,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(139,29): error TS2339: Property 'isActive' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'isActive' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/onboarding.ts(149,24): error TS2339: Property 'stepNumber' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'stepNumber' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/onboarding.ts(150,22): error TS2339: Property 'language' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'language' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/onboarding.ts(151,19): error TS2339: Property 'title' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'title' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/onboarding.ts(152,28): error TS2339: Property 'isActive' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'isActive' does not exist on type '{ _id: Id<"moduleMetadata">; _creationTime: number; language?: string | undefined; title?: string | undefined; description?: string | undefined; moduleId?: string | undefined; titleDe?: string | undefined; ... 4 more ...; moduleNumber?: number | undefined; }'.
+convex/onboarding.ts(174,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(182,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(188,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(213,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(230,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(254,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(292,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(376,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(17,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(41,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(48,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(84,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(123,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(181,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(196,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(251,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(263,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(284,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(294,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(428,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(477,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(478,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(482,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(604,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(715,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(723,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(752,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(758,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(758,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(759,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(767,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(806,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(861,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(916,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(984,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1171,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1181,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1192,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1199,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(13,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(85,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(132,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(455,50): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(574,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(736,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(764,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(807,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(807,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(812,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(880,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(900,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(928,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(963,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(964,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(967,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(984,52): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1075,64): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1116,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1356,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1372,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1392,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1455,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1467,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1475,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1559,52): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1564,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1573,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1618,56): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/system.ts(8,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(26,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(77,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(179,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(193,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(202,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(214,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(265,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(318,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(334,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(344,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(357,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(365,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(374,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(382,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(393,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(412,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(441,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(552,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(567,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(577,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(594,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(601,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(41,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(48,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(49,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(60,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(88,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(102,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(102,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(108,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(115,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(116,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(135,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(150,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(151,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(154,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(155,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(185,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(235,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(254,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(277,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(293,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(297,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(301,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(319,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(372,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(409,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(440,37): error TS2339: Property 'environment' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'environment' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(32,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(52,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(61,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(113,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(133,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(151,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(152,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(172,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(241,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(252,12): error TS2339: Property 'createdBy' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'createdBy' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(253,27): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(261,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(261,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(261,64): error TS2345: Argument of type 'Id<"users"> | Id<"moduleMetadata"> | Id<"courseVocabulary"> | Id<"vocabulary"> | Id<"chatSessions"> | Id<"feedbackSubmissions"> | Id<"wishlistItems"> | ... 46 more ... | Id<...>' is not assignable to parameter of type 'Id<"wishlistItems">'.
+  Type 'Id<"users">' is not assignable to type 'Id<"wishlistItems">'.
+    Type 'Id<"users">' is not assignable to type '{ __tableName: "wishlistItems"; }'.
+      Types of property '__tableName' are incompatible.
+        Type '"users"' is not assignable to type '"wishlistItems"'.
+convex/wishlist.ts(264,25): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(275,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(284,25): error TS2339: Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; } | ... 52 more ... | { ...; }'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(316,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(328,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(341,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(345,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(350,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(371,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+shared/data/vocabulary/words.ts(3,27): error TS2307: Cannot find module './helpers' or its corresponding type declarations.

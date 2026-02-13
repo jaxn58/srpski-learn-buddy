@@ -1632,7 +1632,7 @@ export const upsertUnitGermanTranslationToPreview = mutation({
 
       const candidates = await ctx.db
         .query("unitContent")
-        .withIndex("by_unit_lang_type", (q) => q.eq("unitNumber", unitNumber).eq("language", "de").eq("contentType", type))
+        .withIndex("by_unit_lang_type", (q) => q.eq("unitNumber", unitNumber).eq("language", "de").eq("contentType", type as "overview" | "grammar" | "phrases" | "dialogues" | "vocabulary" | "testIntroduction" | "practice"))
         .collect();
       for (const c of candidates as any[]) {
         if (c.isActive === false) continue;

@@ -1,6 +1,22 @@
 // Comprehensive vocabulary list for all 27 units from "Serbian LearnBuddy"
 // Multi-language support: English & German (more languages coming soon)
-import { VocabWord } from './helpers';
+
+export type VocabWord = {
+  serbian: string;
+  translations: {
+    en: string;
+    de: string;
+    es?: string;
+    fr?: string;
+  };
+  alternatives?: {
+    en?: string[];
+    de?: string[];
+    es?: string[];
+    fr?: string[];
+  };
+  unit: number;
+};
 
 export const VOCABULARY: VocabWord[] = [
   // Unit 1 - Na aerodromu (At the airport / Am Flughafen)

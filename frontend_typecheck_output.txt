@@ -1,0 +1,1159 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\look\AppData\Roaming\n ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...version of npm.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+client/src/components/DashboardLayout.tsx(138,23): error TS2345: Argument of type '["admin.pendingCountAria", { count: string; }]' is not assignable to parameter of type '[key: string | string[], options: TOptionsBase & $Dictionary & { defaultValue: string; }] | [key: string | string[], defaultValue: string, options?: (TOptionsBase & $Dictionary) | undefined] | [key: ...]'.
+  Type '["admin.pendingCountAria", { count: string; }]' is not assignable to type '[key: "admin.pendingCountAria" | "admin.pendingCountAria"[], options?: (TOptionsBase & $Dictionary) | undefined]'.
+    Type at position 1 in source is not compatible with type at position 1 in target.
+      Type '{ count: string; }' is not assignable to type 'TOptionsBase & $Dictionary'.
+        Type '{ count: string; }' is not assignable to type 'TOptionsBase'.
+          Types of property 'count' are incompatible.
+            Type 'string' is not assignable to type 'number'.
+client/src/components/exercises/FillInBlank.tsx(139,29): error TS2345: Argument of type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to parameter of type 'SetStateAction<Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>>'.
+  Type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to type '(prevState: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+    Type 'Map<unknown, unknown>' is not assignable to type 'Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+      Type 'unknown' is not assignable to type 'string'.
+client/src/components/exercises/FillInBlank.tsx(171,33): error TS2345: Argument of type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to parameter of type 'SetStateAction<Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>>'.
+  Type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to type '(prevState: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+    Type 'Map<unknown, unknown>' is not assignable to type 'Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+      Type 'unknown' is not assignable to type 'string'.
+client/src/components/exercises/GenderRecognition.tsx(124,29): error TS2345: Argument of type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to parameter of type 'SetStateAction<Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>>'.
+  Type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to type '(prevState: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+    Type 'Map<unknown, unknown>' is not assignable to type 'Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+      Type 'unknown' is not assignable to type 'string'.
+client/src/components/exercises/GenderRecognition.tsx(154,33): error TS2345: Argument of type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to parameter of type 'SetStateAction<Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>>'.
+  Type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to type '(prevState: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+    Type 'Map<unknown, unknown>' is not assignable to type 'Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+      Type 'unknown' is not assignable to type 'string'.
+client/src/components/exercises/TranslationExercise.tsx(142,29): error TS2345: Argument of type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to parameter of type 'SetStateAction<Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>>'.
+  Type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to type '(prevState: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+    Type 'Map<unknown, unknown>' is not assignable to type 'Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+      Type 'unknown' is not assignable to type 'string'.
+client/src/components/exercises/TranslationExercise.tsx(174,33): error TS2345: Argument of type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to parameter of type 'SetStateAction<Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>>'.
+  Type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to type '(prevState: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+    Type 'Map<unknown, unknown>' is not assignable to type 'Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+      Type 'unknown' is not assignable to type 'string'.
+client/src/components/InteractiveTest.tsx(105,32): error TS7006: Parameter 'p' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(131,48): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(152,60): error TS7006: Parameter 'a' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(181,38): error TS7006: Parameter 'p' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(211,48): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(216,31): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(241,48): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(242,36): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(263,55): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(264,52): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(264,79): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(265,52): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(265,79): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(279,52): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(281,57): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+client/src/components/InteractiveTest.tsx(282,58): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+client/src/components/InteractiveTest.tsx(285,16): error TS2322: Type 'unknown' is not assignable to type 'Key | null | undefined'.
+client/src/components/InteractiveTest.tsx(289,18): error TS18046: 'category' is of type 'unknown'.
+client/src/components/InteractiveTest.tsx(310,39): error TS7006: Parameter 'q' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(326,35): error TS7006: Parameter 'part' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(326,41): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(333,81): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+client/src/components/InteractiveTest.tsx(358,82): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+client/src/components/InteractiveTest.tsx(362,42): error TS7006: Parameter 'option' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(362,50): error TS7006: Parameter 'optIdx' implicitly has an 'any' type.
+client/src/components/InteractiveTest.tsx(390,75): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+client/src/components/InteractiveTest.tsx(415,86): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+client/src/components/InteractiveTest.tsx(459,55): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+client/src/components/InteractiveTest.tsx(471,38): error TS2538: Type 'unknown' cannot be used as an index type.
+client/src/components/InteractiveTest.tsx(473,40): error TS2538: Type 'unknown' cannot be used as an index type.
+client/src/components/InteractiveTest.tsx(475,68): error TS2538: Type 'unknown' cannot be used as an index type.
+client/src/components/InteractiveTest.tsx(475,90): error TS2538: Type 'unknown' cannot be used as an index type.
+client/src/components/InteractiveTest.tsx(481,50): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+client/src/pages/Changelog.tsx(88,35): error TS7031: Binding element 'version' implicitly has an 'any' type.
+client/src/pages/Changelog.tsx(88,44): error TS7031: Binding element 'entries' implicitly has an 'any' type.
+client/src/pages/Changelog.tsx(120,43): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+client/src/pages/Changelog.tsx(144,45): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+client/src/pages/Changelog.tsx(168,43): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+client/src/pages/Changelog.tsx(192,45): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+client/src/pages/ChangelogAdmin.tsx(256,40): error TS7006: Parameter 'version' implicitly has an 'any' type.
+client/src/pages/ChangelogAdmin.tsx(394,55): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+client/src/pages/Dashboard.tsx(241,45): error TS7006: Parameter 'u' implicitly has an 'any' type.
+client/src/pages/Dashboard.tsx(262,21): error TS7006: Parameter 'u' implicitly has an 'any' type.
+client/src/pages/Dashboard.tsx(263,21): error TS7006: Parameter 'u' implicitly has an 'any' type.
+client/src/pages/Dashboard.tsx(264,21): error TS7006: Parameter 'u' implicitly has an 'any' type.
+client/src/pages/Dashboard.tsx(441,50): error TS7006: Parameter 'u' implicitly has an 'any' type.
+client/src/pages/Dashboard.tsx(608,45): error TS7006: Parameter 's' implicitly has an 'any' type.
+client/src/pages/Newsletter.tsx(186,32): error TS7006: Parameter 't' implicitly has an 'any' type.
+client/src/pages/Newsletter.tsx(187,29): error TS7006: Parameter 'template' implicitly has an 'any' type.
+client/src/pages/Newsletter.tsx(257,26): error TS7006: Parameter 'campaign' implicitly has an 'any' type.
+client/src/pages/Newsletter.tsx(346,48): error TS7006: Parameter 'contact' implicitly has an 'any' type.
+client/src/pages/Newsletter.tsx(464,37): error TS7006: Parameter 'contact' implicitly has an 'any' type.
+client/src/pages/Newsletter.tsx(484,44): error TS7006: Parameter 'tag' implicitly has an 'any' type.
+client/src/pages/OnboardingAdmin.tsx(382,32): error TS7006: Parameter 'step' implicitly has an 'any' type.
+client/src/pages/Progress.tsx(875,37): error TS7006: Parameter 'module' implicitly has an 'any' type.
+client/src/pages/PromptAdmin.tsx(236,47): error TS7006: Parameter 'p' implicitly has an 'any' type.
+client/src/pages/Units.tsx(47,27): error TS7006: Parameter 'dbModule' implicitly has an 'any' type.
+client/src/pages/Units.tsx(75,24): error TS7006: Parameter 'unitEn' implicitly has an 'any' type.
+client/src/pages/Units.tsx(76,38): error TS7006: Parameter 'u' implicitly has an 'any' type.
+client/src/pages/Units.tsx(83,39): error TS7006: Parameter 'm' implicitly has an 'any' type.
+client/src/pages/Units.tsx(164,25): error TS7006: Parameter 'module' implicitly has an 'any' type.
+client/src/pages/Vocabulary.tsx(157,42): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+client/src/pages/Vocabulary.tsx(778,29): error TS2345: Argument of type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to parameter of type 'SetStateAction<Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>>'.
+  Type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to type '(prevState: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+    Type 'Map<unknown, unknown>' is not assignable to type 'Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+      Type 'unknown' is not assignable to type 'string'.
+client/src/pages/Vocabulary.tsx(848,31): error TS2345: Argument of type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to parameter of type 'SetStateAction<Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>>'.
+  Type '(prev: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<unknown, unknown>' is not assignable to type '(prevState: Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>) => Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+    Type 'Map<unknown, unknown>' is not assignable to type 'Map<string, { correctAnswerCount: number; incorrectAnswerCount: number; }>'.
+      Type 'unknown' is not assignable to type 'string'.
+client/src/pages/Vocabulary.tsx(1096,37): error TS7006: Parameter 'unit' implicitly has an 'any' type.
+convex/contentStudio/_publisher.ts(8,14): error TS7022: 'publishDraftToPreview' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(13,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(30,11): error TS7022: 'ver' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(34,11): error TS7022: 'targetUnitVersion' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(36,11): error TS7022: 'result' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(46,14): error TS7022: 'takePreviewOffline' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(50,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(52,11): error TS7022: 'current' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(53,11): error TS7022: 'unitNumber' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(56,11): error TS7022: 'res' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(64,14): error TS7022: 'takeUnitPreviewOfflineByUnitNumber' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(68,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(72,11): error TS7022: 'res' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(77,14): error TS7022: 'publishDraft' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(83,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(85,11): error TS7022: 'current' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(100,11): error TS7022: 'fileName' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(102,11): error TS7022: 'result' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(118,14): error TS7022: 'translatePublishedUnitEnToDe' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(118,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/contentStudio/_publisher.ts(126,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_publisher.ts(135,11): error TS7022: 'source' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(315,11): error TS7022: 'metadataDe' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_publisher.ts(559,11): error TS7022: 'result' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_sectionRevise.ts(36,14): error TS7022: 'runSectionRevise' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_sectionRevise.ts(51,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_sectionRevise.ts(208,11): error TS7022: 'validateRes' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_sectionRevise.ts(214,14): error TS7022: 'addDialogue' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/contentStudio/_sectionRevise.ts(220,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/contentStudio/_sectionRevise.ts(304,11): error TS7022: 'validateRes' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/debug_index.ts(4,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/debug_index.ts(10,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/debug_index.ts(16,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/debug_index.ts(22,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/debug_index.ts(27,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/deploy.ts(26,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(67,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(75,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(81,24): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(92,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(123,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(169,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(196,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(242,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(274,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(286,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(369,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(378,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(383,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(399,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(425,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(456,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(477,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/emailTemplates.ts(563,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(15,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(64,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(64,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(70,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(88,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(88,51): error TS2345: Argument of type '{ userId: Id<"users">; }' is not assignable to parameter of type '{ userId: Id<"users">; unitNumber: number; exerciseType: string; score: number; totalQuestions: number; correctAnswers: number; }'.
+  Type '{ userId: Id<"users">; }' is missing the following properties from type '{ userId: Id<"users">; unitNumber: number; exerciseType: string; score: number; totalQuestions: number; correctAnswers: number; }': unitNumber, exerciseType, score, totalQuestions, correctAnswers
+convex/exercises.ts(103,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(103,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(109,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(235,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(254,48): error TS2345: Argument of type '{ userId: Id<"users">; }' is not assignable to parameter of type '{ userId: Id<"users">; unitNumber: number; exerciseId: string; score: number; totalQuestions: number; xpEarned: number; }'.
+  Type '{ userId: Id<"users">; }' is missing the following properties from type '{ userId: Id<"users">; unitNumber: number; exerciseId: string; score: number; totalQuestions: number; xpEarned: number; }': unitNumber, exerciseId, score, totalQuestions, xpEarned
+convex/exercises.ts(285,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(295,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(296,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(303,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(311,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(320,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(378,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(401,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(411,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(427,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(453,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(477,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(556,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(597,44): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/exercises.ts(607,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(24,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(29,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(39,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(39,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(45,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(60,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(70,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(82,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(82,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(95,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(95,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(101,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(129,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(185,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(195,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(217,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(263,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(264,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(276,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(425,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(495,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(502,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(509,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(541,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(599,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(615,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/feedback.ts(645,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/leaderboard.ts(75,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/leaderboard.ts(130,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/leaderboard.ts(143,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/leaderboard.ts(203,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/migrations.ts(16,14): error TS7022: 'updateProdPrompts' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/migrations.ts(16,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/migrations.ts(20,3): error TS7023: 'handler' implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.
+convex/migrations.ts(59,11): error TS7022: 'chatRes' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+convex/migrations.ts(59,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/migrations.ts(201,49): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(83,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(83,48): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(94,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(101,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(102,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(102,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(102,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(102,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(104,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(105,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(105,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(114,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(117,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(127,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(130,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(132,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(158,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(160,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(162,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(173,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(175,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(189,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(198,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(204,49): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(211,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(213,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(229,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(231,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(232,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(233,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(234,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(235,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(236,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(237,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(239,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(309,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(311,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(313,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(314,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(319,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(323,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(333,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(335,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(340,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(353,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(366,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(368,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(383,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(385,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(401,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(402,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(403,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(411,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/modules.ts(412,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(43,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(60,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(62,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(64,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(124,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(126,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(127,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(129,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(208,50): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(210,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(212,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(274,51): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(279,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(346,44): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(348,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(389,46): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(391,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(406,51): error TS7006: Parameter 't' implicitly has an 'any' type.
+convex/newsletter.ts(423,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(427,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(469,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(471,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(472,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(472,24): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(472,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(472,55): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(472,74): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(473,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(475,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(504,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(506,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(520,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(522,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(533,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(534,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(535,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(558,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(560,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(588,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(591,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(592,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(592,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(593,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(595,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(639,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(641,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(642,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(644,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(661,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(662,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(690,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(691,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(699,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(700,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(713,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(718,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(719,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(719,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(720,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(720,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(720,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(720,61): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(720,80): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(721,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(723,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(758,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(760,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(760,24): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(761,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(762,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(763,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(764,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(765,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(768,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(773,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(785,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(786,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(787,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(798,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(800,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(801,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(802,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(803,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(804,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(805,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(805,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(806,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(806,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(806,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(806,61): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(806,80): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(807,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(809,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(838,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(839,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(840,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(863,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(865,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(867,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(892,34): error TS7006: Parameter 'tag' implicitly has an 'any' type.
+convex/newsletter.ts(956,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(965,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(967,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(968,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(968,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(970,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1138,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1139,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1140,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1145,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1146,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1147,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1152,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1153,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1154,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1159,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1161,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1162,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1163,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1164,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1165,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1166,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1167,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1168,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1169,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1171,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1172,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1173,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1174,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1175,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1176,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1177,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1178,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1179,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1181,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1187,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1188,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1189,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1199,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1200,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1201,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1229,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1231,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1242,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1244,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1245,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1246,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1247,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1249,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1291,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1293,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1294,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1295,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1298,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1300,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1316,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1317,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1318,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1348,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1348,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1365,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1367,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1378,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1380,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1381,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1381,24): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1382,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1383,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1384,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1385,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1386,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1387,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1388,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1390,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1391,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1392,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1393,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1395,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1427,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1428,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1429,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1478,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1479,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1480,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1537,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1538,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1586,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1590,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/newsletter.ts(1630,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(49,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(53,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(74,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(75,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(96,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(100,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(118,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(127,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(129,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(165,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(167,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(168,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(169,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(170,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(171,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(172,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(173,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(174,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(175,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(177,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(227,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(229,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(231,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(269,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(271,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(273,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(323,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(325,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(325,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(328,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(382,47): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(392,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(394,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(434,48): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(438,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(469,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(473,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(483,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(508,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(509,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(525,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(528,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(529,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(530,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(531,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(532,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(533,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(534,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(535,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(536,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(537,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(538,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(539,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(542,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(544,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(587,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(589,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(590,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(591,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(592,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(593,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(594,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(595,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(596,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(597,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(598,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(599,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(600,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(601,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(602,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(603,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(604,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(605,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(607,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(654,49): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(658,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(659,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(660,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(661,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(662,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(663,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(664,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(665,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(666,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(667,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(668,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(669,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(672,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(674,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(719,47): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(722,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(724,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(768,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(773,24): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(773,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(773,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(773,64): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/onboarding.ts(775,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(17,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(41,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(42,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(57,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(58,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(58,41): error TS7006: Parameter 'n' implicitly has an 'any' type.
+convex/progress.ts(59,22): error TS18046: 'a' is of type 'unknown'.
+convex/progress.ts(59,26): error TS18046: 'b' is of type 'unknown'.
+convex/progress.ts(67,11): error TS18046: 'unit' is of type 'unknown'.
+convex/progress.ts(84,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(86,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(87,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(88,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(90,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(123,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(127,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(181,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(185,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(251,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(252,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(263,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(267,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(378,29): error TS2339: Property 'score' does not exist on type '{}'.
+convex/progress.ts(378,48): error TS2339: Property 'totalQuestions' does not exist on type '{}'.
+convex/progress.ts(382,29): error TS2339: Property 'score' does not exist on type '{}'.
+convex/progress.ts(383,38): error TS2339: Property 'totalQuestions' does not exist on type '{}'.
+convex/progress.ts(385,98): error TS2339: Property 'score' does not exist on type '{}'.
+convex/progress.ts(385,118): error TS2339: Property 'totalQuestions' does not exist on type '{}'.
+convex/progress.ts(428,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(432,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(469,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(509,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(510,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(604,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(608,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(608,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(608,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(613,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(715,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(717,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(733,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(734,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(759,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(963,52): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(964,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1171,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1175,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1189,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1190,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1192,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1193,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1199,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/progress.ts(1201,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(13,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(71,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(72,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(125,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(126,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(154,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(165,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(166,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(184,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(186,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(205,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(206,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(233,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(256,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(455,50): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(457,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(459,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(574,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(576,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(576,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(576,47): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(576,70): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(576,93): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(577,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(577,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(577,48): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(578,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(578,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(578,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(580,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(581,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(583,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(736,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(741,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(764,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(766,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(793,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(794,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(880,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(881,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(893,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(895,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(896,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(897,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(898,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(899,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(904,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(965,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(966,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(991,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(992,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1005,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1006,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1017,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1018,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1056,53): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1057,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1082,52): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1083,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1084,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1089,52): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1090,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1177,64): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1179,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1218,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1222,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1225,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1225,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1225,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1225,61): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1225,85): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1227,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1458,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1462,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1462,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1462,47): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1462,70): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1462,93): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1465,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1465,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1465,48): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1466,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1469,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1557,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1561,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1561,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1561,51): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1561,74): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1561,97): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1562,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1562,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1562,49): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1562,72): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1562,95): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1564,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1635,53): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1638,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1639,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1641,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1725,34): error TS2339: Property 'appliedEvents' does not exist on type 'never'.
+convex/subscriptions.ts(1802,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1803,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1804,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1805,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1806,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1807,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1811,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1812,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1813,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1814,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1815,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1823,52): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1825,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1863,44): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1868,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1880,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1881,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1882,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1883,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1884,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1885,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1886,5): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1897,56): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1899,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1922,48): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/subscriptions.ts(1927,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/system.ts(8,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/system.ts(10,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/system.ts(12,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/unitContentAudio.ts(8,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/unitContentAudio.ts(12,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/unitContentAudio.ts(40,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/unitContentAudio.ts(44,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/unitContentAudio.ts(44,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/unitContentAudio.ts(44,48): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/unitContentAudio.ts(49,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/unitContentAudio.ts(51,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(24,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(28,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(117,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(168,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(174,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(271,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(272,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(280,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(285,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(286,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(287,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(288,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(289,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(291,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(325,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(331,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(349,50): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(351,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(352,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(354,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(413,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(416,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(418,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(448,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(450,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(452,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(500,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(503,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(505,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(530,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(532,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(533,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(535,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(558,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(561,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(563,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(597,43): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(601,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(603,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(624,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(630,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(653,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(657,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(658,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(659,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(660,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(661,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(662,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(663,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(664,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(668,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(699,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(702,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(704,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(752,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(755,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(757,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(827,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(832,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(837,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(837,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(838,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(838,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(839,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(842,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(884,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(887,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(889,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(932,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(935,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(937,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1025,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1032,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1057,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1060,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1061,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1062,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1064,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1091,47): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1094,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1095,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1096,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1098,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1120,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1127,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1150,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1151,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1180,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1181,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1216,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1233,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1233,47): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1243,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1245,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1247,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1267,28): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1269,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1270,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1271,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1273,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1286,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1290,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1331,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1333,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1441,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1443,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1444,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1445,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1447,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1457,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1459,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1460,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1462,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1474,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1479,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1645,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1647,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1649,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1656,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1658,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1660,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1667,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1669,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1671,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1679,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1681,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/units.ts(1683,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(41,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(43,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(43,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(43,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(43,70): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(45,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(60,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(62,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(63,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(65,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(88,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(90,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(91,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(91,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(91,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(91,51): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(93,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(115,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(135,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(137,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(137,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(137,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(138,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(140,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(151,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(185,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(188,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(188,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(188,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(188,70): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(189,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(190,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(192,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(254,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(256,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(257,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(258,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(259,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(260,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(261,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(264,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(265,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(265,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(265,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(267,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(319,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(321,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(322,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(323,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(324,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(324,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(325,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(326,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(327,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(328,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(330,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(332,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(372,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(374,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(376,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(409,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(411,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/versions.ts(413,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(35,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(39,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(39,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(39,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(42,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(44,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(45,20): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(46,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(47,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(48,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(49,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(50,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(52,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(94,52): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(99,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(100,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(154,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(155,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(183,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(187,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(209,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(221,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(227,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(229,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(231,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(309,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(339,34): error TS2339: Property 'mastered' does not exist on type '{}'.
+convex/vocabulary.ts(340,37): error TS2339: Property 'reviewCount' does not exist on type '{}'.
+convex/vocabulary.ts(341,40): error TS2339: Property 'lastReviewedAt' does not exist on type '{}'.
+convex/vocabulary.ts(342,44): error TS2339: Property 'correctAnswerCount' does not exist on type '{}'.
+convex/vocabulary.ts(343,46): error TS2339: Property 'incorrectAnswerCount' does not exist on type '{}'.
+convex/vocabulary.ts(344,40): error TS2339: Property 'lastAnsweredAt' does not exist on type '{}'.
+convex/vocabulary.ts(401,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(406,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(408,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(439,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(471,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(493,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(495,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(497,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(523,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(528,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(530,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(532,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(557,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(561,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(575,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(581,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(651,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(653,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(654,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(655,22): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(657,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(683,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(685,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(686,7): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(686,16): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(693,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(767,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(770,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(771,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(773,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(776,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(788,38): error TS2345: Argument of type 'Id<"courseVocabulary"> | null' is not assignable to parameter of type 'Id<any>'.
+  Type 'null' is not assignable to type 'Id<any>'.
+    Type 'null' is not assignable to type 'string'.
+convex/vocabulary.ts(818,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(993,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1002,42): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1004,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1006,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1040,14): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1084,44): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1086,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1089,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1089,30): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1091,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1118,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1120,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1121,15): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1123,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1153,33): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1158,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1165,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1179,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1181,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1204,46): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1206,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1209,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1210,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1211,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1212,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1213,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1214,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1215,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1216,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1217,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1218,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1220,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1243,53): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1248,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1260,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1264,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1297,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1299,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1300,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1302,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1313,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1315,13): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1316,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1319,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1322,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1324,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1353,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1354,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1368,48): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1369,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1549,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1555,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1563,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1565,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1570,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1571,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1573,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1593,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1595,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1597,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1611,45): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1613,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1615,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1637,47): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1639,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1642,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1651,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1653,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1654,18): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1656,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1691,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1693,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1696,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1704,38): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1706,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1708,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1727,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1729,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1731,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1746,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1748,19): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1750,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1761,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1763,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1771,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1775,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1783,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/vocabulary.ts(1787,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(25,21): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(28,11): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(29,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(31,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(113,24): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(117,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(184,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(185,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(197,25): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(198,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(218,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(219,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(236,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(237,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(257,40): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(259,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(261,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(320,26): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(321,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(373,23): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(375,17): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(377,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(387,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/waitlist.ts(388,12): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(32,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(52,27): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(61,35): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(113,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(133,36): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(151,39): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(152,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(172,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(241,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(252,12): error TS2339: Property 'createdBy' does not exist on type '{ _id: Id<"contentDrafts">; _creationTime: number; description?: string | undefined; inspirationRef?: { notes?: string | undefined; source?: string | undefined; referenceId?: Id<...> | undefined; chapter?: string | undefined; pages?: string | undefined; } | undefined; ... 16 more ...; createdBy: Id<...>; } | ... 52 ...'.
+  Property 'createdBy' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(253,27): error TS2339: Property 'status' does not exist on type '{ _id: Id<"contentDrafts">; _creationTime: number; description?: string | undefined; inspirationRef?: { notes?: string | undefined; source?: string | undefined; referenceId?: Id<...> | undefined; chapter?: string | undefined; pages?: string | undefined; } | undefined; ... 16 more ...; createdBy: Id<...>; } | ... 52 ...'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(261,34): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(261,41): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(261,64): error TS2345: Argument of type 'Id<"users"> | Id<"moduleMetadata"> | Id<"courseVocabulary"> | Id<"vocabulary"> | Id<"chatSessions"> | Id<"feedbackSubmissions"> | Id<"wishlistItems"> | ... 46 more ... | Id<...>' is not assignable to parameter of type 'Id<"wishlistItems">'.
+  Type 'Id<"users">' is not assignable to type 'Id<"wishlistItems">'.
+    Type 'Id<"users">' is not assignable to type '{ __tableName: "wishlistItems"; }'.
+      Types of property '__tableName' are incompatible.
+        Type '"users"' is not assignable to type '"wishlistItems"'.
+convex/wishlist.ts(264,25): error TS2339: Property 'status' does not exist on type '{ _id: Id<"contentDrafts">; _creationTime: number; description?: string | undefined; inspirationRef?: { notes?: string | undefined; source?: string | undefined; referenceId?: Id<...> | undefined; chapter?: string | undefined; pages?: string | undefined; } | undefined; ... 16 more ...; createdBy: Id<...>; } | ... 52 ...'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(275,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(284,25): error TS2339: Property 'status' does not exist on type '{ _id: Id<"contentDrafts">; _creationTime: number; description?: string | undefined; inspirationRef?: { notes?: string | undefined; source?: string | undefined; referenceId?: Id<...> | undefined; chapter?: string | undefined; pages?: string | undefined; } | undefined; ... 16 more ...; createdBy: Id<...>; } | ... 52 ...'.
+  Property 'status' does not exist on type '{ _id: Id<"users">; _creationTime: number; name?: string | undefined; email?: string | undefined; loginMethod?: string | undefined; learningLanguage?: "en" | "de" | "es" | "fr" | undefined; ... 13 more ...; longestStreak: number; }'.
+convex/wishlist.ts(316,32): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(328,9): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(341,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(345,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(350,31): error TS2589: Type instantiation is excessively deep and possibly infinite.
+convex/wishlist.ts(371,37): error TS2589: Type instantiation is excessively deep and possibly infinite.

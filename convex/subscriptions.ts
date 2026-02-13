@@ -876,19 +876,6 @@ export const getAnalytics = query({
   },
 });
 
-// Get user's subscription (original function kept for compatibility)
-export const getUserSubscription = query({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) return null;
-
-    return await ctx.db
-      .query("userSubscriptions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .first();
-  },
-});
-
 // Create/update subscription
 export const createSubscription = mutation({
   args: {
@@ -960,91 +947,6 @@ export const createSubscription = mutation({
     return subId;
   },
 });
-
-// Cancel subscription
-export const cancelSubscription = mutation({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
-
-    const subscription = await ctx.db
-      .query("userSubscriptions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .first();
-
-    if (!subscription) throw new Error("No subscription found");
-
-    await ctx.db.patch(subscription._id, {
-      status: "cancelled",
-      cancelledAt: Date.now(),
-    });
-
-    await ctx.db.insert("subscriptionHistory", {
-      userId: user._id,
-      action: "cancelled",
-      previousPlanType: subscription.planType,
-    });
-  },
-});
-
-// Get subscription history
-export const getHistory = query({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) return [];
-
-    return await ctx.db
-      .query("subscriptionHistory")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .order("desc")
-      .collect();
-  },
-});
-
-// Get all subscriptions (admin only)
-export const getAllSubscriptions = query({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
-      throw new Error("Unauthorized");
-    }
-
-    return await ctx.db.query("userSubscriptions").collect();
-  },
-});
-
-// Toggle auto-renew
-export const toggleAutoRenew = mutation({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
-
-    const subscription = await ctx.db
-      .query("userSubscriptions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .first();
-
-    if (!subscription) throw new Error("No subscription found");
-
-    await ctx.db.patch(subscription._id, {
-      autoRenew: !subscription.autoRenew,
-    });
-
-    return !subscription.autoRenew;
-  },
-});
-
-function parseMoneyToCents(input: unknown): number | null {
-  if (typeof input === "number" && Number.isFinite(input)) {
-    return Math.round(input * 100);
-  }
-  if (typeof input === "string") {
-    const n = Number.parseFloat(input);
-    if (!Number.isFinite(n)) return null;
-    return Math.round(n * 100);
-  }
-  return null;
-}
 
 function getPlanPriceCentsFromConfig(args: { planType: string; isBeta50: boolean }): number {
   const plan = SUBSCRIPTION_PLANS.find((p) => p.id === args.planType);
@@ -1136,10 +1038,6 @@ export const processDodoInstallmentCancellations = internalAction({
     return { attempted: toCancel.length, cancelled };
   },
 });
-
-function getDodoEnvironmentForEvent(): "test_mode" | "live_mode" | "dev_mode" {
-  return getDodoEnvironmentFromEnv();
-}
 
 function safeObject(input: unknown): Record<string, any> {
   return input && typeof input === "object" ? (input as any) : {};
@@ -1632,168 +1530,6 @@ export const internalApplyDodoUpgrade = internalMutation({
   },
 });
 
-export const repairSubscriptionExpiryFromWebhooks = mutation({
-  args: {
-    // Superadmin can repair a specific user by clerkId (optional).
-    clerkId: v.optional(v.string()),
-    dryRun: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
-    const admin = await getCurrentUser(ctx);
-    if (!admin || (admin.role !== "admin" && admin.role !== "superadmin")) {
-      throw new Error("Unauthorized");
-    }
-
-    const targetClerkId =
-      admin.role === "superadmin" && args.clerkId ? String(args.clerkId).trim() : String(admin.clerkId);
-    if (!targetClerkId) throw new Error("missing_clerk_id");
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", targetClerkId))
-      .first();
-    if (!user) throw new Error("User not found");
-
-    const subscription = await ctx.db
-      .query("userSubscriptions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .first();
-    if (!subscription) throw new Error("No subscription found");
-
-    // Collect prepaid payment.succeeded events for this user.
-    // NOTE: There is no index on clerkId, so we query by type and filter (acceptable for repair tooling).
-    const raw = await ctx.db
-      .query("dodoWebhookEvents")
-      .withIndex("by_type", (q) => q.eq("eventType", "payment.succeeded"))
-      .filter((q) => q.eq(q.field("clerkId"), targetClerkId))
-      .collect();
-
-    const events = raw
-      .filter((e) => typeof e.receivedAt === "number" && typeof e.rawPayload === "string")
-      .sort((a, b) => a.receivedAt - b.receivedAt);
-
-    type State = {
-      planType: DodoPlanId;
-      planDurationMonths: number;
-      planPriceCents: number;
-      expiresAt: number;
-      lastWebhookId: string | null;
-      appliedEvents: number;
-    };
-
-    let state: State | null = null;
-
-    const applyBaseStart = (currentExpiresAt: number | null, eventReceivedAt: number) => {
-      // Mirror our "extend from existing expiry if still active" behavior.
-      if (typeof currentExpiresAt === "number" && Number.isFinite(currentExpiresAt) && currentExpiresAt > eventReceivedAt) {
-        return currentExpiresAt;
-      }
-      return eventReceivedAt;
-    };
-
-    for (const e of events) {
-      let evt: any;
-      try {
-        evt = JSON.parse(e.rawPayload);
-      } catch {
-        continue;
-      }
-
-      const meta = extractDodoMetadata(evt);
-      const flow = String(meta?.flow ?? "").trim().toLowerCase();
-      const paymentMode = String(meta?.paymentMode ?? "").trim().toLowerCase();
-      if (paymentMode !== "prepaid") continue;
-
-      if (flow === "purchase") {
-        const planType = parseDodoPlanType(meta);
-        if (!planType) continue;
-
-        const months = getPlanDurationMonths(planType);
-        if (!months) continue;
-
-        const baseStart = applyBaseStart(state?.expiresAt ?? null, e.receivedAt);
-        const expiresAt = addMonthsUtc(baseStart, months);
-        const beta50 = parseDodoBeta50(meta);
-        const planPriceCents = getPlanPriceCentsFromConfig({ planType, isBeta50: beta50 });
-
-        state = {
-          planType,
-          planDurationMonths: months,
-          planPriceCents,
-          expiresAt,
-          lastWebhookId: e.webhookId ?? null,
-          appliedEvents: (state?.appliedEvents ?? 0) + 1,
-        };
-        continue;
-      }
-
-      if (flow === "upgrade") {
-        if (!state) continue;
-
-        const toPlanType = parseDodoPlanType(meta);
-        const addedMonthsRaw = String((meta as any)?.upgradeAddedMonths ?? "").trim();
-        const addedMonths = Number.parseInt(addedMonthsRaw, 10);
-        if (!toPlanType) continue;
-        if (!Number.isFinite(addedMonths) || addedMonths <= 0) continue;
-
-        const months = getPlanDurationMonths(toPlanType);
-        if (!months) continue;
-
-        const baseStart = applyBaseStart(state.expiresAt, e.receivedAt);
-        const expiresAt = addMonthsUtc(baseStart, addedMonths);
-        const planPriceCents = getPlanPriceCentsFromConfig({ planType: toPlanType, isBeta50: false });
-
-        state = {
-          planType: toPlanType,
-          planDurationMonths: months,
-          planPriceCents,
-          expiresAt,
-          lastWebhookId: e.webhookId ?? null,
-          appliedEvents: state.appliedEvents + 1,
-        };
-      }
-    }
-
-    if (!state) {
-      throw new Error("no_applicable_payment_events");
-    }
-
-    const before = {
-      planType: subscription.planType,
-      planDurationMonths: subscription.planDurationMonths,
-      planPrice: subscription.planPrice,
-      expiresAt: subscription.expiresAt,
-      status: subscription.status,
-    };
-
-    const after = {
-      planType: state.planType,
-      planDurationMonths: state.planDurationMonths,
-      planPrice: state.planPriceCents,
-      expiresAt: state.expiresAt,
-    };
-
-    if (!args.dryRun) {
-      await ctx.db.patch(subscription._id, {
-        planType: state.planType,
-        planDurationMonths: state.planDurationMonths,
-        planPrice: state.planPriceCents,
-        expiresAt: state.expiresAt,
-      });
-    }
-
-    return {
-      ok: true,
-      dryRun: args.dryRun === true,
-      clerkId: targetClerkId,
-      before,
-      after,
-      deltaMs: after.expiresAt - before.expiresAt,
-      appliedEvents: state.appliedEvents,
-      lastWebhookId: state.lastWebhookId,
-    };
-  },
-});
 
 // ===== Server-side helpers for migrations =====
 
@@ -1860,21 +1596,6 @@ export const internalUpsertSubscriptionForServer = internalMutation({
   },
 });
 
-export const upsertSubscriptionForServer = action({
-  args: {
-    serverToken: v.string(),
-    ...serverUpsertArgs,
-  },
-  handler: async (ctx, args): Promise<Id<"userSubscriptions">> => {
-    if (!process.env.CONVEX_SERVER_TOKEN || args.serverToken !== process.env.CONVEX_SERVER_TOKEN) {
-      throw new Error("Unauthorized server token");
-    }
-
-    const { serverToken: _token, ...rest } = args;
-    return await ctx.runMutation(internal.subscriptions.internalUpsertSubscriptionForServer, rest);
-  },
-});
-
 const serverHistoryArgs = {
   clerkId: v.string(),
   action: v.union(
@@ -1916,21 +1637,6 @@ export const internalAddSubscriptionHistoryForServer = internalMutation({
       cost: args.cost ?? undefined,
       notes: args.notes ?? args.migrationId ?? undefined,
     });
-  },
-});
-
-export const addSubscriptionHistoryForServer = action({
-  args: {
-    serverToken: v.string(),
-    ...serverHistoryArgs,
-  },
-  handler: async (ctx, args) => {
-    if (!process.env.CONVEX_SERVER_TOKEN || args.serverToken !== process.env.CONVEX_SERVER_TOKEN) {
-      throw new Error("Unauthorized server token");
-    }
-
-    const { serverToken: _token, ...rest } = args;
-    await ctx.runMutation(internal.subscriptions.internalAddSubscriptionHistoryForServer, rest);
   },
 });
 

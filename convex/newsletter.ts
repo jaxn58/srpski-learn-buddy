@@ -499,22 +499,6 @@ export const getAllContacts = query({
 });
 
 /**
- * Get contact by email
- */
-export const getContactByEmail = query({
-  args: { email: v.string() },
-  handler: async (ctx, args) => {
-    const admin = await getAdminUser(ctx);
-    if (!admin) throw new Error("Unauthorized - Admin access required");
-
-    return await ctx.db
-      .query("newsletterContacts")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
-  },
-});
-
-/**
  * Get contact by unsubscribe token (public for unsubscribe page)
  */
 export const getContactByUnsubscribeToken = query({
@@ -630,27 +614,6 @@ export const addContact = mutation({
 
     console.log(`[Newsletter] Manually added contact: ${args.email}`);
     return { success: true, contactId };
-  },
-});
-
-/**
- * Update contact tags (admin only)
- */
-export const updateContactTags = mutation({
-  args: {
-    contactId: v.id("newsletterContacts"),
-    tags: v.array(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const admin = await getAdminUser(ctx);
-    if (!admin) throw new Error("Unauthorized - Admin access required");
-
-    await ctx.db.patch(args.contactId, {
-      tags: args.tags,
-      updatedAt: Date.now(),
-    });
-
-    return { success: true };
   },
 });
 
@@ -1310,53 +1273,6 @@ export const createLinkClick = internalMutation({
   },
 });
 
-/**
- * Get link click stats for campaign (admin only)
- */
-export const getLinkClickStats = query({
-  args: { campaignId: v.id("newsletterCampaigns") },
-  handler: async (ctx, args) => {
-    const admin = await getAdminUser(ctx);
-    if (!admin) throw new Error("Unauthorized - Admin access required");
-
-    const linkClicks = await ctx.db
-      .query("newsletterLinkClicks")
-      .withIndex("by_campaign", (q) => q.eq("campaignId", args.campaignId))
-      .collect();
-
-    // Group by original URL
-    const urlStats = new Map<string, { url: string; clicks: number; uniqueContacts: Set<string> }>();
-
-    for (const click of linkClicks) {
-      if (click.clickedAt === 0) continue; // Not clicked yet
-
-      const key = click.originalUrl;
-      if (!urlStats.has(key)) {
-        urlStats.set(key, {
-          url: key,
-          clicks: 0,
-          uniqueContacts: new Set(),
-        });
-      }
-
-      const stat = urlStats.get(key)!;
-      stat.clicks++;
-      stat.uniqueContacts.add(click.contactId);
-    }
-
-    // Convert to array and sort by clicks
-    const stats = Array.from(urlStats.values())
-      .map(stat => ({
-        url: stat.url,
-        clicks: stat.clicks,
-        uniqueContacts: stat.uniqueContacts.size,
-      }))
-      .sort((a, b) => b.clicks - a.clicks);
-
-    return stats;
-  },
-});
-
 // ============= WEBHOOK HELPERS =============
 
 /**
@@ -1467,111 +1383,6 @@ export const getCampaignStats = query({
         status: campaign.status,
         createdAt: campaign.createdAt,
         sentAt: campaign.sentAt,
-      },
-    };
-  },
-});
-
-/**
- * Get contact engagement history (admin only)
- */
-export const getContactEngagement = query({
-  args: { contactId: v.id("newsletterContacts") },
-  handler: async (ctx, args) => {
-    const admin = await getAdminUser(ctx);
-    if (!admin) throw new Error("Unauthorized - Admin access required");
-
-    const contact = await ctx.db.get(args.contactId);
-    if (!contact) throw new Error("Contact not found");
-
-    // Get all email logs for this contact
-    const emailLogs = await ctx.db
-      .query("newsletterEmailLogs")
-      .withIndex("by_contact", (q) => q.eq("contactId", args.contactId))
-      .collect();
-
-    const totalEmails = emailLogs.length;
-    const opened = emailLogs.filter(e => e.status === "opened" || e.status === "clicked").length;
-    const clicked = emailLogs.filter(e => e.status === "clicked").length;
-    const bounced = emailLogs.filter(e => e.status === "bounced").length;
-
-    const openRate = totalEmails > 0 ? ((opened / totalEmails) * 100).toFixed(2) : "0.00";
-    const clickRate = totalEmails > 0 ? ((clicked / totalEmails) * 100).toFixed(2) : "0.00";
-
-    // Get last interaction
-    const lastInteraction = emailLogs
-      .filter(e => e.lastOpenedAt || e.lastClickedAt)
-      .sort((a, b) => {
-        const aTime = Math.max(a.lastOpenedAt || 0, a.lastClickedAt || 0);
-        const bTime = Math.max(b.lastOpenedAt || 0, b.lastClickedAt || 0);
-        return bTime - aTime;
-      })[0];
-
-    return {
-      contact: {
-        email: contact.email,
-        name: contact.name,
-        subscribed: contact.subscribed,
-        source: contact.source,
-        tags: contact.tags,
-      },
-      stats: {
-        totalEmails,
-        opened,
-        clicked,
-        bounced,
-        openRate: `${openRate}%`,
-        clickRate: `${clickRate}%`,
-      },
-      lastInteraction: lastInteraction ? {
-        campaignId: lastInteraction.campaignId,
-        timestamp: Math.max(lastInteraction.lastOpenedAt || 0, lastInteraction.lastClickedAt || 0),
-      } : null,
-    };
-  },
-});
-
-/**
- * Get newsletter metrics overview (admin only)
- */
-export const getNewsletterMetrics = query({
-  handler: async (ctx) => {
-    const admin = await getAdminUser(ctx);
-    if (!admin) throw new Error("Unauthorized - Admin access required");
-
-    const allContacts = await ctx.db.query("newsletterContacts").collect();
-    const allCampaigns = await ctx.db.query("newsletterCampaigns").collect();
-    const allEmailLogs = await ctx.db.query("newsletterEmailLogs").collect();
-
-    // Last 30 days
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-    const recentEmailLogs = allEmailLogs.filter(log => (log.sentAt || 0) >= thirtyDaysAgo);
-
-    const recentSent = recentEmailLogs.length;
-    const recentOpened = recentEmailLogs.filter(e => e.status === "opened" || e.status === "clicked").length;
-    const recentClicked = recentEmailLogs.filter(e => e.status === "clicked").length;
-    const recentBounced = recentEmailLogs.filter(e => e.status === "bounced").length;
-
-    const openRate = recentSent > 0 ? ((recentOpened / recentSent) * 100).toFixed(2) : "0.00";
-    const clickRate = recentSent > 0 ? ((recentClicked / recentSent) * 100).toFixed(2) : "0.00";
-    const bounceRate = recentSent > 0 ? ((recentBounced / recentSent) * 100).toFixed(2) : "0.00";
-
-    return {
-      contacts: {
-        total: allContacts.length,
-        subscribed: allContacts.filter(c => c.subscribed).length,
-        unsubscribed: allContacts.filter(c => !c.subscribed).length,
-      },
-      campaigns: {
-        total: allCampaigns.length,
-        draft: allCampaigns.filter(c => c.status === "draft").length,
-        sent: allCampaigns.filter(c => c.status === "sent").length,
-      },
-      last30Days: {
-        emailsSent: recentSent,
-        openRate: `${openRate}%`,
-        clickRate: `${clickRate}%`,
-        bounceRate: `${bounceRate}%`,
       },
     };
   },

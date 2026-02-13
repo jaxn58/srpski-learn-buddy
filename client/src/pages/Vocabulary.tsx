@@ -15,7 +15,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Types only - no hardcoded data imports
-import type { SupportedLanguage } from "@shared/data";
+import type { SupportedLanguage } from "@shared/const";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";

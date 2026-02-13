@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +60,15 @@ const LANG_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Tiny colored dot indicating language version status. */
+function langDot(version: LangVersion | undefined) {
+  if (!version) return <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/25" title="missing" />;
+  if (version.isOffline) return <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/40" title="offline" />;
+  if (version.releaseStatus === "preview") return <span className="inline-block h-2 w-2 rounded-full bg-amber-500" title="preview" />;
+  return <span className="inline-block h-2 w-2 rounded-full bg-green-600" title="published" />;
+}
+
 function statusBadge(status: string | undefined, isOffline: boolean) {
   if (isOffline) {
     return <Badge variant="outline" className="text-muted-foreground">offline (toggle)</Badge>;
@@ -83,7 +92,12 @@ function langFlag(lang: string) {
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-export function UnitManagerTab() {
+interface UnitManagerTabProps {
+  /** Map of unitNumber -> timestamp for units that were recently translated to DE. */
+  recentlyTranslatedUnits?: Map<number, number>;
+}
+
+export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps) {
   const overview = useQuery(api.contentStudio.getUnitManagementOverview);
   const promotePreview = useMutation(api.contentStudio.promoteLanguagePreviewToPublished);
   const offlinePreview = useMutation(api.contentStudio.takeLanguagePreviewOffline);
@@ -99,6 +113,24 @@ export function UnitManagerTab() {
   const [promoteConfirm, setPromoteConfirm] = useState("");
   const [offlineConfirm, setOfflineConfirm] = useState("");
   const [running, setRunning] = useState(false);
+
+  // Auto-fade: force re-render every minute so "X min ago" updates, and entries older than 30 min disappear
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!recentlyTranslatedUnits || recentlyTranslatedUnits.size === 0) return;
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, [recentlyTranslatedUnits]);
+
+  /** Returns minutes-ago string if this unit was recently translated, otherwise null. */
+  const recentTranslationInfo = (unitNumber: number): string | null => {
+    const ts = recentlyTranslatedUnits?.get(unitNumber);
+    if (!ts) return null;
+    const minutesAgo = Math.floor((Date.now() - ts) / 60_000);
+    if (minutesAgo >= 30) return null; // expired
+    if (minutesAgo < 1) return "just now";
+    return `${minutesAgo} min ago`;
+  };
 
   // Detail queries (skip if no unit selected)
   const detailEn = useQuery(
@@ -231,15 +263,25 @@ export function UnitManagerTab() {
             <SelectValue placeholder="Select unit..." />
           </SelectTrigger>
           <SelectContent className="max-h-[360px]">
-            {filteredUnits.map((u) => (
-              <SelectItem key={u.unitNumber} value={String(u.unitNumber)}>
-                <span className="font-mono text-xs mr-1.5">U{u.unitNumber}</span>
-                <span className="truncate">{u.versions.en?.title ?? u.versions.de?.title ?? `Unit ${u.unitNumber}`}</span>
-                {u.moduleNumber != null && (
-                  <span className="ml-1.5 text-xs text-muted-foreground">M{u.moduleNumber}</span>
-                )}
-              </SelectItem>
-            ))}
+            {filteredUnits.map((u) => {
+              const isRecent = recentlyTranslatedUnits?.has(u.unitNumber) ?? false;
+              return (
+                <SelectItem key={u.unitNumber} value={String(u.unitNumber)}>
+                  <span className="font-mono text-xs mr-1.5">U{u.unitNumber}</span>
+                  <span className="inline-flex items-center gap-0.5 mr-1.5" title="EN / DE status">
+                    {langDot(u.versions.en)}
+                    {langDot(u.versions.de)}
+                  </span>
+                  <span className="truncate">{u.versions.en?.title ?? u.versions.de?.title ?? `Unit ${u.unitNumber}`}</span>
+                  {u.moduleNumber != null && (
+                    <span className="ml-1.5 text-xs text-muted-foreground">M{u.moduleNumber}</span>
+                  )}
+                  {isRecent && (
+                    <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-green-500 text-green-600">NEW</Badge>
+                  )}
+                </SelectItem>
+              );
+            })}
             {filteredUnits.length === 0 && (
               <div className="py-3 text-center text-sm text-muted-foreground">No units match filters.</div>
             )}
@@ -274,13 +316,41 @@ export function UnitManagerTab() {
 
         {/* Quick status indicators for selected unit */}
         {selectedOverview && (
-          <div className="flex items-center gap-2 ml-auto">
-            {Object.entries(selectedOverview.versions).map(([lang, v]) => (
-              <div key={lang} className="flex items-center gap-1">
-                <span className="text-xs font-medium">{lang.toUpperCase()}:</span>
-                {statusBadge((v as LangVersion).releaseStatus, (v as LangVersion).isOffline)}
+          <div className="flex items-center gap-3 ml-auto">
+            {/* EN status */}
+            {selectedOverview.versions.en ? (
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium">EN:</span>
+                {statusBadge(selectedOverview.versions.en.releaseStatus, selectedOverview.versions.en.isOffline)}
+                {selectedOverview.versions.en.releaseStatus === "preview" && (
+                  <span className="text-[10px] text-muted-foreground ml-0.5">
+                    ({selectedOverview.versions.en.sectionCount}s/{selectedOverview.versions.en.testCount}t/{selectedOverview.versions.en.vocabCount}v)
+                  </span>
+                )}
               </div>
-            ))}
+            ) : (
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium">EN:</span>
+                <Badge variant="outline" className="text-muted-foreground text-[10px]">missing</Badge>
+              </div>
+            )}
+            {/* DE status */}
+            {selectedOverview.versions.de ? (
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium">DE:</span>
+                {statusBadge(selectedOverview.versions.de.releaseStatus, selectedOverview.versions.de.isOffline)}
+                {selectedOverview.versions.de.releaseStatus === "preview" && (
+                  <span className="text-[10px] text-muted-foreground ml-0.5">
+                    ({selectedOverview.versions.de.sectionCount}s/{selectedOverview.versions.de.testCount}t/{selectedOverview.versions.de.vocabCount}v)
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium">DE:</span>
+                <Badge variant="outline" className="text-muted-foreground text-[10px]">missing</Badge>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -323,6 +393,18 @@ export function UnitManagerTab() {
               </div>
             </div>
           </CardHeader>
+
+          {/* Recently-translated info banner */}
+          {(() => {
+            const info = recentTranslationInfo(selectedOverview.unitNumber);
+            if (!info) return null;
+            return (
+              <div className="mx-6 mb-2 flex items-center gap-2 rounded border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm">
+                <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <span>DE translation completed <strong>{info}</strong></span>
+              </div>
+            );
+          })()}
 
           <CardContent>
             <Tabs value={detailLang} onValueChange={(v) => setDetailLang(v)}>
@@ -607,7 +689,7 @@ export function UnitManagerTab() {
 
       {/* EN / DE Diff Dialog */}
       <Dialog open={diffOpen} onOpenChange={setDiffOpen}>
-        <DialogContent className="w-[98vw] max-w-[98vw] sm:w-[95vw] sm:max-w-[95vw] max-h-[90vh] overflow-hidden">
+        <DialogContent className="w-[98vw] max-w-[98vw] sm:w-[95vw] sm:max-w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>EN / DE Comparison — Unit {selectedUnit}</DialogTitle>
             <DialogDescription>Side-by-side rendered content for both language versions.</DialogDescription>
@@ -631,13 +713,19 @@ function DiffView({
 }) {
   const [sectionType, setSectionType] = useState<string>("overview");
 
-  // Collect all section types from both.
+  // Collect all section types from both, plus synthetic "tests" and "vocabulary" tabs.
   const sectionTypes = useMemo(() => {
     const set = new Set<string>();
     for (const s of detailEn?.sections ?? []) set.add(s.contentType);
     for (const s of detailDe?.sections ?? []) set.add(s.contentType);
     const order = ["overview", "grammar", "phrases", "dialogues", "vocabulary", "testIntroduction"];
-    return Array.from(set).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    const sorted = Array.from(set).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    // Add synthetic tabs for tests and vocabulary data
+    const hasTests = (detailEn?.tests?.length ?? 0) > 0 || (detailDe?.tests?.length ?? 0) > 0;
+    const hasVocab = (detailEn?.vocabulary?.length ?? 0) > 0 || (detailDe?.vocabulary?.length ?? 0) > 0;
+    if (hasTests) sorted.push("__tests__");
+    if (hasVocab) sorted.push("__vocabulary__");
+    return sorted;
   }, [detailEn, detailDe]);
 
   const enSection = detailEn?.sections?.find((s: any) => s.contentType === sectionType);
@@ -652,30 +740,48 @@ function DiffView({
     );
   }
 
-  return (
-    <div className="flex flex-col gap-3 h-[75vh]">
-      <div className="flex flex-wrap gap-1.5">
-        {sectionTypes.map((st) => (
-          <Button
-            key={st}
-            variant={sectionType === st ? "default" : "outline"}
-            size="sm"
-            className="text-xs h-7"
-            onClick={() => setSectionType(st)}
-          >
-            {st}
-          </Button>
-        ))}
+  // Synthetic tab: Tests side-by-side
+  if (sectionType === "__tests__") {
+    const enTests: any[] = detailEn?.tests ?? [];
+    const deTests: any[] = detailDe?.tests ?? [];
+    return (
+      <div className="flex flex-col gap-3">
+        <DiffTabBar sectionTypes={sectionTypes} current={sectionType} onChange={setSectionType} />
+        <div className="grid grid-cols-2 gap-4">
+          <DiffTestColumn label="EN" tests={enTests} />
+          <DiffTestColumn label="DE" tests={deTests} />
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-4 flex-1 min-h-0 overflow-hidden">
-        <div className="flex flex-col min-h-0">
+    );
+  }
+
+  // Synthetic tab: Vocabulary side-by-side
+  if (sectionType === "__vocabulary__") {
+    const enVocab: any[] = detailEn?.vocabulary ?? [];
+    const deVocab: any[] = detailDe?.vocabulary ?? [];
+    return (
+      <div className="flex flex-col gap-3">
+        <DiffTabBar sectionTypes={sectionTypes} current={sectionType} onChange={setSectionType} />
+        <div className="grid grid-cols-2 gap-4">
+          <DiffVocabColumn label="EN" vocabulary={enVocab} />
+          <DiffVocabColumn label="DE" vocabulary={deVocab} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <DiffTabBar sectionTypes={sectionTypes} current={sectionType} onChange={setSectionType} />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
           <div className="flex items-center gap-2 mb-2">
             <Badge>EN</Badge>
             <span className="text-xs text-muted-foreground">
               {enSection ? `${enSection.content.length.toLocaleString()} chars` : "not available"}
             </span>
           </div>
-          <ScrollArea className="flex-1 rounded border p-3">
+          <div className="rounded border p-3">
             {enSection ? (
               <MarkdownContent content={enSection.content} />
             ) : (
@@ -683,16 +789,16 @@ function DiffView({
                 No EN content for this section.
               </div>
             )}
-          </ScrollArea>
+          </div>
         </div>
-        <div className="flex flex-col min-h-0">
+        <div>
           <div className="flex items-center gap-2 mb-2">
             <Badge variant="secondary">DE</Badge>
             <span className="text-xs text-muted-foreground">
               {deSection ? `${deSection.content.length.toLocaleString()} chars` : "not available"}
             </span>
           </div>
-          <ScrollArea className="flex-1 rounded border p-3">
+          <div className="rounded border p-3">
             {deSection ? (
               <MarkdownContent content={deSection.content} />
             ) : (
@@ -700,8 +806,127 @@ function DiffView({
                 No DE content for this section.
               </div>
             )}
-          </ScrollArea>
+          </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DiffView sub-components
+// ---------------------------------------------------------------------------
+
+/** Shared tab bar for the DiffView */
+function DiffTabBar({ sectionTypes, current, onChange }: { sectionTypes: string[]; current: string; onChange: (v: string) => void }) {
+  const label = (st: string) => {
+    if (st === "__tests__") return "Tests";
+    if (st === "__vocabulary__") return "Vocabulary";
+    return st;
+  };
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {sectionTypes.map((st) => (
+        <Button
+          key={st}
+          variant={current === st ? "default" : "outline"}
+          size="sm"
+          className="text-xs h-7"
+          onClick={() => onChange(st)}
+        >
+          {label(st)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** Renders a column of test questions for the DiffView */
+function DiffTestColumn({ label, tests }: { label: string; tests: any[] }) {
+  // Group by category
+  const byCategory = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const t of tests) {
+      const cat = t.category || "uncategorized";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(t);
+    }
+    return map;
+  }, [tests]);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <Badge variant={label === "EN" ? "default" : "secondary"}>{label}</Badge>
+        <span className="text-xs text-muted-foreground">{tests.length} questions</span>
+      </div>
+      <div className="rounded border p-3">
+        {tests.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-4 text-center">
+            No {label} tests available.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {Array.from(byCategory.entries()).map(([cat, questions]) => (
+              <div key={cat} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">{cat}</Badge>
+                  <span className="text-xs text-muted-foreground">{questions.length} questions</span>
+                </div>
+                <div className="space-y-2">
+                  {questions.map((q: any, i: number) => (
+                    <div key={q.questionId ?? i} className="rounded border p-2.5 text-sm space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-medium text-xs">{i + 1}. {q.question}</span>
+                        <Badge variant="outline" className="text-[10px] shrink-0">{q.questionType}</Badge>
+                      </div>
+                      <div className="text-xs text-green-700 dark:text-green-400">
+                        Answer: {q.correctAnswer}
+                      </div>
+                      {q.options && q.options.length > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          Options: {q.options.join(" | ")}
+                        </div>
+                      )}
+                      {q.hint && (
+                        <div className="text-xs text-muted-foreground italic">Hint: {q.hint}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Renders a column of vocabulary for the DiffView */
+function DiffVocabColumn({ label, vocabulary }: { label: string; vocabulary: any[] }) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <Badge variant={label === "EN" ? "default" : "secondary"}>{label}</Badge>
+        <span className="text-xs text-muted-foreground">{vocabulary.length} words</span>
+      </div>
+      <div className="rounded border p-3">
+        {vocabulary.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-4 text-center">
+            No {label} vocabulary available.
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {vocabulary.map((v: any, i: number) => (
+              <div key={v.serbian ?? i} className="flex items-baseline gap-2 text-sm py-0.5 border-b border-muted/50 last:border-0">
+                <span className="font-medium">{v.serbian}</span>
+                <span className="text-muted-foreground">{v.translation}</span>
+                {v.alternatives && <span className="text-xs text-muted-foreground italic">({v.alternatives})</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

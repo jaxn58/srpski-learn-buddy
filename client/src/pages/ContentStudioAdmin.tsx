@@ -340,6 +340,9 @@ export default function ContentStudioAdmin() {
   const [runningSectionRevise, setRunningSectionRevise] = useState(false);
   const [runningTranslateDe, setRunningTranslateDe] = useState(false);
 
+  // Track recently translated units (unitNumber -> timestamp) for UnitManager highlighting
+  const [recentlyTranslatedUnits, setRecentlyTranslatedUnits] = useState<Map<number, number>>(new Map());
+
   // Section-based revision (targeted edits)
   type SectionId = "overview" | "vocabulary" | "grammar" | "phrases" | "exercises" | "cultural";
   const [expandSection, setExpandSection] = useState<SectionId>("phrases");
@@ -2054,6 +2057,7 @@ export default function ContentStudioAdmin() {
       }
       window.open(`/unit/${unitNum}?lang=de`, "_blank", "noopener,noreferrer");
       setTranslateDeOpen(false);
+      setRecentlyTranslatedUnits((prev) => new Map<number, number>(prev).set(unitNum, Date.now()));
     } catch (e: any) {
       toast.error(e?.message || `Failed to translate Unit ${unitNum} to German.`);
     } finally {
@@ -2103,6 +2107,7 @@ export default function ContentStudioAdmin() {
         info,
       });
       setTranslateAnyOpen(false);
+      setRecentlyTranslatedUnits((prev) => new Map<number, number>(prev).set(unitNum, Date.now()));
     } catch (e: any) {
       toast.error(e?.message || `Failed to translate Unit ${unitNum} to German.`);
     } finally {
@@ -3020,7 +3025,7 @@ export default function ContentStudioAdmin() {
       </Dialog>
 
       {/* Unit Manager view */}
-      {studioView === "units" && <UnitManagerTab />}
+      {studioView === "units" && <UnitManagerTab recentlyTranslatedUnits={recentlyTranslatedUnits} />}
 
       {/* Draft Studio view (original layout) */}
       {studioView === "drafts" && <div className="grid gap-6">
