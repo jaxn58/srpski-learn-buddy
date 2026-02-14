@@ -725,12 +725,19 @@ export default function Vocabulary() {
     const hasColumnTranslations = wordToAnswer && 
       ((wordToAnswer.en && wordToAnswer.en.trim()) || (wordToAnswer.de && wordToAnswer.de.trim()));
     
+    
     if (hasColumnTranslations) {
-      // NEW: Column-based structure
-      // BETA: Currently always English, but code prepared for future multi-language support
-      correctTranslationForWord = (wordToAnswer.en?.trim() || wordToAnswer.de?.trim() || "");
-      const alt = wordToAnswer.enAlt;
-      alternatives = alt && alt.trim() ? [alt.trim()] : [];
+      // NEW: Column-based structure with multi-language support
+      // Use the user's language for correct answer, with fallback to English
+      if (userLanguage === "de" && wordToAnswer.de?.trim()) {
+        correctTranslationForWord = wordToAnswer.de.trim();
+        const alt = wordToAnswer.deAlt;
+        alternatives = alt && alt.trim() ? [alt.trim()] : [];
+      } else {
+        correctTranslationForWord = (wordToAnswer.en?.trim() || wordToAnswer.de?.trim() || "");
+        const alt = wordToAnswer.enAlt;
+        alternatives = alt && alt.trim() ? [alt.trim()] : [];
+      }
     } else if (wordToAnswer && Array.isArray(wordToAnswer.translations)) {
       // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
       const translationObj = wordToAnswer.translations.find((t: any) => t.language === userLanguage) ||
@@ -753,6 +760,7 @@ export default function Vocabulary() {
     const correctTranslation = correctTranslationForWord.toLowerCase();
     const alternativesLower = alternatives.map(alt => alt.toLowerCase());
     const correct = userAnswerLower === correctTranslation || alternativesLower.includes(userAnswerLower);
+    
     
     setIsCorrect(correct);
     setScore({ correct: score.correct + (correct ? 1 : 0), total: score.total + 1 });
@@ -1239,9 +1247,11 @@ export default function Vocabulary() {
                         <p className="text-2xl text-muted-foreground mt-4">
                           {(() => {
                             const word = showAnswer && answeredWord ? answeredWord : displayWord;
-                            // NEW: Support column-based translations (check if values exist)
-                            // BETA: Currently always English, but code prepared for future multi-language support
+                            // Column-based translations with multi-language support
                             if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
+                              if (userLanguage === "de" && word.de?.trim()) {
+                                return word.de.trim();
+                              }
                               return (word.en?.trim() || word.de?.trim() || "");
                             }
                             // FALLBACK: Database translations array structure
@@ -1428,9 +1438,11 @@ export default function Vocabulary() {
                                 <div className="font-semibold text-lg text-green-700">
                                   {currentCorrectTranslation || (() => {
                                     const word = answeredWord || currentWord;
-                                    // NEW: Support column-based translations (check if values exist)
-                                    // BETA: Currently always English, but code prepared for future multi-language support
+                                    // Column-based translations with multi-language support
                                     if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
+                                      if (userLanguage === "de" && word.de?.trim()) {
+                                        return word.de.trim();
+                                      }
                                       return (word.en?.trim() || word.de?.trim() || "");
                                     }
                                     // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
