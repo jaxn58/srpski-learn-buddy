@@ -113,6 +113,17 @@ export const systemTables = {
     .index("by_language_active", ["language", "isActive", "stepNumber"]) // OLD: for migration
     .index("by_step_number", ["stepNumber"]), // NEW: primary index
 
+  // ============= DODO PRODUCTS (Dynamic Pricing) =============
+  // Stores synchronized product data from Dodo Payments to keep the UI reactive.
+  dodoProducts: defineTable({
+    productId: v.string(), // Dodo product_id
+    name: v.string(),
+    price: v.number(), // in cents
+    currency: v.string(), // e.g. "EUR"
+    isRecurring: v.boolean(),
+    lastSyncedAt: v.number(), // timestamp
+  }).index("by_product_id", ["productId"]),
+
   // ============= BACKUP METADATA =============
   // Tracks automated database backups stored in Convex Storage
   backupMetadata: defineTable({

@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Info, X } from "lucide-react";
 import { AVAILABLE_ICONS } from "@/components/ui/icon-picker";
+import { useTranslation } from "react-i18next";
 
 interface WelcomeOnboardingProps {
   userName: string;
@@ -19,6 +20,7 @@ interface WelcomeOnboardingProps {
 const ICON_MAP = AVAILABLE_ICONS;
 
 export function WelcomeOnboarding({ userName, onClose, language = "en", initialStep = 1 }: WelcomeOnboardingProps) {
+  const { t } = useTranslation();
   const [step, setStep] = useState(initialStep);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [wantsCommunityUpdates, setWantsCommunityUpdates] = useState(false);
@@ -96,7 +98,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
 
           <CardHeader>
             <CardTitle className="text-2xl">
-              Welcome to Serbian AI Tutor, {userName}!
+              {t("dashboard.welcome", { name: userName })}
             </CardTitle>
             <CardDescription>
               Get started with your Serbian learning journey
@@ -109,7 +111,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
             </p>
             
             <Button onClick={() => onClose()} className="w-full">
-              Get Started!
+              {t("onboarding.finish")}
             </Button>
           </CardContent>
         </Card>
@@ -183,10 +185,10 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
               />
               <div className="space-y-1">
                 <Label htmlFor="communityUpdates" className="text-sm cursor-pointer select-none leading-snug">
-                  Send me product updates, community news, and learning tips.
+                  {t("onboarding.communityUpdates")}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  We'll ask you to confirm via email (double opt-in). Unsubscribe anytime.
+                  {t("onboarding.communityUpdatesHint")}
                 </p>
               </div>
             </div>
@@ -195,16 +197,16 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
           {/* Navigation Buttons */}
           <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4">
             <Button variant="outline" onClick={skipTutorial} className="w-full sm:w-auto">
-              Skip Tutorial
+              {t("onboarding.skip")}
             </Button>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {step > 1 && (
                 <Button variant="outline" onClick={() => setStep(step - 1)} className="w-full sm:w-auto">
-                  Previous
+                  {t("onboarding.previous")}
                 </Button>
               )}
               <Button onClick={nextStep} className="w-full sm:w-auto">
-                {step === totalSteps ? "Get Started!" : "Next"}
+                {step === totalSteps ? t("onboarding.finish") : t("onboarding.next")}
               </Button>
             </div>
           </div>
@@ -220,7 +222,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
               htmlFor="dontShowAgain" 
               className="text-sm text-muted-foreground cursor-pointer select-none"
             >
-              Don't show this tutorial automatically at login
+              {t("onboarding.dontShowAgain")}
             </Label>
           </div>
         </CardContent>
@@ -228,4 +230,3 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
     </div>
   );
 }
-

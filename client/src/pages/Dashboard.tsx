@@ -369,6 +369,7 @@ export default function Dashboard() {
         <WelcomeOnboarding 
           userName={user.name || user.email || t("common.there")} 
           onClose={handleCloseOnboarding}
+          language={displayLanguage}
         />
       )}
       

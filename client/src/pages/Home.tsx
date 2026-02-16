@@ -52,8 +52,11 @@ export default function Home() {
   
   // Dev-only: enable purchase buttons so we can test Dodo payments locally.
   // Production builds remain disabled until the beta phase ends.
-  const ENABLE_PURCHASE_FOR_TESTING = import.meta.env.DEV;
-  
+  // We also enable it if we are explicitly in test_mode to allow testing on preview deployments.
+  const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
+  const isTestMode = billingConfig?.dodo?.environment === "test_mode";
+  const ENABLE_PURCHASE_FOR_TESTING = import.meta.env.DEV || isTestMode;
+
   type PaymentMode = "prepaid" | "installments";
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
   const installmentsSelectable = true;
@@ -96,7 +99,7 @@ export default function Home() {
     scrollToLearningLanguageSelector();
     return false;
   };
-  
+
   type SubscriptionPlan = {
     id: "beta" | "intensive" | "balanced" | "standard" | "relaxed";
     name: string;
@@ -120,41 +123,22 @@ export default function Home() {
     }
     return map;
   }, [availablePlans]);
-  
+
   // Load current subscription for logged-in users
   const currentSubscription = useQuery(
     api.subscriptions.getCurrent,
     user?.clerkId ? {} : "skip"
   );
-  
+
   type PlanId = "intensive" | "balanced" | "standard" | "relaxed";
   const currentPlan: PlanId | null = (currentSubscription?.planType as PlanId | undefined) ?? null;
   const hasActiveSubscription = currentSubscription?.expiresAt && currentSubscription.expiresAt > Date.now();
-  
+
   // Loading state for essential data
   const plansLoading = availablePlans === undefined;
-  
-  const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
+
   const dodoConfigured = billingConfig?.dodo?.configured === true;
-  const [dodoReady, setDodoReady] = useState(false);
   const createDodoCheckoutSession = useAction(api.subscriptions.createDodoCheckoutSession);
-  const checkoutReady = dodoReady;
-
-  useEffect(() => {
-    if (!ENABLE_PURCHASE_FOR_TESTING || !dodoConfigured) {
-      setDodoReady(false);
-      return;
-    }
-
-    const mode = billingConfig?.dodo?.environment === "live_mode" ? "live" : "test";
-    try {
-      initDodoPayments({ mode });
-      setDodoReady(true);
-    } catch (error) {
-      console.error("[Home] Dodo initialization failed:", error);
-      setDodoReady(false);
-    }
-  }, [ENABLE_PURCHASE_FOR_TESTING, dodoConfigured, billingConfig?.dodo?.environment]);
 
   // After successful signup, automatically continue with purchase (from localStorage)
   useEffect(() => {
@@ -188,7 +172,7 @@ export default function Home() {
         // Auto-trigger purchase after short delay
         setTimeout(() => {
           toast.success(t("billing.checkout.welcomeOpening"));
-          void startPurchase(pendingPlan);
+          void startPurchase(pendingPlan, pendingMode as PaymentMode);
         }, 1000);
       }
     }
@@ -271,7 +255,9 @@ export default function Home() {
     return `${base} hover:border-primary`;
   };
   
-  const startPurchase = async (planId: string) => {
+  const startPurchase = async (planId: string, modeOverride?: PaymentMode) => {
+    const effectiveMode = modeOverride || paymentMode;
+
     if (!ENABLE_PURCHASE_FOR_TESTING) {
       toast.info(t("billing.paidPlansAfterBeta"));
       return;
@@ -282,7 +268,7 @@ export default function Home() {
       if (!requireLearningLanguageSelection()) return;
       // Store plan selection in localStorage to resume after signup
       localStorage.setItem('pendingPurchasePlan', planId);
-      localStorage.setItem('pendingPaymentMode', paymentMode);
+      localStorage.setItem('pendingPaymentMode', effectiveMode);
       toast.info(t("billing.signupToContinue"));
       setLocation("/sign-up?redirect_url=/");
       return;
@@ -293,23 +279,23 @@ export default function Home() {
       return;
     }
 
-    if (!dodoReady) {
-      toast.error(t("billing.checkoutNotReady"));
-      return;
-    }
-
     try {
+      // Ensure SDK is initialized right before opening
+      const mode = billingConfig?.dodo?.environment === "live_mode" ? "live" : "test";
+      initDodoPayments({ mode });
+
       const session = await createDodoCheckoutSession({
         planType: planId as any,
-        paymentMode,
+        paymentMode: effectiveMode,
         flow: "purchase",
         // NOTE: Dodo will redirect to return_url even if the payment is not successful
         // (e.g. user closes checkout, card declined). Never encode "success" in the URL.
         returnUrl: `${window.location.origin}/dashboard?purchase=return`,
         source: "home_page",
         beta50: false,
+        language: i18n.language,
       });
-      await openDodoCheckout({ checkoutUrl: session.checkoutUrl });
+      await openDodoCheckout({ checkoutUrl: session.checkoutUrl, mode });
     } catch (error: any) {
       toast.error(t("billing.purchaseError", { error: error?.message || String(error) }));
     }
@@ -668,7 +654,11 @@ export default function Home() {
                   {/* Pay once price */}
                   <div>
                     <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
-                      {t('home.pricing.intensive.price')}
+                      {plansLoading ? (
+                        <span className="animate-pulse">{t("common.loading")}</span>
+                      ) : (
+                        <>€{(((planById.get("intensive") as any)?.paymentOptions?.prepaidTotal ?? 0) / 100).toFixed(2)}</>
+                      )}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {t('home.pricing.intensive.payment')}
@@ -733,7 +723,7 @@ export default function Home() {
                     (!user?.clerkId && !learningLanguage) ||
                     (ENABLE_PURCHASE_FOR_TESTING
                       ? user?.clerkId
-                        ? (!checkoutReady || getPlanAction("intensive") === "current" || getPlanAction("intensive") === "downgrade")
+                        ? (getPlanAction("intensive") === "current" || getPlanAction("intensive") === "downgrade")
                         : false
                       : showWaitlist)
                   }
@@ -766,7 +756,11 @@ export default function Home() {
                   {/* Pay once price */}
                   <div>
                     <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
-                      {t('home.pricing.balanced.price')}
+                      {plansLoading ? (
+                        <span className="animate-pulse">{t("common.loading")}</span>
+                      ) : (
+                        <>€{(((planById.get("balanced") as any)?.paymentOptions?.prepaidTotal ?? 0) / 100).toFixed(2)}</>
+                      )}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {t('home.pricing.balanced.payment')}
@@ -831,7 +825,7 @@ export default function Home() {
                     (!user?.clerkId && !learningLanguage) ||
                     (ENABLE_PURCHASE_FOR_TESTING
                       ? user?.clerkId
-                        ? (!checkoutReady || getPlanAction("balanced") === "current" || getPlanAction("balanced") === "downgrade")
+                        ? (getPlanAction("balanced") === "current" || getPlanAction("balanced") === "downgrade")
                         : false
                       : showWaitlist)
                   }
@@ -868,7 +862,11 @@ export default function Home() {
                   {/* Pay once price */}
                   <div>
                     <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
-                      {t('home.pricing.standard.price')}
+                      {plansLoading ? (
+                        <span className="animate-pulse">{t("common.loading")}</span>
+                      ) : (
+                        <>€{(((planById.get("standard") as any)?.paymentOptions?.prepaidTotal ?? 0) / 100).toFixed(2)}</>
+                      )}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {t('home.pricing.standard.payment')}
@@ -933,7 +931,7 @@ export default function Home() {
                     (!user?.clerkId && !learningLanguage) ||
                     (ENABLE_PURCHASE_FOR_TESTING
                       ? user?.clerkId
-                        ? (!checkoutReady || getPlanAction("standard") === "current" || getPlanAction("standard") === "downgrade")
+                        ? (getPlanAction("standard") === "current" || getPlanAction("standard") === "downgrade")
                         : false
                       : showWaitlist)
                   }
@@ -966,7 +964,11 @@ export default function Home() {
                   {/* Pay once price */}
                   <div>
                     <div className={`font-bold ${paymentMode === "prepaid" ? "text-3xl text-primary" : "text-xl text-muted-foreground"}`}>
-                      {t('home.pricing.relaxed.price')}
+                      {plansLoading ? (
+                        <span className="animate-pulse">{t("common.loading")}</span>
+                      ) : (
+                        <>€{(((planById.get("relaxed") as any)?.paymentOptions?.prepaidTotal ?? 0) / 100).toFixed(2)}</>
+                      )}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {t('home.pricing.relaxed.payment')}
@@ -1031,7 +1033,7 @@ export default function Home() {
                     (!user?.clerkId && !learningLanguage) ||
                     (ENABLE_PURCHASE_FOR_TESTING
                       ? user?.clerkId
-                        ? (!checkoutReady || getPlanAction("relaxed") === "current" || getPlanAction("relaxed") === "downgrade")
+                        ? (getPlanAction("relaxed") === "current" || getPlanAction("relaxed") === "downgrade")
                         : false
                       : showWaitlist)
                   }
