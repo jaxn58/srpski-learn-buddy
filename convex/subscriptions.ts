@@ -715,7 +715,7 @@ export const createDodoCheckoutSession = action({
     const betaEligible =
       beta50Requested && betaEnded && user.isBetaTester === true && (user.betaDiscountUsedAt ?? null) === null;
 
-    const effectiveDiscountCode = betaEligible ? discountCode : null;
+    const effectiveDiscountCode = betaEligible ? (process.env.DODO_BETA50_DISCOUNT_CODE || "BETA50OFF") : null;
     const effectiveDiscountCodeForCheckout = args.flow === "upgrade" ? null : effectiveDiscountCode;
 
     const body = {

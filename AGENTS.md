@@ -188,6 +188,7 @@ pnpm sync:email-templates
 
 **🚨 ABSOLUTE REGEL: NIEMALS echte Secrets in Dateien schreiben, die ins Git-Repository kommen!**
 
+- **MCP-Server Nutzung (z.B. Dodo Payments):** Wenn ein MCP-Server für einen Dienst (wie Dodo Payments) vorhanden ist, MUSS der Agent diesen aktiv nutzen, um Konfigurationen (wie Webhooks) selbstständig anzulegen, zu prüfen und zu debuggen. Der User soll nicht mit manuellen Aufgaben "genervt" werden, die der Agent über den MCP-Server automatisieren kann.
 - **NIEMALS** echte API Keys, Secrets, Passwörter oder Tokens in Dokumentationsdateien schreiben
 - **NIEMALS** echte Secrets in Code-Beispiele oder Konfigurationsdateien schreiben
 - **NIEMALS** echte Secrets in Markdown-Dateien (.md) schreiben
