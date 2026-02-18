@@ -55,7 +55,9 @@ export default function Home() {
   // We also enable it if we are explicitly in test_mode to allow testing on preview deployments.
   const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
   const isTestMode = billingConfig?.dodo?.environment === "test_mode";
+  const isBetaActive = billingConfig?.dodo?.betaMode === true;
   const ENABLE_PURCHASE_FOR_TESTING = import.meta.env.DEV || isTestMode;
+  const DISABLE_PURCHASE_DURING_BETA = isBetaActive && !isPrivileged && !ENABLE_PURCHASE_FOR_TESTING;
 
   type PaymentMode = "prepaid" | "installments";
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
@@ -258,7 +260,12 @@ export default function Home() {
   const startPurchase = async (planId: string, modeOverride?: PaymentMode) => {
     const effectiveMode = modeOverride || paymentMode;
 
-    if (!ENABLE_PURCHASE_FOR_TESTING) {
+    if (DISABLE_PURCHASE_DURING_BETA) {
+      toast.info(t("billing.paidPlansAfterBeta"));
+      return;
+    }
+
+    if (!ENABLE_PURCHASE_FOR_TESTING && !isPrivileged) {
       toast.info(t("billing.paidPlansAfterBeta"));
       return;
     }
@@ -721,11 +728,8 @@ export default function Home() {
                   className="w-full"
                   disabled={
                     (!user?.clerkId && !learningLanguage) ||
-                    (ENABLE_PURCHASE_FOR_TESTING
-                      ? user?.clerkId
-                        ? (getPlanAction("intensive") === "current" || getPlanAction("intensive") === "downgrade")
-                        : false
-                      : showWaitlist)
+                    DISABLE_PURCHASE_DURING_BETA ||
+                    (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("intensive") === "current" || getPlanAction("intensive") === "downgrade"))
                   }
                   onClick={() => void handlePlanCTA("intensive")}
                   variant={getPlanAction("intensive") === "current" ? "secondary" : "default"}
@@ -823,11 +827,8 @@ export default function Home() {
                   className="w-full"
                   disabled={
                     (!user?.clerkId && !learningLanguage) ||
-                    (ENABLE_PURCHASE_FOR_TESTING
-                      ? user?.clerkId
-                        ? (getPlanAction("balanced") === "current" || getPlanAction("balanced") === "downgrade")
-                        : false
-                      : showWaitlist)
+                    DISABLE_PURCHASE_DURING_BETA ||
+                    (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("balanced") === "current" || getPlanAction("balanced") === "downgrade"))
                   }
                   onClick={() => void handlePlanCTA("balanced")}
                   variant={getPlanAction("balanced") === "current" ? "secondary" : "default"}
@@ -929,11 +930,8 @@ export default function Home() {
                   className="w-full bg-primary"
                   disabled={
                     (!user?.clerkId && !learningLanguage) ||
-                    (ENABLE_PURCHASE_FOR_TESTING
-                      ? user?.clerkId
-                        ? (getPlanAction("standard") === "current" || getPlanAction("standard") === "downgrade")
-                        : false
-                      : showWaitlist)
+                    DISABLE_PURCHASE_DURING_BETA ||
+                    (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("standard") === "current" || getPlanAction("standard") === "downgrade"))
                   }
                   onClick={() => void handlePlanCTA("standard")}
                   variant={getPlanAction("standard") === "current" ? "secondary" : "default"}
@@ -1031,11 +1029,8 @@ export default function Home() {
                   className="w-full"
                   disabled={
                     (!user?.clerkId && !learningLanguage) ||
-                    (ENABLE_PURCHASE_FOR_TESTING
-                      ? user?.clerkId
-                        ? (getPlanAction("relaxed") === "current" || getPlanAction("relaxed") === "downgrade")
-                        : false
-                      : showWaitlist)
+                    DISABLE_PURCHASE_DURING_BETA ||
+                    (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("relaxed") === "current" || getPlanAction("relaxed") === "downgrade"))
                   }
                   onClick={() => void handlePlanCTA("relaxed")}
                   variant={getPlanAction("relaxed") === "current" ? "secondary" : "default"}

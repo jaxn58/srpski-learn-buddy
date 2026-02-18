@@ -35,6 +35,12 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
   const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
   const dodoConfigured = billingConfig?.dodo?.configured === true;
+  const isBetaActive = billingConfig?.dodo?.betaMode === true;
+  const isTestMode = billingConfig?.dodo?.environment === "test_mode";
+  const isPrivileged = user?.role === "admin" || user?.role === "superadmin";
+  const ENABLE_PURCHASE_FOR_TESTING = import.meta.env.DEV || isTestMode;
+  const DISABLE_PURCHASE_DURING_BETA = isBetaActive && !isPrivileged && !ENABLE_PURCHASE_FOR_TESTING;
+
   const [dodoReady, setDodoReady] = useState(false);
 
   const createDodoCheckoutSession = useAction(api.subscriptions.createDodoCheckoutSession);
@@ -142,6 +148,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   ) => {
     if (!user) return;
 
+    if (DISABLE_PURCHASE_DURING_BETA) {
+      toast.info(t("billing.paidPlansAfterBeta"));
+      return;
+    }
+
     if (!dodoConfigured) {
       toast.error(t("billing.dodoNotConfigured"));
       return;
@@ -171,6 +182,12 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
   const handleUpgrade = async (newPlan: string) => {
     if (!subscription || !user) return;
+
+    if (DISABLE_PURCHASE_DURING_BETA) {
+      toast.info(t("billing.paidPlansAfterBeta"));
+      return;
+    }
+
     if (!dodoConfigured) {
       toast.error(t("billing.dodoNotConfigured"));
       return;
@@ -411,7 +428,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                     isBetaPrice
                                   )
                                 }
-                                disabled={!checkoutReady}
+                                disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
                                 className="w-full"
                               >
                                 <CreditCard className="h-4 w-4 mr-2" />
@@ -481,7 +498,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             </RadioGroup>
                             <Button
                               onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, false)}
-                              disabled={!checkoutReady}
+                              disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
                               className="w-full"
                             >
                               <CreditCard className="h-4 w-4 mr-2" />
@@ -824,7 +841,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                         </ul>
                         <Button
                           onClick={() => handleUpgrade(plan.id)}
-                          disabled={isCalculating || !checkoutReady}
+                          disabled={isCalculating || !checkoutReady || DISABLE_PURCHASE_DURING_BETA}
                           className="w-full"
                         >
                           <CreditCard className="h-4 w-4 mr-2" />

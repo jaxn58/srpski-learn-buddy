@@ -260,6 +260,7 @@ export const getBillingProviderConfig = query({
     const provider = getBillingProviderFromEnv();
 
     const dodoEnv = getDodoEnvironmentFromEnv();
+    const betaMode = process.env.BETA_MODE === "on" || process.env.BETA_MODE === "true";
     const dodoApiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
     const dodoWebhookSecret = (
       process.env.DODO_PAYMENTS_WEBHOOK_SECRET ||
@@ -284,6 +285,7 @@ export const getBillingProviderConfig = query({
       provider,
       dodo: {
         environment: dodoEnv,
+        betaMode,
         // API key is server-only; expose only whether it exists.
         configured: dodoApiKey.length > 0,
         webhookConfigured: dodoWebhookSecret.length > 0,
