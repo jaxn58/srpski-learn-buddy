@@ -487,7 +487,7 @@ export const translateTemplate = action({
     htmlContentEn: v.string(),
     descriptionEn: v.optional(v.string()),
     variables: v.optional(v.array(v.string())),
-    targetLanguage: v.union(v.literal("de")), // Can be expanded to es, fr
+    targetLanguage: v.literal("de"), // Can be expanded to v.union(v.literal("de"), v.literal("es"), v.literal("fr")) later
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
   },
   handler: async (ctx, args) => {
@@ -573,7 +573,7 @@ export const translateTemplate = action({
 export const translateSignature = action({
   args: {
     htmlContentEn: v.string(),
-    targetLanguage: v.union(v.literal("de")), // Can be expanded to es, fr
+    targetLanguage: v.literal("de"), // Can be expanded to v.union(v.literal("de"), v.literal("es"), v.literal("fr")) later
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
   },
   handler: async (ctx, args) => {
