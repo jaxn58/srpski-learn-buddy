@@ -62,6 +62,8 @@ export const communicationTables = {
     name: v.optional(v.string()),
     // Optional: user consent to receive interim waitlist stories/updates (double opt-in required)
     wantsWaitlistUpdates: v.optional(v.boolean()),
+    // Language selected by the user on the landing page
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
     status: v.union(
       v.literal("pending"),      // Email versendet, wartet auf Bestätigung
       v.literal("confirmed"),     // User hat Opt-In bestätigt

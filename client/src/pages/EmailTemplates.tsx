@@ -127,8 +127,10 @@ export default function EmailTemplates() {
   const upsertSignatureMutation = useMutation(api.emailTemplates.upsertSignature);
   const removeSignatureMutation = useMutation(api.emailTemplates.removeSignature);
   const sendTestEmailAction = useAction(api.email.sendTestEmail);
-  const translateTemplateEnToDeAction = useAction(api.emailTemplates.translateTemplateEnToDe);
-  const translateSignatureEnToDeAction = useAction(api.emailTemplates.translateSignatureEnToDe);
+  const translateTemplateAction = useAction(api.emailTemplates.translateTemplate);
+  const translateSignatureAction = useAction(api.emailTemplates.translateSignature);
+  const autoTranslateMissingGermanAction = useAction(api.emailTemplates.autoTranslateMissingGerman);
+  const [isAutoTranslating, setIsAutoTranslating] = useState(false);
   
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplateDoc | null>(null);
@@ -677,11 +679,12 @@ export default function EmailTemplates() {
         return;
       }
 
-      const res = await translateTemplateEnToDeAction({
+      const res = await translateTemplateAction({
         subjectEn,
         htmlContentEn,
         descriptionEn: descriptionEn || undefined,
         variables: formData.variables,
+        targetLanguage: "de",
         preferredProvider: "gemini",
       });
 
@@ -691,16 +694,16 @@ export default function EmailTemplates() {
           subjectEn,
           htmlContentEn,
           descriptionEn,
-          subjectDe: res.subjectDe,
-          htmlContentDe: res.htmlContentDe,
-          descriptionDe: res.descriptionDe || "",
+          subjectDe: res.subjectTranslation,
+          htmlContentDe: res.htmlContentTranslation,
+          descriptionDe: res.descriptionTranslation || "",
         };
         if (templateEditLanguage === "de") {
           return {
             ...next,
-            subject: res.subjectDe,
-            htmlContent: res.htmlContentDe,
-            description: res.descriptionDe || "",
+            subject: res.subjectTranslation,
+            htmlContent: res.htmlContentTranslation,
+            description: res.descriptionTranslation || "",
           };
         }
         return next;
@@ -729,8 +732,9 @@ export default function EmailTemplates() {
         return;
       }
 
-      const res = await translateSignatureEnToDeAction({
+      const res = await translateSignatureAction({
         htmlContentEn,
+        targetLanguage: "de",
         preferredProvider: "gemini",
       });
 
@@ -738,7 +742,7 @@ export default function EmailTemplates() {
         ...prev,
         [category]: {
           ...prev[category],
-          htmlContentDe: res.htmlContentDe,
+          htmlContentDe: res.htmlContentTranslation,
         },
       }));
 
@@ -905,6 +909,36 @@ export default function EmailTemplates() {
   };
 
   const isSuperadmin = user.role === 'superadmin';
+
+  const handleAutoTranslateMissingGerman = async () => {
+    if (!confirm("This will use AI to automatically translate all missing German templates and signatures. This may take a moment. Proceed?")) return;
+    
+    try {
+      setIsAutoTranslating(true);
+      const res = await autoTranslateMissingGermanAction();
+      
+      if (res.translatedCount > 0) {
+        toast.success(`Successfully translated ${res.translatedCount} items to German!`);
+      } else if (res.errorCount === 0) {
+        toast.info("All items are already translated.");
+      }
+      
+      if (res.errorCount > 0) {
+        toast.warning(`${res.errorCount} items failed to translate.`);
+      }
+      
+      // We don't necessarily need to reload manually as the useQuery will trigger a refresh, 
+      // but if logs are long, one could print them to console for the admin:
+      if (res.log.length) {
+        console.log("Translation Batch Log:\n", res.log.join("\n"));
+      }
+      
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to run batch translation.");
+    } finally {
+      setIsAutoTranslating(false);
+    }
+  };
 
   // Editor View
   if (viewMode === "editor") {
@@ -1490,12 +1524,22 @@ export default function EmailTemplates() {
     <div className="flex flex-col h-full">
         <header className="border-b bg-card">
           <div className="container py-4">
-            <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Mail className="h-6 w-6 text-primary" />
                 <h1 className="text-xl font-bold">Email Templates</h1>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap justify-end">
+                {isSuperadmin && (
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleAutoTranslateMissingGerman}
+                    disabled={isAutoTranslating}
+                    title={t("admin.emailTemplates.actions.autoTranslateAll")}
+                  >
+                    {isAutoTranslating ? t("common.loading") : t("admin.emailTemplates.actions.autoTranslateAll")}
+                  </Button>
+                )}
                 {isSuperadmin && (
                   <Button onClick={handleCreate}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -1675,12 +1719,18 @@ export default function EmailTemplates() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
+                      <TableHead>Languages</TableHead>
                       <TableHead className="w-[220px]">Meta</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {templates?.map((template) => (
+                    {templates?.map((template) => {
+                      const languages = [];
+                      if (template.subjectEn || template.htmlContentEn || template.subject || template.htmlContent) languages.push("EN");
+                      if (template.subjectDe && template.htmlContentDe) languages.push("DE");
+                      
+                      return (
                       <TableRow key={template._id}>
                         <TableCell className="py-2">
                           <div className="space-y-1">
@@ -1702,6 +1752,15 @@ export default function EmailTemplates() {
                                 )}
                               </div>
                             )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-2 align-top">
+                          <div className="flex gap-1 mt-1">
+                            {languages.map(lang => (
+                              <span key={lang} className="text-[10px] font-semibold bg-muted px-2 py-0.5 rounded">
+                                {lang}
+                              </span>
+                            ))}
                           </div>
                         </TableCell>
                         <TableCell className="py-2 align-top">
@@ -1761,7 +1820,8 @@ export default function EmailTemplates() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    );
+                  })}
                   </TableBody>
                 </Table>
 

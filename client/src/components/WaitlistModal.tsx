@@ -16,6 +16,7 @@ import { Loader2, Mail, Check } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateEU, formatTimeEU } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface WaitlistModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ interface WaitlistModalProps {
 
 export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [wantsWaitlistUpdates, setWantsWaitlistUpdates] = useState(false);
@@ -50,6 +52,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
         email,
         name: name.trim() || undefined,
         wantsWaitlistUpdates,
+        language,
       });
 
       setIsSuccess(true);

@@ -21,12 +21,13 @@ async function getAdminUser(ctx: QueryCtx | MutationCtx) {
 
 const RESEND_CONFIRMATION_COOLDOWN_MS = 15 * 60 * 1000;
 
-// Join waitlist (public mutation)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const join = mutation({
   args: {
     email: v.string(),
     name: v.optional(v.string()),
     wantsWaitlistUpdates: v.optional(v.boolean()),
+    language: v.optional(v.union(v.literal("en"), v.literal("de"))),
   },
   handler: async (ctx, args) => {
     // Validate email format
@@ -55,6 +56,13 @@ export const join = mutation({
             wantsWaitlistUpdates: args.wantsWaitlistUpdates,
           });
         }
+        // Update language if provided
+        if (args.language !== undefined) {
+          await ctx.db.patch(existing._id, {
+            language: args.language,
+          });
+        }
+        
         // Schedule email to be sent
         await ctx.scheduler.runAfter(0, internal.email.sendEmail, {
           templateName: "waitlist-opt-in",
@@ -64,6 +72,7 @@ export const join = mutation({
             CONFIRMATION_LINK: `${process.env.VITE_APP_URL || "https://learn-with.me"}/waitlist/confirm?token=${existing.confirmationToken}`,
           },
           to: existing.email,
+          language: args.language ?? existing.language as "en" | "de" | undefined,
         });
         
         return {
@@ -83,6 +92,7 @@ export const join = mutation({
       email: args.email,
       name: args.name,
       wantsWaitlistUpdates: args.wantsWaitlistUpdates ?? false,
+      language: args.language,
       status: "pending",
       confirmationToken,
       createdAt,
@@ -99,6 +109,7 @@ export const join = mutation({
           CONFIRMATION_LINK: `${process.env.VITE_APP_URL || "https://learn-with.me"}/waitlist/confirm?token=${confirmationToken}`,
         },
         to: args.email,
+        language: args.language as "en" | "de" | undefined,
       });
     } catch (error) {
       console.error("[Waitlist] Failed to send opt-in email:", error);
@@ -109,7 +120,7 @@ export const join = mutation({
   },
 });
 
-// Confirm waitlist registration (public mutation)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const confirm = mutation({
   args: {
     token: v.string(),
@@ -151,6 +162,7 @@ export const confirm = mutation({
           USER_EMAIL: entry.email,
         },
         to: entry.email,
+        language: entry.language as "en" | "de" | undefined,
       });
     } catch (error) {
       console.error("[Waitlist] Failed to send confirmation email:", error);
@@ -180,7 +192,7 @@ export const confirm = mutation({
   },
 });
 
-// Get all waitlist entries (admin only)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getAll = query({
   handler: async (ctx) => {
     const admin = await getAdminUser(ctx);
@@ -193,7 +205,7 @@ export const getAll = query({
   },
 });
 
-// Get waitlist statistics (admin only)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getStats = query({
   handler: async (ctx) => {
     const admin = await getAdminUser(ctx);
@@ -215,6 +227,7 @@ export const getStats = query({
 });
 
 // Count pending waitlist entries (admin/superadmin; returns 0 for others)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getPendingCount = query({
   handler: async (ctx) => {
     const admin = await getAdminUser(ctx);
@@ -233,6 +246,7 @@ export const getPendingCount = query({
 });
 
 // Markiere alle pending Waitlist-Einträge als gesehen (admin only)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const markAllPendingAsViewed = mutation({
   handler: async (ctx) => {
     const admin = await getAdminUser(ctx);
@@ -254,6 +268,7 @@ export const markAllPendingAsViewed = mutation({
 });
 
 // Resend waitlist confirmation email for a pending entry (admin only)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const resendConfirmationEmail = mutation({
   args: {
     waitlistId: v.id("waitlist"),
@@ -297,6 +312,7 @@ export const resendConfirmationEmail = mutation({
         CONFIRMATION_LINK: `${baseUrl}/waitlist/confirm?token=${entry.confirmationToken}`,
       },
       to: entry.email,
+      language: entry.language as "en" | "de" | undefined,
     });
 
     const nextSendCount = (entry.confirmationEmailSendCount || 0) + 1;
@@ -317,6 +333,7 @@ export const resendConfirmationEmail = mutation({
 });
 
 // Notify all confirmed users about beta launch (admin only)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const notifyAll = mutation({
   handler: async (ctx) => {
     const admin = await getAdminUser(ctx);
@@ -345,6 +362,7 @@ export const notifyAll = mutation({
             SIGNUP_URL: `${process.env.VITE_APP_URL || "https://learn-with.me"}/sign-up`,
           },
           to: entry.email,
+          language: entry.language as "en" | "de" | undefined,
         });
 
         // Update status to notified
@@ -369,7 +387,7 @@ export const notifyAll = mutation({
   },
 });
 
-// Remove waitlist entry (admin only)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const remove = mutation({
   args: {
     waitlistId: v.id("waitlist"),
@@ -383,7 +401,7 @@ export const remove = mutation({
   },
 });
 
-// Internal query to get all waitlist entries (for migrations)
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const internalGetAll = internalQuery({
   handler: async (ctx) => {
     return await ctx.db

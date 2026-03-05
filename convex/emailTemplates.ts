@@ -474,12 +474,20 @@ function diffVariables(params: { source: string[]; target: string[] }) {
   return { missing, added };
 }
 
-export const translateTemplateEnToDe = action({
+// Map short language codes to full names for prompt
+const languageNames: Record<string, string> = {
+  de: "German (de-DE)",
+  es: "Spanish (es-ES)",
+  fr: "French (fr-FR)",
+};
+
+export const translateTemplate = action({
   args: {
     subjectEn: v.string(),
     htmlContentEn: v.string(),
     descriptionEn: v.optional(v.string()),
     variables: v.optional(v.array(v.string())),
+    targetLanguage: v.union(v.literal("de")), // Can be expanded to es, fr
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
   },
   handler: async (ctx, args) => {
@@ -492,12 +500,14 @@ export const translateTemplateEnToDe = action({
     ]);
     for (const vName of args.variables || []) sourceVars.add(vName);
 
+    const langName = languageNames[args.targetLanguage] || args.targetLanguage;
+
     const system = [
       "You are a translation engine.",
-      "Translate the provided email template from English to German (de-DE).",
+      `Translate the provided email template from English to ${langName}.`,
       "Preserve ALL placeholder variables in double curly braces exactly (e.g. {{USER_NAME}}, {{EMAIL_SIGNATURE}}). Do not translate, rename, add, or remove placeholders.",
       "Preserve HTML tags, inline CSS, and formatting as much as possible.",
-      "Return ONLY valid JSON with keys: subjectDe, htmlContentDe, descriptionDe.",
+      "Return ONLY valid JSON with keys: subjectTranslation, htmlContentTranslation, descriptionTranslation.",
     ].join("\n");
 
     const user = [
@@ -528,27 +538,27 @@ export const translateTemplateEnToDe = action({
       throw new Error("AI returned invalid JSON.");
     }
 
-    const subjectDe = typeof parsed?.subjectDe === "string" ? parsed.subjectDe : "";
-    const htmlContentDe = typeof parsed?.htmlContentDe === "string" ? parsed.htmlContentDe : "";
-    const descriptionDe = typeof parsed?.descriptionDe === "string" ? parsed.descriptionDe : "";
+    const subjectTranslation = typeof parsed?.subjectTranslation === "string" ? parsed.subjectTranslation : "";
+    const htmlContentTranslation = typeof parsed?.htmlContentTranslation === "string" ? parsed.htmlContentTranslation : "";
+    const descriptionTranslation = typeof parsed?.descriptionTranslation === "string" ? parsed.descriptionTranslation : "";
 
-    if (!subjectDe || !htmlContentDe) {
+    if (!subjectTranslation || !htmlContentTranslation) {
       throw new Error("AI returned empty translation fields.");
     }
 
     const targetVars = [
-      ...extractVariables(subjectDe),
-      ...extractVariables(htmlContentDe),
+      ...extractVariables(subjectTranslation),
+      ...extractVariables(htmlContentTranslation),
     ];
     const { missing, added } = diffVariables({ source: Array.from(sourceVars), target: targetVars });
     const warnings: string[] = [];
-    if (missing.length) warnings.push(`Missing placeholders in DE output: ${missing.join(", ")}`);
-    if (added.length) warnings.push(`New placeholders in DE output: ${added.join(", ")}`);
+    if (missing.length) warnings.push(`Missing placeholders in ${args.targetLanguage.toUpperCase()} output: ${missing.join(", ")}`);
+    if (added.length) warnings.push(`New placeholders in ${args.targetLanguage.toUpperCase()} output: ${added.join(", ")}`);
 
     return {
-      subjectDe,
-      htmlContentDe,
-      descriptionDe: descriptionDe || undefined,
+      subjectTranslation,
+      htmlContentTranslation,
+      descriptionTranslation: descriptionTranslation || undefined,
       warnings,
       meta: {
         provider: ai.provider,
@@ -560,9 +570,10 @@ export const translateTemplateEnToDe = action({
   },
 });
 
-export const translateSignatureEnToDe = action({
+export const translateSignature = action({
   args: {
     htmlContentEn: v.string(),
+    targetLanguage: v.union(v.literal("de")), // Can be expanded to es, fr
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
   },
   handler: async (ctx, args) => {
@@ -571,12 +582,14 @@ export const translateSignatureEnToDe = action({
 
     const sourceVars = extractVariables(args.htmlContentEn || "");
 
+    const langName = languageNames[args.targetLanguage] || args.targetLanguage;
+
     const system = [
       "You are a translation engine.",
-      "Translate the provided email signature HTML from English to German (de-DE).",
+      `Translate the provided email signature HTML from English to ${langName}.`,
       "Preserve ALL placeholder variables in double curly braces exactly (e.g. {{USER_EMAIL}}). Do not translate, rename, add, or remove placeholders.",
       "Preserve HTML tags, inline CSS, and formatting as much as possible.",
-      "Return ONLY valid JSON with key: htmlContentDe.",
+      "Return ONLY valid JSON with key: htmlContentTranslation.",
     ].join("\n");
 
     const user = [
@@ -601,17 +614,17 @@ export const translateSignatureEnToDe = action({
       throw new Error("AI returned invalid JSON.");
     }
 
-    const htmlContentDe = typeof parsed?.htmlContentDe === "string" ? parsed.htmlContentDe : "";
-    if (!htmlContentDe) throw new Error("AI returned empty signature translation.");
+    const htmlContentTranslation = typeof parsed?.htmlContentTranslation === "string" ? parsed.htmlContentTranslation : "";
+    if (!htmlContentTranslation) throw new Error("AI returned empty signature translation.");
 
-    const targetVars = extractVariables(htmlContentDe);
+    const targetVars = extractVariables(htmlContentTranslation);
     const { missing, added } = diffVariables({ source: sourceVars, target: targetVars });
     const warnings: string[] = [];
-    if (missing.length) warnings.push(`Missing placeholders in DE output: ${missing.join(", ")}`);
-    if (added.length) warnings.push(`New placeholders in DE output: ${added.join(", ")}`);
+    if (missing.length) warnings.push(`Missing placeholders in ${args.targetLanguage.toUpperCase()} output: ${missing.join(", ")}`);
+    if (added.length) warnings.push(`New placeholders in ${args.targetLanguage.toUpperCase()} output: ${added.join(", ")}`);
 
     return {
-      htmlContentDe,
+      htmlContentTranslation,
       warnings,
       meta: {
         provider: ai.provider,
@@ -623,3 +636,103 @@ export const translateSignatureEnToDe = action({
   },
 });
 
+export const autoTranslateMissingGerman = action({
+  handler: async (ctx) => {
+    const superadmin = await getSuperadminUser(ctx);
+    if (!superadmin) throw new Error("Superadmin access required");
+
+    // Fetch all templates
+    const templates = await ctx.runQuery(api.emailTemplates.getAll);
+    const signatures = await ctx.runQuery(api.emailTemplates.getAllSignatures);
+
+    const log: string[] = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Process Templates
+    for (const t of templates) {
+      const subjectEn = t.subjectEn || t.subject;
+      const htmlContentEn = t.htmlContentEn || t.htmlContent;
+      const descriptionEn = t.descriptionEn || t.description;
+
+      if (!htmlContentEn || !subjectEn) continue;
+      // if already translated, skip
+      if (t.htmlContentDe && t.subjectDe) continue;
+
+      log.push(`Translating template: ${t.name}...`);
+      try {
+        const res = await ctx.runAction(api.emailTemplates.translateTemplate, {
+          subjectEn,
+          htmlContentEn,
+          descriptionEn,
+          variables: t.variables,
+          targetLanguage: "de"
+        });
+
+        await ctx.runMutation(internal.emailTemplates.internalUpsert, {
+          name: t.name,
+          subject: t.subject,
+          subjectEn: subjectEn,
+          subjectDe: res.subjectTranslation,
+          htmlContent: t.htmlContent,
+          htmlContentEn: htmlContentEn,
+          htmlContentDe: res.htmlContentTranslation,
+          description: t.description,
+          descriptionEn: descriptionEn,
+          descriptionDe: res.descriptionTranslation,
+          variables: t.variables || [],
+          category: t.category,
+          isActive: t.isActive,
+        });
+
+        successCount++;
+        if (res.warnings?.length) {
+          log.push(`  Warnings for ${t.name}: ${res.warnings.join(", ")}`);
+        }
+      } catch (error: any) {
+        log.push(`  Error for template ${t.name}: ${error.message}`);
+        errorCount++;
+      }
+    }
+
+    // Process Signatures
+    for (const s of signatures) {
+      const htmlEn = s.htmlContentEn || s.htmlContent;
+      if (!htmlEn) continue;
+      // if already translated, skip
+      if (s.htmlContentDe) continue;
+
+      log.push(`Translating signature category: ${s.category}...`);
+      try {
+        const res = await ctx.runAction(api.emailTemplates.translateSignature, {
+          htmlContentEn: htmlEn,
+          targetLanguage: "de"
+        });
+
+        // Use standard upsert since we already have rights
+        await ctx.runMutation(api.emailTemplates.upsertSignature, {
+          category: s.category,
+          htmlContent: s.htmlContent,
+          htmlContentEn: htmlEn,
+          htmlContentDe: res.htmlContentTranslation,
+          isActive: s.isActive,
+        });
+
+        successCount++;
+        if (res.warnings?.length) {
+          log.push(`  Warnings for signature ${s.category}: ${res.warnings.join(", ")}`);
+        }
+      } catch (error: any) {
+        log.push(`  Error for signature ${s.category}: ${error.message}`);
+        errorCount++;
+      }
+    }
+
+    return {
+      success: true,
+      translatedCount: successCount,
+      errorCount,
+      log,
+    };
+  }
+});
