@@ -50,17 +50,20 @@ export const join = mutation({
       
       // If pending, resend confirmation email
       if (existing.status === "pending") {
-        // Update preference if provided
+        // Compute effective language BEFORE patching, so the email always uses
+        // the correct (new) value regardless of the stale in-memory `existing` object.
+        const effectiveLanguage = (args.language ?? existing.language) as "en" | "de" | undefined;
+
+        // Apply all updates in a single patch to avoid multiple round-trips.
+        const updates: Record<string, unknown> = {};
         if (args.wantsWaitlistUpdates !== undefined) {
-          await ctx.db.patch(existing._id, {
-            wantsWaitlistUpdates: args.wantsWaitlistUpdates,
-          });
+          updates.wantsWaitlistUpdates = args.wantsWaitlistUpdates;
         }
-        // Update language if provided
         if (args.language !== undefined) {
-          await ctx.db.patch(existing._id, {
-            language: args.language,
-          });
+          updates.language = args.language;
+        }
+        if (Object.keys(updates).length > 0) {
+          await ctx.db.patch(existing._id, updates);
         }
         
         // Schedule email to be sent
@@ -72,7 +75,7 @@ export const join = mutation({
             CONFIRMATION_LINK: `${process.env.VITE_APP_URL || "https://learn-with.me"}/waitlist/confirm?token=${existing.confirmationToken}`,
           },
           to: existing.email,
-          language: args.language ?? existing.language as "en" | "de" | undefined,
+          language: effectiveLanguage,
         });
         
         return {
