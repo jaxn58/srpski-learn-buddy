@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
@@ -146,6 +147,7 @@ export default function EmailTemplates() {
   const [variableSearch, setVariableSearch] = useState("");
   const [templateEditLanguage, setTemplateEditLanguage] = useState<"en" | "de">("en");
   const [signatureEditLanguage, setSignatureEditLanguage] = useState<"en" | "de">("en");
+  const [confirmAutoTranslateOpen, setConfirmAutoTranslateOpen] = useState(false);
   const [isTranslatingTemplateDe, setIsTranslatingTemplateDe] = useState(false);
   const [isTranslatingSignatureDe, setIsTranslatingSignatureDe] = useState<
     Record<SignatureCategory, boolean>
@@ -911,20 +913,29 @@ export default function EmailTemplates() {
   const isSuperadmin = user.role === 'superadmin';
 
   const handleAutoTranslateMissingGerman = async () => {
-    if (!confirm("This will use AI to automatically translate all missing German templates and signatures. This may take a moment. Proceed?")) return;
+    toast.info("Übersetzung gestartet...", {
+      description: "Dieser Vorgang kann einen Moment dauern. Bitte warten.",
+      duration: 5000,
+    });
     
     try {
       setIsAutoTranslating(true);
       const res = await autoTranslateMissingGermanAction();
       
       if (res.translatedCount > 0) {
-        toast.success(`Successfully translated ${res.translatedCount} items to German!`);
+        toast.success(`Erfolgreich!`, {
+          description: `${res.translatedCount} Texte wurden auf Deutsch übersetzt.`,
+        });
       } else if (res.errorCount === 0) {
-        toast.info("All items are already translated.");
+        toast.info("Bereits alles übersetzt!", {
+          description: "Es wurden keine fehlenden deutschen Texte gefunden.",
+        });
       }
       
       if (res.errorCount > 0) {
-        toast.warning(`${res.errorCount} items failed to translate.`);
+        toast.warning(`Achtung!`, {
+          description: `${res.errorCount} Texte konnten nicht übersetzt werden.`,
+        });
       }
       
       // We don't necessarily need to reload manually as the useQuery will trigger a refresh, 
@@ -934,7 +945,9 @@ export default function EmailTemplates() {
       }
       
     } catch (error: any) {
-      toast.error(error?.message || "Failed to run batch translation.");
+      toast.error("Fehler", {
+        description: error?.message || "Batch-Übersetzung fehlgeschlagen.",
+      });
     } finally {
       setIsAutoTranslating(false);
     }
@@ -1531,14 +1544,32 @@ export default function EmailTemplates() {
               </div>
               <div className="flex gap-2 flex-wrap justify-end">
                 {isSuperadmin && (
-                  <Button 
-                    variant="secondary" 
-                    onClick={handleAutoTranslateMissingGerman}
-                    disabled={isAutoTranslating}
-                    title={t("admin.emailTemplates.actions.autoTranslateAll")}
-                  >
-                    {isAutoTranslating ? t("common.loading") : t("admin.emailTemplates.actions.autoTranslateAll")}
-                  </Button>
+                  <>
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => setConfirmAutoTranslateOpen(true)}
+                      disabled={isAutoTranslating}
+                      title={t("admin.emailTemplates.actions.autoTranslateAll")}
+                    >
+                      {isAutoTranslating ? t("common.loading") : t("admin.emailTemplates.actions.autoTranslateAll")}
+                    </Button>
+                    <AlertDialog open={confirmAutoTranslateOpen} onOpenChange={setConfirmAutoTranslateOpen}>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Fehlende DE-Texte übersetzen</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Möchtest du wirklich die KI nutzen, um alle fehlenden deutschen Templates und Signaturen automatisch zu übersetzen? Dieser Vorgang kann einen Moment dauern.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleAutoTranslateMissingGerman}>
+                            Ja, übersetzen
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
                 )}
                 {isSuperadmin && (
                   <Button onClick={handleCreate}>
