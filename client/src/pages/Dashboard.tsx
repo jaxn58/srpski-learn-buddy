@@ -144,7 +144,7 @@ export default function Dashboard() {
   const seedDay = new Date().toISOString().slice(0, 10);
   const practicePreview = useQuery(
     api.vocabulary.getPracticePreview,
-    progressLoading ? "skip" : { unitNumber: safeCurrentUnit, seedDay, audioCount: 5 }
+    progressLoading ? "skip" : { unitNumber: safeCurrentUnit, seedDay, audioCount: 5, language: displayLanguage }
   );
   
   const syncUserMutation = useMutation(api.users.syncUser);
@@ -322,6 +322,7 @@ export default function Dashboard() {
 
   const practicePreviewWord = practicePreview?.word ?? null;
   const audioSamples = practicePreview?.audioSamples ?? [];
+  const practicePreviewUnit = practicePreview?.resolvedUnit ?? safeCurrentUnit;
 
   useEffect(() => {
     // When the daily pick changes, default back to hiding the answer
@@ -537,7 +538,7 @@ export default function Dashboard() {
                       front={
                         <div className="rounded-xl border bg-muted/10 p-6 flex flex-col justify-center text-center h-full">
                           <div className="inline-flex items-center justify-center gap-2 mb-2">
-                            <Badge variant="outline">{t("dashboard.unit", { number: safeCurrentUnit })}</Badge>
+                            <Badge variant="outline">{t("dashboard.unit", { number: practicePreviewUnit })}</Badge>
                             {practicePreviewWord.mastered && (
                               <Badge className="bg-amber-500 text-white border-amber-500">
                                 {t("common.mastered")}
@@ -555,7 +556,7 @@ export default function Dashboard() {
                       back={
                         <div className="rounded-xl border bg-primary/5 p-6 flex flex-col justify-center text-center h-full">
                           <div className="inline-flex items-center justify-center gap-2 mb-2">
-                            <Badge variant="outline">{t("dashboard.unit", { number: safeCurrentUnit })}</Badge>
+                            <Badge variant="outline">{t("dashboard.unit", { number: practicePreviewUnit })}</Badge>
                             {practicePreviewWord.mastered && (
                               <Badge className="bg-amber-500 text-white border-amber-500">
                                 {t("common.mastered")}

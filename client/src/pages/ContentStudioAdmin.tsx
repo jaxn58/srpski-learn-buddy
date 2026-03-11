@@ -60,16 +60,120 @@ type Mode = "update" | "replace";
 type Provider = "gemini" | "openai";
 type StageKey = "specialist" | "auditor";
 
-const MODEL_META: Record<Provider, Array<{ id: string; title: string; blurb: string }>> = {
+type ModelTier = "ultra-budget" | "budget" | "balanced" | "premium" | "flagship";
+
+type ModelEntry = {
+  id: string;
+  title: string;
+  blurb: string;
+  tier: ModelTier;
+  inputPricePer1M: number;
+  outputPricePer1M: number;
+};
+
+const MODEL_META: Record<Provider, ModelEntry[]> = {
   gemini: [
-    { id: "gemini-2.5-pro", title: "gemini-2.5-pro", blurb: "Highest quality; best for authoring" },
-    { id: "gemini-2.5-flash", title: "gemini-2.5-flash", blurb: "Fast + cheaper; best for fixes/audit" },
+    {
+      id: "gemini-3.1-pro-preview",
+      title: "gemini-3.1-pro-preview",
+      blurb: "Top pick for Creator – generates grammatically precise, culturally authentic Serbian learning units with nuanced dialogue and exercises. Best overall language quality. Preview (Feb 2026)",
+      tier: "flagship",
+      inputPricePer1M: 2.00,
+      outputPricePer1M: 12.0,
+    },
+    {
+      id: "gemini-3-flash-preview",
+      title: "gemini-3-flash-preview",
+      blurb: "Strong choice for Creator – near-Pro language quality at 3× the speed; handles structured Markdown units and vocabulary well. Good Creator/Lector balance. Preview (Dec 2025)",
+      tier: "premium",
+      inputPricePer1M: 0.50,
+      outputPricePer1M: 3.0,
+    },
+    {
+      id: "gemini-2.5-pro",
+      title: "gemini-2.5-pro",
+      blurb: "Recommended Creator (stable) – proven, reliable unit generation with strong Serbian grammar understanding. Best choice if preview models are too experimental for production. GA",
+      tier: "premium",
+      inputPricePer1M: 1.25,
+      outputPricePer1M: 10.0,
+    },
+    {
+      id: "gemini-2.5-flash",
+      title: "gemini-2.5-flash",
+      blurb: "Recommended Lector (stable) – fast and accurate at spotting linguistic inconsistencies, grammar errors, and structural issues in generated units. Ideal audit model. GA",
+      tier: "balanced",
+      inputPricePer1M: 0.30,
+      outputPricePer1M: 2.50,
+    },
+    {
+      id: "gemini-3.1-flash-lite-preview",
+      title: "gemini-3.1-flash-lite-preview",
+      blurb: "Budget Lector option (Gemini 3 generation) – sufficient for lightweight audits and consistency checks; not recommended for primary content creation. Preview (Mar 2026)",
+      tier: "budget",
+      inputPricePer1M: 0.25,
+      outputPricePer1M: 1.50,
+    },
+    {
+      id: "gemini-2.5-flash-lite",
+      title: "gemini-2.5-flash-lite",
+      blurb: "Minimal Lector only – suitable for basic metadata checks and high-volume passes. Too limited for nuanced language content creation or deep audit. GA",
+      tier: "ultra-budget",
+      inputPricePer1M: 0.10,
+      outputPricePer1M: 0.40,
+    },
   ],
   openai: [
-    { id: "gpt-4o", title: "gpt-4o", blurb: "Highest quality; best for authoring" },
-    { id: "gpt-4o-mini", title: "gpt-4o-mini", blurb: "Fast + cheaper; best for fixes/audit" },
+    {
+      id: "gpt-4.1",
+      title: "gpt-4.1",
+      blurb: "Latest GPT flagship; 1M context, strong reasoning",
+      tier: "premium",
+      inputPricePer1M: 2.0,
+      outputPricePer1M: 8.0,
+    },
+    {
+      id: "gpt-4o",
+      title: "gpt-4o",
+      blurb: "Reliable all-rounder; multimodal, great for authoring",
+      tier: "balanced",
+      inputPricePer1M: 2.50,
+      outputPricePer1M: 10.0,
+    },
+    {
+      id: "gpt-4o-mini",
+      title: "gpt-4o-mini",
+      blurb: "Compact & fast; suitable for audit and simple fixes",
+      tier: "budget",
+      inputPricePer1M: 0.15,
+      outputPricePer1M: 0.60,
+    },
+    {
+      id: "gpt-4.1-nano",
+      title: "gpt-4.1-nano",
+      blurb: "Ultra-lightweight; lowest cost for high-volume tasks",
+      tier: "ultra-budget",
+      inputPricePer1M: 0.10,
+      outputPricePer1M: 0.40,
+    },
   ],
 };
+
+const TIER_BADGE_CONFIG: Record<ModelTier, { label: string; className: string }> = {
+  "ultra-budget": { label: "Ultra-Budget", className: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
+  "budget":       { label: "Budget",       className: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
+  "balanced":     { label: "Balanced",     className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300" },
+  "premium":      { label: "Premium",      className: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300" },
+  "flagship":     { label: "Flagship",     className: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
+};
+
+function ModelTierBadge({ tier }: { tier: ModelTier }) {
+  const cfg = TIER_BADGE_CONFIG[tier];
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  );
+}
 
 const STAGE_HELP: Record<StageKey, string> = {
   specialist:
@@ -94,13 +198,16 @@ const DRAFT_STATUS_LABEL: Record<
   published: "Published",
 };
 
-function stageOrderedModels(provider: Provider, stage: StageKey): Array<{ id: string; title: string; blurb: string }> {
+const TIER_ORDER: ModelTier[] = ["flagship", "premium", "balanced", "budget", "ultra-budget"];
+
+function stageOrderedModels(provider: Provider, stage: StageKey): ModelEntry[] {
   const base = MODEL_META[provider] || [];
-  if (stage === "specialist") return base;
-  // Prefer the "fast" option first for qc/audit if present
-  const fast = base.find((m) => /flash|mini/i.test(m.id));
-  const rest = base.filter((m) => m !== fast);
-  return fast ? [fast, ...rest] : base;
+  if (stage === "specialist") {
+    // Creator: flagship/premium first – ordered by tier descending
+    return [...base].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
+  }
+  // Lector/auditor: balanced/budget first – ordered by tier ascending (cheapest first)
+  return [...base].sort((a, b) => TIER_ORDER.indexOf(b.tier) - TIER_ORDER.indexOf(a.tier));
 }
 
 function isKnownModel(provider: Provider, model: string): boolean {
@@ -2237,31 +2344,57 @@ export default function ContentStudioAdmin() {
             </Select>
             <Label>Model</Label>
             {!cfgSpecialistCustom ? (
-              <Select
-                value={cfgSpecialistModel}
-                onValueChange={(v) => {
-                  if (v === "__custom__") {
-                    setCfgSpecialistCustom(true);
-                    return;
-                  }
-                  setCfgSpecialistModel(v);
-                }}
-              >
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent align="start">
-                  {stageOrderedModels(cfgSpecialistProvider, "specialist").map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{m.title}</span>
-                        <span className="text-xs text-muted-foreground">{m.blurb}</span>
-                      </div>
+              <>
+                <Select
+                  value={cfgSpecialistModel}
+                  onValueChange={(v) => {
+                    if (v === "__custom__") { setCfgSpecialistCustom(true); return; }
+                    setCfgSpecialistModel(v);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    {(() => {
+                      const m = MODEL_META[cfgSpecialistProvider]?.find((e) => e.id === cfgSpecialistModel);
+                      return m ? (
+                        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                          <span className="truncate font-medium text-sm">{m.title}</span>
+                          <ModelTierBadge tier={m.tier} />
+                        </div>
+                      ) : <SelectValue placeholder="Select model…" />;
+                    })()}
+                  </SelectTrigger>
+                  <SelectContent align="start" className="w-[min(420px,90vw)]">
+                    {stageOrderedModels(cfgSpecialistProvider, "specialist").map((m) => (
+                      <SelectItem key={m.id} value={m.id} className="py-2">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{m.title}</span>
+                            <ModelTierBadge tier={m.tier} />
+                          </div>
+                          <span className="text-xs text-muted-foreground leading-snug">{m.blurb}</span>
+                          <span className="text-xs text-muted-foreground/60 font-mono">
+                            ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__custom__" className="py-2">
+                      <span className="text-muted-foreground text-sm">Custom model…</span>
                     </SelectItem>
-                  ))}
-                  <SelectItem value="__custom__">
-                    <span className="text-muted-foreground">Custom model…</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+                {MODEL_META[cfgSpecialistProvider]?.find((e) => e.id === cfgSpecialistModel) && (() => {
+                  const m = MODEL_META[cfgSpecialistProvider].find((e) => e.id === cfgSpecialistModel)!;
+                  return (
+                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
+                      <p className="text-muted-foreground leading-snug">{m.blurb}</p>
+                      <p className="font-mono text-muted-foreground/60">
+                        ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
+                      </p>
+                    </div>
+                  );
+                })()}
+              </>
             ) : (
               <div className="space-y-2">
                 <Input value={cfgSpecialistModel} onChange={(e) => setCfgSpecialistModel(e.target.value)} />
@@ -2296,31 +2429,57 @@ export default function ContentStudioAdmin() {
             </Select>
             <Label>Model</Label>
             {!cfgAuditorCustom ? (
-              <Select
-                value={cfgAuditorModel}
-                onValueChange={(v) => {
-                  if (v === "__custom__") {
-                    setCfgAuditorCustom(true);
-                    return;
-                  }
-                  setCfgAuditorModel(v);
-                }}
-              >
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent align="start">
-                  {stageOrderedModels(cfgAuditorProvider, "auditor").map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{m.title}</span>
-                        <span className="text-xs text-muted-foreground">{m.blurb}</span>
-                      </div>
+              <>
+                <Select
+                  value={cfgAuditorModel}
+                  onValueChange={(v) => {
+                    if (v === "__custom__") { setCfgAuditorCustom(true); return; }
+                    setCfgAuditorModel(v);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    {(() => {
+                      const m = MODEL_META[cfgAuditorProvider]?.find((e) => e.id === cfgAuditorModel);
+                      return m ? (
+                        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                          <span className="truncate font-medium text-sm">{m.title}</span>
+                          <ModelTierBadge tier={m.tier} />
+                        </div>
+                      ) : <SelectValue placeholder="Select model…" />;
+                    })()}
+                  </SelectTrigger>
+                  <SelectContent align="start" className="w-[min(420px,90vw)]">
+                    {stageOrderedModels(cfgAuditorProvider, "auditor").map((m) => (
+                      <SelectItem key={m.id} value={m.id} className="py-2">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{m.title}</span>
+                            <ModelTierBadge tier={m.tier} />
+                          </div>
+                          <span className="text-xs text-muted-foreground leading-snug">{m.blurb}</span>
+                          <span className="text-xs text-muted-foreground/60 font-mono">
+                            ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__custom__" className="py-2">
+                      <span className="text-muted-foreground text-sm">Custom model…</span>
                     </SelectItem>
-                  ))}
-                  <SelectItem value="__custom__">
-                    <span className="text-muted-foreground">Custom model…</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+                {MODEL_META[cfgAuditorProvider]?.find((e) => e.id === cfgAuditorModel) && (() => {
+                  const m = MODEL_META[cfgAuditorProvider].find((e) => e.id === cfgAuditorModel)!;
+                  return (
+                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
+                      <p className="text-muted-foreground leading-snug">{m.blurb}</p>
+                      <p className="font-mono text-muted-foreground/60">
+                        ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
+                      </p>
+                    </div>
+                  );
+                })()}
+              </>
             ) : (
               <div className="space-y-2">
                 <Input value={cfgAuditorModel} onChange={(e) => setCfgAuditorModel(e.target.value)} />

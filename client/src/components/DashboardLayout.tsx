@@ -267,14 +267,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div
             className={cn(
               "min-h-screen bg-muted/20",
-              isChatRoute && "h-svh flex flex-col overflow-hidden"
+              isChatRoute && "h-[100dvh] flex flex-col overflow-hidden"
             )}
           >
-            <TopNavigation />
+            {!(isChatRoute && isMobile) && <TopNavigation />}
             <main
               className={cn(
                 "w-full max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pt-6",
-                isChatRoute && "flex-1 flex flex-col min-h-0 overflow-hidden"
+                isChatRoute && "flex-1 flex flex-col min-h-0 overflow-hidden",
+                isChatRoute && isMobile && "p-0"
               )}
             >
               {children}

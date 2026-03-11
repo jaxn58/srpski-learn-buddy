@@ -450,6 +450,7 @@ const resources = {
       "interactiveTest.encouragement.goodJob": "Good job! You're making progress!",
       "interactiveTest.encouragement.notBad": "Not bad! Try again for more XP!",
       "interactiveTest.encouragement.keepPracticing": "Keep practicing! You'll get there!",
+      "interactiveTest.answerPlaceholder": "Type your answer...",
 
       // Exercises (XP Toasts)
       "exercise.toast.xpEarned": "+{{xp}} XP earned!",
@@ -1894,6 +1895,7 @@ const resources = {
       "interactiveTest.encouragement.goodJob": "Gut gemacht! Du machst Fortschritte!",
       "interactiveTest.encouragement.notBad": "Nicht schlecht! Versuch es nochmal für mehr XP!",
       "interactiveTest.encouragement.keepPracticing": "Weiter üben! Du schaffst das!",
+      "interactiveTest.answerPlaceholder": "Schreibe deine Antwort...",
 
       // Exercises (XP Toasts)
       "exercise.toast.xpEarned": "+{{xp}} XP verdient!",

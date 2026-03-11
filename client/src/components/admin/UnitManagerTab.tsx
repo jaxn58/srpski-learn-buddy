@@ -26,7 +26,13 @@ import {
 } from "@/components/ui/select";
 // AlertDialog imports removed — actions use inline confirm inputs
 import { MarkdownContent } from "@/components/MarkdownContent";
-import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2 } from "lucide-react";
+import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,6 +107,8 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
   const overview = useQuery(api.contentStudio.getUnitManagementOverview);
   const promotePreview = useMutation(api.contentStudio.promoteLanguagePreviewToPublished);
   const offlinePreview = useMutation(api.contentStudio.takeLanguagePreviewOffline);
+  const setUnitOffline = useMutation(api.units.setUnitOffline);
+  const deleteUnitFull = useMutation(api.contentStudio.deleteUnitFull);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de">("all");
@@ -113,6 +121,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
   const [promoteConfirm, setPromoteConfirm] = useState("");
   const [offlineConfirm, setOfflineConfirm] = useState("");
   const [running, setRunning] = useState(false);
+
+  const [unitOfflineConfirm, setUnitOfflineConfirm] = useState("");
+  const [unitDeleteConfirm, setUnitDeleteConfirm] = useState("");
 
   // Auto-fade: force re-render every minute so "X min ago" updates, and entries older than 30 min disappear
   const [, setTick] = useState(0);
@@ -225,6 +236,47 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
       setOfflineConfirm("");
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to take preview offline.");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleSetUnitOffline = async (unitNumber: number, goOffline: boolean) => {
+    const confirmStr = goOffline ? `OFFLINE UNIT ${unitNumber}` : `ONLINE UNIT ${unitNumber}`;
+    if (unitOfflineConfirm !== confirmStr) {
+      toast.error(`Please type "${confirmStr}" to confirm.`);
+      return;
+    }
+    setRunning(true);
+    try {
+      await setUnitOffline({ unitNumber, offline: goOffline, confirm: confirmStr });
+      toast.success(
+        goOffline
+          ? `Unit ${unitNumber} is now offline (hidden for all users).`
+          : `Unit ${unitNumber} is back online.`
+      );
+      setUnitOfflineConfirm("");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to update unit status.");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleDeleteUnitFull = async (unitNumber: number) => {
+    const confirmStr = `DELETE UNIT ${unitNumber}`;
+    if (unitDeleteConfirm !== confirmStr) {
+      toast.error(`Please type "${confirmStr}" to confirm.`);
+      return;
+    }
+    setRunning(true);
+    try {
+      await deleteUnitFull({ unitNumber, confirm: confirmStr });
+      toast.success(`Unit ${unitNumber} has been permanently deleted.`);
+      setUnitDeleteConfirm("");
+      setSelectedUnit(null);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to delete unit.");
     } finally {
       setRunning(false);
     }
@@ -524,14 +576,116 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
                           </div>
                         </div>
 
-                        {/* Actions for published units */}
+                        {/* Danger Zone for published units */}
                         {langVersion.releaseStatus !== "preview" && (
                           <>
                             <Separator />
-                            <div className="rounded border border-muted p-3">
-                              <p className="text-xs text-muted-foreground">
-                                This {langFlag(lang)} version is <strong>published</strong>. Offline/unpublish actions for published units are not yet implemented. Use "Open in App" to verify content.
-                              </p>
+                            <div className="space-y-3">
+
+                              {/* Tier 1: Reversible offline toggle */}
+                              {langVersion.isOffline ? (
+                                /* Unit is currently offline — show "bring back online" */
+                                <div className="rounded border border-green-500/40 bg-green-500/5 p-4 space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                      <Wifi className="h-4 w-4 text-green-600" />
+                                      Unit wieder online schalten
+                                    </div>
+                                    <Badge className="bg-green-600/80 hover:bg-green-600 text-white text-[10px]">Reversibel</Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Unit {selectedOverview.unitNumber} ist derzeit <strong>offline</strong> und für Nutzer nicht sichtbar. Alle Daten sind intakt.
+                                    Dieses Schalten gilt für <strong>alle Sprachversionen</strong> der Unit.
+                                  </p>
+                                  <Input
+                                    placeholder={`Eingabe: ONLINE UNIT ${selectedOverview.unitNumber}`}
+                                    value={unitOfflineConfirm}
+                                    onChange={(e) => setUnitOfflineConfirm(e.target.value)}
+                                    className="font-mono text-xs h-8"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    disabled={running || unitOfflineConfirm !== `ONLINE UNIT ${selectedOverview.unitNumber}`}
+                                    onClick={() => handleSetUnitOffline(selectedOverview.unitNumber, false)}
+                                  >
+                                    {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Wifi className="mr-1 h-3.5 w-3.5" />}
+                                    Online schalten
+                                  </Button>
+                                </div>
+                              ) : (
+                                /* Unit is currently online — offer to take offline */
+                                <div className="rounded border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                      <WifiOff className="h-4 w-4 text-amber-600" />
+                                      Unit offline schalten
+                                    </div>
+                                    <Badge className="bg-amber-500/80 hover:bg-amber-500 text-white text-[10px]">Reversibel</Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Die Unit wird für alle Nutzer ausgeblendet. Alle Daten bleiben erhalten und der Schritt ist jederzeit rückgängig zu machen.
+                                    Dieses Schalten gilt für <strong>alle Sprachversionen</strong> der Unit.
+                                  </p>
+                                  <Input
+                                    placeholder={`Eingabe: OFFLINE UNIT ${selectedOverview.unitNumber}`}
+                                    value={unitOfflineConfirm}
+                                    onChange={(e) => setUnitOfflineConfirm(e.target.value)}
+                                    className="font-mono text-xs h-8"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-amber-500/60 text-amber-700 hover:bg-amber-500/10"
+                                    disabled={running || unitOfflineConfirm !== `OFFLINE UNIT ${selectedOverview.unitNumber}`}
+                                    onClick={() => handleSetUnitOffline(selectedOverview.unitNumber, true)}
+                                  >
+                                    {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <WifiOff className="mr-1 h-3.5 w-3.5" />}
+                                    Offline schalten
+                                  </Button>
+                                </div>
+                              )}
+
+                              {/* Tier 2: Irreversible full delete (inside Accordion) */}
+                              <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="danger-delete" className="border-destructive/40">
+                                  <AccordionTrigger className="text-sm font-medium text-destructive hover:text-destructive px-4 py-3 rounded-t border border-destructive/30 bg-destructive/5 hover:no-underline hover:bg-destructive/10">
+                                    <div className="flex items-center gap-2">
+                                      <AlertTriangle className="h-4 w-4" />
+                                      Danger Zone — Unit vollständig löschen
+                                    </div>
+                                  </AccordionTrigger>
+                                  <AccordionContent className="border border-t-0 border-destructive/30 bg-destructive/5 rounded-b px-4 py-4">
+                                    <div className="space-y-3">
+                                      <div className="flex items-center gap-2">
+                                        <Badge variant="destructive" className="text-[10px]">Nicht rückgängig zu machen</Badge>
+                                      </div>
+                                      <p className="text-xs text-destructive font-medium">
+                                        Löscht alle Inhalte, Vokabeln, Tests UND den User-Fortschritt aller Nutzer dieser Unit unwiderruflich.
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Empfehlung: Unit zuerst offline schalten, bevor sie gelöscht wird. Diese Aktion kann nicht rückgängig gemacht werden.
+                                      </p>
+                                      <Input
+                                        placeholder={`Eingabe: DELETE UNIT ${selectedOverview.unitNumber}`}
+                                        value={unitDeleteConfirm}
+                                        onChange={(e) => setUnitDeleteConfirm(e.target.value)}
+                                        className="font-mono text-xs h-8 border-destructive/40 focus-visible:ring-destructive/40"
+                                      />
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        disabled={running || unitDeleteConfirm !== `DELETE UNIT ${selectedOverview.unitNumber}`}
+                                        onClick={() => handleDeleteUnitFull(selectedOverview.unitNumber)}
+                                      >
+                                        {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+                                        Unit vollständig löschen
+                                      </Button>
+                                    </div>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              </Accordion>
+
                             </div>
                           </>
                         )}

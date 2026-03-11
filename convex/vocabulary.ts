@@ -385,11 +385,15 @@ function seededShuffle<T>(items: T[], rand: () => number): T[] {
   return a;
 }
 
-function getEnglishTranslation(word: any): string {
-  const direct = word?.en && String(word.en).trim();
+function getTranslation(word: any, language: string): string {
+  const lang = (language === "de" || language === "es" || language === "fr") ? language : "en";
+  const direct = word?.[lang] && String(word[lang]).trim();
   if (direct) return direct;
+  const en = word?.en && String(word.en).trim();
+  if (en) return en;
   if (Array.isArray(word?.translations)) {
-    const t = word.translations.find((x: any) => x?.language === "en")?.translation;
+    const t = word.translations.find((x: any) => x?.language === lang)?.translation
+           || word.translations.find((x: any) => x?.language === "en")?.translation;
     if (t && String(t).trim()) return String(t).trim();
   }
   return "-";
@@ -402,27 +406,32 @@ export const getPracticePreview = query({
     // Expected format: YYYY-MM-DD (client decides UTC/local). Used only for deterministic daily rotation.
     seedDay: v.string(),
     audioCount: v.optional(v.number()),
+    language: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
 
-    // Load course vocabulary for this unit (active + latest version per (unitNumber, serbian))
-    const rawCourseVocab = await ctx.db
-      .query("courseVocabulary")
-      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
-      .collect();
-    const activeCourseVocab = rawCourseVocab.filter((v: any) => v.isActive !== false);
-    const latestByKey = new Map<string, any>();
-    for (const v of activeCourseVocab as any[]) {
-      const key = `${v.unitNumber}::${v.serbian}`;
-      const ver = v.unitVersion ?? 1;
-      const prev = latestByKey.get(key);
-      const prevVer = prev ? (prev.unitVersion ?? 1) : -1;
-      if (!prev || ver > prevVer) latestByKey.set(key, v);
-    }
-    const courseVocab = Array.from(latestByKey.values());
+    const lang = args.language ?? "en";
+    const audioCount = Math.max(0, Math.min(20, Number(args.audioCount ?? 5) || 5));
 
-    // Progress lookup
+    // Helper: load active vocabulary for a given unit number, deduplicated to latest version
+    async function loadVocabForUnit(unitNum: number) {
+      const raw = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", unitNum))
+        .collect();
+      const active = raw.filter((v: any) => v.isActive !== false);
+      const latestByKey = new Map<string, any>();
+      for (const v of active as any[]) {
+        const key = `${v.unitNumber}::${v.serbian}`;
+        const ver = v.unitVersion ?? 1;
+        const prev = latestByKey.get(key);
+        if (!prev || ver > (prev.unitVersion ?? 1)) latestByKey.set(key, v);
+      }
+      return Array.from(latestByKey.values());
+    }
+
+    // Progress lookup (load once, reuse for all unit attempts)
     const progressMap = new Map<any, any>();
     if (user) {
       const userProgress = await ctx.db
@@ -434,29 +443,55 @@ export const getPracticePreview = query({
       }
     }
 
-    const words = courseVocab
-      .map((w: any) => {
-        const p = progressMap.get(w._id);
-        const correctAnswerCount = Number(p?.correctAnswerCount ?? 0) || 0;
-        const mastered = Boolean(p?.mastered) || correctAnswerCount >= 3;
-        return {
-          id: w._id,
-          serbian: String(w?.serbian ?? ""),
-          translation: getEnglishTranslation(w),
-          audioStorageId: (w?.audioStorageId ?? null) as string | null,
-          mastered,
-          correctAnswerCount,
-        };
-      })
-      .filter((x) => x.id && x.serbian);
-
-    const audioCount = Math.max(0, Math.min(20, Number(args.audioCount ?? 5) || 5));
-
-    if (words.length === 0) {
-      return { word: null, audioSamples: [] as any[] };
+    function buildWords(courseVocab: any[]) {
+      return courseVocab
+        .map((w: any) => {
+          const p = progressMap.get(w._id);
+          const correctAnswerCount = Number(p?.correctAnswerCount ?? 0) || 0;
+          const mastered = Boolean(p?.mastered) || correctAnswerCount >= 3;
+          return {
+            id: w._id,
+            serbian: String(w?.serbian ?? ""),
+            translation: getTranslation(w, lang),
+            audioStorageId: (w?.audioStorageId ?? null) as string | null,
+            mastered,
+            correctAnswerCount,
+          };
+        })
+        .filter((x: any) => x.id && x.serbian);
     }
 
-    const seed = hashToUint32(`${args.seedDay}::${String(user?._id ?? "anon")}::${args.unitNumber}`);
+    // Try requested unit first; if empty, fall back to the highest available unit below it
+    let resolvedUnit = args.unitNumber;
+    let words = buildWords(await loadVocabForUnit(resolvedUnit));
+
+    if (words.length === 0 && args.unitNumber > 1) {
+      // Collect all units that have vocabulary and pick the highest one <= requested
+      const allVocab = await ctx.db.query("courseVocabulary").collect();
+      const availableUnits = [
+        ...new Set(
+          allVocab
+            .filter((v: any) => v.isActive !== false)
+            .map((v: any) => v.unitNumber as number)
+            .filter((n: number) => n < args.unitNumber)
+        ),
+      ].sort((a, b) => b - a);
+
+      for (const fallbackUnit of availableUnits) {
+        const fallbackWords = buildWords(await loadVocabForUnit(fallbackUnit));
+        if (fallbackWords.length > 0) {
+          resolvedUnit = fallbackUnit;
+          words = fallbackWords;
+          break;
+        }
+      }
+    }
+
+    if (words.length === 0) {
+      return { word: null, audioSamples: [] as any[], resolvedUnit: null };
+    }
+
+    const seed = hashToUint32(`${args.seedDay}::${String(user?._id ?? "anon")}::${resolvedUnit}`);
     const rand = mulberry32(seed);
 
     const unmastered = words.filter((w) => w.correctAnswerCount < 3);
@@ -483,6 +518,7 @@ export const getPracticePreview = query({
           }
         : null,
       audioSamples,
+      resolvedUnit,
     };
   },
 });

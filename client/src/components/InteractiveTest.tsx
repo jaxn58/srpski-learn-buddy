@@ -385,7 +385,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                   if (q.questionType === "translation" || (q.questionType === "dialogue" && !q.question.includes("_"))) {
                     return (
                       <Input
-                        placeholder="Type your answer..."
+                        placeholder={t("interactiveTest.answerPlaceholder")}
                         value={answers[q.questionId] || ""}
                         onChange={(e) => handleAnswerChange(q.questionId, category, e.target.value)}
                         disabled={isCategoryChecked}

@@ -1,13 +1,21 @@
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useState, useTransition, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { MessageSquarePlus, MessageSquare, Trash, Archive, RotateCcw, Trash2 } from "lucide-react";
+import { MessageSquarePlus, MessageSquare, Archive, RotateCcw, Trash2, MoreHorizontal, Pencil } from "lucide-react";
 import { cn, formatDateEU } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,9 +43,13 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
   const archiveSessionMutation = useMutation(api.chat.archiveSession);
   const unarchiveSessionMutation = useMutation(api.chat.unarchiveSession);
   const deleteArchivedMutation = useMutation(api.chat.deleteArchivedSession);
+  const updateSessionMutation = useMutation(api.chat.updateSession);
   const [showArchived, setShowArchived] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -45,9 +57,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
     onConfirm: () => void;
   } | null>(null);
 
-  const handleDelete = useCallback((sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    
+  const handleDelete = useCallback((sessionId: string) => {
     // Non-blocking confirmation dialog
     setConfirmDialog({
       open: true,
@@ -89,6 +99,32 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
       onSelectSession(sessionId);
     });
   }, [onSelectSession]);
+
+  const startRename = useCallback((session: ChatSession) => {
+    setRenamingId(session._id as unknown as string);
+    setRenameValue(session.title);
+    setTimeout(() => renameInputRef.current?.focus(), 50);
+  }, []);
+
+  const saveRename = useCallback((id: string, value: string) => {
+    const trimmed = value.trim();
+    setRenamingId(null);
+    if (!trimmed) return;
+
+    const session = sessions?.find((s) => (s._id as unknown as string) === id);
+    if (session && trimmed === session.title) return;
+
+    setProcessingIds((prev) => new Set(prev).add(id));
+    updateSessionMutation({ sessionId: id as any, title: trimmed })
+      .catch(() => toast.error(t("chatSessions.toast.renameFailed", "Rename failed")))
+      .finally(() =>
+        setProcessingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        })
+      );
+  }, [sessions, updateSessionMutation, t]);
 
   const handleUnarchive = useCallback((sessionId: string) => {
     startTransition(() => {
@@ -181,62 +217,104 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
             </div>
           )}
 
-          {sessions?.map((session: ChatSession) => (
-            (() => {
-              const isActive = currentSessionId === session._id;
-              return (
-            <div
-              key={session._id}
-              onClick={() => handleSelect(session._id)}
-              className={cn(
-                "group relative flex items-center gap-2 p-3 pr-10 rounded-lg cursor-pointer transition-colors",
-                isActive
-                  ? "bg-[color:var(--accent)] text-white hover:brightness-95"
-                  : "hover:bg-muted/40"
-              )}
-            >
-              <MessageSquare
+          {sessions?.map((session: ChatSession) => {
+            const id = session._id as unknown as string;
+            const isActive = currentSessionId === id;
+            const isRenaming = renamingId === id;
+            const isProcessing = processingIds.has(id);
+
+            return (
+              <div
+                key={id}
                 className={cn(
-                  "h-4 w-4 flex-shrink-0",
-                  isActive ? "text-white" : "text-muted-foreground"
-                )}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm truncate">
-                  {session.title}
-                </p>
-                <p
-                  className={cn(
-                    "text-xs truncate",
-                    isActive ? "text-white/85" : "text-muted-foreground"
-                  )}
-                >
-                  {formatDateEU(session._creationTime)}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7",
-                  "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity",
-                  isActive && "opacity-100",
+                  "group flex items-center gap-2 p-3 rounded-lg transition-colors",
                   isActive
-                    ? "text-white hover:bg-white/15"
-                    : "text-muted-foreground hover:bg-muted/40",
-                  processingIds.has(session._id) && "opacity-50 cursor-wait"
+                    ? "bg-[color:var(--accent)] text-white hover:brightness-95"
+                    : "hover:bg-muted/40 cursor-pointer",
+                  isProcessing && "opacity-60"
                 )}
-                onClick={(e) => handleDelete(session._id, e)}
-                disabled={processingIds.has(session._id)}
-                title="Archive"
-                aria-label="Archive chat"
+                onClick={() => !isRenaming && !isProcessing && handleSelect(id)}
               >
-                <Archive className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-              );
-            })()
-          ))}
+                <MessageSquare
+                  className={cn(
+                    "h-4 w-4 flex-shrink-0",
+                    isActive ? "text-white" : "text-muted-foreground"
+                  )}
+                />
+
+                {isRenaming ? (
+                  <Input
+                    ref={renameInputRef}
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        saveRename(id, renameValue);
+                      }
+                      if (e.key === "Escape") setRenamingId(null);
+                    }}
+                    onBlur={() => saveRename(id, renameValue)}
+                    className="h-7 text-sm flex-1 bg-background text-foreground"
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">{session.title}</p>
+                    <p
+                      className={cn(
+                        "text-xs truncate",
+                        isActive ? "text-white/85" : "text-muted-foreground"
+                      )}
+                    >
+                      {formatDateEU(session._creationTime)}
+                    </p>
+                  </div>
+                )}
+
+                {!isRenaming && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-7 w-7 shrink-0",
+                          "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity",
+                          isActive && "opacity-100",
+                          isActive
+                            ? "text-white hover:bg-white/15"
+                            : "text-muted-foreground hover:bg-muted/40"
+                        )}
+                        disabled={isProcessing}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem
+                        onSelect={() => startRename(session)}
+                        className="cursor-pointer"
+                      >
+                        <Pencil className="h-4 w-4 mr-2" />
+                        {t("chatSessions.action.rename", "Rename")}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => handleDelete(id)}
+                        className="cursor-pointer text-destructive focus:text-destructive"
+                      >
+                        <Archive className="h-4 w-4 mr-2" />
+                        {t("chatSessions.action.archive", "Archive")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            );
+          })}
 
           {showArchived && (
             <div className="mt-4 border-t border-border/60 pt-3 space-y-2">

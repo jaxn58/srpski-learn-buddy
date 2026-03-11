@@ -14,7 +14,9 @@ import {
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, User, Brain, Sparkles, Info } from "lucide-react";
+import { Send, Brain, Sparkles, Info, ArrowLeft } from "lucide-react";
+import { useIsMobile } from "@/hooks/useMobile";
+import { ChatMobileSheet } from "@/components/ChatMobileSheet";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -38,6 +40,7 @@ export default function Chat() {
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   
@@ -190,6 +193,17 @@ export default function Chat() {
     }
   };
 
+  const handleInputFocus = () => {
+    if (!isMobile) return;
+    // Warte auf Tastatur-Animation, dann scrolle Input ins Sichtfeld
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 350);
+  };
+
 
   if (authLoading) {
     return (
@@ -204,8 +218,32 @@ export default function Chat() {
     return null;
   }
 
+  const currentSession = sessions?.find(
+    (s) => (s._id as unknown as string) === currentSessionId
+  );
+
   return (
     <AnimatedPage className="flex flex-col flex-1 min-h-0">
+      {/* Mobile-Only Header (ersetzt TopNavigation auf /chat) */}
+      {isMobile && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-background border-b shrink-0 pt-[env(safe-area-inset-top)]">
+          <Link href="/dashboard">
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <ChatMobileSheet
+              currentSessionId={currentSessionId}
+              currentSessionTitle={currentSession?.title}
+              onSelectSession={handleSelectSession}
+              onNewChat={handleNewChat}
+              isCreatingSession={isCreatingSession}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex w-full gap-6 flex-1 min-h-0">
         <ChatSessionsSidebar 
           currentSessionId={currentSessionId}
@@ -214,9 +252,9 @@ export default function Chat() {
         />
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
           <main className="w-full flex-1 flex flex-col min-h-0">
-        <div className="flex flex-col bg-card border rounded-xl shadow-sm flex-1 min-h-0">
-          {/* Top tools row (keeps UI clean; TopNav already provides context) */}
-          <div className="px-4 pt-4 flex items-center justify-end">
+        <div className="flex flex-col bg-card border-0 sm:border rounded-none sm:rounded-xl shadow-none sm:shadow-sm flex-1 min-h-0">
+          {/* Top tools row: nur auf Desktop sichtbar */}
+          <div className="hidden sm:flex px-4 pt-4 items-center justify-end">
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
@@ -297,7 +335,7 @@ export default function Chat() {
           {/* Messages Area */}
           <div 
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-6 space-y-4"
+            className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4"
           >
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
@@ -414,13 +452,14 @@ export default function Chat() {
           </div>
 
           {/* Input Area */}
-          <div className="p-4 bg-muted/20 rounded-b-xl">
+          <div className="p-3 sm:p-4 bg-muted/20 rounded-none sm:rounded-b-xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
+                onFocus={handleInputFocus}
                 placeholder={currentSessionId ? t('chat.placeholder') : t('chat.noSessionPlaceholder', 'Please start a new chat first')}
                 className="flex-1 rounded-full"
                 disabled={isSending || !currentSessionId}
