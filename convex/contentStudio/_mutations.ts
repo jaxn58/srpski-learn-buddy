@@ -1,7 +1,14 @@
 import { v } from "convex/values";
-import { mutation } from "../_generated/server";
+import { mutation, internalMutation } from "../_generated/server";
 import { requireSuperadmin } from "./_shared";
 import type { DraftStatus } from "./_shared";
+import {
+  SPECIALIST_SYSTEM_PROMPT,
+  CREATOR_REVISE_SYSTEM_PROMPT,
+  LECTOR_SYSTEM_PROMPT,
+  SECTION_PROMPTS,
+  CS_PROMPT_KEYS,
+} from "./prompts";
 
 export const createDraft = mutation({
   args: {
@@ -592,42 +599,8 @@ export const deactivateSkill = mutation({
   },
 });
 
-export const upsertSectionSkill = mutation({
-  args: {
-    skillId: v.optional(v.id("contentStudioSkills")),
-    section: v.union(v.literal("overview"), v.literal("grammar"), v.literal("phrases"), v.literal("dialogues"), v.literal("exercises")),
-    name: v.string(),
-    description: v.optional(v.string()),
-    prompt: v.string(),
-    isActive: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const user = await requireSuperadmin(ctx);
-    const now = Date.now();
-    if (args.skillId) {
-      await ctx.db.patch(args.skillId, {
-        section: args.section,
-        name: args.name,
-        description: args.description,
-        prompt: args.prompt,
-        isActive: args.isActive,
-        updatedAt: now,
-      });
-      return args.skillId;
-    }
-    return await ctx.db.insert("contentStudioSkills", {
-      scope: "section",
-      section: args.section,
-      name: args.name,
-      description: args.description,
-      prompt: args.prompt,
-      isActive: args.isActive,
-      createdBy: user._id,
-      createdAt: now,
-      updatedAt: now,
-    });
-  },
-});
+// upsertSectionSkill removed -- section prompts are now managed exclusively
+// via chatPrompts (cs_section_*) in the Prompt Administration.
 
 export const generateReferenceUploadUrl = mutation({
   args: {},
@@ -968,11 +941,33 @@ export const saveUnitPackageSnapshot = mutation({
         .query("contentDraftFindings")
         .withIndex("by_draft", (q) => q.eq("draftId", args.draftId))
         .collect();
+
+      // Collect dismissed fingerprints so they survive a re-run of the lector/validator.
+      // The AI re-words findings slightly each run, so we match on stage+code+path (stable identifiers)
+      // rather than exact message text. This prevents dismissed false positives from resurfacing.
+      const dismissedFingerprints = new Set<string>(
+        existing
+          .filter((f) => f.dismissed === true)
+          .map((f) => `${f.stage}|${f.code}|${String(f.path || "").trim().toLowerCase()}`)
+      );
+
       for (const f of existing) {
         await ctx.db.delete(f._id);
       }
-    }
-    if (args.findings && args.findings.length) {
+
+      if (args.findings && args.findings.length) {
+        for (const f of args.findings) {
+          const fingerprint = `${f.stage}|${f.code}|${String(f.path || "").trim().toLowerCase()}`;
+          const alreadyDismissed = dismissedFingerprints.has(fingerprint);
+          await ctx.db.insert("contentDraftFindings", {
+            draftId: args.draftId,
+            ...f,
+            dismissed: alreadyDismissed ? true : undefined,
+            createdAt: now,
+          });
+        }
+      }
+    } else if (args.findings && args.findings.length) {
       for (const f of args.findings) {
         await ctx.db.insert("contentDraftFindings", {
           draftId: args.draftId,
@@ -2002,5 +1997,65 @@ export const appendFindings = mutation({
         createdAt: now,
       });
     }
+  },
+});
+
+export const seedContentStudioPrompts = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const prompts: Array<{ name: string; content: string; description: string; category: string }> = [
+      {
+        name: CS_PROMPT_KEYS.unitCreator,
+        content: SPECIALIST_SYSTEM_PROMPT,
+        description: "System prompt for the AI that generates full unit markdown from scratch.",
+        category: "Content Studio",
+      },
+      {
+        name: CS_PROMPT_KEYS.findingFixer,
+        content: CREATOR_REVISE_SYSTEM_PROMPT,
+        description: "System prompt for the AI that fixes validator/lector findings in existing content.",
+        category: "Content Studio",
+      },
+      {
+        name: CS_PROMPT_KEYS.lector,
+        content: LECTOR_SYSTEM_PROMPT,
+        description: "Static instruction part of the Lector/Auditor. Dynamic context (unit number, vocabulary) is added at runtime.",
+        category: "Content Studio",
+      },
+      ...Object.entries(SECTION_PROMPTS).map(([sectionId, content]) => ({
+        name: CS_PROMPT_KEYS.section(sectionId as any),
+        content,
+        description: `Section-specific editing prompt for the "${sectionId}" section.`,
+        category: "Content Studio",
+      })),
+    ];
+
+    const results: Array<{ name: string; action: "created" | "skipped" }> = [];
+    for (const p of prompts) {
+      const existing = await ctx.db
+        .query("chatPrompts")
+        .withIndex("by_name", (q) => q.eq("name", p.name))
+        .first();
+      if (existing) {
+        results.push({ name: p.name, action: "skipped" });
+        continue;
+      }
+      await ctx.db.insert("chatPrompts", {
+        name: p.name,
+        content: p.content,
+        description: p.description,
+        updatedBy: undefined,
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("chatPromptHistory", {
+        name: p.name,
+        content: p.content,
+        description: p.description,
+        updatedBy: undefined,
+        updatedAt: Date.now(),
+      });
+      results.push({ name: p.name, action: "created" });
+    }
+    return results;
   },
 });

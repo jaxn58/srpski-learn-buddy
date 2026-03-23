@@ -592,6 +592,52 @@ function validateCultural(content: string): SectionValidationResult {
 }
 
 // =============================================================================
+// UTILITY: Auto-fix vocabulary duplicates on markdown level
+// =============================================================================
+
+/**
+ * Remove duplicate Serbian vocabulary rows from a vocabulary section's markdown.
+ * Keeps the LAST occurrence (which is typically the AI's updated version).
+ * Returns { fixed, removedKeys } so callers can log what was auto-fixed.
+ */
+export function deduplicateVocabularySectionMarkdown(
+  sectionContent: string
+): { fixed: string; removedKeys: string[] } {
+  const lines = sectionContent.replace(/\r\n/g, "\n").split("\n");
+  const seen = new Map<string, number>();
+  const linesToRemove = new Set<number>();
+  const removedKeys: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed.startsWith("|")) continue;
+
+    const cells = trimmed.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells.length < 2) continue;
+
+    const serbian = cells[0];
+    const english = cells[1] ?? "";
+
+    if (/^serbian$/i.test(serbian) && /^english$/i.test(english)) continue;
+    if (/^:?-{3,}:?$/.test(serbian)) continue;
+    if (!serbian) continue;
+
+    const key = serbian.toLowerCase().trim();
+    if (seen.has(key)) {
+      linesToRemove.add(seen.get(key)!);
+      removedKeys.push(serbian);
+    }
+    seen.set(key, i);
+  }
+
+  if (linesToRemove.size === 0) {
+    return { fixed: sectionContent, removedKeys: [] };
+  }
+
+  const fixedLines = lines.filter((_, i) => !linesToRemove.has(i));
+  return { fixed: fixedLines.join("\n"), removedKeys: [...new Set(removedKeys)] };
+}
+
 // UTILITY: Reassemble full markdown from parts
 // =============================================================================
 

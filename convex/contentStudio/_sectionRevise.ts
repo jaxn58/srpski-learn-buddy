@@ -26,8 +26,10 @@ import {
   replaceSection,
   validateSection,
   appendDialogue,
+  deduplicateVocabularySectionMarkdown,
 } from "../../scripts/markdownParser/sectionUtils";
-import { SECTION_PROMPTS } from "./prompts";
+import { SECTION_PROMPTS, CS_PROMPT_KEYS } from "./prompts";
+import { resolvePromptFromDb } from "./_shared";
 
 /**
  * Expand a single section of the markdown without touching other sections.
@@ -78,8 +80,12 @@ export const runSectionRevise = action({
       }
     }
 
-    // 4. Get section-specific prompt
-    const systemPrompt = SECTION_PROMPTS[sectionId];
+    // 4. Get section-specific prompt from DB (cs_section_*), fallback to code
+    const { content: systemPrompt } = await resolvePromptFromDb(
+      ctx,
+      CS_PROMPT_KEYS.section(sectionId),
+      SECTION_PROMPTS[sectionId] || "",
+    );
     if (!systemPrompt) {
       throw new Error(`No prompt configuration for section '${sectionId}'`);
     }
@@ -121,6 +127,17 @@ export const runSectionRevise = action({
         error: "AI returned empty content for section revision",
       });
       throw new Error("AI returned empty content. Please try again with a more specific instruction.");
+    }
+
+    // 5b. Auto-fix vocabulary duplicates before validation
+    if (sectionId === "vocabulary") {
+      const { fixed, removedKeys } = deduplicateVocabularySectionMarkdown(revisedSection);
+      if (removedKeys.length > 0) {
+        revisedSection = fixed;
+        console.log(
+          `[sectionRevise] Auto-removed ${removedKeys.length} duplicate vocabulary keys: ${removedKeys.join(", ")}`
+        );
+      }
     }
 
     // 6. Validate expanded section

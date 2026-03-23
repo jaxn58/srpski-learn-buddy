@@ -40,10 +40,12 @@ export const contentStudioTables = {
     )),
     section: v.optional(v.union(
       v.literal("overview"),
+      v.literal("vocabulary"),
       v.literal("grammar"),
       v.literal("phrases"),
       v.literal("dialogues"),
-      v.literal("exercises")
+      v.literal("exercises"),
+      v.literal("cultural")
     )),
     name: v.string(),
     description: v.optional(v.string()),

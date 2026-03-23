@@ -47,13 +47,14 @@ interface LangVersion {
   sectionCount: number;
   testCount: number;
   vocabCount: number;
-  lastUpdatedAt?: number;
+  latestContentUpdatedAt?: number;
 }
 
 interface UnitOverview {
   unitNumber: number;
   moduleName?: string;
   moduleNumber?: number;
+  deTranslationStale?: boolean;
   versions: Record<string, LangVersion>;
 }
 
@@ -96,25 +97,6 @@ function langFlag(lang: string) {
   return LANG_LABELS[lang] ?? lang.toUpperCase();
 }
 
-/**
- * Returns true when EN content was updated *after* the DE translation was last
- * created, meaning the DE version is likely outdated and should be re-translated.
- *
- * Requires both versions to have `lastUpdatedAt` timestamps (supplied by the
- * backend query). If timestamps are unavailable the function returns false to
- * avoid false-positive warnings.
- */
-function isTranslationOutdated(unit: UnitOverview): boolean {
-  const en = unit.versions.en;
-  const de = unit.versions.de;
-  if (!en || !en.lastUpdatedAt) return false;
-  // No DE content at all: technically outdated, but that's already covered by the
-  // "missing_de" filter – we only trigger the "outdated" warning when DE exists but
-  // is behind EN.
-  if (!de || !de.lastUpdatedAt) return false;
-  return en.lastUpdatedAt > de.lastUpdatedAt;
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -134,7 +116,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   const doTranslate = useAction(api.contentStudio.translatePublishedUnitEnToDe);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de" | "outdated_de">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de" | "de_outdated">("all");
   const [selectedUnit, setSelectedUnit] = useState<number | null>(null);
   const [detailLang, setDetailLang] = useState<string>("en");
   const [inlinePreviewOpen, setInlinePreviewOpen] = useState(false);
@@ -154,6 +136,27 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   const [translateProvider, setTranslateProvider] = useState<"gemini" | "openai">("gemini");
   const [translateConfirm, setTranslateConfirm] = useState("");
   const [translateRunning, setTranslateRunning] = useState(false);
+  const [translateReport, setTranslateReport] = useState<{
+    totalDurationMs: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalThinkingTokens: number;
+    totalCostUsd: number | null;
+    stepCount: number;
+    qualityIssueCount: number;
+    steps: Array<{
+      step: string;
+      provider: string;
+      model: string;
+      durationMs: number;
+      inputTokens: number | null;
+      outputTokens: number | null;
+      thinkingTokens: number | null;
+      totalTokens: number | null;
+      estimatedCostUsd: number | null;
+      qualityIssues: string[];
+    }>;
+  } | null>(null);
 
   // Auto-fade: force re-render every minute so "X min ago" updates, and entries older than 30 min disappear
   const [, setTick] = useState(0);
@@ -213,20 +216,17 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     } else if (statusFilter === "preview") {
       list = list.filter((u) => Object.values(u.versions).some((v: any) => v.releaseStatus === "preview"));
     } else if (statusFilter === "missing_de") {
-      // "Missing DE" = no DE version, or DE version has significantly less content than EN
-      // (catches old legacy DE metadata/content that doesn't represent a real translation)
       list = list.filter((u) => {
         const de = u.versions.de;
-        if (!de) return true; // no DE at all
+        if (!de) return true;
         const en = u.versions.en;
-        if (!en) return false; // no EN to compare — not "missing DE"
-        // DE exists but is incomplete: fewer than half of EN sections, or 0 tests while EN has some
+        if (!en) return false;
         const hasFewSections = de.sectionCount < Math.ceil(en.sectionCount / 2);
         const hasNoTests = en.testCount > 0 && de.testCount === 0;
         return hasFewSections || hasNoTests;
       });
-    } else if (statusFilter === "outdated_de") {
-      list = list.filter(isTranslationOutdated);
+    } else if (statusFilter === "de_outdated") {
+      list = list.filter((u) => u.deTranslationStale === true);
     }
 
     return list;
@@ -330,16 +330,19 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       return;
     }
     setTranslateRunning(true);
+    setTranslateReport(null);
     try {
-      await doTranslate({
+      const result = await doTranslate({
         unitNumber: selectedUnit,
         confirm: confirmStr,
         preferredProvider: translateProvider,
         sourceReleaseStatus: translateSource,
         targetReleaseStatus: "preview",
-      } as any);
+      } as any) as any;
+      if (result?.translationStats) {
+        setTranslateReport(result.translationStats);
+      }
       toast.success(`DE translation for Unit ${selectedUnit} written to preview.`);
-      setTranslateOpen(false);
       setTranslateConfirm("");
       onTranslationComplete?.(selectedUnit);
     } catch (e: any) {
@@ -384,7 +387,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
           <SelectContent className="max-h-[360px]">
             {filteredUnits.map((u) => {
               const isRecent = recentlyTranslatedUnits?.has(u.unitNumber) ?? false;
-              const isOutdated = isTranslationOutdated(u);
+              const isOutdated = u.deTranslationStale === true;
               return (
                 <SelectItem key={u.unitNumber} value={String(u.unitNumber)}>
                   <span className="font-mono text-xs mr-1.5">U{u.unitNumber}</span>
@@ -395,6 +398,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                   <span className="truncate">{u.versions.en?.title ?? u.versions.de?.title ?? `Unit ${u.unitNumber}`}</span>
                   {u.moduleNumber != null && (
                     <span className="ml-1.5 text-xs text-muted-foreground">M{u.moduleNumber}</span>
+                  )}
+                  {u.deTranslationStale && (
+                    <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-amber-500 text-amber-600" title="EN content is newer than DE translation">DE outdated</Badge>
                   )}
                   {isRecent && (
                     <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-green-500 text-green-600">NEW</Badge>
@@ -432,7 +438,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
             <SelectItem value="published">Has published</SelectItem>
             <SelectItem value="preview">Has preview</SelectItem>
             <SelectItem value="missing_de">Missing DE</SelectItem>
-            <SelectItem value="outdated_de">Outdated DE</SelectItem>
+            <SelectItem value="de_outdated">DE outdated</SelectItem>
           </SelectContent>
         </Select>
 
@@ -536,30 +542,30 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
             </div>
           </CardHeader>
 
-          {/* Translation outdated warning banner */}
-          {isTranslationOutdated(selectedOverview) && (
-            <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-              <div className="flex items-center gap-2 min-w-0">
-                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                <span className="text-amber-800 dark:text-amber-300">
-                  The EN content was updated after the last DE translation — the DE version may be outdated.
-                </span>
+          {/* DE translation outdated warning */}
+          {selectedOverview.deTranslationStale && (
+            <div className="mx-6 mb-2 flex items-center justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                <span>EN content has been updated since the last DE translation.</span>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15"
-                onClick={() => {
-                  const enVersion = selectedOverview.versions.en;
-                  if (enVersion?.releaseStatus === "preview") setTranslateSource("preview");
-                  else setTranslateSource("published");
-                  setTranslateConfirm("");
-                  setTranslateOpen(true);
-                }}
-              >
-                <Languages className="mr-1.5 h-3.5 w-3.5" />
-                Start Translation
-              </Button>
+              {selectedOverview.versions.en && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10 shrink-0"
+                  onClick={() => {
+                    const enVersion = selectedOverview.versions.en;
+                    if (enVersion?.releaseStatus === "preview") setTranslateSource("preview");
+                    else setTranslateSource("published");
+                    setTranslateConfirm("");
+                    setTranslateOpen(true);
+                  }}
+                >
+                  <Languages className="mr-1 h-3.5 w-3.5" />
+                  Update DE
+                </Button>
+              )}
             </div>
           )}
 
@@ -959,7 +965,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       </Dialog>
 
       {/* Translate EN → DE Dialog */}
-      <Dialog open={translateOpen} onOpenChange={(open) => { setTranslateOpen(open); if (!open) setTranslateConfirm(""); }}>
+      <Dialog open={translateOpen} onOpenChange={(open) => { setTranslateOpen(open); if (!open) { setTranslateConfirm(""); setTranslateReport(null); } }}>
         <DialogContent className="w-[95vw] max-w-[560px]">
           <DialogHeader>
             <DialogTitle>
@@ -1063,6 +1069,136 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                 )}
               </Button>
             </div>
+
+            {/* Translation Report */}
+            {translateReport && (
+              <div className="space-y-3 border-t pt-3">
+                <div className="text-sm font-semibold">Translation Report</div>
+
+                {/* Summary row */}
+                <div className="rounded border bg-muted/30 p-3 text-xs space-y-1.5">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                    <span>
+                      Duration:{" "}
+                      <span className="font-medium text-foreground">
+                        {(translateReport.totalDurationMs / 1000).toFixed(1)}s
+                      </span>
+                    </span>
+                    <span>
+                      Steps:{" "}
+                      <span className="font-medium text-foreground">{translateReport.stepCount}</span>
+                    </span>
+                    <span>
+                      Input:{" "}
+                      <span className="font-medium text-foreground">
+                        {translateReport.totalInputTokens.toLocaleString()} tok
+                      </span>
+                    </span>
+                    <span>
+                      Output:{" "}
+                      <span className="font-medium text-foreground">
+                        {translateReport.totalOutputTokens.toLocaleString()} tok
+                      </span>
+                    </span>
+                    {translateReport.totalThinkingTokens > 0 && (
+                      <span>
+                        Thinking:{" "}
+                        <span className="font-medium text-blue-600">
+                          {translateReport.totalThinkingTokens.toLocaleString()} tok
+                        </span>
+                      </span>
+                    )}
+                    {translateReport.totalCostUsd != null && (
+                      <span>
+                        Cost:{" "}
+                        <span className="font-medium text-foreground">
+                          ${translateReport.totalCostUsd.toFixed(4)}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                  {translateReport.qualityIssueCount === 0 ? (
+                    <div className="text-green-700 dark:text-green-400 font-medium">
+                      No structural issues detected.
+                    </div>
+                  ) : (
+                    <div className="text-amber-700 dark:text-amber-400 font-medium">
+                      {translateReport.qualityIssueCount} structural issue(s) detected — review before publishing.
+                    </div>
+                  )}
+                </div>
+
+                {/* Quality issues detail */}
+                {translateReport.qualityIssueCount > 0 && (
+                  <div className="space-y-1.5">
+                    {translateReport.steps
+                      .filter((s) => s.qualityIssues.length > 0)
+                      .map((s, i) => (
+                        <div
+                          key={i}
+                          className="text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-2 space-y-0.5"
+                        >
+                          <div className="font-medium text-amber-800 dark:text-amber-300 font-mono">
+                            {s.step}
+                          </div>
+                          {s.qualityIssues.map((issue, j) => (
+                            <div
+                              key={j}
+                              className="text-amber-700 dark:text-amber-400 flex items-start gap-1"
+                            >
+                              <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                              {issue}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* Per-step breakdown */}
+                <details className="text-xs">
+                  <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground py-0.5">
+                    Step breakdown ({translateReport.stepCount} steps)
+                  </summary>
+                  <div className="mt-2 space-y-0">
+                    {translateReport.steps.map((s, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 py-1 border-b last:border-0 text-muted-foreground"
+                      >
+                        <span className="font-mono w-40 shrink-0 truncate text-foreground" title={s.step}>
+                          {s.step}
+                        </span>
+                        <span className="w-12 text-right shrink-0">
+                          {(s.durationMs / 1000).toFixed(1)}s
+                        </span>
+                        <span className="w-16 text-right shrink-0">
+                          {(s.totalTokens ?? 0).toLocaleString()} tok
+                        </span>
+                        {s.thinkingTokens != null && s.thinkingTokens > 0 ? (
+                          <span className="text-blue-600 w-20 text-right shrink-0">
+                            {s.thinkingTokens.toLocaleString()} think
+                          </span>
+                        ) : (
+                          <span className="w-20 shrink-0" />
+                        )}
+                        {s.qualityIssues.length > 0 && (
+                          <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+
+                <Button
+                  variant="outline"
+                  className="w-full h-8 text-xs"
+                  onClick={() => { setTranslateReport(null); setTranslateOpen(false); }}
+                >
+                  Close Report
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

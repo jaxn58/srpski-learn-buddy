@@ -1,8 +1,16 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { requireSuperadmin } from "./_shared";
 import { isPublishedStatus, isPreviewStatus } from "./_shared";
 import type { Doc, Id } from "../_generated/dataModel";
+import {
+  SPECIALIST_SYSTEM_PROMPT,
+  CREATOR_REVISE_SYSTEM_PROMPT,
+  LECTOR_SYSTEM_PROMPT,
+  SECTION_PROMPTS,
+  CS_PROMPT_KEYS,
+} from "./prompts";
 
 export const listDrafts = query({
   args: {},
@@ -364,17 +372,8 @@ export const listStageSkills = query({
   },
 });
 
-// Backward-compatible endpoints (section-based) – kept for now, but the UI no longer uses them.
-export const listSectionSkills = query({
-  args: { section: v.union(v.literal("overview"), v.literal("grammar"), v.literal("phrases"), v.literal("dialogues"), v.literal("exercises")) },
-  handler: async (ctx, args) => {
-    await requireSuperadmin(ctx);
-    return await ctx.db
-      .query("contentStudioSkills")
-      .withIndex("by_section_active", (q) => q.eq("section", args.section).eq("isActive", true))
-      .collect();
-  },
-});
+// listSectionSkills removed -- section prompts are now managed exclusively
+// via chatPrompts (cs_section_*) in the Prompt Administration.
 
 export const getSkillsByIds = query({
   args: { ids: v.array(v.id("contentStudioSkills")) },
@@ -890,6 +889,7 @@ export const getUnitManagementOverview = query({
       unitNumber: number;
       moduleName?: string;
       moduleNumber?: number;
+      deTranslationStale?: boolean;
       versions: Record<string, {
         title: string;
         description?: string;
@@ -898,7 +898,7 @@ export const getUnitManagementOverview = query({
         sectionCount: number;
         testCount: number;
         vocabCount: number;
-        lastUpdatedAt: number;
+        latestContentUpdatedAt?: number;
       }>;
     }> = [];
 
@@ -1002,17 +1002,14 @@ export const getUnitManagementOverview = query({
         const sectionCount = bestByType.size;
         const testCount = finalTests.length;
         if (sectionCount === 0 && testCount === 0 && vocabCount === 0 && lang !== "en") {
-          // Skip languages with only metadata but no content (avoids false "published" badges).
           continue;
         }
 
-        // Compute the newest _creationTime across metadata, content sections, and tests.
-        // Used on the frontend to detect whether EN was updated after the last DE translation.
-        const lastUpdatedAt = Math.max(
-          meta._creationTime,
-          ...Array.from(bestByType.values()).map((c: any) => Number(c._creationTime ?? 0)),
-          ...finalTests.map((t: any) => Number(t._creationTime ?? 0)),
-        );
+        let latestContentUpdatedAt: number | undefined;
+        for (const c of bestByType.values()) {
+          const t = Number((c as any).updatedAt ?? (c as any)._creationTime ?? 0);
+          if (t > (latestContentUpdatedAt ?? 0)) latestContentUpdatedAt = t;
+        }
 
         versions[lang] = {
           title: meta.title,
@@ -1022,12 +1019,18 @@ export const getUnitManagementOverview = query({
           sectionCount,
           testCount,
           vocabCount,
-          lastUpdatedAt,
+          latestContentUpdatedAt,
         };
       }
 
+      const enUpdated = versions.en?.latestContentUpdatedAt;
+      const deUpdated = versions.de?.latestContentUpdatedAt;
+      const deTranslationStale = !!(
+        enUpdated && deUpdated && versions.de && enUpdated > deUpdated
+      );
+
       if (Object.keys(versions).length > 0) {
-        result.push({ unitNumber, moduleName, moduleNumber, versions });
+        result.push({ unitNumber, moduleName, moduleNumber, deTranslationStale, versions });
       }
     }
 
@@ -1185,6 +1188,71 @@ export const getUnitLanguageDetail = query({
       tests,
       testCategories,
       vocabulary,
+    };
+  },
+});
+
+export const getPromptPreview = query({
+  args: { draftId: v.optional(v.id("contentDrafts")) },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+
+    async function resolveKey(key: string, fallback: string) {
+      const doc: any = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: key });
+      if (doc?.content) return { content: doc.content, source: "database" as const };
+      return { content: fallback, source: "code_fallback" as const };
+    }
+
+    const creator = await resolveKey(CS_PROMPT_KEYS.unitCreator, SPECIALIST_SYSTEM_PROMPT);
+    const fixer = await resolveKey(CS_PROMPT_KEYS.findingFixer, CREATOR_REVISE_SYSTEM_PROMPT);
+    const lector = await resolveKey(CS_PROMPT_KEYS.lector, LECTOR_SYSTEM_PROMPT);
+
+    let skillsBlock = "";
+    let referenceBlock = "";
+
+    if (args.draftId) {
+      const d: any = await ctx.db.get(args.draftId);
+      if (d) {
+        const specialistSkillIds = Array.isArray(d.specialistSkillIds) ? d.specialistSkillIds : [];
+        if (specialistSkillIds.length > 0) {
+          const skillDocs = await Promise.all(
+            specialistSkillIds.map((id: any) => ctx.db.get(id))
+          );
+          const activeSkills = skillDocs.filter((s: any) => s?.isActive && s?.prompt);
+          if (activeSkills.length > 0) {
+            skillsBlock = activeSkills.map((s: any) => `--- SKILL: ${s.name} ---\n${s.prompt}`).join("\n\n");
+          }
+        }
+
+        const refId = d.inspirationRef?.referenceId;
+        if (refId) {
+          const ref: any = await ctx.db.get(refId);
+          if (ref?.guidelines) {
+            referenceBlock = `--- REFERENCE GUIDELINES ---\n${ref.guidelines}`;
+          }
+        }
+      }
+    }
+
+    const sectionPrompts: Record<string, { content: string; source: string }> = {};
+    for (const [sectionId, codeFallback] of Object.entries(SECTION_PROMPTS)) {
+      const key = CS_PROMPT_KEYS.section(sectionId as any);
+      const resolved = await resolveKey(key, codeFallback);
+      sectionPrompts[sectionId] = { content: resolved.content, source: resolved.source };
+    }
+
+    return {
+      roles: {
+        creator: { content: creator.content, source: creator.source, key: CS_PROMPT_KEYS.unitCreator },
+        fixer: { content: fixer.content, source: fixer.source, key: CS_PROMPT_KEYS.findingFixer },
+        lector: { content: lector.content, source: lector.source, key: CS_PROMPT_KEYS.lector },
+      },
+      skillsBlock: skillsBlock || null,
+      referenceBlock: referenceBlock || null,
+      sectionPrompts,
+      // Backward compat: keep baseSystemPrompt for existing PromptPreview consumers
+      baseSystemPrompt: creator.content,
+      source: { base: creator.source === "code_fallback" ? "code fallback" : "database (chatPrompts)" },
     };
   },
 });

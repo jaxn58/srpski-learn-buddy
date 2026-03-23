@@ -45,52 +45,103 @@ import {
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
-type PromptKey =
-  | "default"
-  | "feedback_reply_system"
-  | "support_knowledge_facts"
-  | "support_knowledge_tone"
-  | "support_knowledge_future"
-  | "content_studio_specialist"
-  | "content_studio_revise";
+type PromptKey = string;
 
-const PROMPT_OPTIONS: Array<{ key: PromptKey; label: string; hint: string }> = [
+interface PromptOption {
+  key: PromptKey;
+  label: string;
+  hint: string;
+}
+
+interface PromptCategory {
+  category: string;
+  items: PromptOption[];
+}
+
+const PROMPT_CATEGORIES: PromptCategory[] = [
   {
-    key: "default",
-    label: "Chat Prompt (default)",
-    hint: "System prompt for AI chat interactions (AI Learn Buddy).",
+    category: "Content Studio",
+    items: [
+      {
+        key: "cs_unit_creator",
+        label: "Unit Creator",
+        hint: "System prompt for the AI that generates full unit markdown from scratch.",
+      },
+      {
+        key: "cs_finding_fixer",
+        label: "Finding Fixer",
+        hint: "System prompt for the AI that fixes validator/lector findings in existing content.",
+      },
+      {
+        key: "cs_lector",
+        label: "Lector (Auditor)",
+        hint: "Static instructions for the Lector/Auditor. Dynamic context (unit number, vocabulary) is added at runtime.",
+      },
+      {
+        key: "cs_section_overview",
+        label: "Section: Overview",
+        hint: "Section-specific editing prompt for the Overview section.",
+      },
+      {
+        key: "cs_section_vocabulary",
+        label: "Section: Vocabulary",
+        hint: "Section-specific editing prompt for the Vocabulary section.",
+      },
+      {
+        key: "cs_section_grammar",
+        label: "Section: Grammar",
+        hint: "Section-specific editing prompt for the Grammar section.",
+      },
+      {
+        key: "cs_section_phrases",
+        label: "Section: Phrases",
+        hint: "Section-specific editing prompt for the Phrases section.",
+      },
+      {
+        key: "cs_section_exercises",
+        label: "Section: Exercises",
+        hint: "Section-specific editing prompt for the Interactive Test/Exercises section.",
+      },
+      {
+        key: "cs_section_cultural",
+        label: "Section: Cultural Note",
+        hint: "Section-specific editing prompt for the Cultural Note section.",
+      },
+    ],
   },
   {
-    key: "content_studio_specialist",
-    label: "Content Studio – Specialist Prompt",
-    hint: "Main system prompt for the Content Studio Specialist (Unit Creation).",
-  },
-  {
-    key: "content_studio_revise",
-    label: "Content Studio – Revise Prompt",
-    hint: "System prompt used when fixing findings in an existing draft (Fix Findings / AI Revise). Falls back to built-in CREATOR_REVISE_SYSTEM_PROMPT if not set.",
-  },
-  {
-    key: "feedback_reply_system",
-    label: "Feedback Reply – System Prompt",
-    hint: "System instructions for generating a support-style reply draft for user feedback.",
-  },
-  {
-    key: "support_knowledge_facts",
-    label: "Support Knowledge – Facts (verified)",
-    hint: "Verified product facts. Highest priority for support replies.",
-  },
-  {
-    key: "support_knowledge_tone",
-    label: "Support Knowledge – Tone & Wording",
-    hint: "Tone guidelines and canonical naming. No promises, no hype.",
-  },
-  {
-    key: "support_knowledge_future",
-    label: "Support Knowledge – Future Plans (defensive)",
-    hint: "Roadmap / plans. Must always be phrased defensively (no ETA, no guarantees).",
+    category: "Chat & Support",
+    items: [
+      {
+        key: "default",
+        label: "Chat Prompt (AI Learn Buddy)",
+        hint: "System prompt for AI chat interactions.",
+      },
+      {
+        key: "feedback_reply_system",
+        label: "Feedback Reply",
+        hint: "System instructions for generating a support-style reply draft for user feedback.",
+      },
+      {
+        key: "support_knowledge_facts",
+        label: "Knowledge: Facts (verified)",
+        hint: "Verified product facts. Highest priority for support replies.",
+      },
+      {
+        key: "support_knowledge_tone",
+        label: "Knowledge: Tone & Wording",
+        hint: "Tone guidelines and canonical naming. No promises, no hype.",
+      },
+      {
+        key: "support_knowledge_future",
+        label: "Knowledge: Future Plans (defensive)",
+        hint: "Roadmap / plans. Must always be phrased defensively (no ETA, no guarantees).",
+      },
+    ],
   },
 ];
+
+const ALL_PROMPT_OPTIONS: PromptOption[] = PROMPT_CATEGORIES.flatMap(c => c.items);
 
 export default function PromptAdmin() {
   const { user, loading: authLoading } = useAuth();
@@ -207,7 +258,7 @@ export default function PromptAdmin() {
   }
 
   const isSuperadmin = user.role === 'superadmin';
-  const selectedOption = PROMPT_OPTIONS.find(o => o.key === selectedKey);
+  const selectedOption = ALL_PROMPT_OPTIONS.find(o => o.key === selectedKey);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -234,44 +285,50 @@ export default function PromptAdmin() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar: Prompt List */}
         <aside className="w-80 border-r bg-muted/30 overflow-y-auto p-4 shrink-0">
-          <div className="space-y-1">
-            <Label className="px-2 mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Available Prompts
-            </Label>
-            {PROMPT_OPTIONS.map((opt) => {
-              const exists = allPrompts?.some(p => p.name === opt.key);
-              const isActive = selectedKey === opt.key;
-              
-              return (
-                <button
-                  key={opt.key}
-                  onClick={() => setSelectedKey(opt.key)}
-                  className={cn(
-                    "w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all group",
-                    isActive 
-                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" 
-                      : "hover:bg-muted text-foreground"
-                  )}
-                >
-                  <div className={cn(
-                    "mt-0.5 shrink-0",
-                    isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-primary"
-                  )}>
-                    {exists ? <FileText className="h-4 w-4" /> : <XCircle className="h-4 w-4 opacity-50" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold truncate">{opt.label}</div>
-                    <div className={cn(
-                      "text-[10px] line-clamp-1 mt-0.5",
-                      isActive ? "text-primary-foreground/80" : "text-muted-foreground"
-                    )}>
-                      {opt.hint}
-                    </div>
-                  </div>
-                  {isActive && <ChevronRight className="h-4 w-4 mt-1 shrink-0" />}
-                </button>
-              );
-            })}
+          <div className="space-y-4">
+            {PROMPT_CATEGORIES.map((cat) => (
+              <div key={cat.category}>
+                <Label className="px-2 mb-2 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {cat.category}
+                </Label>
+                <div className="space-y-0.5">
+                  {cat.items.map((opt) => {
+                    const exists = allPrompts?.some(p => p.name === opt.key);
+                    const isActive = selectedKey === opt.key;
+
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => setSelectedKey(opt.key)}
+                        className={cn(
+                          "w-full flex items-start gap-3 p-2.5 rounded-lg text-left transition-all group",
+                          isActive
+                            ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                            : "hover:bg-muted text-foreground"
+                        )}
+                      >
+                        <div className={cn(
+                          "mt-0.5 shrink-0",
+                          isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-primary"
+                        )}>
+                          {exists ? <FileText className="h-4 w-4" /> : <XCircle className="h-4 w-4 opacity-50" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold truncate">{opt.label}</div>
+                          <div className={cn(
+                            "text-[10px] line-clamp-1 mt-0.5",
+                            isActive ? "text-primary-foreground/80" : "text-muted-foreground"
+                          )}>
+                            {opt.hint}
+                          </div>
+                        </div>
+                        {isActive && <ChevronRight className="h-4 w-4 mt-1 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </aside>
 

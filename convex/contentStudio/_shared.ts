@@ -211,6 +211,8 @@ export type AiUsage = {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  /** Thinking/reasoning tokens consumed internally by the model (Gemini 2.5, o1/o3). */
+  thinkingTokens?: number;
 };
 
 export function extractUsageFromAiResponse(data: any): AiUsage | null {
@@ -229,8 +231,21 @@ export function extractUsageFromAiResponse(data: any): AiUsage | null {
         ? u.output_tokens
         : undefined;
   const totalTokens = typeof u.total_tokens === "number" ? u.total_tokens : undefined;
+  // Thinking/reasoning tokens: OpenAI-compat (o1/o3/Gemini 2.5) returns these in
+  // completion_tokens_details.reasoning_tokens. Gemini native uses thoughtTokenCount.
+  const thinkingTokens =
+    typeof u.completion_tokens_details?.reasoning_tokens === "number"
+      ? u.completion_tokens_details.reasoning_tokens
+      : typeof u.thoughtTokenCount === "number"
+        ? u.thoughtTokenCount
+        : undefined;
   if (inputTokens == null && outputTokens == null && totalTokens == null) return null;
-  return { inputTokens, outputTokens, totalTokens };
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    ...(thinkingTokens != null ? { thinkingTokens } : {}),
+  };
 }
 
 let cachedPricingTable: Record<string, { input: number; output: number }> | null | "invalid" = null;
@@ -278,6 +293,9 @@ export async function callAiJson(ctx: ActionCtx, params: {
   user: string;
   maxTokens?: number;
   timeoutMs?: number;
+  // Pass "none" to disable Gemini 2.5 thinking (faster, no thinking-token overhead).
+  // Maps to `reasoning_effort: "none"` in the OpenAI-compat API.
+  reasoningEffort?: "none" | "low" | "medium" | "high";
 }): Promise<{ provider: string; model: string; raw: string; usage: AiUsage | null; estimatedCostUsd: number | null }> {
   const configDoc = await ctx.runQuery(api.contentStudio.getModelConfig, {});
   const config = configDoc
@@ -291,6 +309,13 @@ export async function callAiJson(ctx: ActionCtx, params: {
     stage: params.stage,
     config,
   });
+
+  const isGemini25 = provider === "gemini" && model.includes("2.5");
+  // When thinking is disabled, no extra token budget needed. Otherwise multiply for thinking overhead.
+  const thinkingDisabled = params.reasoningEffort === "none";
+  const effectiveMaxTokens = isGemini25 && !thinkingDisabled
+    ? Math.max((params.maxTokens ?? 2500) * 4, 16384)
+    : (params.maxTokens ?? 2500);
 
   const controller = new AbortController();
   const timeoutMs = typeof params.timeoutMs === "number" && params.timeoutMs > 0 ? params.timeoutMs : 90_000;
@@ -311,11 +336,12 @@ export async function callAiJson(ctx: ActionCtx, params: {
       ],
       response_format: { type: "json_object" },
       temperature: 0.2,
-      // Gemini 2.5 thinking models consume thinking tokens from the max_tokens budget.
-      // Multiply requested output budget by 4x (min 16384) to leave room for thinking.
-      max_tokens: provider === "gemini" && model.includes("2.5")
-        ? Math.max((params.maxTokens ?? 2500) * 4, 16384)
-        : (params.maxTokens ?? 2500),
+      max_tokens: effectiveMaxTokens,
+      // reasoning_effort "none" disables thinking — only supported by Flash, NOT Pro.
+      // gemini-2.5-pro always runs in thinking mode and rejects thinkingBudget=0.
+      ...(isGemini25 && params.reasoningEffort && !(params.reasoningEffort === "none" && model.includes("pro"))
+        ? { reasoning_effort: params.reasoningEffort }
+        : {}),
     }),
       signal: controller.signal,
     });
@@ -358,6 +384,8 @@ export async function callAiText(ctx: ActionCtx, params: {
   user: string;
   maxTokens?: number;
   timeoutMs?: number;
+  // Pass "none" to disable Gemini 2.5 thinking (faster, no thinking-token overhead).
+  reasoningEffort?: "none" | "low" | "medium" | "high";
 }): Promise<{ provider: string; model: string; raw: string; usage: AiUsage | null; estimatedCostUsd: number | null }> {
   const configDoc = await ctx.runQuery(api.contentStudio.getModelConfig, {});
   const config = configDoc
@@ -371,6 +399,12 @@ export async function callAiText(ctx: ActionCtx, params: {
     stage: params.stage,
     config,
   });
+
+  const isGemini25 = provider === "gemini" && model.includes("2.5");
+  const thinkingDisabled = params.reasoningEffort === "none";
+  const effectiveMaxTokens = isGemini25 && !thinkingDisabled
+    ? Math.max((params.maxTokens ?? 3500) * 4, 16384)
+    : (params.maxTokens ?? 3500);
 
   const controller = new AbortController();
   const timeoutMs = typeof params.timeoutMs === "number" && params.timeoutMs > 0 ? params.timeoutMs : 90_000;
@@ -390,10 +424,11 @@ export async function callAiText(ctx: ActionCtx, params: {
         { role: "user", content: params.user },
       ],
       temperature: 0.2,
-      // Gemini 2.5 thinking models consume thinking tokens from the max_tokens budget.
-      max_tokens: provider === "gemini" && model.includes("2.5")
-        ? Math.max((params.maxTokens ?? 3500) * 4, 16384)
-        : (params.maxTokens ?? 3500),
+      max_tokens: effectiveMaxTokens,
+      // reasoning_effort "none" disables thinking — only supported by Flash, NOT Pro.
+      ...(isGemini25 && params.reasoningEffort && !(params.reasoningEffort === "none" && model.includes("pro"))
+        ? { reasoning_effort: params.reasoningEffort }
+        : {}),
     }),
       signal: controller.signal,
     });
@@ -912,4 +947,21 @@ export async function buildStageSkillBlock(ctx: ActionCtx, draft: any, stage: Sk
     lines.push("");
   }
   return lines.join("\n").trim();
+}
+
+/**
+ * Resolve a prompt from the chatPrompts DB table (ActionCtx variant).
+ * Single source of truth: only checks the canonical key in the DB.
+ * Falls back to code constant with a console warning if DB entry is missing.
+ */
+export async function resolvePromptFromDb(
+  ctx: ActionCtx,
+  key: string,
+  codeFallback: string,
+): Promise<{ content: string; source: "database" | "code_fallback" }> {
+  const doc: any = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: key });
+  if (doc?.content) return { content: doc.content, source: "database" };
+
+  console.warn(`[resolvePromptFromDb] DB entry missing for key "${key}" -- using code fallback. Seed prompts via seedContentStudioPrompts.`);
+  return { content: codeFallback, source: "code_fallback" };
 }

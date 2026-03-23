@@ -174,6 +174,96 @@ export const translatePublishedUnitEnToDe = action({
     }
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    // ── Translation monitoring ────────────────────────────────────────────────
+    type StepLog = {
+      step: string;
+      provider: string;
+      model: string;
+      durationMs: number;
+      inputTokens: number | null;
+      outputTokens: number | null;
+      thinkingTokens: number | null;
+      totalTokens: number | null;
+      estimatedCostUsd: number | null;
+      qualityIssues: string[];
+    };
+    const stepLogs: StepLog[] = [];
+    const actionStartMs = Date.now();
+
+    const makeStepLog = (
+      step: string,
+      ai: { provider: string; model: string; usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number; thinkingTokens?: number } | null; estimatedCostUsd: number | null },
+      durationMs: number,
+      qualityIssues: string[] = []
+    ): StepLog => ({
+      step,
+      provider: ai.provider,
+      model: ai.model,
+      durationMs,
+      inputTokens: ai.usage?.inputTokens ?? null,
+      outputTokens: ai.usage?.outputTokens ?? null,
+      thinkingTokens: ai.usage?.thinkingTokens ?? null,
+      totalTokens: ai.usage?.totalTokens ?? null,
+      estimatedCostUsd: ai.estimatedCostUsd,
+      qualityIssues,
+    });
+
+    /**
+     * Structural quality check for a single translated Markdown section.
+     * NOTE: validateMarkdownStructure() is NOT used here because it validates
+     * a complete unit (all sections combined). Each section is stored individually,
+     * so checking for missing '## 2. Vocabulary' inside '## 1. Overview' would always fail.
+     * Instead we check properties that must hold at the section level.
+     */
+    const checkSectionQuality = (mdEn: string, mdDe: string): string[] => {
+      const issues: string[] = [];
+
+      // 1. Section-level heading preservation: every heading in EN must appear in DE
+      //    (headings are structural anchors — titles may be translated but count must match)
+      const extractHeadings = (s: string) =>
+        (s.match(/^#{1,6}\s+.+$/gm) ?? []).map((h) => h.replace(/^(#{1,6})\s+.*$/, "$1").length);
+      const enHeadingLevels = extractHeadings(mdEn);
+      const deHeadingLevels = extractHeadings(mdDe);
+      if (enHeadingLevels.length !== deHeadingLevels.length) {
+        issues.push(
+          `Heading count mismatch: EN=${enHeadingLevels.length}, DE=${deHeadingLevels.length}`
+        );
+      }
+
+      // 2. ID preservation (e.g. u2_ex5_q01 must remain unchanged in DE)
+      const extractIds = (s: string) =>
+        [...s.matchAll(/\b[a-z]+\d+_[a-z_]+\d*\b/g)].map((m) => m[0]);
+      const enIds = new Set(extractIds(mdEn));
+      const deIds = new Set(extractIds(mdDe));
+      const missingIds = [...enIds].filter((id) => !deIds.has(id));
+      if (missingIds.length > 0) {
+        issues.push(
+          `Missing IDs: ${missingIds.slice(0, 5).join(", ")}${missingIds.length > 5 ? ` +${missingIds.length - 5} more` : ""}`
+        );
+      }
+
+      // 3. Blank count: _____ must be preserved (fill-in-blank exercises)
+      const countBlanks = (s: string) => (s.match(/_____/g) ?? []).length;
+      const enBlanks = countBlanks(mdEn);
+      const deBlanks = countBlanks(mdDe);
+      if (enBlanks !== deBlanks) {
+        issues.push(`Blank count mismatch: EN=${enBlanks}, DE=${deBlanks}`);
+      }
+
+      // 4. Table data row count (excludes separator lines like |---|)
+      const countTableDataRows = (s: string) =>
+        (s.match(/^\|(?![-: |]+\|)/gm) ?? []).length;
+      const enRows = countTableDataRows(mdEn);
+      const deRows = countTableDataRows(mdDe);
+      if (enRows > 0 && enRows !== deRows) {
+        issues.push(`Table row count mismatch: EN=${enRows}, DE=${deRows}`);
+      }
+
+      return issues;
+    };
+    // ─────────────────────────────────────────────────────────────────────────
+
     const isRetryableAiError = (e: any) => {
       const msg = String(e?.message || e || "");
       return (
@@ -230,6 +320,9 @@ export const translatePublishedUnitEnToDe = action({
                 user: params.user,
                 maxTokens: params.maxTokens,
                 timeoutMs: timeoutForStepMs(params.step),
+                // Translation does not require deep reasoning; "low" provides enough
+                // contextual understanding while significantly reducing thinking overhead.
+                reasoningEffort: "low",
               });
             } catch (e: any) {
               const msg = String(e?.message || e || "");
@@ -275,6 +368,9 @@ export const translatePublishedUnitEnToDe = action({
                 user: params.user,
                 maxTokens: params.maxTokens,
                 timeoutMs: timeoutForStepMs(params.step),
+                // Translation does not require deep reasoning; "low" provides enough
+                // contextual understanding while significantly reducing thinking overhead.
+                reasoningEffort: "low",
               });
             } catch (e: any) {
               const msg = String(e?.message || e || "");
@@ -322,13 +418,15 @@ export const translatePublishedUnitEnToDe = action({
       JSON.stringify(source.metadataEn?.vocabularyThemes ?? []),
     ].join("\n");
 
+    const t0Meta = Date.now();
     const metaAi = await callJsonRobust({
       step: "metadata",
-      stage: "specialist",
+      stage: "auditor",
       system: metaSystem,
       user: metaUser,
       maxTokens: 1500,
     });
+    stepLogs.push(makeStepLog("metadata", metaAi, Date.now() - t0Meta));
     let metaParsed: any;
     try {
       metaParsed = parseJsonOrThrow(metaAi.raw);
@@ -355,9 +453,21 @@ export const translatePublishedUnitEnToDe = action({
       contentType: string;
       markdownEn: string;
       unitNumber: number;
-    }): Promise<string> => {
+    }): Promise<{ mdDe: string; log: StepLog }> => {
       const input = String(params.markdownEn ?? "").replace(/\r\n/g, "\n").trim();
-      if (!input) return "";
+      const emptyLog: StepLog = {
+        step: `section:${params.contentType}`,
+        provider: "",
+        model: "",
+        durationMs: 0,
+        inputTokens: null,
+        outputTokens: null,
+        thinkingTokens: null,
+        totalTokens: null,
+        estimatedCostUsd: null,
+        qualityIssues: [],
+      };
+      if (!input) return { mdDe: "", log: emptyLog };
 
       const system = [
         "You are translating ONE Serbian course unit markdown section from English to German (de-DE).",
@@ -386,15 +496,22 @@ export const translatePublishedUnitEnToDe = action({
         input,
       ].join("\n");
 
-      const { raw } = await callTextRobust({
+      const t0 = Date.now();
+      const aiResult = await callTextRobust({
         step: `section:${params.contentType}`,
-        stage: "specialist",
+        stage: "auditor",
         system,
         user,
         maxTokens: 9000,
       });
-      const out = String(raw ?? "").replace(/\r\n/g, "\n").trim();
-      return out || input;
+      const durationMs = Date.now() - t0;
+      const out = String(aiResult.raw ?? "").replace(/\r\n/g, "\n").trim();
+      const mdDe = out || input;
+      const qualityIssues = checkSectionQuality(input, mdDe);
+      return {
+        mdDe,
+        log: makeStepLog(`section:${params.contentType}`, aiResult, durationMs, qualityIssues),
+      };
     };
 
     const contentDe: any[] = [];
@@ -403,7 +520,8 @@ export const translatePublishedUnitEnToDe = action({
       const mdEn = String((row as any).content ?? "");
       const unitVersion =
         targetReleaseStatus === "preview" ? previewUnitVersion : Number((row as any).unitVersion ?? 1) || 1;
-      const mdDe = await translateMarkdownSection({ contentType, markdownEn: mdEn, unitNumber });
+      const { mdDe, log: sectionLog } = await translateMarkdownSection({ contentType, markdownEn: mdEn, unitNumber });
+      stepLogs.push(sectionLog);
       contentDe.push(
         targetReleaseStatus === "preview"
           ? { contentType, content: mdDe }
@@ -432,13 +550,15 @@ export const translatePublishedUnitEnToDe = action({
           noteEn: typeof v?.noteEn === "string" ? v.noteEn : "",
         })),
       });
+      const t0Vocab = Date.now();
       const ai = await callJsonRobust({
         step: `vocab:${i}-${i + chunk.length - 1}`,
-        stage: "specialist",
+        stage: "auditor",
         system,
         user,
         maxTokens: 4000,
       });
+      stepLogs.push(makeStepLog(`vocab:${i}-${i + chunk.length - 1}`, ai, Date.now() - t0Vocab));
       let parsed: any;
       try {
         parsed = parseJsonOrThrow(ai.raw);
@@ -503,13 +623,15 @@ export const translatePublishedUnitEnToDe = action({
         })),
       });
 
+      const t0Tests = Date.now();
       const ai = await callJsonRobust({
         step: `tests:${category}`,
-        stage: "specialist",
+        stage: "auditor",
         system,
         user,
         maxTokens: 3500,
       });
+      stepLogs.push(makeStepLog(`tests:${category}`, ai, Date.now() - t0Tests));
       let parsed: any;
       try {
         parsed = parseJsonOrThrow(ai.raw);
@@ -600,6 +722,30 @@ export const translatePublishedUnitEnToDe = action({
             vocabularyDe: vocabDe as any,
           });
 
+    // Compute translation stats
+    const sumNullable = (arr: (number | null)[]) => {
+      const valid = arr.filter((v): v is number => v !== null);
+      return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) : null;
+    };
+    const translationStats = {
+      totalDurationMs: Date.now() - actionStartMs,
+      totalInputTokens: sumNullable(stepLogs.map((s) => s.inputTokens)) ?? 0,
+      totalOutputTokens: sumNullable(stepLogs.map((s) => s.outputTokens)) ?? 0,
+      totalThinkingTokens: sumNullable(stepLogs.map((s) => s.thinkingTokens)) ?? 0,
+      totalCostUsd: sumNullable(stepLogs.map((s) => s.estimatedCostUsd)),
+      stepCount: stepLogs.length,
+      qualityIssueCount: stepLogs.reduce((sum, s) => sum + s.qualityIssues.length, 0),
+      steps: stepLogs,
+    };
+
+    console.log(
+      `[Translation] Unit ${unitNumber} complete — ${stepLogs.length} steps, ` +
+      `${(translationStats.totalDurationMs / 1000).toFixed(1)}s, ` +
+      `in=${translationStats.totalInputTokens} out=${translationStats.totalOutputTokens} ` +
+      `thinking=${translationStats.totalThinkingTokens} ` +
+      `issues=${translationStats.qualityIssueCount}`
+    );
+
     return {
       ok: true,
       unitNumber,
@@ -610,6 +756,7 @@ export const translatePublishedUnitEnToDe = action({
         model: metaAi.model,
       },
       updated: (result as any)?.updated ?? (result as any)?.created ?? null,
+      translationStats,
     };
   },
 });

@@ -49,7 +49,7 @@ ABSOLUTE RULES (Parser + Audio Safety)
   - Keep Serbian as the plain word/phrase only
 - ALL meta-information goes into Notes (NOT into the Serbian field):
   - Gender, dialect variants, usage, “known from” references, etc.
-- Use Serbia/Serbo-Croatian standard forms as primary answers; if Montenegro (Ijekavian) differs, put it into Notes.
+- ALWAYS add Montenegro variant to Notes when a word has an Ijekavian form – e.g. gde→Montenegro: Gdje, ovde→Montenegro: Ovdje, mleko→Montenegro: Mlijeko. In Montenegro this is also how it is written and pronounced.
 
 COURSE PROGRESSION / ANTI-REPETITION
 - Do NOT list already-known vocabulary again as “new vocabulary”.
@@ -128,9 +128,11 @@ Vocabulary rules:
 - Notes is optional and MUST be structured, key-value style when used. Examples:
   - "Gender: m"
   - "Montenegro: Gdje"
+  - "Montenegro: Ovdje"
+  - "Montenegro: Mlijeko"
   - "Usage: formal"
   - "KnownFrom: Unit 1"
-- If a term has a Montenegro variant, keep Serbian (main answer) as the standard form and put variant in Notes.
+- ALWAYS add Montenegro variant to Notes when a word has an Ijekavian form. Keep Serbian (main answer) as the standard form; put the Montenegrin form in Notes (written and pronounced as in Montenegro).
 
 ## 3. Grammar (Gramatika)
 Explain the unit’s grammar focus in Markdown.

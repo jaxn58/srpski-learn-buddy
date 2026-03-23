@@ -179,20 +179,67 @@ export function appendNoteEn(existing: unknown, extraLine: string): string {
   return `${base}\n${extra}`;
 }
 
+/**
+ * Ekavian (Serbia) → Ijekavian (Montenegro) lookup.
+ * Serbian form (key) → Montenegrin form (value).
+ * Used to auto-add "Montenegro: <variant>" notes when AI forgets.
+ */
+export const EKAVIAN_TO_IJEKAVIAN: Record<string, string> = {
+  gde: "gdje",
+  ovde: "ovdje",
+  peške: "pješke",
+  mleko: "mlijeko",
+  hleb: "hljeb",
+  razumem: "razumijem",
+  lepo: "lijepo",
+  lep: "lijep",
+  lepa: "lijepa",
+  nameštaj: "namještaj",
+  železnička: "željeznička",
+  dete: "dijete",
+  nedelja: "nedjelja",
+  ponedeljak: "ponedjeljak",
+  levo: "lijevo",
+};
+
+/** Reverse: Ijekavian (Montenegro) → Ekavian (Serbia) for entries like "gdje". */
+const IJEKAVIAN_TO_EKAVIAN: Record<string, string> = {
+  gdje: "gde",
+  ovdje: "ovde",
+  pješke: "peške",
+  mlijeko: "mleko",
+  hljeb: "hleb",
+  razumijem: "razumem",
+  lijepo: "lepo",
+  lijep: "lep",
+  ljepa: "lepa",
+  namještaj: "nameštaj",
+  željeznička: "železnička",
+  dijete: "dete",
+  nedjelja: "nedelja",
+  ponedjeljak: "ponedeljak",
+  lijevo: "levo",
+};
+
 export function applyMontenegroVariantNotesToVocabulary(pkg: any): { changed: number } {
   const vocabEn: any[] = Array.isArray(pkg?.vocabulary?.en) ? pkg.vocabulary.en : [];
   let changed = 0;
 
   for (const v of vocabEn) {
     const key = normalizeSerbianKey(v?.serbian);
-    if (key !== "gde" && key !== "gdje") continue;
-
-    const note =
-      key === "gde"
-        ? `Variant (Montenegro): gdje (ijekavian).`
-        : `Variant (Serbia): gde (ekavian).`;
-
     const prev = typeof v?.noteEn === "string" ? v.noteEn : "";
+    // Skip if already has Montenegro note
+    if (/montenegro:|variant.*montenegro/i.test(prev)) continue;
+
+    let note: string | null = null;
+    if (EKAVIAN_TO_IJEKAVIAN[key]) {
+      note = `Montenegro: ${EKAVIAN_TO_IJEKAVIAN[key]} (ijekavian).`;
+    } else if (IJEKAVIAN_TO_EKAVIAN[key]) {
+      note = `Variant (Serbia): ${IJEKAVIAN_TO_EKAVIAN[key]} (ekavian).`;
+    }
+
+    if (!note) continue;
+
     const next = appendNoteEn(prev, note);
     if (next !== prev) {
       v.noteEn = next;

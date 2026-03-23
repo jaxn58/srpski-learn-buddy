@@ -1,5 +1,70 @@
 import { SectionId } from "../../scripts/markdownParser/sectionUtils";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PROMPT KEY REGISTRY -- Central mapping of DB keys to labels/descriptions.
+// All prompts are stored in the chatPrompts table. The constants below serve
+// as code-level fallbacks only (used when no DB entry exists yet).
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type ContentStudioPromptKey =
+  | "cs_unit_creator"
+  | "cs_finding_fixer"
+  | "cs_lector"
+  | `cs_section_${string}`;
+
+export const CS_PROMPT_KEYS = {
+  unitCreator: "cs_unit_creator",
+  findingFixer: "cs_finding_fixer",
+  lector: "cs_lector",
+  section: (id: SectionId) => `cs_section_${id}` as const,
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATIC LECTOR PROMPT (fallback; will be seeded into chatPrompts as cs_lector)
+// Dynamic context (unitNumber, previousVocab, etc.) is injected at runtime.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const LECTOR_SYSTEM_PROMPT = [
+  `You are an AI Lector (auditor) for Serbian learning unit content.`,
+  `You must NOT copy or quote any textbook. This is inspiration-only.`,
+  ``,
+  `=== SERBIAN LANGUAGE NOTES ===`,
+  `- We teach EKAVIAN Serbian (e.g., "mleko" not "mlijeko", "dete" not "dijete")`,
+  `- Montenegrin, Bosnian, Croatian may use IJEKAVIAN forms - these are NOT errors but we prefer Ekavian`,
+  `- Latin script is primary, Cyrillic awareness is welcome`,
+  `- Pronunciation notes are valuable (e.g., syllabic "r": prst, krv, trg)`,
+  ``,
+  `=== YOUR TASK ===`,
+  `Return ONLY JSON: {"ok":true,"blockers":[],"warnings":[...]}`,
+  `Where warnings are objects {code,message,path?}.`,
+  `CRITICAL: This stage is ADVISORY ONLY. Do NOT output blockers. Put everything into warnings.`,
+  `IMPORTANT: Do NOT put raw line breaks inside JSON strings. Use \\n escapes.`,
+  ``,
+  `Grounding rules (VERY IMPORTANT):`,
+  `- You are given a COMPACT audit payload (not the full unit).`,
+  `- If a field contains the marker [TRUNCATED_FOR_AUDIT], that truncation is ONLY due to the audit payload limit. Do NOT create blockers/warnings about truncation in that case.`,
+  `- Use auditPayload.vocabularyKeys (FULL list) to decide whether a Serbian word exists in unit vocabulary; do NOT rely on vocabularySample for existence checks.`,
+  `- Do NOT create blockers about "missing vocabulary" for Dialogues/Phrases: those sections already include English translations. At most, emit a WARNING if a key content word is missing.`,
+  `- Do NOT invent new exercise categories. This product supports ONLY these categories: translation, fillInBlank, multipleChoice, vocabularyMatching, dialogueCompletion.`,
+  `- Every warning MUST reference concrete evidence: include questionId(s) or a path like 'exercises.en[category=...]'.`,
+  `- ONLY emit warnings for: obvious Serbian correctness errors, obvious English/Serbian meaning mismatch, or cultural/factual risk.`,
+  `- Style/pedagogy suggestions (e.g., "too easy") are allowed but must be LOW priority and evidence-based.`,
+  ``,
+  `ALLOWED WARNING CODES (use ONLY these):`,
+  `- SERBIAN_ERROR`,
+  `- TRANSLATION_MISMATCH`,
+  `- CULTURAL_FACT_RISK`,
+  `- STYLE_SUGGESTION`,
+  `Focus on:`,
+  `- Serbian correctness (obvious errors)`,
+  `- English/Serbian meaning mismatches where it's clearly wrong`,
+  `- Hallucination risk / cultural/factual risk: avoid invented "facts"; keep neutral cultural notes`,
+].join("\n");
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION PROMPTS (fallbacks; will be seeded into chatPrompts as cs_section_*)
+// ═══════════════════════════════════════════════════════════════════════════
+
 export const SECTION_PROMPTS: Record<SectionId, string> = {
   overview: `You are expanding the Overview section of a Serbian learning unit.
 
@@ -22,6 +87,7 @@ RULES:
 - For multiple meanings, use Notes column with "AlsoMeaning: ..." or "Usage: ...".
 - English column MUST contain ONLY the English translation (no extra metadata).
 - Gender variants like "(m)/(f)/(n)" or "(masculine/feminine)" MUST go into Notes (e.g., "Gender: masculine/feminine").
+- Montenegrin variant: If a Serbian word has an Ijekavian/Montenegrin form (e.g. gde→gdje, ovde→ovdje, mleko→mlijeko), add to Notes: "Montenegro: <variant>".
 - Serbian column must be audio-clean: NO parentheses, brackets, slashes, asterisks, or punctuation.
 - Use category headings (### Nouns, ### Verbs, etc.) if the section already has them.
 
@@ -117,7 +183,7 @@ export const SPECIALIST_SYSTEM_PROMPT = [
   `6. Serbian vocabulary cells must be audio-clean: NO parentheses (), brackets [], slashes /, asterisks *, or punctuation .?!,:;`,
   `7. Keep ONE row per Serbian key; additional meanings/usages go into Notes using AlsoMeaning/Usage/Context.`,
   `8. VOCABULARY ENGLISH COLUMN: must be ONLY the translation (no gender markers like "(m)/(f)/(n)", no "(masculine/feminine)"). Put gender info in Notes, e.g. "Gender: masculine/feminine".`,
-  `9. Dialect note (Montenegro): if the unit uses gde/gdje, mention the variant in Notes.`,
+  `9. Montenegrin variant: For every vocabulary entry that has a Montenegrin (Ijekavian) variant (e.g. gde→gdje, ovde→ovdje, mleko→mlijeko, peške→pješke), add to Notes: "Montenegro: <variant>" – written and pronounced as in Montenegro.`,
   `10. EXERCISES (CRITICAL): Do NOT repeat the **Instructions:** text inside each row. The instruction appears once per exercise, questions should be concise.`,
   `11. EXERCISES (QUALITY GATE): Within each exercise table, do NOT repeat the same question/sentence text. Avoid copy-paste stems; every row must be meaningfully different.`,
   ``,
@@ -400,63 +466,6 @@ export const getSpecialistUserPromptBase = (
   creatorBriefBlock ? `\n${creatorBriefBlock}\n` : ``,
 ].join("\n");
 
-export const getAuditorSystemPrompt = (
-  unitNumber: number,
-  previousUnitsVocab: any[],
-  previousVocabKeys: string[],
-  auditSkillBlock: string,
-  referenceBlock?: string
-) => [
-  `You are an AI Lector (auditor) for Serbian learning unit content.`,
-  `You must NOT copy or quote any textbook. This is inspiration-only.`,
-  ``,
-  `=== COURSE CONTEXT ===`,
-  `This is Unit ${unitNumber} of a Serbian language course for English speakers.`,
-  `The course teaches STANDARD SERBIAN (Ekavian dialect, Latin script primarily).`,
-  referenceBlock ? `\n=== REFERENCE GUIDELINES (inspiration only; do NOT quote) ===\n${referenceBlock}\n` : ``,
-  ``,
-  `VOCABULARY ALREADY TAUGHT IN PREVIOUS UNITS (${previousUnitsVocab.length} words):`,
-  previousVocabKeys.length > 0 
-    ? previousVocabKeys.slice(0, 200).join(", ") + (previousVocabKeys.length > 200 ? " ... (truncated)" : "")
-    : "(This is Unit 1 - no previous vocabulary)",
-  ``,
-  `IMPORTANT: Words from previous units are ALREADY KNOWN to the learner. They do NOT need to be re-introduced. Using them in exercises for REVIEW is encouraged.`,
-  ``,
-  `=== SERBIAN LANGUAGE NOTES ===`,
-  `- We teach EKAVIAN Serbian (e.g., "mleko" not "mlijeko", "dete" not "dijete")`,
-  `- Montenegrin, Bosnian, Croatian may use IJEKAVIAN forms - these are NOT errors but we prefer Ekavian`,
-  `- Latin script is primary, Cyrillic awareness is welcome`,
-  `- Pronunciation notes are valuable (e.g., syllabic "r": prst, krv, trg)`,
-  ``,
-  `=== YOUR TASK ===`,
-  `Return ONLY JSON: {"ok":true,"blockers":[],"warnings":[...]}`,
-  `Where warnings are objects {code,message,path?}.`,
-  `CRITICAL: This stage is ADVISORY ONLY. Do NOT output blockers. Put everything into warnings.`,
-  `IMPORTANT: Do NOT put raw line breaks inside JSON strings. Use \\n escapes.`,
-  ``,
-  `Task: Return ONLY JSON with keys:`,
-  `{"ok":true,"blockers":[],"warnings":[...]} `,
-  `Where warnings is an array of objects {code,message,path?}.`,
-  `IMPORTANT JSON rule: Do NOT put raw line breaks inside JSON strings. Use \\n escapes for newlines.`,
-  ``,
-  `Grounding rules (VERY IMPORTANT):`,
-  `- You are given a COMPACT audit payload (not the full unit).`,
-  `- If a field contains the marker [TRUNCATED_FOR_AUDIT], that truncation is ONLY due to the audit payload limit. Do NOT create blockers/warnings about truncation in that case.`,
-  `- Use auditPayload.vocabularyKeys (FULL list) to decide whether a Serbian word exists in unit vocabulary; do NOT rely on vocabularySample for existence checks.`,
-  `- Do NOT create blockers about "missing vocabulary" for Dialogues/Phrases: those sections already include English translations. At most, emit a WARNING if a key content word is missing.`,
-  `- Do NOT invent new exercise categories. This product supports ONLY these categories: translation, fillInBlank, multipleChoice, vocabularyMatching, dialogueCompletion.`,
-  `- Every warning MUST reference concrete evidence: include questionId(s) or a path like 'exercises.en[category=...]'.`,
-  `- ONLY emit warnings for: obvious Serbian correctness errors, obvious English/Serbian meaning mismatch, or cultural/factual risk.`,
-  `- Style/pedagogy suggestions (e.g., "too easy") are allowed but must be LOW priority and evidence-based.`,
-  ``,
-  `ALLOWED WARNING CODES (use ONLY these):`,
-  `- SERBIAN_ERROR`,
-  `- TRANSLATION_MISMATCH`,
-  `- CULTURAL_FACT_RISK`,
-  `- STYLE_SUGGESTION`,
-  `Focus on:`,
-  `- Serbian correctness (obvious errors)`,
-  `- English/Serbian meaning mismatches where it's clearly wrong`,
-  `- Hallucination risk / cultural/factual risk: avoid invented “facts”; keep neutral cultural notes`,
-  auditSkillBlock ? `\n${auditSkillBlock}\n` : ``,
-].join("\n");
+// getAuditorSystemPrompt was here -- removed. The static part is LECTOR_SYSTEM_PROMPT (above).
+// Dynamic context (unitNumber, vocab, etc.) is assembled in _auditor.ts at runtime.
+

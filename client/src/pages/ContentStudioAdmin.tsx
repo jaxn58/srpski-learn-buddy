@@ -1,17 +1,10 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   Dialog,
   DialogContent,
@@ -19,26 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { MarkdownContent } from "@/components/MarkdownContent";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -49,291 +22,27 @@ import {
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { CheckCircle, XCircle, Sparkles, Upload, Info, Loader2, Settings, Plus, Search, LayoutList, X, RotateCcw, Eye } from "lucide-react";
+import { Sparkles, Loader2, Settings, Plus, LayoutList, PanelLeft, PanelRight } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
 import { UnitManagerTab } from "@/components/admin/UnitManagerTab";
-
-type Mode = "update" | "replace";
-type Provider = "gemini" | "openai";
-type StageKey = "specialist" | "auditor";
-
-type ModelTier = "ultra-budget" | "budget" | "balanced" | "premium" | "flagship";
-
-type ModelEntry = {
-  id: string;
-  title: string;
-  blurb: string;
-  tier: ModelTier;
-  inputPricePer1M: number;
-  outputPricePer1M: number;
-};
-
-const MODEL_META: Record<Provider, ModelEntry[]> = {
-  gemini: [
-    {
-      id: "gemini-3.1-pro-preview",
-      title: "gemini-3.1-pro-preview",
-      blurb: "Top pick for Creator – generates grammatically precise, culturally authentic Serbian learning units with nuanced dialogue and exercises. Best overall language quality. Preview (Feb 2026)",
-      tier: "flagship",
-      inputPricePer1M: 2.00,
-      outputPricePer1M: 12.0,
-    },
-    {
-      id: "gemini-3-flash-preview",
-      title: "gemini-3-flash-preview",
-      blurb: "Strong choice for Creator – near-Pro language quality at 3× the speed; handles structured Markdown units and vocabulary well. Good Creator/Lector balance. Preview (Dec 2025)",
-      tier: "premium",
-      inputPricePer1M: 0.50,
-      outputPricePer1M: 3.0,
-    },
-    {
-      id: "gemini-2.5-pro",
-      title: "gemini-2.5-pro",
-      blurb: "Recommended Creator (stable) – proven, reliable unit generation with strong Serbian grammar understanding. Best choice if preview models are too experimental for production. GA",
-      tier: "premium",
-      inputPricePer1M: 1.25,
-      outputPricePer1M: 10.0,
-    },
-    {
-      id: "gemini-2.5-flash",
-      title: "gemini-2.5-flash",
-      blurb: "Recommended Lector (stable) – fast and accurate at spotting linguistic inconsistencies, grammar errors, and structural issues in generated units. Ideal audit model. GA",
-      tier: "balanced",
-      inputPricePer1M: 0.30,
-      outputPricePer1M: 2.50,
-    },
-    {
-      id: "gemini-3.1-flash-lite-preview",
-      title: "gemini-3.1-flash-lite-preview",
-      blurb: "Budget Lector option (Gemini 3 generation) – sufficient for lightweight audits and consistency checks; not recommended for primary content creation. Preview (Mar 2026)",
-      tier: "budget",
-      inputPricePer1M: 0.25,
-      outputPricePer1M: 1.50,
-    },
-    {
-      id: "gemini-2.5-flash-lite",
-      title: "gemini-2.5-flash-lite",
-      blurb: "Minimal Lector only – suitable for basic metadata checks and high-volume passes. Too limited for nuanced language content creation or deep audit. GA",
-      tier: "ultra-budget",
-      inputPricePer1M: 0.10,
-      outputPricePer1M: 0.40,
-    },
-  ],
-  openai: [
-    {
-      id: "gpt-4.1",
-      title: "gpt-4.1",
-      blurb: "Latest GPT flagship; 1M context, strong reasoning",
-      tier: "premium",
-      inputPricePer1M: 2.0,
-      outputPricePer1M: 8.0,
-    },
-    {
-      id: "gpt-4o",
-      title: "gpt-4o",
-      blurb: "Reliable all-rounder; multimodal, great for authoring",
-      tier: "balanced",
-      inputPricePer1M: 2.50,
-      outputPricePer1M: 10.0,
-    },
-    {
-      id: "gpt-4o-mini",
-      title: "gpt-4o-mini",
-      blurb: "Compact & fast; suitable for audit and simple fixes",
-      tier: "budget",
-      inputPricePer1M: 0.15,
-      outputPricePer1M: 0.60,
-    },
-    {
-      id: "gpt-4.1-nano",
-      title: "gpt-4.1-nano",
-      blurb: "Ultra-lightweight; lowest cost for high-volume tasks",
-      tier: "ultra-budget",
-      inputPricePer1M: 0.10,
-      outputPricePer1M: 0.40,
-    },
-  ],
-};
-
-const TIER_BADGE_CONFIG: Record<ModelTier, { label: string; className: string }> = {
-  "ultra-budget": { label: "Ultra-Budget", className: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
-  "budget":       { label: "Budget",       className: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
-  "balanced":     { label: "Balanced",     className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300" },
-  "premium":      { label: "Premium",      className: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300" },
-  "flagship":     { label: "Flagship",     className: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
-};
-
-function ModelTierBadge({ tier }: { tier: ModelTier }) {
-  const cfg = TIER_BADGE_CONFIG[tier];
-  return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${cfg.className}`}>
-      {cfg.label}
-    </span>
-  );
-}
-
-const STAGE_HELP: Record<StageKey, string> = {
-  specialist:
-    "Creator: generates the full unit as Markdown (Manus-compatible) which is then parsed into unitPackage.v1.",
-  auditor:
-    "Lector: reviews consistency/risk/obvious issues and can block publishing (structured findings).",
-};
-
-// Content Studio dialogs should be wide enough for comfortable editing.
-// Desktop: ~80% viewport. Mobile: almost full width (as before).
-const CONTENT_STUDIO_DIALOG_WIDTH = "w-[98vw] max-w-[98vw] sm:w-[90vw] sm:max-w-[90vw] md:w-[80vw] md:max-w-[80vw]";
-
-const DRAFT_STATUS_LABEL: Record<
-  "draft" | "qc_failed" | "qc_passed" | "audit_failed" | "ready_to_publish" | "published",
-  string
-> = {
-  draft: "Draft",
-  qc_failed: "Validator failed",
-  qc_passed: "Validated",
-  audit_failed: "Lector flagged issues",
-  ready_to_publish: "Ready to publish",
-  published: "Published",
-};
-
-const TIER_ORDER: ModelTier[] = ["flagship", "premium", "balanced", "budget", "ultra-budget"];
-
-function stageOrderedModels(provider: Provider, stage: StageKey): ModelEntry[] {
-  const base = MODEL_META[provider] || [];
-  if (stage === "specialist") {
-    // Creator: flagship/premium first – ordered by tier descending
-    return [...base].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
-  }
-  // Lector/auditor: balanced/budget first – ordered by tier ascending (cheapest first)
-  return [...base].sort((a, b) => TIER_ORDER.indexOf(b.tier) - TIER_ORDER.indexOf(a.tier));
-}
-
-function isKnownModel(provider: Provider, model: string): boolean {
-  return (MODEL_META[provider] || []).some((m) => m.id === model);
-}
-
-type DiffOp = { op: "equal" | "add" | "del"; line: string };
-
-function myersDiffLines(aLines: string[], bLines: string[]): DiffOp[] {
-  const N = aLines.length;
-  const M = bLines.length;
-  const max = N + M;
-
-  let v = new Map<number, number>();
-  v.set(1, 0);
-  const trace: Array<Map<number, number>> = [];
-
-  let found = false;
-  for (let d = 0; d <= max; d++) {
-    const v2 = new Map<number, number>();
-    for (let k = -d; k <= d; k += 2) {
-      const down = k === -d || (k !== d && (v.get(k - 1) ?? 0) < (v.get(k + 1) ?? 0));
-      let x = down ? (v.get(k + 1) ?? 0) : (v.get(k - 1) ?? 0) + 1;
-      let y = x - k;
-
-      while (x < N && y < M && aLines[x] === bLines[y]) {
-        x++;
-        y++;
-      }
-      v2.set(k, x);
-      if (x >= N && y >= M) {
-        trace.push(v2);
-        found = true;
-        break;
-      }
-    }
-    trace.push(v2);
-    v = v2;
-    if (found) break;
-  }
-
-  // Backtrack to build edit script
-  const ops: DiffOp[] = [];
-  let x = N;
-  let y = M;
-
-  for (let d = trace.length - 1; d >= 0; d--) {
-    const vD = trace[d];
-    const k = x - y;
-
-    // For d=0, there is no previous diagonal choice.
-    if (d === 0) {
-      while (x > 0 && y > 0) {
-        ops.push({ op: "equal", line: aLines[x - 1] });
-        x--;
-        y--;
-      }
-      break;
-    }
-
-    const vPrev = trace[d - 1];
-    const down = k === -d || (k !== d && (vPrev.get(k - 1) ?? 0) < (vPrev.get(k + 1) ?? 0));
-    const prevK = down ? k + 1 : k - 1;
-    const prevX = vPrev.get(prevK) ?? 0;
-    const prevY = prevX - prevK;
-
-    while (x > prevX && y > prevY) {
-      ops.push({ op: "equal", line: aLines[x - 1] });
-      x--;
-      y--;
-    }
-
-    if (down) {
-      // Came from k+1: insertion in b
-      if (y > 0) {
-        ops.push({ op: "add", line: bLines[y - 1] });
-        y--;
-      }
-    } else {
-      // Came from k-1: deletion from a
-      if (x > 0) {
-        ops.push({ op: "del", line: aLines[x - 1] });
-        x--;
-      }
-    }
-  }
-
-  ops.reverse();
-  return ops;
-}
-
-function buildSideBySideDiffRows(aText: string, bText: string): Array<{
-  left: { op: "equal" | "del"; line: string } | null;
-  right: { op: "equal" | "add"; line: string } | null;
-}> {
-  const aLines = String(aText || "").replace(/\r\n/g, "\n").split("\n");
-  const bLines = String(bText || "").replace(/\r\n/g, "\n").split("\n");
-  const ops = myersDiffLines(aLines, bLines);
-
-  const rows: Array<{
-    left: { op: "equal" | "del"; line: string } | null;
-    right: { op: "equal" | "add"; line: string } | null;
-  }> = [];
-
-  for (let i = 0; i < ops.length; i++) {
-    const o = ops[i];
-    if (o.op === "equal") {
-      rows.push({ left: { op: "equal", line: o.line }, right: { op: "equal", line: o.line } });
-      continue;
-    }
-    if (o.op === "del") {
-      const next = ops[i + 1];
-      if (next?.op === "add") {
-        rows.push({ left: { op: "del", line: o.line }, right: { op: "add", line: next.line } });
-        i++;
-      } else {
-        rows.push({ left: { op: "del", line: o.line }, right: null });
-      }
-      continue;
-    }
-    // add
-    rows.push({ left: null, right: { op: "add", line: o.line } });
-  }
-
-  return rows;
-}
+import { ImportTab } from "./ContentImportAdmin";
+import { SettingsSheet } from "@/components/admin/contentStudio/SettingsSheet";
+import { DraftList } from "@/components/admin/contentStudio/DraftList";
+import { ArtifactsPanel } from "@/components/admin/contentStudio/ArtifactsPanel";
+import { PromptPreview } from "@/components/admin/contentStudio/PromptPreview";
+import { InspectorPanel } from "@/components/admin/contentStudio/InspectorPanel";
+import type { InspectorStep } from "@/components/admin/contentStudio/InspectorPanel";
+import { DraftStatusBadge } from "@/components/admin/contentStudio/StatusBadge";
+import type { Mode, Provider, StageKey, SectionId, NextStepKey, StepId, SettingsTab, StudioView } from "@/components/admin/contentStudio/types";
+import { CONTENT_STUDIO_DIALOG_WIDTH, SECTION_OPTIONS, isKnownModel, stageOrderedModels } from "@/components/admin/contentStudio/constants";
+import { buildSideBySideDiffRows } from "@/components/admin/contentStudio/utils/diffAlgorithm";
 
 export default function ContentStudioAdmin() {
   const { user, loading: authLoading } = useAuth();
@@ -352,6 +61,10 @@ export default function ContentStudioAdmin() {
 
   // Config + libraries
   const modelConfig = useQuery(api.contentStudio.getModelConfig);
+  const promptPreview = useQuery(
+    api.contentStudio.getPromptPreview,
+    selectedDraftId ? { draftId: selectedDraftId } : {}
+  );
   const upsertModelConfig = useMutation(api.contentStudio.upsertModelConfig);
 
   const refs = useQuery(api.contentStudio.listReferences);
@@ -456,24 +169,24 @@ export default function ContentStudioAdmin() {
   const [fixHumanNotes, setFixHumanNotes] = useState("");
 
   // Section-based revision (targeted edits)
-  type SectionId = "overview" | "vocabulary" | "grammar" | "phrases" | "exercises" | "cultural";
   const [expandSection, setExpandSection] = useState<SectionId>("phrases");
   const [expandInstruction, setExpandInstruction] = useState("");
-  const SECTION_OPTIONS: { value: SectionId; label: string }[] = [
-    { value: "overview", label: "Overview" },
-    { value: "vocabulary", label: "Vocabulary" },
-    { value: "grammar", label: "Grammar" },
-    { value: "phrases", label: "Phrases & Dialogues" },
-    { value: "exercises", label: "Interactive Test (Exercises)" },
-    { value: "cultural", label: "Cultural Note" },
-  ];
 
-  // Top-level view toggle: "drafts" = Draft Studio (default), "units" = Unit Manager
-  const [studioView, setStudioView] = useState<"drafts" | "units">("drafts");
+  // Top-level view toggle: "drafts" = Draft Studio (default), "units" = Unit Manager, "import" = Quick Import
+  const [studioView, setStudioView] = useState<StudioView>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("view");
+    if (v === "import" || v === "units") return v;
+    return "drafts";
+  });
+
+  // Mobile responsive state
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
 
   // Settings sheet state
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"ai" | "libraries">("ai");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("ai");
   const [createDraftOpen, setCreateDraftOpen] = useState(false);
 
   // Draft list navigation (left pane)
@@ -627,7 +340,6 @@ export default function ContentStudioAdmin() {
     return "";
   }, [runningCreator, runningValidator, runningLector, runningCreateValidate, runningSectionRevise, runningPublish, runningApprovePreview, runningTranslateDe]);
 
-  type NextStepKey = "creator" | "validator" | "lector" | "preview" | "publish";
 
   const nextStepKey: NextStepKey = useMemo(() => {
     const status = String((selected as any)?.draft?.status || "");
@@ -667,36 +379,9 @@ export default function ContentStudioAdmin() {
   const stepVariant = (key: NextStepKey) => (key === nextStepKey ? "default" : "secondary");
 
   const statusBadge = useMemo(() => {
-    const s = selected?.draft?.status;
-    if (!s) return null;
-    const color =
-      s === "ready_to_publish" || s === "published" || s === "qc_passed"
-        ? "bg-emerald-500"
-        : s === "qc_failed" || s === "audit_failed"
-          ? "bg-red-500"
-          : "bg-muted-foreground";
-    return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded text-white text-xs ${color}`}>
-        {DRAFT_STATUS_LABEL[s as keyof typeof DRAFT_STATUS_LABEL] ?? String(s)}
-      </span>
-    );
+    return <DraftStatusBadge status={selected?.draft?.status} />;
   }, [selected?.draft?.status]);
 
-  const renderDraftStatusPill = (status: string) => {
-    const s = String(status || "draft") as keyof typeof DRAFT_STATUS_LABEL;
-    const label = DRAFT_STATUS_LABEL[s] ?? String(status || "");
-    const className =
-      s === "ready_to_publish" || s === "published" || s === "qc_passed"
-        ? "bg-emerald-600 text-white"
-        : s === "qc_failed" || s === "audit_failed"
-          ? "bg-red-600 text-white"
-          : "bg-muted-foreground text-white";
-    return (
-      <span className={cn("inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium", className)}>
-        {label}
-      </span>
-    );
-  };
 
   const filteredDrafts = useMemo(() => {
     const list = (drafts || []) as any[];
@@ -742,7 +427,6 @@ export default function ContentStudioAdmin() {
     setBatchSelectedDraftIds((prev) => Array.from(new Set([...prev, ...ids])));
   };
 
-  type StepId = "setup" | "generate" | "qa" | "preview" | "publish";
   const activeStep: StepId = useMemo(() => {
     if (!selectedDraftId || !selected?.draft) return "setup";
     if (nextStepKey === "creator") return "generate";
@@ -756,6 +440,20 @@ export default function ContentStudioAdmin() {
     const map: Record<StepId, number> = { setup: 0, generate: 1, qa: 2, preview: 3, publish: 4 };
     return map[activeStep];
   }, [activeStep]);
+
+  const [activeInspectorStep, setActiveInspectorStep] = useState<InspectorStep>("setup");
+
+  useEffect(() => {
+    const computed: InspectorStep = (() => {
+      if (!selectedDraftId || !selected?.draft) return "setup";
+      if (nextStepKey === "creator") return "generate";
+      if (nextStepKey === "validator" || nextStepKey === "lector") return "review";
+      if (nextStepKey === "preview") return "review";
+      if (nextStepKey === "publish") return "publish";
+      return "setup";
+    })();
+    setActiveInspectorStep(computed);
+  }, [selectedDraftId, selected?.draft, nextStepKey]);
 
   const approvedSnapshotId = String((selected as any)?.draft?.approvedSnapshotId || "");
   const lastSnapshotId = String((selected as any)?.draft?.lastSnapshotId || "");
@@ -2358,731 +2056,87 @@ export default function ContentStudioAdmin() {
 
   return (
     <div className="space-y-6">
-      {/* Settings Sheet */}
-      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Content Studio Settings</SheetTitle>
-            <SheetDescription>Configure AI models and manage libraries</SheetDescription>
-          </SheetHeader>
-          <div className="py-4">
-            <Tabs value={settingsTab} onValueChange={(v) => setSettingsTab(v as "ai" | "libraries")}>
-              <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger value="ai">AI Models</TabsTrigger>
-                <TabsTrigger value="libraries">Libraries</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="ai" className="mt-4 space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Roles – Model Config</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2 rounded border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="font-medium">Creator</div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground" aria-label="Creator help">
-                    <Info className="h-4 w-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent sideOffset={6}>{STAGE_HELP.specialist}</TooltipContent>
-              </Tooltip>
-            </div>
-            <Label>Provider</Label>
-            <Select value={cfgSpecialistProvider} onValueChange={(v) => setCfgSpecialistProvider(v as Provider)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gemini">gemini</SelectItem>
-                <SelectItem value="openai">openai</SelectItem>
-              </SelectContent>
-            </Select>
-            <Label>Model</Label>
-            {!cfgSpecialistCustom ? (
-              <>
-                <Select
-                  value={cfgSpecialistModel}
-                  onValueChange={(v) => {
-                    if (v === "__custom__") { setCfgSpecialistCustom(true); return; }
-                    setCfgSpecialistModel(v);
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    {(() => {
-                      const m = MODEL_META[cfgSpecialistProvider]?.find((e) => e.id === cfgSpecialistModel);
-                      return m ? (
-                        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                          <span className="truncate font-medium text-sm">{m.title}</span>
-                          <ModelTierBadge tier={m.tier} />
-                        </div>
-                      ) : <SelectValue placeholder="Select model…" />;
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent align="start" className="w-[min(420px,90vw)]">
-                    {stageOrderedModels(cfgSpecialistProvider, "specialist").map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="py-2">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{m.title}</span>
-                            <ModelTierBadge tier={m.tier} />
-                          </div>
-                          <span className="text-xs text-muted-foreground leading-snug">{m.blurb}</span>
-                          <span className="text-xs text-muted-foreground/60 font-mono">
-                            ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="__custom__" className="py-2">
-                      <span className="text-muted-foreground text-sm">Custom model…</span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {MODEL_META[cfgSpecialistProvider]?.find((e) => e.id === cfgSpecialistModel) && (() => {
-                  const m = MODEL_META[cfgSpecialistProvider].find((e) => e.id === cfgSpecialistModel)!;
-                  return (
-                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
-                      <p className="text-muted-foreground leading-snug">{m.blurb}</p>
-                      <p className="font-mono text-muted-foreground/60">
-                        ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
-                      </p>
-                    </div>
-                  );
-                })()}
-              </>
-            ) : (
-              <div className="space-y-2">
-                <Input value={cfgSpecialistModel} onChange={(e) => setCfgSpecialistModel(e.target.value)} />
-                <Button variant="secondary" onClick={() => setCfgSpecialistCustom(false)}>
-                  Back to dropdown
-                </Button>
-              </div>
-            )}
-            <div className="text-xs text-muted-foreground">
-              Recommended: <span className="font-medium">{stageOrderedModels(cfgSpecialistProvider, "specialist")[0]?.id}</span>
-            </div>
-          </div>
-          <div className="space-y-2 rounded border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="font-medium">Lector</div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground" aria-label="Lector help">
-                    <Info className="h-4 w-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent sideOffset={6}>{STAGE_HELP.auditor}</TooltipContent>
-              </Tooltip>
-            </div>
-            <Label>Provider</Label>
-            <Select value={cfgAuditorProvider} onValueChange={(v) => setCfgAuditorProvider(v as Provider)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gemini">gemini</SelectItem>
-                <SelectItem value="openai">openai</SelectItem>
-              </SelectContent>
-            </Select>
-            <Label>Model</Label>
-            {!cfgAuditorCustom ? (
-              <>
-                <Select
-                  value={cfgAuditorModel}
-                  onValueChange={(v) => {
-                    if (v === "__custom__") { setCfgAuditorCustom(true); return; }
-                    setCfgAuditorModel(v);
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    {(() => {
-                      const m = MODEL_META[cfgAuditorProvider]?.find((e) => e.id === cfgAuditorModel);
-                      return m ? (
-                        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                          <span className="truncate font-medium text-sm">{m.title}</span>
-                          <ModelTierBadge tier={m.tier} />
-                        </div>
-                      ) : <SelectValue placeholder="Select model…" />;
-                    })()}
-                  </SelectTrigger>
-                  <SelectContent align="start" className="w-[min(420px,90vw)]">
-                    {stageOrderedModels(cfgAuditorProvider, "auditor").map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="py-2">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{m.title}</span>
-                            <ModelTierBadge tier={m.tier} />
-                          </div>
-                          <span className="text-xs text-muted-foreground leading-snug">{m.blurb}</span>
-                          <span className="text-xs text-muted-foreground/60 font-mono">
-                            ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="__custom__" className="py-2">
-                      <span className="text-muted-foreground text-sm">Custom model…</span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {MODEL_META[cfgAuditorProvider]?.find((e) => e.id === cfgAuditorModel) && (() => {
-                  const m = MODEL_META[cfgAuditorProvider].find((e) => e.id === cfgAuditorModel)!;
-                  return (
-                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
-                      <p className="text-muted-foreground leading-snug">{m.blurb}</p>
-                      <p className="font-mono text-muted-foreground/60">
-                        ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
-                      </p>
-                    </div>
-                  );
-                })()}
-              </>
-            ) : (
-              <div className="space-y-2">
-                <Input value={cfgAuditorModel} onChange={(e) => setCfgAuditorModel(e.target.value)} />
-                <Button variant="secondary" onClick={() => setCfgAuditorCustom(false)}>
-                  Back to dropdown
-                </Button>
-              </div>
-            )}
-            <div className="text-xs text-muted-foreground">
-              Recommended: <span className="font-medium">{stageOrderedModels(cfgAuditorProvider, "auditor")[0]?.id}</span>
-            </div>
-          </div>
-          <div className="md:col-span-2 flex justify-end">
-            <Button variant="secondary" onClick={handleSaveModelConfig}>Save Model Config</Button>
-          </div>
-          <div className="md:col-span-2 text-xs text-muted-foreground">
-            Note: If the selected provider key is not configured, the system automatically falls back to the other provider (if available).
-          </div>
-        </CardContent>
-      </Card>
-              </TabsContent>
-
-              <TabsContent value="libraries" className="mt-4 space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Reference Library (external links)</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2 rounded border p-3">
-            <div className="font-medium">Add reference</div>
-            <Label>Type</Label>
-            <Select value={newRefType} onValueChange={(v) => setNewRefType(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pdf">pdf</SelectItem>
-                <SelectItem value="book">book</SelectItem>
-                <SelectItem value="article">article</SelectItem>
-                <SelectItem value="other">other</SelectItem>
-              </SelectContent>
-            </Select>
-            <Label>Title</Label>
-            <Input value={newRefTitle} onChange={(e) => setNewRefTitle(e.target.value)} />
-            <Label>PDF Upload (optional)</Label>
-            <Input
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                setNewRefFile(f);
-                setNewRefStorageId("");
-              }}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-muted-foreground">
-                PDF max 25 MB. Tip: you can either click “Upload PDF” first, or directly click “Create Reference” (it will auto-upload).
-              </div>
-              <Button
-                variant="secondary"
-                onClick={handleUploadReferencePdf}
-                disabled={newRefUploading || !newRefFile}
-              >
-                {newRefUploading ? "Uploading..." : "Upload PDF"}
-              </Button>
-            </div>
-            {newRefStorageId ? (
-              <div className="text-xs text-muted-foreground">
-                Uploaded: <code>{newRefStorageId}</code>
-              </div>
-            ) : null}
-
-            <Label>URL (optional)</Label>
-            <Input value={newRefUrl} onChange={(e) => setNewRefUrl(e.target.value)} placeholder="https://..." />
-            <Label>Tags (comma separated)</Label>
-            <Input value={newRefTags} onChange={(e) => setNewRefTags(e.target.value)} />
-            <Label>Notes (high-level, no copied text)</Label>
-            <Textarea value={newRefNotes} onChange={(e) => setNewRefNotes(e.target.value)} />
-            <Button onClick={handleCreateReference}>Create Reference</Button>
-          </div>
-
-          <div className="space-y-2 rounded border p-3">
-            <div className="font-medium">Existing references</div>
-            <div className="max-h-[260px] overflow-auto rounded border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>URL</TableHead>
-                    <TableHead className="w-[140px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(refs || []).map((r: any) => (
-                    <TableRow key={r._id}>
-                      <TableCell>{r.type}</TableCell>
-                      <TableCell>{r.title}</TableCell>
-                      <TableCell className="truncate max-w-[240px]">
-                        {r.downloadUrl ? (
-                          <a
-                            href={r.downloadUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary underline underline-offset-2"
-                          >
-                            Download / Open
-                          </a>
-                        ) : r.url ? (
-                          <a
-                            href={r.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary underline underline-offset-2"
-                          >
-                            Open link
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="secondary" onClick={() => handleOpenEditReferenceGuidelines(r)}>
-                          Edit guidelines
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Dialog
-        open={editRefOpen}
-        onOpenChange={(open) => {
-          setEditRefOpen(open);
-          if (!open) {
-            setEditRefId("");
-            setEditRefGuidelines("");
-            setEditRefLoadedFromVersion(null);
-          }
-        }}
-      >
-        <DialogContent className={CONTENT_STUDIO_DIALOG_WIDTH}>
-          <DialogHeader>
-            <DialogTitle>Edit Reference Guidelines</DialogTitle>
-            <DialogDescription>
-              Manual override. Keep this high-level and original (no quotes, no copied text).
-            </DialogDescription>
-          </DialogHeader>
-
-          {!editRef ? (
-            <div className="text-sm text-muted-foreground">No reference selected.</div>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid gap-2 md:grid-cols-2">
-                <div className="space-y-1">
-                  <div className="text-xs text-muted-foreground">Title</div>
-                  <div className="text-sm font-medium">{String(editRef.title || "")}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-xs text-muted-foreground">Last guidelines update</div>
-                  <div className="text-sm">
-                    {(editRef as any)?.guidelinesUpdatedAt
-                      ? new Date(Number((editRef as any).guidelinesUpdatedAt)).toLocaleString()
-                      : "—"}
-                    {(editRef as any)?.guidelinesProvider ? (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        • {String((editRef as any).guidelinesProvider)}
-                        {(editRef as any)?.guidelinesModel ? `/${String((editRef as any).guidelinesModel)}` : ""}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {typeof editRefLoadedFromVersion === "number" ? (
-                      <>
-                        <Badge variant="secondary">Loaded v{editRefLoadedFromVersion}</Badge>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          type="button"
-                          onClick={handleReloadCurrentGuidelinesIntoEditor}
-                          disabled={editRefSaving}
-                        >
-                          Back to current
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        Tip: Saving always creates a new version in history.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2 rounded border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium text-sm">PDF attachments</div>
-                  <Badge variant="secondary">
-                    {Array.isArray((editRef as any)?.pdfFiles) ? (editRef as any).pdfFiles.length : 0}
-                  </Badge>
-                </div>
-                <Input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setEditRefNewPdfFile(e.target.files?.[0] ?? null)}
-                  disabled={editRefPdfUploading}
-                />
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-xs text-muted-foreground">PDF max 25 MB.</div>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    type="button"
-                    onClick={handleAddPdfToReference}
-                    disabled={editRefPdfUploading || !editRefNewPdfFile}
-                  >
-                    {editRefPdfUploading ? "Uploading…" : "Add PDF"}
-                  </Button>
-                </div>
-
-                <div className="space-y-1">
-                  {Array.isArray((editRef as any)?.pdfFiles) && (editRef as any).pdfFiles.length > 0 ? (
-                    (editRef as any).pdfFiles.map((f: any, idx: number) => {
-                      const sid = String(f?.storageId || "");
-                      const url = Array.isArray((editRef as any)?.pdfDownloadUrls)
-                        ? String(((editRef as any).pdfDownloadUrls[idx] as any) || "")
-                        : "";
-                      return (
-                        <div key={sid || idx} className="flex items-center justify-between gap-2 text-xs">
-                          <div className="min-w-0">
-                            <div className="font-mono truncate">
-                              {String(f?.fileName || sid || "PDF").slice(0, 120)}
-                            </div>
-                            <div className="text-muted-foreground">
-                              {sid ? sid.slice(0, 16) : "—"}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {url ? (
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-primary underline underline-offset-2"
-                              >
-                                Open
-                              </a>
-                            ) : null}
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              type="button"
-                              onClick={() => handleRemovePdfFromReference(sid)}
-                              disabled={!sid || editRefPdfUploading}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-xs text-muted-foreground">No PDFs attached.</div>
-                  )}
-                </div>
-              </div>
-
-              <Textarea
-                value={editRefGuidelines}
-                onChange={(e) => setEditRefGuidelines(e.target.value)}
-                className="min-h-[360px] font-mono text-xs"
-                placeholder={[
-                  "- Use clear unit scaffolding (overview, vocab, grammar, dialogues, exercises).",
-                  "- Keep progression beginner-friendly (Unit N builds on Units < N).",
-                  "- Ensure variety across exercises and avoid repetitive stems.",
-                ].join("\n")}
-              />
-
-              <div className="space-y-2 rounded border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium text-sm">Guidelines history</div>
-                  <Badge variant="secondary">{Array.isArray(guidelineVersions) ? guidelineVersions.length : 0}</Badge>
-                </div>
-                <div className="max-h-[200px] overflow-auto rounded border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Version</TableHead>
-                        <TableHead>When</TableHead>
-                        <TableHead>Source</TableHead>
-                        <TableHead className="w-[180px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Array.isArray(guidelineVersions) && guidelineVersions.length > 0 ? (
-                        guidelineVersions.map((v: any) => (
-                          <TableRow key={v._id}>
-                            <TableCell className="font-mono">v{String(v.version)}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {typeof v.createdAt === "number" ? new Date(v.createdAt).toLocaleString() : "—"}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {String(v.provider || "—")}
-                              {v.model ? `/${String(v.model)}` : ""}
-                              {v.isManual ? " (manual)" : ""}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  type="button"
-                                  onClick={() => handleLoadGuidelinesVersionIntoEditor(Number(v.version))}
-                                  disabled={editRefSaving}
-                                >
-                                  Open
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  type="button"
-                                  onClick={() => handleRevertGuidelinesToVersion(Number(v.version))}
-                                  disabled={editRefSaving}
-                                >
-                                  Revert
-                                </Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      type="button"
-                                      disabled={editRefSaving}
-                                    >
-                                      Delete
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete guideline version v{String(v.version)}?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This permanently removes the selected history entry. The current guidelines remain unchanged.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel disabled={editRefSaving}>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction
-                                        disabled={editRefSaving}
-                                        onClick={() =>
-                                          handleDeleteGuidelinesVersion({
-                                            versionId: String(v._id),
-                                            version: Number(v.version),
-                                          })
-                                        }
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-sm text-muted-foreground">
-                            No history yet.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-2">
-                <Button
-                  variant="destructive"
-                  type="button"
-                  onClick={handleClearReferenceGuidelines}
-                  disabled={editRefSaving}
-                >
-                  Clear
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Button variant="secondary" type="button" onClick={() => setEditRefOpen(false)} disabled={editRefSaving}>
-                    Cancel
-                  </Button>
-                  <Button type="button" onClick={handleSaveReferenceGuidelines} disabled={editRefSaving}>
-                    {editRefSaving ? "Saving…" : "Save guidelines"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Draft Templates</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2 rounded border p-3">
-            <div className="font-medium">Create template (from current draft)</div>
-            <div className="text-xs text-muted-foreground">
-              Saves reference + skills + brief from the currently selected draft.
-            </div>
-            <Label>Template name</Label>
-            <Input value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)} placeholder="e.g. Unit template (café)" />
-            <Label>Description (optional)</Label>
-            <Input value={newTemplateDescription} onChange={(e) => setNewTemplateDescription(e.target.value)} placeholder="Short note for admins" />
-            <Button onClick={handleCreateTemplateFromSelectedDraft} disabled={!selectedDraftId}>
-              Save current draft as template
-            </Button>
-          </div>
-
-          <div className="space-y-2 rounded border p-3">
-            <div className="font-medium">Existing templates</div>
-            <div className="text-sm text-muted-foreground">{(draftTemplates || []).length ?? 0} templates</div>
-            <div className="max-h-[260px] overflow-auto rounded border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="w-[180px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(draftTemplates || []).length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-sm text-muted-foreground">
-                        No templates yet.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    (draftTemplates || []).map((t: any) => (
-                      <TableRow key={t._id}>
-                        <TableCell className="min-w-0">
-                          <div className="font-medium text-sm truncate">{String(t.name || "Untitled")}</div>
-                          {t.description ? (
-                            <div className="text-xs text-muted-foreground truncate">{String(t.description)}</div>
-                          ) : null}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="secondary" onClick={() => handleUseTemplate(t)}>
-                              Use
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => handleDeactivateTemplate(String(t._id))}>
-                              Deactivate
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Skills Library (by role)</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2 rounded border p-3">
-            <div className="font-medium">AI Skills Library (by role)</div>
-            <div className="text-xs text-muted-foreground">
-              These skills influence a specific AI role globally (Creator / Lector).
-            </div>
-            <Label>Role</Label>
-            <Select value={skillsStage} onValueChange={(v) => setSkillsStage(v as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="specialist">Creator</SelectItem>
-                <SelectItem value="auditor">Lector</SelectItem>
-              </SelectContent>
-            </Select>
-            <Label>Name</Label>
-            <Input value={newSkillName} onChange={(e) => setNewSkillName(e.target.value)} />
-            <Label>Prompt snippet (system)</Label>
-            <Textarea value={newSkillPrompt} onChange={(e) => setNewSkillPrompt(e.target.value)} className="min-h-[160px]" />
-            <div className="flex gap-2">
-              <Button onClick={handleCreateSkill}>{editSkillId ? "Update Skill" : "Create Skill"}</Button>
-              {editSkillId ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setEditSkillId("");
-                    setNewSkillName("");
-                    setNewSkillPrompt("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          <div className="space-y-2 rounded border p-3">
-            <div className="font-medium">Active skills (selected role)</div>
-            <div className="text-sm text-muted-foreground">{stageSkills?.length ?? 0} skills</div>
-            <div className="text-xs text-muted-foreground">
-              You can edit or deactivate a skill. Deactivated skills disappear from lists and won't be applied.
-            </div>
-            <div className="max-h-[260px] overflow-auto rounded border p-2">
-              {(stageSkills || []).length === 0 ? (
-                <div className="text-sm text-muted-foreground">No skills for this role yet.</div>
-              ) : (
-                <div className="space-y-2">
-                  {(stageSkills || []).map((s: any) => (
-                    <div key={s._id} className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-medium text-sm">{s.name}</div>
-                        <div className="text-xs text-muted-foreground break-words line-clamp-2">
-                          {String(s.prompt || "").slice(0, 220)}
-                        </div>
-                      </div>
-                      <div className="flex gap-2 shrink-0">
-                        <Button size="sm" variant="secondary" onClick={() => handleEditSkill(s)}>
-                          Edit
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleDeactivateSkill(String(s._id))}>
-                          Deactivate
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <SettingsSheet
+        settingsOpen={settingsOpen}
+        setSettingsOpen={setSettingsOpen}
+        settingsTab={settingsTab}
+        setSettingsTab={setSettingsTab}
+        cfgSpecialistProvider={cfgSpecialistProvider}
+        setCfgSpecialistProvider={setCfgSpecialistProvider}
+        cfgSpecialistModel={cfgSpecialistModel}
+        setCfgSpecialistModel={setCfgSpecialistModel}
+        cfgSpecialistCustom={cfgSpecialistCustom}
+        setCfgSpecialistCustom={setCfgSpecialistCustom}
+        cfgAuditorProvider={cfgAuditorProvider}
+        setCfgAuditorProvider={setCfgAuditorProvider}
+        cfgAuditorModel={cfgAuditorModel}
+        setCfgAuditorModel={setCfgAuditorModel}
+        cfgAuditorCustom={cfgAuditorCustom}
+        setCfgAuditorCustom={setCfgAuditorCustom}
+        onSaveModelConfig={handleSaveModelConfig}
+        skillsStage={skillsStage}
+        setSkillsStage={setSkillsStage}
+        stageSkills={stageSkills}
+        newSkillName={newSkillName}
+        setNewSkillName={setNewSkillName}
+        newSkillPrompt={newSkillPrompt}
+        setNewSkillPrompt={setNewSkillPrompt}
+        editSkillId={editSkillId}
+        setEditSkillId={setEditSkillId}
+        onCreateSkill={handleCreateSkill}
+        onEditSkill={handleEditSkill}
+        onDeactivateSkill={handleDeactivateSkill}
+        refs={refs}
+        newRefType={newRefType}
+        setNewRefType={setNewRefType}
+        newRefTitle={newRefTitle}
+        setNewRefTitle={setNewRefTitle}
+        newRefUrl={newRefUrl}
+        setNewRefUrl={setNewRefUrl}
+        newRefTags={newRefTags}
+        setNewRefTags={setNewRefTags}
+        newRefNotes={newRefNotes}
+        setNewRefNotes={setNewRefNotes}
+        newRefFile={newRefFile}
+        setNewRefFile={setNewRefFile}
+        newRefStorageId={newRefStorageId}
+        setNewRefStorageId={setNewRefStorageId}
+        newRefUploading={newRefUploading}
+        onCreateReference={handleCreateReference}
+        onUploadReferencePdf={handleUploadReferencePdf}
+        onOpenEditReferenceGuidelines={handleOpenEditReferenceGuidelines}
+        editRefOpen={editRefOpen}
+        setEditRefOpen={setEditRefOpen}
+        setEditRefId={setEditRefId}
+        editRef={editRef}
+        editRefGuidelines={editRefGuidelines}
+        setEditRefGuidelines={setEditRefGuidelines}
+        editRefLoadedFromVersion={editRefLoadedFromVersion}
+        setEditRefLoadedFromVersion={setEditRefLoadedFromVersion}
+        editRefSaving={editRefSaving}
+        editRefNewPdfFile={editRefNewPdfFile}
+        setEditRefNewPdfFile={setEditRefNewPdfFile}
+        editRefPdfUploading={editRefPdfUploading}
+        guidelineVersions={guidelineVersions}
+        onSaveReferenceGuidelines={handleSaveReferenceGuidelines}
+        onClearReferenceGuidelines={handleClearReferenceGuidelines}
+        onRevertGuidelinesToVersion={handleRevertGuidelinesToVersion}
+        onDeleteGuidelinesVersion={handleDeleteGuidelinesVersion}
+        onLoadGuidelinesVersionIntoEditor={handleLoadGuidelinesVersionIntoEditor}
+        onReloadCurrentGuidelinesIntoEditor={handleReloadCurrentGuidelinesIntoEditor}
+        onAddPdfToReference={handleAddPdfToReference}
+        onRemovePdfFromReference={handleRemovePdfFromReference}
+        draftTemplates={draftTemplates}
+        newTemplateName={newTemplateName}
+        setNewTemplateName={setNewTemplateName}
+        newTemplateDescription={newTemplateDescription}
+        setNewTemplateDescription={setNewTemplateDescription}
+        selectedDraftId={selectedDraftId}
+        onCreateTemplateFromSelectedDraft={handleCreateTemplateFromSelectedDraft}
+        onDeactivateTemplate={handleDeactivateTemplate}
+        onUseTemplate={handleUseTemplate}
+        promptPreviewSlot={<PromptPreview promptPreview={promptPreview as any} />}
+      />
 
       {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -3091,7 +2145,9 @@ export default function ContentStudioAdmin() {
           <div className="text-sm text-muted-foreground">
             {studioView === "drafts"
               ? "Draft \u2192 Generate \u2192 QA \u2192 Preview \u2192 Publish"
-              : "Manage all units across languages"}
+              : studioView === "import"
+                ? "Upload Markdown / JSON to import units"
+                : "Manage all units across languages"}
           </div>
         </div>
 
@@ -3106,6 +2162,14 @@ export default function ContentStudioAdmin() {
             >
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />
               Draft Studio
+            </Button>
+            <Button
+              variant={studioView === "import" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setStudioView("import")}
+            >
+              Quick Import
             </Button>
             <Button
               variant={studioView === "units" ? "default" : "ghost"}
@@ -3239,6 +2303,9 @@ export default function ContentStudioAdmin() {
         </DialogContent>
       </Dialog>
 
+      {/* Import view */}
+      {studioView === "import" && <ImportTab />}
+
       {/* Unit Manager view */}
       {studioView === "units" && (
         <UnitManagerTab
@@ -3249,1541 +2316,284 @@ export default function ContentStudioAdmin() {
         />
       )}
 
-      {/* Draft Studio view (original layout) */}
-      {studioView === "drafts" && <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Metrics</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
-            <div className="rounded border p-3">
-              <div className="text-xs text-muted-foreground">QC pass rate (last window)</div>
-              <div className="mt-1 text-2xl font-bold tabular-nums">
-                {typeof (studioMetrics as any)?.qc?.rate === "number"
-                  ? `${Math.round(Number((studioMetrics as any).qc.rate) * 100)}%`
-                  : "—"}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {String((studioMetrics as any)?.qc?.pass ?? "—")} / {String((studioMetrics as any)?.qc?.denom ?? "—")}
-              </div>
-            </div>
+      {/* Draft Studio view */}
+      {studioView === "drafts" && (() => {
+        const draftListContent = (
+          <DraftList
+            drafts={drafts}
+            filteredDrafts={filteredDrafts}
+            selectedDraftId={selectedDraftId}
+            onSelectDraft={(id) => { handleSelectDraft(id); setMobileSidebarOpen(false); }}
+            draftsSearch={draftsSearch}
+            setDraftsSearch={setDraftsSearch}
+            draftsStatusFilter={draftsStatusFilter}
+            setDraftsStatusFilter={setDraftsStatusFilter}
+            batchSelectedDraftIds={batchSelectedDraftIds}
+            toggleBatchSelectDraft={toggleBatchSelectDraft}
+            selectAllFilteredDrafts={selectAllFilteredDrafts}
+            clearBatchSelection={clearBatchSelection}
+            batchRunning={batchRunning}
+            batchProgress={batchProgress}
+            batchResults={batchResults}
+            isBusy={isBusy}
+            onRunBatch={runBatch}
+          />
+        );
 
-            <div className="rounded border p-3">
-              <div className="text-xs text-muted-foreground">Avg revisions per draft</div>
-              <div className="mt-1 text-2xl font-bold tabular-nums">
-                {typeof (studioMetrics as any)?.revisions?.avg === "number"
-                  ? Number((studioMetrics as any).revisions.avg).toFixed(2)
-                  : "—"}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Based on {String((studioMetrics as any)?.revisions?.withSnapshots ?? "—")} drafts with snapshots
-              </div>
-            </div>
+        const inspectorContent = selectedDraftId && selected?.draft ? (
+          <InspectorPanel
+            activeStep={activeInspectorStep}
+            selected={selected}
+            selectedDraftId={selectedDraftId}
+            isBusy={isBusy}
+            draftEditTitle={draftEditTitle}
+            setDraftEditTitle={setDraftEditTitle}
+            draftEditDescription={draftEditDescription}
+            setDraftEditDescription={setDraftEditDescription}
+            draftAuthorNoteName={draftAuthorNoteName}
+            setDraftAuthorNoteName={setDraftAuthorNoteName}
+            draftAuthorNoteQuote={draftAuthorNoteQuote}
+            setDraftAuthorNoteQuote={setDraftAuthorNoteQuote}
+            onFounderQuoteBlur={handleFounderQuoteBlur}
+            draftRefId={draftRefId}
+            setDraftRefId={setDraftRefId}
+            draftRefNotes={draftRefNotes}
+            setDraftRefNotes={setDraftRefNotes}
+            draftRefChapter={draftRefChapter}
+            setDraftRefChapter={setDraftRefChapter}
+            draftRefPages={draftRefPages}
+            setDraftRefPages={setDraftRefPages}
+            refs={refs}
+            specialistSkills={specialistSkills}
+            auditorSkills={auditorSkills}
+            draftSpecialistSkillIds={draftSpecialistSkillIds}
+            setDraftSpecialistSkillIds={setDraftSpecialistSkillIds}
+            draftAuditorSkillIds={draftAuditorSkillIds}
+            setDraftAuditorSkillIds={setDraftAuditorSkillIds}
+            onSaveDraftSkillsAndReference={handleSaveDraftSkillsAndReference}
+            hasUnsavedChanges={hasUnsavedChanges}
+            metaAutosaveStatus={metaAutosaveStatus}
+            metaAutosavedAt={metaAutosavedAt}
+            runningCreator={runningCreator}
+            runningValidator={runningValidator}
+            runningCreateValidate={runningCreateValidate}
+            progressPercent={progressPercent}
+            progressMessage={progressMessage}
+            elapsedSeconds={elapsedSeconds}
+            currentTaskLabel={currentTaskLabel}
+            onGenerate={handleGenerate}
+            onRunSpecialist={handleRunSpecialist}
+            onRunValidate={handleRunValidate}
+            findings={findings}
+            errorFindings={errorFindings}
+            warningFindings={warningFindings}
+            latestReport={latestReport}
+            runningRevise={runningRevise}
+            runningLector={runningLector}
+            runningSectionRevise={runningSectionRevise}
+            fixHumanNotes={fixHumanNotes}
+            setFixHumanNotes={setFixHumanNotes}
+            expandSection={expandSection}
+            setExpandSection={setExpandSection}
+            expandInstruction={expandInstruction}
+            setExpandInstruction={setExpandInstruction}
+            canRunLector={canRunLector}
+            onRunRevise={handleRunRevise}
+            onRunAuditor={handleRunAuditor}
+            onSectionRevise={handleSectionRevise}
+            onDismissFinding={(p) => dismissFinding({ findingId: p.findingId, dismissed: p.dismissed })}
+            runningPublish={runningPublish}
+            runningTranslateDe={runningTranslateDe}
+            runningApprovePreview={runningApprovePreview}
+            publishMode={publishMode}
+            setPublishMode={setPublishMode}
+            publishModuleId={publishModuleId}
+            setPublishModuleId={setPublishModuleId}
+            modules={modules}
+            canPublishLive={canPublishLive}
+            approvedMarkdown={approvedMarkdown}
+            translateDeOpen={translateDeOpen}
+            setTranslateDeOpen={setTranslateDeOpen}
+            translateDeConfirmation={translateDeConfirmation}
+            setTranslateDeConfirmation={setTranslateDeConfirmation}
+            translateDePreview={translateDePreview}
+            onPublishToPreview={handlePublishToPreview}
+            onTakePreviewOffline={handleTakePreviewOffline}
+            onApprovePreview={handleApprovePreview}
+            onDownloadApprovedMarkdown={handleDownloadApprovedMarkdown}
+            onPublish={handlePublish}
+            onTranslatePublishedToGerman={handleTranslatePublishedToGerman}
+            deleteUnitOpen={deleteUnitOpen}
+            setDeleteUnitOpen={setDeleteUnitOpen}
+            deleteConfirmation={deleteConfirmation}
+            setDeleteConfirmation={setDeleteConfirmation}
+            onDeleteUnit={handleDeleteUnit}
+            onDeleteSelectedDraft={handleDeleteSelectedDraft}
+            showDeleteDraftDialog={showDeleteDraftDialog}
+            setShowDeleteDraftDialog={setShowDeleteDraftDialog}
+            onConfirmDeleteDraft={handleConfirmDeleteDraft}
+            cfgSpecialistProvider={cfgSpecialistProvider}
+          />
+        ) : null;
 
-            <div className="rounded border p-3">
-              <div className="text-xs text-muted-foreground">Drafts by status</div>
-              <div className="mt-2 space-y-1 text-xs">
-                {(["draft", "qc_failed", "qc_passed", "audit_failed", "ready_to_publish", "published"] as const).map(
-                  (s) => (
-                    <div key={s} className="flex items-center justify-between">
-                      <span className="text-muted-foreground">{s}</span>
-                      <span className="font-mono tabular-nums">{String((studioMetrics as any)?.statuses?.[s] ?? 0)}</span>
-                    </div>
-                  )
-                )}
+        return (
+        <div className="flex flex-col lg:flex-row gap-0 h-[calc(100vh-8rem)] border rounded-lg overflow-hidden bg-background">
+          {/* Mobile Sidebar Sheet */}
+          <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+            <SheetContent side="left" className="w-[300px] p-0 lg:hidden">
+              <div className="flex flex-col h-full overflow-hidden pt-8">
+                {draftListContent}
               </div>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Window: {String((studioMetrics as any)?.windowDrafts ?? "—")} drafts
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </SheetContent>
+          </Sheet>
 
-        {/* Left pane: Drafts */}
-        <Card className="h-fit">
-          <CardHeader className="gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle>Drafts</CardTitle>
-              <Badge variant="secondary">{drafts?.length ?? 0}</Badge>
-            </div>
-            <div className="grid gap-2">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={draftsSearch}
-                  onChange={(e) => setDraftsSearch(e.target.value)}
-                  className="pl-8"
-                  placeholder="Search (title, U#, M#)"
-                />
+          {/* Mobile Inspector Sheet */}
+          <Sheet open={mobileInspectorOpen} onOpenChange={setMobileInspectorOpen}>
+            <SheetContent side="right" className="w-[340px] p-0 lg:hidden">
+              <div className="flex flex-col h-full overflow-y-auto pt-8">
+                {inspectorContent}
               </div>
-              <Select value={draftsStatusFilter} onValueChange={(v) => setDraftsStatusFilter(v as any)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="qc_failed">Validator failed</SelectItem>
-                  <SelectItem value="qc_passed">Validated</SelectItem>
-                  <SelectItem value="audit_failed">Lector flagged issues</SelectItem>
-                  <SelectItem value="ready_to_publish">Ready to publish</SelectItem>
-                  <SelectItem value="published">Published</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between gap-2 pb-3">
-              <div className="text-xs text-muted-foreground">
-                Batch select: <span className="font-medium">{batchSelectedDraftIds.length}</span> selected
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  type="button"
-                  onClick={selectAllFilteredDrafts}
-                  disabled={batchRunning || filteredDrafts.length === 0}
-                >
-                  Select filtered
-                </Button>
+            </SheetContent>
+          </Sheet>
+
+          {/* Zone 1: Sidebar (desktop only) */}
+          <div className="hidden lg:flex w-[260px] shrink-0 border-r flex-col overflow-hidden">
+            {draftListContent}
+          </div>
+
+          {/* Zone 2: Central Workspace */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {!selectedDraftId || !selected?.draft ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm">
+                <span>Select a draft from the sidebar or create a new one.</span>
                 <Button
                   size="sm"
                   variant="outline"
-                  type="button"
-                  onClick={clearBatchSelection}
-                  disabled={batchRunning || (batchSelectedDraftIds.length === 0 && batchResults.length === 0)}
+                  className="lg:hidden"
+                  onClick={() => setMobileSidebarOpen(true)}
                 >
-                  Clear
+                  <PanelLeft className="h-4 w-4 mr-2" />
+                  Open Drafts
                 </Button>
               </div>
-            </div>
-
-            {batchSelectedDraftIds.length > 0 ? (
-              <div className="mb-3 space-y-2 rounded border p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-medium">Batch actions</div>
-                  <Badge variant="secondary">{batchSelectedDraftIds.length} drafts</Badge>
+            ) : (
+              <>
+                {/* Workspace Header */}
+                <div className="px-3 lg:px-4 py-2 border-b bg-muted/20 flex items-center justify-between gap-2 shrink-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0 lg:hidden"
+                      onClick={() => setMobileSidebarOpen(true)}
+                    >
+                      <PanelLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="font-semibold text-sm truncate">
+                      U{selected.draft.unitNumber}: {selected.draft.title}
+                    </span>
+                    <DraftStatusBadge status={selected.draft.status} />
+                    {hasUnsavedChanges && <Badge variant="secondary" className="text-[10px]">Unsaved</Badge>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button size="sm" variant="secondary" onClick={handleSaveDraftSkillsAndReference} disabled={!selectedDraftId || isBusy}>
+                      Save
+                    </Button>
+                    {inspectorContent && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0 lg:hidden"
+                        onClick={() => setMobileInspectorOpen(true)}
+                      >
+                        <PanelRight className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => void runBatch("generate")} disabled={batchRunning || isBusy}>
-                    Batch Generate
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void runBatch("validate")}
-                    disabled={batchRunning || isBusy}
-                  >
-                    Batch Validate
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void runBatch("preview")}
-                    disabled={batchRunning || isBusy}
-                  >
-                    Batch Publish to Preview
-                  </Button>
-                </div>
-
-                {batchProgress ? (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{batchProgress.label}</span>
-                      <span className="tabular-nums">
-                        {batchProgress.current}/{batchProgress.total}
-                      </span>
-                    </div>
-                    <Progress value={Math.round((batchProgress.current / Math.max(1, batchProgress.total)) * 100)} />
-                  </div>
-                ) : null}
-
-                {batchResults.length > 0 ? (
-                  <div className="max-h-[160px] overflow-auto rounded border p-2 text-xs">
-                    <div className="space-y-1">
-                      {batchResults
-                        .slice()
-                        .reverse()
-                        .slice(0, 20)
-                        .map((r, idx) => (
-                          <div key={idx} className="flex items-start justify-between gap-2">
-                            <span className="font-mono text-muted-foreground">{String(r.draftId).slice(0, 8)}</span>
-                            <span className="text-muted-foreground">{r.action}</span>
-                            <span className={r.status === "success" ? "text-emerald-600" : "text-red-600"}>
-                              {r.status}
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                              {r.message ? String(r.message) : ""}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <ScrollArea className="max-h-[560px] pr-2">
-              <div className="space-y-2">
-                {drafts === undefined ? (
-                  <div className="text-sm text-muted-foreground">Loading drafts…</div>
-                ) : filteredDrafts.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">No drafts found.</div>
-                ) : (
-                  filteredDrafts.map((d: any) => {
-                    const isSelected = selectedDraftId === d._id;
-                    const isBatchSelected = batchSelectedDraftIds.includes(String(d._id));
+                {/* 4-Step Stepper */}
+                <div className="px-3 lg:px-4 py-2 border-b flex items-center gap-1 shrink-0 overflow-x-auto">
+                  {(["setup", "generate", "review", "publish"] as InspectorStep[]).map((step, idx) => {
+                    const isActive = step === activeInspectorStep;
+                    const stepLabels: Record<InspectorStep, string> = {
+                      setup: "1. Setup",
+                      generate: "2. Generate",
+                      review: "3. Review",
+                      publish: "4. Publish",
+                    };
                     return (
-                      <div key={d._id} className="flex items-start gap-2">
-                        <div className="pt-2">
-                          <Checkbox
-                            checked={isBatchSelected}
-                            onCheckedChange={(checked) => toggleBatchSelectDraft(String(d._id), Boolean(checked))}
-                            disabled={batchRunning}
-                          />
-                        </div>
+                      <Fragment key={step}>
+                        {idx > 0 && <span className="text-muted-foreground/40 mx-1 hidden sm:inline">{"\u2192"}</span>}
                         <button
-                          type="button"
-                          onClick={() => handleSelectDraft(d._id)}
                           className={cn(
-                            "flex-1 w-full text-left rounded-lg border px-3 py-2 transition-colors",
-                            isSelected
-                              ? "border-accent bg-accent/20"
-                              : "hover:bg-muted/40"
+                            "px-2 sm:px-3 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
+                            isActive
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted"
                           )}
+                          onClick={() => setActiveInspectorStep(step)}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-medium truncate">
-                                {`U${d.unitNumber} — ${String(d.title || "").trim() || "Untitled"}`}
-                              </div>
-                              <div className="text-xs text-muted-foreground">{`Module M${d.moduleNumber}`}</div>
-                            </div>
-                            {renderDraftStatusPill(String(d.status || "draft"))}
-                          </div>
+                          {stepLabels[step]}
                         </button>
-                      </div>
+                      </Fragment>
                     );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        {/* Middle pane: Workspace */}
-        <div className="space-y-6">
-          {!selectedDraftId || !selected?.draft ? (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Select a draft</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  Choose a draft on the left or create a new one.
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Translate existing published Unit (EN → DE)</CardTitle>
-                  <CardDescription>
-                    For units that already exist in the database (even without a ContentStudio draft).
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid gap-3 md:grid-cols-[200px_1fr] items-end">
-                    <div className="space-y-2">
-                      <Label>English Unit</Label>
-                      <Select
-                        value={translateAnyUnitNumber}
-                        onValueChange={(v) => {
-                          setTranslateAnyUnitNumber(v);
-                          setTranslateAnyConfirmation("");
-                        }}
-                        disabled={!publishedEnglishUnits || (publishedEnglishUnits as any[]).length === 0}
-                      >
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={
-                              publishedEnglishUnits === undefined
-                                ? "Loading units…"
-                                : (publishedEnglishUnits as any[]).length === 0
-                                  ? "No published EN units found"
-                                  : "Select a unit"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(publishedEnglishUnits || []).map((u: any) => (
-                            <SelectItem key={String(u.unitNumber)} value={String(u.unitNumber)}>
-                              {`Unit ${u.unitNumber}: ${String(u.title || "").trim()}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex gap-2">
-                      <AlertDialog open={translateAnyOpen} onOpenChange={setTranslateAnyOpen}>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" disabled={isBusy || runningTranslateDe || !translateAnyUnitNumberParsed}>
-                            {runningTranslateDe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Preview & Translate
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Translate published content to German?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This translates the <b>published English</b> unit content into <b>German</b> and writes it as a <b>Preview</b> release
-                              (<code>releaseStatus="preview"</code>). Published content stays untouched.
-                              Serbian text and answers are preserved. Preview test <code>questionId</code>s are suffixed to avoid collisions.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-
-                          <div className="rounded border p-3 text-xs space-y-2">
-                            {translateAnyPreview === undefined ? (
-                              <div className="text-muted-foreground">Loading preview…</div>
-                            ) : !(translateAnyPreview as any)?.sourceEn?.exists ? (
-                              <div className="text-destructive">
-                                No published EN source found for this unit. Publish the unit live first (EN), then translate.
-                              </div>
-                            ) : (
-                              <>
-                                <div className="font-medium">
-                                  Source (EN): {(translateAnyPreview as any)?.sourceEn?.title || `Unit ${translateAnyUnitNumberParsed}`}
-                                </div>
-                                <div className="text-muted-foreground">
-                                  Sections: {((translateAnyPreview as any)?.sourceEn?.contentSections || []).length} · Tests:{" "}
-                                  {(translateAnyPreview as any)?.sourceEn?.tests?.count ?? 0} (v{(translateAnyPreview as any)?.sourceEn?.tests?.unitVersion ?? 1}) ·
-                                  Vocabulary: {(translateAnyPreview as any)?.sourceEn?.vocabulary?.count ?? 0}
-                                </div>
-                                {Array.isArray((translateAnyPreview as any)?.warnings) && (translateAnyPreview as any).warnings.length > 0 ? (
-                                  <div className="space-y-1">
-                                    <div className="font-medium">Warnings</div>
-                                    <ul className="list-disc pl-5 space-y-0.5">
-                                      {(translateAnyPreview as any).warnings.slice(0, 6).map((w: any, idx: number) => (
-                                        <li key={idx} className="text-muted-foreground">
-                                          {String(w)}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                ) : null}
-                                <div className="text-muted-foreground">
-                                  Existing DE: metadata (published {(translateAnyPreview as any)?.existingDe?.metadata?.published ?? 0}, preview{" "}
-                                  {(translateAnyPreview as any)?.existingDe?.metadata?.preview ?? 0}) · content rows{" "}
-                                  {(translateAnyPreview as any)?.existingDe?.content?.publishedActiveCount ?? 0} · test rows{" "}
-                                  {(translateAnyPreview as any)?.existingDe?.tests?.publishedActiveCount ?? 0}
-                                </div>
-                              </>
-                            )}
-                          </div>
-
-                          <div className="py-2 space-y-2">
-                            <Label>
-                              Type {translateAnyUnitNumberParsed ? `"TRANSLATE UNIT ${translateAnyUnitNumberParsed} TO DE"` : "the confirmation text"} to confirm:
-                            </Label>
-                            <Input
-                              value={translateAnyConfirmation}
-                              onChange={(e) => setTranslateAnyConfirmation(e.target.value)}
-                              placeholder={translateAnyUnitNumberParsed ? `TRANSLATE UNIT ${translateAnyUnitNumberParsed} TO DE` : "TRANSLATE UNIT <N> TO DE"}
-                            />
-                          </div>
-
-                          <AlertDialogFooter>
-                            <AlertDialogCancel disabled={runningTranslateDe}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={handleTranslateAnyUnitToGerman}
-                              disabled={
-                                runningTranslateDe ||
-                                !translateAnyUnitNumberParsed ||
-                                translateAnyConfirmation !== `TRANSLATE UNIT ${translateAnyUnitNumberParsed} TO DE` ||
-                                !(translateAnyPreview as any)?.sourceEn?.exists
-                              }
-                            >
-                              Translate & Save
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-
-                      <Button
-                        variant="outline"
-                        onClick={handleTakeUnitPreviewOfflineForAny}
-                        disabled={isBusy || runningTranslateDe || runningPublish || !translateAnyUnitNumberParsed}
-                      >
-                        Take Preview Offline
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Tip: This is the right tool for units that were imported/migrated outside ContentStudio and therefore don't appear as drafts.
-                  </div>
-
-                  {/* ===== DE Translation Preview Status (persists after translate) ===== */}
-                  {translateDeResult && (
-                    <div className="rounded-lg border border-accent bg-accent/10 p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium text-sm">
-                          DE Preview active: Unit {translateDeResult.unitNumber}
-                          {translateDeResult.previewVersion ? ` (v${translateDeResult.previewVersion})` : ""}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(translateDeResult.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-
-                      <div className="text-xs text-muted-foreground">
-                        The German translation was written as <code>releaseStatus="preview"</code>.
-                        Published EN content is untouched. Review the preview, then approve or discard.
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => {
-                            window.open(`/unit/${translateDeResult.unitNumber}?lang=de`, "_blank", "noopener,noreferrer");
-                          }}
-                        >
-                          Open DE Preview
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={handlePublishDeTranslationLive}
-                          disabled={isBusy || runningTranslateDe}
-                        >
-                          {runningTranslateDe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Publish DE Live
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-                            await handleTakeUnitPreviewOfflineForAny();
-                            setTranslateDeResult(null);
-                          }}
-                          disabled={isBusy || runningTranslateDe || runningPublish}
-                        >
-                          Take Preview Offline
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setTranslateDeResult(null)}
-                        >
-                          Dismiss
-                        </Button>
-                      </div>
-
-                      <div className="text-xs text-muted-foreground">
-                        To re-translate: select the unit above and click "Preview & Translate" again. Previous preview rows are archived automatically.
-                      </div>
-                    </div>
+                  })}
+                  {isBusy && (
+                    <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span className="hidden sm:inline">{currentTaskLabel}</span>
+                    </span>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+
+                {/* Artifacts Panel (takes remaining height) */}
+                <div className="flex-1 overflow-auto">
+                  <ArtifactsPanel
+                    selected={selected}
+                    selectedDraftId={selectedDraftId}
+                    isBusy={isBusy}
+                    runningPublish={runningPublish}
+                    markdownText={markdownText}
+                    setMarkdownText={setMarkdownText}
+                    markdownDirty={markdownDirty}
+                    restoreMarkdownText={restoreMarkdownText}
+                    setRestoreMarkdownText={setRestoreMarkdownText}
+                    setRestoreMarkdownUpdatedAt={setRestoreMarkdownUpdatedAt}
+                    restoreMarkdownUpdatedAt={restoreMarkdownUpdatedAt}
+                    markdownLocalStorageKey={markdownLocalStorageKey}
+                    unitPackageJson={unitPackageJson}
+                    setUnitPackageJson={setUnitPackageJson}
+                    preview={preview}
+                    draftSnapshots={draftSnapshots}
+                    diffLeftSnapshotId={diffLeftSnapshotId}
+                    setDiffLeftSnapshotId={setDiffLeftSnapshotId}
+                    diffRightSnapshotId={diffRightSnapshotId}
+                    setDiffRightSnapshotId={setDiffRightSnapshotId}
+                    diffRows={diffRows}
+                    onSaveMarkdown={handleSaveMarkdown}
+                    onSaveAndPublishToPreview={handleSaveAndPublishToPreview}
+                    onCopyMarkdown={handleCopyMarkdown}
+                    onDownloadMarkdown={handleDownloadMarkdown}
+                    onLoadMarkdownFromSnapshot={handleLoadMarkdownFromSnapshot}
+                    onLoadFromSnapshot={handleLoadFromSnapshot}
+                    onSaveJson={handleSaveJson}
+                    t={t}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Zone 3: Inspector (desktop only) */}
+          {inspectorContent && (
+            <div className="hidden lg:flex w-[320px] shrink-0 border-l flex-col overflow-hidden">
+              {inspectorContent}
             </div>
-          ) : (
-            <>
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <CardTitle className="truncate">
-                        Workflow
-                      </CardTitle>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>
-                          Draft U{selected.draft.unitNumber}: {selected.draft.title}
-                        </span>
-                        <span className="text-muted-foreground/40">•</span>
-                        <span>Module M{selected.draft.moduleNumber}</span>
-                        <span className="text-muted-foreground/40">•</span>
-                        <span>
-                          Next: <span className="font-medium text-foreground">{nextStepLabel}</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      {statusBadge}
-                      {hasUnsavedChanges ? <Badge variant="secondary">Unsaved changes</Badge> : null}
-                      {metaAutosaveStatus === "saving" ? (
-                        <span className="text-xs text-muted-foreground">Autosaving…</span>
-                      ) : metaAutosaveStatus === "error" ? (
-                        <span className="text-xs text-red-600 dark:text-red-400">Autosave failed</span>
-                      ) : metaAutosavedAt ? (
-                        <span className="text-xs text-muted-foreground">
-                          Autosaved {new Date(metaAutosavedAt).toLocaleTimeString()}
-                        </span>
-                      ) : null}
-                      <Button
-                        variant="secondary"
-                        onClick={handleSaveDraftSkillsAndReference}
-                        disabled={!selectedDraftId || isBusy}
-                      >
-                        Save Draft
-                      </Button>
-                      <Button variant="destructive" onClick={handleDeleteSelectedDraft} disabled={isBusy}>
-                        Delete Draft
-                      </Button>
-                      <AlertDialog open={showDeleteDraftDialog} onOpenChange={setShowDeleteDraftDialog}>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Draft?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will permanently delete this draft including all snapshots and findings. This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={handleConfirmDeleteDraft}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Delete Draft
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="text-sm text-muted-foreground">
-                      Guided flow
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Next step:</span>{" "}
-                      <span className="font-medium">{nextStepLabel}</span>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <div className="flex items-center gap-3 min-w-max py-1">
-                      {[
-                        { id: "setup" as const, label: "Setup" },
-                        { id: "generate" as const, label: "Generate" },
-                        { id: "qa" as const, label: "QA" },
-                        { id: "preview" as const, label: "Preview" },
-                        { id: "publish" as const, label: "Publish" },
-                      ].map((s, idx, arr) => {
-                        const isComplete = idx < activeStepIndex;
-                        const isActive = idx === activeStepIndex;
-                        const connectorClass =
-                          idx < activeStepIndex
-                            ? "bg-emerald-300 dark:bg-emerald-700"
-                            : idx === activeStepIndex
-                              ? "bg-accent"
-                              : "bg-border";
-
-                        return (
-                          <div key={s.id} className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div
-                                className={cn(
-                                  "h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold border shrink-0",
-                                  isComplete
-                                    ? "bg-emerald-600 text-white border-emerald-600"
-                                    : isActive
-                                      ? "bg-accent text-accent-foreground border-accent"
-                                      : "bg-muted text-muted-foreground border-border"
-                                )}
-                                aria-label={s.label}
-                                title={s.label}
-                              >
-                                {isComplete ? <CheckCircle className="h-4 w-4" /> : idx + 1}
-                              </div>
-                              <div className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>
-                                {s.label}
-                                {isActive ? (
-                                  <span className="ml-2 text-[11px] text-muted-foreground font-normal">(current)</span>
-                                ) : null}
-                              </div>
-                            </div>
-
-                            {idx < arr.length - 1 ? (
-                              <div className={cn("h-px w-10 rounded", connectorClass)} />
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-3">
-                    {isBusy ? (
-                      <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 p-3 space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium text-blue-700 dark:text-blue-300">
-                            {progressMessage || currentTaskLabel}
-                          </span>
-                          <span className="text-blue-600 dark:text-blue-400 tabular-nums">
-                            {progressPercent != null ? `${Math.max(0, Math.min(100, progressPercent))}% • ` : ""}
-                            {elapsedSeconds}s
-                          </span>
-                        </div>
-                        {progressPercent != null ? (
-                          <Progress value={Math.max(0, Math.min(100, progressPercent))} />
-                        ) : (
-                          <div className="relative h-2 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-900">
-                            <div className="absolute h-full w-1/3 bg-blue-500 animate-[progress-indeterminate_1.5s_ease-in-out_infinite]" />
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        Primary path: Generate (Creator → Validator → Lector). Then Preview → Approve → Publish.
-                      </div>
-                    )}
-
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <Button onClick={handleGenerate} disabled={isBusy || !selectedDraftId}>
-                        {runningCreateValidate ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="mr-2 h-4 w-4" />
-                        )}
-                        {runningCreateValidate ? "Generating…" : "Generate (auto)"}
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        disabled={isBusy || !selectedDraftId || (nextStepKey === "publish" && !canPublishLive)}
-                        onClick={() => {
-                          if (nextStepKey === "creator") return void handleRunSpecialist();
-                          if (nextStepKey === "validator") return void handleRunValidate();
-                          if (nextStepKey === "lector") return void handleRunAuditor();
-                          if (nextStepKey === "preview") return void handlePublishToPreview();
-                          if (nextStepKey === "publish") return void handlePublish();
-                        }}
-                      >
-                        Run next step: {nextStepLabel}
-                      </Button>
-                    </div>
-
-                    <Accordion type="single" collapsible defaultValue="setup" className="w-full">
-                      <AccordionItem value="setup">
-                        <AccordionTrigger>Setup</AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-4 pt-2">
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label>Title</Label>
-                                <Input
-                                  value={draftEditTitle}
-                                  onChange={(e) => setDraftEditTitle(e.target.value)}
-                                  placeholder="Unit title (shown in the app)"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Unit description (1 short sentence)</Label>
-                                <Input
-                                  value={draftEditDescription}
-                                  onChange={(e) => setDraftEditDescription(e.target.value)}
-                                  placeholder="This becomes **Description:** in the unit header (max ~120 chars)."
-                                />
-                                <div className="text-xs text-muted-foreground">
-                                  This becomes <span className="font-mono">**Description:** ...</span> in the generated unit header.
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label>Unit author name (optional)</Label>
-                                <Input
-                                  value={draftAuthorNoteName}
-                                  onChange={(e) => setDraftAuthorNoteName(e.target.value)}
-                                  onBlur={() => {
-                                    const name = String(draftAuthorNoteName || "").trim();
-                                    const quote = String(draftAuthorNoteQuote || "").trim();
-                                    if (name && quote) maybeApplyFounderNoteToMarkdown(name, quote);
-                                  }}
-                                  placeholder="Shown in the unit (e.g., 'Jacksenn')"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Founder quote (optional, will be English in the unit)</Label>
-                                <Input
-                                  value={draftAuthorNoteQuote}
-                                  onChange={(e) => setDraftAuthorNoteQuote(e.target.value)}
-                                  onBlur={() => void handleFounderQuoteBlur()}
-                                  placeholder='You can type German; it will be translated to English automatically (e.g., "Don’t aim for perfect—aim for clear.")'
-                                />
-                              </div>
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              The note is injected automatically (Creator/Validator/Editor) and will be persisted on the next snapshot/save.
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>Creator Brief</Label>
-                              <Textarea
-                                value={draftRefNotes}
-                                onChange={(e) => setDraftRefNotes(e.target.value)}
-                                placeholder="Prerequisites, new vocab, scenes..."
-                                className="min-h-[90px]"
-                              />
-                              <div className="grid gap-3 md:grid-cols-2">
-                                <div className="space-y-2">
-                                  <Label>Reference (optional)</Label>
-                                  <Select
-                                    value={draftRefId ? draftRefId : "none"}
-                                    onValueChange={(v) => setDraftRefId(v === "none" ? "" : String(v))}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select reference" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="none">None</SelectItem>
-                                      {(refs || []).map((r: any) => (
-                                        <SelectItem key={r._id} value={String(r._id)}>
-                                          {String(r.title || "Untitled")}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <div className="text-xs text-muted-foreground">
-                                    If selected, the PDF is distilled into high-level guidelines (no quotes) and used as inspiration for unit structure and question-writing.
-                                  </div>
-                                </div>
-
-                                <div className="grid gap-3 grid-cols-2">
-                                  <div className="space-y-2">
-                                    <Label>Chapter</Label>
-                                    <Input
-                                      value={draftRefChapter}
-                                      onChange={(e) => setDraftRefChapter(e.target.value)}
-                                      placeholder="e.g. 3"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>Pages</Label>
-                                    <Input
-                                      value={draftRefPages}
-                                      onChange={(e) => setDraftRefPages(e.target.value)}
-                                      placeholder="e.g. 12-15"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-between gap-2 text-xs bg-muted/30 rounded px-3 py-2">
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-                                  <span>{(specialistSkills || []).length + (auditorSkills || []).length} AI skills auto-applied</span>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="link"
-                                  size="sm"
-                                  className="h-auto p-0 text-xs"
-                                  onClick={() => {
-                                    setSettingsTab("libraries");
-                                    setSettingsOpen(true);
-                                  }}
-                                >
-                                  Settings
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="text-xs text-muted-foreground">
-                              Note: Unit number (U{selected.draft.unitNumber}) and module number (M{selected.draft.moduleNumber}) are fixed for this draft.
-                            </div>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-
-                      <AccordionItem value="edit">
-                        <AccordionTrigger>Edit Content</AccordionTrigger>
-                        <AccordionContent>
-                          <div className="space-y-3 pt-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <Label className="text-sm">Target section</Label>
-                              <select
-                                className="rounded border bg-background px-2 py-1.5 text-sm"
-                                value={expandSection}
-                                onChange={(e) => setExpandSection(e.target.value as SectionId)}
-                              >
-                                {SECTION_OPTIONS.map((opt) => (
-                                  <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <Textarea
-                              value={expandInstruction}
-                              onChange={(e) => setExpandInstruction(e.target.value)}
-                              placeholder="Describe what you want to change…"
-                              className="min-h-[110px]"
-                            />
-                            <Button
-                              className="w-full"
-                              onClick={handleSectionRevise}
-                              disabled={isBusy || !selectedDraftId || !expandInstruction.trim()}
-                            >
-                              {runningSectionRevise ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Sparkles className="mr-2 h-4 w-4" />
-                              )}
-                              {runningSectionRevise ? "Applying…" : "Apply Changes"}
-                            </Button>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-
-                      <AccordionItem value="advanced">
-                        <AccordionTrigger>Advanced</AccordionTrigger>
-                        <AccordionContent>
-                          <div className="grid gap-2 pt-2">
-                            <Button variant="outline" onClick={handleRunSpecialist} disabled={isBusy || !selectedDraftId}>
-                              Run Creator
-                            </Button>
-                            <Button variant="outline" onClick={handleRunValidate} disabled={isBusy || !selectedDraftId}>
-                              Run Validator
-                            </Button>
-                            <Button variant="outline" onClick={handleRunAuditor} disabled={isBusy || !selectedDraftId || !canRunLector}>
-                              Run Lector
-                            </Button>
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle>Artifacts</CardTitle>
-                    {(selected as any)?.snapshot?.createdAt ? (
-                      <span className="text-xs text-muted-foreground">
-                        {new Date((selected as any).snapshot.createdAt).toLocaleString()}
-                      </span>
-                    ) : null}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Tabs defaultValue="markdown" className="w-full">
-                    <TabsList className="w-full grid grid-cols-4">
-                      <TabsTrigger value="markdown">Markdown</TabsTrigger>
-                      <TabsTrigger value="rendered">Rendered</TabsTrigger>
-                      <TabsTrigger value="json">JSON</TabsTrigger>
-                      <TabsTrigger value="diff">Diff</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="markdown" className="mt-4 space-y-3">
-                      {markdownDirty && selectedDraftId && (
-                        <div className="rounded border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                          Unsaved changes — click <strong>Save Markdown</strong> before publishing, otherwise Preview will use the old database version.
-                        </div>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={handleSaveMarkdown}
-                          disabled={isBusy || !selectedDraftId || !markdownText.trim()}
-                          className={markdownDirty ? "border-amber-500 ring-1 ring-amber-500" : ""}
-                        >
-                          Save Markdown{markdownDirty ? " *" : ""}
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={handleSaveAndPublishToPreview}
-                          disabled={isBusy || !selectedDraftId || !markdownText.trim()}
-                        >
-                          <Eye className="h-3.5 w-3.5 mr-1.5" />
-                          Save & Preview
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={handleCopyMarkdown}
-                          disabled={!markdownText.trim()}
-                        >
-                          Copy
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={handleDownloadMarkdown}
-                          disabled={!markdownText.trim()}
-                        >
-                          Download
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleLoadMarkdownFromSnapshot}
-                          disabled={isBusy || !selectedDraftId}
-                        >
-                          Load from snapshot
-                        </Button>
-                      </div>
-
-                      {restoreMarkdownText.trim() ? (
-                        <div className="rounded border bg-muted/30 p-2 flex flex-wrap items-center justify-between gap-2">
-                          <div className="text-xs text-muted-foreground">
-                            Local autosave found{" "}
-                            {restoreMarkdownUpdatedAt ? `(${new Date(restoreMarkdownUpdatedAt).toLocaleString()})` : ""}.
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              type="button"
-                              onClick={() => {
-                                setMarkdownText(restoreMarkdownText);
-                                toast.success(t("admin.contentStudio.toast.autosaveRestored"));
-                              }}
-                            >
-                              Restore
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              type="button"
-                              onClick={() => {
-                                try {
-                                  if (markdownLocalStorageKey) localStorage.removeItem(markdownLocalStorageKey);
-                                } catch {
-                                  // ignore
-                                }
-                                setRestoreMarkdownText("");
-                                setRestoreMarkdownUpdatedAt(null);
-                                toast.success(t("admin.contentStudio.toast.autosaveDiscarded"));
-                              }}
-                            >
-                              Discard
-                            </Button>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <Textarea
-                        value={markdownText}
-                        onChange={(e) => setMarkdownText(e.target.value)}
-                        placeholder="No markdown yet. Run Creator first."
-                        className="min-h-[420px] font-mono text-xs"
-                      />
-                      <div className="text-xs text-muted-foreground">
-                        Tip: Use “Edit Content” (right) for section-based revisions; then Save Markdown if you make manual edits.
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="rendered" className="mt-4 space-y-3">
-                      {markdownText.trim() ? (
-                        <>
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-xs text-muted-foreground">
-                              {markdownDirty ? (
-                                <span className="text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
-                              ) : (
-                                <span>Markdown is saved.</span>
-                              )}
-                            </div>
-                            <Button
-                              size="sm"
-                              onClick={handleSaveAndPublishToPreview}
-                              disabled={isBusy || !selectedDraftId}
-                            >
-                              <Eye className="h-3.5 w-3.5 mr-1.5" />
-                              {runningPublish ? "Publishing…" : "Save & Preview"}
-                            </Button>
-                          </div>
-                          <div className="rounded-lg border bg-card p-4">
-                            <MarkdownContent content={markdownText} />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">No markdown to render yet.</div>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="json" className="mt-4 space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleLoadFromSnapshot}
-                          disabled={isBusy || !selectedDraftId}
-                        >
-                          Load snapshot JSON
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={handleSaveJson}
-                          disabled={isBusy || !selectedDraftId || !unitPackageJson.trim()}
-                        >
-                          Save JSON snapshot
-                        </Button>
-                      </div>
-
-                      {preview.ok ? (
-                        <div className="rounded-lg border bg-muted/30 p-3">
-                          <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                            {JSON.stringify(preview.pkg, null, 2)}
-                          </pre>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">{preview.error}</div>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="diff" className="mt-4 space-y-3">
-                      {Array.isArray(draftSnapshots) && draftSnapshots.length > 0 ? (
-                        <>
-                          <div className="grid gap-3 md:grid-cols-3">
-                            <div className="space-y-2">
-                              <Label>Left (older)</Label>
-                              <Select
-                                value={diffLeftSnapshotId || (draftSnapshots[0]?._id ? String(draftSnapshots[0]._id) : "")}
-                                onValueChange={(v) => setDiffLeftSnapshotId(String(v))}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select snapshot" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {draftSnapshots.map((s: any) => (
-                                    <SelectItem key={String(s._id)} value={String(s._id)}>
-                                      {new Date(Number(s.createdAt)).toLocaleString()} • {String(s._id).slice(0, 8)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>Right (newer)</Label>
-                              <Select
-                                value={diffRightSnapshotId || (draftSnapshots[0]?._id ? String(draftSnapshots[0]._id) : "")}
-                                onValueChange={(v) => setDiffRightSnapshotId(String(v))}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select snapshot" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {draftSnapshots.map((s: any) => (
-                                    <SelectItem key={String(s._id)} value={String(s._id)}>
-                                      {new Date(Number(s.createdAt)).toLocaleString()} • {String(s._id).slice(0, 8)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="flex items-end justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                type="button"
-                                onClick={() => {
-                                  const a = diffLeftSnapshotId;
-                                  const b = diffRightSnapshotId;
-                                  setDiffLeftSnapshotId(b);
-                                  setDiffRightSnapshotId(a);
-                                }}
-                                disabled={!diffLeftSnapshotId || !diffRightSnapshotId}
-                              >
-                                Swap
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="text-xs text-muted-foreground">
-                            Green = added (right), red = removed (left). This compares <b>Markdown</b> between two snapshots.
-                          </div>
-
-                          <ScrollArea className="h-[420px] rounded border">
-                            <div className="p-2 space-y-1">
-                              {diffRows.length === 0 ? (
-                                <div className="text-sm text-muted-foreground">No diff.</div>
-                              ) : (
-                                diffRows.map((row, idx) => {
-                                  const leftClass =
-                                    row.left?.op === "del"
-                                      ? "bg-red-50 text-red-900 dark:bg-red-950/30 dark:text-red-200"
-                                      : "bg-transparent";
-                                  const rightClass =
-                                    row.right?.op === "add"
-                                      ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"
-                                      : "bg-transparent";
-                                  return (
-                                    <div key={idx} className="grid grid-cols-2 gap-2">
-                                      <div className={cn("min-h-[20px] rounded px-2 py-1 font-mono text-xs whitespace-pre-wrap break-words", leftClass)}>
-                                        {row.left ? row.left.line : ""}
-                                      </div>
-                                      <div className={cn("min-h-[20px] rounded px-2 py-1 font-mono text-xs whitespace-pre-wrap break-words", rightClass)}>
-                                        {row.right ? row.right.line : ""}
-                                      </div>
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </div>
-                          </ScrollArea>
-                        </>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">No snapshots yet. Run Creator first.</div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-            </>
           )}
         </div>
-
-        {/* Actions */}
-        <div className="space-y-6 self-start">
-          {!selectedDraftId || !selected?.draft ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Workflow</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Select a draft to run Creator/Validator/Lector and publish.
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <Card>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div>
-                      <CardTitle>QA & Findings</CardTitle>
-                      <div className="text-xs text-muted-foreground">Validator report + issues list.</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant={errorFindings.length > 0 ? "default" : "outline"}
-                        onClick={handleRunRevise}
-                        disabled={isBusy || (errorFindings.length === 0 && warningFindings.length === 0 && !fixHumanNotes.trim())}
-                      >
-                        {runningRevise ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        Fix Findings
-                      </Button>
-                      <Badge variant={errorFindings.length ? "destructive" : "secondary"}>{errorFindings.length} errors</Badge>
-                      <Badge variant="secondary">{warningFindings.length} warnings</Badge>
-                      {typeof (latestReport as any)?.variety?.score === "number" ? (
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "border",
-                            (latestReport as any).variety.score >= 8
-                              ? "border-emerald-300/60 text-emerald-700 dark:text-emerald-300"
-                              : (latestReport as any).variety.score >= 7
-                                ? "border-amber-300/60 text-amber-700 dark:text-amber-300"
-                                : "border-red-300/60 text-red-700 dark:text-red-300"
-                          )}
-                        >
-                          Variety {(latestReport as any).variety.score}/10
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {latestReport ? (
-                    <div className="rounded border p-2 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between">
-                        <span>Latest Validator report</span>
-                        {latestReport.ok ? (
-                          <span className="text-emerald-600 font-semibold">OK</span>
-                        ) : (
-                          <span className="text-red-600 font-semibold">NOT OK</span>
-                        )}
-                      </div>
-                      <div className="mt-1">
-                        <pre className="whitespace-pre-wrap break-words">{JSON.stringify(latestReport.counts ?? latestReport, null, 2)}</pre>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="max-h-[360px] overflow-auto rounded border p-2">
-                    {findings.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">No findings yet.</div>
-                    ) : (
-                      <div className="space-y-2">
-                        {findings
-                          .slice()
-                          .sort((a: any, b: any) => {
-                            // Dismissed findings go to the bottom
-                            if (a.dismissed && !b.dismissed) return 1;
-                            if (!a.dismissed && b.dismissed) return -1;
-                            return a.severity > b.severity ? -1 : 1;
-                          })
-                          .map((f: any, idx: number) => (
-                            <div
-                              key={f._id ?? idx}
-                              className={cn(
-                                "flex gap-2 text-sm items-start",
-                                f.dismissed && "opacity-40"
-                              )}
-                            >
-                              {f.severity === "error" ? (
-                                <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                              ) : (
-                                <CheckCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <div className="font-medium flex items-center gap-1 flex-wrap">
-                                  <span className={cn(f.dismissed && "line-through")}>{f.code}</span>
-                                  {f.stage === "auditor" && (
-                                    <span className="text-xs text-muted-foreground font-normal">[lector]</span>
-                                  )}
-                                  {f.path ? <span className="text-muted-foreground font-normal">({f.path})</span> : null}
-                                </div>
-                                <div className="break-words text-muted-foreground">{f.message}</div>
-                              </div>
-                              {f._id && (
-                                <button
-                                  type="button"
-                                  title={f.dismissed ? "Restore finding" : "Dismiss finding (exclude from Fix)"}
-                                  className="shrink-0 mt-0.5 rounded p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                  onClick={() => dismissFinding({ findingId: f._id, dismissed: !f.dismissed })}
-                                >
-                                  {f.dismissed ? (
-                                    <RotateCcw className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <X className="h-3.5 w-3.5" />
-                                  )}
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Human Notes for Fix AI */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">
-                      Lector notes / manual instructions for Fix AI (optional)
-                    </Label>
-                    <Textarea
-                      placeholder="Paste lector annotations or additional instructions here. The Fix AI will apply them together with the findings above across the entire content."
-                      value={fixHumanNotes}
-                      onChange={(e) => setFixHumanNotes(e.target.value)}
-                      rows={4}
-                      className="text-xs resize-none"
-                      disabled={isBusy}
-                    />
-                    {fixHumanNotes.trim() && (
-                      <button
-                        type="button"
-                        className="text-xs text-muted-foreground hover:text-foreground underline"
-                        onClick={() => setFixHumanNotes("")}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="ai-runs">
-                      <AccordionTrigger>AI Runs</AccordionTrigger>
-                      <AccordionContent>
-                        <div className="rounded border p-2 text-xs text-muted-foreground">
-                          {((selected as any)?.aiRuns?.length ?? 0) === 0 ? (
-                            <div>No AI runs yet.</div>
-                          ) : (
-                            <div className="space-y-2">
-                              {((selected as any).aiRuns as any[]).slice(0, 8).map((r: any) => (
-                                <div key={r._id} className="rounded border-l-2 border-muted-foreground/30 pl-2 py-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-medium">
-                                        {r.stage === "specialist" ? "Creator" : r.stage === "auditor" ? "Lector" : String(r.stage)}
-                                      </span>
-                                      <span className={r.status === "success" ? "text-emerald-600" : "text-red-600"}>
-                                        {r.status}
-                                      </span>
-                                    </div>
-                                    <span className="text-muted-foreground text-[10px]">
-                                      {typeof r.createdAt === "number" ? new Date(r.createdAt).toLocaleString() : "—"}
-                                    </span>
-                                  </div>
-                                  <div className="text-muted-foreground">
-                                    {r.provider}/{r.model}
-                                  </div>
-                                  {typeof r.totalTokens === "number" ||
-                                  typeof r.inputTokens === "number" ||
-                                  typeof r.outputTokens === "number" ? (
-                                    <div className="text-muted-foreground text-[10px]">
-                                      tokens: in {typeof r.inputTokens === "number" ? r.inputTokens : "—"} • out{" "}
-                                      {typeof r.outputTokens === "number" ? r.outputTokens : "—"} • total{" "}
-                                      {typeof r.totalTokens === "number" ? r.totalTokens : "—"}
-                                      {typeof r.estimatedCostUsd === "number"
-                                        ? ` • $${Number(r.estimatedCostUsd).toFixed(4)}`
-                                        : ""}
-                                    </div>
-                                  ) : null}
-                                  {r.outputSummary ? (
-                                    <div className="truncate">{String(r.outputSummary).slice(0, 160)}</div>
-                                  ) : null}
-                                  {r.error ? (
-                                    <div className="text-red-600 break-words">{String(r.error).slice(0, 240)}</div>
-                                  ) : null}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Publish</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3">
-                    <div className="grid gap-1">
-                      <Label>Mode</Label>
-                      <Select value={publishMode} onValueChange={(v) => setPublishMode(v as Mode)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="update">update</SelectItem>
-                          <SelectItem value="replace">replace</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid gap-1">
-                      <Label>Module (optional)</Label>
-                      <Select value={publishModuleId} onValueChange={setPublishModuleId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Auto-link by moduleNumber" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(modules || []).map((m: any) => (
-                            <SelectItem key={m._id} value={m._id}>
-                              {m.moduleNumber} – {m.title}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Button variant="secondary" onClick={handlePublishToPreview} disabled={isBusy || !selectedDraftId}>
-                        {runningPublish ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                        {runningPublish ? "Publishing…" : "Publish to Preview (Superadmin)"}
-                      </Button>
-
-                      <Button variant="outline" onClick={handleTakePreviewOffline} disabled={isBusy || !selectedDraftId}>
-                        Take Preview Offline
-                      </Button>
-
-                      <div className="rounded border p-3 space-y-2">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="font-medium">Approve for Live Publish</div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleApprovePreview}
-                            disabled={isBusy || !selectedDraftId}
-                          >
-                            {runningApprovePreview ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Approve
-                          </Button>
-                        </div>
-
-                        <div className="text-xs text-muted-foreground">
-                          Review at <code>/unit/&lt;unit&gt;</code>, then approve.
-                        </div>
-
-                        <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-                          <div className="text-muted-foreground">
-                            Approved:{" "}
-                            {(selected as any)?.draft?.approvedSnapshotId
-                              ? `${String((selected as any).draft.approvedSnapshotId).slice(0, 8)}… at ${typeof (selected as any)?.draft?.approvedAt === "number" ? new Date((selected as any).draft.approvedAt).toLocaleString() : "—"}`
-                              : "Not yet"}
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={handleDownloadApprovedMarkdown}
-                            disabled={!String((approvedMarkdown as any)?.markdownSource || "").trim()}
-                          >
-                            Download MD
-                          </Button>
-                        </div>
-                      </div>
-
-                      <Button onClick={handlePublish} disabled={isBusy || !canPublishLive}>
-                        {runningPublish ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                        {runningPublish ? "Publishing…" : "Publish (Live for everyone)"}
-                      </Button>
-                    </div>
-
-                    <div className="text-xs text-muted-foreground">
-                      Preview writes content as <code>releaseStatus=preview</code>. Live publish requires status <code>ready_to_publish</code> and latest snapshot approved.
-                    </div>
-
-                    {selected?.draft?.status === "published" ? (
-                      <div className="rounded border p-3 space-y-2">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="font-medium">Translate published EN → DE</div>
-                          <AlertDialog open={translateDeOpen} onOpenChange={setTranslateDeOpen}>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="outline" disabled={isBusy || runningTranslateDe}>
-                                {runningTranslateDe ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Translate
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Translate published content to German?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                              This translates the <b>published English</b> unit content into <b>German</b> and writes it as a <b>Preview</b> release
-                              (<code>releaseStatus="preview"</code>). Published content stays untouched.
-                              Serbian text and answers are preserved. Preview test <code>questionId</code>s are suffixed to avoid collisions.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <div className="rounded border p-3 text-xs space-y-2">
-                                {translateDePreview === undefined ? (
-                                  <div className="text-muted-foreground">Loading preview…</div>
-                                ) : !(translateDePreview as any)?.sourceEn?.exists ? (
-                                  <div className="text-destructive">
-                                    No published EN source found for this unit. Publish the unit live first (EN), then translate.
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="font-medium">
-                                      Source (EN): {(translateDePreview as any)?.sourceEn?.title || `Unit ${selected.draft.unitNumber}`}
-                                    </div>
-                                    <div className="text-muted-foreground">
-                                      Sections: {((translateDePreview as any)?.sourceEn?.contentSections || []).length} · Tests:{" "}
-                                      {(translateDePreview as any)?.sourceEn?.tests?.count ?? 0} (v{(translateDePreview as any)?.sourceEn?.tests?.unitVersion ?? 1}) ·
-                                      Vocabulary: {(translateDePreview as any)?.sourceEn?.vocabulary?.count ?? 0}
-                                    </div>
-                                    {Array.isArray((translateDePreview as any)?.warnings) && (translateDePreview as any).warnings.length > 0 ? (
-                                      <div className="space-y-1">
-                                        <div className="font-medium">Warnings</div>
-                                        <ul className="list-disc pl-5 space-y-0.5">
-                                          {(translateDePreview as any).warnings.slice(0, 6).map((w: any, idx: number) => (
-                                            <li key={idx} className="text-muted-foreground">
-                                              {String(w)}
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    ) : null}
-                                    <div className="text-muted-foreground">
-                                      Existing DE: metadata (published {(translateDePreview as any)?.existingDe?.metadata?.published ?? 0}, preview{" "}
-                                      {(translateDePreview as any)?.existingDe?.metadata?.preview ?? 0}) · content rows{" "}
-                                      {(translateDePreview as any)?.existingDe?.content?.publishedActiveCount ?? 0} · test rows{" "}
-                                      {(translateDePreview as any)?.existingDe?.tests?.publishedActiveCount ?? 0}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                              <div className="py-4">
-                                <Label>Type "TRANSLATE UNIT {selected.draft.unitNumber} TO DE" to confirm:</Label>
-                                <Input
-                                  value={translateDeConfirmation}
-                                  onChange={(e) => setTranslateDeConfirmation(e.target.value)}
-                                  placeholder={`TRANSLATE UNIT ${selected.draft.unitNumber} TO DE`}
-                                  className="mt-2"
-                                />
-                              </div>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel disabled={runningTranslateDe}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={handleTranslatePublishedToGerman}
-                                  disabled={
-                                    runningTranslateDe ||
-                                    translateDeConfirmation !== `TRANSLATE UNIT ${selected.draft.unitNumber} TO DE` ||
-                                    !(translateDePreview as any)?.sourceEn?.exists
-                                  }
-                                >
-                                  Translate & Save
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Use this after the unit is live-published. It updates German content used when learners set their learning language to <code>de</code>.
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <Accordion type="single" collapsible className="w-full">
-                      <AccordionItem value="danger">
-                        <AccordionTrigger>
-                          <span className="text-destructive">Danger Zone</span>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <AlertDialog open={deleteUnitOpen} onOpenChange={setDeleteUnitOpen}>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="destructive">Delete Unit {selected.draft.unitNumber} (Full)</Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This action cannot be undone. This will permanently delete <b>Unit {selected.draft.unitNumber}</b>,
-                                  including all drafts, snapshots, <b>PUBLISHED CONTENT</b> (Metadata, Content, Tests, Vocabulary), and related user progress/gamification data.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <div className="py-4">
-                                <Label>Type "DELETE UNIT {selected.draft.unitNumber}" to confirm:</Label>
-                                <Input
-                                  value={deleteConfirmation}
-                                  onChange={(e) => setDeleteConfirmation(e.target.value)}
-                                  placeholder={`DELETE UNIT ${selected.draft.unitNumber}`}
-                                  className="mt-2"
-                                />
-                              </div>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={handleDeleteUnit}
-                                  disabled={deleteConfirmation !== `DELETE UNIT ${selected.draft.unitNumber}`}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Delete Unit
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </AccordionContent>
-                      </AccordionItem>
-                    </Accordion>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </div>
-      </div>}
+        );
+      })()}
     </div>
   );
 }
-

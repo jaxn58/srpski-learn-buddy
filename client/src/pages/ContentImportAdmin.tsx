@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -95,8 +94,7 @@ type ImportRun = {
   totalWarnings: number;
 };
 
-export default function ContentImportAdmin() {
-  const { user, loading: authLoading } = useAuth();
+export function ImportTab() {
   const { t } = useTranslation();
   // Prefer Markdown as primary import method; keep JSON import behind a toggle.
   const ENABLE_JSON_IMPORT = false;
@@ -250,20 +248,6 @@ export default function ContentImportAdmin() {
       document.removeEventListener('drop', preventDefault);
     };
   }, []);
-
-  // Redirect if not superadmin
-  if (!authLoading && (!user || user.role !== "superadmin")) {
-    window.location.href = "/";
-    return null;
-  }
-
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   const processFile = useCallback((file: File) => {
     if (!file.name.endsWith('.json')) {
@@ -820,14 +804,7 @@ export default function ContentImportAdmin() {
   // Units tab removed — unit management is now in Content Studio > Unit Manager
 
   return (
-    <div className="container py-8 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Content Import</h1>
-        <p className="text-muted-foreground mt-2">
-          Upload and import JSON unit packages into the database. Only valid files can be imported.
-        </p>
-      </div>
-
+    <div className="space-y-6">
       <Tabs defaultValue={ENABLE_JSON_IMPORT ? "import" : "markdown"} className="space-y-6">
         <TabsList>
           {ENABLE_JSON_IMPORT && (
@@ -1977,4 +1954,11 @@ export default function ContentImportAdmin() {
       </AlertDialog>
     </div>
   );
+}
+
+export default function ContentImportAdmin() {
+  useEffect(() => {
+    window.location.replace("/admin/content-studio?view=import");
+  }, []);
+  return null;
 }
