@@ -421,25 +421,33 @@ export const getUnitInteractiveTest = query({
     if (!allowOffline && (await isUnitOffline(ctx, args.unitNumber))) {
       return [];
     }
-    
-    // Fetch all questions for this unit/language
-    const all = await ctx.db
-      .query("unitInteractiveTests")
+
+    const fetchEligible = async (lang: string) => {
       // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
-      .withIndex("by_unit_lang", (q) => 
-        q.eq("unitNumber", args.unitNumber).eq("language", language)
-      )
-      .collect();
+      const all = await ctx.db
+        .query("unitInteractiveTests")
+        // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+        .withIndex("by_unit_lang", (q) =>
+          q.eq("unitNumber", args.unitNumber).eq("language", lang)
+        )
+        .collect();
 
-    // Versioning/soft-archive: treat undefined isActive as active; unitVersion defaults to 1
-    const active = (all as any[]).filter((q: any) => q.isActive !== false);
+      const active = (all as any[]).filter((q: any) => q.isActive !== false);
+      return active.filter((q: any) => {
+        const s = q.releaseStatus;
+        if (s === "offline") return false;
+        if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
+        return isPublishedStatus(s);
+      });
+    };
 
-    const eligible = active.filter((q: any) => {
-      const s = q.releaseStatus;
-      if (s === "offline") return false;
-      if (allowPreview) return isPreviewStatus(s) || isPublishedStatus(s);
-      return isPublishedStatus(s);
-    });
+    let eligible = await fetchEligible(language);
+
+    // Fallback to English when no exercises exist for the requested language.
+    // Mirrors the pattern used by getUnitContentSections.
+    if (eligible.length === 0 && language !== "en") {
+      eligible = await fetchEligible("en");
+    }
 
     // Prefer preview questions if any exist (superadmin), else published.
     const hasPreview = allowPreview && eligible.some((q: any) => isPreviewStatus(q.releaseStatus));

@@ -65,9 +65,17 @@ export const runQcValidate = action({
       return { ok: false, report };
     }
 
+    // #region agent log
+    const _ex5BeforeAutofix = ((base.data as any)?.exercises?.en ?? []).filter((c: any) => c.category === 'dialogueCompletion').flatMap((c: any) => c.questions ?? []);
+    fetch('http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37c486'},body:JSON.stringify({sessionId:'37c486',location:'_validator.ts:runQcValidate:beforeAutofix',hypothesisId:'H-B-C',message:'ex5 in snapshot BEFORE autofix',data:{snapshotId:(draft as any)?.snapshot?._id,ex5Count:_ex5BeforeAutofix.length,ex5Sample:_ex5BeforeAutofix.slice(0,2).map((q:any)=>({id:q.questionId,q:String(q.question||'').slice(0,80)}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const { fixed, changes } = autofixUnitPackage(base.data);
     // Content Studio guardrail: ensure required template categories exist (even if creator/parser omitted them).
     const ensured = fillMissingUnitPackageFields(fixed, fixed);
+    // #region agent log
+    const _ex5AfterFill = ((ensured as any)?.exercises?.en ?? []).filter((c: any) => c.category === 'dialogueCompletion').flatMap((c: any) => c.questions ?? []);
+    fetch('http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37c486'},body:JSON.stringify({sessionId:'37c486',location:'_validator.ts:runQcValidate:afterFill',hypothesisId:'H-C',message:'ex5 AFTER fillMissingUnitPackageFields',data:{ex5Count:_ex5AfterFill.length,ex5Sample:_ex5AfterFill.slice(0,2).map((q:any)=>({id:q.questionId,q:String(q.question||'').slice(0,80)}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     // Content Studio guardrail: vocabulary coverage.
     // If a Serbian word is used in exercises but missing in vocabulary, auto-add it from courseVocabulary (dictionary) or safe fallback.
@@ -260,6 +268,9 @@ export const saveMarkdownSnapshot = action({
   args: {
     draftId: v.id("contentDrafts"),
     markdown: v.string(),
+    // When true, skip the AI-based translation pass so that manually-edited
+    // content is saved exactly as written (no AI modification).
+    skipTranslation: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
@@ -273,8 +284,12 @@ export const saveMarkdownSnapshot = action({
     // Deterministic canonicalization: bring dialogues into Unit 1/2 table format if needed.
     markdown = canonicalizeDialoguesToUnit1Tables(markdown);
 
-    // Enforce Base Language: English (auto-translate the whole unit if needed).
-    markdown = await translateUnitMarkdownToEnglishIfNeeded(ctx, markdown, undefined);
+    // Enforce Base Language: English — skip when the caller explicitly opted out
+    // (e.g. manual saves from the Content Studio editor where the user wants their
+    // edits preserved exactly and does not want the AI to modify the content).
+    if (!args.skipTranslation) {
+      markdown = await translateUnitMarkdownToEnglishIfNeeded(ctx, markdown, undefined);
+    }
     // Ensure Founder note is present if configured on the draft.
     markdown = await ensureFounderNoteInMarkdownIfConfigured(ctx, current.draft as any, markdown, undefined);
     // Canonicalize again in case translation or edits produced near-miss dialogue formatting.
@@ -286,6 +301,11 @@ export const saveMarkdownSnapshot = action({
     }
 
     const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);
+    // #region agent log
+    const ex5Categories = (parsedUnitPackage as any)?.exercises?.en?.filter((c: any) => c.category === "dialogueCompletion") ?? [];
+    const ex5Questions = ex5Categories.flatMap((c: any) => c.questions ?? []);
+    fetch('http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37c486'},body:JSON.stringify({sessionId:'37c486',location:'_validator.ts:saveMarkdownSnapshot:parsed',hypothesisId:'H-A',message:'parsed ex5 questions from markdown',data:{skipTranslation:args.skipTranslation,ex5Count:ex5Questions.length,ex5Sample:ex5Questions.slice(0,2).map((q:any)=>({id:q.questionId,q:String(q.question||'').slice(0,80)}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const baseParsed = UnitPackageSchema.safeParse(parsedUnitPackage);
     if (!baseParsed.success) {
       const first = baseParsed.error.issues?.[0];

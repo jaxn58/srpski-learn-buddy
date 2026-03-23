@@ -53,7 +53,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { CheckCircle, XCircle, Sparkles, Upload, Info, Loader2, Settings, Plus, Search, LayoutList } from "lucide-react";
+import { CheckCircle, XCircle, Sparkles, Upload, Info, Loader2, Settings, Plus, Search, LayoutList, X, RotateCcw, Eye } from "lucide-react";
 import { UnitManagerTab } from "@/components/admin/UnitManagerTab";
 
 type Mode = "update" | "replace";
@@ -384,6 +384,7 @@ export default function ContentStudioAdmin() {
   const deleteDraft = useMutation(api.contentStudio.deleteDraft);
   const addHumanReviewNote = useMutation(api.contentStudio.addHumanReviewNote);
   const approveAfterPreview = useMutation(api.contentStudio.approveAfterPreview);
+  const dismissFinding = useMutation(api.contentStudio.dismissFinding);
 
   const runSpecialist = useAction(api.contentStudio._creator.runAiSpecialistGenerate);
   const runValidate = useAction(api.contentStudio.runQcValidate);
@@ -422,6 +423,7 @@ export default function ContentStudioAdmin() {
 
   const [deleteUnitOpen, setDeleteUnitOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [showDeleteDraftDialog, setShowDeleteDraftDialog] = useState(false);
 
   const [translateDeOpen, setTranslateDeOpen] = useState(false);
   const [translateDeConfirmation, setTranslateDeConfirmation] = useState("");
@@ -449,6 +451,9 @@ export default function ContentStudioAdmin() {
 
   // Track recently translated units (unitNumber -> timestamp) for UnitManager highlighting
   const [recentlyTranslatedUnits, setRecentlyTranslatedUnits] = useState<Map<number, number>>(new Map());
+
+  // Fix Findings: human notes for the revision AI
+  const [fixHumanNotes, setFixHumanNotes] = useState("");
 
   // Section-based revision (targeted edits)
   type SectionId = "overview" | "vocabulary" | "grammar" | "phrases" | "exercises" | "cultural";
@@ -591,8 +596,9 @@ export default function ContentStudioAdmin() {
   );
 
   const findings = selected?.findings ?? [];
-  const errorFindings = findings.filter((f: any) => f.severity === "error");
-  const warningFindings = findings.filter((f: any) => f.severity === "warning");
+  // Dismissed findings are excluded from counts and Fix prompt, but still rendered in the list (greyed out)
+  const errorFindings = findings.filter((f: any) => f.severity === "error" && !f.dismissed);
+  const warningFindings = findings.filter((f: any) => f.severity === "warning" && !f.dismissed);
   const canRunLector = (() => {
     const s = (selected as any)?.draft?.status;
     return s === "qc_passed" || s === "ready_to_publish" || s === "audit_failed";
@@ -1668,8 +1674,14 @@ export default function ContentStudioAdmin() {
     maybeApplyFounderNoteToMarkdown(name, quote);
   };
 
-  const handleDeleteSelectedDraft = async () => {
+  const handleDeleteSelectedDraft = () => {
     if (!selectedDraftId) return;
+    setShowDeleteDraftDialog(true);
+  };
+
+  const handleConfirmDeleteDraft = async () => {
+    if (!selectedDraftId) return;
+    setShowDeleteDraftDialog(false);
     try {
       await deleteDraft({ draftId: selectedDraftId });
       setSelectedDraftId(null);
@@ -1714,10 +1726,55 @@ export default function ContentStudioAdmin() {
     try {
       const md = markdownText.trim();
       if (!md) throw new Error(t("admin.contentStudio.error.emptyMarkdown"));
-      await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md } as any);
+      await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md, skipTranslation: true } as any);
       toast.success(t("admin.contentStudio.toast.markdownSnapshotSaved"));
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.markdownSnapshotSaveFailed"));
+    }
+  };
+
+  const handleSaveAndPublishToPreview = async () => {
+    if (!selectedDraftId) return;
+    setRunningPublish(true);
+    try {
+      const md = markdownText.trim();
+      if (!md) throw new Error(t("admin.contentStudio.error.emptyMarkdown"));
+
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37c486'},body:JSON.stringify({sessionId:'37c486',location:'ContentStudioAdmin.tsx:handleSaveAndPublishToPreview:start',hypothesisId:'H-E',message:'Save&Preview started',data:{draftId:selectedDraftId,mdLength:md.length,mdEx5Preview:md.includes('Dialogue Completion'),first100:md.slice(0,100)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      // Step 1: Save markdown (skipTranslation=true so the AI does not modify the manually-edited content)
+      toast.info("Saving markdown…");
+      await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md, skipTranslation: true } as any);
+
+      // Step 2: QC Validate (parses Markdown → JSON snapshot)
+      toast.info(t("admin.contentStudio.toast.validatorRunning"));
+      setRunningValidator(true);
+      const valRes = await runValidate({ draftId: selectedDraftId });
+      setRunningValidator(false);
+      if (!valRes.ok) {
+        toast.error("Validation failed — fix the errors in the findings before publishing.");
+        return;
+      }
+
+      // Step 3: Publish to Preview
+      toast.info(t("admin.contentStudio.toast.publishingToPreview"));
+      await publishDraftToPreview({
+        draftId: selectedDraftId,
+        moduleId: publishModuleId ? (publishModuleId as any) : undefined,
+      });
+      toast.success(t("admin.contentStudio.toast.previewLive"));
+
+      // Step 4: Open unit in new tab
+      const unitNumber = Number((selected as any)?.draft?.unitNumber);
+      if (Number.isFinite(unitNumber) && unitNumber > 0) {
+        window.open(`/unit/${unitNumber}`, "_blank", "noopener,noreferrer");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Save & Preview failed.");
+    } finally {
+      setRunningPublish(false);
+      setRunningValidator(false);
     }
   };
 
@@ -2032,9 +2089,11 @@ export default function ContentStudioAdmin() {
         draftId: selectedDraftId,
         preferredProvider: cfgSpecialistProvider,
         maxTokens: 12000,
+        humanNotes: fixHumanNotes.trim() || undefined,
       });
       if (res.ok) {
         toast.success(t("admin.contentStudio.toast.revisionApplied"));
+        setFixHumanNotes("");
       }
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.revisionFailed"));
@@ -3184,7 +3243,14 @@ export default function ContentStudioAdmin() {
       </Dialog>
 
       {/* Unit Manager view */}
-      {studioView === "units" && <UnitManagerTab recentlyTranslatedUnits={recentlyTranslatedUnits} />}
+      {studioView === "units" && (
+        <UnitManagerTab
+          recentlyTranslatedUnits={recentlyTranslatedUnits}
+          onTranslationComplete={(unitNumber) =>
+            setRecentlyTranslatedUnits((prev) => new Map(prev).set(unitNumber, Date.now()))
+          }
+        />
+      )}
 
       {/* Draft Studio view (original layout) */}
       {studioView === "drafts" && <div className="grid gap-6">
@@ -3672,6 +3738,25 @@ export default function ContentStudioAdmin() {
                       <Button variant="destructive" onClick={handleDeleteSelectedDraft} disabled={isBusy}>
                         Delete Draft
                       </Button>
+                      <AlertDialog open={showDeleteDraftDialog} onOpenChange={setShowDeleteDraftDialog}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Draft?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete this draft including all snapshots and findings. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleConfirmDeleteDraft}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete Draft
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </CardHeader>
@@ -4007,13 +4092,27 @@ export default function ContentStudioAdmin() {
                     </TabsList>
 
                     <TabsContent value="markdown" className="mt-4 space-y-3">
+                      {markdownDirty && selectedDraftId && (
+                        <div className="rounded border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                          Unsaved changes — click <strong>Save Markdown</strong> before publishing, otherwise Preview will use the old database version.
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
                           size="sm"
                           onClick={handleSaveMarkdown}
                           disabled={isBusy || !selectedDraftId || !markdownText.trim()}
+                          className={markdownDirty ? "border-amber-500 ring-1 ring-amber-500" : ""}
                         >
-                          Save Markdown
+                          Save Markdown{markdownDirty ? " *" : ""}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSaveAndPublishToPreview}
+                          disabled={isBusy || !selectedDraftId || !markdownText.trim()}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1.5" />
+                          Save & Preview
                         </Button>
                         <Button
                           size="sm"
@@ -4091,11 +4190,30 @@ export default function ContentStudioAdmin() {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="rendered" className="mt-4">
+                    <TabsContent value="rendered" className="mt-4 space-y-3">
                       {markdownText.trim() ? (
-                        <div className="rounded-lg border bg-card p-4">
-                          <MarkdownContent content={markdownText} />
-                        </div>
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs text-muted-foreground">
+                              {markdownDirty ? (
+                                <span className="text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
+                              ) : (
+                                <span>Markdown is saved.</span>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={handleSaveAndPublishToPreview}
+                              disabled={isBusy || !selectedDraftId}
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1.5" />
+                              {runningPublish ? "Publishing…" : "Save & Preview"}
+                            </Button>
+                          </div>
+                          <div className="rounded-lg border bg-card p-4">
+                            <MarkdownContent content={markdownText} />
+                          </div>
+                        </>
                       ) : (
                         <div className="text-sm text-muted-foreground">No markdown to render yet.</div>
                       )}
@@ -4261,7 +4379,7 @@ export default function ContentStudioAdmin() {
                         size="sm"
                         variant={errorFindings.length > 0 ? "default" : "outline"}
                         onClick={handleRunRevise}
-                        disabled={isBusy || (errorFindings.length === 0 && warningFindings.length === 0)}
+                        disabled={isBusy || (errorFindings.length === 0 && warningFindings.length === 0 && !fixHumanNotes.trim())}
                       >
                         {runningRevise ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                         Fix Findings
@@ -4310,24 +4428,76 @@ export default function ContentStudioAdmin() {
                       <div className="space-y-2">
                         {findings
                           .slice()
-                          .sort((a: any, b: any) => (a.severity > b.severity ? -1 : 1))
+                          .sort((a: any, b: any) => {
+                            // Dismissed findings go to the bottom
+                            if (a.dismissed && !b.dismissed) return 1;
+                            if (!a.dismissed && b.dismissed) return -1;
+                            return a.severity > b.severity ? -1 : 1;
+                          })
                           .map((f: any, idx: number) => (
-                            <div key={idx} className="flex gap-2 text-sm">
-                              {f.severity === "error" ? (
-                                <XCircle className="h-4 w-4 text-red-500 mt-0.5" />
-                              ) : (
-                                <CheckCircle className="h-4 w-4 text-amber-500 mt-0.5" />
+                            <div
+                              key={f._id ?? idx}
+                              className={cn(
+                                "flex gap-2 text-sm items-start",
+                                f.dismissed && "opacity-40"
                               )}
-                              <div className="min-w-0">
-                                <div className="font-medium">
-                                  {f.code}{" "}
-                                  {f.path ? <span className="text-muted-foreground">({f.path})</span> : null}
+                            >
+                              {f.severity === "error" ? (
+                                <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium flex items-center gap-1 flex-wrap">
+                                  <span className={cn(f.dismissed && "line-through")}>{f.code}</span>
+                                  {f.stage === "auditor" && (
+                                    <span className="text-xs text-muted-foreground font-normal">[lector]</span>
+                                  )}
+                                  {f.path ? <span className="text-muted-foreground font-normal">({f.path})</span> : null}
                                 </div>
                                 <div className="break-words text-muted-foreground">{f.message}</div>
                               </div>
+                              {f._id && (
+                                <button
+                                  type="button"
+                                  title={f.dismissed ? "Restore finding" : "Dismiss finding (exclude from Fix)"}
+                                  className="shrink-0 mt-0.5 rounded p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                  onClick={() => dismissFinding({ findingId: f._id, dismissed: !f.dismissed })}
+                                >
+                                  {f.dismissed ? (
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <X className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                              )}
                             </div>
                           ))}
                       </div>
+                    )}
+                  </div>
+
+                  {/* Human Notes for Fix AI */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Lector notes / manual instructions for Fix AI (optional)
+                    </Label>
+                    <Textarea
+                      placeholder="Paste lector annotations or additional instructions here. The Fix AI will apply them together with the findings above across the entire content."
+                      value={fixHumanNotes}
+                      onChange={(e) => setFixHumanNotes(e.target.value)}
+                      rows={4}
+                      className="text-xs resize-none"
+                      disabled={isBusy}
+                    />
+                    {fixHumanNotes.trim() && (
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground hover:text-foreground underline"
+                        onClick={() => setFixHumanNotes("")}
+                      >
+                        Clear
+                      </button>
                     )}
                   </div>
 

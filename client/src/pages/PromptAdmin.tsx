@@ -51,7 +51,8 @@ type PromptKey =
   | "support_knowledge_facts"
   | "support_knowledge_tone"
   | "support_knowledge_future"
-  | "content_studio_specialist";
+  | "content_studio_specialist"
+  | "content_studio_revise";
 
 const PROMPT_OPTIONS: Array<{ key: PromptKey; label: string; hint: string }> = [
   {
@@ -63,6 +64,11 @@ const PROMPT_OPTIONS: Array<{ key: PromptKey; label: string; hint: string }> = [
     key: "content_studio_specialist",
     label: "Content Studio – Specialist Prompt",
     hint: "Main system prompt for the Content Studio Specialist (Unit Creation).",
+  },
+  {
+    key: "content_studio_revise",
+    label: "Content Studio – Revise Prompt",
+    hint: "System prompt used when fixing findings in an existing draft (Fix Findings / AI Revise). Falls back to built-in CREATOR_REVISE_SYSTEM_PROMPT if not set.",
   },
   {
     key: "feedback_reply_system",

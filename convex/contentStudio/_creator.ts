@@ -515,7 +515,16 @@ export const runAiSpecialistGenerate = action({
 
       structure = validateMarkdownStructure(markdown);
       if (!structure.valid) {
-        throw new Error(`Creator markdown failed structure validation: ${structure.errors.join("; ")}`);
+        // Allow grammar-only truncation through to the save step — the QC validator will auto-fix it.
+        const isTruncatedGrammarFinal = structure.errors.some(e =>
+          e.includes("Grammar section appears truncated") ||
+          e.includes("Grammar section appears to be cut off")
+        );
+        const hasOnlyGrammarIssueFinal = isTruncatedGrammarFinal && structure.errors.length <= 2;
+        if (!hasOnlyGrammarIssueFinal) {
+          throw new Error(`Creator markdown failed structure validation: ${structure.errors.join("; ")}`);
+        }
+        console.warn("Creator: Grammar still truncated after post-processing, saving partial for auto-fix");
       }
 
       const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);
@@ -611,17 +620,19 @@ export const runAiCreatorRevise = action({
     
     if (!snapshot?.markdownSource) throw new Error("No markdown to revise");
 
-    // Get findings (errors/warnings)
+    // Get findings (errors/warnings) – exclude dismissed ones from the Fix prompt
     const findings = current.findings || [];
-    const issues = findings.filter((f: any) => f.severity === "error" || f.severity === "warning");
+    const issues = findings.filter((f: any) =>
+      (f.severity === "error" || f.severity === "warning") && !f.dismissed
+    );
     const humanNotes = String(args.humanNotes || "").trim();
 
+    // Save non-dismissed auditor findings so they survive the QC-Validate overwrite
+    const survivingAuditorFindings = findings.filter(
+      (f: any) => f.stage === "auditor" && !f.dismissed
+    );
+
     if (issues.length === 0 && !humanNotes) {
-       // Allow running if just to re-apply skills or something? No, usually needs a reason.
-       // But user might want to force a run.
-       // Let's allow it if they explicitly ask, but here we assume they clicked "Fix findings"
-       // If no findings and no notes, maybe they just want a re-roll?
-       // Let's proceed but log it.
        console.log("Running revision with no findings or notes (force re-roll?)");
     }
 
@@ -648,7 +659,7 @@ export const runAiCreatorRevise = action({
       : "";
 
     const dynamicPromptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, {
-      name: "content_studio_specialist",
+      name: "content_studio_revise",
     });
     const baseSystemPrompt = dynamicPromptDoc?.content || CREATOR_REVISE_SYSTEM_PROMPT;
 
@@ -696,7 +707,39 @@ export const runAiCreatorRevise = action({
       lastEstimatedCostUsd = estimatedCostUsd;
 
       let markdown = String(raw || "").trim();
-      
+
+      // Truncation guard: if the model returned significantly less than the input markdown,
+      // it only output the fixed parts instead of the full unit. Retry once with an explicit warning.
+      const inputLength = (snapshot.markdownSource || "").length;
+      const TRUNCATION_THRESHOLD = 0.55; // output < 55% of input = likely truncated
+      if (inputLength > 500 && markdown.length < inputLength * TRUNCATION_THRESHOLD) {
+        console.log(`[runAiCreatorRevise] Output truncated (${markdown.length} chars vs ${inputLength} input). Retrying with explicit full-output instruction.`);
+        const retryUserPrompt = [
+          `IMPORTANT: Your previous response was truncated. You MUST output the COMPLETE, FULL Markdown document.`,
+          `Do NOT output only the changed sections. The output must include ALL sections: ## 1. Overview, ## 2. Vocabulary, ## 3. Grammar, ## 4. Phrases, ## 5. Interactive Test.`,
+          ``,
+          `CURRENT MARKDOWN CONTENT:`,
+          snapshot.markdownSource,
+          ``,
+          findingsBlock,
+          ``,
+          notesBlock,
+          ``,
+          `TASK: Revise the markdown to fix the findings. Return the ENTIRE corrected Markdown from the very first line to the very last line. Do not cut it short.`,
+        ].join("\n");
+        const retryResult = await callAiText(ctx, {
+          stage: "specialist",
+          preferredProvider: (args.preferredProvider as any) || undefined,
+          system,
+          user: retryUserPrompt,
+          maxTokens,
+        });
+        markdown = String(retryResult.raw || "").trim();
+        // Update usage tracking to the retry run
+        lastUsage = retryResult.usage;
+        lastEstimatedCostUsd = retryResult.estimatedCostUsd;
+      }
+
       // Post-processing
       markdown = canonicalizeDialoguesToUnit1Tables(markdown);
       markdown = await translateUnitMarkdownToEnglishIfNeeded(ctx, markdown, (args.preferredProvider as any) || undefined);
@@ -741,6 +784,23 @@ export const runAiCreatorRevise = action({
       // Auto-validate as requested
       // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       const validateRes = await ctx.runAction(api.contentStudio.runQcValidate, { draftId: args.draftId });
+
+      // Restore surviving auditor findings so they remain visible after the QC-Validate overwrite.
+      // This prevents the Lector→Fix→Lector endloop: auditor warnings stay in the list
+      // until the user explicitly runs Lector again or dismisses them.
+      if (survivingAuditorFindings.length > 0) {
+        await ctx.runMutation(api.contentStudio.appendFindings, {
+          draftId: args.draftId,
+          findings: survivingAuditorFindings.map((f: any) => ({
+            stage: "auditor" as const,
+            severity: "warning" as const,
+            code: String(f.code || "STYLE_SUGGESTION"),
+            message: String(f.message || ""),
+            path: typeof f.path === "string" ? f.path : undefined,
+            detailsJson: typeof f.detailsJson === "string" ? f.detailsJson : undefined,
+          })),
+        });
+      }
 
       return { ok: true, validate: validateRes };
     } catch (e: any) {

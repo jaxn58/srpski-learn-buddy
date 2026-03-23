@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 // AlertDialog imports removed — actions use inline confirm inputs
 import { MarkdownContent } from "@/components/MarkdownContent";
-import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle } from "lucide-react";
+import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle, Languages } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -101,14 +101,17 @@ function langFlag(lang: string) {
 interface UnitManagerTabProps {
   /** Map of unitNumber -> timestamp for units that were recently translated to DE. */
   recentlyTranslatedUnits?: Map<number, number>;
+  /** Called when a translation completes, so the parent can highlight the unit. */
+  onTranslationComplete?: (unitNumber: number) => void;
 }
 
-export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps) {
+export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete }: UnitManagerTabProps) {
   const overview = useQuery(api.contentStudio.getUnitManagementOverview);
   const promotePreview = useMutation(api.contentStudio.promoteLanguagePreviewToPublished);
   const offlinePreview = useMutation(api.contentStudio.takeLanguagePreviewOffline);
   const setUnitOffline = useMutation(api.units.setUnitOffline);
   const deleteUnitFull = useMutation(api.contentStudio.deleteUnitFull);
+  const doTranslate = useAction(api.contentStudio.translatePublishedUnitEnToDe);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de">("all");
@@ -124,6 +127,13 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
 
   const [unitOfflineConfirm, setUnitOfflineConfirm] = useState("");
   const [unitDeleteConfirm, setUnitDeleteConfirm] = useState("");
+
+  // Translation workflow state
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [translateSource, setTranslateSource] = useState<"published" | "preview">("published");
+  const [translateProvider, setTranslateProvider] = useState<"gemini" | "openai">("gemini");
+  const [translateConfirm, setTranslateConfirm] = useState("");
+  const [translateRunning, setTranslateRunning] = useState(false);
 
   // Auto-fade: force re-render every minute so "X min ago" updates, and entries older than 30 min disappear
   const [, setTick] = useState(0);
@@ -154,6 +164,14 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
   );
 
   const detail = detailLang === "de" ? detailDe : detailEn;
+
+  // Pre-translation info (loads when translation dialog is open)
+  const translatePreviewInfo = useQuery(
+    api.contentStudio.getUnitTranslationPreviewEnToDe,
+    translateOpen && selectedUnit != null
+      ? { unitNumber: selectedUnit, sourceReleaseStatus: translateSource }
+      : ("skip" as any)
+  );
 
   // Filter logic
   const filteredUnits = useMemo(() => {
@@ -279,6 +297,33 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
       toast.error(e?.message ?? "Failed to delete unit.");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (!selectedUnit) return;
+    const confirmStr = `TRANSLATE UNIT ${selectedUnit} TO DE`;
+    if (translateConfirm !== confirmStr) {
+      toast.error(`Please type "${confirmStr}" to confirm.`);
+      return;
+    }
+    setTranslateRunning(true);
+    try {
+      await doTranslate({
+        unitNumber: selectedUnit,
+        confirm: confirmStr,
+        preferredProvider: translateProvider,
+        sourceReleaseStatus: translateSource,
+        targetReleaseStatus: "preview",
+      } as any);
+      toast.success(`DE translation for Unit ${selectedUnit} written to preview.`);
+      setTranslateOpen(false);
+      setTranslateConfirm("");
+      onTranslationComplete?.(selectedUnit);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Translation failed.");
+    } finally {
+      setTranslateRunning(false);
     }
   };
 
@@ -430,6 +475,24 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
                 {availableLangs.length >= 2 && (
                   <Button variant="ghost" size="sm" onClick={() => setDiffOpen(true)}>
                     EN / DE Diff
+                  </Button>
+                )}
+                {/* Translate EN → DE button: only show when EN content exists */}
+                {selectedOverview.versions.en && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Default source: prefer preview if it exists, else published
+                      const enVersion = selectedOverview.versions.en;
+                      if (enVersion?.releaseStatus === "preview") setTranslateSource("preview");
+                      else setTranslateSource("published");
+                      setTranslateConfirm("");
+                      setTranslateOpen(true);
+                    }}
+                  >
+                    <Languages className="mr-1 h-3.5 w-3.5" />
+                    Translate EN → DE
                   </Button>
                 )}
                 <Button
@@ -838,6 +901,115 @@ export function UnitManagerTab({ recentlyTranslatedUnits }: UnitManagerTabProps)
               )}
             </ScrollArea>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Translate EN → DE Dialog */}
+      <Dialog open={translateOpen} onOpenChange={(open) => { setTranslateOpen(open); if (!open) setTranslateConfirm(""); }}>
+        <DialogContent className="w-[95vw] max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>
+              Translate EN → DE — Unit {selectedUnit}
+            </DialogTitle>
+            <DialogDescription>
+              Translates the English content into German and writes it as a <strong>Preview</strong> release. Review the DE preview before publishing live.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-1">
+            {/* Source + Provider selectors */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">EN Source</label>
+                <Select value={translateSource} onValueChange={(v) => setTranslateSource(v as any)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="published">Published EN</SelectItem>
+                    <SelectItem value="preview">Preview EN</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">AI Provider</label>
+                <Select value={translateProvider} onValueChange={(v) => setTranslateProvider(v as any)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gemini">Gemini</SelectItem>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Source info */}
+            <div className="rounded border bg-muted/30 p-3 text-xs space-y-1.5 min-h-[72px]">
+              {translatePreviewInfo === undefined ? (
+                <div className="flex items-center gap-2 text-muted-foreground py-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Loading source info...
+                </div>
+              ) : !(translatePreviewInfo as any)?.sourceEn?.exists ? (
+                <div className="text-destructive font-medium">
+                  {(translatePreviewInfo as any)?.warnings?.[0] ?? "No eligible EN source found."}
+                </div>
+              ) : (
+                <>
+                  <div className="font-medium">
+                    Source: {(translatePreviewInfo as any).sourceEn.title}
+                    <Badge variant="outline" className="ml-2 text-[10px]">{translateSource}</Badge>
+                  </div>
+                  <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
+                    <span>Sections: {((translatePreviewInfo as any).sourceEn.contentSections ?? []).length}</span>
+                    <span>Tests: {(translatePreviewInfo as any).sourceEn.tests?.count ?? 0} (v{(translatePreviewInfo as any).sourceEn.tests?.unitVersion ?? 1})</span>
+                    <span>Vocab: {(translatePreviewInfo as any).sourceEn.vocabulary?.count ?? 0}</span>
+                  </div>
+                  {Array.isArray((translatePreviewInfo as any).warnings) && (translatePreviewInfo as any).warnings.length > 0 && (
+                    <div className="space-y-0.5">
+                      {(translatePreviewInfo as any).warnings.map((w: string, i: number) => (
+                        <div key={i} className="text-amber-700 dark:text-amber-400 flex items-start gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                          {w}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Confirm + Run */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Type <span className="font-mono text-foreground">TRANSLATE UNIT {selectedUnit} TO DE</span> to confirm:
+              </label>
+              <Input
+                className="font-mono text-xs h-8"
+                placeholder={`TRANSLATE UNIT ${selectedUnit} TO DE`}
+                value={translateConfirm}
+                onChange={(e) => setTranslateConfirm(e.target.value)}
+                disabled={translateRunning}
+              />
+              <Button
+                className="w-full"
+                disabled={
+                  translateRunning ||
+                  translateConfirm !== `TRANSLATE UNIT ${selectedUnit} TO DE` ||
+                  !(translatePreviewInfo as any)?.sourceEn?.exists
+                }
+                onClick={handleTranslate}
+              >
+                {translateRunning ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Translating...</>
+                ) : (
+                  <><Languages className="mr-2 h-4 w-4" />Start Translation</>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -1662,7 +1662,10 @@ export const upsertUnitGermanTranslationToPreview = mutation({
       testsInserted += 1;
     }
 
-    // 4) courseVocabulary — insert PREVIEW copies with DE fields set (no patching of published rows).
+    // 4) courseVocabulary — handle DE preview fields.
+    // - If the source row is already a preview row: patch it directly with DE fields
+    //   (avoids duplicate preview rows when translating from a preview EN source).
+    // - If the source row is published: insert a new preview copy (original behavior).
     let vocabInserted = 0;
     for (const vrow of args.vocabularyDe as any[]) {
       const id = vrow.courseVocabularyId;
@@ -1671,32 +1674,39 @@ export const upsertUnitGermanTranslationToPreview = mutation({
       if (Number(src.unitNumber) !== unitNumber) continue;
       if (src.isActive === false) continue;
 
-      await ctx.db.insert("courseVocabulary", {
-        unitNumber,
-        serbian: String(src.serbian ?? ""),
-        serbianNormalized: typeof src.serbianNormalized === "string"
-          ? src.serbianNormalized
-          : String(src.serbian ?? "").toLowerCase().trim(),
-        // copy base translations (EN etc) so preview behaves like normal vocab rows
-        en: typeof src.en === "string" ? src.en : undefined,
-        enAlt: typeof src.enAlt === "string" ? src.enAlt : undefined,
-        translations: Array.isArray(src.translations) ? src.translations : undefined,
-        gender: typeof src.gender === "string" ? src.gender : undefined,
-        pronunciation: typeof src.pronunciation === "string" ? src.pronunciation : undefined,
-        audioUrl: typeof src.audioUrl === "string" ? src.audioUrl : undefined,
-        audioStorageId: typeof src.audioStorageId === "string" ? src.audioStorageId : undefined,
-        noteEn: typeof src.noteEn === "string" ? src.noteEn : undefined,
+      const dePatch: any = {};
+      if (typeof vrow.de === "string" && String(vrow.de).trim()) dePatch.de = String(vrow.de).trim();
+      if (typeof vrow.deAlt === "string" && String(vrow.deAlt).trim()) dePatch.deAlt = String(vrow.deAlt).trim();
+      if (typeof vrow.noteDe === "string" && String(vrow.noteDe).trim()) dePatch.noteDe = String(vrow.noteDe).trim();
 
-        // DE preview fields
-        ...(typeof vrow.de === "string" && String(vrow.de).trim() ? { de: String(vrow.de).trim() } : {}),
-        ...(typeof vrow.deAlt === "string" && String(vrow.deAlt).trim() ? { deAlt: String(vrow.deAlt).trim() } : {}),
-        ...(typeof vrow.noteDe === "string" && String(vrow.noteDe).trim() ? { noteDe: String(vrow.noteDe).trim() } : {}),
-
-        isActive: true,
-        archivedAt: undefined,
-        unitVersion,
-        releaseStatus: "preview",
-      } as any);
+      if (src.releaseStatus === "preview") {
+        // Source is a preview row → patch DE fields directly; no new row needed.
+        if (Object.keys(dePatch).length > 0) {
+          await ctx.db.patch(src._id, dePatch);
+        }
+      } else {
+        // Source is published → insert a new preview copy with DE fields.
+        await ctx.db.insert("courseVocabulary", {
+          unitNumber,
+          serbian: String(src.serbian ?? ""),
+          serbianNormalized: typeof src.serbianNormalized === "string"
+            ? src.serbianNormalized
+            : String(src.serbian ?? "").toLowerCase().trim(),
+          en: typeof src.en === "string" ? src.en : undefined,
+          enAlt: typeof src.enAlt === "string" ? src.enAlt : undefined,
+          translations: Array.isArray(src.translations) ? src.translations : undefined,
+          gender: typeof src.gender === "string" ? src.gender : undefined,
+          pronunciation: typeof src.pronunciation === "string" ? src.pronunciation : undefined,
+          audioUrl: typeof src.audioUrl === "string" ? src.audioUrl : undefined,
+          audioStorageId: typeof src.audioStorageId === "string" ? src.audioStorageId : undefined,
+          noteEn: typeof src.noteEn === "string" ? src.noteEn : undefined,
+          ...dePatch,
+          isActive: true,
+          archivedAt: undefined,
+          unitVersion,
+          releaseStatus: "preview",
+        } as any);
+      }
       vocabInserted += 1;
     }
 
@@ -1931,5 +1941,45 @@ export const takeLanguagePreviewOffline = mutation({
       language,
       offlined: { metaOfflined, contentOfflined, testsOfflined, vocabOfflined },
     };
+  },
+});
+
+export const dismissFinding = mutation({
+  args: {
+    findingId: v.id("contentDraftFindings"),
+    dismissed: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const finding = await ctx.db.get(args.findingId);
+    if (!finding) throw new Error("Finding not found");
+    await ctx.db.patch(args.findingId, { dismissed: args.dismissed });
+  },
+});
+
+export const appendFindings = mutation({
+  args: {
+    draftId: v.id("contentDrafts"),
+    findings: v.array(
+      v.object({
+        stage: v.union(v.literal("validator"), v.literal("auditor")),
+        severity: v.union(v.literal("error"), v.literal("warning"), v.literal("info")),
+        code: v.string(),
+        message: v.string(),
+        path: v.optional(v.string()),
+        detailsJson: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const now = Date.now();
+    for (const f of args.findings) {
+      await ctx.db.insert("contentDraftFindings", {
+        draftId: args.draftId,
+        ...f,
+        createdAt: now,
+      });
+    }
   },
 });

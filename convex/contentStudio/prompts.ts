@@ -27,14 +27,15 @@ RULES:
 
 OUTPUT: Return ONLY the revised ## 2. Vocabulary section (including the header).`,
 
-  grammar: `You are expanding the Grammar section of a Serbian learning unit.
+  grammar: `You are revising the Grammar section of a Serbian learning unit.
 
 RULES:
 - Keep the "## 3. Grammar" header.
-- Keep ALL existing grammar explanations intact.
-- Add more examples or deeper explanations where requested.
+- MODIFY ONLY what the instruction asks for. For grammar points NOT mentioned, keep them exactly as-is.
+- If the instruction says to FIX, CORRECT, or REPLACE a grammar explanation, rewrite that explanation completely with accurate information.
+- If the instruction says to ADD, expand the section with new ### subsections.
 - Use ### subsections for different grammar points.
-- Examples should show Serbian + English translation.
+- Examples should show Serbian + English translation (at least 3 per grammar point).
 - Keep explanations beginner-friendly.
 
 OUTPUT: Return ONLY the revised ## 3. Grammar section (including the header).`,
@@ -52,11 +53,12 @@ RULES:
 
 OUTPUT: Return ONLY the revised ## 4. Phrases section (including the header).`,
 
-  exercises: `You are expanding the Interactive Test section of a Serbian learning unit.
+  exercises: `You are revising the Interactive Test section of a Serbian learning unit.
 
 RULES:
 - Keep the "## 5. Interactive Test" header.
-- Keep ALL existing exercises intact.
+- MODIFY ONLY what the instruction asks for. For exercises NOT mentioned in the instruction, keep them exactly as-is.
+- If the instruction says to REPLACE, FIX, REWRITE, or CORRECT a specific exercise type (e.g., "Replace the dialogueCompletion exercises"), you MUST do so completely: remove ALL broken rows and write entirely new ones that fit the unit topic and vocabulary.
 - The section must have exactly 5 exercise types:
   - ex1: Translation
   - ex2: Fill-in-the-Blank (use exactly "_____" for blanks)
@@ -73,9 +75,8 @@ RULES:
 - ex2 Fill-in-the-Blank: the "Sentence" cell must be ONLY the sentence with exactly one blank (_____), not "Complete the sentence: ...".
 - ex3 Multiple Choice: the "Question" cell must be only the question/sentence, not the instructions.
 - ex4 Vocabulary Matching: prompts must be short and varied (no repeated stems).
-- ex5 Dialogue Completion: dialogue lines must be only the dialogue line with one blank, not the instructions.
+- ex5 Dialogue Completion: dialogue lines must reflect the unit topic (e.g., a time/days unit uses time-related dialogue, NOT a restaurant/waiter context).
 - Question IDs: u<UNIT>_ex<N>_q<NN> format (e.g., u5_ex3_q07).
-- Add more questions to existing exercises if requested.
 - Every "Answer (for database)" cell must be non-empty.
 
 OUTPUT: Return ONLY the revised ## 5. Interactive Test section (including the header).`,
@@ -188,16 +189,23 @@ export const SPECIALIST_SYSTEM_PROMPT = [
   `- Correct Answer MUST include the letter: B) Dobro jutro`,
   ``,
   `───────────────────────────────────────────────────────────────────────────`,
-  `EXERCISE 4: Fill-in-the-Blank (Grammar Focus)`,
+  `EXERCISE 4: Vocabulary Matching`,
   `───────────────────────────────────────────────────────────────────────────`,
-  `### Exercise 4: Fill-in-the-Blank (Verb Conjugation)`,
+  `### Exercise 4: Vocabulary Matching (Key Vocabulary)`,
   ``,
-  `**Instructions:** Fill in the blank with the correct form of the verb "biti" (to be).`,
+  `**Instructions:** Match the English meaning to the correct Serbian word.`,
   ``,
-  `| Sentence | Answer (for database) |`,
+  `| English Meaning | Serbian Word |`,
   `| :--- | :--- |`,
-  `| Ja _____ Alex. (I am Alex.) | sam |`,
-  `| Ti _____ turista? (Are you a tourist?) | si |`,
+  `| hello (informal) | Zdravo |`,
+  `| good day | Dobar dan |`,
+  `| thank you | Hvala |`,
+  `| please / you're welcome | Molim |`,
+  `| goodbye | Doviđenja |`,
+  ``,
+  `- IMPORTANT: Columns MUST be "English Meaning" and "Serbian Word" exactly.`,
+  `- Do NOT put blanks in this table — the parser inserts "_____" automatically.`,
+  `- "Serbian Word" column = the correct answer (base form, audio-clean).`,
   ``,
   `───────────────────────────────────────────────────────────────────────────`,
   `EXERCISE 5: Dialogue Completion`,
@@ -229,16 +237,79 @@ export const SPECIALIST_SYSTEM_PROMPT = [
 
 export const CREATOR_REVISE_SYSTEM_PROMPT = [
   `You are a strict content revision agent for a Serbian learning app.`,
-  `Your task is to FIX reported issues in the Markdown content without breaking the structure.`,
+  `Your task is to FIX reported issues in the Markdown content WITHOUT breaking the structure.`,
   ``,
-  `RULES:`,
-  `1. Keep the exact same Markdown structure (headers, tables).`,
-  `2. Fix ONLY the issues reported in the findings.`,
-  `3. If a vocabulary word is reported as "already taught", REMOVE it from the Vocabulary table (and from Phrases/Exercises if instructed).`,
-  `4. If an exercise has "invalid blank format", ensure blanks are EXACTLY "_____" (5 underscores).`,
-  `5. If an exercise has "multiple blanks", ensure there is ONLY ONE blank per question.`,
-  `6. Do NOT rewrite the whole unit if not necessary.`,
-  `7. Output the FULL corrected Markdown.`,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `MANDATORY OUTPUT STRUCTURE (every section MUST be present in output)`,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `The output Markdown MUST contain ALL of these sections:`,
+  `  ## 1. Overview`,
+  `  ## 2. Vocabulary`,
+  `  ## 3. Grammar`,
+  `  ## 4. Phrases`,
+  `  ## 5. Interactive Test`,
+  `  At least one dialogue block (### ... Dialogue ... or a | Role | Serbian | English | table)`,
+  ``,
+  `CRITICAL: Never omit any section. If a section has no findings, copy it VERBATIM from the input.`,
+  ``,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `REVISION RULES`,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `1. Fix ONLY the reported findings. Do NOT rewrite sections that have no findings.`,
+  `2. Keep all Markdown headers (##, ###), table formats, and the Module/Unit title line intact.`,
+  `3. If a vocabulary word is reported as "already taught", REMOVE it from ## 2. Vocabulary (and from Phrases/Exercises where explicitly noted).`,
+  `4. BLANKS: All fill-in-the-blank and vocabulary matching questions MUST use exactly "_____" (exactly 5 underscores, nothing else).`,
+  `5. ONE BLANK PER QUESTION: Each fill-in-blank and vocabulary matching question may contain exactly ONE blank "_____".`,
+  `6. Output the FULL corrected Markdown — all sections, unchanged sections included.`,
+  ``,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `EXERCISE PRESERVATION RULE (## 5. Interactive Test) — CRITICAL`,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `When a finding references a SPECIFIC exercise category (e.g., exercises[category=multipleChoice]):`,
+  `  - Fix ONLY the questions within that specific category.`,
+  `  - ALL OTHER exercise categories (ex1, ex2, ex3, ex4, ex5) that are NOT mentioned in the findings`,
+  `    MUST be copied VERBATIM row-by-row from the input. Do NOT regenerate, paraphrase, or restructure them.`,
+  `  - NEVER change the Dialogue Line, Options, or Correct Answer of dialogueCompletion (ex5) rows`,
+  `    unless ex5 is explicitly named in a finding.`,
+  ``,
+  `dialogueCompletion (ex5) TOPIC RULE:`,
+  `  - Dialogue lines MUST reflect the unit topic (e.g., a time/days unit uses time/scheduling dialogue).`,
+  `  - NEVER use a restaurant/waiter context ("Šta biste želeli?", "Kellner", "Konobar") unless`,
+  `    the unit is explicitly about food/restaurants.`,
+  `  - If ex5 is being fixed, write dialogues coherent with the vocabulary and grammar of THIS unit.`,
+  ``,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `EXERCISE FORMAT REQUIREMENTS (## 5. Interactive Test)`,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `The Interactive Test MUST have exactly these 5 exercises in order:`,
+  `  ex1: Translation        – columns: | English | Answer (for database) |`,
+  `  ex2: Fill-in-the-Blank  – columns: | Sentence | Answer (for database) | (blank = _____)`,
+  `  ex3: Multiple Choice    – columns: | Question | Options | Correct Answer (for database) |`,
+  `  ex4: Vocabulary Matching – columns: | English Meaning | Serbian Word |`,
+  `  ex5: Dialogue Completion – columns: | Dialogue Line | Options | Correct Answer (for database) |`,
+  ``,
+  `EXERCISE 3 & 5 OPTIONS RULE (CRITICAL):`,
+  `  - multipleChoice (ex3) and dialogueCompletion (ex5) MUST have AT LEAST 3 options.`,
+  `  - Format: A) Option  B) Option  C) Option  (two spaces between options)`,
+  `  - Correct Answer MUST include the letter: e.g. "B) Dobro jutro"`,
+  ``,
+  `EXERCISE 4 VOCABULARY MATCHING FORMAT:`,
+  `  - Table columns MUST be: | English Meaning | Serbian Word |`,
+  `  - The "English Meaning" column contains the English translation (no blanks needed — parser adds _____ automatically).`,
+  `  - The "Serbian Word" column contains the correct Serbian answer.`,
+  `  - Example row: | apple | jabuka |`,
+  ``,
+  `EXERCISE INSTRUCTIONS LINE:`,
+  `  - Every exercise MUST have: **Instructions:** <one short sentence> directly below the ### heading.`,
+  ``,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `DIALOGUE FORMAT (## 4. Phrases)`,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `Dialogues MUST use this exact table format:`,
+  `  | Role | Serbian | English |`,
+  `  | :--- | :--- | :--- |`,
+  `  | **Alex** | Zdravo! | Hello! |`,
+  `The header MUST include the word "Serbian".`,
 ].join("\n");
 
 export const getSpecialistUserPromptBase = (

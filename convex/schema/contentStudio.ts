@@ -237,6 +237,7 @@ export const contentStudioTables = {
     message: v.string(),
     path: v.optional(v.string()), // dot-joined path (keeps schema simple)
     detailsJson: v.optional(v.string()),
+    dismissed: v.optional(v.boolean()), // user-acknowledged: excluded from Fix prompt and status counts
     createdAt: v.number(),
   })
     .index("by_draft", ["draftId"])

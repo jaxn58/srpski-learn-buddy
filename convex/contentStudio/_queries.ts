@@ -489,25 +489,33 @@ export const listReferenceGuidelineVersions = query({
 
 // ===== Published unit export for translation (EN -> DE) =====
 export const getPublishedUnitSourceEnForTranslation = query({
-  args: { unitNumber: v.number() },
+  args: {
+    unitNumber: v.number(),
+    // "published" (default) uses published EN rows; "preview" uses preview EN rows.
+    sourceReleaseStatus: v.optional(v.union(v.literal("published"), v.literal("preview"))),
+  },
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
 
     const unitNumber = Number(args.unitNumber);
     if (!Number.isFinite(unitNumber) || unitNumber <= 0) throw new Error("Invalid unitNumber");
 
-    const isPublishedStatus = (s: unknown) => s === undefined || s === "published";
+    const sourceStatus = args.sourceReleaseStatus ?? "published";
+    const isEligibleSource = (s: unknown) =>
+      sourceStatus === "preview" ? s === "preview" : (s === undefined || s === "published");
 
     // 1) Unit metadata (EN)
     const metaRows = await ctx.db
       .query("unitMetadata")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
       .collect();
-    const metaEnCandidates = (metaRows as any[]).filter((m) => isPublishedStatus(m?.releaseStatus));
+    const metaEnCandidates = (metaRows as any[]).filter((m) => isEligibleSource(m?.releaseStatus));
     metaEnCandidates.sort((a, b) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0));
     const metaEn = metaEnCandidates[0] ?? null;
     if (!metaEn) {
-      throw new Error(`Published English unitMetadata not found for unit ${unitNumber}`);
+      throw new Error(
+        `${sourceStatus === "preview" ? "Preview" : "Published"} English unitMetadata not found for unit ${unitNumber}`
+      );
     }
 
     // 2) Unit content sections (EN) - best per contentType by highest unitVersion
@@ -516,7 +524,7 @@ export const getPublishedUnitSourceEnForTranslation = query({
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
       .collect();
     const eligibleContent = (contentRows as any[]).filter(
-      (c) => c?.isActive !== false && isPublishedStatus(c?.releaseStatus)
+      (c) => c?.isActive !== false && isEligibleSource(c?.releaseStatus)
     );
     const contentByType = new Map<string, any>();
     const versionOf = (row: any) => Number(row?.unitVersion ?? row?.version ?? 1) || 1;
@@ -541,13 +549,13 @@ export const getPublishedUnitSourceEnForTranslation = query({
       unitVersion: versionOf(c),
     }));
 
-    // 3) Interactive tests (EN) - best published max unitVersion
+    // 3) Interactive tests (EN) - best eligible max unitVersion
     const testRows = await ctx.db
       .query("unitInteractiveTests")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
       .collect();
     const eligibleTests = (testRows as any[]).filter(
-      (t) => t?.isActive !== false && isPublishedStatus(t?.releaseStatus)
+      (t) => t?.isActive !== false && isEligibleSource(t?.releaseStatus)
     );
     const maxTestVersion = eligibleTests.reduce((m, t) => Math.max(m, Number(t?.unitVersion ?? 1) || 1), 1);
     const testsEn = eligibleTests
@@ -567,13 +575,13 @@ export const getPublishedUnitSourceEnForTranslation = query({
         unitVersion: Number(t.unitVersion ?? 1) || 1,
       }));
 
-    // 4) Course vocabulary (published, active) - best per normalized key by highest unitVersion
+    // 4) Course vocabulary (eligible source, active) - best per normalized key by highest unitVersion
     const vocabRows = await ctx.db
       .query("courseVocabulary")
       .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
       .collect();
     const eligibleVocab = (vocabRows as any[]).filter(
-      (v) => v?.isActive !== false && isPublishedStatus(v?.releaseStatus)
+      (v) => v?.isActive !== false && isEligibleSource(v?.releaseStatus)
     );
     const vocabByKey = new Map<string, any>();
     for (const vdoc of eligibleVocab) {
@@ -622,28 +630,39 @@ export const getPublishedUnitSourceEnForTranslation = query({
 });
 
 export const getUnitTranslationPreviewEnToDe = query({
-  args: { unitNumber: v.number() },
+  args: {
+    unitNumber: v.number(),
+    // "published" (default) = use published EN as source; "preview" = use preview EN as source.
+    sourceReleaseStatus: v.optional(v.union(v.literal("published"), v.literal("preview"))),
+  },
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
 
     const unitNumber = Number(args.unitNumber);
     if (!Number.isFinite(unitNumber) || unitNumber <= 0) throw new Error("Invalid unitNumber");
 
+    const sourceStatus = args.sourceReleaseStatus ?? "published";
+    const isEligibleSource = (s: unknown) =>
+      sourceStatus === "preview" ? s === "preview" : (s === undefined || s === "published");
     const isPublishedStatus = (s: unknown) => s === undefined || s === "published";
 
     const warnings: string[] = [];
 
-    // Source EN (published)
+    // Source EN (published or preview based on sourceStatus)
     const metaRowsEn = await ctx.db
       .query("unitMetadata")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
       .collect();
-    const metaEnCandidates = (metaRowsEn as any[]).filter((m) => isPublishedStatus(m?.releaseStatus));
+    const metaEnCandidates = (metaRowsEn as any[]).filter((m) => isEligibleSource(m?.releaseStatus));
     metaEnCandidates.sort((a, b) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0));
     const metaEn = metaEnCandidates[0] ?? null;
 
     if (!metaEn) {
-      warnings.push("No published English unitMetadata found. Translate requires published EN source.");
+      warnings.push(
+        sourceStatus === "preview"
+          ? "No preview English unitMetadata found. Publish the unit to preview first."
+          : "No published English unitMetadata found. Translate requires published EN source."
+      );
       return {
         unitNumber,
         sourceEn: { exists: false as const },
@@ -657,7 +676,7 @@ export const getUnitTranslationPreviewEnToDe = query({
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
       .collect();
     const eligibleContentEn = (contentRowsEn as any[]).filter(
-      (c) => c?.isActive !== false && isPublishedStatus(c?.releaseStatus)
+      (c) => c?.isActive !== false && isEligibleSource(c?.releaseStatus)
     );
     const versionOf = (row: any) => Number(row?.unitVersion ?? row?.version ?? 1) || 1;
     const contentByType = new Map<string, any>();
@@ -680,24 +699,36 @@ export const getUnitTranslationPreviewEnToDe = query({
       unitVersion: versionOf(c),
       chars: String(c.content ?? "").length,
     }));
-    if (sourceContent.length === 0) warnings.push("No published English unitContent found.");
+    if (sourceContent.length === 0) {
+      warnings.push(
+        sourceStatus === "preview"
+          ? "No preview English unitContent found."
+          : "No published English unitContent found."
+      );
+    }
 
     const testRowsEn = await ctx.db
       .query("unitInteractiveTests")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "en"))
       .collect();
-    const eligibleTestsEn = (testRowsEn as any[]).filter((t) => t?.isActive !== false && isPublishedStatus(t?.releaseStatus));
+    const eligibleTestsEn = (testRowsEn as any[]).filter((t) => t?.isActive !== false && isEligibleSource(t?.releaseStatus));
     const maxTestVersion = eligibleTestsEn.reduce((m, t) => Math.max(m, Number(t?.unitVersion ?? 1) || 1), 1);
     const sourceTests = eligibleTestsEn
       .filter((t) => (Number(t?.unitVersion ?? 1) || 1) === maxTestVersion)
       .map((t) => ({ questionId: String(t.questionId), unitVersion: Number(t.unitVersion ?? 1) || 1 }));
-    if (sourceTests.length === 0) warnings.push("No published English interactive tests found.");
+    if (sourceTests.length === 0) {
+      warnings.push(
+        sourceStatus === "preview"
+          ? "No preview English interactive tests found."
+          : "No published English interactive tests found."
+      );
+    }
 
     const vocabRows = await ctx.db
       .query("courseVocabulary")
       .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
       .collect();
-    const eligibleVocab = (vocabRows as any[]).filter((v) => v?.isActive !== false && isPublishedStatus(v?.releaseStatus));
+    const eligibleVocab = (vocabRows as any[]).filter((v) => v?.isActive !== false && isEligibleSource(v?.releaseStatus));
     const vocabByKey = new Map<string, any>();
     for (const vdoc of eligibleVocab) {
       const key = String(vdoc?.serbianNormalized ?? vdoc?.serbian ?? "").trim().toLowerCase();

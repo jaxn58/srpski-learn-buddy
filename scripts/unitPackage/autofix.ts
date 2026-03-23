@@ -10,7 +10,8 @@ export type AutoFixChange = {
     | "splitEnglishAlt"
     | "mergeExerciseCategories"
     | "normalizeChoiceOption"
-    | "normalizeCorrectAnswer";
+    | "normalizeCorrectAnswer"
+    | "fixMatchingBlank";
   path: Array<string | number>;
   before: unknown;
   after: unknown;
@@ -442,6 +443,26 @@ export function autofixUnitPackage(pkg: UnitPackage): {
             after: afterQuestion,
             note: "Removed per-row instruction prefix; instructions belong in category header only",
           });
+        }
+
+        // Fix matching (vocabularyMatching) questions that lack the required "_____ = ..." format.
+        // The parser normally constructs this automatically from the table, but if the AI uses
+        // non-standard column names the question text may arrive without any blank.
+        if (baseQ.questionType === "matching") {
+          const currentQuestion = String(baseQ.question ?? "");
+          const hasFiveUnderscoreBlank = /_____|_+/.test(currentQuestion);
+          if (!hasFiveUnderscoreBlank && currentQuestion.trim()) {
+            const fixed = `_____ = ${currentQuestion.trim()}`;
+            changes.push({
+              kind: "fixMatchingBlank",
+              path: ["exercises", lang, cIdx, "questions", qIdx, "question"],
+              before: currentQuestion,
+              after: fixed,
+              note: "Added '_____ = ' prefix to vocabularyMatching question missing the blank",
+            });
+            return { ...baseQ, question: fixed };
+          }
+          return baseQ;
         }
 
         if (q.questionType !== "multipleChoice") {
