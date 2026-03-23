@@ -47,12 +47,14 @@ interface LangVersion {
   sectionCount: number;
   testCount: number;
   vocabCount: number;
+  latestContentUpdatedAt?: number;
 }
 
 interface UnitOverview {
   unitNumber: number;
   moduleName?: string;
   moduleNumber?: number;
+  deTranslationStale?: boolean;
   versions: Record<string, LangVersion>;
 }
 
@@ -114,7 +116,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   const doTranslate = useAction(api.contentStudio.translatePublishedUnitEnToDe);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de" | "de_outdated">("all");
   const [selectedUnit, setSelectedUnit] = useState<number | null>(null);
   const [detailLang, setDetailLang] = useState<string>("en");
   const [inlinePreviewOpen, setInlinePreviewOpen] = useState(false);
@@ -193,18 +195,17 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     } else if (statusFilter === "preview") {
       list = list.filter((u) => Object.values(u.versions).some((v: any) => v.releaseStatus === "preview"));
     } else if (statusFilter === "missing_de") {
-      // "Missing DE" = no DE version, or DE version has significantly less content than EN
-      // (catches old legacy DE metadata/content that doesn't represent a real translation)
       list = list.filter((u) => {
         const de = u.versions.de;
-        if (!de) return true; // no DE at all
+        if (!de) return true;
         const en = u.versions.en;
-        if (!en) return false; // no EN to compare — not "missing DE"
-        // DE exists but is incomplete: fewer than half of EN sections, or 0 tests while EN has some
+        if (!en) return false;
         const hasFewSections = de.sectionCount < Math.ceil(en.sectionCount / 2);
         const hasNoTests = en.testCount > 0 && de.testCount === 0;
         return hasFewSections || hasNoTests;
       });
+    } else if (statusFilter === "de_outdated") {
+      list = list.filter((u) => u.deTranslationStale === true);
     }
 
     return list;
@@ -373,6 +374,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                   {u.moduleNumber != null && (
                     <span className="ml-1.5 text-xs text-muted-foreground">M{u.moduleNumber}</span>
                   )}
+                  {u.deTranslationStale && (
+                    <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-amber-500 text-amber-600" title="EN content is newer than DE translation">DE outdated</Badge>
+                  )}
                   {isRecent && (
                     <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-green-500 text-green-600">NEW</Badge>
                   )}
@@ -406,6 +410,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
             <SelectItem value="published">Has published</SelectItem>
             <SelectItem value="preview">Has preview</SelectItem>
             <SelectItem value="missing_de">Missing DE</SelectItem>
+            <SelectItem value="de_outdated">DE outdated</SelectItem>
           </SelectContent>
         </Select>
 
@@ -508,6 +513,33 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
               </div>
             </div>
           </CardHeader>
+
+          {/* DE translation outdated warning */}
+          {selectedOverview.deTranslationStale && (
+            <div className="mx-6 mb-2 flex items-center justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                <span>EN content has been updated since the last DE translation.</span>
+              </div>
+              {selectedOverview.versions.en && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10 shrink-0"
+                  onClick={() => {
+                    const enVersion = selectedOverview.versions.en;
+                    if (enVersion?.releaseStatus === "preview") setTranslateSource("preview");
+                    else setTranslateSource("published");
+                    setTranslateConfirm("");
+                    setTranslateOpen(true);
+                  }}
+                >
+                  <Languages className="mr-1 h-3.5 w-3.5" />
+                  Update DE
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Recently-translated info banner */}
           {(() => {

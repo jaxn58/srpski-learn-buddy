@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiText } from "./_shared";
+import { requireSuperadminAction, callAiText, resolvePromptFromDb } from "./_shared";
 import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
@@ -20,6 +20,7 @@ import {
   SPECIALIST_SYSTEM_PROMPT,
   CREATOR_REVISE_SYSTEM_PROMPT,
   getSpecialistUserPromptBase,
+  CS_PROMPT_KEYS,
 } from "./prompts";
 import type { Id } from "../_generated/dataModel";
 
@@ -385,12 +386,13 @@ export const runAiSpecialistGenerate = action({
     })();
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SPECIALIST SYSTEM PROMPT - Based on Unit 1/2 proven format
+    // SPECIALIST SYSTEM PROMPT - loaded from DB, fallback to code
     // ═══════════════════════════════════════════════════════════════════════════
-    const dynamicPromptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, {
-      name: "content_studio_specialist",
-    });
-    const baseSystemPrompt = dynamicPromptDoc?.content || SPECIALIST_SYSTEM_PROMPT;
+    const { content: baseSystemPrompt } = await resolvePromptFromDb(
+      ctx,
+      CS_PROMPT_KEYS.unitCreator,
+      SPECIALIST_SYSTEM_PROMPT,
+    );
 
     // Replace [LANGUAGE] placeholder if present
     const system = [
@@ -658,10 +660,11 @@ export const runAiCreatorRevise = action({
       ? `HUMAN REVIEW NOTES:\n${humanNotes}`
       : "";
 
-    const dynamicPromptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, {
-      name: "content_studio_revise",
-    });
-    const baseSystemPrompt = dynamicPromptDoc?.content || CREATOR_REVISE_SYSTEM_PROMPT;
+    const { content: baseSystemPrompt } = await resolvePromptFromDb(
+      ctx,
+      CS_PROMPT_KEYS.findingFixer,
+      CREATOR_REVISE_SYSTEM_PROMPT,
+    );
 
     // Replace [LANGUAGE] placeholder if present
     const system = [

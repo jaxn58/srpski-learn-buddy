@@ -6,9 +6,10 @@ import {
   parseJsonOrThrow,
   callAiJson,
   buildStageSkillBlock,
+  resolvePromptFromDb,
 } from "./_shared";
 import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
-import { getAuditorSystemPrompt } from "./prompts";
+import { LECTOR_SYSTEM_PROMPT, CS_PROMPT_KEYS } from "./prompts";
 import type { Id } from "../_generated/dataModel";
 
 export const runAiAuditor = action({
@@ -63,13 +64,25 @@ export const runAiAuditor = action({
         .join("\n")
         .trim();
     })();
-    const system = getAuditorSystemPrompt(
-      unitNumber,
-      previousUnitsVocab,
-      previousVocabKeys,
-      auditSkillBlock,
-      referenceBlock
+    const { content: baseLectorPrompt } = await resolvePromptFromDb(
+      ctx, CS_PROMPT_KEYS.lector, LECTOR_SYSTEM_PROMPT,
     );
+    const system = [
+      baseLectorPrompt,
+      ``,
+      `=== COURSE CONTEXT ===`,
+      `This is Unit ${unitNumber} of a Serbian language course for English speakers.`,
+      `The course teaches STANDARD SERBIAN (Ekavian dialect, Latin script primarily).`,
+      referenceBlock ? `\n=== REFERENCE GUIDELINES (inspiration only; do NOT quote) ===\n${referenceBlock}\n` : ``,
+      ``,
+      `VOCABULARY ALREADY TAUGHT IN PREVIOUS UNITS (${previousUnitsVocab.length} words):`,
+      previousVocabKeys.length > 0
+        ? previousVocabKeys.slice(0, 200).join(", ") + (previousVocabKeys.length > 200 ? " ... (truncated)" : "")
+        : "(This is Unit 1 - no previous vocabulary)",
+      ``,
+      `IMPORTANT: Words from previous units are ALREADY KNOWN to the learner. They do NOT need to be re-introduced. Using them in exercises for REVIEW is encouraged.`,
+      auditSkillBlock ? `\n${auditSkillBlock}\n` : ``,
+    ].join("\n");
 
     const payload = buildAuditPayload(pkg);
     const userPrompt = [`AUDIT PAYLOAD JSON:`, JSON.stringify(payload)].join("\n");

@@ -913,3 +913,20 @@ export async function buildStageSkillBlock(ctx: ActionCtx, draft: any, stage: Sk
   }
   return lines.join("\n").trim();
 }
+
+/**
+ * Resolve a prompt from the chatPrompts DB table (ActionCtx variant).
+ * Single source of truth: only checks the canonical key in the DB.
+ * Falls back to code constant with a console warning if DB entry is missing.
+ */
+export async function resolvePromptFromDb(
+  ctx: ActionCtx,
+  key: string,
+  codeFallback: string,
+): Promise<{ content: string; source: "database" | "code_fallback" }> {
+  const doc: any = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: key });
+  if (doc?.content) return { content: doc.content, source: "database" };
+
+  console.warn(`[resolvePromptFromDb] DB entry missing for key "${key}" -- using code fallback. Seed prompts via seedContentStudioPrompts.`);
+  return { content: codeFallback, source: "code_fallback" };
+}
