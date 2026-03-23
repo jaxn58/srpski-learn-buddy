@@ -28,11 +28,6 @@ export const publishDraftToPreview = action({
     // Use post-autofix package (same as import pipeline)
     const { fixed } = autofixUnitPackage(base.data);
 
-    // #region agent log
-    const _ex5Published = ((fixed as any)?.exercises?.en ?? []).filter((c: any) => c.category === 'dialogueCompletion').flatMap((c: any) => c.questions ?? []);
-    fetch('http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37c486'},body:JSON.stringify({sessionId:'37c486',location:'_publisher.ts:publishDraftToPreview:aboutToPublish',hypothesisId:'H-D',message:'ex5 being published to preview',data:{snapshotId:(current as any)?.snapshot?._id,draftId:args.draftId,ex5Count:_ex5Published.length,ex5Sample:_ex5Published.slice(0,2).map((q:any)=>({id:q.questionId,q:String(q.question||'').slice(0,80)}))},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     // Compute a next unitVersion without archiving published content.
     // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
     const ver = await ctx.runQuery(api.contentImportAdmin.previewReplaceUnit, {

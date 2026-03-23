@@ -47,6 +47,7 @@ interface LangVersion {
   sectionCount: number;
   testCount: number;
   vocabCount: number;
+  lastUpdatedAt?: number;
 }
 
 interface UnitOverview {
@@ -95,6 +96,25 @@ function langFlag(lang: string) {
   return LANG_LABELS[lang] ?? lang.toUpperCase();
 }
 
+/**
+ * Returns true when EN content was updated *after* the DE translation was last
+ * created, meaning the DE version is likely outdated and should be re-translated.
+ *
+ * Requires both versions to have `lastUpdatedAt` timestamps (supplied by the
+ * backend query). If timestamps are unavailable the function returns false to
+ * avoid false-positive warnings.
+ */
+function isTranslationOutdated(unit: UnitOverview): boolean {
+  const en = unit.versions.en;
+  const de = unit.versions.de;
+  if (!en || !en.lastUpdatedAt) return false;
+  // No DE content at all: technically outdated, but that's already covered by the
+  // "missing_de" filter – we only trigger the "outdated" warning when DE exists but
+  // is behind EN.
+  if (!de || !de.lastUpdatedAt) return false;
+  return en.lastUpdatedAt > de.lastUpdatedAt;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -114,7 +134,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   const doTranslate = useAction(api.contentStudio.translatePublishedUnitEnToDe);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de" | "outdated_de">("all");
   const [selectedUnit, setSelectedUnit] = useState<number | null>(null);
   const [detailLang, setDetailLang] = useState<string>("en");
   const [inlinePreviewOpen, setInlinePreviewOpen] = useState(false);
@@ -205,6 +225,8 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
         const hasNoTests = en.testCount > 0 && de.testCount === 0;
         return hasFewSections || hasNoTests;
       });
+    } else if (statusFilter === "outdated_de") {
+      list = list.filter(isTranslationOutdated);
     }
 
     return list;
@@ -362,6 +384,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
           <SelectContent className="max-h-[360px]">
             {filteredUnits.map((u) => {
               const isRecent = recentlyTranslatedUnits?.has(u.unitNumber) ?? false;
+              const isOutdated = isTranslationOutdated(u);
               return (
                 <SelectItem key={u.unitNumber} value={String(u.unitNumber)}>
                   <span className="font-mono text-xs mr-1.5">U{u.unitNumber}</span>
@@ -375,6 +398,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                   )}
                   {isRecent && (
                     <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-green-500 text-green-600">NEW</Badge>
+                  )}
+                  {isOutdated && (
+                    <AlertTriangle className="ml-1.5 h-3 w-3 text-amber-500 shrink-0" title="DE translation outdated" />
                   )}
                 </SelectItem>
               );
@@ -406,6 +432,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
             <SelectItem value="published">Has published</SelectItem>
             <SelectItem value="preview">Has preview</SelectItem>
             <SelectItem value="missing_de">Missing DE</SelectItem>
+            <SelectItem value="outdated_de">Outdated DE</SelectItem>
           </SelectContent>
         </Select>
 
@@ -508,6 +535,33 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
               </div>
             </div>
           </CardHeader>
+
+          {/* Translation outdated warning banner */}
+          {isTranslationOutdated(selectedOverview) && (
+            <div className="mx-6 mb-2 flex items-center justify-between gap-3 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="text-amber-800 dark:text-amber-300">
+                  The EN content was updated after the last DE translation — the DE version may be outdated.
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0 border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15"
+                onClick={() => {
+                  const enVersion = selectedOverview.versions.en;
+                  if (enVersion?.releaseStatus === "preview") setTranslateSource("preview");
+                  else setTranslateSource("published");
+                  setTranslateConfirm("");
+                  setTranslateOpen(true);
+                }}
+              >
+                <Languages className="mr-1.5 h-3.5 w-3.5" />
+                Start Translation
+              </Button>
+            </div>
+          )}
 
           {/* Recently-translated info banner */}
           {(() => {

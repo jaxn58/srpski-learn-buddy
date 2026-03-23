@@ -1146,13 +1146,29 @@ export const internalPublishUnitPackageToPreview = mutation({
       }
     }
 
-    // 3) Vocabulary (courseVocabulary master data) — English only for now.
+    // 3) Vocabulary (courseVocabulary master data) — English + carry over existing DE translations.
     {
       const vocabEn: any[] = (pkg?.vocabulary?.en as any[]) ?? [];
       const existing = await ctx.db
         .query("courseVocabulary")
         .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
         .collect();
+
+      // Preserve DE translations from active preview rows before archiving them.
+      const deTranslationMap = new Map<string, { de?: string; deAlt?: string; noteDe?: string }>();
+      for (const vdoc of existing as any[]) {
+        if (vdoc.isActive === false) continue;
+        if (vdoc.releaseStatus !== "preview") continue;
+        const key = String(vdoc.serbian || "").toLowerCase().trim();
+        if (key && (vdoc.de || vdoc.deAlt || vdoc.noteDe)) {
+          deTranslationMap.set(key, {
+            de: vdoc.de,
+            deAlt: vdoc.deAlt,
+            noteDe: vdoc.noteDe,
+          });
+        }
+      }
+
       for (const vdoc of existing as any[]) {
         if (vdoc.isActive === false) continue;
         if (vdoc.releaseStatus !== "preview") continue;
@@ -1160,6 +1176,8 @@ export const internalPublishUnitPackageToPreview = mutation({
       }
 
       for (const entry of vocabEn) {
+        const serbKey = String(entry.serbian || "").toLowerCase().trim();
+        const prevDe = deTranslationMap.get(serbKey);
         await ctx.db.insert("courseVocabulary", {
           unitNumber,
           serbian: entry.serbian,
@@ -1169,6 +1187,9 @@ export const internalPublishUnitPackageToPreview = mutation({
           translations: [{ language: "en", translation: entry.en, alt: entry.enAlt || undefined }],
           gender: entry.gender || undefined,
           noteEn: entry.noteEn || undefined,
+          ...(prevDe?.de ? { de: prevDe.de } : {}),
+          ...(prevDe?.deAlt ? { deAlt: prevDe.deAlt } : {}),
+          ...(prevDe?.noteDe ? { noteDe: prevDe.noteDe } : {}),
           isActive: true,
           archivedAt: undefined,
           unitVersion: args.unitVersion,

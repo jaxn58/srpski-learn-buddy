@@ -843,7 +843,7 @@ export const getUnitManagementOverview = query({
     // Build map: unitNumber -> { lang -> best metadata row }.
     // "best" = prefer preview over published (so admin sees latest state); then latest _creationTime.
     // Uses the same logic as pickBestByRelease in units.ts.
-    type MetaBucket = { title: string; description?: string; releaseStatus: string; isOffline: boolean; _id: any; moduleMetadataId?: any };
+    type MetaBucket = { title: string; description?: string; releaseStatus: string; isOffline: boolean; _id: any; moduleMetadataId?: any; _creationTime: number };
     const unitMap = new Map<number, Record<string, MetaBucket>>();
 
     // Step 1: Group all eligible rows by unitNumber+lang.
@@ -881,6 +881,7 @@ export const getUnitManagementOverview = query({
         isOffline: best.isOffline === true,
         _id: best._id,
         moduleMetadataId: best.moduleMetadataId ?? undefined,
+        _creationTime: Number(best._creationTime ?? 0),
       };
     }
 
@@ -897,6 +898,7 @@ export const getUnitManagementOverview = query({
         sectionCount: number;
         testCount: number;
         vocabCount: number;
+        lastUpdatedAt: number;
       }>;
     }> = [];
 
@@ -1004,6 +1006,14 @@ export const getUnitManagementOverview = query({
           continue;
         }
 
+        // Compute the newest _creationTime across metadata, content sections, and tests.
+        // Used on the frontend to detect whether EN was updated after the last DE translation.
+        const lastUpdatedAt = Math.max(
+          meta._creationTime,
+          ...Array.from(bestByType.values()).map((c: any) => Number(c._creationTime ?? 0)),
+          ...finalTests.map((t: any) => Number(t._creationTime ?? 0)),
+        );
+
         versions[lang] = {
           title: meta.title,
           description: meta.description,
@@ -1012,6 +1022,7 @@ export const getUnitManagementOverview = query({
           sectionCount,
           testCount,
           vocabCount,
+          lastUpdatedAt,
         };
       }
 

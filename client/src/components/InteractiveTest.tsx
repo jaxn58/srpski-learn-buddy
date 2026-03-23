@@ -285,8 +285,8 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
           <div key={category} className="space-y-6">
             {/* Category Title */}
             <div>
-              <h2 className="text-2xl font-bold mb-2 capitalize">
-                {category.replace(/([A-Z])/g, ' $1').trim()}
+              <h2 className="text-2xl font-bold mb-2">
+                {t(`unit.exerciseCategory.${category}`, category.replace(/([A-Z])/g, ' $1').trim())}
               </h2>
               {instructions && (
                 <p className="text-base font-semibold text-gray-900 mb-4">

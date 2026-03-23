@@ -1740,9 +1740,6 @@ export default function ContentStudioAdmin() {
       const md = markdownText.trim();
       if (!md) throw new Error(t("admin.contentStudio.error.emptyMarkdown"));
 
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'37c486'},body:JSON.stringify({sessionId:'37c486',location:'ContentStudioAdmin.tsx:handleSaveAndPublishToPreview:start',hypothesisId:'H-E',message:'Save&Preview started',data:{draftId:selectedDraftId,mdLength:md.length,mdEx5Preview:md.includes('Dialogue Completion'),first100:md.slice(0,100)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       // Step 1: Save markdown (skipTranslation=true so the AI does not modify the manually-edited content)
       toast.info("Saving markdown…");
       await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md, skipTranslation: true } as any);

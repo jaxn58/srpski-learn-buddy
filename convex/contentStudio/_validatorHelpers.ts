@@ -724,6 +724,16 @@ export function upgradeDialogueCompletionQuestions(pkg: any): void {
     if (!Array.isArray(cat?.questions)) continue;
 
     cat.questions = cat.questions.map((q: any) => {
+      const existingQuestion = String(q?.question || "").trim();
+      // Only apply the waiter template when the question does NOT already have
+      // a proper dialogue format (speaker: text pattern).
+      // A real dialogue question already contains ":" (e.g. "A: Zdravo. B: _____").
+      // Placeholder or bare-sentence questions lack this pattern and get upgraded.
+      const alreadyIsDialogue = /[A-Za-zšđčćž]+\s*:/.test(existingQuestion);
+      if (alreadyIsDialogue) {
+        // Question is already a real dialogue — leave it as-is.
+        return q;
+      }
       // Keep a consistent dialogue SNIPPET format, but vary the prompt text a bit to avoid repetition.
       const idx = (Number(q?.order ?? 0) || 0) % dialogueTemplates.length;
       const chosen = dialogueTemplates[idx] ?? dialogueTemplates[0];
