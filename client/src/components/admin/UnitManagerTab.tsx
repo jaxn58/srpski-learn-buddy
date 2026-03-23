@@ -136,6 +136,27 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   const [translateProvider, setTranslateProvider] = useState<"gemini" | "openai">("gemini");
   const [translateConfirm, setTranslateConfirm] = useState("");
   const [translateRunning, setTranslateRunning] = useState(false);
+  const [translateReport, setTranslateReport] = useState<{
+    totalDurationMs: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalThinkingTokens: number;
+    totalCostUsd: number | null;
+    stepCount: number;
+    qualityIssueCount: number;
+    steps: Array<{
+      step: string;
+      provider: string;
+      model: string;
+      durationMs: number;
+      inputTokens: number | null;
+      outputTokens: number | null;
+      thinkingTokens: number | null;
+      totalTokens: number | null;
+      estimatedCostUsd: number | null;
+      qualityIssues: string[];
+    }>;
+  } | null>(null);
 
   // Auto-fade: force re-render every minute so "X min ago" updates, and entries older than 30 min disappear
   const [, setTick] = useState(0);
@@ -309,16 +330,19 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       return;
     }
     setTranslateRunning(true);
+    setTranslateReport(null);
     try {
-      await doTranslate({
+      const result = await doTranslate({
         unitNumber: selectedUnit,
         confirm: confirmStr,
         preferredProvider: translateProvider,
         sourceReleaseStatus: translateSource,
         targetReleaseStatus: "preview",
-      } as any);
+      } as any) as any;
+      if (result?.translationStats) {
+        setTranslateReport(result.translationStats);
+      }
       toast.success(`DE translation for Unit ${selectedUnit} written to preview.`);
-      setTranslateOpen(false);
       setTranslateConfirm("");
       onTranslationComplete?.(selectedUnit);
     } catch (e: any) {
@@ -937,7 +961,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       </Dialog>
 
       {/* Translate EN → DE Dialog */}
-      <Dialog open={translateOpen} onOpenChange={(open) => { setTranslateOpen(open); if (!open) setTranslateConfirm(""); }}>
+      <Dialog open={translateOpen} onOpenChange={(open) => { setTranslateOpen(open); if (!open) { setTranslateConfirm(""); setTranslateReport(null); } }}>
         <DialogContent className="w-[95vw] max-w-[560px]">
           <DialogHeader>
             <DialogTitle>
@@ -1041,6 +1065,136 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                 )}
               </Button>
             </div>
+
+            {/* Translation Report */}
+            {translateReport && (
+              <div className="space-y-3 border-t pt-3">
+                <div className="text-sm font-semibold">Translation Report</div>
+
+                {/* Summary row */}
+                <div className="rounded border bg-muted/30 p-3 text-xs space-y-1.5">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                    <span>
+                      Duration:{" "}
+                      <span className="font-medium text-foreground">
+                        {(translateReport.totalDurationMs / 1000).toFixed(1)}s
+                      </span>
+                    </span>
+                    <span>
+                      Steps:{" "}
+                      <span className="font-medium text-foreground">{translateReport.stepCount}</span>
+                    </span>
+                    <span>
+                      Input:{" "}
+                      <span className="font-medium text-foreground">
+                        {translateReport.totalInputTokens.toLocaleString()} tok
+                      </span>
+                    </span>
+                    <span>
+                      Output:{" "}
+                      <span className="font-medium text-foreground">
+                        {translateReport.totalOutputTokens.toLocaleString()} tok
+                      </span>
+                    </span>
+                    {translateReport.totalThinkingTokens > 0 && (
+                      <span>
+                        Thinking:{" "}
+                        <span className="font-medium text-blue-600">
+                          {translateReport.totalThinkingTokens.toLocaleString()} tok
+                        </span>
+                      </span>
+                    )}
+                    {translateReport.totalCostUsd != null && (
+                      <span>
+                        Cost:{" "}
+                        <span className="font-medium text-foreground">
+                          ${translateReport.totalCostUsd.toFixed(4)}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                  {translateReport.qualityIssueCount === 0 ? (
+                    <div className="text-green-700 dark:text-green-400 font-medium">
+                      No structural issues detected.
+                    </div>
+                  ) : (
+                    <div className="text-amber-700 dark:text-amber-400 font-medium">
+                      {translateReport.qualityIssueCount} structural issue(s) detected — review before publishing.
+                    </div>
+                  )}
+                </div>
+
+                {/* Quality issues detail */}
+                {translateReport.qualityIssueCount > 0 && (
+                  <div className="space-y-1.5">
+                    {translateReport.steps
+                      .filter((s) => s.qualityIssues.length > 0)
+                      .map((s, i) => (
+                        <div
+                          key={i}
+                          className="text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-2 space-y-0.5"
+                        >
+                          <div className="font-medium text-amber-800 dark:text-amber-300 font-mono">
+                            {s.step}
+                          </div>
+                          {s.qualityIssues.map((issue, j) => (
+                            <div
+                              key={j}
+                              className="text-amber-700 dark:text-amber-400 flex items-start gap-1"
+                            >
+                              <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                              {issue}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* Per-step breakdown */}
+                <details className="text-xs">
+                  <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground py-0.5">
+                    Step breakdown ({translateReport.stepCount} steps)
+                  </summary>
+                  <div className="mt-2 space-y-0">
+                    {translateReport.steps.map((s, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 py-1 border-b last:border-0 text-muted-foreground"
+                      >
+                        <span className="font-mono w-40 shrink-0 truncate text-foreground" title={s.step}>
+                          {s.step}
+                        </span>
+                        <span className="w-12 text-right shrink-0">
+                          {(s.durationMs / 1000).toFixed(1)}s
+                        </span>
+                        <span className="w-16 text-right shrink-0">
+                          {(s.totalTokens ?? 0).toLocaleString()} tok
+                        </span>
+                        {s.thinkingTokens != null && s.thinkingTokens > 0 ? (
+                          <span className="text-blue-600 w-20 text-right shrink-0">
+                            {s.thinkingTokens.toLocaleString()} think
+                          </span>
+                        ) : (
+                          <span className="w-20 shrink-0" />
+                        )}
+                        {s.qualityIssues.length > 0 && (
+                          <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+
+                <Button
+                  variant="outline"
+                  className="w-full h-8 text-xs"
+                  onClick={() => { setTranslateReport(null); setTranslateOpen(false); }}
+                >
+                  Close Report
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

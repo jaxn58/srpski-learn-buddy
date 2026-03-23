@@ -227,12 +227,12 @@ function SetupContent(props: InspectorPanelProps) {
 
       <div className="space-y-3">
         <Label className="text-xs font-semibold">Reference</Label>
-        <Select value={draftRefId} onValueChange={setDraftRefId}>
+        <Select value={draftRefId || "__none__"} onValueChange={(v) => setDraftRefId(v === "__none__" ? "" : v)}>
           <SelectTrigger className="h-8 text-sm">
             <SelectValue placeholder="Select reference..." />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">None</SelectItem>
+            <SelectItem value="__none__">None</SelectItem>
             {((refs || []) as any[]).filter((r: any) => r?.isActive).map((r: any) => (
               <SelectItem key={String(r._id)} value={String(r._id)}>
                 {r.title}
@@ -496,12 +496,12 @@ function ReviewContent(props: InspectorPanelProps) {
             <AccordionTrigger className="text-xs font-semibold py-1">
               All Findings ({findings.length})
             </AccordionTrigger>
-            <AccordionContent className="space-y-1 pt-1">
+            <AccordionContent className="space-y-1 pt-1 min-w-0">
               {findings.map((f: any, i: number) => (
                 <div
                   key={String(f._id || i)}
                   className={cn(
-                    "rounded border p-2 text-xs",
+                    "rounded border p-2 text-xs min-w-0",
                     f.dismissed ? "opacity-40" : "",
                     f.severity === "error" ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30" :
                     f.severity === "warning" ? "border-yellow-300 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/30" :
@@ -509,15 +509,15 @@ function ReviewContent(props: InspectorPanelProps) {
                   )}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <span className="font-medium">{f.message}</span>
+                    <span className="font-medium min-w-0 flex-1 break-words">{f.message}</span>
                     <button
-                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                      className="shrink-0 ml-1 text-muted-foreground hover:text-foreground"
                       onClick={() => onDismissFinding({ findingId: f._id, dismissed: !f.dismissed })}
                     >
                       {f.dismissed ? <RotateCcw className="h-3 w-3" /> : <X className="h-3 w-3" />}
                     </button>
                   </div>
-                  {f.path && <div className="text-muted-foreground mt-0.5 font-mono">{f.path}</div>}
+                  {f.path && <div className="text-muted-foreground mt-0.5 font-mono break-all">{f.path}</div>}
                 </div>
               ))}
             </AccordionContent>

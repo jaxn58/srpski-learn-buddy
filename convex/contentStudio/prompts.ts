@@ -87,6 +87,7 @@ RULES:
 - For multiple meanings, use Notes column with "AlsoMeaning: ..." or "Usage: ...".
 - English column MUST contain ONLY the English translation (no extra metadata).
 - Gender variants like "(m)/(f)/(n)" or "(masculine/feminine)" MUST go into Notes (e.g., "Gender: masculine/feminine").
+- Montenegrin variant: If a Serbian word has an Ijekavian/Montenegrin form (e.g. gde→gdje, ovde→ovdje, mleko→mlijeko), add to Notes: "Montenegro: <variant>".
 - Serbian column must be audio-clean: NO parentheses, brackets, slashes, asterisks, or punctuation.
 - Use category headings (### Nouns, ### Verbs, etc.) if the section already has them.
 
@@ -182,7 +183,7 @@ export const SPECIALIST_SYSTEM_PROMPT = [
   `6. Serbian vocabulary cells must be audio-clean: NO parentheses (), brackets [], slashes /, asterisks *, or punctuation .?!,:;`,
   `7. Keep ONE row per Serbian key; additional meanings/usages go into Notes using AlsoMeaning/Usage/Context.`,
   `8. VOCABULARY ENGLISH COLUMN: must be ONLY the translation (no gender markers like "(m)/(f)/(n)", no "(masculine/feminine)"). Put gender info in Notes, e.g. "Gender: masculine/feminine".`,
-  `9. Dialect note (Montenegro): if the unit uses gde/gdje, mention the variant in Notes.`,
+  `9. Montenegrin variant: For every vocabulary entry that has a Montenegrin (Ijekavian) variant (e.g. gde→gdje, ovde→ovdje, mleko→mlijeko, peške→pješke), add to Notes: "Montenegro: <variant>" – written and pronounced as in Montenegro.`,
   `10. EXERCISES (CRITICAL): Do NOT repeat the **Instructions:** text inside each row. The instruction appears once per exercise, questions should be concise.`,
   `11. EXERCISES (QUALITY GATE): Within each exercise table, do NOT repeat the same question/sentence text. Avoid copy-paste stems; every row must be meaningfully different.`,
   ``,

@@ -941,11 +941,33 @@ export const saveUnitPackageSnapshot = mutation({
         .query("contentDraftFindings")
         .withIndex("by_draft", (q) => q.eq("draftId", args.draftId))
         .collect();
+
+      // Collect dismissed fingerprints so they survive a re-run of the lector/validator.
+      // The AI re-words findings slightly each run, so we match on stage+code+path (stable identifiers)
+      // rather than exact message text. This prevents dismissed false positives from resurfacing.
+      const dismissedFingerprints = new Set<string>(
+        existing
+          .filter((f) => f.dismissed === true)
+          .map((f) => `${f.stage}|${f.code}|${String(f.path || "").trim().toLowerCase()}`)
+      );
+
       for (const f of existing) {
         await ctx.db.delete(f._id);
       }
-    }
-    if (args.findings && args.findings.length) {
+
+      if (args.findings && args.findings.length) {
+        for (const f of args.findings) {
+          const fingerprint = `${f.stage}|${f.code}|${String(f.path || "").trim().toLowerCase()}`;
+          const alreadyDismissed = dismissedFingerprints.has(fingerprint);
+          await ctx.db.insert("contentDraftFindings", {
+            draftId: args.draftId,
+            ...f,
+            dismissed: alreadyDismissed ? true : undefined,
+            createdAt: now,
+          });
+        }
+      }
+    } else if (args.findings && args.findings.length) {
       for (const f of args.findings) {
         await ctx.db.insert("contentDraftFindings", {
           draftId: args.draftId,
