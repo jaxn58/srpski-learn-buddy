@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Plus, Edit, Trash2, Eye, ChevronUp, ChevronDown, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { useState } from "react";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
@@ -73,6 +74,14 @@ export default function OnboardingAdmin() {
   });
   
   const [editingStepId, setEditingStepId] = useState<Id<"onboardingSteps"> | null>(null);
+
+  // Derive staleness for the step currently being edited
+  const editingStep = editingStepId ? allSteps?.find((s) => s._id === editingStepId) : null;
+  const editingStepHasDe = !!(editingStep?.titleDe || editingStep?.contentDe);
+  const editingStepIsDeOutdated =
+    editingStepHasDe &&
+    editingStep?.enContentUpdatedAt != null &&
+    editingStep.enContentUpdatedAt > (editingStep.deContentUpdatedAt ?? 0);
   const [deletingStepId, setDeletingStepId] = useState<Id<"onboardingSteps"> | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
@@ -380,12 +389,12 @@ export default function OnboardingAdmin() {
               </TableHeader>
               <TableBody>
                 {allSteps.map((step) => {
-                  const languages = [];
-                  if (step.titleEn) languages.push("EN");
-                  if (step.titleDe) languages.push("DE");
-                  if (step.titleEs) languages.push("ES");
-                  if (step.titleFr) languages.push("FR");
-                  
+                  const hasDe = !!(step.titleDe || step.contentDe);
+                  const isDeOutdated =
+                    hasDe &&
+                    step.enContentUpdatedAt != null &&
+                    step.enContentUpdatedAt > (step.deContentUpdatedAt ?? 0);
+
                   return (
                     <TableRow key={step._id}>
                       <TableCell className="font-mono text-sm">
@@ -400,12 +409,32 @@ export default function OnboardingAdmin() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
-                          {languages.map(lang => (
-                            <span key={lang} className="text-xs bg-muted px-2 py-1 rounded">
-                              {lang}
-                            </span>
-                          ))}
+                        <div className="flex gap-1 flex-wrap">
+                          {step.titleEn && (
+                            <span className="text-xs bg-muted px-2 py-1 rounded">EN</span>
+                          )}
+                          {hasDe && !isDeOutdated && (
+                            <span className="text-xs bg-muted px-2 py-1 rounded">DE</span>
+                          )}
+                          {hasDe && isDeOutdated && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-1 rounded flex items-center gap-1 cursor-default">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  DE
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-[220px] text-xs">
+                                DE translation outdated – EN content was updated after the last DE save.
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {step.titleEs && (
+                            <span className="text-xs bg-muted px-2 py-1 rounded">ES</span>
+                          )}
+                          {step.titleFr && (
+                            <span className="text-xs bg-muted px-2 py-1 rounded">FR</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -767,6 +796,12 @@ export default function OnboardingAdmin() {
               </TabsContent>
               
               <TabsContent value="de" className="space-y-4">
+                {editingStepIsDeOutdated && (
+                  <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    DE translation is outdated – EN content was updated after the last DE save.
+                  </div>
+                )}
                 <div className="flex justify-end">
                   <Button
                     type="button"

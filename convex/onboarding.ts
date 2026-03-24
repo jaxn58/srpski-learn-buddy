@@ -267,6 +267,9 @@ export const createOnboardingStepV2 = mutation({
 
     const now = Date.now();
 
+    const enProvided = !!(args.titleEn || args.descriptionEn || args.contentEn);
+    const deProvided = !!(args.titleDe || args.descriptionDe || args.contentDe);
+
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const stepId = await ctx.db.insert("onboardingSteps", {
       stepNumber: args.stepNumber,
@@ -289,6 +292,8 @@ export const createOnboardingStepV2 = mutation({
       updatedAt: now,
       createdBy: user._id,
       updatedBy: user._id,
+      ...(enProvided ? { enContentUpdatedAt: now } : {}),
+      ...(deProvided ? { deContentUpdatedAt: now } : {}),
     });
 
     console.log("[onboarding] Created new step (V2):", {
@@ -335,8 +340,10 @@ export const updateOnboardingStepV2 = mutation({
       throw new Error("Onboarding step not found");
     }
 
+    const now = Date.now();
+
     const updates: Partial<Doc<"onboardingSteps">> = {
-      updatedAt: Date.now(),
+      updatedAt: now,
       updatedBy: user._id,
     };
 
@@ -356,6 +363,22 @@ export const updateOnboardingStepV2 = mutation({
     if (args.icon !== undefined) updates.icon = args.icon;
     if (args.isActive !== undefined) updates.isActive = args.isActive;
     if (args.backgroundColor !== undefined) updates.backgroundColor = args.backgroundColor;
+
+    // Detect EN content changes to bump enContentUpdatedAt.
+    const enChanged =
+      (args.titleEn !== undefined && args.titleEn !== step.titleEn) ||
+      (args.descriptionEn !== undefined && args.descriptionEn !== step.descriptionEn) ||
+      (args.contentEn !== undefined && args.contentEn !== step.contentEn);
+
+    // Detect DE content changes to bump deContentUpdatedAt.
+    const deChanged =
+      (args.titleDe !== undefined && args.titleDe !== step.titleDe) ||
+      (args.descriptionDe !== undefined && args.descriptionDe !== step.descriptionDe) ||
+      (args.contentDe !== undefined && args.contentDe !== step.contentDe);
+    const deProvided = !!(args.titleDe || args.descriptionDe || args.contentDe);
+
+    if (enChanged) updates.enContentUpdatedAt = now;
+    if (deChanged && deProvided) updates.deContentUpdatedAt = now;
 
     await ctx.db.patch(args.stepId, updates);
 

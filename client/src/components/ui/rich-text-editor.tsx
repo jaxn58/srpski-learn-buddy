@@ -2,6 +2,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Bold, Italic, List, ListOrdered, Heading1, Heading2, Heading3, Code, Quote, Undo, Redo, Info as InfoIcon, Box, CheckCircle, AlertTriangle } from 'lucide-react'
+import { useEffect } from 'react'
 import { Button } from './button'
 import { cn } from '@/lib/utils'
 import { Callout } from './tiptap-callout'
@@ -42,6 +43,14 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
       },
     },
   })
+
+  // Sync externally changed value into the editor (e.g. after AI translation).
+  // emitUpdate=false prevents triggering onChange and an unnecessary re-render cycle.
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value || '', false)
+    }
+  }, [value, editor])
 
   if (!editor) {
     return null

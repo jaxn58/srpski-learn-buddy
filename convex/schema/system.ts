@@ -108,6 +108,11 @@ export const systemTables = {
     updatedAt: v.number(), // timestamp
     createdBy: v.optional(v.id("users")), // Admin who created this step
     updatedBy: v.optional(v.id("users")), // Admin who last updated this step
+
+    // Staleness tracking: set independently when EN or DE content changes.
+    // isDeOutdated = hasDE && enContentUpdatedAt > (deContentUpdatedAt ?? 0)
+    enContentUpdatedAt: v.optional(v.number()),
+    deContentUpdatedAt: v.optional(v.number()),
   })
     .index("by_language", ["language"]) // OLD: for migration compatibility
     .index("by_language_active", ["language", "isActive", "stepNumber"]) // OLD: for migration
