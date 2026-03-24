@@ -86,6 +86,10 @@ export default function OnboardingAdmin() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
   const [isTranslatingDe, setIsTranslatingDe] = useState(false);
+  // Tracks whether the user explicitly interacted with any EN field in the edit dialog.
+  // This is the reliable signal for the mutation to update enContentUpdatedAt,
+  // because HTML string comparison can be fooled by TipTap normalization.
+  const [enTouched, setEnTouched] = useState(false);
 
   // Authorization check
   if (authLoading) {
@@ -131,6 +135,7 @@ export default function OnboardingAdmin() {
     });
     setEditingStepId(null);
     setHasUnsavedChanges(false);
+    setEnTouched(false);
   };
 
   // Update form data and mark as changed
@@ -214,6 +219,7 @@ export default function OnboardingAdmin() {
     });
     setEditingStepId(step._id);
     setHasUnsavedChanges(false); // Reset unsaved changes when loading step for edit
+    setEnTouched(false);
     setEditDialogOpen(true);
   };
 
@@ -240,6 +246,7 @@ export default function OnboardingAdmin() {
         icon: formData.icon,
         isActive: formData.isActive,
         backgroundColor: formData.backgroundColor || undefined,
+        enWasModified: enTouched,
       });
       
       toast.success(t("admin.onboarding.toast.updated"));
@@ -775,21 +782,21 @@ export default function OnboardingAdmin() {
                   <Label>Title (English)</Label>
                   <Input
                     value={formData.titleEn}
-                    onChange={(e) => updateFormData({ titleEn: e.target.value })}
+                    onChange={(e) => { updateFormData({ titleEn: e.target.value }); setEnTouched(true); }}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Description (English)</Label>
                   <Input
                     value={formData.descriptionEn}
-                    onChange={(e) => updateFormData({ descriptionEn: e.target.value })}
+                    onChange={(e) => { updateFormData({ descriptionEn: e.target.value }); setEnTouched(true); }}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Content (English)</Label>
                   <RichTextEditor
                     value={formData.contentEn}
-                    onChange={(value) => updateFormData({ contentEn: value })}
+                    onChange={(value) => { updateFormData({ contentEn: value }); setEnTouched(true); }}
                     placeholder="Enter English content..."
                   />
                 </div>

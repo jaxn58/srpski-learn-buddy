@@ -331,6 +331,10 @@ export const updateOnboardingStepV2 = mutation({
     icon: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
     backgroundColor: v.optional(v.string()),
+    // Client-side flag: true when the admin explicitly edited any EN field in the dialog.
+    // Used as a reliable fallback next to the server-side string comparison, which can be
+    // fooled by TipTap HTML normalization producing an identical output even after real edits.
+    enWasModified: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await requireAdmin(ctx);
@@ -377,7 +381,7 @@ export const updateOnboardingStepV2 = mutation({
       (args.contentDe !== undefined && args.contentDe !== step.contentDe);
     const deProvided = !!(args.titleDe || args.descriptionDe || args.contentDe);
 
-    if (enChanged) updates.enContentUpdatedAt = now;
+    if (enChanged || args.enWasModified) updates.enContentUpdatedAt = now;
     if (deChanged && deProvided) updates.deContentUpdatedAt = now;
 
     await ctx.db.patch(args.stepId, updates);
