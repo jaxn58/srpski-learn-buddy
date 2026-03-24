@@ -60,6 +60,14 @@ function normalizeKey(raw: string): string {
   return raw.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
+function assertValidAnnouncementKey(key: string): void {
+  if (!key || !/^[a-z0-9_-]+$/.test(key)) {
+    throw new Error(
+      "Invalid key: use only lowercase letters, digits, underscores and hyphens (e.g. dashboard_beta).",
+    );
+  }
+}
+
 function pickLocalized(
   language: "en" | "de",
   en: string,
@@ -144,11 +152,7 @@ export const createDashboardAnnouncement = mutation({
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx);
     const key = normalizeKey(args.key);
-    if (!key || !/^[a-z0-9_-]+$/.test(key)) {
-      throw new Error(
-        "Invalid key: use only lowercase letters, digits, underscores and hyphens (e.g. dashboard_beta).",
-      );
-    }
+    assertValidAnnouncementKey(key);
 
     const existing = await ctx.db
       .query("dashboardAnnouncements")
@@ -214,11 +218,7 @@ export const updateDashboardAnnouncement = mutation({
 
     if (args.key !== undefined) {
       const key = normalizeKey(args.key);
-      if (!key || !/^[a-z0-9_-]+$/.test(key)) {
-        throw new Error(
-          "Invalid key: use only lowercase letters, digits, underscores and hyphens.",
-        );
-      }
+      assertValidAnnouncementKey(key);
       if (key !== doc.key) {
         const clash = await ctx.db
           .query("dashboardAnnouncements")
@@ -328,6 +328,98 @@ export const seedDashboardBetaBannerEnglishDefaults = mutation({
       updatedBy: admin._id,
     });
     return { status: "created" as const, id };
+  },
+});
+
+/**
+ * List all dashboard announcements (for Dev→Prod migration scripts). Requires ADMIN_SECRET
+ * in the target deployment's Convex environment.
+ */
+// @ts-ignore TS2589 – Convex schema depth limit (51 tables)
+export const adminGetAllDashboardAnnouncements = query({
+  args: {
+    adminSecret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Unauthorized - Invalid admin secret");
+    }
+
+    const rows = await ctx.db.query("dashboardAnnouncements").collect();
+    return rows.sort((a, b) => a.key.localeCompare(b.key));
+  },
+});
+
+/**
+ * Create or fully replace fields for an announcement by key (migration / sync). Requires ADMIN_SECRET.
+ * Does not preserve Prod-only timestamps or user ids from the source row; updates `updatedAt` on write.
+ */
+// @ts-ignore TS2589 – Convex schema depth limit (51 tables)
+export const adminUpsertDashboardAnnouncement = mutation({
+  args: {
+    adminSecret: v.string(),
+    key: v.string(),
+    titleEn: v.string(),
+    introEn: v.string(),
+    bodyEn: v.string(),
+    titleDe: v.optional(v.string()),
+    introDe: v.optional(v.string()),
+    bodyDe: v.optional(v.string()),
+    isActive: v.boolean(),
+    audience: audienceValidator,
+  },
+  handler: async (ctx, args) => {
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Unauthorized - Invalid admin secret");
+    }
+
+    const key = normalizeKey(args.key);
+    assertValidAnnouncementKey(key);
+
+    const titleEn = args.titleEn.trim();
+    const introEn = args.introEn.trim();
+    const bodyEn = args.bodyEn.trim();
+    if (!titleEn || !introEn || !bodyEn) {
+      throw new Error("titleEn, introEn and bodyEn are required and cannot be empty.");
+    }
+
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("dashboardAnnouncements")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        titleEn,
+        introEn,
+        bodyEn,
+        titleDe: args.titleDe?.trim() || undefined,
+        introDe: args.introDe?.trim() || undefined,
+        bodyDe: args.bodyDe?.trim() || undefined,
+        isActive: args.isActive,
+        audience: args.audience,
+        updatedAt: now,
+      });
+      return { created: false as const, updated: true as const, id: existing._id };
+    }
+
+    const id = await ctx.db.insert("dashboardAnnouncements", {
+      key,
+      titleEn,
+      introEn,
+      bodyEn,
+      titleDe: args.titleDe?.trim() || undefined,
+      introDe: args.introDe?.trim() || undefined,
+      bodyDe: args.bodyDe?.trim() || undefined,
+      isActive: args.isActive,
+      audience: args.audience,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { created: true as const, updated: false as const, id };
   },
 });
 
