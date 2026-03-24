@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
@@ -18,12 +19,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2, Volume2, ListTodo } from "lucide-react";
+import { APP_LOGO } from "@/const";
 import { Link, useLocation } from "wouter";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { WaitlistModal } from "@/components/WaitlistModal";
+const WaitlistModal = lazy(() =>
+  import("@/components/WaitlistModal").then((m) => ({ default: m.WaitlistModal }))
+);
 import { AppFooter } from "@/components/AppFooter";
 import { buildLandingModuleCards, computeLandingCounts } from "./home/landingData";
 import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
@@ -370,7 +374,7 @@ export default function Home() {
         <div className="container py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <BookOpen className="h-8 w-8 text-primary" />
+              <img src={APP_LOGO} className="h-8 w-8 rounded-md object-cover" alt="Serbian AI Tutor" />
               <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 {t('home.header.title')}
               </h1>
@@ -724,19 +728,30 @@ export default function Home() {
                     <span>{t('home.pricing.intensive.feature5')}</span>
                   </li>
                 </ul>
-                <Button
-                  className="w-full"
-                  disabled={
-                    (!user?.clerkId && !learningLanguage) ||
-                    DISABLE_PURCHASE_DURING_BETA ||
-                    (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("intensive") === "current" || getPlanAction("intensive") === "downgrade"))
-                  }
-                  onClick={() => void handlePlanCTA("intensive")}
-                  variant={getPlanAction("intensive") === "current" ? "secondary" : "default"}
-                >
-                  {getButtonText("intensive")}
-                </Button>
-                {showWaitlist && !ENABLE_PURCHASE_FOR_TESTING ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full">
+                      <Button
+                        className="w-full"
+                        disabled={
+                          (!user?.clerkId && !learningLanguage) ||
+                          DISABLE_PURCHASE_DURING_BETA ||
+                          (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("intensive") === "current" || getPlanAction("intensive") === "downgrade"))
+                        }
+                        onClick={() => void handlePlanCTA("intensive")}
+                        variant={getPlanAction("intensive") === "current" ? "secondary" : "default"}
+                      >
+                        {getButtonText("intensive")}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {DISABLE_PURCHASE_DURING_BETA && (
+                    <TooltipContent>
+                      <p>{t("billing.paidPlansAfterBeta")}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+                {(showWaitlist && !ENABLE_PURCHASE_FOR_TESTING) || DISABLE_PURCHASE_DURING_BETA ? (
                   <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
                 ) : null}
               </CardContent>
@@ -823,19 +838,30 @@ export default function Home() {
                     <span>{t('home.pricing.balanced.feature5')}</span>
                   </li>
                 </ul>
-                <Button
-                  className="w-full"
-                  disabled={
-                    (!user?.clerkId && !learningLanguage) ||
-                    DISABLE_PURCHASE_DURING_BETA ||
-                    (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("balanced") === "current" || getPlanAction("balanced") === "downgrade"))
-                  }
-                  onClick={() => void handlePlanCTA("balanced")}
-                  variant={getPlanAction("balanced") === "current" ? "secondary" : "default"}
-                >
-                  {getButtonText("balanced")}
-                </Button>
-                {showWaitlist && !ENABLE_PURCHASE_FOR_TESTING ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full">
+                      <Button
+                        className="w-full"
+                        disabled={
+                          (!user?.clerkId && !learningLanguage) ||
+                          DISABLE_PURCHASE_DURING_BETA ||
+                          (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("balanced") === "current" || getPlanAction("balanced") === "downgrade"))
+                        }
+                        onClick={() => void handlePlanCTA("balanced")}
+                        variant={getPlanAction("balanced") === "current" ? "secondary" : "default"}
+                      >
+                        {getButtonText("balanced")}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {DISABLE_PURCHASE_DURING_BETA && (
+                    <TooltipContent>
+                      <p>{t("billing.paidPlansAfterBeta")}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+                {(showWaitlist && !ENABLE_PURCHASE_FOR_TESTING) || DISABLE_PURCHASE_DURING_BETA ? (
                   <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
                 ) : null}
               </CardContent>
@@ -926,19 +952,30 @@ export default function Home() {
                     <span>{t('home.pricing.standard.feature5')}</span>
                   </li>
                 </ul>
-                <Button
-                  className="w-full bg-primary"
-                  disabled={
-                    (!user?.clerkId && !learningLanguage) ||
-                    DISABLE_PURCHASE_DURING_BETA ||
-                    (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("standard") === "current" || getPlanAction("standard") === "downgrade"))
-                  }
-                  onClick={() => void handlePlanCTA("standard")}
-                  variant={getPlanAction("standard") === "current" ? "secondary" : "default"}
-                >
-                  {getButtonText("standard")}
-                </Button>
-                {showWaitlist && !ENABLE_PURCHASE_FOR_TESTING ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full">
+                      <Button
+                        className="w-full bg-primary"
+                        disabled={
+                          (!user?.clerkId && !learningLanguage) ||
+                          DISABLE_PURCHASE_DURING_BETA ||
+                          (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("standard") === "current" || getPlanAction("standard") === "downgrade"))
+                        }
+                        onClick={() => void handlePlanCTA("standard")}
+                        variant={getPlanAction("standard") === "current" ? "secondary" : "default"}
+                      >
+                        {getButtonText("standard")}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {DISABLE_PURCHASE_DURING_BETA && (
+                    <TooltipContent>
+                      <p>{t("billing.paidPlansAfterBeta")}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+                {(showWaitlist && !ENABLE_PURCHASE_FOR_TESTING) || DISABLE_PURCHASE_DURING_BETA ? (
                   <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
                 ) : null}
               </CardContent>
@@ -1025,19 +1062,30 @@ export default function Home() {
                     <span>{t('home.pricing.relaxed.feature5')}</span>
                   </li>
                 </ul>
-                <Button
-                  className="w-full"
-                  disabled={
-                    (!user?.clerkId && !learningLanguage) ||
-                    DISABLE_PURCHASE_DURING_BETA ||
-                    (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("relaxed") === "current" || getPlanAction("relaxed") === "downgrade"))
-                  }
-                  onClick={() => void handlePlanCTA("relaxed")}
-                  variant={getPlanAction("relaxed") === "current" ? "secondary" : "default"}
-                >
-                  {getButtonText("relaxed")}
-                </Button>
-                {showWaitlist && !ENABLE_PURCHASE_FOR_TESTING ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full">
+                      <Button
+                        className="w-full"
+                        disabled={
+                          (!user?.clerkId && !learningLanguage) ||
+                          DISABLE_PURCHASE_DURING_BETA ||
+                          (ENABLE_PURCHASE_FOR_TESTING && user?.clerkId && (getPlanAction("relaxed") === "current" || getPlanAction("relaxed") === "downgrade"))
+                        }
+                        onClick={() => void handlePlanCTA("relaxed")}
+                        variant={getPlanAction("relaxed") === "current" ? "secondary" : "default"}
+                      >
+                        {getButtonText("relaxed")}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {DISABLE_PURCHASE_DURING_BETA && (
+                    <TooltipContent>
+                      <p>{t("billing.paidPlansAfterBeta")}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+                {(showWaitlist && !ENABLE_PURCHASE_FOR_TESTING) || DISABLE_PURCHASE_DURING_BETA ? (
                   <p className="text-xs text-muted-foreground">{t('home.pricing.availableAfterLaunch')}</p>
                 ) : null}
               </CardContent>
@@ -1542,11 +1590,14 @@ export default function Home() {
       {/* Footer */}
       <AppFooter />
 
-      {/* Waitlist Modal */}
-      <WaitlistModal 
-        isOpen={isWaitlistModalOpen} 
-        onClose={() => setIsWaitlistModalOpen(false)} 
-      />
+      {showWaitlist && (
+        <Suspense fallback={null}>
+          <WaitlistModal
+            isOpen={isWaitlistModalOpen}
+            onClose={() => setIsWaitlistModalOpen(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

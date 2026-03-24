@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 // Sidebar import removed
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -419,21 +420,32 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                   </Label>
                                 </div>
                               </RadioGroup>
-                              <Button
-                                onClick={() =>
-                                  handlePurchase(
-                                    plan.id as any,
-                                    selectedPaymentMode,
-                                    // Beta 50% applies only to prepaid (enforced in handler too)
-                                    isBetaPrice
-                                  )
-                                }
-                                disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
-                                className="w-full"
-                              >
-                                <CreditCard className="h-4 w-4 mr-2" />
-                                Continue with {plan.name}
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="w-full">
+                                    <Button
+                                      onClick={() =>
+                                        handlePurchase(
+                                          plan.id as any,
+                                          selectedPaymentMode,
+                                          // Beta 50% applies only to prepaid (enforced in handler too)
+                                          isBetaPrice
+                                        )
+                                      }
+                                      disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
+                                      className="w-full"
+                                    >
+                                      <CreditCard className="h-4 w-4 mr-2" />
+                                      Continue with {plan.name}
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                {DISABLE_PURCHASE_DURING_BETA && (
+                                  <TooltipContent>
+                                    <p>{t("billing.paidPlansAfterBeta")}</p>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
                             </CardContent>
                           </Card>
                         );
@@ -496,14 +508,25 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                 </Label>
                               </div>
                             </RadioGroup>
-                            <Button
-                              onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, false)}
-                              disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
-                              className="w-full"
-                            >
-                              <CreditCard className="h-4 w-4 mr-2" />
-                              Continue with {plan.name}
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="w-full">
+                                  <Button
+                                    onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, false)}
+                                    disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
+                                    className="w-full"
+                                  >
+                                    <CreditCard className="h-4 w-4 mr-2" />
+                                    Continue with {plan.name}
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              {DISABLE_PURCHASE_DURING_BETA && (
+                                <TooltipContent>
+                                  <p>{t("billing.paidPlansAfterBeta")}</p>
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
                           </CardContent>
                         </Card>
                       );
@@ -591,14 +614,25 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                   </Label>
                                 </div>
                               </RadioGroup>
-                              <Button
-                                onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, isBetaPrice)}
-                                disabled={!checkoutReady}
-                                className="w-full"
-                              >
-                                <CreditCard className="h-4 w-4 mr-2" />
-                                Continue with {plan.name}
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="w-full">
+                                    <Button
+                                      onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, isBetaPrice)}
+                                      disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
+                                      className="w-full"
+                                    >
+                                      <CreditCard className="h-4 w-4 mr-2" />
+                                      Continue with {plan.name}
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                {DISABLE_PURCHASE_DURING_BETA && (
+                                  <TooltipContent>
+                                    <p>{t("billing.paidPlansAfterBeta")}</p>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
                             </CardContent>
                           </Card>
                         );
@@ -839,14 +873,25 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             <span>{t('subscription.progressTracking')}</span>
                           </li>
                         </ul>
-                        <Button
-                          onClick={() => handleUpgrade(plan.id)}
-                          disabled={isCalculating || !checkoutReady || DISABLE_PURCHASE_DURING_BETA}
-                          className="w-full"
-                        >
-                          <CreditCard className="h-4 w-4 mr-2" />
-                          {isCalculating ? t('subscription.calculating') : t('subscription.upgradeNow')}
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="w-full">
+                              <Button
+                                onClick={() => handleUpgrade(plan.id)}
+                                disabled={isCalculating || !checkoutReady || DISABLE_PURCHASE_DURING_BETA}
+                                className="w-full"
+                              >
+                                <CreditCard className="h-4 w-4 mr-2" />
+                                {isCalculating ? t('subscription.calculating') : t('subscription.upgradeNow')}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {DISABLE_PURCHASE_DURING_BETA && (
+                            <TooltipContent>
+                              <p>{t("billing.paidPlansAfterBeta")}</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
                       </CardContent>
                     </Card>
                     );

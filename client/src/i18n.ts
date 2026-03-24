@@ -1520,7 +1520,7 @@ const resources = {
   de: {
     translation: {
       // Navigation & Common
-      "app.title": "Serbisch AI Tutor",
+      "app.title": "Serbian AI Tutor",
       "common.back": "Zurück",
       "common.logout": "Abmelden",
       "common.login": "Anmelden",
@@ -1543,7 +1543,7 @@ const resources = {
       "errors.unexpected.reload": "Seite neu laden",
       
       // Home Page - Header
-      "home.header.title": "Serbisch AI Tutor",
+      "home.header.title": "Serbian AI Tutor",
       "home.header.dashboard": "Zum Dashboard",
       "home.header.login": "Anmelden",
 
@@ -1682,8 +1682,8 @@ const resources = {
       "home.beta.discount": "🎁 50% Rabatt beim Launch!",
       "home.beta.banner.title": "50% Rabatt beim Launch!",
       "home.beta.banner.subtitle": "Hilf mit, die Zukunft des Serbisch-Lernens zu gestalten! Tritt meinem <strong>Beta-Testprogramm</strong> bei und erhalte <strong>Zugang zu Unit 1 (Foundation)</strong> kostenlos, plus <strong>50% Rabatt</strong> beim Launch der bezahlten Pläne.",
-      "home.beta.banner.feature1.title": "Gratis Einheiten 1-5",
-      "home.beta.banner.feature1.desc": "Teste die vollständige Kurserfahrung ohne Verpflichtung",
+      "home.beta.banner.feature1.title": "Gratis Einheit 1 (Foundation)",
+      "home.beta.banner.feature1.desc": "Starte mit Einheit 1 — teste den vollständigen Lernablauf ohne Verpflichtung",
       "home.beta.banner.feature2.title": "50% Launch-Rabatt",
       "home.beta.banner.feature2.desc": "Sichere dir deinen Rabatt, wenn der vollständige Kurs startet",
       "home.beta.banner.cta": "Zur Beta-Registrierung",
@@ -1781,7 +1781,7 @@ const resources = {
       "home.faq.q9.question": "Erhalten Beta-Tester einen Rabatt?",
       "home.faq.q9.answer": "Ja. Wenn du dich während der Beta registrierst, erhältst du beim Launch der bezahlten Pläne <strong>50% RABATT</strong>. Während der Beta hast du kostenlosen Zugang zu Unit 1 (Foundation).",
       "home.faq.q9.benefits": "🎁 Beta-Vorteile:",
-      "home.faq.q9.benefit1": "• Kostenloser Zugang zu Einheiten 1-5 während Beta",
+      "home.faq.q9.benefit1": "• Kostenloser Zugang zu Einheit 1 (Foundation) während der Beta",
       "home.faq.q9.benefit2": "• 50% RABATT auf jeden Plan beim Launch",
       "home.faq.q9.benefit3": "• Früher Zugang zu neuen Funktionen",
       "home.faq.q9.benefit4": "• Direkter Einfluss auf Kursentwicklung",
@@ -1844,7 +1844,7 @@ const resources = {
       "dashboard.betaBanner.title": "Beta-Tester-Vorteile",
       "dashboard.betaBanner.thankYou": "Vielen Dank, dass du mein Projekt früh unterstützt!",
       "dashboard.betaBanner.intro": "Als Beta-Tester hast du:",
-      "dashboard.betaBanner.benefit1": "Kostenloser Zugang zu Einheiten 1-5 während der Beta-Phase",
+      "dashboard.betaBanner.benefit1": "Kostenloser Zugang zu Einheit 1 (Foundation) während der Beta-Phase",
       "dashboard.betaBanner.benefit2": "50% Rabatt auf die bezahlten Pläne beim Launch",
       "dashboard.betaBanner.afterLaunch": "📅 Nach dem Launch:",
       "dashboard.betaBanner.afterLaunchDesc": "Du erhältst eine E-Mail mit deinem exklusiven 50%-Rabattcode, sobald die bezahlten Pläne live gehen.",
@@ -1926,9 +1926,9 @@ const resources = {
       "unit.unitCompleted": "Großartig! Einheit abgeschlossen!",
       "unit.unitCompletedDesc": "Du hast Einheit {{number}} abgeschlossen. Weiter so!",
       "unit.lockedTitle": "🔒 Diese Einheit ist gesperrt",
-      "unit.lockedDesc": "Als Beta-Tester hast du kostenlosen Zugang zu Einheiten 1-5.",
+      "unit.lockedDesc": "In der Beta-Phase hast du kostenlosen Zugang zu Einheit 1 (Foundation).",
       "unit.betaBenefits": "🎁 Beta-Tester-Vorteile",
-      "unit.betaBenefit1": "Kostenloser Zugang zu Einheiten 1-5 während der Beta-Phase",
+      "unit.betaBenefit1": "Kostenloser Zugang zu Einheit 1 (Foundation) während der Beta-Phase",
       "unit.betaBenefit2": "50% Rabatt beim Launch des vollständigen Kurses",
       "unit.betaBenefit3": "Früher Zugang zu allen Funktionen und Verbesserungen",
       "unit.betaBenefit4": "Gestalte die Zukunft der App mit deinem Feedback",
@@ -2143,7 +2143,7 @@ const resources = {
       "subscription.title": "Mein Abonnement",
       "subscription.loading": "Abonnement wird geladen...",
       "subscription.betaAccess": "Beta-Zugang",
-      "subscription.betaAccess.desc": "Kostenloser Zugang zu Einheiten 1-5 während der Beta-Phase",
+      "subscription.betaAccess.desc": "Kostenloser Zugang zu Einheit 1 (Foundation) während der Beta-Phase",
       "subscription.betaBenefits": "Beta-Vorteile",
       "subscription.betaBenefits.access": "Kostenloser Zugang zu Unit 1 (Foundation)",
       "subscription.betaBenefits.discount": "50% Rabatt beim Launch",

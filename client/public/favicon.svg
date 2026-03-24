@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 600" width="540" height="600" role="img" aria-label="Flag of Serbia">
+  <rect width="540" height="200" fill="#C6363C"/>
+  <rect y="200" width="540" height="200" fill="#0C4076"/>
+  <rect y="400" width="540" height="200" fill="#FFFFFF"/>
+  <g transform="translate(270,295)">
+    <ellipse cx="0" cy="45" rx="52" ry="82" fill="#D4AF37"/>
+    <path d="M-48,5 C-115,-45 -172,-60 -162,-8 C-148,45 -92,52 -48,38 Z" fill="#D4AF37"/>
+    <path d="M-48,38 C-108,18 -155,68 -140,118 C-112,88 -68,65 -48,78 Z" fill="#D4AF37"/>
+    <path d="M48,5 C115,-45 172,-60 162,-8 C148,45 92,52 48,38 Z" fill="#D4AF37"/>
+    <path d="M48,38 C108,18 155,68 140,118 C112,88 68,65 48,78 Z" fill="#D4AF37"/>
+    <path d="M-28,118 L-38,182 L-14,168 L0,192 L14,168 L38,182 L28,118 Z" fill="#D4AF37"/>
+    <path d="M-25,122 L-38,165 L-20,158 L-12,182 L-4,158 L8,165 L-5,122 Z" fill="#D4AF37"/>
+    <path d="M25,122 L38,165 L20,158 L12,182 L4,158 L-8,165 L5,122 Z" fill="#D4AF37"/>
+    <ellipse cx="-32" cy="-85" rx="20" ry="32" fill="#D4AF37"/>
+    <ellipse cx="-42" cy="-125" rx="24" ry="22" fill="#D4AF37"/>
+    <circle cx="-47" cy="-128" r="5" fill="#8B0000"/>
+    <path d="M-60,-130 L-76,-122 L-60,-115 Z" fill="#D4AF37"/>
+    <polygon points="-62,-142 -56,-160 -48,-144 -41,-166 -34,-144 -26,-160 -20,-142" fill="#D4AF37"/>
+    <ellipse cx="32" cy="-85" rx="20" ry="32" fill="#D4AF37"/>
+    <ellipse cx="42" cy="-125" rx="24" ry="22" fill="#D4AF37"/>
+    <circle cx="47" cy="-128" r="5" fill="#8B0000"/>
+    <path d="M60,-130 L76,-122 L60,-115 Z" fill="#D4AF37"/>
+    <polygon points="20,-142 26,-160 34,-144 41,-166 48,-144 56,-160 62,-142" fill="#D4AF37"/>
+    <path d="M-33,2 L33,2 L33,72 L0,102 L-33,72 Z" fill="#C6363C" stroke="#D4AF37" stroke-width="4"/>
+    <rect x="-5" y="2" width="10" height="93" fill="#D8D8D8"/>
+    <rect x="-33" y="28" width="66" height="10" fill="#D8D8D8"/>
+    <text x="-19" y="22" font-family="Georgia, Times New Roman, serif" font-size="16" font-weight="bold" fill="#D8D8D8" text-anchor="middle">&#1057;</text>
+    <text x="19" y="22" font-family="Georgia, Times New Roman, serif" font-size="16" font-weight="bold" fill="#D8D8D8" text-anchor="middle">&#1057;</text>
+    <text x="-19" y="63" font-family="Georgia, Times New Roman, serif" font-size="16" font-weight="bold" fill="#D8D8D8" text-anchor="middle">&#1057;</text>
+    <text x="19" y="63" font-family="Georgia, Times New Roman, serif" font-size="16" font-weight="bold" fill="#D8D8D8" text-anchor="middle">&#1057;</text>
+  </g>
+</svg>
