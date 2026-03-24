@@ -1785,11 +1785,13 @@ export default function EmailTemplates() {
                       const hasDe = !!(template.subjectDe && template.htmlContentDe);
                       // Only flag as outdated when both tracking timestamps are present,
                       // to avoid false positives on pre-existing templates.
+                      // Show badge if EN was changed after this feature was deployed
+                      // (enContentUpdatedAt != null) and DE was either never updated
+                      // since then (deContentUpdatedAt == null) or EN is newer than DE.
                       const isDeOutdated =
                         hasDe &&
                         template.enContentUpdatedAt != null &&
-                        template.deContentUpdatedAt != null &&
-                        template.enContentUpdatedAt > template.deContentUpdatedAt;
+                        template.enContentUpdatedAt > (template.deContentUpdatedAt ?? 0);
                       
                       return (
                       <TableRow key={template._id}>
