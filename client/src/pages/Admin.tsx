@@ -521,12 +521,7 @@ export default function Admin() {
                   </Button>
                 </TableHead>
                 <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('completedUnits')} className="h-8 px-2">
-                    Completed Units <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('learningDuration')} className="h-8 px-2">
+                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('planDurationMonths')} className="h-8 px-2">
                     Duration <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
@@ -544,8 +539,7 @@ export default function Admin() {
                   <TableCell>{p.userEmail}</TableCell>
                   <TableCell>Week {p.currentWeek}</TableCell>
                   <TableCell>Unit {p.currentUnit}</TableCell>
-                  <TableCell>{p.completedUnits?.length || 0} / 27</TableCell>
-                  <TableCell>{p.learningDuration} weeks</TableCell>
+                  <TableCell>{p.planDurationMonths ? `${p.planDurationMonths} months` : '—'}</TableCell>
                   <TableCell>
                     {p.lastActivityAt 
                       ? formatDateEU(p.lastActivityAt)

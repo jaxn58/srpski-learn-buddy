@@ -127,14 +127,20 @@ export const getAllProgress = query({
 
     const allProgress = await ctx.db.query("userProgress").collect();
     
-    // Enrich with user info
+    // Enrich with user info and subscription data
     const enrichedProgress = await Promise.all(
       allProgress.map(async (progress) => {
         const user = await ctx.db.get(progress.userId);
+        const subscription = await ctx.db
+          .query("userSubscriptions")
+          .withIndex("by_user", (q) => q.eq("userId", progress.userId))
+          .filter((q) => q.eq(q.field("status"), "active"))
+          .first();
         return {
           ...progress,
           userName: user?.name || user?.email || "Unknown",
           userEmail: user?.email || "",
+          planDurationMonths: subscription?.planDurationMonths ?? null,
         };
       })
     );
