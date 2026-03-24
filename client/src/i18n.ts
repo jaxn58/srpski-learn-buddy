@@ -1674,9 +1674,9 @@ const resources = {
       
       // Home Page - Beta
       "home.beta.title": "Tritt dem Beta-Testprogramm bei – Gratis*",
-      "home.beta.subtitle": "Erstelle jetzt dein Konto (E-Mail oder Google). Während der Beta-Phase werden neue Konten automatisch als Beta-Tester behandelt mit Zugang zu den ersten 5 Einheiten.",
+      "home.beta.subtitle": "Erstelle jetzt dein Konto (E-Mail oder Google). Während der Beta-Phase werden neue Konten automatisch als Beta-Tester behandelt mit Zugang zu Unit 1 (Foundation).",
       "home.beta.authenticated": "Du bist angemeldet. Während der Beta-Phase wird dein Konto automatisch als Beta-Tester behandelt.",
-      "home.beta.authenticatedDesc": "Gehe zu deinem Dashboard, um mit dem Serbisch-Lernen mit Zugang zu den ersten 5 Einheiten zu beginnen.",
+      "home.beta.authenticatedDesc": "Gehe zu deinem Dashboard, um mit dem Serbisch-Lernen mit Zugang zu Unit 1 (Foundation) zu beginnen.",
       "home.beta.dashboard": "Zum Dashboard",
       "home.beta.signupNote": "Verwende die gleiche E-Mail, auf der du Beta-Informationen erhalten möchtest. Du kannst dich auch mit deinem Google-Konto registrieren.",
       "home.beta.discount": "🎁 50% Rabatt beim Launch!",
