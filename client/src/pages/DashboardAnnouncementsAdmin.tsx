@@ -21,7 +21,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Plus, Edit, Trash2, Download, Gift, X } from "lucide-react";
+import { Plus, Edit, Trash2, Gift, X } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -107,13 +107,9 @@ export default function DashboardAnnouncementsAdmin() {
   const createMutation = useMutation(api.dashboardAnnouncements.createDashboardAnnouncement);
   const updateMutation = useMutation(api.dashboardAnnouncements.updateDashboardAnnouncement);
   const deleteMutation = useMutation(api.dashboardAnnouncements.deleteDashboardAnnouncement);
-  const seedEnglishDefaultsMutation = useMutation(
-    api.dashboardAnnouncements.seedDashboardBetaBannerEnglishDefaults,
-  );
   const translateEnToDeAction = useAction(api.dashboardAnnouncements.translateDashboardAnnouncementEnToDe);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [isSeedingDefaults, setIsSeedingDefaults] = useState(false);
   const [isTranslatingDe, setIsTranslatingDe] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -258,23 +254,6 @@ export default function DashboardAnnouncementsAdmin() {
     a === "beta_testers_only"
       ? t("admin.dashboardAnnouncements.audience.beta")
       : t("admin.dashboardAnnouncements.audience.all");
-
-  const handleSeedEnglishDefaults = async () => {
-    setIsSeedingDefaults(true);
-    try {
-      const res = await seedEnglishDefaultsMutation({});
-      if (res.status === "created") {
-        toast.success(t("admin.dashboardAnnouncements.toast.seedCreated"));
-      } else {
-        toast.info(t("admin.dashboardAnnouncements.toast.seedAlreadyExists"));
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error(t("admin.dashboardAnnouncements.toast.createFailed"));
-    } finally {
-      setIsSeedingDefaults(false);
-    }
-  };
 
   const handleAiTranslateDe = async () => {
     if (!form.titleEn.trim() || !form.introEn.trim() || !form.bodyEn.trim()) {
@@ -464,16 +443,6 @@ export default function DashboardAnnouncementsAdmin() {
           <p className="text-muted-foreground mt-1">{t("admin.dashboardAnnouncements.subtitle")}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isSeedingDefaults}
-            onClick={handleSeedEnglishDefaults}
-            title={t("admin.dashboardAnnouncements.seedHint")}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            {t("admin.dashboardAnnouncements.seedEnglishDefaults")}
-          </Button>
           <Button
             onClick={() => {
               resetForm();

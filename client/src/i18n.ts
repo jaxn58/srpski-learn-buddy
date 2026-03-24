@@ -1322,11 +1322,6 @@ const resources = {
       "admin.dashboardAnnouncements.toast.updateFailed": "Could not update banner",
       "admin.dashboardAnnouncements.toast.deleted": "Banner deleted",
       "admin.dashboardAnnouncements.toast.deleteFailed": "Could not delete banner",
-      "admin.dashboardAnnouncements.seedEnglishDefaults": "Import English defaults (dashboard_beta)",
-      "admin.dashboardAnnouncements.seedHint":
-        "Creates the beta banner with the same English copy as the previous static translations (only if key dashboard_beta is missing).",
-      "admin.dashboardAnnouncements.toast.seedCreated": "Default English banner created",
-      "admin.dashboardAnnouncements.toast.seedAlreadyExists": "Banner dashboard_beta already exists — delete or edit it first",
       "admin.dashboardAnnouncements.actions.aiTranslateDe": "AI translate EN → DE",
       "admin.dashboardAnnouncements.toast.aiTranslateNeedsEnglish": "Please fill in all English fields (title, introduction, main text) first.",
       "admin.dashboardAnnouncements.toast.aiTranslatedDe": "German translation generated",
@@ -2784,11 +2779,6 @@ const resources = {
       "admin.dashboardAnnouncements.toast.updateFailed": "Banner konnte nicht aktualisiert werden",
       "admin.dashboardAnnouncements.toast.deleted": "Banner gelöscht",
       "admin.dashboardAnnouncements.toast.deleteFailed": "Banner konnte nicht gelöscht werden",
-      "admin.dashboardAnnouncements.seedEnglishDefaults": "Englische Standardtexte importieren (dashboard_beta)",
-      "admin.dashboardAnnouncements.seedHint":
-        "Legt den Beta-Banner mit denselben englischen Texten wie die früheren festen Übersetzungen an (nur wenn der Key dashboard_beta noch fehlt).",
-      "admin.dashboardAnnouncements.toast.seedCreated": "Standard-Banner (Englisch) angelegt",
-      "admin.dashboardAnnouncements.toast.seedAlreadyExists": "Banner dashboard_beta existiert bereits — zuerst löschen oder bearbeiten",
       "admin.dashboardAnnouncements.actions.aiTranslateDe": "KI übersetzen EN → DE",
       "admin.dashboardAnnouncements.toast.aiTranslateNeedsEnglish":
         "Bitte fülle zuerst alle englischen Felder aus (Titel, Einleitung, Haupttext).",

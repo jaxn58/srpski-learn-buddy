@@ -18,8 +18,6 @@
     "plans:index": "powershell -ExecutionPolicy Bypass -File ./.cursor/generate-plans-index.ps1",
     "plans:index:open": "powershell -ExecutionPolicy Bypass -File ./.cursor/generate-plans-index.ps1; cmd /c start \"\" .\\.cursor\\plans-index.md",
     "migrate:email-templates": "tsx scripts/migrate-email-templates.ts",
-    "sync:email-templates": "tsx scripts/sync-email-templates-to-production.ts",
-    "sync:dashboard-announcements": "tsx scripts/sync-dashboard-announcements-to-production.ts",
     "migrate:production": "tsx scripts/migrate-to-production.ts",
     "migrate:cs-prompts": "tsx scripts/migrate-content-studio-prompts-to-production.ts",
     "generate:pronunciation-audio": "tsx scripts/generate-pronunciation-audio.ts",
@@ -40,7 +38,6 @@
     "check:audio": "tsx scripts/check-audio-file.ts",
     "compare:audio": "tsx scripts/compare-audio-dev-prod.ts",
     "test:backup": "tsx scripts/test-backup.ts",
-    "migrate:prompt": "tsx scripts/migrate-prompt-to-production.ts",
     "migrate:newsletter": "tsx scripts/migrate-newsletter-initial.ts"
   },
   "dependencies": {
