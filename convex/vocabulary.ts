@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { assertLearnerAccountActive } from "./authz";
 
 // ============= COURSE VOCABULARY (Master Data) =============
 
@@ -552,10 +553,14 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  return await ctx.db
+  const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
+  return user;
 }
 
 // Record vocabulary answer (quiz tracking)

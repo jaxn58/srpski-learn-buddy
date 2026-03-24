@@ -12,17 +12,21 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
-
+import { assertLearnerAccountActive } from "./authz";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  return await ctx.db
+  const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
+  return user;
 }
 
 // Get feedback comments

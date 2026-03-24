@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { assertLearnerAccountActive } from "./authz";
 import { mutation, query, internalQuery, action, QueryCtx, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
@@ -768,6 +769,9 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
 
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
   return user;
 }
 

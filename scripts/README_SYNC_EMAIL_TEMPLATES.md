@@ -97,9 +97,9 @@ pnpm sync:email-templates
 ✨ NEW Templates (1):
    + feedback-admin-notification
 
-🔄 UPDATED Templates (2):
+🔄 UPDATED Templates (1):
    ~ beta-registration
-   ~ user-activation
+   (Legacy `user-activation` was removed from the codebase; delete any leftover row in Convex if needed.)
 
 ✓ UNCHANGED Templates (1):
    = feedback-confirmation

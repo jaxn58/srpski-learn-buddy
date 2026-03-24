@@ -1,7 +1,7 @@
 import { RedirectToSignIn, SignedIn, SignedOut } from "@clerk/clerk-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation } from "wouter";
+import { Link, Redirect, useLocation } from "wouter";
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 
@@ -40,6 +40,7 @@ import {
   Database,
   ListTodo,
   Mail,
+  Megaphone,
   MessageCircle,
   PanelLeft,
   PanelRight,
@@ -84,6 +85,11 @@ function AdminSidebar() {
           { label: t("sidebar.userManagement"), path: "/admin", icon: <Users className="h-4 w-4" /> },
           { label: t("sidebar.waitlist"), path: "/admin/waitlist", icon: <Users className="h-4 w-4" /> },
           { label: t("sidebar.onboarding"), path: "/admin/onboarding", icon: <Presentation className="h-4 w-4" /> },
+          {
+            label: t("sidebar.dashboardAnnouncements"),
+            path: "/admin/dashboard-announcements",
+            icon: <Megaphone className="h-4 w-4" />,
+          },
           {
             label: t("sidebar.subscriptionAnalytics"),
             path: "/admin/subscription-analytics",
@@ -241,6 +247,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) {
     return <DashboardLayoutSkeleton />;
+  }
+
+  if (user && !isAdmin && user.isActive === false) {
+    return <Redirect to="/account-inactive" />;
   }
 
   return (

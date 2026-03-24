@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { getRequiredExercises } from "./unitExercises";
 import { upsertDailyActivityByUserId } from "./units";
+import { assertLearnerAccountActive } from "./authz";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -23,6 +24,9 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     userId: user?._id ?? null
   });
 
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
   return user;
 }
 

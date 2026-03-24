@@ -118,6 +118,26 @@ export const systemTables = {
     .index("by_language_active", ["language", "isActive", "stepNumber"]) // OLD: for migration
     .index("by_step_number", ["stepNumber"]), // NEW: primary index
 
+  // ============= DASHBOARD ANNOUNCEMENTS (admin-managed banners) =============
+  // Reusable top-of-dashboard messages (e.g. beta welcome). Column-based EN/DE like onboarding.
+  dashboardAnnouncements: defineTable({
+    /** Stable slug, e.g. "dashboard_beta" — used in code and dismiss localStorage. */
+    key: v.string(),
+    titleEn: v.string(),
+    introEn: v.string(),
+    /** Main copy (plain text; line breaks preserved in UI). */
+    bodyEn: v.string(),
+    titleDe: v.optional(v.string()),
+    introDe: v.optional(v.string()),
+    bodyDe: v.optional(v.string()),
+    isActive: v.boolean(),
+    audience: v.union(v.literal("all_authenticated"), v.literal("beta_testers_only")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.optional(v.id("users")),
+    updatedBy: v.optional(v.id("users")),
+  }).index("by_key", ["key"]),
+
   // ============= DODO PRODUCTS (Dynamic Pricing) =============
   // Stores synchronized product data from Dodo Payments to keep the UI reactive.
   dodoProducts: defineTable({

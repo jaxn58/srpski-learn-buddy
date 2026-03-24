@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { upsertDailyActivityByUserId } from "./units";
+import { assertLearnerAccountActive } from "./authz";
 
 // Beta phase policy: during beta, only Unit 1 is accessible for normal users.
 const BETA_MAX_UNITS = 1;
@@ -10,10 +11,14 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  return await ctx.db
+  const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
+  return user;
 }
 
 // Helper to check unit access

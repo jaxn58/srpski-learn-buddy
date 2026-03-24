@@ -21,9 +21,8 @@ This document describes the email template migration from hardcoded templates to
 
 ### 3. ✅ Created Migration Script
 - **`scripts/migrate-email-templates.ts`** - Extracts templates from `server/_core/email.ts` and imports them into Convex
-- Migrates 4 templates:
-  - `beta-registration` - Beta registration confirmation
-  - `user-activation` - User account activation
+- Migrates 3 templates (legacy `user-activation` was removed; it was never used by the Convex email flow):
+  - `beta-registration` - Beta registration / welcome confirmation
   - `feedback-confirmation` - Feedback submission confirmation
   - `feedback-admin-notification` - Admin notification for new feedback
 
@@ -61,7 +60,7 @@ The script will:
 
 1. Go to your Convex dashboard
 2. Navigate to the `emailTemplates` table
-3. Verify that all 4 templates were imported successfully
+3. Verify that all templates were imported successfully
 
 ### Step 3: Test Email Sending
 
@@ -77,11 +76,6 @@ Each template supports variables using `{{VARIABLE_NAME}}` syntax:
 ### beta-registration
 - `{{USER_NAME}}` - User's name
 - `{{USER_EMAIL}}` - User's email
-
-### user-activation
-- `{{USER_NAME}}` - User's name
-- `{{USER_EMAIL}}` - User's email
-- `{{LOGIN_URL}}` - Login URL
 
 ### feedback-confirmation
 - `{{USER_NAME}}` - User's name

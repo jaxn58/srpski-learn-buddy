@@ -13,7 +13,7 @@ const ALL_TABLES = [
   "feedbackSubmissions", "feedbackComments",
   "feedbackStatusHistory", "userSubscriptions", "subscriptionHistory",
   "quizProgress", "emailTemplates", "chatPrompts", "chatPromptHistory",
-  "appVersions", "changelogEntries", "onboardingSteps"
+  "appVersions", "changelogEntries", "onboardingSteps", "dashboardAnnouncements"
 ] as const;
 
 /**

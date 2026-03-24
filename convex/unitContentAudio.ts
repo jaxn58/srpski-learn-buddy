@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { assertLearnerAccountActive } from "./authz";
 
 /**
  * Fetch cached audio info for a given textHash.
@@ -49,6 +50,19 @@ export const upsert = mutation({
     unitVersion: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+    assertLearnerAccountActive(user);
+
     const now = Date.now();
 
     const existing = await ctx.db

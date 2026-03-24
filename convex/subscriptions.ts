@@ -3,17 +3,22 @@ import { v } from "convex/values";
 import { mutation, query, action, QueryCtx, MutationCtx, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { assertLearnerAccountActive } from "./authz";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  return await ctx.db
+  const user = await ctx.db
     .query("users")
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
+  return user;
 }
 
 // Get total number of units from database
@@ -617,6 +622,7 @@ export const createDodoCheckoutSession = action({
 
     const user = await ctx.runQuery(api.users.me);
     if (!user) throw new Error("User not found");
+    assertLearnerAccountActive(user);
 
     // Guardrail: Dodo checkout always creates a new subscription/payment session.
     // Avoid duplicate charges by blocking purchase for already active subscribers.

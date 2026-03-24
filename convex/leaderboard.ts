@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, QueryCtx } from "./_generated/server";
 import type { Id, Doc } from "./_generated/dataModel";
+import { assertLearnerAccountActive } from "./authz";
 
 type Period = "all" | "30d" | "7d";
 
@@ -148,6 +149,8 @@ export const getLeaderboard = query({
     if (!viewer) {
       throw new Error("User not found");
     }
+
+    assertLearnerAccountActive(viewer);
 
     const limit = Math.min(Math.max(args.limit ?? 100, 10), 500);
 

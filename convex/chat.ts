@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, action, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
+import { assertLearnerAccountActive } from "./authz";
 
 // Central default system prompts by language (Emergency Fallback)
 const EMERGENCY_FALLBACK_PROMPT = "You are a helpful Serbian language learning assistant. Please explain Serbian grammar and vocabulary clearly.";
@@ -17,10 +18,14 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  return await ctx.db
+  const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
+  return user;
 }
 
 // Rate limiting configuration
@@ -487,6 +492,9 @@ export const sendMessage = action({
 
     // Determine user language
     const user = await ctx.runQuery(api.users.me, {});
+    if (user) {
+      assertLearnerAccountActive(user);
+    }
     const language = user?.learningLanguage || "en";
     const languageName = language === "de" ? "German" : "English";
 

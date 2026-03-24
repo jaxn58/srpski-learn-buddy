@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { ActionCtx, MutationCtx, QueryCtx } from "../_generated/server";
 import { internal, api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
+import { assertLearnerAccountActive } from "../authz";
 import { UnitPackageSchema, type ValidationIssue } from "../../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../../scripts/unitPackage/autofix";
 import { validateMarkdownStructure } from "../../scripts/markdownParser/parser";
@@ -23,10 +24,14 @@ export type ReleaseStatus = "published" | "preview" | "offline";
 export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
-  return await ctx.db
+  const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
+  return user;
 }
 
 export async function requireSuperadmin(ctx: QueryCtx | MutationCtx): Promise<Doc<"users">> {

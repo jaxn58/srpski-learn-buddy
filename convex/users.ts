@@ -3,6 +3,7 @@ import { mutation, query, internalMutation, action, QueryCtx, MutationCtx, inter
 import { api, internal } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
 import { upsertDailyActivityByUserId } from "./units";
+import { assertLearnerAccountActive } from "./authz";
 
 type UserDoc = Doc<"users">;
 type FixUserNameResult = { success: boolean; userId: Id<"users">; name: string };
@@ -23,6 +24,9 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
 
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
   return user;
 }
 
@@ -75,6 +79,8 @@ export const syncUser = mutation({
       .first();
 
     if (existing) {
+      assertLearnerAccountActive(existing);
+
       // Special case: Ensure hello@jacksenn.me is always superadmin
       const updates: any = {
         lastActiveDate: Date.now(),
@@ -316,6 +322,12 @@ export const generateAvatarUploadUrl = mutation({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) throw new Error("Not authenticated");
+    assertLearnerAccountActive(user);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -699,6 +711,8 @@ export const internalUpdateXPByClerkId = internalMutation({
       console.error(`[Convex] ${errorMsg}`);
       throw new Error(errorMsg);
     }
+
+    assertLearnerAccountActive(user);
 
     const oldTotalXP = user.totalXP || 0;
     const oldLevel = user.level || 1;

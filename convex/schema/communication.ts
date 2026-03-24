@@ -10,7 +10,7 @@ import { v } from "convex/values";
 export const communicationTables = {
   // ============= EMAIL TEMPLATES =============
   emailTemplates: defineTable({
-    name: v.string(), // e.g., "beta-registration", "user-activation", "feedback-confirmation"
+    name: v.string(), // e.g., "beta-registration", "feedback-confirmation"
     subject: v.string(), // Email subject line (can contain {{VARIABLES}})
     // Column-based multilanguage (preferred). Legacy `subject` remains as fallback.
     subjectEn: v.optional(v.string()),

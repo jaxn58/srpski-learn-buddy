@@ -3,6 +3,7 @@ import { mutation, query, internalMutation, internalQuery, internalAction, actio
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { Resend } from "resend";
+import { assertLearnerAccountActive } from "./authz";
 
 // ============= HELPER FUNCTIONS =============
 
@@ -38,11 +39,15 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
-  return await ctx.db
+  const user = await ctx.db
     .query("users")
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .first();
+  if (user) {
+    assertLearnerAccountActive(user);
+  }
+  return user;
 }
 
 // Detect environment (dev vs prod)
@@ -312,6 +317,7 @@ export const requestCommunityUpdatesDoubleOptIn = mutation({
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
     if (!user || !user.email) throw new Error("User not found or missing email");
+    assertLearnerAccountActive(user);
 
     // Ensure contact exists
     const contactId =

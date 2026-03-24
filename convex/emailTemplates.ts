@@ -1,5 +1,13 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx, internalMutation, action, ActionCtx } from "./_generated/server";
+import {
+  mutation,
+  query,
+  QueryCtx,
+  MutationCtx,
+  internalMutation,
+  action,
+  ActionCtx,
+} from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { callAiJson } from "./contentStudio/_shared";
@@ -311,6 +319,28 @@ export const remove = mutation({
 
     await ctx.db.delete(args.id);
     return { success: true };
+  },
+});
+
+const DEPRECATED_USER_ACTIVATION_TEMPLATE = "user-activation";
+
+/**
+ * Removes the legacy `user-activation` template (never used by Convex email flow).
+ * Run once per deployment (per Convex backend): `npx convex run emailTemplates:cleanupDeprecatedUserActivationTemplate`
+ */
+export const cleanupDeprecatedUserActivationTemplate = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db
+      .query("emailTemplates")
+      .withIndex("by_name", (q) => q.eq("name", DEPRECATED_USER_ACTIVATION_TEMPLATE))
+      .collect();
+    let deleted = 0;
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+      deleted += 1;
+    }
+    return { deleted };
   },
 });
 

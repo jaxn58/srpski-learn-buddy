@@ -19,6 +19,7 @@ const NewsletterOptInConfirm = lazy(() => import("./pages/NewsletterOptInConfirm
 const NewsletterUnsubscribe = lazy(() => import("./pages/NewsletterUnsubscribe"));
 const SignInPage = lazy(() => import("./pages/SignIn"));
 const SignUpPage = lazy(() => import("./pages/SignUp"));
+const AccountInactivePage = lazy(() => import("./pages/AccountInactive"));
 
 // Protected pages + layout
 const DashboardLayout = lazy(() => import("./components/DashboardLayout"));
@@ -43,6 +44,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 const PromptAdmin = lazy(() => import("./pages/PromptAdmin"));
 const ChangelogAdmin = lazy(() => import("./pages/ChangelogAdmin"));
 const OnboardingAdmin = lazy(() => import("./pages/OnboardingAdmin"));
+const DashboardAnnouncementsAdmin = lazy(() => import("./pages/DashboardAnnouncementsAdmin"));
 const FeedbackManagement = lazy(() => import("./pages/FeedbackManagement"));
 const WishlistManagement = lazy(() => import("./pages/WishlistManagement"));
 const SubscriptionAnalytics = lazy(() => import("./pages/SubscriptionAnalytics"));
@@ -99,6 +101,7 @@ function Router() {
         <Route path="/sign-in" component={SignInPage} />
         <Route path="/sign-up/:rest*" component={SignUpPage} />
         <Route path="/sign-up" component={SignUpPage} />
+        <Route path="/account-inactive" component={AccountInactivePage} />
 
         {/* Protected routes */}
         <Route path="/dashboard">
@@ -296,6 +299,17 @@ function Router() {
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
                   <OnboardingAdmin />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/admin/dashboard-announcements">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <DashboardAnnouncementsAdmin />
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>

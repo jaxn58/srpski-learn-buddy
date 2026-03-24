@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as authz from "../authz.js";
 import type * as backup from "../backup.js";
 import type * as backupAdmin from "../backupAdmin.js";
 import type * as badges from "../badges.js";
@@ -26,6 +27,7 @@ import type * as contentStudio__validator from "../contentStudio/_validator.js";
 import type * as contentStudio__validatorHelpers from "../contentStudio/_validatorHelpers.js";
 import type * as contentStudio_prompts from "../contentStudio/prompts.js";
 import type * as crons from "../crons.js";
+import type * as dashboardAnnouncements from "../dashboardAnnouncements.js";
 import type * as email from "../email.js";
 import type * as emailTemplates from "../emailTemplates.js";
 import type * as exercises from "../exercises.js";
@@ -64,6 +66,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  authz: typeof authz;
   backup: typeof backup;
   backupAdmin: typeof backupAdmin;
   badges: typeof badges;
@@ -81,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   "contentStudio/_validatorHelpers": typeof contentStudio__validatorHelpers;
   "contentStudio/prompts": typeof contentStudio_prompts;
   crons: typeof crons;
+  dashboardAnnouncements: typeof dashboardAnnouncements;
   email: typeof email;
   emailTemplates: typeof emailTemplates;
   exercises: typeof exercises;
