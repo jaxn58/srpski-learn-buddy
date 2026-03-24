@@ -20,6 +20,7 @@
     "migrate:email-templates": "tsx scripts/migrate-email-templates.ts",
     "sync:email-templates": "tsx scripts/sync-email-templates-to-production.ts",
     "migrate:production": "tsx scripts/migrate-to-production.ts",
+    "migrate:cs-prompts": "tsx scripts/migrate-content-studio-prompts-to-production.ts",
     "generate:pronunciation-audio": "tsx scripts/generate-pronunciation-audio.ts",
     "export:units": "tsx scripts/export-unit-contents.ts",
     "compare:book": "tsx scripts/compare-with-book.ts",

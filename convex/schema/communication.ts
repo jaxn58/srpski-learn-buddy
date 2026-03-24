@@ -30,6 +30,10 @@ export const communicationTables = {
       v.literal("subscription"), // Welcome, expiration, upgrade
       v.literal("marketing") // Promotional emails
     ),
+    // Staleness tracking: set independently when EN or DE content changes.
+    // isDeOutdated = hasDE && enContentUpdatedAt > (deContentUpdatedAt ?? 0)
+    enContentUpdatedAt: v.optional(v.number()),
+    deContentUpdatedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

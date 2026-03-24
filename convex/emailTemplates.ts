@@ -123,8 +123,20 @@ export const upsert = mutation({
       .withIndex("by_name", (q) => q.eq("name", args.name))
       .first();
 
+    const now = Date.now();
+
     if (existing) {
-      // Update
+      // Detect EN content changes to bump enContentUpdatedAt.
+      const prevHtmlContentEn = existing.htmlContentEn ?? existing.htmlContent;
+      const prevSubjectEn = existing.subjectEn ?? existing.subject;
+      const enChanged = htmlContentEn !== prevHtmlContentEn || subjectEn !== prevSubjectEn;
+
+      // Detect DE content changes to bump deContentUpdatedAt.
+      const deChanged =
+        args.htmlContentDe !== existing.htmlContentDe ||
+        args.subjectDe !== existing.subjectDe;
+      const deProvided = !!(args.htmlContentDe || args.subjectDe);
+
       await ctx.db.patch(existing._id, {
         subject: subjectEn,
         subjectEn,
@@ -138,11 +150,13 @@ export const upsert = mutation({
         variables: args.variables,
         category: args.category,
         isActive: args.isActive,
-        updatedAt: Date.now(),
+        ...(enChanged ? { enContentUpdatedAt: now } : {}),
+        ...(deChanged && deProvided ? { deContentUpdatedAt: now } : {}),
+        updatedAt: now,
       });
       return existing._id;
     } else {
-      // Create
+      // Create – always stamp EN; stamp DE only if DE content is provided.
       return await ctx.db.insert("emailTemplates", {
         name: args.name,
         subject: subjectEn,
@@ -157,8 +171,10 @@ export const upsert = mutation({
         variables: args.variables,
         category: args.category,
         isActive: args.isActive,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        enContentUpdatedAt: now,
+        ...(args.htmlContentDe || args.subjectDe ? { deContentUpdatedAt: now } : {}),
+        createdAt: now,
+        updatedAt: now,
       });
     }
   },
@@ -196,8 +212,20 @@ export const internalUpsert = internalMutation({
       .withIndex("by_name", (q) => q.eq("name", args.name))
       .first();
 
+    const now = Date.now();
+
     if (existing) {
-      // Update
+      // Detect EN content changes to bump enContentUpdatedAt.
+      const prevHtmlContentEn = existing.htmlContentEn ?? existing.htmlContent;
+      const prevSubjectEn = existing.subjectEn ?? existing.subject;
+      const enChanged = htmlContentEn !== prevHtmlContentEn || subjectEn !== prevSubjectEn;
+
+      // Detect DE content changes to bump deContentUpdatedAt.
+      const deChanged =
+        args.htmlContentDe !== existing.htmlContentDe ||
+        args.subjectDe !== existing.subjectDe;
+      const deProvided = !!(args.htmlContentDe || args.subjectDe);
+
       await ctx.db.patch(existing._id, {
         subject: subjectEn,
         subjectEn,
@@ -211,11 +239,13 @@ export const internalUpsert = internalMutation({
         variables: args.variables,
         category: args.category,
         isActive: args.isActive,
-        updatedAt: Date.now(),
+        ...(enChanged ? { enContentUpdatedAt: now } : {}),
+        ...(deChanged && deProvided ? { deContentUpdatedAt: now } : {}),
+        updatedAt: now,
       });
       return existing._id;
     } else {
-      // Create
+      // Create – always stamp EN; stamp DE only if DE content is provided.
       return await ctx.db.insert("emailTemplates", {
         name: args.name,
         subject: subjectEn,
@@ -230,8 +260,10 @@ export const internalUpsert = internalMutation({
         variables: args.variables,
         category: args.category,
         isActive: args.isActive,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        enContentUpdatedAt: now,
+        ...(args.htmlContentDe || args.subjectDe ? { deContentUpdatedAt: now } : {}),
+        createdAt: now,
+        updatedAt: now,
       });
     }
   },
@@ -632,6 +664,73 @@ export const translateSignature = action({
         usage: ai.usage,
         estimatedCostUsd: ai.estimatedCostUsd,
       },
+    };
+  },
+});
+
+// Internal mutation used by translateAndSaveTemplate to persist DE content
+// and bump the deContentUpdatedAt staleness timestamp.
+export const internalSaveDeTranslation = internalMutation({
+  args: {
+    id: v.id("emailTemplates"),
+    subjectDe: v.string(),
+    htmlContentDe: v.string(),
+    descriptionDe: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    await ctx.db.patch(args.id, {
+      subjectDe: args.subjectDe,
+      htmlContentDe: args.htmlContentDe,
+      ...(args.descriptionDe !== undefined ? { descriptionDe: args.descriptionDe } : {}),
+      deContentUpdatedAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+// Translate EN content of an existing template and save DE directly.
+// Designed for one-click "Update DE translation" from the admin overview.
+export const translateAndSaveTemplate = action({
+  args: {
+    id: v.id("emailTemplates"),
+    targetLanguage: v.literal("de"),
+    preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
+  },
+  handler: async (ctx, args) => {
+    const superadmin = await getSuperadminUser(ctx);
+    if (!superadmin) throw new Error("Superadmin access required");
+
+    const template = await ctx.runQuery(api.emailTemplates.getById, { id: args.id });
+    if (!template) throw new Error("Template not found");
+
+    const subjectEn = template.subjectEn ?? template.subject;
+    const htmlContentEn = template.htmlContentEn ?? template.htmlContent;
+    const descriptionEn = template.descriptionEn ?? template.description;
+
+    if (!subjectEn || !htmlContentEn) {
+      throw new Error("Template has no English content to translate.");
+    }
+
+    const res = await ctx.runAction(api.emailTemplates.translateTemplate, {
+      subjectEn,
+      htmlContentEn,
+      descriptionEn: descriptionEn || undefined,
+      variables: template.variables,
+      targetLanguage: args.targetLanguage,
+      preferredProvider: args.preferredProvider ?? "gemini",
+    });
+
+    await ctx.runMutation(internal.emailTemplates.internalSaveDeTranslation, {
+      id: args.id,
+      subjectDe: res.subjectTranslation,
+      htmlContentDe: res.htmlContentTranslation,
+      descriptionDe: res.descriptionTranslation || undefined,
+    });
+
+    return {
+      warnings: res.warnings,
+      meta: res.meta,
     };
   },
 });

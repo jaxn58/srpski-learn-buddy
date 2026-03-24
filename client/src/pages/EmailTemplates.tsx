@@ -131,7 +131,9 @@ export default function EmailTemplates() {
   const translateTemplateAction = useAction(api.emailTemplates.translateTemplate);
   const translateSignatureAction = useAction(api.emailTemplates.translateSignature);
   const autoTranslateMissingGermanAction = useAction(api.emailTemplates.autoTranslateMissingGerman);
+  const translateAndSaveTemplateAction = useAction(api.emailTemplates.translateAndSaveTemplate);
   const [isAutoTranslating, setIsAutoTranslating] = useState(false);
+  const [translatingDeId, setTranslatingDeId] = useState<string | null>(null);
   
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplateDoc | null>(null);
@@ -722,6 +724,28 @@ export default function EmailTemplates() {
       toast.error(error?.message || t("admin.emailTemplates.toast.aiTranslateFailed"));
     } finally {
       setIsTranslatingTemplateDe(false);
+    }
+  };
+
+  const handleTranslateAndSaveTemplate = async (templateId: string) => {
+    try {
+      setTranslatingDeId(templateId);
+      const res = await translateAndSaveTemplateAction({
+        id: templateId as Id<"emailTemplates">,
+        targetLanguage: "de",
+        preferredProvider: "gemini",
+      });
+      if (Array.isArray(res.warnings) && res.warnings.length) {
+        toast.warning("DE translation updated with warnings", {
+          description: res.warnings.join("\n"),
+        });
+      } else {
+        toast.success("DE translation updated successfully.");
+      }
+    } catch (error: any) {
+      toast.error(error?.message || t("admin.emailTemplates.toast.aiTranslateFailed"));
+    } finally {
+      setTranslatingDeId(null);
     }
   };
 
@@ -1757,9 +1781,15 @@ export default function EmailTemplates() {
                   </TableHeader>
                   <TableBody>
                     {templates?.map((template) => {
-                      const languages = [];
-                      if (template.subjectEn || template.htmlContentEn || template.subject || template.htmlContent) languages.push("EN");
-                      if (template.subjectDe && template.htmlContentDe) languages.push("DE");
+                      const hasEn = !!(template.subjectEn || template.htmlContentEn || template.subject || template.htmlContent);
+                      const hasDe = !!(template.subjectDe && template.htmlContentDe);
+                      // Only flag as outdated when both tracking timestamps are present,
+                      // to avoid false positives on pre-existing templates.
+                      const isDeOutdated =
+                        hasDe &&
+                        template.enContentUpdatedAt != null &&
+                        template.deContentUpdatedAt != null &&
+                        template.enContentUpdatedAt > template.deContentUpdatedAt;
                       
                       return (
                       <TableRow key={template._id}>
@@ -1787,11 +1817,29 @@ export default function EmailTemplates() {
                         </TableCell>
                         <TableCell className="py-2 align-top">
                           <div className="flex gap-1 mt-1">
-                            {languages.map(lang => (
-                              <span key={lang} className="text-[10px] font-semibold bg-muted px-2 py-0.5 rounded">
-                                {lang}
+                            {hasEn && (
+                              <span className="text-[10px] font-semibold bg-muted px-2 py-0.5 rounded">
+                                EN
                               </span>
-                            ))}
+                            )}
+                            {hasDe && !isDeOutdated && (
+                              <span className="text-[10px] font-semibold bg-muted px-2 py-0.5 rounded">
+                                DE
+                              </span>
+                            )}
+                            {hasDe && isDeOutdated && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded flex items-center gap-1 cursor-default">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    DE
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[220px] text-xs">
+                                  DE translation outdated – EN content was updated after the last DE save.
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="py-2 align-top">
@@ -1825,7 +1873,7 @@ export default function EmailTemplates() {
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="min-w-[180px]">
+                              <DropdownMenuContent align="end" className="min-w-[200px]">
                                 <DropdownMenuItem onClick={() => handlePreview(template)}>
                                   <Eye className="h-4 w-4 mr-2" />
                                   Preview
@@ -1837,6 +1885,18 @@ export default function EmailTemplates() {
                                       <Edit className="h-4 w-4 mr-2" />
                                       Edit
                                     </DropdownMenuItem>
+                                    {isDeOutdated && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleTranslateAndSaveTemplate(template._id)}
+                                        disabled={translatingDeId === template._id}
+                                        className="text-amber-700 focus:text-amber-700"
+                                      >
+                                        <AlertTriangle className="h-4 w-4 mr-2" />
+                                        {translatingDeId === template._id
+                                          ? "Translating DE…"
+                                          : "Translate DE (update)"}
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuItem
                                       onClick={() => handleDelete(template._id)}
                                       className="text-red-600 focus:text-red-600"
