@@ -216,8 +216,19 @@ export const syncUserToNewsletter = internalMutation({
       userTags.push("beta-user");
     }
 
+    // Map learningLanguage → preferredLocale (newsletter only supports en/de for now)
+    // @ts-ignore TS2339
+    const rawLang: string | undefined = user.learningLanguage;
+    const preferredLocale: "en" | "de" | undefined =
+      rawLang === "de" ? "de" : rawLang === "en" ? "en" : undefined;
+
     if (existing) {
-      // Update existing contact with user reference
+      // Update existing contact with user reference.
+      // Only overwrite preferredLocale if derived from learningLanguage (never downgrade known locale).
+      const localeUpdate =
+        preferredLocale !== undefined && existing.preferredLocale !== preferredLocale
+          ? { preferredLocale }
+          : {};
       await ctx.db.patch(existing._id, {
         sourceId: args.userId,
         source: "user",
@@ -225,6 +236,7 @@ export const syncUserToNewsletter = internalMutation({
         name: user.name || existing.name,
         tags: Array.from(new Set([...(existing.tags || []), ...userTags])),
         environment,
+        ...localeUpdate,
         updatedAt: Date.now(),
       });
       // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
@@ -248,6 +260,7 @@ export const syncUserToNewsletter = internalMutation({
       unsubscribeToken,
       tags: userTags,
       environment,
+      ...(preferredLocale !== undefined ? { preferredLocale } : {}),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -1128,6 +1141,91 @@ export const translateNewsletterCampaign = action({
   },
 });
 
+/**
+ * Send a test preview of a campaign to the calling superadmin's email.
+ * Does NOT affect campaign status or create email logs.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const sendCampaignTestEmail = action({
+  args: {
+    campaignId: v.id("newsletterCampaigns"),
+    /** "en" | "de" – which language version to send */
+    locale: v.optional(v.union(v.literal("en"), v.literal("de"))),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; sentTo: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthorized");
+
+    const adminUser = (await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+      clerkId: identity.subject,
+    })) as Doc<"users"> | null;
+    if (!adminUser || (adminUser.role !== "admin" && adminUser.role !== "superadmin")) {
+      throw new Error("Unauthorized – Admin access required");
+    }
+
+    const toEmail = adminUser.email;
+    if (!toEmail) throw new Error("Admin account has no email address");
+
+    const campaign = (await ctx.runQuery(internal.newsletter.internalGetCampaign, {
+      campaignId: args.campaignId,
+    })) as Doc<"newsletterCampaigns"> | null;
+    if (!campaign) throw new Error("Campaign not found");
+
+    const locale = args.locale ?? "en";
+    // @ts-ignore TS2339
+    const hasDe = !!(campaign.htmlBodySnapshotDe && String(campaign.htmlBodySnapshotDe).trim());
+    const useDe = locale === "de" && hasDe;
+
+    // @ts-ignore TS2339
+    let html: string = useDe
+      ? campaign.htmlBodySnapshotDe!
+      : (campaign.htmlBodySnapshotEn ?? campaign.htmlBodySnapshot ?? "");
+    // @ts-ignore TS2339
+    let subject: string = useDe
+      ? (campaign.subjectDe ?? campaign.subjectEn ?? campaign.subject ?? "")
+      : (campaign.subjectEn ?? campaign.subject ?? "");
+
+    if (!html.trim()) throw new Error("Campaign has no HTML body. Save content before sending a test.");
+
+    const signatureHtml = await ctx.runQuery(internal.newsletter.internalGetMarketingSignatureHtml, {
+      locale: useDe ? "de" : "en",
+    });
+    if (signatureHtml) {
+      const sigRe = /\{\{EMAIL_SIGNATURE\}\}/g;
+      html = html.replace(sigRe, signatureHtml);
+      subject = subject.replace(sigRe, "");
+    }
+
+    const baseUrl = process.env.VITE_APP_URL || "https://learn-with.me";
+    const testVars: Record<string, string> = {
+      USER_NAME: adminUser.name || "Admin",
+      USER_EMAIL: toEmail,
+      UNSUBSCRIBE_LINK: `${baseUrl}/newsletter/unsubscribe?token=TEST-TOKEN`,
+    };
+    for (const [key, value] of Object.entries(testVars)) {
+      const re = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+      html = html.replace(re, value);
+      subject = subject.replace(re, value);
+    }
+
+    if (!process.env.RESEND_API_KEY) throw new Error("RESEND_API_KEY not configured");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@mail.jacksenn.me";
+
+    const { error } = await resend.emails.send({
+      from: `Serbian AI Tutor <${FROM_EMAIL}>`,
+      to: toEmail,
+      subject: `[TEST] ${subject}`,
+      html,
+    });
+
+    if (error) throw new Error(`Resend error: ${error.message || JSON.stringify(error)}`);
+
+    console.log(`[Newsletter] Test email sent to ${toEmail} for campaign "${campaign.name}"`);
+    return { success: true, sentTo: toEmail };
+  },
+});
+
 /** Admin: Convex Storage upload URL for inline newsletter images. */
 // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const generateNewsletterImageUploadUrl = mutation({
@@ -1146,6 +1244,38 @@ export const getNewsletterImagePublicUrl = query({
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized - Admin access required");
     return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+/**
+ * Internal: sync preferredLocale on a newsletter contact when a user changes
+ * their learningLanguage in the app (called from users.updateLearningLanguage).
+ * "es" / "fr" and other unsupported languages fall back to EN.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const internalSyncUserLocale = internalMutation({
+  args: {
+    email: v.string(),
+    learningLanguage: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const preferredLocale: "en" | "de" =
+      args.learningLanguage === "de" ? "de" : "en";
+
+    const contact = await ctx.db
+      .query("newsletterContacts")
+      // @ts-ignore TS2589
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (!contact) return;
+    if (contact.preferredLocale === preferredLocale) return;
+
+    await ctx.db.patch(contact._id, {
+      preferredLocale,
+      updatedAt: Date.now(),
+    });
+    console.log(`[Newsletter] preferredLocale updated for ${args.email} → ${preferredLocale}`);
   },
 });
 

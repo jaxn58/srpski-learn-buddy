@@ -78,10 +78,14 @@ if (campaign.testMode || process.env.NEWSLETTER_TEST_MODE === "true") {
 - Unsubscribe-Token für DSGVO-Compliance
 - Tags für Segmentierung
 - Environment-Flag (dev/prod)
+- **`preferredLocale`**: optional `en` | `de` – steuert, ob beim Versand die englische oder deutsche Kampagnen-Version verwendet wird (wenn DE vorhanden). Wird bei Sync aus der Waitlist aus `language` gesetzt, falls gesetzt.
 
 ### newsletterCampaigns
 - Campaign-Management
-- Status-Tracking (draft → sending → sent)
+- **Status-Workflow:** `draft` → `review` → `ready` → `sending` → `sent` (plus `scheduled`, `cancelled`). Bearbeitbar nur in `draft`, `review`, `ready`. **Versand** nur aus `ready` oder `scheduled`.
+- **Inhalt (Derivat):** spaltenbasiert wie E-Mail-Templates: `subjectEn` / `subjectDe`, `htmlBodySnapshotEn` / `htmlBodySnapshotDe`; Legacy-Felder `subject` und `htmlBodySnapshot` spiegeln die EN-Version.
+- **Master:** `templateName` verweist auf `emailTemplates.name` (üblich: Kategorie `marketing`). Beim Anlegen wird der EN-HTML-Body aus dem Master kopiert.
+- **KI-Übersetzung:** `translateNewsletterCampaign` (Superadmin) füllt DE-Felder; Prompt-Regeln wie bei `emailTemplates.translateTemplate` (Platzhalter `{{…}}` unverändert).
 - Denormalisierte Stats für Performance
 - Test-Mode-Flag
 
@@ -146,6 +150,9 @@ POST /newsletter/webhook/resend
 - `newsletter.updateCampaign` - Campaign bearbeiten (Admin)
 - `newsletter.deleteCampaign` - Campaign löschen (Admin)
 - `newsletter.sendCampaign` - Campaign versenden (Admin)
+- `newsletter.translateNewsletterCampaign` - EN→DE per KI (Superadmin, Action)
+- `newsletter.generateNewsletterImageUploadUrl` / `newsletter.getNewsletterImagePublicUrl` - Bilder für WYSIWYG (Admin)
+- `newsletter.updateContactPreferredLocale` - Kontakt-Sprache setzen (Admin)
 
 **Analytics:**
 - `newsletter.getCampaignStats` - Campaign-Statistiken (Admin)
@@ -173,12 +180,20 @@ pnpm migrate:newsletter
 // In Admin-UI oder via Convex Dashboard
 await client.mutation(api.newsletter.createCampaign, {
   name: "Beta Launch Announcement",
-  subject: "Welcome to Serbian AI Tutor Beta!",
+  subject: "Welcome to Serbian AI Tutor Beta!", // EN subject + Legacy `subject`
   templateName: "newsletter-beta-launch",
   targetTags: ["waitlist"],
   testMode: true, // Nur an Whitelist senden
 });
 ```
+
+Der EN-HTML-Body wird aus dem gewählten Template übernommen. Im Admin unter **Newsletter** kann der Inhalt im WYSIWYG bearbeitet, Vorschau geprüft und optional per KI nach DE übersetzt werden.
+
+### 2b. Workflow vor dem Versand
+
+1. Inhalt in **draft** / **review** / **ready** pflegen.
+2. Status auf **ready** setzen, wenn der Versand erlaubt sein soll.
+3. **Send** auslösen (nur bei `ready`).
 
 ### 3. Campaign versenden
 

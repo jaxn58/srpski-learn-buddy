@@ -32,6 +32,8 @@ export default defineConfig(({ mode }) => {
         "@shared/data": path.resolve(import.meta.dirname, "shared", "data"),
         "@assets": path.resolve(import.meta.dirname, "attached_assets"),
       },
+      // TipTap / other deps can resolve a nested `react`; dedupe keeps one instance so hooks work.
+      dedupe: ["react", "react-dom"],
     },
     // Note: we avoid `optimizeDeps.include` here because pnpm may not create top-level
     // links for transitive deps (Vite would log "Failed to resolve dependency ...").

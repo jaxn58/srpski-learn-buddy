@@ -307,6 +307,28 @@ This email was sent to {{USER_EMAIL}}
   },
 
   {
+    name: "newsletter-base",
+    subject: "Update from Serbian AI Tutor",
+    description:
+      "Neutral shell for newsletter campaigns (no launch/waitlist copy). Use as master when creating campaigns in Admin > Newsletter; edit the snapshot per campaign.",
+    category: "marketing" as const,
+    htmlContent: `
+<h1>Serbian AI Tutor</h1>
+
+<p>Hi {{USER_NAME}},</p>
+
+<p><strong>Add your newsletter content here.</strong> Replace this paragraph in the campaign editor after you create the campaign.</p>
+
+<p>{{EMAIL_SIGNATURE}}</p>
+
+<p style="font-size: 12px; color: #666;">
+<a href="{{UNSUBSCRIBE_LINK}}">Unsubscribe</a> &middot; This email was sent to {{USER_EMAIL}}
+</p>
+`,
+    variables: ["USER_NAME", "USER_EMAIL", "UNSUBSCRIBE_LINK", "EMAIL_SIGNATURE"],
+  },
+
+  {
     name: "waitlist-beta-launch",
     subject: "Serbian AI Tutor Beta is Now Open!",
     description: "Sent to all confirmed waitlist users when Beta launches",

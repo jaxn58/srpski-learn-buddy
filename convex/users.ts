@@ -204,6 +204,14 @@ export const updateLearningLanguage = mutation({
       learningLanguage: args.learningLanguage,
     });
 
+    // Keep newsletter contact in sync so the correct language version is sent.
+    if (user.email) {
+      await ctx.scheduler.runAfter(0, internal.newsletter.internalSyncUserLocale, {
+        email: user.email,
+        learningLanguage: args.learningLanguage,
+      });
+    }
+
     return { success: true, learningLanguage: args.learningLanguage };
   },
 });
