@@ -20,6 +20,7 @@ import type { SupportedLanguage } from "@shared/const";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { GamificationModal } from "@/components/GamificationModal";
+import { whenAudioCanPlayThrough } from "@/lib/whenAudioCanPlayThrough";
 
 type QuizProgressDoc = Doc<"quizProgress">;
 type VocabularyProgressDoc = Doc<"vocabularyProgress">;
@@ -277,22 +278,24 @@ export default function Vocabulary() {
         }
         
         const audio = new Audio(audioUrl);
-        
+        audio.preload = "auto";
+
         audio.onplay = () => {
           setPlayingAudioId(vocabularyId);
           setLoadingAudioId(null);
         };
-        
+
         audio.onended = () => {
           setPlayingAudioId(null);
         };
-        
+
         audio.onerror = (e) => {
           setLoadingAudioId(null);
           setPlayingAudioId(null);
           console.error("Audio playback failed", e);
         };
-        
+
+        await whenAudioCanPlayThrough(audio);
         await audio.play();
       }
     } catch (error) {

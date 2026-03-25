@@ -170,15 +170,31 @@ export async function generateSerbianAudio(
       .replace(/'/g, "&apos;");
   }
 
+  /** Longer pauses for very short tokens (e.g. "Šta") where Chirp3 output is easy to clip perceptually. */
+  function ssmlEdgeBreakMs(text: string): number {
+    const n = [...text.trim()].length;
+    if (n <= 4) return 420;
+    if (n <= 10) return 300;
+    return 260;
+  }
+
   // Single voice mode (same as vocabulary audio): no selectable variants.
   const speakingRate = 0.9;
   const pitch = 0.0;
   const rateTag = "slow";
-  // Leading/trailing pause so very short words (e.g. "Šta") are not cut off by MP3 framing / playback start.
-  const edgeBreakMs = 220;
 
-  // Configure TTS request for Serbian (use SSML for better prosody control)
-  const ssmlText = `<speak><break time="${edgeBreakMs}ms"/><prosody rate="${rateTag}">${escapeSsml(options.text)}</prosody><break time="${edgeBreakMs}ms"/></speak>`;
+  const trimmed = options.text.trim();
+  const graphemeCount = [...trimmed].length;
+  let ssmlInner = trimmed;
+  if (graphemeCount === 1 && /^[A-Z]$/.test(trimmed)) {
+    ssmlInner = trimmed.toLowerCase();
+  }
+
+  const edgeBreakMs = graphemeCount <= 1 ? 520 : ssmlEdgeBreakMs(trimmed);
+  const ssmlText =
+    graphemeCount <= 1
+      ? `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS">${escapeSsml(ssmlInner)}</lang><break time="${edgeBreakMs}ms"/></speak>`
+      : `<speak><break time="${edgeBreakMs}ms"/><prosody rate="${rateTag}">${escapeSsml(trimmed)}</prosody><break time="${edgeBreakMs}ms"/></speak>`;
   const request = {
     input: { ssml: ssmlText },
     voice: {

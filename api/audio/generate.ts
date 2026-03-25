@@ -13,7 +13,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
 
-const AUDIO_VERSION_TAG = "puck-v3";
+const AUDIO_VERSION_TAG = "puck-v4";
 
 // Environment variables
 const ENV = {
@@ -169,14 +169,31 @@ async function generateSerbianAudio(options: {
       .replace(/'/g, "&apos;");
   }
 
+  function ssmlEdgeBreakMs(text: string): number {
+    const n = [...text.trim()].length;
+    if (n <= 4) return 420;
+    if (n <= 10) return 300;
+    return 260;
+  }
+
   // Single voice mode (same philosophy as vocabulary audio): no selectable variants.
   const speakingRate = 0.9;
   const pitch = 0.0;
   const rateTag = "slow";
-  const edgeBreakMs = 220;
 
-  // Configure TTS request with SSML for better control
-  const ssmlText = `<speak><break time="${edgeBreakMs}ms"/><prosody rate="${rateTag}">${escapeSsml(options.text)}</prosody><break time="${edgeBreakMs}ms"/></speak>`;
+  const trimmed = options.text.trim();
+  const graphemeCount = [...trimmed].length;
+  /** UI often shows "I"/"A"; Serbian particles are lowercase Latin in normal orthography. */
+  let ssmlInner = trimmed;
+  if (graphemeCount === 1 && /^[A-Z]$/.test(trimmed)) {
+    ssmlInner = trimmed.toLowerCase();
+  }
+
+  const edgeBreakMs = graphemeCount <= 1 ? 520 : ssmlEdgeBreakMs(trimmed);
+  const ssmlText =
+    graphemeCount <= 1
+      ? `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS">${escapeSsml(ssmlInner)}</lang><break time="${edgeBreakMs}ms"/></speak>`
+      : `<speak><break time="${edgeBreakMs}ms"/><prosody rate="${rateTag}">${escapeSsml(trimmed)}</prosody><break time="${edgeBreakMs}ms"/></speak>`;
   
   const request = {
     input: { ssml: ssmlText },
