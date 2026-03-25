@@ -32,22 +32,6 @@ export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
   const { t, i18n } = useTranslation();
   const { language: uiLanguage } = useLanguage();
-  const preferredSyncLanguage = (() => {
-    try {
-      const stored = localStorage.getItem("app-language");
-      if (stored === "en" || stored === "de") return stored;
-    } catch {
-      // ignore
-    }
-    try {
-      const navLang = (navigator.language || "").toLowerCase();
-      if (navLang.startsWith("de")) return "de";
-    } catch {
-      // ignore
-    }
-    return i18n.language === "de" ? "de" : "en";
-  })();
-  
   // Fix: Scroll to top on mount to prevent auto-scroll to units
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -149,23 +133,6 @@ export default function Dashboard() {
     api.vocabulary.getPracticePreview,
     progressLoading ? "skip" : { unitNumber: safeCurrentUnit, seedDay, audioCount: 5, language: displayLanguage }
   );
-  
-  const syncUserMutation = useMutation(api.users.syncUser);
-
-  // Explicit sync check: If Clerk user exists but Convex user doesn't, trigger sync
-  useEffect(() => {
-    if (clerkUser && !authLoading && !user) {
-      // Wait a moment to let useAuth hook handle it first, then retry if needed
-      const timeoutId = setTimeout(() => {
-        syncUserMutation({ learningLanguage: preferredSyncLanguage })
-          .catch((error) => {
-            logger.error('[Dashboard] Manual sync failed:', error);
-          });
-      }, 3000); // Wait 3 seconds to give useAuth hook a chance first
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [clerkUser, user, authLoading, syncUserMutation, preferredSyncLanguage]);
   
   const updateProgressMutation = useMutation(api.progress.updateProgress);
   const completedBadgeClass = "bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm";
