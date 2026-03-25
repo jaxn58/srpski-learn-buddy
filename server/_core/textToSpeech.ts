@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Text-to-Speech helper using Google Cloud Text-to-Speech API
  *
  * Example usage:
@@ -19,54 +19,36 @@ function escapeSsml(s: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-const CYRILLIC_FORM: Record<string, string> = {
-  sam: "сам",  si: "си",   je: "је",    smo: "смо",  ste: "сте",  su: "су",
-  jesam: "јесам", jesi: "јеси", jeste: "јесте", jest: "јест",
-  nisam: "нисам", nisi: "ниси", nije: "није",
-  nismo: "нисмо", niste: "нисте", nisu: "нису",
-  ja: "ја", ti: "ти", vi: "ви", mi: "ми",
-  on: "он", ona: "она", ono: "оно",
-  oni: "они", one: "оне",
-  da: "да",   ne: "не",   li: "ли",   se: "се",
-  ko: "ко",   šta: "шта", što: "шта",
-  to: "то",   taj: "тај", ta: "та",   te: "те",
-  kako: "како", kada: "када", gde: "где", zašto: "зашто",
-  im: "им", ih: "их", ga: "га", mu: "му", joj: "јој",
-  iz: "из", za: "за", na: "на", sa: "са", od: "од",
-  do: "до", po: "по", uz: "уз", bez: "без", pod: "под",
-  nad: "над", kod: "код", pre: "пре", pri: "при",
-  i: "и",  a: "а",  u: "у",  o: "о",  e: "е",
-};
-
-function edgeBreakMs(t: string): number {
-  const n = [...t].length;
-  return n <= 4 ? 420 : n <= 10 ? 300 : 260;
-}
+// Latin script only - no Cyrillic (app uses Serbian Latin throughout).
 
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
   const graphemeCount = [...trimmed].length;
-  const single = graphemeCount <= 1;
-  if (single) {
-    const spoken = escapeSsml(CYRILLIC_FORM[trimmed.toLowerCase().normalize("NFC")] ?? trimmed.toLowerCase());
+  const w = escapeSsml(trimmed);
+
+  if (graphemeCount <= 1) {
     return {
-      ssml: `<speak><break time="820ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${spoken}</emphasis></prosody></lang><break time="820ms"/></speak>`,
-      speakingRate: 0.65,
-      volumeGainDb: 7.5,
+      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${w}</prosody></emphasis></lang></speak>`,
+      speakingRate: 0.75,
+      volumeGainDb: 8.0,
     };
   }
-  const ms = edgeBreakMs(trimmed);
-  const inner = escapeSsml(CYRILLIC_FORM[trimmed.toLowerCase().normalize("NFC")] ?? trimmed);
-  const volumeGainDb = graphemeCount <= 4 ? 4.0 : 0.0;
+  if (graphemeCount <= 4) {
+    return {
+      ssml: `<speak><break time="150ms"/><lang xml:lang="sr-RS"><emphasis level="strong"><prosody rate="slow" volume="x-loud">${w}</prosody></emphasis></lang><break time="150ms"/></speak>`,
+      speakingRate: 0.85,
+      volumeGainDb: 5.0,
+    };
+  }
+  const ms = graphemeCount <= 10 ? 300 : 260;
   return {
-    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${inner}</prosody></lang><break time="${ms}ms"/></speak>`,
+    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${w}</prosody></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
-    volumeGainDb,
+    volumeGainDb: 0.0,
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
+// -----------------------------------------------------------------------------
 export type GenerateSerbianAudioOptions = {
   text: string;
   vocabularyId?: string; // Optional: for better file naming
