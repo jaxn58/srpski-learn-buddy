@@ -10,7 +10,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
 
-const AUDIO_VERSION_TAG = "puck-v9";
+const AUDIO_VERSION_TAG = "puck-v10";
 
 const ENV = {
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
@@ -29,38 +29,68 @@ function escapeSsml(text: string): string {
 }
 
 /**
- * Build SSML + audioConfig params for one Serbian Latin vocabulary token.
+ * Internal pronunciation map: Latin input → Cyrillic spoken form for the SSML.
  *
- * Rules:
- * - Latin script only – no Cyrillic (app uses Serbian Latin throughout).
- * - speakingRate lives ONLY in audioConfig, never combined with <prosody rate>
- *   on the same content: layering both stretches the audio so badly that a single
- *   letter sounds like two ("sound → pause → letter" artefact).
- * - Very short words (≤4 graphemes) get no long leading/trailing breaks:
- *   large silent gaps at the start of very short MP3 clips cause audible artefacts.
- * - <emphasis level="strong"> + volume="x-loud" compensates for Chirp3 treating
- *   Serbian function words (ja, da, ti, …) as unstressed clitics in isolation.
+ * WHY: Chirp3 sr-RS generates near-silent (millisecond-length) audio for short
+ * Latin Serbian words like "Vi", "Ja", "Da" because it reads them as
+ * abbreviations or foreign-language tokens. Passing the Cyrillic equivalent
+ * directly inside <lang xml:lang="sr-RS"> forces the engine to treat them as
+ * native Serbian syllables and produce proper, audible speech.
+ *
+ * SCOPE: These strings are used ONLY to build the SSML string that is sent to
+ * the Google TTS API. They are never stored in the database, never displayed in
+ * the UI, and never appear in any user-facing content. The app uses Serbian
+ * Latin throughout; this map is a purely internal TTS implementation detail.
+ */
+const CYRILLIC_PRONUNCIATION: Record<string, string> = {
+  // biti – present & negation
+  sam: "сам",  si: "си",   je: "је",   smo: "смо", ste: "сте", su: "су",
+  jesam: "јесам", jesi: "јеси", jeste: "јесте", jest: "јест",
+  nisam: "нисам", nisi: "ниси", nije: "није",
+  nismo: "нисмо", niste: "нисте", nisu: "нису",
+  // personal pronouns
+  ja: "ја", ti: "ти", vi: "ви", mi: "ми",
+  on: "он", ona: "она", ono: "оно", oni: "они", one: "оне",
+  // common particles, prepositions, conjunctions
+  da: "да",  ne: "не",  li: "ли",  se: "се",
+  ko: "ко",  i: "и",   a: "а",   u: "у",  o: "о",  e: "е",
+  iz: "из",  za: "за", na: "на", sa: "са", od: "од",
+  do: "до",  po: "по", uz: "уз", im: "им", ih: "их",
+  ga: "га",  mu: "му", ta: "та", te: "те", to: "то",
+};
+
+/**
+ * Build SSML + audioConfig parameters for one Serbian Latin vocabulary token.
+ *
+ * Key rules to avoid known Chirp3 artefacts:
+ * - speakingRate only in audioConfig, never also in SSML <prosody rate>:
+ *   compounding both rates causes single letters to sound like two syllables.
+ * - <s> (sentence) tag forces the engine to treat the word as a complete
+ *   utterance rather than an unstressed fragment.
+ * - No long leading/trailing breaks for very short clips: >400 ms silent padding
+ *   creates an audible artefact at the start of the MP3.
  */
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
   const graphemeCount = [...trimmed].length;
-  const w = escapeSsml(trimmed);
+
+  // Resolve pronunciation: Cyrillic form if known, otherwise the original Latin.
+  const key = trimmed.toLowerCase().normalize("NFC");
+  const spoken = escapeSsml(CYRILLIC_PRONUNCIATION[key] ?? trimmed);
 
   // ── Single letter (I, A, U, O, E) ──────────────────────────────────────────
   if (graphemeCount <= 1) {
     return {
-      // No leading/trailing breaks; no SSML rate (avoids doubling artefact).
-      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${w}</prosody></emphasis></lang></speak>`,
+      ssml: `<speak><lang xml:lang="sr-RS"><s><prosody volume="x-loud">${spoken}</prosody></s></lang></speak>`,
       speakingRate: 0.75,
       volumeGainDb: 8.0,
     };
   }
 
-  // ── Very short word: 2–4 graphemes (Da, Ja, Ti, Vi, Si, Iz, Ne, …) ─────────
+  // ── Very short word: 2–4 graphemes (Da, Ja, Ti, Vi, Si, Iz, …) ─────────────
   if (graphemeCount <= 4) {
     return {
-      // Minimal 150 ms padding (enough for clean MP3 framing, not long enough to artefact).
-      ssml: `<speak><break time="150ms"/><lang xml:lang="sr-RS"><emphasis level="strong"><prosody rate="slow" volume="x-loud">${w}</prosody></emphasis></lang><break time="150ms"/></speak>`,
+      ssml: `<speak><lang xml:lang="sr-RS"><s><prosody rate="slow" volume="x-loud">${spoken}</prosody></s></lang></speak>`,
       speakingRate: 0.85,
       volumeGainDb: 5.0,
     };
@@ -69,7 +99,7 @@ function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number;
   // ── Normal words ─────────────────────────────────────────────────────────────
   const ms = graphemeCount <= 10 ? 300 : 260;
   return {
-    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${w}</prosody></lang><break time="${ms}ms"/></speak>`,
+    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><s><prosody rate="slow">${spoken}</prosody></s></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
     volumeGainDb: 0.0,
   };
@@ -139,6 +169,10 @@ async function generateSerbianAudio(options: {
   });
 
   const { ssml, speakingRate, volumeGainDb } = buildTtsPayload(options.text);
+
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2e128e'},body:JSON.stringify({sessionId:'2e128e',location:'api/audio/generate.ts:172',message:'TTS payload built',data:{rawText:options.text,ssml,speakingRate,volumeGainDb},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
 
   const request = {
     input: { ssml },

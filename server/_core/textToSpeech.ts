@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Text-to-Speech helper using Google Cloud Text-to-Speech API
  *
  * Example usage:
@@ -19,35 +19,58 @@ function escapeSsml(s: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-// Latin script only - no Cyrillic (app uses Serbian Latin throughout).
+/**
+ * Internal pronunciation map for TTS SSML only.
+ * Cyrillic forms are used EXCLUSIVELY as pronunciation hints passed to the
+ * Google TTS API. They are never stored in the database, never shown in the UI,
+ * and never appear in app content. The app uses Serbian Latin throughout.
+ * Without these hints, Chirp3 sr-RS generates near-silent audio for short Latin
+ * Serbian words (Vi, Ja, Da, etc.) because it misreads them as abbreviations.
+ */
+const CYRILLIC_PRONUNCIATION: Record<string, string> = {
+  // biti – present & negation
+  sam: "сам",  si: "си",   je: "је",   smo: "смо", ste: "сте", su: "су",
+  jesam: "јесам", jesi: "јеси", jeste: "јесте", jest: "јест",
+  nisam: "нисам", nisi: "ниси", nije: "није",
+  nismo: "нисмо", niste: "нисте", nisu: "нису",
+  // personal pronouns
+  ja: "ја", ti: "ти", vi: "ви", mi: "ми",
+  on: "он", ona: "она", ono: "оно", oni: "они", one: "оне",
+  // particles, prepositions, conjunctions
+  da: "да",  ne: "не",  li: "ли",  se: "се",
+  ko: "ко",  i: "и",   a: "а",   u: "у",  o: "о",  e: "е",
+  iz: "из",  za: "за", na: "на", sa: "са", od: "од",
+  do: "до",  po: "по", uz: "уз", im: "им", ih: "их",
+  ga: "га",  mu: "му", ta: "та", te: "те", to: "то",
+};
 
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
   const graphemeCount = [...trimmed].length;
-  const w = escapeSsml(trimmed);
+  const key = trimmed.toLowerCase().normalize("NFC");
+  const spoken = escapeSsml(CYRILLIC_PRONUNCIATION[key] ?? trimmed);
 
   if (graphemeCount <= 1) {
     return {
-      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${w}</prosody></emphasis></lang></speak>`,
+      ssml: `<speak><lang xml:lang="sr-RS"><s><prosody volume="x-loud">${spoken}</prosody></s></lang></speak>`,
       speakingRate: 0.75,
       volumeGainDb: 8.0,
     };
   }
   if (graphemeCount <= 4) {
     return {
-      ssml: `<speak><break time="150ms"/><lang xml:lang="sr-RS"><emphasis level="strong"><prosody rate="slow" volume="x-loud">${w}</prosody></emphasis></lang><break time="150ms"/></speak>`,
+      ssml: `<speak><lang xml:lang="sr-RS"><s><prosody rate="slow" volume="x-loud">${spoken}</prosody></s></lang></speak>`,
       speakingRate: 0.85,
       volumeGainDb: 5.0,
     };
   }
   const ms = graphemeCount <= 10 ? 300 : 260;
   return {
-    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${w}</prosody></lang><break time="${ms}ms"/></speak>`,
+    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><s><prosody rate="slow">${spoken}</prosody></s></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
     volumeGainDb: 0.0,
   };
 }
-
 // -----------------------------------------------------------------------------
 export type GenerateSerbianAudioOptions = {
   text: string;
