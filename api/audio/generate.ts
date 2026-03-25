@@ -10,7 +10,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
 
-const AUDIO_VERSION_TAG = "puck-v11";
+const AUDIO_VERSION_TAG = "neural2-v1";
 
 const ENV = {
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
@@ -60,17 +60,20 @@ const CYRILLIC_PRONUNCIATION: Record<string, string> = {
 };
 
 /**
- * Build SSML + audioConfig parameters for one Serbian Latin vocabulary token.
+ * Builds SSML for sr-RS-Neural2-A.
  *
- * Chirp3 HD constraints that inform this implementation:
- * - <s> tags have unreliable support in Chirp3 HD → removed.
- * - Combining SSML <prosody rate> with API speakingRate < 1.0 compounds the
- *   slowdown: a 0.75 API rate × "slow" SSML rate produces near-zero audio for
- *   single-syllable words. For words ≤ 4 graphemes, rate is controlled by the
- *   API speakingRate ONLY – no SSML rate tag.
- * - <emphasis level="strong"> nudges the engine to treat the word as a
- *   prominent utterance rather than an unstressed clitic.
- * - Cyrillic forms are the internal TTS hint to force native Serbian phonology.
+ * Neural2 has FULL SSML support: <break>, <prosody>, <phoneme>, <lang> all work
+ * correctly. This is why we switched away from Chirp3-HD-Puck: Chirp3 HD is a
+ * generative model with severely limited SSML processing that silently discards
+ * or mishandles markup for short utterances.
+ *
+ * Strategy:
+ * - ALL words use SSML input (Neural2 handles it reliably).
+ * - Short words (≤ 4 graphemes) get 200 ms break-padding before and after so the
+ *   engine has enough context to compute prosody for isolated syllables. Rate is
+ *   controlled by SSML <prosody rate> only; API speakingRate stays at 1.0 to
+ *   avoid compounding slowdowns.
+ * - Cyrillic forms are the internal pronunciation hint (never shown to users).
  */
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
@@ -79,32 +82,29 @@ function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number;
   const key = trimmed.toLowerCase().normalize("NFC");
   const spoken = escapeSsml(CYRILLIC_PRONUNCIATION[key] ?? trimmed);
 
-  // ── Single letter (И, А, У, О, Е → и, а, у, о, е) ─────────────────────────
-  // No SSML rate – API speakingRate alone controls tempo to avoid doubling.
+  // ── Single letter (И, А, У, …) ───────────────────────────────────────────
   if (graphemeCount <= 1) {
     return {
-      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${spoken}</prosody></emphasis></lang></speak>`,
-      speakingRate: 0.7,
-      volumeGainDb: 10.0,
+      ssml: `<speak><break time="200ms"/><lang xml:lang="sr-RS"><prosody rate="slow" volume="x-loud">${spoken}</prosody></lang><break time="200ms"/></speak>`,
+      speakingRate: 1.0,
+      volumeGainDb: 6.0,
     };
   }
 
-  // ── Very short word: 2–4 graphemes (Ja, Ti, Da, Vi, Si, Iz, …) ─────────────
-  // No SSML rate – API speakingRate alone. High volume to compensate for
-  // Chirp3 reducing function words in isolation.
+  // ── Short words 2–4 graphemes (Ja, Ti, Da, Je, Si, Vi, Iz, …) ────────────
   if (graphemeCount <= 4) {
     return {
-      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${spoken}</prosody></emphasis></lang></speak>`,
-      speakingRate: 0.75,
-      volumeGainDb: 8.0,
+      ssml: `<speak><break time="200ms"/><lang xml:lang="sr-RS"><prosody rate="slow" volume="loud">${spoken}</prosody></lang><break time="200ms"/></speak>`,
+      speakingRate: 1.0,
+      volumeGainDb: 4.0,
     };
   }
 
-  // ── Normal words (5+ graphemes) ───────────────────────────────────────────
+  // ── Normal words (5+ graphemes) ──────────────────────────────────────────
   const ms = graphemeCount <= 10 ? 300 : 260;
   return {
     ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${spoken}</prosody></lang><break time="${ms}ms"/></speak>`,
-    speakingRate: 0.9,
+    speakingRate: 1.0,
     volumeGainDb: 0.0,
   };
 }
@@ -174,13 +174,9 @@ async function generateSerbianAudio(options: {
 
   const { ssml, speakingRate, volumeGainDb } = buildTtsPayload(options.text);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2e128e'},body:JSON.stringify({sessionId:'2e128e',location:'api/audio/generate.ts:172',message:'TTS payload built',data:{rawText:options.text,ssml,speakingRate,volumeGainDb},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
   const request = {
     input: { ssml },
-    voice: { languageCode: 'sr-RS', name: 'sr-RS-Chirp3-HD-Puck', ssmlGender: 'MALE' as const },
+    voice: { languageCode: 'sr-RS', name: 'sr-RS-Neural2-A', ssmlGender: 'FEMALE' as const },
     audioConfig: { audioEncoding: 'MP3' as const, speakingRate, volumeGainDb, pitch: 0.0 },
   };
 

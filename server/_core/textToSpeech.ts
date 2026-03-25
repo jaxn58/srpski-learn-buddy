@@ -52,22 +52,22 @@ function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number;
 
   if (graphemeCount <= 1) {
     return {
-      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${spoken}</prosody></emphasis></lang></speak>`,
-      speakingRate: 0.7,
-      volumeGainDb: 10.0,
+      ssml: `<speak><break time="200ms"/><lang xml:lang="sr-RS"><prosody rate="slow" volume="x-loud">${spoken}</prosody></lang><break time="200ms"/></speak>`,
+      speakingRate: 1.0,
+      volumeGainDb: 6.0,
     };
   }
   if (graphemeCount <= 4) {
     return {
-      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${spoken}</prosody></emphasis></lang></speak>`,
-      speakingRate: 0.75,
-      volumeGainDb: 8.0,
+      ssml: `<speak><break time="200ms"/><lang xml:lang="sr-RS"><prosody rate="slow" volume="loud">${spoken}</prosody></lang><break time="200ms"/></speak>`,
+      speakingRate: 1.0,
+      volumeGainDb: 4.0,
     };
   }
   const ms = graphemeCount <= 10 ? 300 : 260;
   return {
     ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${spoken}</prosody></lang><break time="${ms}ms"/></speak>`,
-    speakingRate: 0.9,
+    speakingRate: 1.0,
     volumeGainDb: 0.0,
   };
 }
@@ -224,13 +224,13 @@ export async function generateSerbianAudio(
   // Single voice mode (same as vocabulary audio): no selectable variants.
   const pitch = 0.0;
 
-  const { ssml: ssmlText, speakingRate, volumeGainDb } = buildTtsPayload(options.text);
+  const { ssml, speakingRate, volumeGainDb } = buildTtsPayload(options.text);
   const request = {
-    input: { ssml: ssmlText },
+    input: { ssml },
     voice: {
       languageCode: 'sr-RS',
-      name: 'sr-RS-Chirp3-HD-Puck', // Male HD voice
-      ssmlGender: 'MALE' as const
+      name: 'sr-RS-Neural2-A',
+      ssmlGender: 'FEMALE' as const
     },
     audioConfig: {
       audioEncoding: 'MP3' as const,
