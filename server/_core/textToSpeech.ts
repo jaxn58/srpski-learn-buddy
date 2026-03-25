@@ -52,21 +52,21 @@ function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number;
 
   if (graphemeCount <= 1) {
     return {
-      ssml: `<speak><lang xml:lang="sr-RS"><s><prosody volume="x-loud">${spoken}</prosody></s></lang></speak>`,
-      speakingRate: 0.75,
-      volumeGainDb: 8.0,
+      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${spoken}</prosody></emphasis></lang></speak>`,
+      speakingRate: 0.7,
+      volumeGainDb: 10.0,
     };
   }
   if (graphemeCount <= 4) {
     return {
-      ssml: `<speak><lang xml:lang="sr-RS"><s><prosody rate="slow" volume="x-loud">${spoken}</prosody></s></lang></speak>`,
-      speakingRate: 0.85,
-      volumeGainDb: 5.0,
+      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${spoken}</prosody></emphasis></lang></speak>`,
+      speakingRate: 0.75,
+      volumeGainDb: 8.0,
     };
   }
   const ms = graphemeCount <= 10 ? 300 : 260;
   return {
-    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><s><prosody rate="slow">${spoken}</prosody></s></lang><break time="${ms}ms"/></speak>`,
+    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${spoken}</prosody></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
     volumeGainDb: 0.0,
   };

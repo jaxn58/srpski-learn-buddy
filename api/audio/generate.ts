@@ -10,7 +10,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
 
-const AUDIO_VERSION_TAG = "puck-v10";
+const AUDIO_VERSION_TAG = "puck-v11";
 
 const ENV = {
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
@@ -62,44 +62,48 @@ const CYRILLIC_PRONUNCIATION: Record<string, string> = {
 /**
  * Build SSML + audioConfig parameters for one Serbian Latin vocabulary token.
  *
- * Key rules to avoid known Chirp3 artefacts:
- * - speakingRate only in audioConfig, never also in SSML <prosody rate>:
- *   compounding both rates causes single letters to sound like two syllables.
- * - <s> (sentence) tag forces the engine to treat the word as a complete
- *   utterance rather than an unstressed fragment.
- * - No long leading/trailing breaks for very short clips: >400 ms silent padding
- *   creates an audible artefact at the start of the MP3.
+ * Chirp3 HD constraints that inform this implementation:
+ * - <s> tags have unreliable support in Chirp3 HD → removed.
+ * - Combining SSML <prosody rate> with API speakingRate < 1.0 compounds the
+ *   slowdown: a 0.75 API rate × "slow" SSML rate produces near-zero audio for
+ *   single-syllable words. For words ≤ 4 graphemes, rate is controlled by the
+ *   API speakingRate ONLY – no SSML rate tag.
+ * - <emphasis level="strong"> nudges the engine to treat the word as a
+ *   prominent utterance rather than an unstressed clitic.
+ * - Cyrillic forms are the internal TTS hint to force native Serbian phonology.
  */
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
   const graphemeCount = [...trimmed].length;
 
-  // Resolve pronunciation: Cyrillic form if known, otherwise the original Latin.
   const key = trimmed.toLowerCase().normalize("NFC");
   const spoken = escapeSsml(CYRILLIC_PRONUNCIATION[key] ?? trimmed);
 
-  // ── Single letter (I, A, U, O, E) ──────────────────────────────────────────
+  // ── Single letter (И, А, У, О, Е → и, а, у, о, е) ─────────────────────────
+  // No SSML rate – API speakingRate alone controls tempo to avoid doubling.
   if (graphemeCount <= 1) {
     return {
-      ssml: `<speak><lang xml:lang="sr-RS"><s><prosody volume="x-loud">${spoken}</prosody></s></lang></speak>`,
+      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${spoken}</prosody></emphasis></lang></speak>`,
+      speakingRate: 0.7,
+      volumeGainDb: 10.0,
+    };
+  }
+
+  // ── Very short word: 2–4 graphemes (Ja, Ti, Da, Vi, Si, Iz, …) ─────────────
+  // No SSML rate – API speakingRate alone. High volume to compensate for
+  // Chirp3 reducing function words in isolation.
+  if (graphemeCount <= 4) {
+    return {
+      ssml: `<speak><lang xml:lang="sr-RS"><emphasis level="strong"><prosody volume="x-loud">${spoken}</prosody></emphasis></lang></speak>`,
       speakingRate: 0.75,
       volumeGainDb: 8.0,
     };
   }
 
-  // ── Very short word: 2–4 graphemes (Da, Ja, Ti, Vi, Si, Iz, …) ─────────────
-  if (graphemeCount <= 4) {
-    return {
-      ssml: `<speak><lang xml:lang="sr-RS"><s><prosody rate="slow" volume="x-loud">${spoken}</prosody></s></lang></speak>`,
-      speakingRate: 0.85,
-      volumeGainDb: 5.0,
-    };
-  }
-
-  // ── Normal words ─────────────────────────────────────────────────────────────
+  // ── Normal words (5+ graphemes) ───────────────────────────────────────────
   const ms = graphemeCount <= 10 ? 300 : 260;
   return {
-    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><s><prosody rate="slow">${spoken}</prosody></s></lang><break time="${ms}ms"/></speak>`,
+    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${spoken}</prosody></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
     volumeGainDb: 0.0,
   };
