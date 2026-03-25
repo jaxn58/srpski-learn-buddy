@@ -178,23 +178,54 @@ export async function generateSerbianAudio(
     return 260;
   }
 
+  function serbianLatinForTts(text: string): string {
+    const t = text.trim();
+    const key = t.toLowerCase().normalize("NFC");
+    const bitiAndHomographs = new Set([
+      "sam",
+      "si",
+      "je",
+      "smo",
+      "ste",
+      "su",
+      "jesam",
+      "jesi",
+      "jeste",
+      "jest",
+      "nisam",
+      "nisi",
+      "nije",
+      "nismo",
+      "niste",
+      "nisu",
+    ]);
+    if (bitiAndHomographs.has(key)) return key;
+    return t;
+  }
+
   // Single voice mode (same as vocabulary audio): no selectable variants.
-  const speakingRate = 0.9;
   const pitch = 0.0;
   const rateTag = "slow";
 
   const trimmed = options.text.trim();
   const graphemeCount = [...trimmed].length;
+  const singleGrapheme = graphemeCount <= 1;
+
   let ssmlInner = trimmed;
-  if (graphemeCount === 1 && /^[A-Z]$/.test(trimmed)) {
+  if (singleGrapheme && /^[A-Z]$/.test(trimmed)) {
     ssmlInner = trimmed.toLowerCase();
   }
+  ssmlInner = serbianLatinForTts(ssmlInner);
 
-  const edgeBreakMs = graphemeCount <= 1 ? 520 : ssmlEdgeBreakMs(trimmed);
-  const ssmlText =
-    graphemeCount <= 1
-      ? `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS">${escapeSsml(ssmlInner)}</lang><break time="${edgeBreakMs}ms"/></speak>`
-      : `<speak><break time="${edgeBreakMs}ms"/><prosody rate="${rateTag}">${escapeSsml(trimmed)}</prosody><break time="${edgeBreakMs}ms"/></speak>`;
+  const speakPhrase = serbianLatinForTts(trimmed);
+
+  const speakingRate = singleGrapheme ? 0.72 : 0.9;
+  const volumeGainDb = singleGrapheme ? 5.5 : 0.0;
+  const edgeBreakMs = singleGrapheme ? 700 : ssmlEdgeBreakMs(trimmed);
+
+  const ssmlText = singleGrapheme
+    ? `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${escapeSsml(ssmlInner)}</emphasis></prosody></lang><break time="${edgeBreakMs}ms"/></speak>`
+    : `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="${rateTag}">${escapeSsml(speakPhrase)}</prosody></lang><break time="${edgeBreakMs}ms"/></speak>`;
   const request = {
     input: { ssml: ssmlText },
     voice: {
@@ -205,6 +236,7 @@ export async function generateSerbianAudio(
     audioConfig: {
       audioEncoding: 'MP3' as const,
       speakingRate,
+      volumeGainDb,
       pitch,
     }
   };
