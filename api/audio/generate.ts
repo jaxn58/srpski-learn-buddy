@@ -12,7 +12,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
-import { buildSerbianVocabularyTtsPayload } from "../../shared/ttsSerbianSsml";
+import { buildSerbianVocabularyTtsPayload } from "../lib/ttsSerbianSsml";
 
 const AUDIO_VERSION_TAG = "puck-v8";
 
@@ -198,24 +198,6 @@ async function generateSerbianAudio(options: {
     const { storageId } = await uploadToConvex("unused", audioBuffer, 'audio/mpeg');
     return { storageId };
   } catch (error) {
-    // #region agent log
-    const errMsg = error instanceof Error ? error.message : String(error);
-    fetch("http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "2e128e" },
-      body: JSON.stringify({
-        sessionId: "2e128e",
-        location: "api/audio/generate.ts:synthesizeSpeech",
-        message: "Google TTS synthesize failed",
-        data: {
-          hypothesisId: "H3",
-          errMsg,
-          ssmlPreview: ssmlText.slice(0, 280),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (error instanceof Error) {
       throw new Error(`Google Cloud TTS failed: ${error.message}`);
     }

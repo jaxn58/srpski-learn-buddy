@@ -118,23 +118,6 @@ export function useVocabularyAudioPlayback() {
         await audio.play();
       } catch (error) {
         console.error("Failed to get audio:", error);
-        // #region agent log
-        {
-          const errStr =
-            error instanceof Error ? error.message.slice(0, 600) : String(error);
-          fetch("http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "2e128e" },
-            body: JSON.stringify({
-              sessionId: "2e128e",
-              location: "client/useVocabularyAudioPlayback.ts:play",
-              message: "vocabulary audio play failed",
-              data: { hypothesisId: "H4", errStr },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-        }
-        // #endregion
         setLoadingAudioId(null);
 
         const errorMessage =

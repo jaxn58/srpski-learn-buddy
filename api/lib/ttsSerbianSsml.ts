@@ -1,7 +1,7 @@
 /**
  * Serbian vocabulary TTS: SSML + audio hints for Google Cloud Text-to-Speech (Chirp3 sr-RS).
+ * Lives under api/ so Vercel bundles it with serverless routes (imports from ../../shared often fail at runtime).
  * Uses <sub alias="…"> with Cyrillic so the engine speaks Serbian, not English/German homographs.
- * (IPA <phoneme> with non-English symbols caused synthesizeSpeech failures in practice.)
  */
 
 export function escapeSsml(text: string): string {
@@ -17,9 +17,6 @@ function escapeSsmlAttrValue(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
-/**
- * Table headers often title-case clitics; Chirp3 otherwise reads them as English/German.
- */
 const SERBIAN_LATIN_LOWER_FOR_TTS = new Set([
   "sam",
   "si",
@@ -55,10 +52,6 @@ export function serbianLatinForTts(text: string): string {
   return t;
 }
 
-/**
- * Latin token -> Cyrillic string spoken instead (via <sub alias>), NFC keys lowercase.
- * Keeps Latin in UI/DB; TTS resolves to Serbian pronunciation.
- */
 const CYRILLIC_SPOKEN_ALIAS: Record<string, string> = {
   ste: "сте",
   je: "је",
@@ -98,9 +91,6 @@ export type SerbianVocabularyTtsPayload = {
   volumeGainDb: number;
 };
 
-/**
- * Builds SSML + speakingRate / volumeGainDb for one vocabulary token or short phrase.
- */
 export function buildSerbianVocabularyTtsPayload(rawText: string): SerbianVocabularyTtsPayload {
   const trimmed = rawText.trim();
   const graphemes = [...trimmed];
@@ -114,8 +104,6 @@ export function buildSerbianVocabularyTtsPayload(rawText: string): SerbianVocabu
   inner = serbianLatinForTts(inner);
   const spoken = serbianLatinForTts(trimmed);
 
-  let result: SerbianVocabularyTtsPayload;
-
   if (singleGrapheme) {
     const speakingRate = 0.65;
     const volumeGainDb = 7.5;
@@ -125,38 +113,14 @@ export function buildSerbianVocabularyTtsPayload(rawText: string): SerbianVocabu
     const core = cy ? subAliasBlock(inner, cy) : escapeSsml(inner);
     const doubled = `${core}<break time="240ms"/>${core}`;
     const ssml = `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${doubled}</emphasis></prosody></lang><break time="${edgeBreakMs}ms"/></speak>`;
-    result = { ssml, speakingRate, volumeGainDb };
-  } else {
-    const speakingRate = 0.9;
-    const volumeGainDb = 0.0;
-    const edgeBreakMs = ssmlEdgeBreakMs(trimmed);
-    const body = wrapWithCyrillicHintIfNeeded(spoken);
-    const ssml = `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="${rateTag}">${body}</prosody></lang><break time="${edgeBreakMs}ms"/></speak>`;
-    result = { ssml, speakingRate, volumeGainDb };
+    return { ssml, speakingRate, volumeGainDb };
   }
 
-  // #region agent log
-  fetch("http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "2e128e" },
-    body: JSON.stringify({
-      sessionId: "2e128e",
-      location: "shared/ttsSerbianSsml.ts:buildSerbianVocabularyTtsPayload",
-      message: "serbian tts ssml built",
-      data: {
-        hypothesisId: "H1",
-        trimmed,
-        singleGrapheme,
-        hasSubAlias: result.ssml.includes("<sub "),
-        ssmlLen: result.ssml.length,
-        ssmlPreview: result.ssml.slice(0, 200),
-        speakingRate: result.speakingRate,
-        volumeGainDb: result.volumeGainDb,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
+  const speakingRate = 0.9;
+  const volumeGainDb = 0.0;
+  const edgeBreakMs = ssmlEdgeBreakMs(trimmed);
+  const body = wrapWithCyrillicHintIfNeeded(spoken);
+  const ssml = `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="${rateTag}">${body}</prosody></lang><break time="${edgeBreakMs}ms"/></speak>`;
 
-  return result;
+  return { ssml, speakingRate, volumeGainDb };
 }

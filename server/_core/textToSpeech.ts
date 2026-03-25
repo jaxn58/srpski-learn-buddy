@@ -11,7 +11,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { ENV } from "./env";
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
-import { buildSerbianVocabularyTtsPayload } from "../../shared/ttsSerbianSsml";
+import { buildSerbianVocabularyTtsPayload } from "../../api/lib/ttsSerbianSsml";
 
 export type GenerateSerbianAudioOptions = {
   text: string;
