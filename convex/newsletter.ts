@@ -2045,3 +2045,105 @@ export const runInitialMigration = action({
     };
   },
 });
+
+/**
+ * Admin action: backfill preferredLocale for all existing newsletterContacts
+ * that have source="user" but no preferredLocale (or an outdated one).
+ *
+ * Looks up each contact's email in the users table and maps
+ * learningLanguage → preferredLocale (de→de, everything else→en).
+ *
+ * Idempotent: contacts that already have the correct value are skipped.
+ */
+// @ts-ignore TS2589 – Convex schema depth limit
+export const adminBackfillNewsletterLocales = action({
+  args: {
+    adminSecret: v.string(),
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    success: boolean;
+    total: number;
+    updated: number;
+    skipped: number;
+    noUser: number;
+  }> => {
+    const expectedSecret = process.env.ADMIN_SECRET;
+    if (!expectedSecret || args.adminSecret !== expectedSecret) {
+      throw new Error("Unauthorized");
+    }
+
+    const result = await ctx.runMutation(
+      internal.newsletter.internalBackfillLocales,
+      { dryRun: args.dryRun ?? false }
+    );
+    return result;
+  },
+});
+
+// @ts-ignore TS2589 – Convex schema depth limit
+export const internalBackfillLocales = internalMutation({
+  args: { dryRun: v.boolean() },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    success: boolean;
+    total: number;
+    updated: number;
+    skipped: number;
+    noUser: number;
+  }> => {
+    // @ts-ignore TS2589
+    const contacts = await ctx.db.query("newsletterContacts").collect();
+
+    let updated = 0;
+    let skipped = 0;
+    let noUser = 0;
+
+    for (const contact of contacts) {
+      // Find the linked user by email
+      // @ts-ignore TS2589
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q: any) => q.eq("email", contact.email))
+        .first();
+
+      if (!user) {
+        noUser++;
+        continue;
+      }
+
+      const desired: "en" | "de" =
+        (user as any).learningLanguage === "de" ? "de" : "en";
+
+      if (contact.preferredLocale === desired) {
+        skipped++;
+        continue;
+      }
+
+      if (!args.dryRun) {
+        await ctx.db.patch(contact._id, {
+          preferredLocale: desired,
+          updatedAt: Date.now(),
+        });
+      }
+
+      updated++;
+      console.log(
+        `[Backfill] ${args.dryRun ? "[DRY-RUN] " : ""}${contact.email}: ${contact.preferredLocale ?? "unset"} → ${desired}`
+      );
+    }
+
+    return {
+      success: true,
+      total: contacts.length,
+      updated,
+      skipped,
+      noUser,
+    };
+  },
+});
