@@ -20,15 +20,22 @@ function escapeSsml(s: string): string {
 }
 
 const CYRILLIC_FORM: Record<string, string> = {
-  sam: "сам", si: "си", je: "је", smo: "смо", ste: "сте", su: "су",
+  sam: "сам",  si: "си",   je: "је",    smo: "смо",  ste: "сте",  su: "су",
   jesam: "јесам", jesi: "јеси", jeste: "јесте", jest: "јест",
-  nisam: "нисам", nisi: "ниси", nije: "није", nismo: "нисмо", niste: "нисте", nisu: "нису",
+  nisam: "нисам", nisi: "ниси", nije: "није",
+  nismo: "нисмо", niste: "нисте", nisu: "нису",
   ja: "ја", ti: "ти", vi: "ви", mi: "ми",
   on: "он", ona: "она", ono: "оно",
-  im: "им", ih: "их",
+  oni: "они", one: "оне",
+  da: "да",   ne: "не",   li: "ли",   se: "се",
+  ko: "ко",   šta: "шта", što: "шта",
+  to: "то",   taj: "тај", ta: "та",   te: "те",
+  kako: "како", kada: "када", gde: "где", zašto: "зашто",
+  im: "им", ih: "их", ga: "га", mu: "му", joj: "јој",
   iz: "из", za: "за", na: "на", sa: "са", od: "од",
-  do: "до", po: "по", uz: "уз", bez: "без",
-  i: "и", a: "а", u: "у", o: "о", e: "е",
+  do: "до", po: "по", uz: "уз", bez: "без", pod: "под",
+  nad: "над", kod: "код", pre: "пре", pri: "при",
+  i: "и",  a: "а",  u: "у",  o: "о",  e: "е",
 };
 
 function edgeBreakMs(t: string): number {
@@ -38,7 +45,8 @@ function edgeBreakMs(t: string): number {
 
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
-  const single = [...trimmed].length <= 1;
+  const graphemeCount = [...trimmed].length;
+  const single = graphemeCount <= 1;
   if (single) {
     const spoken = escapeSsml(CYRILLIC_FORM[trimmed.toLowerCase().normalize("NFC")] ?? trimmed.toLowerCase());
     return {
@@ -49,10 +57,11 @@ function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number;
   }
   const ms = edgeBreakMs(trimmed);
   const inner = escapeSsml(CYRILLIC_FORM[trimmed.toLowerCase().normalize("NFC")] ?? trimmed);
+  const volumeGainDb = graphemeCount <= 4 ? 4.0 : 0.0;
   return {
     ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${inner}</prosody></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
-    volumeGainDb: 0.0,
+    volumeGainDb,
   };
 }
 

@@ -34,30 +34,33 @@ function escapeSsml(text: string): string {
 
 /**
  * Latin → Cyrillic: Chirp3 sr-RS reads native Cyrillic more reliably than Latin homographs.
- * Keys are NFC-normalized lowercase Latin. Writing Cyrillic directly in the SSML (inside
- * <lang xml:lang="sr-RS">) avoids sub-alias nesting issues and produces the most natural result.
+ * Keys: NFC-normalised lowercase Latin. Text written directly as Cyrillic inside
+ * <lang xml:lang="sr-RS"> – the most reliable path for the sr-RS voice.
  */
 const CYRILLIC_FORM: Record<string, string> = {
-  // biti – present
-  sam: "сам", si: "си", je: "је", smo: "смо", ste: "сте", su: "су",
+  // biti – present & negation
+  sam: "сам",  si: "си",   je: "је",    smo: "смо",  ste: "сте",  su: "су",
   jesam: "јесам", jesi: "јеси", jeste: "јесте", jest: "јест",
-  nisam: "нисам", nisi: "ниси", nije: "није", nismo: "нисмо", niste: "нисте", nisu: "нису",
+  nisam: "нисам", nisi: "ниси", nije: "није",
+  nismo: "нисмо", niste: "нисте", nisu: "нису",
   // personal pronouns
   ja: "ја", ti: "ти", vi: "ви", mi: "ми",
-  on: "он", ona: "она", ono: "оно",
-  // short clitic / preposition forms
-  im: "им", ih: "их",
-  iz: "из", za: "за", na: "на", sa: "са", od: "од",
-  do: "до", po: "по", uz: "уз", bez: "без",
-  // single-letter particles
-  i: "и", a: "а", u: "у", o: "о", e: "е",
+  on: "он",   ona: "она",  ono: "оно",
+  oni: "они", one: "оне",  ona_pl: "она",
+  // question words / discourse particles
+  da: "да",   ne: "не",   li: "ли",   se: "се",
+  ko: "ко",   šta: "шта", što: "шта",
+  to: "то",   taj: "тај", ta: "та",   te: "те",
+  kako: "како", kada: "када", gde: "где", zašto: "зашто",
+  // clitic pronouns
+  im: "им", ih: "их", ga: "га", mu: "му", joj: "јој",
+  // prepositions (often displayed title-cased in tables)
+  iz: "из",  za: "за",  na: "на",  sa: "са",  od: "од",
+  do: "до",  po: "по",  uz: "уз",  bez: "без", pod: "под",
+  nad: "над", kod: "код", pre: "пре", pri: "при",
+  // conjunctions / single-letter particles
+  i: "и",  a: "а",  u: "у",  o: "о",  e: "е",
 };
-
-/** Returns Cyrillic text for the SSML if a mapping exists, otherwise the original. */
-function toSpoken(display: string): string {
-  const cy = CYRILLIC_FORM[display.toLowerCase().normalize("NFC")];
-  return cy ?? display;
-}
 
 function edgeBreakMs(trimmed: string): number {
   const n = [...trimmed].length;
@@ -68,11 +71,13 @@ function edgeBreakMs(trimmed: string): number {
 
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
-  const singleGrapheme = [...trimmed].length <= 1;
+  const graphemeCount = [...trimmed].length;
+  const singleGrapheme = graphemeCount <= 1;
 
-  // For single-letter words: slow, loud, emphasised – but said ONCE (not doubled).
+  // Single-letter words: slow, loud, emphasised, said ONCE.
   if (singleGrapheme) {
-    const spoken = escapeSsml(toSpoken(trimmed.toLowerCase()));
+    const cyKey = trimmed.toLowerCase().normalize("NFC");
+    const spoken = escapeSsml(CYRILLIC_FORM[cyKey] ?? trimmed.toLowerCase());
     return {
       ssml: `<speak><break time="820ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${spoken}</emphasis></prosody></lang><break time="820ms"/></speak>`,
       speakingRate: 0.65,
@@ -80,18 +85,17 @@ function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number;
     };
   }
 
-  // Normalise title-cased display text (e.g. "Ja" → "ja") before Cyrillic lookup.
-  const normalised = trimmed.toLowerCase().normalize("NFC");
-  const inCyrillic = CYRILLIC_FORM[normalised] ?? null;
-  // If we have a Cyrillic mapping, write it directly into the SSML so the voice reads
-  // native Serbian. Otherwise fall back to Latin inside the sr-RS language context.
-  const inner = escapeSsml(inCyrillic ?? trimmed);
+  const key = trimmed.toLowerCase().normalize("NFC");
+  const cyrillic = CYRILLIC_FORM[key] ?? null;
+  const inner = escapeSsml(cyrillic ?? trimmed);
   const ms = edgeBreakMs(trimmed);
+  // Short words (≤4 graphemes) get a volume boost so they are clearly audible.
+  const volumeGainDb = graphemeCount <= 4 ? 4.0 : 0.0;
 
   return {
     ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${inner}</prosody></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
-    volumeGainDb: 0.0,
+    volumeGainDb,
   };
 }
 
