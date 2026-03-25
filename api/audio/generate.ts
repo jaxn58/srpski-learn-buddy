@@ -32,37 +32,31 @@ function escapeSsml(text: string): string {
     .replace(/'/g, "&apos;");
 }
 
-function escapeSsmlAttrValue(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-}
-
-const SERBIAN_LATIN_LOWER = new Set([
-  "sam", "si", "je", "smo", "ste", "su",
-  "jesam", "jesi", "jeste", "jest",
-  "nisam", "nisi", "nije", "nismo", "niste", "nisu",
-  "ja", "ti", "vi", "mi", "on", "ona", "ono", "im", "ih",
-]);
-
-function serbianLatinForTts(text: string): string {
-  const t = text.trim();
-  if (SERBIAN_LATIN_LOWER.has(t.toLowerCase().normalize("NFC"))) return t.toLowerCase();
-  return t;
-}
-
-/** Latin → Cyrillic alias so Chirp3 reads correct Serbian instead of English/German homographs. */
-const CYRILLIC_ALIAS: Record<string, string> = {
-  ste: "сте", je: "је", ti: "ти", vi: "ви",
-  ja: "ја",  si: "си", mi: "ми",
+/**
+ * Latin → Cyrillic: Chirp3 sr-RS reads native Cyrillic more reliably than Latin homographs.
+ * Keys are NFC-normalized lowercase Latin. Writing Cyrillic directly in the SSML (inside
+ * <lang xml:lang="sr-RS">) avoids sub-alias nesting issues and produces the most natural result.
+ */
+const CYRILLIC_FORM: Record<string, string> = {
+  // biti – present
+  sam: "сам", si: "си", je: "је", smo: "смо", ste: "сте", su: "су",
+  jesam: "јесам", jesi: "јеси", jeste: "јесте", jest: "јест",
+  nisam: "нисам", nisi: "ниси", nije: "није", nismo: "нисмо", niste: "нисте", nisu: "нису",
+  // personal pronouns
+  ja: "ја", ti: "ти", vi: "ви", mi: "ми",
+  on: "он", ona: "она", ono: "оно",
+  // short clitic / preposition forms
+  im: "им", ih: "их",
+  iz: "из", za: "за", na: "на", sa: "са", od: "од",
+  do: "до", po: "по", uz: "уз", bez: "без",
+  // single-letter particles
   i: "и", a: "а", u: "у", o: "о", e: "е",
 };
 
-function subAlias(display: string, cy: string): string {
-  return `<sub alias="${escapeSsmlAttrValue(cy)}">${escapeSsml(display)}</sub>`;
-}
-
-function wrapWord(display: string): string {
-  const cy = CYRILLIC_ALIAS[display.toLowerCase().normalize("NFC")];
-  return cy ? subAlias(display, cy) : escapeSsml(display);
+/** Returns Cyrillic text for the SSML if a mapping exists, otherwise the original. */
+function toSpoken(display: string): string {
+  const cy = CYRILLIC_FORM[display.toLowerCase().normalize("NFC")];
+  return cy ?? display;
 }
 
 function edgeBreakMs(trimmed: string): number {
@@ -75,24 +69,27 @@ function edgeBreakMs(trimmed: string): number {
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
   const singleGrapheme = [...trimmed].length <= 1;
-  let inner = trimmed;
-  if (singleGrapheme && /^[A-Z]$/.test(trimmed)) inner = trimmed.toLowerCase();
-  inner = serbianLatinForTts(inner);
-  const spoken = serbianLatinForTts(trimmed);
 
+  // For single-letter words: slow, loud, emphasised – but said ONCE (not doubled).
   if (singleGrapheme) {
-    const cy = CYRILLIC_ALIAS[inner.toLowerCase().normalize("NFC")];
-    const core = cy ? subAlias(inner, cy) : escapeSsml(inner);
-    const doubled = `${core}<break time="240ms"/>${core}`;
+    const spoken = escapeSsml(toSpoken(trimmed.toLowerCase()));
     return {
-      ssml: `<speak><break time="820ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${doubled}</emphasis></prosody></lang><break time="820ms"/></speak>`,
+      ssml: `<speak><break time="820ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${spoken}</emphasis></prosody></lang><break time="820ms"/></speak>`,
       speakingRate: 0.65,
       volumeGainDb: 7.5,
     };
   }
 
+  // Normalise title-cased display text (e.g. "Ja" → "ja") before Cyrillic lookup.
+  const normalised = trimmed.toLowerCase().normalize("NFC");
+  const inCyrillic = CYRILLIC_FORM[normalised] ?? null;
+  // If we have a Cyrillic mapping, write it directly into the SSML so the voice reads
+  // native Serbian. Otherwise fall back to Latin inside the sr-RS language context.
+  const inner = escapeSsml(inCyrillic ?? trimmed);
+  const ms = edgeBreakMs(trimmed);
+
   return {
-    ssml: `<speak><break time="${edgeBreakMs(trimmed)}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${wrapWord(spoken)}</prosody></lang><break time="${edgeBreakMs(trimmed)}ms"/></speak>`,
+    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${inner}</prosody></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
     volumeGainDb: 0.0,
   };

@@ -19,33 +19,17 @@ function escapeSsml(s: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-function escapeSsmlAttr(v: string): string {
-  return v.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
-}
-
-const SERBIAN_LATIN_LOWER = new Set([
-  "sam", "si", "je", "smo", "ste", "su",
-  "jesam", "jesi", "jeste", "jest",
-  "nisam", "nisi", "nije", "nismo", "niste", "nisu",
-  "ja", "ti", "vi", "mi", "on", "ona", "ono", "im", "ih",
-]);
-
-function serbianLatinForTts(text: string): string {
-  const t = text.trim();
-  if (SERBIAN_LATIN_LOWER.has(t.toLowerCase().normalize("NFC"))) return t.toLowerCase();
-  return t;
-}
-
-const CYRILLIC_ALIAS: Record<string, string> = {
-  ste: "сте", je: "је", ti: "ти", vi: "ви",
-  ja: "ја",  si: "си", mi: "ми",
+const CYRILLIC_FORM: Record<string, string> = {
+  sam: "сам", si: "си", je: "је", smo: "смо", ste: "сте", su: "су",
+  jesam: "јесам", jesi: "јеси", jeste: "јесте", jest: "јест",
+  nisam: "нисам", nisi: "ниси", nije: "није", nismo: "нисмо", niste: "нисте", nisu: "нису",
+  ja: "ја", ti: "ти", vi: "ви", mi: "ми",
+  on: "он", ona: "она", ono: "оно",
+  im: "им", ih: "их",
+  iz: "из", za: "за", na: "на", sa: "са", od: "од",
+  do: "до", po: "по", uz: "уз", bez: "без",
   i: "и", a: "а", u: "у", o: "о", e: "е",
 };
-
-function wrapWord(display: string): string {
-  const cy = CYRILLIC_ALIAS[display.toLowerCase().normalize("NFC")];
-  return cy ? `<sub alias="${escapeSsmlAttr(cy)}">${escapeSsml(display)}</sub>` : escapeSsml(display);
-}
 
 function edgeBreakMs(t: string): number {
   const n = [...t].length;
@@ -55,23 +39,18 @@ function edgeBreakMs(t: string): number {
 function buildTtsPayload(rawText: string): { ssml: string; speakingRate: number; volumeGainDb: number } {
   const trimmed = rawText.trim();
   const single = [...trimmed].length <= 1;
-  let inner = trimmed;
-  if (single && /^[A-Z]$/.test(trimmed)) inner = trimmed.toLowerCase();
-  inner = serbianLatinForTts(inner);
-  const spoken = serbianLatinForTts(trimmed);
   if (single) {
-    const cy = CYRILLIC_ALIAS[inner.toLowerCase().normalize("NFC")];
-    const core = cy ? `<sub alias="${escapeSsmlAttr(cy)}">${escapeSsml(inner)}</sub>` : escapeSsml(inner);
-    const doubled = `${core}<break time="240ms"/>${core}`;
+    const spoken = escapeSsml(CYRILLIC_FORM[trimmed.toLowerCase().normalize("NFC")] ?? trimmed.toLowerCase());
     return {
-      ssml: `<speak><break time="820ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${doubled}</emphasis></prosody></lang><break time="820ms"/></speak>`,
+      ssml: `<speak><break time="820ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${spoken}</emphasis></prosody></lang><break time="820ms"/></speak>`,
       speakingRate: 0.65,
       volumeGainDb: 7.5,
     };
   }
   const ms = edgeBreakMs(trimmed);
+  const inner = escapeSsml(CYRILLIC_FORM[trimmed.toLowerCase().normalize("NFC")] ?? trimmed);
   return {
-    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${wrapWord(spoken)}</prosody></lang><break time="${ms}ms"/></speak>`,
+    ssml: `<speak><break time="${ms}ms"/><lang xml:lang="sr-RS"><prosody rate="slow">${inner}</prosody></lang><break time="${ms}ms"/></speak>`,
     speakingRate: 0.9,
     volumeGainDb: 0.0,
   };
