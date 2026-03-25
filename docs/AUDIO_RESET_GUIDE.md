@@ -39,6 +39,8 @@ Für mehrere fehlerhafte Wörter oder systematische Probleme:
 pnpm reset:audio
 ```
 
+Voraussetzung: `ADMIN_SECRET` in `.env.local` muss zum **Dev**-Deployment in Convex passen (Dashboard → Dev → Settings → Environment Variables).
+
 **Production:**
 ```bash
 pnpm reset:audio:prod
@@ -89,6 +91,14 @@ Choose an option: 5
 - Zeigt alle Wörter ohne Audio (weder `audioStorageId` noch `audioUrl`)
 - Gruppiert nach Unit
 - Nur zur Information, kein Reset
+
+#### Option 7: Alle gespeicherten Vokabel-Audios auf diesem Deployment (z. B. Dev)
+```
+Choose an option: 7
+```
+- Setzt **alle** Einträge zurück, die `audioStorageId` oder (legacy) `audioUrl` haben
+- Sinnvoll nach TTS-Änderungen, wenn lokal **nicht** mit alten MP3s getestet werden soll
+- Das Script gibt die **Ziel-Convex-URL** beim Start aus — vor Bestätigung prüfen, dass es **Dev** ist, nicht Prod
 
 ---
 
@@ -142,9 +152,11 @@ Reset audio for 1 word(s)? (y/n): y
 
 ### Berechtigungen
 
-- **Admin-Mutation**: Nur Admin/Superadmin
-- **Script**: Keine Auth (verwendet Convex Client direkt)
-  - Benötigt `VITE_CONVEX_URL` oder `CONVEX_URL` in `.env`
+- **Admin-Mutation**: Nur Admin/Superadmin **oder** gültiges `adminSecret` (wie `ADMIN_SECRET` in Convex)
+- **Script `pnpm reset:audio`**: `ConvexHttpClient` ohne Login – die Mutation wird mit **`adminSecret`** ausgeführt
+  - Benötigt `VITE_CONVEX_URL` oder `CONVEX_URL` in `.env` / `.env.local`
+  - Benötigt **`ADMIN_SECRET` in `.env.local`**, derselbe Wert wie im **jeweiligen** Convex-Deployment (Dev vs. Prod) unter Environment Variables
+- **Script `pnpm reset:audio:prod`**: wie oben, fest auf Production-URL; ebenfalls `ADMIN_SECRET` (Prod-Wert)
 
 ### Logging (Debug Mode)
 

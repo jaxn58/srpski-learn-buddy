@@ -1,16 +1,37 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
-import "dotenv/config";
+import * as dotenv from "dotenv";
 import * as readline from "readline";
+
+// Same as Vite / other scripts: .env then .env.local (local overrides)
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 
 const CONVEX_URL = process.env.VITE_CONVEX_URL || process.env.CONVEX_URL;
 
 if (!CONVEX_URL) {
-  console.error("❌ CONVEX_URL is not set");
+  console.error("❌ No Convex URL found.");
+  console.error("💡 Set VITE_CONVEX_URL (or CONVEX_URL) in .env or .env.local — e.g. Dev deployment URL.");
+  process.exit(1);
+}
+
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+if (!ADMIN_SECRET) {
+  console.error("❌ ADMIN_SECRET is not set.");
+  console.error(
+    "💡 Add ADMIN_SECRET to .env.local — same value as Convex Dashboard → this deployment (Dev) → Settings → Environment Variables."
+  );
   process.exit(1);
 }
 
 const client = new ConvexHttpClient(CONVEX_URL);
+
+console.log(`\nTarget Convex (this script never touches Production unless this URL is Prod):\n  ${CONVEX_URL}\n`);
+
+/** ConvexHttpClient has no logged-in user; resetVocabularyAudio requires adminSecret or an admin session. */
+function resetAudioMutationArgs(vocabularyId: string) {
+  return { vocabularyId: vocabularyId as any, adminSecret: ADMIN_SECRET };
+}
 
 interface VocabularyWord {
   _id: string;
@@ -67,14 +88,17 @@ async function resetFaultyAudio() {
   console.log("3. Reset all words in a specific unit");
   console.log("4. Reset all words with old audioUrl (migrate to Storage)");
   console.log("5. List all words without audio");
-  console.log("6. Exit\n");
+  console.log("6. Exit");
+  console.log(
+    "7. Reset ALL stored vocabulary audio (every word with audioStorageId or legacy audioUrl) — use for Dev after TTS changes\n"
+  );
 
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
 
-  rl.question("Choose an option (1-6): ", async (choice) => {
+  rl.question("Choose an option (1-7): ", async (choice) => {
     rl.close();
 
   
@@ -97,6 +121,9 @@ async function resetFaultyAudio() {
           break;
         case "6":
           console.log("👋 Exiting...");
+          break;
+        case "7":
+          await resetAllStoredVocabularyAudio(vocabulary);
           break;
         default:
           console.log("❌ Invalid option");
@@ -148,9 +175,7 @@ async function resetBySerbian(vocabulary: VocabularyWord[]) {
 
     for (const word of matches) {
     
-      await client.mutation(api.vocabulary.resetVocabularyAudio, {
-        vocabularyId: word._id as any,
-      });
+      await client.mutation(api.vocabulary.resetVocabularyAudio, resetAudioMutationArgs(word._id));
 
     
       console.log(`  ✅ Reset: ${word.serbian} (Unit ${word.unitNumber})`);
@@ -171,9 +196,7 @@ async function resetById() {
 
   
     try {
-      const result = await client.mutation(api.vocabulary.resetVocabularyAudio, {
-        vocabularyId: id as any,
-      });
+      const result = await client.mutation(api.vocabulary.resetVocabularyAudio, resetAudioMutationArgs(id));
 
     
       console.log(`✅ Successfully reset audio for: ${result.serbian} (Unit ${result.unitNumber})`);
@@ -228,9 +251,7 @@ async function resetByUnit(vocabulary: VocabularyWord[]) {
     for (const word of unitWords) {
       try {
       
-        await client.mutation(api.vocabulary.resetVocabularyAudio, {
-          vocabularyId: word._id as any,
-        });
+        await client.mutation(api.vocabulary.resetVocabularyAudio, resetAudioMutationArgs(word._id));
 
       
         successCount++;
@@ -276,9 +297,7 @@ async function resetOldAudioUrls(words: VocabularyWord[]) {
   for (const word of words) {
     try {
     
-      await client.mutation(api.vocabulary.resetVocabularyAudio, {
-        vocabularyId: word._id as any,
-      });
+      await client.mutation(api.vocabulary.resetVocabularyAudio, resetAudioMutationArgs(word._id));
 
     
       successCount++;
@@ -292,6 +311,46 @@ async function resetOldAudioUrls(words: VocabularyWord[]) {
 
   console.log(
     `\n✅ Successfully reset ${successCount} word(s), ${errorCount} error(s)`
+  );
+}
+
+/** Clears audioStorageId + audioUrl for every word that had either (full Dev refresh for new TTS). */
+async function resetAllStoredVocabularyAudio(vocabulary: VocabularyWord[]) {
+  const targets = vocabulary.filter((w) => w.audioStorageId || w.audioUrl);
+  if (targets.length === 0) {
+    console.log("✅ No vocabulary rows with stored audio or legacy audioUrl — nothing to reset.");
+    return;
+  }
+
+  console.log(
+    `\n⚠️  Option 7: Reset audio metadata for ${targets.length} word(s) on the deployment above.`
+  );
+  console.log("    Next play will regenerate audio (local: Express /api/audio/generate must be running).");
+
+  const confirm = await promptUser(`\nProceed with FULL reset of stored vocabulary audio?`);
+  if (!confirm) {
+    console.log("❌ Cancelled");
+    return;
+  }
+
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (const word of targets) {
+    try {
+      await client.mutation(api.vocabulary.resetVocabularyAudio, resetAudioMutationArgs(word._id));
+      successCount++;
+      if (successCount <= 10 || successCount % 50 === 0) {
+        console.log(`  ✅ Reset: ${word.serbian} (unit ${word.unitNumber})`);
+      }
+    } catch (error) {
+      errorCount++;
+      console.error(`  ❌ Failed: ${word.serbian} - ${error}`);
+    }
+  }
+
+  console.log(
+    `\n✅ Finished: ${successCount} reset, ${errorCount} error(s). (${targets.length} targeted)`
   );
 }
 

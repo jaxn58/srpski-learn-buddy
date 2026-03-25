@@ -1,6 +1,7 @@
 import { useMutation } from "convex/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
+import { whenAudioCanPlayThrough } from "@/lib/whenAudioCanPlayThrough";
 
 type PlayArgs = {
   vocabularyId: string;
@@ -96,6 +97,7 @@ export function useVocabularyAudioPlayback() {
         }
 
         const audio = new Audio(audioUrl);
+        audio.preload = "auto";
 
         audio.onplay = () => {
           setPlayingAudioId(vocabularyId);
@@ -112,6 +114,7 @@ export function useVocabularyAudioPlayback() {
           console.error("Audio playback failed", e);
         };
 
+        await whenAudioCanPlayThrough(audio);
         await audio.play();
       } catch (error) {
         console.error("Failed to get audio:", error);

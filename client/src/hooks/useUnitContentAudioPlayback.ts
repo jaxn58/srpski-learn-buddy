@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { whenAudioCanPlayThrough } from "@/lib/whenAudioCanPlayThrough";
 
 type ContentType = "phrases" | "dialogues";
 
@@ -9,7 +10,7 @@ type PlayArgs = {
   textSr: string;
 };
 
-const AUDIO_VERSION_TAG = "puck-v2";
+const AUDIO_VERSION_TAG = "puck-v3";
 const DEFAULT_VOICE_KEY = "default";
 
 function fnv1a32Hex(input: string): string {
@@ -157,6 +158,7 @@ export function useUnitContentAudioPlayback() {
         await new Promise<void>((resolve, reject) => {
           const audio = new Audio(audioUrl);
           audioRef.current = audio;
+          audio.preload = "auto";
 
           audio.onplay = () => {
             setPlayingTextHash(textHash);
@@ -168,19 +170,22 @@ export function useUnitContentAudioPlayback() {
             resolve();
           };
 
-          audio.onerror = (e) => {
+          audio.onerror = () => {
             setPlayingTextHash(null);
             setLoadingTextHash(null);
-            reject(e);
+            reject(audio.error ?? new Error("Audio playback failed"));
           };
 
-          audio
-            .play()
-            .catch((err) => {
+          void (async () => {
+            try {
+              await whenAudioCanPlayThrough(audio);
+              await audio.play();
+            } catch (err) {
               setPlayingTextHash(null);
               setLoadingTextHash(null);
               reject(err);
-            });
+            }
+          })();
         });
       } catch (error) {
         console.error("Failed to play unit content audio:", error);

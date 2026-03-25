@@ -12,8 +12,6 @@ import { ENV } from "./env";
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
 
-const AUDIO_VERSION_TAG = "puck-v2";
-
 export type GenerateSerbianAudioOptions = {
   text: string;
   vocabularyId?: string; // Optional: for better file naming
@@ -176,9 +174,11 @@ export async function generateSerbianAudio(
   const speakingRate = 0.9;
   const pitch = 0.0;
   const rateTag = "slow";
+  // Leading/trailing pause so very short words (e.g. "Šta") are not cut off by MP3 framing / playback start.
+  const edgeBreakMs = 220;
 
   // Configure TTS request for Serbian (use SSML for better prosody control)
-  const ssmlText = `<speak><prosody rate="${rateTag}">${escapeSsml(options.text)}</prosody></speak>`;
+  const ssmlText = `<speak><break time="${edgeBreakMs}ms"/><prosody rate="${rateTag}">${escapeSsml(options.text)}</prosody><break time="${edgeBreakMs}ms"/></speak>`;
   const request = {
     input: { ssml: ssmlText },
     voice: {

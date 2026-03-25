@@ -14,7 +14,7 @@ type Props = {
   contentType: ContentType;
 };
 
-const AUDIO_VERSION_TAG = "puck-v2";
+const AUDIO_VERSION_TAG = "puck-v3";
 const DEFAULT_VOICE_KEY = "default";
 
 function fnv1a32Hex(input: string): string {
