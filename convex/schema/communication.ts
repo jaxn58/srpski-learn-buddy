@@ -136,6 +136,9 @@ export const communicationTables = {
       consentedAt: v.number()
     })),
 
+    // Preferred newsletter content language (en/de) for sends
+    preferredLocale: v.optional(v.union(v.literal("en"), v.literal("de"))),
+
     // Metadata
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -151,9 +154,20 @@ export const communicationTables = {
   // Newsletter Campaigns - Campaign-Management
   newsletterCampaigns: defineTable({
     name: v.string(), // Campaign name (e.g., "Beta Launch Announcement")
-    subject: v.string(), // Email subject line
+    subject: v.string(), // Legacy EN subject (mirror of subjectEn)
+    subjectEn: v.optional(v.string()),
+    subjectDe: v.optional(v.string()),
     templateName: v.string(), // Reference to emailTemplates.name
     description: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
+
+    // Snapshot HTML per language (legacy htmlBodySnapshot = EN mirror)
+    htmlBodySnapshot: v.optional(v.string()),
+    htmlBodySnapshotEn: v.optional(v.string()),
+    htmlBodySnapshotDe: v.optional(v.string()),
+    htmlSnapshotTakenAt: v.optional(v.number()),
+    enContentUpdatedAt: v.optional(v.number()),
+    deContentUpdatedAt: v.optional(v.number()),
 
     // Targeting
     targetTags: v.array(v.string()), // Nur Kontakte mit diesen Tags
@@ -166,6 +180,8 @@ export const communicationTables = {
     // Status
     status: v.union(
       v.literal("draft"),      // Entwurf
+      v.literal("review"),    // Review
+      v.literal("ready"),     // Freigegeben zum Versand
       v.literal("scheduled"),  // Geplant
       v.literal("sending"),    // Wird versendet
       v.literal("sent"),       // Versendet

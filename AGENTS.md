@@ -5,6 +5,16 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 
 ## Allgemeine Entwicklungsrichtlinien
 
+### Dokumentation zuerst – kein Halluzinieren
+- **IMMER zuerst die offizielle Dokumentation des betreffenden Produkts/Services abrufen**, bevor irgendwelche Annahmen über verfügbare Features, API-Parameter, Modellnamen oder unterstützte Funktionen gemacht werden.
+- Das gilt insbesondere für: externe APIs (Google Cloud, OpenAI, Stripe, Clerk, Resend, Convex, Vercel, …), Bibliotheken, Frameworks und alle Dienste, bei denen sich Verfügbarkeit oder Benennung ändern kann.
+- **Konkret**: Vor dem Einsetzen von Stimm-Namen, Modell-IDs, Endpunkten oder Feature-Flags → `WebFetch` auf die offizielle Doku-URL ausführen und die tatsächlich verfügbaren Werte prüfen.
+- **Verboten**: Modell- oder Ressourcennamen aus dem Trainingswissen einsetzen ohne vorherige Verifikation. Das führt zu nicht existierenden Referenzen und kostet Zeit.
+- Beispiel-Workflow bei API-Problemen:
+  1. Offizielle Doku abrufen (z.B. `https://cloud.google.com/text-to-speech/docs/voices`)
+  2. Verfügbare Optionen für den konkreten Use-Case (Sprache, Region, Feature) prüfen
+  3. Erst dann implementieren
+
 ### Code-Qualität
 - **Keine 'Quick & Dirty' Lösungen** - Lösungen sollten immer durchdacht und analytisch angegangen werden. Es geht immer darum, eine solide und widerstandsfähige Lösung zu finden.
 - Alle Inhalte für die App sollen **dynamisch** sein und nicht hardcoded aus der Datenbank gezogen werden. Vorschläge können gemacht werden, wenn es Probleme gibt.

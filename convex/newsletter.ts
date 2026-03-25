@@ -4,6 +4,7 @@ import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { Resend } from "resend";
 import { assertLearnerAccountActive } from "./authz";
+import { callAiJson } from "./contentStudio/_shared";
 
 // ============= HELPER FUNCTIONS =============
 
@@ -33,6 +34,48 @@ async function getAdminUser(ctx: AnyCtx): Promise<Doc<"users"> | null> {
   }
 
   return user;
+}
+
+async function getSuperadminUser(ctx: AnyCtx): Promise<Doc<"users"> | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+
+  const user: Doc<"users"> | null = hasDb(ctx)
+    ? await ctx.db
+        .query("users")
+        // @ts-ignore TS2589 – Convex schema depth limit
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+        .first()
+    : ((await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+        clerkId: identity.subject,
+      })) as Doc<"users"> | null);
+
+  if (!user || user.role !== "superadmin") {
+    return null;
+  }
+
+  return user;
+}
+
+const PRE_SEND_EDITABLE = new Set(["draft", "review", "ready"]);
+
+function extractVariablesFromContent(content: string): string[] {
+  const variableRegex = /\{\{(\w+)\}\}/g;
+  const found = new Set<string>();
+  let m;
+  while ((m = variableRegex.exec(content)) !== null) {
+    found.add(m[1]!);
+  }
+  return Array.from(found);
+}
+
+function diffNewsletterVariables(source: string[], target: string[]) {
+  const s = new Set(source);
+  const t = new Set(target);
+  return {
+    missing: source.filter((v) => !t.has(v)),
+    added: target.filter((v) => !s.has(v)),
+  };
 }
 
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -89,6 +132,10 @@ export const syncWaitlistToNewsletter = internalMutation({
       // Always keep the contact in sync with the waitlist source, but DO NOT auto-subscribe.
       // Subscribing to marketing updates requires explicit double opt-in.
       const hasConfirmedOptIn = !!existing.optInConfirmedAt;
+      // @ts-ignore TS2339 – waitlist language
+      const wlLang = waitlistEntry.language;
+      const preferredLocale =
+        wlLang === "de" || wlLang === "en" ? wlLang : existing.preferredLocale;
       await ctx.db.patch(existing._id, {
         sourceId: args.waitlistId,
         source: "waitlist",
@@ -96,6 +143,7 @@ export const syncWaitlistToNewsletter = internalMutation({
         name: waitlistEntry.name || existing.name,
         tags: Array.from(new Set([...(existing.tags || []), "waitlist"])),
         environment,
+        ...(preferredLocale !== undefined ? { preferredLocale } : {}),
         // Safety migration: historical data might have subscribed=true from the old implementation.
         // Only keep subscribed=true if the user has a confirmed double opt-in.
         subscribed: hasConfirmedOptIn ? existing.subscribed : false,
@@ -109,6 +157,10 @@ export const syncWaitlistToNewsletter = internalMutation({
 
     // Create new contact
     const unsubscribeToken = crypto.randomUUID();
+    // @ts-ignore TS2339 – waitlist language
+    const wlLangNew = waitlistEntry.language;
+    const preferredLocaleNew =
+      wlLangNew === "de" || wlLangNew === "en" ? wlLangNew : undefined;
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const contactId = await ctx.db.insert("newsletterContacts", {
       // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
@@ -122,6 +174,7 @@ export const syncWaitlistToNewsletter = internalMutation({
       unsubscribeToken,
       tags: ["waitlist"],
       environment,
+      ...(preferredLocaleNew !== undefined ? { preferredLocale: preferredLocaleNew } : {}),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -744,18 +797,29 @@ export const createCampaign = mutation({
       throw new Error(`Template "${args.templateName}" not found or inactive`);
     }
 
+    const htmlEn =
+      // @ts-ignore TS2339
+      template.htmlContentEn ?? template.htmlContent ?? "";
+    const subjectEn = args.subject.trim();
+    const now = Date.now();
+
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const campaignId = await ctx.db.insert("newsletterCampaigns", {
       name: args.name,
-      subject: args.subject,
+      subject: subjectEn,
+      subjectEn: subjectEn,
       templateName: args.templateName,
       description: args.description,
+      htmlBodySnapshot: htmlEn,
+      htmlBodySnapshotEn: htmlEn,
+      htmlSnapshotTakenAt: now,
+      enContentUpdatedAt: now,
       targetTags: args.targetTags || [],
       targetSource: args.targetSource,
       status: "draft",
       testMode: args.testMode ?? false,
       createdBy: admin._id,
-      createdAt: Date.now(),
+      createdAt: now,
     });
 
     console.log(`[Newsletter] Campaign created: ${args.name} (${campaignId})`);
@@ -771,6 +835,8 @@ export const getAllCampaigns = query({
   args: {
     status: v.optional(v.union(
       v.literal("draft"),
+      v.literal("review"),
+      v.literal("ready"),
       v.literal("scheduled"),
       v.literal("sending"),
       v.literal("sent"),
@@ -815,8 +881,16 @@ export const updateCampaign = mutation({
     campaignId: v.id("newsletterCampaigns"),
     name: v.optional(v.string()),
     subject: v.optional(v.string()),
+    subjectEn: v.optional(v.string()),
+    subjectDe: v.optional(v.string()),
     templateName: v.optional(v.string()),
     description: v.optional(v.string()),
+    descriptionDe: v.optional(v.string()),
+    htmlBodySnapshotEn: v.optional(v.string()),
+    htmlBodySnapshotDe: v.optional(v.string()),
+    status: v.optional(
+      v.union(v.literal("draft"), v.literal("review"), v.literal("ready"))
+    ),
     targetTags: v.optional(v.array(v.string())),
     targetSource: v.optional(v.union(v.literal("waitlist"), v.literal("user"), v.literal("all"))),
     testMode: v.optional(v.boolean()),
@@ -828,19 +902,54 @@ export const updateCampaign = mutation({
     const campaign = await ctx.db.get(args.campaignId);
     if (!campaign) throw new Error("Campaign not found");
 
-    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-    if (campaign.status !== "draft") {
-      throw new Error("Can only update draft campaigns");
+    // @ts-ignore TS2339
+    const st = campaign.status;
+    if (!PRE_SEND_EDITABLE.has(st)) {
+      throw new Error("Campaign content is read-only after send or while sending");
     }
 
-    const updates: any = {};
+    if (args.status !== undefined) {
+      if (!PRE_SEND_EDITABLE.has(args.status)) {
+        throw new Error("Invalid status transition");
+      }
+    }
+
+    const now = Date.now();
+    const updates: Record<string, unknown> = {};
+
     if (args.name !== undefined) updates.name = args.name;
-    if (args.subject !== undefined) updates.subject = args.subject;
     if (args.templateName !== undefined) updates.templateName = args.templateName;
     if (args.description !== undefined) updates.description = args.description;
+    if (args.descriptionDe !== undefined) updates.descriptionDe = args.descriptionDe;
     if (args.targetTags !== undefined) updates.targetTags = args.targetTags;
     if (args.targetSource !== undefined) updates.targetSource = args.targetSource;
     if (args.testMode !== undefined) updates.testMode = args.testMode;
+    if (args.status !== undefined) updates.status = args.status;
+
+    if (args.subjectEn !== undefined) {
+      const s = args.subjectEn.trim();
+      updates.subjectEn = s;
+      updates.subject = s;
+    } else if (args.subject !== undefined) {
+      const s = args.subject.trim();
+      updates.subject = s;
+      updates.subjectEn = s;
+    }
+
+    if (args.subjectDe !== undefined) {
+      updates.subjectDe = args.subjectDe;
+    }
+
+    if (args.htmlBodySnapshotEn !== undefined) {
+      updates.htmlBodySnapshotEn = args.htmlBodySnapshotEn;
+      updates.htmlBodySnapshot = args.htmlBodySnapshotEn;
+      updates.enContentUpdatedAt = now;
+    }
+
+    if (args.htmlBodySnapshotDe !== undefined) {
+      updates.htmlBodySnapshotDe = args.htmlBodySnapshotDe;
+      updates.deContentUpdatedAt = now;
+    }
 
     await ctx.db.patch(args.campaignId, updates);
 
@@ -872,6 +981,196 @@ export const deleteCampaign = mutation({
   },
 });
 
+const NEWSLETTER_TRANSLATE_LANG_NAMES: Record<string, string> = {
+  de: "German (de-DE)",
+};
+
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const internalSaveNewsletterDeTranslation = internalMutation({
+  args: {
+    campaignId: v.id("newsletterCampaigns"),
+    subjectDe: v.string(),
+    htmlBodySnapshotDe: v.string(),
+    descriptionDe: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    await ctx.db.patch(args.campaignId, {
+      subjectDe: args.subjectDe,
+      htmlBodySnapshotDe: args.htmlBodySnapshotDe,
+      ...(args.descriptionDe !== undefined ? { descriptionDe: args.descriptionDe } : {}),
+      deContentUpdatedAt: now,
+    });
+  },
+});
+
+/**
+ * AI translate EN → DE for a newsletter campaign (superadmin).
+ */
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const translateNewsletterCampaign = action({
+  args: {
+    campaignId: v.id("newsletterCampaigns"),
+    preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
+  },
+  handler: async (ctx, args) => {
+    const superadmin = await getSuperadminUser(ctx);
+    if (!superadmin) throw new Error("Superadmin access required");
+
+    const campaign = await ctx.runQuery(internal.newsletter.internalGetCampaign, {
+      campaignId: args.campaignId,
+    });
+    if (!campaign) throw new Error("Campaign not found");
+    // @ts-ignore TS2339
+    if (!PRE_SEND_EDITABLE.has(campaign.status)) {
+      throw new Error("Cannot translate a campaign that is not editable");
+    }
+
+    // @ts-ignore TS2339
+    const subjectEn = (campaign.subjectEn ?? campaign.subject ?? "").trim();
+    // @ts-ignore TS2339
+    const htmlEn = (campaign.htmlBodySnapshotEn ?? campaign.htmlBodySnapshot ?? "").trim();
+    // @ts-ignore TS2339
+    const descriptionEn = campaign.description ?? "";
+
+    if (!subjectEn || !htmlEn) {
+      throw new Error("English subject and HTML body are required for translation.");
+    }
+
+    const sourceVars = new Set([
+      ...extractVariablesFromContent(subjectEn),
+      ...extractVariablesFromContent(htmlEn),
+    ]);
+
+    const targetLanguage = "de" as const;
+    const langName = NEWSLETTER_TRANSLATE_LANG_NAMES[targetLanguage] || targetLanguage;
+
+    const system = [
+      "You are a translation engine.",
+      `Translate the provided newsletter campaign from English to ${langName}.`,
+      "Preserve ALL placeholder variables in double curly braces exactly (e.g. {{USER_NAME}}, {{EMAIL_SIGNATURE}}). Do not translate, rename, add, or remove placeholders.",
+      "Preserve HTML tags, inline CSS, and formatting as much as possible.",
+      "Return ONLY valid JSON with keys: subjectTranslation, htmlContentTranslation, descriptionTranslation.",
+    ].join("\n");
+
+    const user = [
+      "Subject (EN):",
+      subjectEn,
+      "",
+      "HTML (EN):",
+      htmlEn,
+      "",
+      "Internal description (EN):",
+      descriptionEn,
+      "",
+      `Placeholders that must remain unchanged: ${Array.from(sourceVars).sort().join(", ") || "(none)"}`,
+    ].join("\n");
+
+    const ai = await callAiJson(ctx, {
+      stage: "specialist",
+      preferredProvider: args.preferredProvider ?? "gemini",
+      system,
+      user,
+      maxTokens: 3000,
+    });
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(ai.raw);
+    } catch {
+      throw new Error("AI returned invalid JSON.");
+    }
+
+    const p = parsed as Record<string, unknown>;
+    const subjectTranslation =
+      typeof p.subjectTranslation === "string" ? p.subjectTranslation : "";
+    const htmlContentTranslation =
+      typeof p.htmlContentTranslation === "string" ? p.htmlContentTranslation : "";
+    const descriptionTranslation =
+      typeof p.descriptionTranslation === "string" ? p.descriptionTranslation : "";
+
+    if (!subjectTranslation || !htmlContentTranslation) {
+      throw new Error("AI returned empty translation fields.");
+    }
+
+    const targetVars = [
+      ...extractVariablesFromContent(subjectTranslation),
+      ...extractVariablesFromContent(htmlContentTranslation),
+    ];
+    const { missing, added } = diffNewsletterVariables(
+      Array.from(sourceVars),
+      targetVars
+    );
+    const warnings: string[] = [];
+    if (missing.length) {
+      warnings.push(`Missing placeholders in DE output: ${missing.join(", ")}`);
+    }
+    if (added.length) {
+      warnings.push(`New placeholders in DE output: ${added.join(", ")}`);
+    }
+
+    await ctx.runMutation(internal.newsletter.internalSaveNewsletterDeTranslation, {
+      campaignId: args.campaignId,
+      subjectDe: subjectTranslation,
+      htmlBodySnapshotDe: htmlContentTranslation,
+      descriptionDe: descriptionTranslation || undefined,
+    });
+
+    return {
+      warnings,
+      meta: {
+        provider: ai.provider,
+        model: ai.model,
+        usage: ai.usage,
+        estimatedCostUsd: ai.estimatedCostUsd,
+      },
+    };
+  },
+});
+
+/** Admin: Convex Storage upload URL for inline newsletter images. */
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const generateNewsletterImageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized - Admin access required");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const getNewsletterImagePublicUrl = query({
+  args: { storageId: v.string() },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized - Admin access required");
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+/** Update contact preferred locale for newsletter language (admin). */
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const updateContactPreferredLocale = mutation({
+  args: {
+    contactId: v.id("newsletterContacts"),
+    preferredLocale: v.union(v.literal("en"), v.literal("de")),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized - Admin access required");
+
+    const contact = await ctx.db.get(args.contactId);
+    if (!contact) throw new Error("Contact not found");
+
+    await ctx.db.patch(args.contactId, {
+      preferredLocale: args.preferredLocale,
+      updatedAt: Date.now(),
+    });
+    return { success: true };
+  },
+});
+
 // ============= CAMPAIGN SENDING =============
 
 /**
@@ -890,10 +1189,18 @@ export const sendCampaign = mutation({
     const campaign = await ctx.db.get(args.campaignId);
     if (!campaign) throw new Error("Campaign not found");
 
-    // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-    if (campaign.status !== "draft" && campaign.status !== "scheduled") {
-      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-      throw new Error(`Campaign status is "${campaign.status}", cannot send`);
+    // @ts-ignore TS2339
+    const cst = campaign.status;
+    if (cst !== "ready" && cst !== "scheduled") {
+      // @ts-ignore TS2339
+      throw new Error(`Campaign must be Ready (or Scheduled) to send; current status: "${campaign.status}"`);
+    }
+
+    // @ts-ignore TS2339
+    const htmlEn =
+      campaign.htmlBodySnapshotEn ?? campaign.htmlBodySnapshot ?? "";
+    if (!htmlEn.trim()) {
+      throw new Error("Campaign has no English HTML body. Save content before sending.");
     }
 
     // Get target contacts
@@ -1006,14 +1313,9 @@ export const sendEmailBatch = internalAction({
       return;
     }
 
-    const template = await ctx.runQuery(api.emailTemplates.getByName, {
+    const template = await ctx.runQuery(internal.emailTemplates.internalGetByName, {
       name: campaign.templateName,
     });
-
-    if (!template) {
-      console.error(`[Newsletter] Template "${campaign.templateName}" not found`);
-      return;
-    }
 
     if (!process.env.RESEND_API_KEY) {
       console.error("[Newsletter] RESEND_API_KEY not configured");
@@ -1053,20 +1355,69 @@ export const sendEmailBatch = internalAction({
           continue;
         }
 
-        // Render template with variables
+        // @ts-ignore TS2339
+        const prefersDe = contact.preferredLocale === "de";
+        // @ts-ignore TS2339
+        const hasDe =
+          !!(campaign.htmlBodySnapshotDe && String(campaign.htmlBodySnapshotDe).trim()) &&
+          !!(campaign.subjectDe && String(campaign.subjectDe).trim());
+        const useDe = prefersDe && hasDe;
+        if (prefersDe && !hasDe) {
+          console.warn(
+            `[Newsletter] Contact ${contact.email} prefers DE but campaign has no DE body; sending EN`
+          );
+        }
+
+        // @ts-ignore TS2339
+        let html =
+          useDe && campaign.htmlBodySnapshotDe
+            ? campaign.htmlBodySnapshotDe
+            : (campaign.htmlBodySnapshotEn ?? campaign.htmlBodySnapshot ?? "");
+        // @ts-ignore TS2339
+        let subject = useDe
+          ? (campaign.subjectDe ?? campaign.subjectEn ?? campaign.subject)
+          : (campaign.subjectEn ?? campaign.subject);
+
+        if (!html.trim() && template) {
+          // @ts-ignore TS2339
+          html = template.htmlContentEn ?? template.htmlContent ?? "";
+        }
+        if (!subject.trim()) {
+          // @ts-ignore TS2339
+          subject = campaign.subjectEn ?? campaign.subject;
+        }
+
+        const signatureHtml = await ctx.runQuery(internal.newsletter.internalGetMarketingSignatureHtml, {
+          locale: useDe ? "de" : "en",
+        });
+        if (signatureHtml && (html.includes("{{EMAIL_SIGNATURE}}") || subject.includes("{{EMAIL_SIGNATURE}}"))) {
+          const sigRe = /\{\{EMAIL_SIGNATURE\}\}/g;
+          html = html.replace(sigRe, signatureHtml);
+          subject = subject.replace(sigRe, signatureHtml);
+        }
+
         const variables: Record<string, string | number> = {
           USER_NAME: contact.name || "there",
           USER_EMAIL: contact.email,
           UNSUBSCRIBE_LINK: `${baseUrl}/newsletter/unsubscribe?token=${contact.unsubscribeToken}`,
         };
 
-        let html = template.htmlContent;
-        let subject = campaign.subject;
-
         for (const [key, value] of Object.entries(variables)) {
           const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
           html = html.replace(regex, String(value));
           subject = subject.replace(regex, String(value));
+        }
+
+        if (!html.trim()) {
+          console.error(`[Newsletter] No HTML body for ${contact.email}, skipping`);
+          await ctx.runMutation(internal.newsletter.updateEmailLogStatus, {
+            emailLogId,
+            status: "failed",
+            lastError: "Empty HTML body",
+            retryCount: (emailLog.retryCount || 0) + 1,
+          });
+          errorCount++;
+          continue;
         }
 
         // Transform links for tracking (lazy)
@@ -1163,6 +1514,22 @@ function transformLinksInHtml(
 }
 
 // ============= INTERNAL QUERIES/MUTATIONS =============
+
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const internalGetMarketingSignatureHtml = internalQuery({
+  args: { locale: v.union(v.literal("en"), v.literal("de")) },
+  handler: async (ctx, args) => {
+    const sig = await ctx.db
+      .query("emailSignatures")
+      .withIndex("by_category", (q) => q.eq("category", "marketing"))
+      .first();
+    if (!sig?.isActive) return "";
+    if (args.locale === "de") {
+      return sig.htmlContentDe ?? sig.htmlContentEn ?? sig.htmlContent ?? "";
+    }
+    return sig.htmlContentEn ?? sig.htmlContent ?? "";
+  },
+});
 
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const internalGetCampaign = internalQuery({

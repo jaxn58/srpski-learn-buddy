@@ -5,6 +5,7 @@ import {
   QueryCtx,
   MutationCtx,
   internalMutation,
+  internalQuery,
   action,
   ActionCtx,
 } from "./_generated/server";
@@ -78,6 +79,17 @@ export const getByName = query({
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
 
+    return await ctx.db
+      .query("emailTemplates")
+      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .first();
+  },
+});
+
+/** Used by scheduled newsletter sends (no user auth in internalAction). */
+export const internalGetByName = internalQuery({
+  args: { name: v.string() },
+  handler: async (ctx, args) => {
     return await ctx.db
       .query("emailTemplates")
       .withIndex("by_name", (q) => q.eq("name", args.name))
