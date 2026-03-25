@@ -384,7 +384,22 @@ This email was sent to {{USER_EMAIL}}<br>
 ];
 
 /**
- * Migration script to update templates with simple versions
+ * Seed/update simple email templates in the Convex emailTemplates table.
+ *
+ * SAFE BY DEFAULT: existing templates are never overwritten unless --force is passed.
+ *
+ * Usage:
+ *   # Insert only new templates (safe, default)
+ *   pnpm exec tsx scripts/simple-email-templates.ts
+ *
+ *   # Show what would change without writing anything
+ *   pnpm exec tsx scripts/simple-email-templates.ts --dry-run
+ *
+ *   # Overwrite existing templates (use with caution on production!)
+ *   pnpm exec tsx scripts/simple-email-templates.ts --force
+ *
+ *   # Target production explicitly
+ *   $env:VITE_CONVEX_URL="https://fleet-labrador-324.convex.cloud"; pnpm exec tsx scripts/simple-email-templates.ts
  */
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
@@ -393,70 +408,98 @@ import { config } from "dotenv";
 // Load environment variables from .env.local
 config({ path: ".env.local" });
 
-const CONVEX_URL = 
-  process.env.VITE_CONVEX_URL || 
-  process.env.CONVEX_URL || 
+const CONVEX_URL =
+  process.env.VITE_CONVEX_URL ||
+  process.env.CONVEX_URL ||
   process.env.NEXT_PUBLIC_CONVEX_URL;
 
 if (!CONVEX_URL) {
-  console.error("❌ CONVEX_URL environment variable is not set");
+  console.error("ERROR: CONVEX_URL environment variable is not set");
   process.exit(1);
 }
+
+const adminSecret = process.env.ADMIN_SECRET;
+if (!adminSecret) {
+  console.error("ERROR: ADMIN_SECRET not found in environment!");
+  console.error("Please set ADMIN_SECRET in your .env.local file");
+  process.exit(1);
+}
+
+const dryRun = process.argv.includes("--dry-run");
+const force  = process.argv.includes("--force");
 
 const client = new ConvexHttpClient(CONVEX_URL);
 
 async function updateTemplates() {
-  console.log("🚀 Updating email templates with simple versions...\n");
-  
-  // Check for ADMIN_SECRET
-  const adminSecret = process.env.ADMIN_SECRET;
-  if (!adminSecret) {
-    console.error("❌ ADMIN_SECRET not found in environment!");
-    console.error("Please set ADMIN_SECRET in your .env.local file");
-    process.exit(1);
-  }
-  
-  console.log("✅ Admin secret loaded");
-  console.log(`   Secret length: ${adminSecret.length} characters`);
-  console.log(`   First 4 chars: ${adminSecret.substring(0, 4)}...`);
+  const target = CONVEX_URL!.includes("fleet-labrador") ? "PRODUCTION" : "DEV";
+
+  console.log("Seeding simple email templates\n");
+  console.log(`  Target  : ${target} (${CONVEX_URL})`);
+  console.log(`  Mode    : ${dryRun ? "DRY-RUN (no writes)" : force ? "FORCE (overwrites existing)" : "SAFE (skip existing)"}`);
+  console.log(`  Secret  : ${adminSecret!.substring(0, 4)}... (${adminSecret!.length} chars)`);
   console.log("");
 
-  let successCount = 0;
-  let errorCount = 0;
+  if (target === "PRODUCTION" && force && !dryRun) {
+    console.log("  WARNING: --force against PRODUCTION will overwrite customized templates.");
+    console.log("  Press Ctrl+C within 5 seconds to abort.");
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+
+  // Fetch all existing templates once
+  const existing: Array<{ name: string }> = await client.query(
+    api.admin.adminGetAllEmailTemplates,
+    { adminSecret: adminSecret! }
+  );
+  const existingNames = new Set(existing.map((t) => t.name));
+
+  let insertedCount = 0;
+  let skippedCount  = 0;
+  let errorCount    = 0;
 
   for (const template of simpleTemplates) {
     try {
-      console.log(`📝 Updating template: ${template.name}...`);
+      const alreadyExists = existingNames.has(template.name);
 
-      // Use internal mutation which bypasses auth
-      await client.mutation(api.admin.adminUpsertEmailTemplate, {
-        adminSecret,
-        name: template.name,
-        subject: template.subject,
-        htmlContent: template.htmlContent.trim(),
-        description: template.description,
-        variables: template.variables,
-        category: template.category,
-        isActive: true,
-      });
+      if (alreadyExists && !force) {
+        console.log(`  SKIP  ${template.name}  (already exists; use --force to overwrite)`);
+        skippedCount++;
+        continue;
+      }
 
-      console.log(`  ✅ Successfully updated: ${template.name}\n`);
-      successCount++;
+      const action = alreadyExists ? "Overwrite" : "Insert";
+      console.log(`  ${action}  ${template.name}${dryRun ? "  [DRY-RUN]" : ""}...`);
+
+      if (!dryRun) {
+        await client.mutation(api.admin.adminUpsertEmailTemplate, {
+          adminSecret: adminSecret!,
+          name: template.name,
+          subject: template.subject,
+          htmlContent: template.htmlContent.trim(),
+          description: template.description,
+          variables: [...template.variables] as string[],
+          category: template.category,
+          isActive: true,
+        });
+      }
+
+      console.log(`    OK`);
+      insertedCount++;
     } catch (error: any) {
-      console.error(`  ❌ Failed to update ${template.name}:`, error.message);
+      console.error(`  ERROR  ${template.name}: ${error.message}`);
       errorCount++;
     }
   }
 
   console.log("\n" + "=".repeat(50));
-  console.log(`✅ Update complete!`);
-  console.log(`   Success: ${successCount}`);
-  console.log(`   Errors: ${errorCount}`);
+  console.log("Done");
+  console.log(`  Inserted/Updated : ${insertedCount}${dryRun ? " (dry-run)" : ""}`);
+  console.log(`  Skipped (exist)  : ${skippedCount}`);
+  console.log(`  Errors           : ${errorCount}`);
   console.log("=".repeat(50));
 }
 
 // Run the update
 updateTemplates().catch((error) => {
-  console.error("❌ Update failed:", error);
+  console.error("Update failed:", error);
   process.exit(1);
 });

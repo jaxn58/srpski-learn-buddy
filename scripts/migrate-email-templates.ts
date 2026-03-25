@@ -1,8 +1,21 @@
 /**
  * Migration script to extract email templates from server/_core/email.ts
  * and import them into Convex emailTemplates table
- * 
- * Usage: npx tsx scripts/migrate-email-templates.ts
+ *
+ * SAFE BY DEFAULT: existing templates are never overwritten unless --force is passed.
+ *
+ * Usage:
+ *   # Insert only new templates (safe, default)
+ *   pnpm migrate:email-templates
+ *
+ *   # Show what would change without writing anything
+ *   pnpm migrate:email-templates -- --dry-run
+ *
+ *   # Overwrite existing templates (use with caution on production!)
+ *   pnpm migrate:email-templates -- --force
+ *
+ *   # Target production explicitly
+ *   $env:VITE_CONVEX_URL="https://fleet-labrador-324.convex.cloud"; pnpm migrate:email-templates
  */
 
 import { ConvexHttpClient } from "convex/browser";
@@ -43,6 +56,9 @@ if (!ADMIN_SECRET) {
   console.error("See docs/ADMIN_SECRET_SETUP.md for instructions");
   process.exit(1);
 }
+
+const dryRun = process.argv.includes("--dry-run");
+const force  = process.argv.includes("--force");
 
 const client = new ConvexHttpClient(CONVEX_URL);
 
@@ -309,15 +325,42 @@ const templates = [
 ];
 
 async function migrateTemplates() {
-  console.log("🚀 Starting email template migration...\n");
-  console.log(`📡 Connecting to Convex: ${CONVEX_URL}\n`);
+  const target = CONVEX_URL!.includes("fleet-labrador") ? "PRODUCTION" : "DEV";
 
-  let successCount = 0;
-  let errorCount = 0;
+  console.log("Starting email template migration\n");
+  console.log(`  Target  : ${target} (${CONVEX_URL})`);
+  console.log(`  Mode    : ${dryRun ? "DRY-RUN (no writes)" : force ? "FORCE (overwrites existing)" : "SAFE (skip existing)"}`);
+  console.log("");
+
+  if (target === "PRODUCTION" && force && !dryRun) {
+    console.log("  WARNING: --force against PRODUCTION will overwrite customized templates.");
+    console.log("  Press Ctrl+C within 5 seconds to abort.");
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+
+  // Fetch all existing templates once so we can skip without extra roundtrips
+  const existing: Array<{ name: string }> = await client.query(
+    api.admin.adminGetAllEmailTemplates,
+    { adminSecret: ADMIN_SECRET! }
+  );
+  const existingNames = new Set(existing.map((t) => t.name));
+
+  let insertedCount = 0;
+  let skippedCount  = 0;
+  let errorCount    = 0;
 
   for (const template of templates) {
     try {
-      console.log(`📝 Migrating template: ${template.name}...`);
+      const alreadyExists = existingNames.has(template.name);
+
+      if (alreadyExists && !force) {
+        console.log(`  SKIP  ${template.name}  (already exists; use --force to overwrite)`);
+        skippedCount++;
+        continue;
+      }
+
+      const action = alreadyExists ? "Overwrite" : "Insert";
+      console.log(`  ${action}  ${template.name}${dryRun ? "  [DRY-RUN]" : ""}...`);
 
       // Extract variables from content
       const variableRegex = /\{\{(\w+)\}\}/g;
@@ -329,42 +372,44 @@ async function migrateTemplates() {
       while ((match = variableRegex.exec(template.subject)) !== null) {
         foundVariables.add(match[1]);
       }
-      const allVariables = Array.from(foundVariables);
 
-      // Use the variables from template definition, or fall back to detected ones
-      const variables = template.variables.length > 0 ? template.variables : allVariables;
+      const variables =
+        template.variables.length > 0
+          ? template.variables
+          : Array.from(foundVariables);
 
-      // Upsert via ADMIN_SECRET (no browser auth required)
-      await client.mutation(api.admin.adminUpsertEmailTemplate, {
-        adminSecret: ADMIN_SECRET,
-        name: template.name,
-        subject: template.subject,
-        htmlContent: template.htmlContent,
-        description: template.description,
-        variables,
-        category: template.category,
-        isActive: true,
-      });
+      if (!dryRun) {
+        await client.mutation(api.admin.adminUpsertEmailTemplate, {
+          adminSecret: ADMIN_SECRET!,
+          name: template.name,
+          subject: template.subject,
+          htmlContent: template.htmlContent,
+          description: template.description,
+          variables,
+          category: template.category,
+          isActive: true,
+        });
+      }
 
-      console.log(`  ✅ Successfully migrated: ${template.name}`);
-      console.log(`     Variables: ${variables.join(", ")}\n`);
-      successCount++;
+      console.log(`    OK  Variables: ${variables.join(", ")}`);
+      insertedCount++;
     } catch (error: any) {
-      console.error(`  ❌ Failed to migrate ${template.name}:`, error.message);
+      console.error(`  ERROR  ${template.name}: ${error.message}`);
       errorCount++;
     }
   }
 
   console.log("\n" + "=".repeat(50));
-  console.log(`✅ Migration complete!`);
-  console.log(`   Success: ${successCount}`);
-  console.log(`   Errors: ${errorCount}`);
+  console.log(`Migration complete`);
+  console.log(`  Inserted/Updated : ${insertedCount}${dryRun ? " (dry-run)" : ""}`);
+  console.log(`  Skipped (exist)  : ${skippedCount}`);
+  console.log(`  Errors           : ${errorCount}`);
   console.log("=".repeat(50));
 }
 
 // Run migration
 migrateTemplates().catch((error) => {
-  console.error("❌ Migration failed:", error);
+  console.error("Migration failed:", error);
   process.exit(1);
 });
 
