@@ -249,7 +249,6 @@ export const getBetaDiscountStatus = query({
 });
 
 function getBillingProviderFromEnv(): "dodo" {
-  // Paddle support removed; Dodo is the only billing provider.
   return "dodo";
 }
 
