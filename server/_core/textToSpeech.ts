@@ -229,7 +229,7 @@ export async function generateSerbianAudio(
     input: { ssml },
     voice: {
       languageCode: 'sr-RS',
-      name: 'sr-RS-Neural2-A',
+      name: 'sr-RS-Standard-B',
       ssmlGender: 'FEMALE' as const
     },
     audioConfig: {

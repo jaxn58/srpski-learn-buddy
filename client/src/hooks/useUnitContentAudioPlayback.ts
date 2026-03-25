@@ -10,7 +10,7 @@ type PlayArgs = {
   textSr: string;
 };
 
-const AUDIO_VERSION_TAG = "neural2-v1";
+const AUDIO_VERSION_TAG = "standard-v1";
 const DEFAULT_VOICE_KEY = "default";
 
 function fnv1a32Hex(input: string): string {

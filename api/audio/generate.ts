@@ -10,7 +10,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
 
-const AUDIO_VERSION_TAG = "neural2-v1";
+const AUDIO_VERSION_TAG = "standard-v1";
 
 const ENV = {
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
@@ -176,7 +176,7 @@ async function generateSerbianAudio(options: {
 
   const request = {
     input: { ssml },
-    voice: { languageCode: 'sr-RS', name: 'sr-RS-Neural2-A', ssmlGender: 'FEMALE' as const },
+    voice: { languageCode: 'sr-RS', name: 'sr-RS-Standard-B', ssmlGender: 'FEMALE' as const },
     audioConfig: { audioEncoding: 'MP3' as const, speakingRate, volumeGainDb, pitch: 0.0 },
   };
 
