@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useLayoutEffect } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -38,46 +38,6 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
     if (!onboardingSteps || onboardingSteps.length === 0) return null;
     return onboardingSteps[step - 1]; // step is 1-indexed, array is 0-indexed
   }, [onboardingSteps, step]);
-
-  const onboardingContentRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const html = currentStepData?.content;
-    if (!html) return;
-    const root = onboardingContentRef.current;
-    const firstUl = root?.querySelector("ul");
-    const payload = {
-      sessionId: "580499",
-      hypothesisId: "H1-H5",
-      runId: "post-css-scoped-lists",
-      timestamp: Date.now(),
-      location: "WelcomeOnboarding.tsx:useLayoutEffect",
-      message: "onboarding HTML/DOM snapshot",
-      data: {
-        step,
-        prod: import.meta.env.PROD,
-        htmlLen: html.length,
-        htmlHasListDisc: html.includes("list-disc"),
-        htmlHasUl: html.includes("<ul"),
-        domUlCount: root?.querySelectorAll("ul").length ?? -1,
-        domLiCount: root?.querySelectorAll("li").length ?? -1,
-        firstUlClass: firstUl?.getAttribute("class"),
-        firstUlListStyleType: firstUl ? getComputedStyle(firstUl).listStyleType : null,
-        firstUlPaddingLeft: firstUl ? getComputedStyle(firstUl).paddingLeft : null,
-      },
-    };
-    // #region agent log
-    // HTTPS production cannot POST to http://127.0.0.1 (mixed content). Use DevTools Console or:
-    // copy(JSON.stringify(window.__SRPSKI_DEBUG_ONBOARDING_580499, null, 2))
-    console.info("[srpski-debug:580499:onboarding]", payload);
-    const w = window as Window & { __SRPSKI_DEBUG_ONBOARDING_580499?: typeof payload[] };
-    w.__SRPSKI_DEBUG_ONBOARDING_580499 ??= [];
-    w.__SRPSKI_DEBUG_ONBOARDING_580499.push(payload);
-    if (w.__SRPSKI_DEBUG_ONBOARDING_580499.length > 15) {
-      w.__SRPSKI_DEBUG_ONBOARDING_580499.splice(0, w.__SRPSKI_DEBUG_ONBOARDING_580499.length - 15);
-    }
-    // #endregion
-  }, [currentStepData?.content, step]);
 
   const nextStep = () => {
     if (step < totalSteps) {
@@ -210,7 +170,6 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
           {/* Render HTML content from database */}
           {currentStepData && (
             <div 
-              ref={onboardingContentRef}
               className="onboarding-content"
               dangerouslySetInnerHTML={{ __html: currentStepData.content }}
             />
