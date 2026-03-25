@@ -1,6 +1,7 @@
 /**
  * Serbian vocabulary TTS: SSML + audio hints for Google Cloud Text-to-Speech (Chirp3 sr-RS).
- * Centralizes homograph normalization, IPA fallbacks, and single-grapheme handling.
+ * Uses <sub alias="…"> with Cyrillic so the engine speaks Serbian, not English/German homographs.
+ * (IPA <phoneme> with non-English symbols caused synthesizeSpeech failures in practice.)
  */
 
 export function escapeSsml(text: string): string {
@@ -55,37 +56,33 @@ export function serbianLatinForTts(text: string): string {
 }
 
 /**
- * IPA hints for short words still mis-read after normalization (e.g. "Ste" → "Te", "Ja" → German).
- * Keys: NFC lowercase.
+ * Latin token -> Cyrillic string spoken instead (via <sub alias>), NFC keys lowercase.
+ * Keeps Latin in UI/DB; TTS resolves to Serbian pronunciation.
  */
-const IPA_BY_WORD: Record<string, string> = {
-  ste: "stɛ",
-  je: "jɛ",
-  ti: "tɨ",
-  vi: "ʋi",
-  ja: "jɑ",
-  /** Avoid English “see” reading for 2nd-person clitic */
-  si: "sɨ",
-  mi: "mɨ",
+const CYRILLIC_SPOKEN_ALIAS: Record<string, string> = {
+  ste: "сте",
+  je: "је",
+  ti: "ти",
+  vi: "ви",
+  ja: "ја",
+  si: "си",
+  mi: "ми",
+  i: "и",
+  a: "а",
+  u: "у",
+  o: "о",
+  e: "е",
 };
 
-const SINGLE_GRAPHEME_IPA: Record<string, string> = {
-  i: "i",
-  a: "a",
-  u: "u",
-  o: "o",
-  e: "ɛ",
-};
-
-function phonemeBlock(display: string, ipa: string): string {
-  return `<phoneme alphabet="ipa" ph="${escapeSsmlAttrValue(ipa)}">${escapeSsml(display)}</phoneme>`;
+function subAliasBlock(displayLatin: string, spokenCyrillic: string): string {
+  return `<sub alias="${escapeSsmlAttrValue(spokenCyrillic)}">${escapeSsml(displayLatin)}</sub>`;
 }
 
-function wrapWordWithIpaIfNeeded(spoken: string): string {
-  const k = spoken.toLowerCase().normalize("NFC");
-  const ipa = IPA_BY_WORD[k];
-  if (ipa) return phonemeBlock(spoken, ipa);
-  return escapeSsml(spoken);
+function wrapWithCyrillicHintIfNeeded(display: string): string {
+  const k = display.toLowerCase().normalize("NFC");
+  const cy = CYRILLIC_SPOKEN_ALIAS[k];
+  if (cy) return subAliasBlock(display, cy);
+  return escapeSsml(display);
 }
 
 function ssmlEdgeBreakMs(trimmed: string): number {
@@ -124,8 +121,8 @@ export function buildSerbianVocabularyTtsPayload(rawText: string): SerbianVocabu
     const volumeGainDb = 7.5;
     const edgeBreakMs = 820;
     const k = inner.toLowerCase().normalize("NFC");
-    const ipa = SINGLE_GRAPHEME_IPA[k];
-    const core = ipa ? phonemeBlock(inner, ipa) : escapeSsml(inner);
+    const cy = CYRILLIC_SPOKEN_ALIAS[k];
+    const core = cy ? subAliasBlock(inner, cy) : escapeSsml(inner);
     const doubled = `${core}<break time="240ms"/>${core}`;
     const ssml = `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${doubled}</emphasis></prosody></lang><break time="${edgeBreakMs}ms"/></speak>`;
     result = { ssml, speakingRate, volumeGainDb };
@@ -133,7 +130,7 @@ export function buildSerbianVocabularyTtsPayload(rawText: string): SerbianVocabu
     const speakingRate = 0.9;
     const volumeGainDb = 0.0;
     const edgeBreakMs = ssmlEdgeBreakMs(trimmed);
-    const body = wrapWordWithIpaIfNeeded(spoken);
+    const body = wrapWithCyrillicHintIfNeeded(spoken);
     const ssml = `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="${rateTag}">${body}</prosody></lang><break time="${edgeBreakMs}ms"/></speak>`;
     result = { ssml, speakingRate, volumeGainDb };
   }
@@ -150,7 +147,7 @@ export function buildSerbianVocabularyTtsPayload(rawText: string): SerbianVocabu
         hypothesisId: "H1",
         trimmed,
         singleGrapheme,
-        hasPhoneme: result.ssml.includes("<phoneme"),
+        hasSubAlias: result.ssml.includes("<sub "),
         ssmlLen: result.ssml.length,
         ssmlPreview: result.ssml.slice(0, 200),
         speakingRate: result.speakingRate,

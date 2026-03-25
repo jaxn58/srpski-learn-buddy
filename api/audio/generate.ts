@@ -14,7 +14,7 @@ import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
 import { buildSerbianVocabularyTtsPayload } from "../../shared/ttsSerbianSsml";
 
-const AUDIO_VERSION_TAG = "puck-v7";
+const AUDIO_VERSION_TAG = "puck-v8";
 
 // Environment variables
 const ENV = {
@@ -186,7 +186,7 @@ async function generateSerbianAudio(options: {
   try {
     // Generate audio
     const [response] = await client.synthesizeSpeech(request);
-    
+
     if (!response.audioContent) {
       throw new Error("No audio content received from Google Cloud TTS");
     }
@@ -198,6 +198,24 @@ async function generateSerbianAudio(options: {
     const { storageId } = await uploadToConvex("unused", audioBuffer, 'audio/mpeg');
     return { storageId };
   } catch (error) {
+    // #region agent log
+    const errMsg = error instanceof Error ? error.message : String(error);
+    fetch("http://127.0.0.1:7243/ingest/2809ce81-d7cd-4442-a6ea-472067536925", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "2e128e" },
+      body: JSON.stringify({
+        sessionId: "2e128e",
+        location: "api/audio/generate.ts:synthesizeSpeech",
+        message: "Google TTS synthesize failed",
+        data: {
+          hypothesisId: "H3",
+          errMsg,
+          ssmlPreview: ssmlText.slice(0, 280),
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (error instanceof Error) {
       throw new Error(`Google Cloud TTS failed: ${error.message}`);
     }

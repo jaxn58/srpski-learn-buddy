@@ -10,7 +10,7 @@ type PlayArgs = {
   textSr: string;
 };
 
-const AUDIO_VERSION_TAG = "puck-v7";
+const AUDIO_VERSION_TAG = "puck-v8";
 const DEFAULT_VOICE_KEY = "default";
 
 function fnv1a32Hex(input: string): string {
