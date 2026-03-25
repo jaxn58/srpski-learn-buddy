@@ -12,8 +12,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
+import { buildSerbianVocabularyTtsPayload } from "../../shared/ttsSerbianSsml";
 
-const AUDIO_VERSION_TAG = "puck-v6";
+const AUDIO_VERSION_TAG = "puck-v7";
 
 // Environment variables
 const ENV = {
@@ -160,76 +161,12 @@ async function generateSerbianAudio(options: {
     apiEndpoint: 'texttospeech.googleapis.com',
   });
 
-  function escapeSsml(text: string): string {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
-  }
-
-  function ssmlEdgeBreakMs(text: string): number {
-    const n = [...text.trim()].length;
-    if (n <= 4) return 420;
-    if (n <= 10) return 300;
-    return 260;
-  }
-
-  /**
-   * Latin-script forms of "biti" (and similar) are often title-cased in tables ("Sam", "Si").
-   * Without this, Chirp3 may read them as English names. Force Serbian spelling for TTS only.
-   */
-  function serbianLatinForTts(text: string): string {
-    const t = text.trim();
-    const key = t.toLowerCase().normalize("NFC");
-    const bitiAndHomographs = new Set([
-      "sam",
-      "si",
-      "je",
-      "smo",
-      "ste",
-      "su",
-      "jesam",
-      "jesi",
-      "jeste",
-      "jest",
-      "nisam",
-      "nisi",
-      "nije",
-      "nismo",
-      "niste",
-      "nisu",
-    ]);
-    if (bitiAndHomographs.has(key)) return key;
-    return t;
-  }
-
   // Single voice mode (same philosophy as vocabulary audio): no selectable variants.
   const pitch = 0.0;
-  const rateTag = "slow";
 
-  const trimmed = options.text.trim();
-  const graphemeCount = [...trimmed].length;
-  const singleGrapheme = graphemeCount <= 1;
-
-  /** UI often shows "I"/"A"; Serbian particles are lowercase Latin in normal orthography. */
-  let ssmlInner = trimmed;
-  if (singleGrapheme && /^[A-Z]$/.test(trimmed)) {
-    ssmlInner = trimmed.toLowerCase();
-  }
-  ssmlInner = serbianLatinForTts(ssmlInner);
-
-  const speakPhrase = serbianLatinForTts(trimmed);
-
-  /** One letter = very short acoustic core; stretch + gain + emphasis so it reads as a word, not a click. */
-  const speakingRate = singleGrapheme ? 0.72 : 0.9;
-  const volumeGainDb = singleGrapheme ? 5.5 : 0.0;
-  const edgeBreakMs = singleGrapheme ? 700 : ssmlEdgeBreakMs(trimmed);
-
-  const ssmlText = singleGrapheme
-    ? `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${escapeSsml(ssmlInner)}</emphasis></prosody></lang><break time="${edgeBreakMs}ms"/></speak>`
-    : `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="${rateTag}">${escapeSsml(speakPhrase)}</prosody></lang><break time="${edgeBreakMs}ms"/></speak>`;
+  const { ssml: ssmlText, speakingRate, volumeGainDb } = buildSerbianVocabularyTtsPayload(
+    options.text
+  );
 
   const request = {
     input: { ssml: ssmlText },

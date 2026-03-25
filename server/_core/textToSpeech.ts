@@ -11,6 +11,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { ENV } from "./env";
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
+import { buildSerbianVocabularyTtsPayload } from "../../shared/ttsSerbianSsml";
 
 export type GenerateSerbianAudioOptions = {
   text: string;
@@ -161,71 +162,12 @@ export async function generateSerbianAudio(
     apiEndpoint: 'texttospeech.googleapis.com',
   });
   
-  function escapeSsml(text: string): string {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
-  }
-
-  /** Longer pauses for very short tokens (e.g. "Šta") where Chirp3 output is easy to clip perceptually. */
-  function ssmlEdgeBreakMs(text: string): number {
-    const n = [...text.trim()].length;
-    if (n <= 4) return 420;
-    if (n <= 10) return 300;
-    return 260;
-  }
-
-  function serbianLatinForTts(text: string): string {
-    const t = text.trim();
-    const key = t.toLowerCase().normalize("NFC");
-    const bitiAndHomographs = new Set([
-      "sam",
-      "si",
-      "je",
-      "smo",
-      "ste",
-      "su",
-      "jesam",
-      "jesi",
-      "jeste",
-      "jest",
-      "nisam",
-      "nisi",
-      "nije",
-      "nismo",
-      "niste",
-      "nisu",
-    ]);
-    if (bitiAndHomographs.has(key)) return key;
-    return t;
-  }
-
   // Single voice mode (same as vocabulary audio): no selectable variants.
   const pitch = 0.0;
-  const rateTag = "slow";
 
-  const trimmed = options.text.trim();
-  const graphemeCount = [...trimmed].length;
-  const singleGrapheme = graphemeCount <= 1;
-
-  let ssmlInner = trimmed;
-  if (singleGrapheme && /^[A-Z]$/.test(trimmed)) {
-    ssmlInner = trimmed.toLowerCase();
-  }
-  ssmlInner = serbianLatinForTts(ssmlInner);
-
-  const speakPhrase = serbianLatinForTts(trimmed);
-
-  const speakingRate = singleGrapheme ? 0.72 : 0.9;
-  const volumeGainDb = singleGrapheme ? 5.5 : 0.0;
-  const edgeBreakMs = singleGrapheme ? 700 : ssmlEdgeBreakMs(trimmed);
-
-  const ssmlText = singleGrapheme
-    ? `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="x-slow"><emphasis level="strong">${escapeSsml(ssmlInner)}</emphasis></prosody></lang><break time="${edgeBreakMs}ms"/></speak>`
-    : `<speak><break time="${edgeBreakMs}ms"/><lang xml:lang="sr-RS"><prosody rate="${rateTag}">${escapeSsml(speakPhrase)}</prosody></lang><break time="${edgeBreakMs}ms"/></speak>`;
+  const { ssml: ssmlText, speakingRate, volumeGainDb } = buildSerbianVocabularyTtsPayload(
+    options.text
+  );
   const request = {
     input: { ssml: ssmlText },
     voice: {
