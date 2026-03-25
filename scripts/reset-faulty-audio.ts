@@ -1,13 +1,16 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
 import * as dotenv from "dotenv";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as readline from "readline";
 
-// Same as Vite / other scripts: .env then .env.local (local overrides)
-dotenv.config();
-dotenv.config({ path: ".env.local", override: true });
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+dotenv.config({ path: path.join(projectRoot, ".env") });
+dotenv.config({ path: path.join(projectRoot, ".env.local"), override: true });
 
-const CONVEX_URL = process.env.VITE_CONVEX_URL || process.env.CONVEX_URL;
+const CONVEX_URL = (process.env.VITE_CONVEX_URL || process.env.CONVEX_URL || "").trim();
 
 if (!CONVEX_URL) {
   console.error("❌ No Convex URL found.");
@@ -15,12 +18,22 @@ if (!CONVEX_URL) {
   process.exit(1);
 }
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+const ADMIN_SECRET = (process.env.ADMIN_SECRET ?? "").trim().replace(/^["']|["']$/g, "");
 if (!ADMIN_SECRET) {
-  console.error("❌ ADMIN_SECRET is not set.");
-  console.error(
-    "💡 Add ADMIN_SECRET to .env.local — same value as Convex Dashboard → this deployment (Dev) → Settings → Environment Variables."
-  );
+  const pEnv = path.join(projectRoot, ".env");
+  const pLocal = path.join(projectRoot, ".env.local");
+  const raw = process.env.ADMIN_SECRET;
+  console.error("❌ ADMIN_SECRET is empty after loading env files.");
+  console.error(`   Resolved project root: ${projectRoot}`);
+  console.error(`   ${pEnv} exists: ${fs.existsSync(pEnv)}`);
+  console.error(`   ${pLocal} exists: ${fs.existsSync(pLocal)}`);
+  if (raw !== undefined && String(raw).trim() === "") {
+    console.error("   ADMIN_SECRET is defined but only whitespace.");
+  }
+  if (raw === undefined) {
+    console.error("   ADMIN_SECRET is undefined — check key name, # comments, or UTF-8 BOM on line 1.");
+  }
+  console.error("💡 Exact key: ADMIN_SECRET=... in .env.local next to package.json.");
   process.exit(1);
 }
 

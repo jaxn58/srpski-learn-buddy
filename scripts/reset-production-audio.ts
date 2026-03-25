@@ -1,15 +1,36 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
-import "dotenv/config";
+import * as dotenv from "dotenv";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as readline from "readline";
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+dotenv.config({ path: path.join(projectRoot, ".env") });
+dotenv.config({ path: path.join(projectRoot, ".env.local"), override: true });
 
 // PRODUCTION Convex URL (hardcoded for safety)
 const PROD_CONVEX_URL = "https://fleet-labrador-324.convex.cloud";
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+const ADMIN_SECRET = (process.env.ADMIN_SECRET ?? "").trim().replace(/^["']|["']$/g, "");
 
 if (!ADMIN_SECRET) {
-  console.error("❌ ADMIN_SECRET is not set in .env");
-  console.error("💡 Add ADMIN_SECRET=your-secret-key to .env file");
+  const pEnv = path.join(projectRoot, ".env");
+  const pLocal = path.join(projectRoot, ".env.local");
+  const raw = process.env.ADMIN_SECRET;
+  console.error("❌ ADMIN_SECRET is empty after loading env files.");
+  console.error(`   Resolved project root: ${projectRoot}`);
+  console.error(`   ${pEnv} exists: ${fs.existsSync(pEnv)}`);
+  console.error(`   ${pLocal} exists: ${fs.existsSync(pLocal)}`);
+  if (raw !== undefined && String(raw).trim() === "") {
+    console.error("   ADMIN_SECRET is defined but only whitespace (or cleared by trim).");
+  }
+  if (raw === undefined) {
+    console.error("   ADMIN_SECRET is undefined — dotenv did not set it (wrong name, BOM on first line, or line commented out).");
+  }
+  console.error(
+    "💡 Use exact key ADMIN_SECRET=... in .env.local (repo root). Must match Convex Production env."
+  );
   process.exit(1);
 }
 
