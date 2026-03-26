@@ -301,11 +301,6 @@ export function TopNavigation() {
         icon: <FileText className="h-4 w-4" />,
       },
       {
-        label: t("sidebar.viewProgress"),
-        href: "/progress",
-        icon: <TrendingUp className="h-4 w-4" />,
-      },
-      {
         label: t("sidebar.leaderboards"),
         href: "/leaderboards",
         icon: <Trophy className="h-4 w-4" />,
@@ -711,6 +706,12 @@ export function TopNavigation() {
                 <Link href="/profile" className="cursor-pointer">
                   <UserCircle className="mr-2 h-4 w-4" />
                   <span>{t("sidebar.profile")}</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/changelog" className="cursor-pointer">
+                  <ScrollText className="mr-2 h-4 w-4" />
+                  <span>{t("sidebar.changelog")}</span>
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
