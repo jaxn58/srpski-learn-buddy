@@ -5,10 +5,32 @@ import * as path from "node:path";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
+import i18n from "i18next";
+
 import { api } from "../convex/_generated/api";
-import i18n from "../client/src/i18n";
 import { LandingSsg } from "../client/src/pages/home/LandingSsg";
 import { buildLandingModuleCards, computeLandingCounts } from "../client/src/pages/home/landingData";
+
+/**
+ * Initialise a standalone i18next instance for Node.js (build-time).
+ * The client-side i18n uses HttpBackend which requires a running HTTP server
+ * and therefore fails silently in Node, returning raw keys instead of values.
+ */
+async function initI18nForNode() {
+  const translationsEn = JSON.parse(
+    fs.readFileSync(
+      path.resolve(import.meta.dirname, "../client/public/locales/en/translation.json"),
+      "utf-8",
+    ),
+  );
+
+  await i18n.init({
+    lng: "en",
+    fallbackLng: "en",
+    resources: { en: { translation: translationsEn } },
+    interpolation: { escapeValue: false },
+  });
+}
 
 dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local", override: true });
@@ -64,8 +86,7 @@ async function main() {
   const isWaitlistMode = process.env.VITE_WAITLIST_MODE === "on";
   const showWaitlist = isWaitlistMode; // prerender assumes non-privileged, logged-out visitor
 
-  // Ensure i18n is initialized for Node usage
-  await i18n.changeLanguage("en");
+  await initI18nForNode();
   const t = (key: string, options?: Record<string, any>) => i18n.t(key, options) as string;
 
   const { counts, modulesData } = await fetchLandingData(convexUrl);
@@ -80,24 +101,69 @@ async function main() {
   if (siteUrl) {
     headTags.push(`<link rel="canonical" href="${escapeHtml(siteUrl + "/")}" />`);
     headTags.push(`<meta property="og:url" content="${escapeHtml(siteUrl + "/")}" />`);
-    headTags.push(`<meta property="og:image" content="${escapeHtml(siteUrl + "/favicon.png")}" />`);
+    headTags.push(`<meta property="og:image" content="${escapeHtml(siteUrl + "/og-image.png")}" />`);
+    headTags.push(`<meta property="og:image:width" content="1200" />`);
+    headTags.push(`<meta property="og:image:height" content="630" />`);
   }
 
   headTags.push(`<meta property="og:type" content="website" />`);
   headTags.push(`<meta property="og:title" content="${escapeHtml(title)}" />`);
   headTags.push(`<meta property="og:description" content="${escapeHtml(heroDescriptionPlain)}" />`);
-  headTags.push(`<meta name="twitter:card" content="summary" />`);
+  headTags.push(`<meta name="twitter:card" content="summary_large_image" />`);
   headTags.push(`<meta name="twitter:title" content="${escapeHtml(title)}" />`);
   headTags.push(`<meta name="twitter:description" content="${escapeHtml(heroDescriptionPlain)}" />`);
+  if (siteUrl) {
+    headTags.push(`<meta name="twitter:image" content="${escapeHtml(siteUrl + "/og-image.png")}" />`);
+  }
 
-  // Minimal structured data (safe defaults). If SITE_URL is unknown, omit @id/url fields.
-  const jsonLd: any = {
+  // --- Structured Data (JSON-LD) ---
+
+  const websiteSchema: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: title,
     ...(siteUrl ? { url: siteUrl + "/" } : {}),
   };
-  headTags.push(`<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`);
+  headTags.push(`<script type="application/ld+json">${JSON.stringify(websiteSchema)}</script>`);
+
+  const courseSchema: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Course",
+    name: title,
+    description: heroDescriptionPlain,
+    provider: {
+      "@type": "Organization",
+      name: "JACKSENN.ME",
+      ...(siteUrl ? { url: siteUrl + "/" } : {}),
+    },
+    inLanguage: "sr",
+    teaches: "Serbian language essentials for expats and travelers",
+    ...(siteUrl ? { url: siteUrl + "/" } : {}),
+  };
+  headTags.push(`<script type="application/ld+json">${JSON.stringify(courseSchema)}</script>`);
+
+  const faqKeys = Array.from({ length: 10 }, (_, i) => i + 1);
+  const faqEntries = faqKeys
+    .map((n) => {
+      const q = t(`home.faq.q${n}.question`);
+      const a = stripHtml(
+        showWaitlist
+          ? (t(`home.faq.q${n}.answerWaitlist`, { defaultValue: "" }) || t(`home.faq.q${n}.answer`, counts))
+          : t(`home.faq.q${n}.answer`, counts),
+      );
+      if (!q || !a || q.startsWith("home.faq.")) return null;
+      return { "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } };
+    })
+    .filter(Boolean);
+
+  if (faqEntries.length > 0) {
+    const faqSchema: Record<string, unknown> = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: faqEntries,
+    };
+    headTags.push(`<script type="application/ld+json">${JSON.stringify(faqSchema)}</script>`);
+  }
 
   const appHtml = renderToStaticMarkup(
     React.createElement(LandingSsg, {
