@@ -80,8 +80,11 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
       .replace(/[\u0300-\u036f]/g, "")
       // Serbian keyboard fallback: đ/Đ is often typed as plain "d"
       .replace(/đ/g, "d")
+      // strip punctuation
+      .replace(/[.,!?;:'"()\[\]{}\-–—…¡¿]/g, "")
       // collapse whitespace
-      .replace(/\s+/g, " ");
+      .replace(/\s+/g, " ")
+      .trim();
   };
 
   // State for answers and block-level checking

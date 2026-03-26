@@ -763,10 +763,13 @@ export default function Vocabulary() {
       alternatives = [];
     }
 
-    const userAnswerLower = userAnswer.trim().toLowerCase();
-    const correctTranslation = correctTranslationForWord.toLowerCase();
-    const alternativesLower = alternatives.map(alt => alt.toLowerCase());
-    const correct = userAnswerLower === correctTranslation || alternativesLower.includes(userAnswerLower);
+    const normalizeQuizAnswer = (s: string) =>
+      s.trim().toLowerCase().replace(/[.,!?;:'"()\[\]{}\-–—…¡¿]/g, "").replace(/\s+/g, " ").trim();
+
+    const userAnswerNorm = normalizeQuizAnswer(userAnswer);
+    const correctTranslation = normalizeQuizAnswer(correctTranslationForWord);
+    const alternativesNorm = alternatives.map(normalizeQuizAnswer);
+    const correct = userAnswerNorm === correctTranslation || alternativesNorm.includes(userAnswerNorm);
     
     
     setIsCorrect(correct);
