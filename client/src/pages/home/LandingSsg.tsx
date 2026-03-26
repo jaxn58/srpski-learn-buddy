@@ -57,9 +57,9 @@ export function LandingSsg(props: {
         {/* Hero */}
         <section className="container py-20">
           <div className="max-w-4xl mx-auto text-center space-y-6">
-            <div className="inline-block px-4 py-2 bg-accent/20 rounded-full text-primary font-semibold mb-4 border border-accent/40">
+            <a href="#beta-registration" className="inline-block px-4 py-2 bg-accent/20 rounded-full text-primary font-semibold mb-4 border border-accent/40 cursor-pointer hover:opacity-80 transition-opacity">
               {t("home.hero.badge")}
-            </div>
+            </a>
 
             <h2 className="text-6xl font-bold tracking-tight">
               <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">

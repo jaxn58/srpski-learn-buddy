@@ -427,9 +427,9 @@ export default function Home() {
       {/* Hero Section */}
       <section className="container py-20">
         <div className="max-w-4xl mx-auto text-center space-y-6">
-          <div className="inline-block px-4 py-2 bg-accent/20 rounded-full text-primary font-semibold mb-4 border border-accent/40">
+          <a href="#beta-registration" className="inline-block px-4 py-2 bg-accent/20 rounded-full text-primary font-semibold mb-4 border border-accent/40 cursor-pointer hover:opacity-80 transition-opacity">
             {t('home.hero.badge')}
-          </div>
+          </a>
           <h2 className="text-6xl font-bold tracking-tight">
             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               {t('home.hero.title')}
@@ -460,11 +460,20 @@ export default function Home() {
                     {t("waitlist.title")}
                   </Button>
                 )}
+                {!showWaitlist && (
+                  <Button
+                    size="lg"
+                    className="bg-primary hover:bg-primary/90 text-lg px-8"
+                    asChild
+                  >
+                    <a href="#beta-registration">{t('home.hero.ctaPrimary')}</a>
+                  </Button>
+                )}
                 <Link href="/sign-in">
                   <Button 
                     size="lg" 
-                    variant={showWaitlist ? "outline" : "default"}
-                    className={showWaitlist ? "text-lg px-8 border-primary text-primary hover:bg-primary/10" : "bg-primary hover:bg-primary/90 text-lg px-8"}
+                    variant="outline"
+                    className="text-lg px-8 border-primary text-primary hover:bg-primary/10"
                   >
                     {t('home.header.login')}
                   </Button>
@@ -1542,30 +1551,57 @@ export default function Home() {
             </CardHeader>
             <CardContent className="pt-6">
               {!isAuthenticated ? (
-                learningLanguage ? (
-                  <div className="space-y-4 flex flex-col items-center">
-                    <SignUp
-                      routing="virtual"
-                      signInUrl="/sign-in"
-                    />
-                    <p className="text-sm text-center text-muted-foreground max-w-xl">
-                      {t('home.beta.signupNote')}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4 flex flex-col items-center text-center">
-                    <p className="text-sm text-muted-foreground max-w-xl">
-                      {t("home.learningLanguage.requiredInline")}
-                    </p>
-                    <Button
-                      variant="outline"
-                      className="border-primary text-primary hover:bg-primary/10"
-                      onClick={scrollToLearningLanguageSelector}
+                <div className="space-y-6 flex flex-col items-center">
+                  {/* Program selector directly in registration card */}
+                  <div className="w-full space-y-3">
+                    <p className="text-sm font-semibold text-center">{t("home.learningLanguage.title")}</p>
+                    <p className="text-xs text-muted-foreground text-center">{t("home.learningLanguage.hint")}</p>
+                    <RadioGroup
+                      value={learningLanguage ?? ""}
+                      onValueChange={(value) => {
+                        if (value !== "en" && value !== "de") return;
+                        updateLearningLanguageChoice(value);
+                      }}
+                      className="grid w-full max-w-2xl gap-3 sm:grid-cols-2"
+                      aria-describedby="beta-learning-language-note"
                     >
-                      {t("home.learningLanguage.requiredCta")}
-                    </Button>
+                      <div className="relative">
+                        <RadioGroupItem value="de" id="beta-learning-language-de" className="peer sr-only" />
+                        <Label
+                          htmlFor="beta-learning-language-de"
+                          className="flex items-center justify-center rounded-xl border-2 bg-white/70 px-4 py-4 text-sm font-semibold shadow-sm transition-all hover:border-primary/60 hover:bg-white peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-accent/20 peer-data-[state=checked]:shadow-md peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background cursor-pointer select-none"
+                        >
+                          {t("home.learningLanguage.option.de")}
+                        </Label>
+                      </div>
+                      <div className="relative">
+                        <RadioGroupItem value="en" id="beta-learning-language-en" className="peer sr-only" />
+                        <Label
+                          htmlFor="beta-learning-language-en"
+                          className="flex items-center justify-center rounded-xl border-2 bg-white/70 px-4 py-4 text-sm font-semibold shadow-sm transition-all hover:border-primary/60 hover:bg-white peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-accent/20 peer-data-[state=checked]:shadow-md peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background cursor-pointer select-none"
+                        >
+                          {t("home.learningLanguage.option.en")}
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                    <div id="beta-learning-language-note" className="text-xs text-muted-foreground text-center max-w-2xl">
+                      {t("home.learningLanguage.note")}
+                    </div>
                   </div>
-                )
+
+                  {/* Clerk SignUp — only visible once program is selected */}
+                  {learningLanguage && (
+                    <>
+                      <SignUp
+                        routing="virtual"
+                        signInUrl="/sign-in"
+                      />
+                      <p className="text-sm text-center text-muted-foreground max-w-xl">
+                        {t('home.beta.signupNote')}
+                      </p>
+                    </>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-4 text-center">
                   <p className="text-lg font-semibold">
