@@ -77,7 +77,8 @@ const achievementToneEmblemClass = (tone: AchievementTone) => {
 export default function Progress() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const stats = useQuery(api.progress.getDashboardStats);
+  const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
+  const stats = useQuery(api.progress.getDashboardStats, { todayStart });
   const backfillDailyActivity = useMutation(api.progress.backfillDailyActivityForCurrentUser);
 
   const userBadges = useQuery(api.badges.getUserBadges);

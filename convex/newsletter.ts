@@ -617,10 +617,10 @@ export const getContactByUnsubscribeToken = query({
 });
 
 /**
- * Unsubscribe contact
+ * Unsubscribe contact (internal only, called from webhook handler)
  */
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-export const unsubscribeContact = mutation({
+export const unsubscribeContact = internalMutation({
   args: { contactId: v.id("newsletterContacts") },
   handler: async (ctx, args) => {
     const contact = await ctx.db.get(args.contactId);
@@ -1877,10 +1877,10 @@ export const getEmailLogByResendId = query({
 });
 
 /**
- * Update email log from webhook
+ * Update email log from webhook (internal only, called from HTTP handler)
  */
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-export const updateEmailLogFromWebhook = mutation({
+export const updateEmailLogFromWebhook = internalMutation({
   args: {
     emailLogId: v.id("newsletterEmailLogs"),
     status: v.optional(v.union(

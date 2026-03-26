@@ -146,7 +146,8 @@ export function TopNavigation() {
   const isBetaTester = Boolean(user?.isBetaTester);
   const activeClass = "bg-accent text-accent-foreground hover:bg-accent/90 hover:text-accent-foreground";
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
-  const stats = useQuery(api.progress.getDashboardStats, user ? undefined : "skip");
+  const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
+  const stats = useQuery(api.progress.getDashboardStats, user ? { todayStart } : "skip");
   // Protected layout already requires auth; mirror `/units` data access here.
   const dbModules = useQuery(api.modules.getAllModulesConsolidated) as
     | DbModuleForQuickSwitch[]

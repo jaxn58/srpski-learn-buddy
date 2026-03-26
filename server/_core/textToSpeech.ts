@@ -96,7 +96,6 @@ async function uploadToConvex(
     throw new Error("VITE_CONVEX_URL is not configured");
   }
 
-  // Call Convex mutation to generate upload URL
   const uploadUrlResponse = await fetch(`${convexUrl}/api/mutation`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

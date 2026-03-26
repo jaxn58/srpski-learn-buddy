@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +70,7 @@ type UserVocabProgressRow = {
 
 export default function Vocabulary() {
   const { user } = useAuth();
+  const { getToken } = useClerkAuth();
   const { t, i18n } = useTranslation();
   const progress = useQuery(api.progress.getUserProgress);
   const [location] = useLocation();
@@ -220,10 +222,12 @@ export default function Vocabulary() {
           ? `${configuredServerUrl}/api/audio/generate`
           : "/api/audio/generate";
 
+        const token = await getToken();
         const response = await fetch(audioEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
           },
           body: JSON.stringify({
             serbianWord,

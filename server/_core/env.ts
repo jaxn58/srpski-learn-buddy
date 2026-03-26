@@ -6,7 +6,7 @@ export const ENV = {
   // Legacy app config (may be deprecated)
   appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
-  jwtSecret: process.env.JWT_SECRET ?? "your-secret-key-change-in-production",
+  jwtSecret: process.env.JWT_SECRET ?? "",
   
   // Environment
   isProduction: process.env.NODE_ENV === "production",
@@ -31,6 +31,10 @@ export const ENV = {
 // Validate required environment variables
 if (!ENV.clerkSecretKey) {
   console.warn("[ENV] Missing CLERK_SECRET_KEY - Clerk authentication may not work");
+}
+
+if (ENV.isProduction && !ENV.jwtSecret) {
+  throw new Error("[ENV] FATAL: JWT_SECRET is required in production. Set it in environment variables.");
 }
 
 if (!ENV.dodoPaymentsApiKey || !ENV.dodoPaymentsWebhookKey) {

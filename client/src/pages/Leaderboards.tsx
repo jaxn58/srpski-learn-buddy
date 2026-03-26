@@ -72,7 +72,8 @@ export default function Leaderboards() {
   const convex = useConvex();
   const { t } = useTranslation();
 
-  const stats = useQuery(api.progress.getDashboardStats, user ? undefined : "skip");
+  const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
+  const stats = useQuery(api.progress.getDashboardStats, user ? { todayStart } : "skip");
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const [levelDistribution, setLevelDistribution] = useState<
     | {

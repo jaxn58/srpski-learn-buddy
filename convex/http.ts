@@ -306,13 +306,42 @@ http.route({
 
 // ============= NEWSLETTER ENDPOINTS =============
 
-// Resend webhook endpoint for email events
+// Resend webhook endpoint for email events (Svix signature verification)
 http.route({
   path: "/newsletter/webhook/resend",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
-      const payload = await request.json();
+      const rawBody = await request.text();
+
+      const svixId = request.headers.get("svix-id");
+      const svixTimestamp = request.headers.get("svix-timestamp");
+      const svixSignature = request.headers.get("svix-signature");
+
+      if (!svixId || !svixTimestamp || !svixSignature) {
+        console.warn("[Newsletter Webhook] Missing Svix signature headers");
+        return new Response("Missing webhook signature headers", { status: 400 });
+      }
+
+      const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        console.error("[Newsletter Webhook] RESEND_WEBHOOK_SECRET not configured");
+        return new Response("Server configuration error", { status: 500 });
+      }
+
+      let payload: any;
+      try {
+        const wh = new SvixWebhook(webhookSecret);
+        payload = wh.verify(rawBody, {
+          "svix-id": svixId,
+          "svix-timestamp": svixTimestamp,
+          "svix-signature": svixSignature,
+        });
+      } catch (verifyError) {
+        console.error("[Newsletter Webhook] Invalid signature", { error: String(verifyError) });
+        return new Response("Invalid webhook signature", { status: 401 });
+      }
+
       const eventType = payload.type;
       const messageId = payload.data?.email_id || payload.data?.message_id;
 
@@ -336,7 +365,7 @@ http.route({
       // Update email log based on event type
       switch (eventType) {
         case "email.delivered":
-          await ctx.runMutation(api.newsletter.updateEmailLogFromWebhook, {
+          await ctx.runMutation(internal.newsletter.updateEmailLogFromWebhook, {
             emailLogId: emailLog._id,
             status: "delivered",
             deliveredAt: Date.now(),
@@ -344,7 +373,7 @@ http.route({
           break;
 
         case "email.opened":
-          await ctx.runMutation(api.newsletter.updateEmailLogFromWebhook, {
+          await ctx.runMutation(internal.newsletter.updateEmailLogFromWebhook, {
             emailLogId: emailLog._id,
             status: "opened",
             openedAt: emailLog.openedAt || Date.now(),
@@ -354,18 +383,17 @@ http.route({
           break;
 
         case "email.bounced":
-          await ctx.runMutation(api.newsletter.updateEmailLogFromWebhook, {
+          await ctx.runMutation(internal.newsletter.updateEmailLogFromWebhook, {
             emailLogId: emailLog._id,
             status: "bounced",
           });
           break;
 
         case "email.complained":
-          // User marked as spam - unsubscribe them
-          await ctx.runMutation(api.newsletter.unsubscribeContact, {
+          await ctx.runMutation(internal.newsletter.unsubscribeContact, {
             contactId: emailLog.contactId,
           });
-          await ctx.runMutation(api.newsletter.updateEmailLogFromWebhook, {
+          await ctx.runMutation(internal.newsletter.updateEmailLogFromWebhook, {
             emailLogId: emailLog._id,
             status: "bounced",
           });

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
@@ -42,13 +43,15 @@ function DynamicClerkProvider({ children }: { children: React.ReactNode }) {
 const rootElement = document.getElementById("root")!;
 
 const appTree = (
-  <I18nextProvider i18n={i18n}>
-    <DynamicClerkProvider>
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <App />
-      </ConvexProviderWithClerk>
-    </DynamicClerkProvider>
-  </I18nextProvider>
+  <Suspense fallback={<div style={{ minHeight: "100vh" }} />}>
+    <I18nextProvider i18n={i18n}>
+      <DynamicClerkProvider>
+        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+          <App />
+        </ConvexProviderWithClerk>
+      </DynamicClerkProvider>
+    </I18nextProvider>
+  </Suspense>
 );
 
 // Store root in a way that survives HMR. If the root contains prerendered HTML,

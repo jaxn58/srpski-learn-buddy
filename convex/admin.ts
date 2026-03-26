@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { assertLearnerAccountActive } from "./authz";
-import { mutation, query, internalQuery, action, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, internalQuery, internalMutation, action, QueryCtx, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { VOCABULARY } from "../shared/data/vocabulary/words";
@@ -72,81 +72,73 @@ export const internalGetChatPromptByName = internalQuery({
   },
 });
 
-// Get all users (admin only)
+// Get all users (admin only) - batch-read to avoid N+1
 export const getAllUsers = query({
   handler: async (ctx) => {
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
 
     const users = await ctx.db.query("users").collect();
-    
-    // Enrich with progress and subscription data
-    const enrichedUsers = await Promise.all(
-      users.map(async (user) => {
-        const progress = await ctx.db
-          .query("userProgress")
-          .withIndex("by_user", (q) => q.eq("userId", user._id))
-          .first();
+    const allProgress = await ctx.db.query("userProgress").collect();
+    const allSubscriptions = await ctx.db.query("userSubscriptions").collect();
 
-        // Get user's active subscription
-        const subscription = await ctx.db
-          .query("userSubscriptions")
-          .withIndex("by_user", (q) => q.eq("userId", user._id))
-          .filter((q) => q.eq(q.field("status"), "active"))
-          .first();
+    const progressByUser = new Map(allProgress.map(p => [p.userId.toString(), p]));
+    const activeSubByUser = new Map<string, typeof allSubscriptions[number]>();
+    for (const sub of allSubscriptions) {
+      if (sub.status === "active") {
+        activeSubByUser.set(sub.userId.toString(), sub);
+      }
+    }
 
-        // Map plan type to display name
-        const planNames: Record<string, string> = {
-          intensive: "Intensive",
-          balanced: "Balanced",
-          standard: "Standard",
-          relaxed: "Relaxed",
-        };
+    const planNames: Record<string, string> = {
+      intensive: "Intensive",
+      balanced: "Balanced",
+      standard: "Standard",
+      relaxed: "Relaxed",
+    };
 
-        return {
-          ...user,
-          progress: progress || null,
-          subscription: subscription
-            ? {
-                ...subscription,
-                planName: planNames[subscription.planType] || subscription.planType,
-              }
-            : null,
-        };
-      })
-    );
-
-    return enrichedUsers;
+    return users.map(user => {
+      const progress = progressByUser.get(user._id.toString()) || null;
+      const subscription = activeSubByUser.get(user._id.toString()) || null;
+      return {
+        ...user,
+        progress,
+        subscription: subscription
+          ? { ...subscription, planName: planNames[subscription.planType] || subscription.planType }
+          : null,
+      };
+    });
   },
 });
 
-// Get all user progress (admin only)
+// Get all user progress (admin only) - batch-read to avoid N+1
 export const getAllProgress = query({
   handler: async (ctx) => {
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
 
     const allProgress = await ctx.db.query("userProgress").collect();
-    
-    // Enrich with user info and subscription data
-    const enrichedProgress = await Promise.all(
-      allProgress.map(async (progress) => {
-        const user = await ctx.db.get(progress.userId);
-        const subscription = await ctx.db
-          .query("userSubscriptions")
-          .withIndex("by_user", (q) => q.eq("userId", progress.userId))
-          .filter((q) => q.eq(q.field("status"), "active"))
-          .first();
-        return {
-          ...progress,
-          userName: user?.name || user?.email || "Unknown",
-          userEmail: user?.email || "",
-          planDurationMonths: subscription?.planDurationMonths ?? null,
-        };
-      })
-    );
+    const allUsers = await ctx.db.query("users").collect();
+    const allSubscriptions = await ctx.db.query("userSubscriptions").collect();
 
-    return enrichedProgress;
+    const usersById = new Map(allUsers.map(u => [u._id.toString(), u]));
+    const activeSubByUser = new Map<string, typeof allSubscriptions[number]>();
+    for (const sub of allSubscriptions) {
+      if (sub.status === "active") {
+        activeSubByUser.set(sub.userId.toString(), sub);
+      }
+    }
+
+    return allProgress.map(progress => {
+      const user = usersById.get(progress.userId.toString());
+      const subscription = activeSubByUser.get(progress.userId.toString());
+      return {
+        ...progress,
+        userName: user?.name || user?.email || "Unknown",
+        userEmail: user?.email || "",
+        planDurationMonths: subscription?.planDurationMonths ?? null,
+      };
+    });
   },
 });
 
@@ -220,8 +212,8 @@ export const toggleUserStatus = mutation({
   },
 });
 
-// Update user learning language (for migration script & admin)
-export const updateUser = mutation({
+// Update user learning language (internal only, for migration scripts)
+export const updateUser = internalMutation({
   args: {
     userId: v.id("users"),
     learningLanguage: v.optional(v.union(
@@ -232,9 +224,6 @@ export const updateUser = mutation({
     )),
   },
   handler: async (ctx, args) => {
-    // This mutation is used by the migration script, so we allow it
-    // In production, you might want to add admin checks here
-    
     const updateData: any = {};
     
     if (args.learningLanguage !== undefined) {

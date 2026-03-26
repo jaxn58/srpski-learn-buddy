@@ -127,7 +127,8 @@ export default function Dashboard() {
   
   // Load dynamic data from DB instead of static files
   const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
-  const dashboardStats = useQuery(api.progress.getDashboardStats);
+  const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
+  const dashboardStats = useQuery(api.progress.getDashboardStats, { todayStart });
   const seedDay = new Date().toISOString().slice(0, 10);
   const practicePreview = useQuery(
     api.vocabulary.getPracticePreview,

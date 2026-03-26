@@ -22,7 +22,7 @@ import {
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,7 @@ import {
   SheetContent,
 } from "@/components/ui/sheet";
 import { UnitManagerTab } from "@/components/admin/UnitManagerTab";
-import { ImportTab } from "./ContentImportAdmin";
+const LazyImportTab = lazy(() => import("./ContentImportAdmin").then(m => ({ default: m.ImportTab })));
 import { SettingsSheet } from "@/components/admin/contentStudio/SettingsSheet";
 import { DraftList } from "@/components/admin/contentStudio/DraftList";
 import { ArtifactsPanel } from "@/components/admin/contentStudio/ArtifactsPanel";
@@ -2304,7 +2304,7 @@ export default function ContentStudioAdmin() {
       </Dialog>
 
       {/* Import view */}
-      {studioView === "import" && <ImportTab />}
+      {studioView === "import" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyImportTab /></Suspense>}
 
       {/* Unit Manager view */}
       {studioView === "units" && (

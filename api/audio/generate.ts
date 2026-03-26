@@ -7,10 +7,24 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
+import { verifyToken } from '@clerk/backend';
 import fs from "node:fs";
 import { createPrivateKey } from "node:crypto";
 
 const AUDIO_VERSION_TAG = "standard-v1";
+
+const ALLOWED_ORIGINS = [
+  "https://learn-with.me",
+  "https://www.learn-with.me",
+];
+
+function isAllowedOrigin(origin: string | undefined): string | null {
+  if (!origin) return null;
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return origin;
+  if (/^https:\/\/srpski-tutor[a-z0-9-]*-jaxn58s-projects\.vercel\.app$/.test(origin)) return origin;
+  return null;
+}
 
 const ENV = {
   googleCloudServiceAccountKey: process.env.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY ?? "",
@@ -192,14 +206,49 @@ async function generateSerbianAudio(options: {
   }
 }
 
+async function authenticateRequest(req: VercelRequest): Promise<boolean> {
+  const ttsSecret = process.env.TTS_API_SECRET;
+  if (ttsSecret && req.headers["x-tts-secret"] === ttsSecret) return true;
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) return false;
+
+  const token = authHeader.slice(7);
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
+    console.error("[TTS Auth] CLERK_SECRET_KEY not configured");
+    return false;
+  }
+
+  try {
+    await verifyToken(token, { secretKey });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const origin = req.headers.origin as string | undefined;
+  const allowed = isAllowedOrigin(origin);
+
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  res.setHeader('Access-Control-Allow-Origin', allowed || '');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-TTS-Secret');
+  res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
+
+  if (!allowed && origin) {
+    return res.status(403).json({ success: false, error: 'Origin not allowed' });
+  }
+
+  const isAuthenticated = await authenticateRequest(req);
+  if (!isAuthenticated) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
 
   try {
     const { serbianWord, text, vocabularyId, unitNumber, contentType } = req.body;

@@ -81,7 +81,6 @@ export const syncUser = mutation({
     if (existing) {
       assertLearnerAccountActive(existing);
 
-      // Special case: Ensure hello@jacksenn.me is always superadmin
       const updates: any = {
         lastActiveDate: Date.now(),
       };
@@ -93,7 +92,8 @@ export const syncUser = mutation({
         updates.learningLanguage = args.learningLanguage;
       }
       
-      if (existing.email === "hello@jacksenn.me" && existing.role !== "superadmin") {
+      const ownerEmail = process.env.OWNER_EMAIL;
+      if (ownerEmail && existing.email === ownerEmail && existing.role !== "superadmin") {
         updates.role = "superadmin";
         updates.isActive = true;
         updates.isBetaTester = true;
@@ -484,8 +484,8 @@ export const updateUserXP = mutation({
   },
 });
 
-// Make user superadmin (for initial setup - remove after use)
-export const makeSuperadmin = mutation({
+// Make user superadmin (for initial setup via Convex dashboard only)
+export const makeSuperadmin = internalMutation({
   args: {
     email: v.string(),
   },
@@ -520,8 +520,8 @@ export const makeSuperadmin = mutation({
   },
 });
 
-// Make user superadmin by Clerk ID (more reliable)
-export const makeSuperadminByClerkId = mutation({
+// Make user superadmin by Clerk ID (via Convex dashboard only)
+export const makeSuperadminByClerkId = internalMutation({
   args: {
     clerkId: v.string(),
   },
@@ -580,8 +580,8 @@ export const fixUserName = internalMutation({
   },
 });
 
-// Action to fix user name (can be called without auth)
-export const fixUserNameAction = action({
+// Action to fix user name (internal only, via Convex dashboard)
+export const fixUserNameAction = internalAction({
   args: {
     email: v.string(),
     name: v.string(),
@@ -594,8 +594,8 @@ export const fixUserNameAction = action({
   },
 });
 
-// Activate all inactive users (one-time migration helper)
-export const activateAllUsers = mutation({
+// Activate all inactive users (internal migration helper)
+export const activateAllUsers = internalMutation({
   handler: async (ctx) => {
     const inactiveUsers = await ctx.db
       .query("users")
@@ -619,8 +619,8 @@ export const activateAllUsers = mutation({
   },
 });
 
-// Mark all users as beta testers (one-time migration helper)
-export const makeAllUsersBetaTesters = mutation({
+// Mark all users as beta testers (internal migration helper)
+export const makeAllUsersBetaTesters = internalMutation({
   handler: async (ctx) => {
     const allUsers = await ctx.db.query("users").collect();
     const nonBetaUsers = allUsers.filter(u => !u.isBetaTester);

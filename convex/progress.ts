@@ -743,7 +743,10 @@ export const getQuestionProgress = query({
 
 // Get aggregated dashboard stats for progress page
 export const getDashboardStats = query({
-  handler: async (ctx) => {
+  args: {
+    todayStart: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) return null;
 
@@ -753,7 +756,7 @@ export const getDashboardStats = query({
       d.setHours(0, 0, 0, 0);
       return d.getTime();
     };
-    const todayStart = startOfDay(Date.now());
+    const todayStart = args.todayStart ?? startOfDay(Date.now());
     const window7Start = todayStart - 6 * dayMs;
     const window30Start = todayStart - 29 * dayMs;
     const windowAllStart = todayStart - (3650 - 1) * dayMs;

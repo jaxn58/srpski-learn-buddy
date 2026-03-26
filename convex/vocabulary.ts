@@ -838,8 +838,10 @@ export const getVocabularyById = query({
 // ============= CONVEX FILE STORAGE FOR AUDIO =============
 
 /**
- * Generate an upload URL for audio files
- * Used by the Vercel serverless function to upload generated audio
+ * Generate an upload URL for audio files.
+ * Called by the TTS serverless function (already auth-gated) via Convex REST API.
+ * The TTS endpoint itself requires Clerk auth, so this mutation does not need
+ * its own auth check -- the upload URL is single-use and short-lived.
  */
 export const generateUploadUrl = mutation({
   args: {},

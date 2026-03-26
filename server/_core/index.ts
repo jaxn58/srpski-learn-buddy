@@ -13,6 +13,13 @@ const projectRoot = path.resolve(import.meta.dirname, "../..");
 dotenv.config({ path: path.join(projectRoot, ".env") });
 dotenv.config({ path: path.join(projectRoot, ".env.local"), override: true });
 
+// Bridge VITE_-prefixed Clerk keys to the standard names that @clerk/express expects.
+// The project stores keys as VITE_CLERK_PUBLISHABLE_KEY for the Vite frontend;
+// the Express server needs them under their canonical names.
+if (!process.env.CLERK_PUBLISHABLE_KEY && process.env.VITE_CLERK_PUBLISHABLE_KEY) {
+  process.env.CLERK_PUBLISHABLE_KEY = process.env.VITE_CLERK_PUBLISHABLE_KEY;
+}
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -41,16 +48,26 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use(cors());
   
-  // Email sending is now handled by Convex Actions (convex/email.ts)
-  // The Express endpoint has been removed
-  
-  // Dodo Payments webhooks are handled by Convex HTTP actions:
-  // - Dev:  https://reminiscent-panda-57.convex.site/dodo/webhook
-  // - Prod: https://fleet-labrador-324.convex.site/dodo/webhook
+  // Clerk middleware for authentication.
+  // Keys are bridged from VITE_ prefix above, so Clerk finds them automatically.
+  if (process.env.CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
+    app.use(clerkMiddleware());
+  } else {
+    console.warn("[Server] Clerk keys not found - auth middleware disabled. TTS endpoint will require TTS_API_SECRET.");
+  }
 
-  // Audio generation endpoint for Google Cloud TTS
+  // Audio generation endpoint for Google Cloud TTS (after auth middleware)
   app.post("/api/audio/generate", async (req, res) => {
     try {
+      const ttsSecret = process.env.TTS_API_SECRET;
+      const hasTtsSecret = ttsSecret && req.headers["x-tts-secret"] === ttsSecret;
+      const authObj = await (req as any).auth?.();
+      const hasClerkAuth = !!authObj?.userId;
+
+      if (!hasTtsSecret && !hasClerkAuth) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+      }
+
       const { generateSerbianAudio } = await import("./textToSpeech");
       const { serbianWord, text, vocabularyId, unitNumber, contentType } = req.body;
       const effectiveText =
@@ -81,10 +98,6 @@ async function startServer() {
       });
     }
   });
-  
-  // Clerk middleware for authentication (protects routes after this point)
-  // Note: Currently only used for potential future protected routes
-  app.use(clerkMiddleware());
   
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {

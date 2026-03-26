@@ -1,4 +1,5 @@
 import { useMutation } from "convex/react";
+import { useAuth } from "@clerk/clerk-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { whenAudioCanPlayThrough } from "@/lib/whenAudioCanPlayThrough";
@@ -11,6 +12,7 @@ type PlayArgs = {
 };
 
 export function useVocabularyAudioPlayback() {
+  const { getToken } = useAuth();
   const updateVocabularyAudioStorageId = useMutation(api.vocabulary.updateVocabularyAudioStorageId);
 
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
@@ -41,10 +43,12 @@ export function useVocabularyAudioPlayback() {
           const configuredServerUrl = import.meta.env.VITE_SERVER_URL?.replace(/\/$/, "");
           const audioEndpoint = configuredServerUrl ? `${configuredServerUrl}/api/audio/generate` : "/api/audio/generate";
 
+          const token = await getToken();
           const response = await fetch(audioEndpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              ...(token && { Authorization: `Bearer ${token}` }),
             },
             body: JSON.stringify({
               serbianWord,
@@ -128,7 +132,7 @@ export function useVocabularyAudioPlayback() {
         alert(errorMessage);
       }
     },
-    [loadingAudioId, playingAudioId, updateVocabularyAudioStorageId]
+    [loadingAudioId, playingAudioId, updateVocabularyAudioStorageId, getToken]
   );
 
   return useMemo(

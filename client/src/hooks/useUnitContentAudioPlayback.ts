@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/clerk-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { whenAudioCanPlayThrough } from "@/lib/whenAudioCanPlayThrough";
 
@@ -27,6 +28,7 @@ function normalizeTextForHash(text: string): string {
 }
 
 export function useUnitContentAudioPlayback() {
+  const { getToken } = useAuth();
   const [playingTextHash, setPlayingTextHash] = useState<string | null>(null);
   const [loadingTextHash, setLoadingTextHash] = useState<string | null>(null);
 
@@ -91,9 +93,13 @@ export function useUnitContentAudioPlayback() {
           const configuredServerUrl = import.meta.env.VITE_SERVER_URL?.replace(/\/$/, "");
           const audioEndpoint = configuredServerUrl ? `${configuredServerUrl}/api/audio/generate` : "/api/audio/generate";
 
+          const token = await getToken();
           const response = await fetch(audioEndpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
             body: JSON.stringify({
               text: cleanedText,
               unitNumber,
