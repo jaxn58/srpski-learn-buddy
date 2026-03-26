@@ -1,6 +1,8 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { action, ActionCtx, internalQuery, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { callAiJson } from "./contentStudio/_shared";
 
 // ============= SEMANTIC VERSIONING UTILITIES =============
 
@@ -423,6 +425,205 @@ export const deleteChangelogEntry = mutation({
     await ctx.db.delete(args.entryId);
     
     return { success: true };
+  },
+});
+
+// ============= AI TRANSLATION =============
+
+/**
+ * Internal: returns all EN entries for a version (used by the translation action)
+ */
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const getEnEntriesForVersion = internalQuery({
+  args: { versionId: v.id("appVersions") },
+  handler: async (ctx, args) => {
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    return ctx.db
+      .query("changelogEntries")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      .withIndex("by_version", (q: any) => q.eq("versionId", args.versionId))
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      .filter((q: any) => q.eq(q.field("language"), "en"))
+      .collect();
+  },
+});
+
+async function requireAdminAction(ctx: ActionCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new Error("Unauthorized - not authenticated");
+  const user = await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+    clerkId: identity.subject,
+  });
+  if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+    throw new Error("Unauthorized - admin access required");
+  }
+  return user;
+}
+
+/**
+ * Admin-only: translate all EN changelog entries for a version → DE (no DB writes).
+ * Returns translated entries; admin reviews and confirms via saveTranslatedDeEntries.
+ */
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const translateChangelogVersionEnToDe = action({
+  args: {
+    versionId: v.id("appVersions"),
+    preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
+  },
+  handler: async (ctx, args) => {
+    await requireAdminAction(ctx);
+
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    const enEntries: any[] = await ctx.runQuery(
+      internal.versions.getEnEntriesForVersion,
+      { versionId: args.versionId }
+    );
+
+    if (enEntries.length === 0) {
+      throw new Error(
+        "No English entries found for this version. Please create English entries first."
+      );
+    }
+
+    const system = `You are a professional software changelog translation engine.
+Translate changelog entries from English to German (de-DE).
+Maintain technical terminology and the concise, professional style typical of software changelogs.
+Return ONLY valid JSON with no additional text or markdown.
+The response must follow this exact structure:
+{
+  "entries": [
+    { "id": "string", "title": "German title", "description": "German description or null" }
+  ]
+}`;
+
+    const userPrompt = `Translate the following software changelog entries to German (de-DE).
+Return the entries array with translated "title" and "description" fields.
+Keep each entry's "id" exactly as provided. If "description" is null, keep it as null.
+
+${JSON.stringify({
+  entries: enEntries.map((e) => ({
+    id: e._id,
+    title: e.title,
+    description: e.description ?? null,
+  })),
+})}`;
+
+    const ai = await callAiJson(ctx, {
+      stage: "specialist",
+      preferredProvider: args.preferredProvider ?? "gemini",
+      system,
+      user: userPrompt,
+      maxTokens: 4000,
+    });
+
+    let parsed: { entries: Array<{ id: string; title: string; description: string | null }> };
+    try {
+      parsed = JSON.parse(ai.raw);
+    } catch {
+      throw new Error("AI returned invalid JSON. Please try again.");
+    }
+
+    if (!parsed.entries || !Array.isArray(parsed.entries)) {
+      throw new Error("AI response missing 'entries' array. Please try again.");
+    }
+
+    const translatedMap = new Map(parsed.entries.map((e) => [e.id, e]));
+
+    const result = enEntries.map((sourceEntry) => {
+      const translated = translatedMap.get(sourceEntry._id);
+      return {
+        id: sourceEntry._id as string,
+        category: sourceEntry.category as string,
+        titleDe: translated?.title ?? sourceEntry.title,
+        descriptionDe: translated?.description ?? null,
+      };
+    });
+
+    const missingCount = enEntries.filter(
+      (e) => !translatedMap.has(e._id)
+    ).length;
+    const warnings: string[] =
+      missingCount > 0
+        ? [`${missingCount} entries were not translated by AI; English text was used as fallback.`]
+        : [];
+
+    return {
+      entries: result,
+      sourceCount: enEntries.length,
+      translatedCount: parsed.entries.length,
+      warnings,
+      meta: { provider: ai.provider, model: ai.model },
+    };
+  },
+});
+
+/**
+ * Admin-only: persist translated DE changelog entries for a version.
+ * Deletes all existing DE entries for that version, then inserts the provided ones.
+ */
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const saveTranslatedDeEntries = mutation({
+  args: {
+    versionId: v.id("appVersions"),
+    entries: v.array(
+      v.object({
+        sourceEntryId: v.id("changelogEntries"),
+        title: v.string(),
+        description: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+      throw new Error("Unauthorized: Admin access required");
+    }
+
+    const version = await ctx.db.get(args.versionId);
+    if (!version) throw new Error("Version not found");
+
+    // Delete all existing DE entries for this version
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    const existingDeEntries = await ctx.db
+      .query("changelogEntries")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      .withIndex("by_version", (q) => q.eq("versionId", args.versionId))
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      .filter((q) => q.eq(q.field("language"), "de"))
+      .collect();
+
+    for (const entry of existingDeEntries) {
+      await ctx.db.delete(entry._id);
+    }
+
+    // Insert translated DE entries, inheriting category and order from the source EN entry
+    let insertedCount = 0;
+    for (const translated of args.entries) {
+      const sourceEntry = await ctx.db.get(translated.sourceEntryId);
+      if (!sourceEntry) continue;
+
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      await ctx.db.insert("changelogEntries", {
+        versionId: args.versionId,
+        category: sourceEntry.category,
+        title: translated.title,
+        description: translated.description,
+        language: "de",
+        createdBy: user._id,
+        createdAt: Date.now(),
+        order: sourceEntry.order,
+      });
+      insertedCount++;
+    }
+
+    return { inserted: insertedCount, deleted: existingDeEntries.length };
   },
 });
 

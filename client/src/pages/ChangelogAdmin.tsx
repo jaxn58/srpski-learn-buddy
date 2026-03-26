@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -43,13 +43,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, CheckCircle } from "lucide-react";
+import { Languages, Loader2, Plus, Edit, Trash2, CheckCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 type CategoryType = "added" | "changed" | "fixed" | "removed";
 type EnvironmentType = "beta" | "production" | "staging";
 type LanguageType = "en" | "de";
+
+interface TranslationPreviewEntry {
+  id: string;
+  category: string;
+  titleDe: string;
+  descriptionDe: string | null;
+}
 
 const categoryColors: Record<CategoryType, string> = {
   added: "bg-green-100 text-green-800 border-green-300",
@@ -86,10 +93,17 @@ export default function ChangelogAdmin() {
   const [entryDescription, setEntryDescription] = useState("");
   const [entryLanguage, setEntryLanguage] = useState<LanguageType>("en");
 
+  // Translation state
+  const [translationPreview, setTranslationPreview] = useState<TranslationPreviewEntry[] | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [isSavingTranslation, setIsSavingTranslation] = useState(false);
+
   const createVersionMutation = useMutation(api.versions.createVersion);
   const addChangelogEntryMutation = useMutation(api.versions.addChangelogEntry);
   const updateChangelogEntryMutation = useMutation(api.versions.updateChangelogEntry);
   const deleteChangelogEntryMutation = useMutation(api.versions.deleteChangelogEntry);
+  const translateChangelogAction = useAction(api.versions.translateChangelogVersionEnToDe);
+  const saveTranslatedDeEntriesMutation = useMutation(api.versions.saveTranslatedDeEntries);
 
   const versionWithChangelog = useQuery(
     api.versions.getVersionWithChangelog,
@@ -168,6 +182,44 @@ export default function ChangelogAdmin() {
       setEntryToDelete(null);
     } catch (error: any) {
       toast.error(error.message || t("admin.changelog.toastEntryDeleteFailed"));
+    }
+  };
+
+  const handleTranslateToGerman = async () => {
+    if (!selectedVersionId) return;
+    setIsTranslating(true);
+    setTranslationPreview(null);
+    try {
+      const result = await translateChangelogAction({ versionId: selectedVersionId });
+      setTranslationPreview(result.entries);
+      if (result.warnings.length > 0) {
+        result.warnings.forEach((w) => toast.warning(w));
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Translation failed. Please try again.");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleSaveTranslation = async () => {
+    if (!selectedVersionId || !translationPreview) return;
+    setIsSavingTranslation(true);
+    try {
+      const result = await saveTranslatedDeEntriesMutation({
+        versionId: selectedVersionId,
+        entries: translationPreview.map((entry) => ({
+          sourceEntryId: entry.id as Id<"changelogEntries">,
+          title: entry.titleDe,
+          description: entry.descriptionDe ?? undefined,
+        })),
+      });
+      toast.success(`${result.inserted} German entries saved successfully.`);
+      setTranslationPreview(null);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save translations.");
+    } finally {
+      setIsSavingTranslation(false);
     }
   };
 
@@ -296,6 +348,21 @@ export default function ChangelogAdmin() {
                 <CardDescription>Manage changelog entries for this version</CardDescription>
               </div>
               {selectedVersionId && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleTranslateToGerman}
+                    disabled={isTranslating || !versionWithChangelog?.entries.some((e: any) => e.language === "en")}
+                    title={!versionWithChangelog?.entries.some((e: any) => e.language === "en") ? "No English entries to translate" : "Translate all English entries to German"}
+                  >
+                    {isTranslating ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Languages className="h-4 w-4 mr-2" />
+                    )}
+                    {isTranslating ? "Translating..." : "Translate to German"}
+                  </Button>
                 <Dialog open={newEntryDialogOpen} onOpenChange={setNewEntryDialogOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm">
@@ -367,6 +434,7 @@ export default function ChangelogAdmin() {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+                </div>
               )}
             </div>
           </CardHeader>
@@ -436,6 +504,92 @@ export default function ChangelogAdmin() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+
+            {/* Translation Preview */}
+            {translationPreview && (
+              <div className="mt-6 space-y-4">
+                <div className="flex items-center justify-between border-t pt-4">
+                  <div>
+                    <h3 className="font-semibold text-base">German Translation Preview</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Review and edit the AI-generated translations before saving.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTranslationPreview(null)}
+                      disabled={isSavingTranslation}
+                    >
+                      Discard
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveTranslation}
+                      disabled={isSavingTranslation}
+                    >
+                      {isSavingTranslation ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      {isSavingTranslation ? "Saving..." : "Save German Translations"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {translationPreview.map((entry, index) => (
+                    <div
+                      key={entry.id}
+                      className="border rounded-lg p-4 space-y-3 bg-muted/30"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge className={categoryColors[entry.category as CategoryType]}>
+                          {categoryLabels[entry.category as CategoryType]}
+                        </Badge>
+                        <Badge variant="outline">DE</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Title (German)</Label>
+                        <Input
+                          value={entry.titleDe}
+                          onChange={(e) => {
+                            const updated = [...translationPreview];
+                            updated[index] = { ...entry, titleDe: e.target.value };
+                            setTranslationPreview(updated);
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">
+                          Description (German, optional)
+                        </Label>
+                        <Textarea
+                          value={entry.descriptionDe ?? ""}
+                          onChange={(e) => {
+                            const updated = [...translationPreview];
+                            updated[index] = {
+                              ...entry,
+                              descriptionDe: e.target.value || null,
+                            };
+                            setTranslationPreview(updated);
+                          }}
+                          rows={2}
+                          placeholder="No description"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                  <p className="text-xs text-muted-foreground">
+                    Saving will replace all existing German entries for this version.
+                  </p>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
