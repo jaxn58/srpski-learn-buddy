@@ -371,22 +371,22 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50">
       {/* Hero Section */}
       <header className="w-full border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container py-6">
+        <div className="container py-3 sm:py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <img src={APP_LOGO} className="h-8 w-8 rounded-md object-cover" alt="Serbian AI Tutor" />
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              <h1 className="hidden sm:inline text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 {t('home.header.title')}
               </h1>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {!isAuthenticated ? (
                 <Select
                   value={displayLanguage}
                   onValueChange={(v) => setDisplayLanguage(v as "en" | "de")}
                 >
-                  <SelectTrigger className="w-[140px]" aria-label={t("settings.language")}>
+                  <SelectTrigger className="w-[100px] sm:w-[140px]" aria-label={t("settings.language")}>
                     <SelectValue placeholder={t("settings.language")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -425,36 +425,36 @@ export default function Home() {
 
       <main>
       {/* Hero Section */}
-      <section className="container py-20">
+      <section className="container py-12 sm:py-16 md:py-20">
         <div className="max-w-4xl mx-auto text-center space-y-6">
           <a href="#beta-registration" className="inline-block px-4 py-2 bg-accent/20 rounded-full text-primary font-semibold mb-4 border border-accent/40 cursor-pointer hover:opacity-80 transition-opacity">
             {t('home.hero.badge')}
           </a>
-          <h2 className="text-6xl font-bold tracking-tight">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
               {t('home.hero.title')}
             </span>
             <br />
             {t('home.hero.titleHighlight')}
           </h2>
-          <p className="text-2xl font-semibold text-foreground/80 max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl md:text-2xl font-semibold text-foreground/80 max-w-2xl mx-auto">
             {t('home.hero.subtitle')}
           </p>
           <p 
-            className="text-xl text-muted-foreground max-w-2xl mx-auto" 
+            className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto" 
             dangerouslySetInnerHTML={{
               __html: showWaitlist
                 ? t("home.hero.descriptionWaitlist")
                 : t("home.hero.description", HOME_COUNTS),
             }}
           />
-          <div className="flex gap-4 justify-center pt-4">
+          <div className="flex flex-wrap gap-3 sm:gap-4 justify-center pt-4">
             {!isAuthenticated ? (
               <>
                 {showWaitlist && (
                   <Button 
                     size="lg" 
-                    className="bg-primary hover:bg-primary/90 text-lg px-8"
+                    className="bg-primary hover:bg-primary/90 text-base sm:text-lg px-6 sm:px-8"
                     onClick={() => setIsWaitlistModalOpen(true)}
                   >
                     {t("waitlist.title")}
@@ -463,7 +463,7 @@ export default function Home() {
                 {!showWaitlist && (
                   <Button
                     size="lg"
-                    className="bg-primary hover:bg-primary/90 text-lg px-8"
+                    className="bg-primary hover:bg-primary/90 text-base sm:text-lg px-6 sm:px-8"
                     asChild
                   >
                     <a href="#beta-registration">{t('home.hero.ctaPrimary')}</a>
@@ -473,7 +473,7 @@ export default function Home() {
                   <Button 
                     size="lg" 
                     variant="outline"
-                    className="text-lg px-8 border-primary text-primary hover:bg-primary/10"
+                    className="text-base sm:text-lg px-6 sm:px-8 border-primary text-primary hover:bg-primary/10"
                   >
                     {t('home.header.login')}
                   </Button>
@@ -483,13 +483,13 @@ export default function Home() {
               <Link href="/dashboard">
                 <Button 
                   size="lg" 
-                  className="bg-primary hover:bg-primary/90 text-lg px-8"
+                  className="bg-primary hover:bg-primary/90 text-base sm:text-lg px-6 sm:px-8"
                 >
                   {t('home.header.dashboard')}
                 </Button>
               </Link>
             )}
-            <Button size="lg" variant="outline" asChild className="text-lg px-8">
+            <Button size="lg" variant="outline" asChild className="text-base sm:text-lg px-6 sm:px-8">
               <a href="#units">{t('home.hero.ctaSecondary')}</a>
             </Button>
           </div>
@@ -499,7 +499,7 @@ export default function Home() {
       {/* Features Section */}
       <section className="w-full bg-white/50">
         <div className="container py-16">
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
           <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
             <CardHeader>
               <BookOpen className="h-12 w-12 text-primary mb-2" />
@@ -575,12 +575,12 @@ export default function Home() {
 
       {/* Pricing, Upgrade Policy & FAQ Section */}
       {/* Flexible Duration Section */}
-      <section id="pricing" className="container py-20">
+      <section id="pricing" className="container py-12 sm:py-16 md:py-20">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="text-center space-y-4">
-            <h3 className="text-4xl font-bold">{t('home.pricing.title')}</h3>
+            <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold">{t('home.pricing.title')}</h3>
             <p 
-              className="text-xl text-muted-foreground" 
+              className="text-base sm:text-lg md:text-xl text-muted-foreground" 
               dangerouslySetInnerHTML={{ __html: t('home.pricing.subtitle') }}
             />
           </div>
@@ -655,7 +655,7 @@ export default function Home() {
           </div>
           
           {/* Pricing Cards */}
-          <div className="grid md:grid-cols-4 gap-6 mt-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mt-12">
             {/* Intensive Plan */}
             <Card className={getCardClasses("intensive")}>
               {getPlanAction("intensive") === "current" && (
@@ -877,7 +877,7 @@ export default function Home() {
             </Card>
 
             {/* Standard Plan (Most Popular - Best Value) */}
-            <Card className={getPlanAction("standard") === "current" ? getCardClasses("standard") : "border-4 border-primary shadow-2xl scale-105 relative"}>
+            <Card className={getPlanAction("standard") === "current" ? getCardClasses("standard") : "border-4 border-primary shadow-2xl md:scale-105 relative"}>
               {getPlanAction("standard") === "current" ? (
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
                   <span className="bg-green-600 text-white px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap">
@@ -1102,12 +1102,12 @@ export default function Home() {
           </div>
 
           {/* Upgrade Policy Section */}
-          <div className="mt-12 p-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200">
+          <div className="mt-12 p-4 sm:p-6 md:p-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200">
             <div className="text-center space-y-4">
               <div className="inline-block p-3 bg-primary/10 rounded-full">
                 <TrendingUp className="h-8 w-8 text-primary" />
               </div>
-              <h4 className="text-2xl font-bold text-gray-900">{t('home.pricing.upgrade.title')}</h4>
+              <h4 className="text-xl sm:text-2xl font-bold text-gray-900">{t('home.pricing.upgrade.title')}</h4>
               <p className="text-lg text-gray-700 max-w-2xl mx-auto">
                 {t('home.pricing.upgrade.subtitle')}
               </p>
@@ -1149,8 +1149,8 @@ export default function Home() {
               <div className="inline-block p-3 bg-primary/10 rounded-full mb-4">
                 <HelpCircle className="h-8 w-8 text-primary" />
               </div>
-              <h3 className="text-3xl font-bold text-gray-900 mb-4">{t('home.faq.title')}</h3>
-              <p className="text-lg text-gray-600">{t('home.faq.subtitle')}</p>
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">{t('home.faq.title')}</h3>
+              <p className="text-base sm:text-lg text-gray-600">{t('home.faq.subtitle')}</p>
             </div>
 
             <Accordion type="single" collapsible className="space-y-4">
@@ -1240,15 +1240,15 @@ export default function Home() {
                         : t("home.faq.q4.answer", HOME_COUNTS),
                     }}
                   />
-                  <div className="flex gap-4 mt-4">
+                  <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-4 mt-4">
                     <div className="flex items-center gap-2 text-sm text-green-700">
-                      <Check className="h-4 w-4" /> {t('home.faq.q4.check1')}
+                      <Check className="h-4 w-4 shrink-0" /> {t('home.faq.q4.check1')}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-green-700">
-                      <Check className="h-4 w-4" /> {t('home.faq.q4.check2')}
+                      <Check className="h-4 w-4 shrink-0" /> {t('home.faq.q4.check2')}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-green-700">
-                      <Check className="h-4 w-4" /> {t('home.faq.q4.check3')}
+                      <Check className="h-4 w-4 shrink-0" /> {t('home.faq.q4.check3')}
                     </div>
                   </div>
                 </AccordionContent>
@@ -1437,7 +1437,7 @@ export default function Home() {
                   <div className="inline-block">
                     <span className="text-5xl">🎁</span>
                   </div>
-                  <h4 className="text-3xl font-bold text-yellow-900">{t('home.beta.banner.title')}</h4>
+                  <h4 className="text-2xl sm:text-3xl font-bold text-yellow-900">{t('home.beta.banner.title')}</h4>
                   <p 
                     className="text-lg text-yellow-800 max-w-3xl mx-auto" 
                     dangerouslySetInnerHTML={{ __html: t('home.beta.banner.subtitle') }}
@@ -1471,12 +1471,12 @@ export default function Home() {
 
       {/* Modules Section */}
       <section id="units" className="w-full bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
-        <div className="container py-20">
+        <div className="container py-12 sm:py-16 md:py-20">
           <div className="max-w-7xl mx-auto">
           <div className="text-center space-y-4 mb-12">
-            <h3 className="text-4xl font-bold">{t('home.units.title')}</h3>
+            <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold">{t('home.units.title')}</h3>
             <p 
-              className="text-xl text-muted-foreground" 
+              className="text-base sm:text-lg md:text-xl text-muted-foreground" 
               dangerouslySetInnerHTML={{
                 __html: showWaitlist
                   ? t("home.units.subtitleWaitlist")
@@ -1536,16 +1536,16 @@ export default function Home() {
 
       {/* Beta Registration / Sign Up Section - Only show if not in waitlist mode OR user is privileged */}
       {showBetaRegistration && (
-        <section id="beta-registration" className="container py-20">
+        <section id="beta-registration" className="container py-12 sm:py-16 md:py-20">
           <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
             <CardHeader className="text-center bg-gradient-to-r from-red-50 via-white to-blue-50">
               <div className="inline-block px-4 py-2 bg-accent/30 rounded-full text-primary font-bold mb-4 border-2 border-accent">
                 {t('home.beta.discount')}
               </div>
-              <CardTitle className="text-3xl">
+              <CardTitle className="text-2xl sm:text-3xl">
                 {t('home.beta.title')}
               </CardTitle>
-              <CardDescription className="text-lg">
+              <CardDescription className="text-base sm:text-lg">
                 {t('home.beta.subtitle')}
               </CardDescription>
             </CardHeader>
