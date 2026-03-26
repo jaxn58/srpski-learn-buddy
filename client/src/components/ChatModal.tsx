@@ -204,7 +204,7 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[90vw] min-w-[80vw] max-w-5xl max-h-[90vh] min-h-[70vh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] sm:w-[90vw] max-w-5xl max-h-[90vh] min-h-[60vh] sm:min-h-[70vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
@@ -229,7 +229,7 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
                   <Brain className="h-12 w-12 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold mb-2">{t('chat.welcome.title')}</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold mb-2">{t('chat.welcome.title')}</h2>
                   <p className="text-muted-foreground mb-2">{t('chat.welcome.subtitle')}</p>
                   <p className="text-sm text-muted-foreground mb-4">
                     <span className="font-medium text-foreground/80">{t('chat.welcome.examplesHintTitle')}</span>{" "}

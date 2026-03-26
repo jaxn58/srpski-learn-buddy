@@ -167,7 +167,7 @@ export default function Feedback() {
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <MessageSquare className="h-7 w-7 text-primary" />
-            <h1 className="text-3xl md:text-4xl font-bold">{t('feedback.title')}</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold">{t('feedback.title')}</h1>
           </div>
           <p className="text-sm md:text-base text-muted-foreground max-w-2xl">
             {t('feedback.subtitle')}

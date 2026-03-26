@@ -608,7 +608,7 @@ export default function Progress() {
             <motion.div variants={itemVariants} className="lg:col-span-2">
               <Card className="h-full">
                 <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <TrendingUp className="h-5 w-5 text-primary" />
@@ -622,7 +622,7 @@ export default function Progress() {
                             : t("progress.activity.subtitle.lifetime")}
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{t("progress.activity.heatmap.toggle")}</span>
                         <Switch checked={showHeatmap} onCheckedChange={setShowHeatmap} />
@@ -690,9 +690,9 @@ export default function Progress() {
                     )}
 
                     {!hasAnyActivity && !(selectedActivity as any)?.loading && (
-                      <div className="w-full flex items-center justify-between gap-4 rounded-lg border bg-slate-50 p-4">
+                      <div className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-lg border bg-slate-50 p-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center border">
+                          <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center border shrink-0">
                             <Calendar className="h-5 w-5 text-muted-foreground" />
                           </div>
                           <div>

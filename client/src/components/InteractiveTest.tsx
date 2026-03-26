@@ -285,7 +285,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
           <div key={category} className="space-y-6">
             {/* Category Title */}
             <div>
-              <h2 className="text-2xl font-bold mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold mb-2">
                 {t(`unit.exerciseCategory.${category}`, category.replace(/([A-Z])/g, ' $1').trim())}
               </h2>
               {instructions && (
@@ -297,12 +297,12 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
             
             {/* Questions (Vocabulary-like table with Mastery/Mistakes columns) */}
             <div className="rounded-lg border bg-card overflow-hidden">
-              <div className="grid grid-cols-[1fr_140px_120px] items-center gap-3 border-b bg-muted/25 px-4 py-2 text-xs font-medium text-muted-foreground">
+              <div className="grid grid-cols-[1fr] sm:grid-cols-[1fr_140px_120px] items-center gap-3 border-b bg-muted/25 px-4 py-2 text-xs font-medium text-muted-foreground">
                 <div title="Question & answer">{t("unit.tab.exercises")}</div>
-                <div className="text-center" title="Progress toward mastery (3 correct)">
+                <div className="hidden sm:block text-center" title="Progress toward mastery (3 correct)">
                   {t("unit.vocabTable.mastery")}
                 </div>
-                <div className="text-center" title="Incorrect attempts">
+                <div className="hidden sm:block text-center" title="Incorrect attempts">
                   {t("unit.vocabTable.mistakes")}
                 </div>
               </div>
@@ -319,7 +319,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                 const renderInlineInput = () => {
                   const parts = q.question.split(/_+/);
                   const blanks = q.question.match(/_+/g) || [];
-                  const inputWidth = q.questionType === "dialogue" ? "w-48" : "w-32";
+                  const inputWidth = q.questionType === "dialogue" ? "w-full sm:w-48" : "w-full sm:w-32";
 
                   return (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -401,7 +401,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                 return (
                   <div
                     key={q.questionId}
-                    className="grid grid-cols-[1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/3 border-b last:border-b-0"
+                    className="grid grid-cols-[1fr] sm:grid-cols-[1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/3 border-b last:border-b-0"
                   >
                     <div className="min-w-0">
                       <div className="flex items-start gap-2">
@@ -440,11 +440,11 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                       </div>
                     </div>
 
-                    <div className="pt-0.5 flex justify-center">
+                    <div className="hidden sm:flex pt-0.5 justify-center">
                       <MasteryIndicator correctCount={correctAttempts} mastered={isMastered} />
                     </div>
 
-                    <div className="pt-0.5 flex justify-center">
+                    <div className="hidden sm:flex pt-0.5 justify-center">
                       <MistakesIndicator count={incorrectAttempts} />
                     </div>
                   </div>
@@ -453,7 +453,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
             </div>
 
             {/* Category Action Buttons */}
-            <div className="flex gap-3 pt-4 items-center">
+            <div className="flex flex-wrap gap-3 pt-4 items-center">
               {!isCategoryChecked ? (
                 <Button 
                   onClick={() => checkCategoryAnswers(category)} 
@@ -465,9 +465,9 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
               ) : (
                 <>
                   {/* XP Display with Animation */}
-                  <div className="flex-1 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-6 py-4 animate-in fade-in slide-in-from-bottom-2">
-                    <div className="flex items-center gap-4">
-                      <div className="text-2xl font-bold text-green-600 animate-in zoom-in delay-150">
+                  <div className="flex-1 min-w-0 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-4 sm:px-6 py-3 sm:py-4 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                      <div className="text-xl sm:text-2xl font-bold text-green-600 animate-in zoom-in delay-150">
                         +{categoryXP[category]} XP
                       </div>
                       {categoryResults[category] && (

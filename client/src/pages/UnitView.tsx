@@ -546,9 +546,9 @@ export default function UnitView() {
       <AnimatedItem>
         <Card className="mb-6">
           <CardHeader>
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
               <div>
-                <CardTitle className="text-3xl mb-2">{unitMetadata.title}</CardTitle>
+                <CardTitle className="text-2xl sm:text-3xl mb-2">{unitMetadata.title}</CardTitle>
                 {unitDescription && (
                   <CardDescription className="text-base">{unitDescription}</CardDescription>
                 )}
@@ -576,13 +576,13 @@ export default function UnitView() {
       {/* New 6-Tab Structure */}
       <AnimatedItem>
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto">
-            <TabsTrigger value="overview" className="gap-2"><Lightbulb className="w-4 h-4"/> {t("unit.tab.overview")}</TabsTrigger>
-            <TabsTrigger value="vocabulary" className="gap-2"><BookOpen className="w-4 h-4"/> {t("unit.tab.vocabulary")}</TabsTrigger>
-            <TabsTrigger value="grammar" className="gap-2"><Brain className="w-4 h-4"/> {t("unit.tab.grammar")}</TabsTrigger>
-            <TabsTrigger value="phrases" className="gap-2"><MessageSquare className="w-4 h-4"/> {t("unit.tab.phrases")}</TabsTrigger>
-            <TabsTrigger value="dialogues" className="gap-2"><Mic className="w-4 h-4"/> {t("unit.tab.dialogues")}</TabsTrigger>
-            <TabsTrigger value="test" className="gap-2"><PenTool className="w-4 h-4"/> {t("unit.tab.exercises")}</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-3 md:grid-cols-6 h-auto">
+            <TabsTrigger value="overview" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.overview")}</span></TabsTrigger>
+            <TabsTrigger value="vocabulary" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.vocabulary")}</span></TabsTrigger>
+            <TabsTrigger value="grammar" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.grammar")}</span></TabsTrigger>
+            <TabsTrigger value="phrases" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.phrases")}</span></TabsTrigger>
+            <TabsTrigger value="dialogues" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.dialogues")}</span></TabsTrigger>
+            <TabsTrigger value="test" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><PenTool className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.exercises")}</span></TabsTrigger>
           </TabsList>
 
             {/* 1. Overview */}

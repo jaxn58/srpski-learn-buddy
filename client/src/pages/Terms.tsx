@@ -74,7 +74,6 @@ const legalCopy: Record<
       operatorTitle: string;
       contactTitle: string;
       emailLabel: string;
-      phoneLabel: string;
       founderTitle: string;
       taxIdLabel: string;
       hostingTitle: string;
@@ -188,7 +187,6 @@ const legalCopy: Record<
       operatorTitle: "Operator of the Website / Service:",
       contactTitle: "Contact:",
       emailLabel: "Email:",
-      phoneLabel: "Phone:",
       founderTitle: "Founder / Responsible Person:",
       taxIdLabel: "Tax Identification Number (PIB):",
       hostingTitle: "Hosting & processors:",
@@ -306,7 +304,6 @@ const legalCopy: Record<
       operatorTitle: "Betreiber der Website / des Services:",
       contactTitle: "Kontakt:",
       emailLabel: "E-Mail:",
-      phoneLabel: "Telefon:",
       founderTitle: "Gründer / Verantwortliche Person:",
       taxIdLabel: "Steuernummer (PIB):",
       hostingTitle: "Hosting & Auftragsverarbeiter:",
@@ -596,8 +593,6 @@ export default function Terms() {
                 <a className="underline" href="mailto:hello@jacksenn.me">
                   hello@jacksenn.me
                 </a>
-                <br />
-                {c.imprint.phoneLabel} +38267626681
               </P>
               <P>
                 {c.imprint.founderTitle} Jens H. Theuer

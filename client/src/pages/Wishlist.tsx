@@ -119,7 +119,7 @@ export default function Wishlist() {
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <ListTodo className="h-7 w-7 text-primary" />
-            <h1 className="text-3xl md:text-4xl font-bold">{t("wishlist.title")}</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold">{t("wishlist.title")}</h1>
           </div>
           <p className="text-sm md:text-base text-muted-foreground max-w-3xl">
             {t("wishlist.subtitle")}
@@ -157,70 +157,72 @@ export default function Wishlist() {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("wishlist.table.suggestion")}</TableHead>
-                  <TableHead>{t("wishlist.table.live")}</TableHead>
-                  <TableHead className="text-right">{t("wishlist.table.votes")}</TableHead>
-                  <TableHead>{t("wishlist.table.created")}</TableHead>
-                  <TableHead className="text-right">{t("wishlist.table.details")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(items || []).length === 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      {t("wishlist.empty")}
-                    </TableCell>
+                    <TableHead>{t("wishlist.table.suggestion")}</TableHead>
+                    <TableHead className="hidden sm:table-cell">{t("wishlist.table.live")}</TableHead>
+                    <TableHead className="text-right">{t("wishlist.table.votes")}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t("wishlist.table.created")}</TableHead>
+                    <TableHead className="text-right">{t("wishlist.table.details")}</TableHead>
                   </TableRow>
-                ) : (
-                  (items || []).map((item) => (
-                    <TableRow key={item._id}>
-                      <TableCell>
-                        <div className="font-medium">{item.title}</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {preview(item.description)}
-                        </div>
-                        <div className="mt-2">
-                          <Badge variant="outline" className="text-xs">
-                            {statusLabel(item.status)}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {LIVE_STATUSES.has(String(item.status)) ? (
-                          <span
-                            className="inline-flex items-center rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-[0_0_10px_rgba(16,185,129,0.6)]"
-                            aria-label={t("wishlist.liveAria")}
-                          >
-                            {t("wishlist.live")}
-                          </span>
-                        ) : (
-                          <span
-                            className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white shadow-[0_0_10px_rgba(220,38,38,0.55)]"
-                            aria-label={t("wishlist.notLiveAria")}
-                          >
-                            {t("wishlist.notLive")}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">{item.upvoteCount || 0}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.createdAt ? formatDateTimeEU(item.createdAt) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Link href={`/wishlist/${item._id}`}>
-                          <Button variant="outline" size="sm">
-                            {t("wishlist.view")}
-                          </Button>
-                        </Link>
+                </TableHeader>
+                <TableBody>
+                  {(items || []).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        {t("wishlist.empty")}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    (items || []).map((item) => (
+                      <TableRow key={item._id}>
+                        <TableCell>
+                          <div className="font-medium">{item.title}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {preview(item.description)}
+                          </div>
+                          <div className="mt-2">
+                            <Badge variant="outline" className="text-xs">
+                              {statusLabel(item.status)}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          {LIVE_STATUSES.has(String(item.status)) ? (
+                            <span
+                              className="inline-flex items-center rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-[0_0_10px_rgba(16,185,129,0.6)]"
+                              aria-label={t("wishlist.liveAria")}
+                            >
+                              {t("wishlist.live")}
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white shadow-[0_0_10px_rgba(220,38,38,0.55)]"
+                              aria-label={t("wishlist.notLiveAria")}
+                            >
+                              {t("wishlist.notLive")}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">{item.upvoteCount || 0}</TableCell>
+                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                          {item.createdAt ? formatDateTimeEU(item.createdAt) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/wishlist/${item._id}`}>
+                            <Button variant="outline" size="sm">
+                              {t("wishlist.view")}
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

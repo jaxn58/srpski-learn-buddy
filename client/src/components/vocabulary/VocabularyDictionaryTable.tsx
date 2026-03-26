@@ -39,16 +39,16 @@ export function VocabularyDictionaryTable({
 
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
-      {/* Column header (keeps rows clean: icons-only/status-only) */}
-      <div className="grid grid-cols-[40px_1fr_140px_120px] items-center gap-3 border-b bg-muted/25 px-4 py-2 text-xs font-medium text-muted-foreground">
+      {/* Column header */}
+      <div className="grid grid-cols-[40px_1fr] sm:grid-cols-[40px_1fr_140px_120px] items-center gap-3 border-b bg-muted/25 px-4 py-2 text-xs font-medium text-muted-foreground">
         <div className="flex items-center justify-center" title="Audio">
           <Volume2 className="h-4 w-4" aria-hidden="true" />
         </div>
         <div title="Word & meaning">{t("unit.vocabTable.header")}</div>
-        <div className="text-center" title="Progress toward mastery (3 correct)">
+        <div className="hidden sm:block text-center" title="Progress toward mastery (3 correct)">
           {t("unit.vocabTable.mastery")}
         </div>
-        <div className="text-center" title="Incorrect attempts">
+        <div className="hidden sm:block text-center" title="Incorrect attempts">
           {t("unit.vocabTable.mistakes")}
         </div>
       </div>
@@ -63,7 +63,7 @@ export function VocabularyDictionaryTable({
         return (
           <div
             key={row.id}
-            className="grid grid-cols-[40px_1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/3 border-b last:border-b-0"
+            className="grid grid-cols-[40px_1fr] sm:grid-cols-[40px_1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/3 border-b last:border-b-0"
           >
             <Button
               variant="ghost"
@@ -106,11 +106,11 @@ export function VocabularyDictionaryTable({
               )}
             </div>
 
-            <div className="pt-0.5 flex justify-center">
+            <div className="hidden sm:flex pt-0.5 justify-center">
               <MasteryIndicator correctCount={correctCount} mastered={mastered} />
             </div>
 
-            <div className="pt-0.5 flex justify-center">
+            <div className="hidden sm:flex pt-0.5 justify-center">
               <MistakesIndicator count={incorrectCount} />
             </div>
           </div>

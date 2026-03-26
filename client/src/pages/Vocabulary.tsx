@@ -1138,7 +1138,7 @@ export default function Vocabulary() {
         {/* Flashcard */}
         {currentWord && (
           <AnimatedItem>
-            <Card className="min-h-[400px] flex flex-col">
+            <Card className="min-h-[300px] sm:min-h-[400px] flex flex-col">
             <CardContent className="text-center space-y-6 py-8">
               {/* Header: Unit Badge + Last Attempt Info */}
               <div className="flex items-center justify-between mb-6">
@@ -1188,7 +1188,7 @@ export default function Vocabulary() {
                     )}
                     {/* Vokabel */}
                     <div className="flex items-center justify-center mb-2">
-                      <h2 className="text-5xl font-bold">
+                      <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold">
                         {displayWord.serbian}
                       </h2>
                     </div>
@@ -1251,7 +1251,7 @@ export default function Vocabulary() {
                     {/* Übersetzung nur im Learn-Mode anzeigen (im Quiz-Modus wird sie im Feedback-Bereich angezeigt) */}
                     {mode === 'learn' && (
                       <>
-                        <p className="text-2xl text-muted-foreground mt-4">
+                        <p className="text-xl sm:text-2xl text-muted-foreground mt-4">
                           {(() => {
                             const word = showAnswer && answeredWord ? answeredWord : displayWord;
                             // Column-based translations with multi-language support
@@ -1576,14 +1576,14 @@ export default function Vocabulary() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-center space-y-4">
-                <p className="text-2xl font-bold">
+                <p className="text-xl sm:text-2xl font-bold">
                   {t('vocabulary.score', { correct: score.correct, total: score.total })} ({Math.round((score.correct / score.total) * 100)}%)
                 </p>
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-sm mb-2 text-yellow-800">
                     Total XP Earned in this Session
                   </p>
-                  <p className="text-3xl font-bold text-yellow-600">
+                  <p className="text-2xl sm:text-3xl font-bold text-yellow-600">
                     +{sessionXP} XP
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
