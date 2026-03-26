@@ -13,6 +13,17 @@ import i18n from "./i18n";
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const CONVEX_URL = import.meta.env.VITE_CONVEX_URL;
 
+// Stale-deployment guard: auto-reload once when a lazy chunk 404s after a new deployment.
+// Vite fires this event for any failed dynamic import (all lazy pages/layouts are affected).
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  const attempts = parseInt(sessionStorage.getItem('_chunkReload') ?? '0', 10);
+  if (attempts < 2) {
+    sessionStorage.setItem('_chunkReload', String(attempts + 1));
+    window.location.reload();
+  }
+});
+
 
 if (!CLERK_PUBLISHABLE_KEY) {
   console.error("Missing VITE_CLERK_PUBLISHABLE_KEY environment variable");
