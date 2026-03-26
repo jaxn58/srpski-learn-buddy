@@ -387,19 +387,19 @@ export function TopNavigation() {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0">
-              <SheetHeader className="px-4 py-4 border-b">
+            <SheetContent side="left" className="p-0 flex flex-col">
+              <SheetHeader className="px-4 py-4 pr-12 border-b shrink-0">
                 <SheetTitle className="flex items-center gap-2">
                   <img
                     src={APP_LOGO}
                     className="h-7 w-7 rounded-md object-cover ring-1 ring-border"
                     alt="Logo"
                   />
-                  <span className="font-semibold">{APP_TITLE}</span>
+                  <span className="text-sm font-semibold">{APP_TITLE}</span>
                 </SheetTitle>
               </SheetHeader>
 
-              <nav className="flex flex-col gap-1 p-2">
+              <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
                 {mainItems.map((item) => {
                   const active = isItemActive(item);
                   return (

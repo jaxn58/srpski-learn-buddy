@@ -291,6 +291,7 @@ export default function Admin() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -314,17 +315,17 @@ export default function Admin() {
                     Status <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
-                <TableHead>
+                <TableHead className="hidden sm:table-cell">
                   <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isBetaTester')} className="h-8 px-2">
                     Beta Tester <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
-                <TableHead>
+                <TableHead className="hidden sm:table-cell">
                   <Button variant="ghost" size="sm" onClick={() => toggleUserSort('subscription')} className="h-8 px-2">
                     Subscription <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
-                <TableHead>
+                <TableHead className="hidden md:table-cell">
                   <Button variant="ghost" size="sm" onClick={() => toggleUserSort('_lastModified')} className="h-8 px-2">
                     Last Signed In <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
@@ -400,7 +401,7 @@ export default function Admin() {
                       {u.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {u.isBetaTester ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                         ✨ Beta
@@ -409,7 +410,7 @@ export default function Admin() {
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {u.subscription ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         {u.subscription.planName || u.subscription.planType}
@@ -418,7 +419,7 @@ export default function Admin() {
                       <span className="text-xs text-muted-foreground">None</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {u._lastModified ? formatDateEU(u._lastModified) : "Never"}
                   </TableCell>
                   <TableCell className="text-right">
@@ -487,6 +488,7 @@ export default function Admin() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -497,6 +499,7 @@ export default function Admin() {
           <CardDescription>Overview of all student learning progress</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -505,7 +508,7 @@ export default function Admin() {
                     Student <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
-                <TableHead>
+                <TableHead className="hidden sm:table-cell">
                   <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userEmail')} className="h-8 px-2">
                     Email <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
@@ -520,7 +523,7 @@ export default function Admin() {
                     Current Unit <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
-                <TableHead>
+                <TableHead className="hidden md:table-cell">
                   <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('planDurationMonths')} className="h-8 px-2">
                     Duration <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
@@ -536,10 +539,10 @@ export default function Admin() {
               {sortedProgress?.map((p: any) => (
                 <TableRow key={p._id}>
                   <TableCell className="font-medium">{p.userName}</TableCell>
-                  <TableCell>{p.userEmail}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{p.userEmail}</TableCell>
                   <TableCell>Week {p.currentWeek}</TableCell>
                   <TableCell>Unit {p.currentUnit}</TableCell>
-                  <TableCell>{p.planDurationMonths ? `${p.planDurationMonths} months` : '—'}</TableCell>
+                  <TableCell className="hidden md:table-cell">{p.planDurationMonths ? `${p.planDurationMonths} months` : '—'}</TableCell>
                   <TableCell>
                     {p.lastActivityAt 
                       ? formatDateEU(p.lastActivityAt)
@@ -550,6 +553,7 @@ export default function Admin() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
