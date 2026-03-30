@@ -180,7 +180,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
   }, [deleteArchivedMutation]);
 
   return (
-    <div className="hidden md:flex w-72 flex-col md:sticky md:top-20 self-start max-h-[calc(100vh-6rem)]">
+    <div className="hidden md:flex w-72 flex-col self-start max-h-[calc(100vh-6rem)]">
       <div className="bg-card border rounded-xl shadow-sm p-4 space-y-2 overflow-hidden">
         <Button 
           onClick={onNewChat} 
