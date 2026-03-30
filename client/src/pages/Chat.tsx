@@ -423,7 +423,7 @@ export default function Chat() {
                     {msg.role === 'assistant' ? (
                       <ChatMarkdownContent content={msg.content} />
                     ) : (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <p className="whitespace-pre-wrap text-xs sm:text-sm leading-[1.35] sm:leading-[1.43]">{msg.content}</p>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-2">
