@@ -272,7 +272,7 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
                 
                 <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div
-                    className={`rounded-2xl px-4 py-3 text-[clamp(0.72rem,1.2vw+0.62rem,0.825rem)] leading-snug ${
+                    className={`rounded-2xl px-4 py-3 text-[13px] leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-primary text-primary-foreground rounded-br-none'
                         : 'bg-muted text-foreground rounded-bl-none'
@@ -281,7 +281,7 @@ export function ChatModal({ isOpen, onClose }: ChatModalProps) {
                     {msg.role === 'assistant' ? (
                       <ChatMarkdownContent content={msg.content} />
                     ) : (
-                      <p className="whitespace-pre-wrap leading-snug">{msg.content}</p>
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-2">
