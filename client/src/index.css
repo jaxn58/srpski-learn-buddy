@@ -460,6 +460,35 @@
     @apply leading-7 text-foreground;
   }
   
+  /* Chat markdown: override global heading sizes inside .markdown-content chat bubbles.
+   * Headings in a chat context must never adopt the large document-level sizes from the
+   * global h1/h2/h3 rules above. This CSS safety net applies even when react-markdown
+   * falls through to native heading tags instead of our custom component overrides. */
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content h4,
+  .markdown-content h5,
+  .markdown-content h6 {
+    font-size: 0.75rem;   /* MD3 Body Small – 12px, same as body on mobile */
+    font-weight: 600;
+    line-height: 1.35;
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  @media (min-width: 640px) {
+    .markdown-content h1,
+    .markdown-content h2,
+    .markdown-content h3,
+    .markdown-content h4,
+    .markdown-content h5,
+    .markdown-content h6 {
+      font-size: 0.875rem; /* MD3 Body Medium – 14px, same as body on desktop */
+      line-height: 1.43;
+    }
+  }
+
   /**
    * Custom container utility that centers content and adds responsive padding.
    *
