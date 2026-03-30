@@ -414,7 +414,7 @@ export default function Chat() {
                 
                 <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div
-                    className={`rounded-2xl px-3 py-2 sm:px-4 sm:py-3 text-[13px] leading-relaxed ${
+                    className={`rounded-2xl px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm leading-[1.35] sm:leading-[1.43] ${
                       msg.role === 'user'
                         ? 'bg-serbian-blue text-white rounded-br-none'
                         : 'bg-muted text-foreground rounded-bl-none'

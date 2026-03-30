@@ -19,37 +19,38 @@ function extractTextFromReactNode(node: any): string {
 
 /** Same size as body, minimal emphasis – chat-style, not document-style */
 /**
- * All elements inherit 13px from the parent bubble and use leading-relaxed (1.625)
- * throughout every nesting level – no visual size differences between levels.
- * MD3: Body Medium (13–14sp) with relaxed line-height for comfortable reading.
+ * Responsive MD3 typography:
+ *   mobile  → Body Small  (12px / leading-[1.35])
+ *   sm+     → Body Medium (14px / leading-[1.43])
+ * All elements explicitly sized – no CSS-inheritance surprises at any nesting level.
  */
 const chatMarkdownComponents = {
-  p: ({ node, ...props }: any) => <p className="mb-2 leading-relaxed" {...props} />,
+  p: ({ node, ...props }: any) => <p className="text-xs sm:text-sm mb-1.5 sm:mb-2 leading-[1.35] sm:leading-[1.43]" {...props} />,
   ul: ({ node, ...props }: any) => (
-    <ul className="list-disc list-outside ml-3 mb-2 space-y-1" {...props} />
+    <ul className="list-disc list-outside ml-3 sm:ml-4 mb-1.5 sm:mb-2 space-y-0.5 sm:space-y-1" {...props} />
   ),
   ol: ({ node, ...props }: any) => (
-    <ol className="list-decimal list-outside ml-3 mb-2 space-y-1" {...props} />
+    <ol className="list-decimal list-outside ml-3 sm:ml-4 mb-1.5 sm:mb-2 space-y-0.5 sm:space-y-1" {...props} />
   ),
   li: ({ node, children, ...props }: any) =>
     extractTextFromReactNode(children).trim().length === 0 ? null : (
-      <li className="leading-relaxed" {...props}>
+      <li className="text-xs sm:text-sm leading-[1.35] sm:leading-[1.43]" {...props}>
         {children}
       </li>
     ),
   code: ({ node, inline, ...props }: any) =>
     inline ? (
-      <code className="bg-muted/70 px-1 py-0.5 rounded font-mono" {...props} />
+      <code className="text-xs sm:text-sm bg-muted/70 px-1 py-0.5 rounded font-mono" {...props} />
     ) : (
-      <code className="block bg-muted/70 p-2 rounded font-mono overflow-x-auto mb-2" {...props} />
+      <code className="text-xs sm:text-sm block bg-muted/70 p-2 rounded font-mono overflow-x-auto mb-1.5 sm:mb-2" {...props} />
     ),
   pre: ({ node, children, ...props }: any) => (
-    <pre className="mb-2" {...props}>
+    <pre className="mb-1.5 sm:mb-2" {...props}>
       {children}
     </pre>
   ),
   table: ({ node, ...props }: any) => (
-    <div className="overflow-x-auto mb-2">
+    <div className="overflow-x-auto mb-1.5 sm:mb-2">
       <table className="w-full border-collapse border border-border" {...props} />
     </div>
   ),
@@ -57,19 +58,19 @@ const chatMarkdownComponents = {
   tbody: ({ node, ...props }: any) => <tbody {...props} />,
   tr: ({ node, ...props }: any) => <tr className="border-b border-border" {...props} />,
   th: ({ node, ...props }: any) => (
-    <th className="text-left font-semibold p-1.5 sm:p-2 leading-relaxed border-r border-border last:border-r-0" {...props} />
+    <th className="text-xs sm:text-sm text-left font-semibold p-1.5 sm:p-2 leading-[1.35] sm:leading-[1.43] border-r border-border last:border-r-0" {...props} />
   ),
-  td: ({ node, ...props }: any) => <td className="p-1.5 sm:p-2 leading-relaxed border-r border-border last:border-r-0" {...props} />,
+  td: ({ node, ...props }: any) => <td className="text-xs sm:text-sm p-1.5 sm:p-2 leading-[1.35] sm:leading-[1.43] border-r border-border last:border-r-0" {...props} />,
   blockquote: ({ node, ...props }: any) => (
-    <blockquote className="border-l-2 border-border pl-3 mb-2 leading-relaxed opacity-90" {...props} />
+    <blockquote className="text-xs sm:text-sm border-l-2 border-border pl-3 mb-1.5 sm:mb-2 leading-[1.35] sm:leading-[1.43] opacity-90" {...props} />
   ),
-  /* Headings: same font size as body, but semibold for clear visual distinction */
-  h1: ({ node, ...props }: any) => <p className="font-semibold mb-1.5 mt-3 first:mt-0 leading-relaxed" {...props} />,
-  h2: ({ node, ...props }: any) => <p className="font-semibold mb-1 mt-2.5 first:mt-0 leading-relaxed" {...props} />,
-  h3: ({ node, ...props }: any) => <p className="font-semibold mb-1 mt-2 first:mt-0 leading-relaxed" {...props} />,
+  /* Headings: same size as body text, semibold for visual distinction */
+  h1: ({ node, ...props }: any) => <p className="text-xs sm:text-sm font-semibold mb-1 sm:mb-1.5 mt-2 sm:mt-3 first:mt-0 leading-[1.35] sm:leading-[1.43]" {...props} />,
+  h2: ({ node, ...props }: any) => <p className="text-xs sm:text-sm font-semibold mb-1 mt-2 sm:mt-2.5 first:mt-0 leading-[1.35] sm:leading-[1.43]" {...props} />,
+  h3: ({ node, ...props }: any) => <p className="text-xs sm:text-sm font-semibold mb-0.5 sm:mb-1 mt-1.5 sm:mt-2 first:mt-0 leading-[1.35] sm:leading-[1.43]" {...props} />,
   strong: ({ node, ...props }: any) => <strong className="font-semibold text-foreground" {...props} />,
   em: ({ node, ...props }: any) => <em className="italic" {...props} />,
-  hr: ({ node, ...props }: any) => <hr className="my-2.5 border-border" {...props} />,
+  hr: ({ node, ...props }: any) => <hr className="my-2 sm:my-2.5 border-border" {...props} />,
 };
 
 export function ChatMarkdownContent({ content }: { content: string }) {
