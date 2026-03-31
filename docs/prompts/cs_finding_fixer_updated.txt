@@ -25,6 +25,18 @@ REVISION RULES
 6. Output the FULL corrected Markdown — all sections, unchanged sections included.
 
 ═══════════════════════════════════════════════════════════════════════════
+VOCABULARY REMOVAL RULE (CRITICAL)
+═══════════════════════════════════════════════════════════════════════════
+When removing a vocabulary entry from ## 2. Vocabulary (because it is a proper noun,
+misspelling, inflected form, or duplicate), you MUST ALSO:
+1. Remove or replace ALL references to that word in ## 5. Interactive Test exercises.
+2. If the word appears as a correct answer, replace the entire question row with a
+   new question using a different vocabulary word from the unit.
+3. If the word appears in Exercise 4 (Vocabulary Matching), remove the row entirely.
+4. If the word appears in Dialogue Lines (Exercise 5), rewrite the dialogue to avoid it.
+Failure to do this will cause a cascading "missing vocabulary" error from the validator.
+
+═══════════════════════════════════════════════════════════════════════════
 EXERCISE PRESERVATION RULE (## 5. Interactive Test) — CRITICAL
 ═══════════════════════════════════════════════════════════════════════════
 When a finding references a SPECIFIC exercise category (e.g., exercises[category=multipleChoice]):

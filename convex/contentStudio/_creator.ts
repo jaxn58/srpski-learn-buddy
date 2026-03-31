@@ -585,9 +585,14 @@ export const runAiCreatorRevise = action({
     );
     const humanNotes = String(args.humanNotes || "").trim();
 
-    // Save non-dismissed auditor findings so they survive the QC-Validate overwrite
+    // Only re-append auditor findings that were NOT sent to the fixer.
+    // Findings sent to the fixer are considered "attempted" -- if they persist,
+    // the user should re-run the Lector for a fresh check.
+    const sentToFixerIds = new Set(
+      issues.map((f: any) => String(f._id || "")).filter(Boolean)
+    );
     const survivingAuditorFindings = findings.filter(
-      (f: any) => f.stage === "auditor" && !f.dismissed
+      (f: any) => f.stage === "auditor" && !f.dismissed && !sentToFixerIds.has(String(f._id || ""))
     );
 
     if (issues.length === 0 && !humanNotes) {
