@@ -35,8 +35,8 @@ export const getByTextHash = query({
 
 /**
  * Upsert cached audio for a given textHash.
- * Note: This is intentionally NOT admin-only: it mirrors the vocabulary audio cache behavior
- * where audio is generated on-demand and then cached in Convex storage.
+ * Requires a valid authenticated user (Learner role).
+ * Audio is generated on-demand by the server endpoint and then cached here.
  */
 export const upsert = mutation({
   args: {

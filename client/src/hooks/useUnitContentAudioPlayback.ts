@@ -120,22 +120,27 @@ export function useUnitContentAudioPlayback() {
           storageId = String(result.storageId);
           storageCacheRef.current[textHash] = storageId;
 
-          // Persist cache (no auth required; mirrors vocabulary audio behavior)
-          fetch(`${import.meta.env.VITE_CONVEX_URL}/api/mutation`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              path: "unitContentAudio:upsert",
-              args: {
-                unitNumber,
-                language,
-                contentType,
-                textSr: cleanedText,
-                voiceKey: DEFAULT_VOICE_KEY,
-                textHash,
-                audioStorageId: storageId,
+          // Persist cache (best-effort; auth token required so Convex can identify the caller)
+          getToken().then((upsertToken) => {
+            fetch(`${import.meta.env.VITE_CONVEX_URL}/api/mutation`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(upsertToken && { Authorization: `Bearer ${upsertToken}` }),
               },
-            }),
+              body: JSON.stringify({
+                path: "unitContentAudio:upsert",
+                args: {
+                  unitNumber,
+                  language,
+                  contentType,
+                  textSr: cleanedText,
+                  voiceKey: DEFAULT_VOICE_KEY,
+                  textHash,
+                  audioStorageId: storageId,
+                },
+              }),
+            });
           }).catch(() => {
             // ignore (cache is best-effort)
           });
@@ -206,7 +211,7 @@ export function useUnitContentAudioPlayback() {
         alert(errorMessage);
       }
     },
-    [stop]
+    [stop, getToken]
   );
 
   return useMemo(
