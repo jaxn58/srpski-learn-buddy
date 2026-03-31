@@ -29,7 +29,7 @@ import {
   deduplicateVocabularySectionMarkdown,
 } from "../../scripts/markdownParser/sectionUtils";
 import { CS_PROMPT_KEYS } from "./prompts";
-import { resolvePromptFromDb } from "./_shared";
+import { resolvePromptFromDb, buildStageSkillBlock } from "./_shared";
 
 /**
  * Expand a single section of the markdown without touching other sections.
@@ -80,11 +80,13 @@ export const runSectionRevise = action({
       }
     }
 
-    // 4. Get section-specific prompt from DB (chatPrompts table)
-    const systemPrompt = await resolvePromptFromDb(
+    // 4. Build system prompt: specialist skills (one point of truth) + section-specific prompt
+    const skillBlock = await buildStageSkillBlock(ctx, d as any, "specialist");
+    const sectionPrompt = await resolvePromptFromDb(
       ctx,
       CS_PROMPT_KEYS.section(sectionId),
     );
+    const systemPrompt = [skillBlock, sectionPrompt].filter(Boolean).join("\n\n");
 
     const userPrompt = [
       `CURRENT CONTENT of '${sectionId}':`,

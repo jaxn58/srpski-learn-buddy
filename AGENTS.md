@@ -1,5 +1,14 @@
 # Cursor Agent Anweisungen
 
+## !!! ABSOLUTE OBERSTE REGEL: KEINE DATENÜBERTRAGUNG OHNE EXPLIZITE ZUSTIMMUNG !!!
+
+**ES WERDEN ZU KEINER ZEIT DATEN VON DEVELOPMENT NACH PRODUCTION ÜBERTRAGEN OHNE AUSDRÜCKLICHE, EXPLIZITE ZUSTIMMUNG DES BENUTZERS.**
+
+- NIEMALS Daten, Content, Konfigurationen oder sonstige Änderungen von Dev nach Production deployen, synchronisieren, migrieren oder in irgendeiner Form übertragen – NICHT OHNE VORHERIGE EXPLIZITE FREIGABE.
+- Dies gilt für: Convex-Datenbank-Inhalte, Convex Functions, Frontend-Deployments, Environment Variables, Schema-Migrationen, Content-Updates – ALLES.
+- Auch indirekt (z.B. durch `npx convex deploy`, `vercel --prod`, Migrations-Skripte) darf NICHTS ohne Rückfrage passieren.
+- Bei Problemen in Production: Analyse und Lösungsvorschläge machen, aber KEINE eigenständigen Aktionen auf Production ausführen.
+
 ## Projekt-Übersicht
 Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übungen und Vokabeltraining.
 
