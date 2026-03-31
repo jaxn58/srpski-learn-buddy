@@ -809,14 +809,21 @@ export const findVocabularyBySerbian = query({
       .query("courseVocabulary")
       .withIndex("by_serbian", (q) => q.eq("serbian", args.serbian))
       .collect();
+    // #region agent log
+    console.log(`[DEBUG-8cc85d] findVocabularyBySerbian: exact search for "${args.serbian}" => ${exact.length} hits: ${JSON.stringify(exact.map(e => ({ id: e._id, unit: e.unitNumber, serbian: e.serbian, serbianNormalized: e.serbianNormalized, isActive: e.isActive, releaseStatus: (e as any).releaseStatus })))}`);
+    // #endregion
     if (exact.length > 0) return exact;
 
     const normalized = args.serbian.toLowerCase().trim();
     if (!normalized) return [];
-    return await ctx.db
+    const normalizedHits = await ctx.db
       .query("courseVocabulary")
       .withIndex("by_serbian_normalized", (q) => q.eq("serbianNormalized", normalized))
       .collect();
+    // #region agent log
+    console.log(`[DEBUG-8cc85d] findVocabularyBySerbian: normalized search for "${normalized}" => ${normalizedHits.length} hits: ${JSON.stringify(normalizedHits.map(e => ({ id: e._id, unit: e.unitNumber, serbian: e.serbian, serbianNormalized: e.serbianNormalized, isActive: e.isActive, releaseStatus: (e as any).releaseStatus })))}`);
+    // #endregion
+    return normalizedHits;
   },
 });
 
@@ -878,6 +885,10 @@ export async function findEarlierUnitVocabulary(
     )
     .collect();
 
+  // #region agent log
+  console.log(`[DEBUG-8cc85d] findEarlierUnitVocabulary: searching for "${serbianNormalized}" (currentUnit=${unitNumber}), hits=${hits.length}, details=${JSON.stringify(hits.map(h => ({ id: h._id, unit: h.unitNumber, serbian: h.serbian, serbianNormalized: h.serbianNormalized, isActive: h.isActive, releaseStatus: (h as any).releaseStatus })))}`);
+  // #endregion
+
   let earliest: Doc<"courseVocabulary"> | null = null;
   for (const h of hits) {
     if (h.isActive === false) continue;
@@ -887,6 +898,9 @@ export async function findEarlierUnitVocabulary(
       earliest = h;
     }
   }
+  // #region agent log
+  console.log(`[DEBUG-8cc85d] findEarlierUnitVocabulary: result for "${serbianNormalized}" => ${earliest ? `found in Unit ${earliest.unitNumber} (serbian="${earliest.serbian}", id=${earliest._id})` : "NOT FOUND"}`);
+  // #endregion
   return earliest;
 }
 
