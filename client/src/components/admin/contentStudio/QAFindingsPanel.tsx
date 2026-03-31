@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
-import { CheckCircle, XCircle, Sparkles, Loader2, X, RotateCcw } from "lucide-react";
+import { CheckCircle, XCircle, Sparkles, Loader2, X, RotateCcw, Info } from "lucide-react";
 
 export interface QAFindingsPanelProps {
   findings: any[];
@@ -54,6 +54,11 @@ export function QAFindingsPanel({
             </Button>
             <Badge variant={errorFindings.length ? "destructive" : "secondary"}>{errorFindings.length} errors</Badge>
             <Badge variant="secondary">{warningFindings.length} warnings</Badge>
+            {findings.filter((f: any) => f.severity === "info").length > 0 && (
+              <Badge variant="outline" className="border-blue-300/60 text-blue-600 dark:text-blue-400">
+                {findings.filter((f: any) => f.severity === "info").length} info
+              </Badge>
+            )}
             {typeof (latestReport as any)?.variety?.score === "number" ? (
               <Badge
                 variant="secondary"
@@ -92,57 +97,91 @@ export function QAFindingsPanel({
         <div className="max-h-[360px] overflow-auto rounded border p-2">
           {findings.length === 0 ? (
             <div className="text-sm text-muted-foreground">No findings yet.</div>
-          ) : (
-            <div className="space-y-2">
-              {findings
-                .slice()
-                .sort((a: any, b: any) => {
-                  // Dismissed findings go to the bottom
-                  if (a.dismissed && !b.dismissed) return 1;
-                  if (!a.dismissed && b.dismissed) return -1;
-                  return a.severity > b.severity ? -1 : 1;
-                })
-                .map((f: any, idx: number) => (
-                  <div
-                    key={f._id ?? idx}
-                    className={cn(
-                      "flex gap-2 text-sm items-start",
-                      f.dismissed && "opacity-40"
-                    )}
-                  >
-                    {f.severity === "error" ? (
-                      <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                    ) : (
-                      <CheckCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium flex items-center gap-1 flex-wrap">
-                        <span className={cn(f.dismissed && "line-through")}>{f.code}</span>
-                        {f.stage === "auditor" && (
-                          <span className="text-xs text-muted-foreground font-normal">[lector]</span>
-                        )}
-                        {f.path ? <span className="text-muted-foreground font-normal">({f.path})</span> : null}
+          ) : (() => {
+            const actionable = findings.filter((f: any) => f.severity !== "info");
+            const infoFindings = findings.filter((f: any) => f.severity === "info");
+            return (
+              <div className="space-y-2">
+                {actionable.length === 0 && infoFindings.length > 0 && (
+                  <div className="text-sm text-muted-foreground">No errors or warnings.</div>
+                )}
+                {actionable
+                  .slice()
+                  .sort((a: any, b: any) => {
+                    if (a.dismissed && !b.dismissed) return 1;
+                    if (!a.dismissed && b.dismissed) return -1;
+                    return a.severity > b.severity ? -1 : 1;
+                  })
+                  .map((f: any, idx: number) => (
+                    <div
+                      key={f._id ?? `a-${idx}`}
+                      className={cn(
+                        "flex gap-2 text-sm items-start",
+                        f.dismissed && "opacity-40"
+                      )}
+                    >
+                      {f.severity === "error" ? (
+                        <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium flex items-center gap-1 flex-wrap">
+                          <span className={cn(f.dismissed && "line-through")}>{f.code}</span>
+                          {f.stage === "auditor" && (
+                            <span className="text-xs text-muted-foreground font-normal">[lector]</span>
+                          )}
+                          {f.path ? <span className="text-muted-foreground font-normal">({f.path})</span> : null}
+                        </div>
+                        <div className="break-words text-muted-foreground">{f.message}</div>
                       </div>
-                      <div className="break-words text-muted-foreground">{f.message}</div>
+                      {f._id && (
+                        <button
+                          type="button"
+                          title={f.dismissed ? "Restore finding" : "Dismiss finding (exclude from Fix)"}
+                          className="shrink-0 mt-0.5 rounded p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => onDismissFinding({ findingId: f._id, dismissed: !f.dismissed })}
+                        >
+                          {f.dismissed ? (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          ) : (
+                            <X className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
                     </div>
-                    {f._id && (
-                      <button
-                        type="button"
-                        title={f.dismissed ? "Restore finding" : "Dismiss finding (exclude from Fix)"}
-                        className="shrink-0 mt-0.5 rounded p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={() => onDismissFinding({ findingId: f._id, dismissed: !f.dismissed })}
-                      >
-                        {f.dismissed ? (
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        ) : (
-                          <X className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                ))}
-            </div>
-          )}
+                  ))}
+
+                {infoFindings.length > 0 && (
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="info-findings" className="border-0">
+                      <AccordionTrigger className="py-1.5 text-xs text-muted-foreground hover:no-underline">
+                        <span className="flex items-center gap-1.5">
+                          <Info className="h-3.5 w-3.5 text-blue-500" />
+                          {infoFindings.length} informational note{infoFindings.length !== 1 ? "s" : ""} (review words used etc.)
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-1.5 pt-1">
+                          {infoFindings.map((f: any, idx: number) => (
+                            <div
+                              key={f._id ?? `i-${idx}`}
+                              className="flex gap-2 text-xs items-start text-muted-foreground"
+                            >
+                              <Info className="h-3.5 w-3.5 text-blue-400 mt-0.5 shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <div className="break-words">{f.message}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Human Notes for Fix AI */}

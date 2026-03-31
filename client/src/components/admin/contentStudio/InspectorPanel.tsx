@@ -202,11 +202,25 @@ function ReviewContent(props: InspectorPanelProps) {
             {warningFindings.length} warnings
           </Badge>
         )}
-        {errorFindings.length === 0 && warningFindings.length === 0 && findings.length === 0 && (
-          <Badge variant="outline" className="text-[10px]">
-            <CheckCircle className="mr-1 h-3 w-3 text-emerald-500" /> No issues
-          </Badge>
-        )}
+        {(() => {
+          const infoCount = findings.filter((f: any) => f.severity === "info").length;
+          if (errorFindings.length === 0 && warningFindings.length === 0) {
+            return (
+              <Badge variant="outline" className="text-[10px]">
+                <CheckCircle className="mr-1 h-3 w-3 text-emerald-500" />
+                No issues{infoCount > 0 ? ` (${infoCount} info)` : ""}
+              </Badge>
+            );
+          }
+          if (infoCount > 0) {
+            return (
+              <Badge variant="outline" className="text-[10px] border-blue-300/60 text-blue-600 dark:text-blue-400">
+                {infoCount} info
+              </Badge>
+            );
+          }
+          return null;
+        })()}
       </div>
 
       {/* Fix Findings */}
