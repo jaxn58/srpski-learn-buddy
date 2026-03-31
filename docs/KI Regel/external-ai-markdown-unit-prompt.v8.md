@@ -257,7 +257,7 @@ Exercise rules:
 - Each exercise begins with: ### Exercise <X>: <Title>
 - Each exercise MUST contain: **Instructions:** ...
 - Each exercise MUST have a table and MUST include "Answer (for database)"
-- Fill-in-the-Blank: each question must contain EXACTLY ONE blank ("___" or "_____")
+- Fill-in-the-Blank: each sentence row MUST contain EXACTLY ONE blank "_____" (exactly five underscores). NEVER use "___" (3) or "____" (4) underscores. NEVER use two or more blanks in one sentence. WRONG: "_____ je _____." | CORRECT: "Ja _____ student."
 - Multiple Choice / Dialogue Completion:
   - Include an "Options" column
   - Options format: "A) ...  B) ...  C) ..." (or newline-separated)
@@ -285,7 +285,7 @@ Fill-in-the-Blank (ex2):
 **Instructions:** Fill in the blank with the correct word.
 | Question ID | Sentence | Answer (for database) |
 | :--- | :--- | :--- |
-| u<UNIT>_ex2_q01 | ___ dan. (Good day.) | Dobar |
+| u<UNIT>_ex2_q01 | _____ dan. (Good day.) | Dobar |
 
 Multiple Choice (ex3):
 ### Exercise 3: Multiple Choice (Title)
