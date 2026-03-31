@@ -291,11 +291,6 @@ export const deleteUnitFull = mutation({
     }
 
     const deleted: Record<string, number> = {
-      drafts: 0,
-      draftSnapshots: 0,
-      draftFindings: 0,
-      draftAiRuns: 0,
-      draftHumanReviews: 0,
       unitMetadata: 0,
       unitContent: 0,
       unitInteractiveTests: 0,
@@ -310,59 +305,7 @@ export const deleteUnitFull = mutation({
       userProgressPatched: 0,
     };
 
-    // 1. Delete all drafts for this unit
-    const drafts = await ctx.db
-      .query("contentDrafts")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-
-    for (const d of drafts) {
-      deleted.drafts += 1;
-      // Delete snapshots
-      const snaps = await ctx.db
-        .query("contentDraftSnapshots")
-        .withIndex("by_draft", (q) => q.eq("draftId", d._id))
-        .collect();
-      for (const s of snaps) {
-        await ctx.db.delete(s._id);
-        deleted.draftSnapshots += 1;
-      }
-
-      // Delete findings
-      const findings = await ctx.db
-        .query("contentDraftFindings")
-        .withIndex("by_draft", (q) => q.eq("draftId", d._id))
-        .collect();
-      for (const f of findings) {
-        await ctx.db.delete(f._id);
-        deleted.draftFindings += 1;
-      }
-
-      // Delete AI runs
-      const runs = await ctx.db
-        .query("contentDraftAiRuns")
-        .withIndex("by_draft", (q) => q.eq("draftId", d._id))
-        .collect();
-      for (const r of runs) {
-        await ctx.db.delete(r._id);
-        deleted.draftAiRuns += 1;
-      }
-
-      // Delete human reviews
-      const reviews = await ctx.db
-        .query("contentDraftHumanReviews")
-        .withIndex("by_draft", (q) => q.eq("draftId", d._id))
-        .collect();
-      for (const r of reviews) {
-        await ctx.db.delete(r._id);
-        deleted.draftHumanReviews += 1;
-      }
-
-      // Delete draft itself
-      await ctx.db.delete(d._id);
-    }
-
-    // 2. Delete Published Content
+    // 1. Delete Published Content
     // unitMetadata
     const metas = await ctx.db
       .query("unitMetadata")
@@ -488,7 +431,7 @@ export const deleteUnitFull = mutation({
       deleted.userProgressPatched += 1;
     }
 
-    return { ok: true, unitNumber, deletedDrafts: drafts.length, deleted };
+    return { ok: true, unitNumber, deleted };
   },
 });
 

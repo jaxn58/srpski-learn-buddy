@@ -784,7 +784,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                                         <Badge variant="destructive" className="text-[10px]">Nicht rückgängig zu machen</Badge>
                                       </div>
                                       <p className="text-xs text-destructive font-medium">
-                                        Löscht alle Inhalte, Vokabeln, Tests UND den User-Fortschritt aller Nutzer dieser Unit unwiderruflich.
+                                        Löscht alle Inhalte, Vokabeln, Tests UND den User-Fortschritt aller Nutzer dieser Unit unwiderruflich. Drafts bleiben erhalten.
                                       </p>
                                       <p className="text-xs text-muted-foreground">
                                         Empfehlung: Unit zuerst offline schalten, bevor sie gelöscht wird. Diese Aktion kann nicht rückgängig gemacht werden.

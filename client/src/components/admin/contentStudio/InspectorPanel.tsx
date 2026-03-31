@@ -513,7 +513,7 @@ function PublishContent(props: InspectorPanelProps) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Unit {selected?.draft?.unitNumber}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This deletes ALL data for this unit (metadata, content, tests, vocabulary).
+                    This deletes all published data for this unit (metadata, content, tests, vocabulary) and user progress. Drafts are preserved.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-2 py-2">

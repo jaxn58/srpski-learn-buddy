@@ -821,9 +821,26 @@ export const findVocabularyBySerbian = query({
       .withIndex("by_serbian_normalized", (q) => q.eq("serbianNormalized", normalized))
       .collect();
     // #region agent log
-    console.log(`[DEBUG-8cc85d] findVocabularyBySerbian: normalized search for "${normalized}" => ${normalizedHits.length} hits: ${JSON.stringify(normalizedHits.map(e => ({ id: e._id, unit: e.unitNumber, serbian: e.serbian, serbianNormalized: e.serbianNormalized, isActive: e.isActive, releaseStatus: (e as any).releaseStatus })))}`);
+    console.log(`[DEBUG-8cc85d] findVocabularyBySerbian: normalized search for "${normalized}" => ${normalizedHits.length} hits`);
     // #endregion
-    return normalizedHits;
+    if (normalizedHits.length > 0) return normalizedHits;
+
+    // Fallback: entries with missing serbianNormalized won't be found by the index.
+    // Try capitalized form via exact serbian index as last resort.
+    const capitalizedForm = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    if (capitalizedForm !== args.serbian) {
+      const capitalizedHits = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_serbian", (q) => q.eq("serbian", capitalizedForm))
+        .collect();
+      // #region agent log
+      if (capitalizedHits.length > 0) {
+        console.log(`[DEBUG-8cc85d] findVocabularyBySerbian: FALLBACK capitalized "${capitalizedForm}" => ${capitalizedHits.length} hits`);
+      }
+      // #endregion
+      return capitalizedHits;
+    }
+    return [];
   },
 });
 
@@ -878,6 +895,7 @@ export async function findEarlierUnitVocabulary(
 ): Promise<Doc<"courseVocabulary"> | null> {
   if (!serbianNormalized) return null;
 
+  // Primary path: search via serbianNormalized index
   const hits = await ctx.db
     .query("courseVocabulary")
     .withIndex("by_serbian_normalized", (q) =>
@@ -886,7 +904,7 @@ export async function findEarlierUnitVocabulary(
     .collect();
 
   // #region agent log
-  console.log(`[DEBUG-8cc85d] findEarlierUnitVocabulary: searching for "${serbianNormalized}" (currentUnit=${unitNumber}), hits=${hits.length}, details=${JSON.stringify(hits.map(h => ({ id: h._id, unit: h.unitNumber, serbian: h.serbian, serbianNormalized: h.serbianNormalized, isActive: h.isActive, releaseStatus: (h as any).releaseStatus })))}`);
+  console.log(`[DEBUG-8cc85d] findEarlierUnitVocabulary: searching for "${serbianNormalized}" (currentUnit=${unitNumber}), normalizedHits=${hits.length}`);
   // #endregion
 
   let earliest: Doc<"courseVocabulary"> | null = null;
@@ -898,8 +916,35 @@ export async function findEarlierUnitVocabulary(
       earliest = h;
     }
   }
+
+  // Fallback: entries with missing serbianNormalized won't be found by the index.
+  // Search by exact serbian (case-sensitive) and common capitalized form as safety net.
+  if (!earliest) {
+    const capitalizedForm = serbianNormalized.charAt(0).toUpperCase() + serbianNormalized.slice(1);
+    const fallbackVariants = [serbianNormalized, capitalizedForm];
+    for (const variant of fallbackVariants) {
+      const fallbackHits = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_serbian", (q) => q.eq("serbian", variant))
+        .collect();
+      for (const h of fallbackHits) {
+        if (h.isActive === false) continue;
+        if ((h as any).releaseStatus === "offline") continue;
+        if (h.unitNumber >= unitNumber) continue;
+        if (!earliest || h.unitNumber < earliest.unitNumber) {
+          earliest = h;
+        }
+      }
+    }
+    // #region agent log
+    if (earliest) {
+      console.log(`[DEBUG-8cc85d] findEarlierUnitVocabulary: FALLBACK found "${serbianNormalized}" in Unit ${earliest.unitNumber} (serbian="${earliest.serbian}", serbianNormalized="${earliest.serbianNormalized}")`);
+    }
+    // #endregion
+  }
+
   // #region agent log
-  console.log(`[DEBUG-8cc85d] findEarlierUnitVocabulary: result for "${serbianNormalized}" => ${earliest ? `found in Unit ${earliest.unitNumber} (serbian="${earliest.serbian}", id=${earliest._id})` : "NOT FOUND"}`);
+  console.log(`[DEBUG-8cc85d] findEarlierUnitVocabulary: final result for "${serbianNormalized}" => ${earliest ? `found in Unit ${earliest.unitNumber} (serbian="${earliest.serbian}", id=${earliest._id})` : "NOT FOUND"}`);
   // #endregion
   return earliest;
 }
@@ -1081,5 +1126,55 @@ export const deduplicateVocabularyAcrossUnits = mutation({
       );
     }
     return summary;
+  },
+});
+
+/**
+ * One-time migration: backfill serbianNormalized for all courseVocabulary entries
+ * that are missing it. Sets serbianNormalized = serbian.toLowerCase().trim().
+ *
+ * Run via: npx convex run vocabulary:backfillSerbianNormalized '{"dryRun":true}' --prod
+ */
+export const backfillSerbianNormalized = mutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun !== false;
+    const all = await ctx.db.query("courseVocabulary").collect();
+
+    const missing = all.filter(
+      (v) => v.serbianNormalized === undefined || v.serbianNormalized === null || v.serbianNormalized === "",
+    );
+
+    const patched: Array<{ id: string; serbian: string; normalized: string; unitNumber: number }> = [];
+
+    for (const entry of missing) {
+      const normalized = String(entry.serbian ?? "").toLowerCase().trim();
+      if (!normalized) continue;
+
+      if (!dryRun) {
+        await ctx.db.patch(entry._id, { serbianNormalized: normalized });
+      }
+      patched.push({
+        id: entry._id,
+        serbian: entry.serbian,
+        normalized,
+        unitNumber: entry.unitNumber,
+      });
+    }
+
+    console.log(
+      `[BackfillNormalized] ${dryRun ? "DRY RUN" : "APPLIED"}: ` +
+        `${patched.length} of ${all.length} entries ${dryRun ? "would be" : "were"} patched`,
+    );
+
+    return {
+      dryRun,
+      totalEntries: all.length,
+      missingBefore: missing.length,
+      patched: patched.length,
+      sample: patched.slice(0, 20).map((p) => `"${p.serbian}" -> "${p.normalized}" (Unit ${p.unitNumber})`),
+    };
   },
 });
