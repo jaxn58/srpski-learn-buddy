@@ -728,16 +728,6 @@ export async function ensureFounderNoteInMarkdownIfConfigured(
   const next = upsertFounderNoteBlock(markdown, name, quoteEn);
   const structure = validateMarkdownStructure(next);
   if (!structure.valid) {
-    const isGrammarTruncationOnly =
-      structure.errors.some(
-        (e) =>
-          e.includes("Grammar section appears truncated") ||
-          e.includes("Grammar section appears to be cut off"),
-      ) && structure.errors.length <= 2;
-    if (isGrammarTruncationOnly) {
-      console.warn("ensureFounderNoteInMarkdownIfConfigured: Grammar truncation tolerated (will be auto-fixed by Validator)");
-      return next;
-    }
     throw new Error(`Founder note injection produced invalid Markdown structure: ${structure.errors.join("; ")}`);
   }
   return next;

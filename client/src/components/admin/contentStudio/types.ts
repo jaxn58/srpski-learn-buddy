@@ -3,11 +3,11 @@ export type Provider = "gemini" | "openai";
 export type StageKey = "specialist" | "auditor";
 export type ModelTier = "ultra-budget" | "budget" | "balanced" | "premium" | "flagship";
 export type NextStepKey = "creator" | "validator" | "lector" | "preview" | "publish";
-export type StepId = "setup" | "generate" | "qa" | "preview" | "publish";
+export type StepId = "generate" | "qa" | "preview" | "publish";
 export type SectionId = "overview" | "vocabulary" | "grammar" | "phrases" | "exercises" | "cultural";
 export type DraftStatusKey = "draft" | "qc_failed" | "qc_passed" | "audit_failed" | "ready_to_publish" | "published";
 export type SettingsTab = "ai" | "libraries" | "prompts";
-export type StudioView = "drafts" | "units" | "import";
+export type StudioView = "draftManager" | "drafts" | "units" | "import";
 
 export type ModelEntry = {
   id: string;

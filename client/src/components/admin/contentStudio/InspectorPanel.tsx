@@ -36,43 +36,13 @@ import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
 import { DraftStatusBadge } from "./StatusBadge";
 
-export type InspectorStep = "setup" | "generate" | "review" | "publish";
+export type InspectorStep = "generate" | "review" | "publish";
 
 export interface InspectorPanelProps {
   activeStep: InspectorStep;
   selected: any;
   selectedDraftId: string | null;
   isBusy: boolean;
-
-  // Setup
-  draftEditTitle: string;
-  setDraftEditTitle: (v: string) => void;
-  draftEditDescription: string;
-  setDraftEditDescription: (v: string) => void;
-  draftAuthorNoteName: string;
-  setDraftAuthorNoteName: (v: string) => void;
-  draftAuthorNoteQuote: string;
-  setDraftAuthorNoteQuote: (v: string) => void;
-  onFounderQuoteBlur: () => void;
-  draftRefId: string;
-  setDraftRefId: (v: string) => void;
-  draftRefNotes: string;
-  setDraftRefNotes: (v: string) => void;
-  draftRefChapter: string;
-  setDraftRefChapter: (v: string) => void;
-  draftRefPages: string;
-  setDraftRefPages: (v: string) => void;
-  refs: any[] | undefined;
-  specialistSkills: any[] | undefined;
-  auditorSkills: any[] | undefined;
-  draftSpecialistSkillIds: string[];
-  setDraftSpecialistSkillIds: (v: string[]) => void;
-  draftAuditorSkillIds: string[];
-  setDraftAuditorSkillIds: (v: string[]) => void;
-  onSaveDraftSkillsAndReference: () => void;
-  hasUnsavedChanges: boolean;
-  metaAutosaveStatus: "idle" | "saving" | "error";
-  metaAutosavedAt: number | null;
 
   // Generate
   runningCreator: boolean;
@@ -141,204 +111,24 @@ export interface InspectorPanelProps {
 }
 
 export function InspectorPanel(props: InspectorPanelProps) {
-  const { activeStep, selected, isBusy } = props;
+  const { activeStep, selected } = props;
 
   return (
     <div className="flex flex-col h-full">
       <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {activeStep === "setup" ? "Setup" : activeStep === "generate" ? "Generate" : activeStep === "review" ? "Review" : "Publish"}
+          {activeStep === "generate" ? "Generate" : activeStep === "review" ? "Review" : "Publish"}
         </span>
         <DraftStatusBadge status={selected?.draft?.status} />
       </div>
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-4">
-          {activeStep === "setup" && <SetupContent {...props} />}
           {activeStep === "generate" && <GenerateContent {...props} />}
           {activeStep === "review" && <ReviewContent {...props} />}
           {activeStep === "publish" && <PublishContent {...props} />}
         </div>
       </ScrollArea>
     </div>
-  );
-}
-
-function SetupContent(props: InspectorPanelProps) {
-  const {
-    selected, isBusy, draftEditTitle, setDraftEditTitle, draftEditDescription,
-    setDraftEditDescription, draftAuthorNoteName, setDraftAuthorNoteName,
-    draftAuthorNoteQuote, setDraftAuthorNoteQuote, onFounderQuoteBlur,
-    draftRefId, setDraftRefId, draftRefNotes, setDraftRefNotes,
-    draftRefChapter, setDraftRefChapter, draftRefPages, setDraftRefPages,
-    refs, specialistSkills, auditorSkills, draftSpecialistSkillIds,
-    setDraftSpecialistSkillIds, draftAuditorSkillIds, setDraftAuditorSkillIds,
-    onSaveDraftSkillsAndReference, hasUnsavedChanges, metaAutosaveStatus, metaAutosavedAt,
-  } = props;
-
-  return (
-    <>
-      <div className="space-y-3">
-        <div>
-          <Label className="text-xs">Title</Label>
-          <Input
-            value={draftEditTitle}
-            onChange={(e) => setDraftEditTitle(e.target.value)}
-            className="mt-1 h-8 text-sm"
-          />
-        </div>
-        <div>
-          <Label className="text-xs">Description / Creator Brief</Label>
-          <Textarea
-            value={draftEditDescription}
-            onChange={(e) => setDraftEditDescription(e.target.value)}
-            rows={3}
-            className="mt-1 text-sm"
-          />
-        </div>
-      </div>
-
-      <Separator />
-
-      <div className="space-y-3">
-        <Label className="text-xs font-semibold">Author Note (optional)</Label>
-        <div>
-          <Label className="text-xs">Name</Label>
-          <Input
-            value={draftAuthorNoteName}
-            onChange={(e) => setDraftAuthorNoteName(e.target.value)}
-            placeholder="e.g. Maxi"
-            className="mt-1 h-8 text-sm"
-          />
-        </div>
-        <div>
-          <Label className="text-xs">Quote</Label>
-          <Textarea
-            value={draftAuthorNoteQuote}
-            onChange={(e) => setDraftAuthorNoteQuote(e.target.value)}
-            onBlur={onFounderQuoteBlur}
-            rows={2}
-            placeholder="A brief motivational quote..."
-            className="mt-1 text-sm"
-          />
-        </div>
-      </div>
-
-      <Separator />
-
-      <div className="space-y-3">
-        <Label className="text-xs font-semibold">Reference</Label>
-        <Select value={draftRefId || "__none__"} onValueChange={(v) => setDraftRefId(v === "__none__" ? "" : v)}>
-          <SelectTrigger className="h-8 text-sm">
-            <SelectValue placeholder="Select reference..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">None</SelectItem>
-            {((refs || []) as any[]).filter((r: any) => r?.isActive).map((r: any) => (
-              <SelectItem key={String(r._id)} value={String(r._id)}>
-                {r.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {draftRefId && (
-          <div className="grid gap-2 grid-cols-2">
-            <div>
-              <Label className="text-xs">Chapter</Label>
-              <Input value={draftRefChapter} onChange={(e) => setDraftRefChapter(e.target.value)} className="mt-1 h-8 text-sm" />
-            </div>
-            <div>
-              <Label className="text-xs">Pages</Label>
-              <Input value={draftRefPages} onChange={(e) => setDraftRefPages(e.target.value)} className="mt-1 h-8 text-sm" />
-            </div>
-            <div className="col-span-2">
-              <Label className="text-xs">Notes</Label>
-              <Textarea value={draftRefNotes} onChange={(e) => setDraftRefNotes(e.target.value)} rows={2} className="mt-1 text-sm" />
-            </div>
-          </div>
-        )}
-      </div>
-
-      <Separator />
-
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="skills" className="border-none">
-          <AccordionTrigger className="text-xs font-semibold py-1">Skills</AccordionTrigger>
-          <AccordionContent className="space-y-3 pt-2">
-            <div>
-              <Label className="text-xs">Creator Skills</Label>
-              <div className="mt-1 space-y-1">
-                {((specialistSkills || []) as any[]).map((s: any) => (
-                  <label key={String(s._id)} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={draftSpecialistSkillIds.includes(String(s._id))}
-                      onChange={(e) => {
-                        const id = String(s._id);
-                        setDraftSpecialistSkillIds(
-                          e.target.checked
-                            ? [...draftSpecialistSkillIds, id]
-                            : draftSpecialistSkillIds.filter((x) => x !== id)
-                        );
-                      }}
-                      className="rounded"
-                    />
-                    {s.name}
-                  </label>
-                ))}
-                {!specialistSkills?.length && <span className="text-xs text-muted-foreground">No creator skills defined.</span>}
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Lector Skills</Label>
-              <div className="mt-1 space-y-1">
-                {((auditorSkills || []) as any[]).map((s: any) => (
-                  <label key={String(s._id)} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={draftAuditorSkillIds.includes(String(s._id))}
-                      onChange={(e) => {
-                        const id = String(s._id);
-                        setDraftAuditorSkillIds(
-                          e.target.checked
-                            ? [...draftAuditorSkillIds, id]
-                            : draftAuditorSkillIds.filter((x) => x !== id)
-                        );
-                      }}
-                      className="rounded"
-                    />
-                    {s.name}
-                  </label>
-                ))}
-                {!auditorSkills?.length && <span className="text-xs text-muted-foreground">No lector skills defined.</span>}
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-
-      <div className="pt-2 space-y-2">
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={onSaveDraftSkillsAndReference}
-          disabled={!props.selectedDraftId || isBusy}
-        >
-          Save Draft Settings
-        </Button>
-        {metaAutosaveStatus === "saving" && (
-          <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Autosaving...</span>
-        )}
-        {metaAutosaveStatus === "error" && (
-          <span className="text-xs text-red-600">Autosave failed</span>
-        )}
-        {metaAutosavedAt && metaAutosaveStatus === "idle" && (
-          <span className="text-xs text-muted-foreground">
-            Autosaved {new Date(metaAutosavedAt).toLocaleTimeString()}
-          </span>
-        )}
-        {hasUnsavedChanges && <Badge variant="secondary" className="text-[10px]">Unsaved changes</Badge>}
-      </div>
-    </>
   );
 }
 

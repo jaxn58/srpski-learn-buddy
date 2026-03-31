@@ -480,30 +480,10 @@ export const runAiSpecialistGenerate = action({
         markdown = canonicalizeDialoguesToUnit1Tables(markdown);
         structure = validateMarkdownStructure(markdown);
         if (!structure.valid) {
-          // Auto-Recovery: If only Grammar section is truncated, save partial content (frontend will auto-fix)
-          const isTruncatedGrammar = structure.errors.some(e => 
-            e.includes("Grammar section appears truncated") || 
-            e.includes("Grammar section appears to be cut off")
-          );
-          const hasOnlyGrammarIssue = isTruncatedGrammar && structure.errors.length <= 2;
-          if (hasOnlyGrammarIssue) {
-            console.warn("Creator: Grammar section truncated, saving for auto-fix");
-          } else {
-            throw new Error(`Creator markdown failed structure validation: ${structure.errors.join("; ")}`);
-          }
+          throw new Error(`Creator markdown failed structure validation after ${maxAttempts} attempt(s): ${structure.errors.join("; ")}`);
         }
       } else if (!structure.valid) {
-        // Auto-Recovery: If only Grammar section is truncated, save partial content (frontend will auto-fix)
-        const isTruncatedGrammar = structure.errors.some(e => 
-          e.includes("Grammar section appears truncated") || 
-          e.includes("Grammar section appears to be cut off")
-        );
-        const hasOnlyGrammarIssue = isTruncatedGrammar && structure.errors.length <= 2;
-        if (hasOnlyGrammarIssue) {
-          console.warn("Creator: Grammar section truncated, saving for auto-fix");
-        } else {
-          throw new Error(`Creator markdown failed structure validation: ${structure.errors.join("; ")}`);
-        }
+        throw new Error(`Creator markdown failed structure validation: ${structure.errors.join("; ")}`);
       }
 
       // Enforce Base Language: English (auto-translate the whole unit if needed).
@@ -514,16 +494,7 @@ export const runAiSpecialistGenerate = action({
 
       structure = validateMarkdownStructure(markdown);
       if (!structure.valid) {
-        // Allow grammar-only truncation through to the save step — the QC validator will auto-fix it.
-        const isTruncatedGrammarFinal = structure.errors.some(e =>
-          e.includes("Grammar section appears truncated") ||
-          e.includes("Grammar section appears to be cut off")
-        );
-        const hasOnlyGrammarIssueFinal = isTruncatedGrammarFinal && structure.errors.length <= 2;
-        if (!hasOnlyGrammarIssueFinal) {
-          throw new Error(`Creator markdown failed structure validation: ${structure.errors.join("; ")}`);
-        }
-        console.warn("Creator: Grammar still truncated after post-processing, saving partial for auto-fix");
+        throw new Error(`Creator markdown failed structure validation after post-processing: ${structure.errors.join("; ")}`);
       }
 
       const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);

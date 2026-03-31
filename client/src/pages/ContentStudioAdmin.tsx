@@ -6,13 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,6 +20,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Sparkles, Loader2, Settings, Plus, LayoutList, PanelLeft, PanelRight } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
   SheetContent,
@@ -39,9 +33,10 @@ import { ArtifactsPanel } from "@/components/admin/contentStudio/ArtifactsPanel"
 import { PromptPreview } from "@/components/admin/contentStudio/PromptPreview";
 import { InspectorPanel } from "@/components/admin/contentStudio/InspectorPanel";
 import type { InspectorStep } from "@/components/admin/contentStudio/InspectorPanel";
+import { DraftEditPanel } from "@/components/admin/contentStudio/DraftEditPanel";
 import { DraftStatusBadge } from "@/components/admin/contentStudio/StatusBadge";
 import type { Mode, Provider, StageKey, SectionId, NextStepKey, StepId, SettingsTab, StudioView } from "@/components/admin/contentStudio/types";
-import { CONTENT_STUDIO_DIALOG_WIDTH, SECTION_OPTIONS, isKnownModel, stageOrderedModels } from "@/components/admin/contentStudio/constants";
+import { SECTION_OPTIONS, isKnownModel, stageOrderedModels } from "@/components/admin/contentStudio/constants";
 import { buildSideBySideDiffRows } from "@/components/admin/contentStudio/utils/diffAlgorithm";
 
 export default function ContentStudioAdmin() {
@@ -114,13 +109,6 @@ export default function ContentStudioAdmin() {
   const translatePublishedUnitEnToDe = useAction(api.contentStudio.translatePublishedUnitEnToDe);
   const deleteUnitFull = useMutation(api.contentStudio.deleteUnitFull);
 
-  const [newUnitNumber, setNewUnitNumber] = useState("3");
-  const [newModuleNumber, setNewModuleNumber] = useState("1");
-  const [newTitle, setNewTitle] = useState("New Unit");
-  const [newDescription, setNewDescription] = useState("");
-  const [newCreatorBrief, setNewCreatorBrief] = useState("");
-  const [newTemplateId, setNewTemplateId] = useState<string>("");
-
   const [unitPackageJson, setUnitPackageJson] = useState<string>("");
   const [markdownText, setMarkdownText] = useState<string>("");
   const [restoreMarkdownText, setRestoreMarkdownText] = useState<string>("");
@@ -172,12 +160,12 @@ export default function ContentStudioAdmin() {
   const [expandSection, setExpandSection] = useState<SectionId>("phrases");
   const [expandInstruction, setExpandInstruction] = useState("");
 
-  // Top-level view toggle: "drafts" = Draft Studio (default), "units" = Unit Manager, "import" = Quick Import
+  // Top-level view toggle
   const [studioView, setStudioView] = useState<StudioView>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v === "import" || v === "units") return v;
-    return "drafts";
+    if (v === "import" || v === "units" || v === "drafts") return v as StudioView;
+    return "draftManager";
   });
 
   // Mobile responsive state
@@ -187,7 +175,8 @@ export default function ContentStudioAdmin() {
   // Settings sheet state
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("ai");
-  const [createDraftOpen, setCreateDraftOpen] = useState(false);
+  // Pre-fill state for DraftEditPanel create form (triggered e.g. via "Use Template" in Settings)
+  const [pendingDraftCreate, setPendingDraftCreate] = useState<{ templateId?: string; creatorBrief?: string } | null>(null);
 
   // Draft list navigation (left pane)
   const [draftsSearch, setDraftsSearch] = useState("");
@@ -428,29 +417,29 @@ export default function ContentStudioAdmin() {
   };
 
   const activeStep: StepId = useMemo(() => {
-    if (!selectedDraftId || !selected?.draft) return "setup";
+    if (!selectedDraftId || !selected?.draft) return "generate";
     if (nextStepKey === "creator") return "generate";
     if (nextStepKey === "validator" || nextStepKey === "lector") return "qa";
     if (nextStepKey === "preview") return "preview";
     if (nextStepKey === "publish") return "publish";
-    return "setup";
+    return "generate";
   }, [selectedDraftId, selected?.draft, nextStepKey]);
 
   const activeStepIndex = useMemo(() => {
-    const map: Record<StepId, number> = { setup: 0, generate: 1, qa: 2, preview: 3, publish: 4 };
+    const map: Record<StepId, number> = { generate: 0, qa: 1, preview: 2, publish: 3 };
     return map[activeStep];
   }, [activeStep]);
 
-  const [activeInspectorStep, setActiveInspectorStep] = useState<InspectorStep>("setup");
+  const [activeInspectorStep, setActiveInspectorStep] = useState<InspectorStep>("generate");
 
   useEffect(() => {
     const computed: InspectorStep = (() => {
-      if (!selectedDraftId || !selected?.draft) return "setup";
+      if (!selectedDraftId || !selected?.draft) return "generate";
       if (nextStepKey === "creator") return "generate";
       if (nextStepKey === "validator" || nextStepKey === "lector") return "review";
       if (nextStepKey === "preview") return "review";
       if (nextStepKey === "publish") return "publish";
-      return "setup";
+      return "generate";
     })();
     setActiveInspectorStep(computed);
   }, [selectedDraftId, selected?.draft, nextStepKey]);
@@ -840,63 +829,83 @@ export default function ContentStudioAdmin() {
     void snap;
   };
 
-  const handleCreateDraft = async () => {
-    try {
-      const unitNumber = Number(newUnitNumber);
-      const moduleNumber = Number(newModuleNumber);
-      if (!Number.isFinite(unitNumber) || unitNumber <= 0) throw new Error("Invalid unitNumber");
-      if (!Number.isFinite(moduleNumber) || moduleNumber <= 0) throw new Error("Invalid moduleNumber");
-      const title = newTitle.trim() || `Unit ${unitNumber}`;
-      const description = newDescription.trim() || undefined;
+  const handleCreateDraft = async (params: {
+    unitNumber: number;
+    moduleNumber: number;
+    title: string;
+    description?: string;
+    templateId?: string;
+    creatorBrief?: string;
+    refId?: string;
+    refChapter?: string;
+    refPages?: string;
+    refNotes?: string;
+    specialistSkillIds?: string[];
+    auditorSkillIds?: string[];
+  }) => {
+    const {
+      unitNumber, moduleNumber, title, description,
+      templateId: tplId, creatorBrief,
+      refId, refChapter, refPages, refNotes,
+      specialistSkillIds: newSpecialistIds,
+      auditorSkillIds: newAuditorIds,
+    } = params;
 
-      const hasTemplate = Boolean(newTemplateId);
-      const template = hasTemplate
-        ? (draftTemplates || []).find((t: any) => String(t?._id) === String(newTemplateId)) || null
-        : null;
+    const template = tplId
+      ? (draftTemplates || []).find((t: any) => String(t?._id) === String(tplId)) || null
+      : null;
 
-      const id = template
-        ? await createDraftFromTemplate({
-            templateId: template._id,
-            unitNumber,
-            moduleNumber,
-            title,
-            description,
-            // Override only the brief/notes if the user typed something different.
-            inspirationRef: template.inspirationRef
-              ? {
-                  ...template.inspirationRef,
-                  source: "template",
-                  notes: newCreatorBrief.trim() || template.inspirationRef?.notes || undefined,
-                }
-              : newCreatorBrief.trim()
-                ? { source: "template", notes: newCreatorBrief.trim() }
-                : undefined,
-          } as any)
-        : await createDraft({
-            unitNumber,
-            moduleNumber,
-            title,
-            description,
-          });
+    const id = template
+      ? await createDraftFromTemplate({
+          templateId: template._id,
+          unitNumber,
+          moduleNumber,
+          title,
+          description,
+          inspirationRef: template.inspirationRef
+            ? {
+                ...template.inspirationRef,
+                source: "template",
+                notes: creatorBrief || template.inspirationRef?.notes || undefined,
+              }
+            : creatorBrief
+              ? { source: "template", notes: creatorBrief }
+              : undefined,
+        } as any)
+      : await createDraft({ unitNumber, moduleNumber, title, description });
 
-      // For non-template drafts, store the creator brief immediately.
-      if (!template && newCreatorBrief.trim()) {
-        await updateDraftMeta({
-          draftId: id,
-          inspirationRef: {
-            source: "creator-brief",
-            notes: newCreatorBrief.trim(),
-          },
-        });
-      }
-
-      setSelectedDraftId(id);
-      setCreateDraftOpen(false);
-      setNewTemplateId("");
-      toast.success(t("admin.contentStudio.toast.draftCreated"));
-    } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.draftCreateFailed"));
+    // Persist creator brief (non-template path)
+    if (!template && creatorBrief) {
+      await updateDraftMeta({
+        draftId: id,
+        inspirationRef: { source: "creator-brief", notes: creatorBrief },
+      });
     }
+
+    // Persist reference if selected (takes precedence over template for non-template path)
+    if (!template && refId) {
+      await updateDraftMeta({
+        draftId: id,
+        inspirationRef: {
+          source: "reference-library",
+          referenceId: refId as any,
+          chapter: refChapter || undefined,
+          pages: refPages || undefined,
+          notes: refNotes || undefined,
+        },
+      });
+    }
+
+    // Persist skills
+    if (newSpecialistIds?.length) {
+      await setDraftSpecialistSkills({ draftId: id, skillIds: newSpecialistIds as any });
+    }
+    if (newAuditorIds?.length) {
+      await setDraftAuditorSkills({ draftId: id, skillIds: newAuditorIds as any });
+    }
+
+    setSelectedDraftId(id);
+    toast.success(t("admin.contentStudio.toast.draftCreated"));
   };
 
   const handleSaveModelConfig = async () => {
@@ -1050,10 +1059,11 @@ export default function ContentStudioAdmin() {
   };
 
   const handleUseTemplate = (tpl: any) => {
-    setNewTemplateId(String(tpl?._id || ""));
     const brief = String(tpl?.inspirationRef?.notes || "").trim();
-    if (brief) setNewCreatorBrief(brief);
-    setCreateDraftOpen(true);
+    setPendingDraftCreate({ templateId: String(tpl?._id || ""), creatorBrief: brief || undefined });
+    setSelectedDraftId(null);
+    setStudioView("draftManager");
+    setSettingsOpen(false);
   };
 
   const handleUploadReferencePdf = async () => {
@@ -2143,11 +2153,13 @@ export default function ContentStudioAdmin() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold leading-tight">Content Studio</h1>
           <div className="text-sm text-muted-foreground">
-            {studioView === "drafts"
-              ? "Draft \u2192 Generate \u2192 QA \u2192 Preview \u2192 Publish"
-              : studioView === "import"
-                ? "Upload Markdown / JSON to import units"
-                : "Manage all units across languages"}
+            {studioView === "draftManager"
+              ? "Create and configure drafts (skills, reference, brief)"
+              : studioView === "drafts"
+                ? "Generate \u2192 QA \u2192 Preview \u2192 Publish"
+                : studioView === "import"
+                  ? "Upload Markdown / JSON to import units"
+                  : "Manage all units across languages"}
           </div>
         </div>
 
@@ -2155,13 +2167,22 @@ export default function ContentStudioAdmin() {
           {/* View toggle */}
           <div className="flex rounded-md border bg-muted p-0.5">
             <Button
+              variant={studioView === "draftManager" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setStudioView("draftManager")}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Drafts
+            </Button>
+            <Button
               variant={studioView === "drafts" ? "default" : "ghost"}
               size="sm"
               className="h-7 text-xs"
               onClick={() => setStudioView("drafts")}
             >
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-              Draft Studio
+              Generator
             </Button>
             <Button
               variant={studioView === "import" ? "default" : "ghost"}
@@ -2181,127 +2202,12 @@ export default function ContentStudioAdmin() {
               Unit Manager
             </Button>
           </div>
-          {studioView === "drafts" && (
-            <Button variant="default" size="sm" onClick={() => setCreateDraftOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Draft
-            </Button>
-          )}
           <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
             <Settings className="mr-2 h-4 w-4" />
             Settings
           </Button>
         </div>
       </div>
-
-      {/* Create Draft Dialog */}
-      <Dialog open={createDraftOpen} onOpenChange={setCreateDraftOpen}>
-        <DialogContent className={CONTENT_STUDIO_DIALOG_WIDTH}>
-          <DialogHeader>
-            <DialogTitle>Create Draft</DialogTitle>
-            <DialogDescription>
-              Define unit metadata and the Creator brief. Output must be English.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>Template (optional)</Label>
-                <Select
-                  value={newTemplateId ? newTemplateId : "none"}
-                  onValueChange={(v) => {
-                    const next = v === "none" ? "" : String(v);
-                    setNewTemplateId(next);
-                    if (!next) return;
-                    const tpl = (draftTemplates || []).find((t: any) => String(t?._id) === next) as any;
-                    const brief = String(tpl?.inspirationRef?.notes || "").trim();
-                    if (brief) setNewCreatorBrief(brief);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {(draftTemplates || []).map((t: any) => (
-                      <SelectItem key={String(t._id)} value={String(t._id)}>
-                        {String(t.name || "Untitled")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="text-xs text-muted-foreground">
-                  Templates can pre-configure reference + skills + brief. You can still adjust everything after creation.
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Module Number</Label>
-                  <Input value={newModuleNumber} onChange={(e) => setNewModuleNumber(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Unit Number</Label>
-                  <Input value={newUnitNumber} onChange={(e) => setNewUnitNumber(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Unit description (1 short sentence)</Label>
-                <Input
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="This becomes **Description:** in the unit header (max ~120 chars)."
-                />
-                <div className="text-xs text-muted-foreground">
-                  This becomes the unit header line <span className="font-mono">**Description:** ...</span>.
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Creator brief / unit prompt</Label>
-              <div className="text-xs text-muted-foreground">
-                Main prompt for the unit (scenes + didactic progression). You can write German or English — output is English.
-              </div>
-              <Textarea
-                value={newCreatorBrief}
-                onChange={(e) => setNewCreatorBrief(e.target.value)}
-                className="min-h-[260px]"
-                placeholder={[
-                  "Example:",
-                  "- Situation: café in Montenegro",
-                  "- Prerequisites: greetings (Unit 1), introductions (Unit 2)",
-                  "- New: ordering drinks, asking for the bill, 'Ja bih ...'",
-                  "- Constraints: max 30 vocab, max 4 dialogues, keep it concise",
-                ].join("\n")}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button
-              variant="secondary"
-              onClick={() => setCreateDraftOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                await handleCreateDraft();
-              }}
-            >
-              Create Draft
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Import view */}
       {studioView === "import" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyImportTab /></Suspense>}
@@ -2316,8 +2222,8 @@ export default function ContentStudioAdmin() {
         />
       )}
 
-      {/* Draft Studio view */}
-      {studioView === "drafts" && (() => {
+      {/* Draft Manager view */}
+      {studioView === "draftManager" && (() => {
         const draftListContent = (
           <DraftList
             drafts={drafts}
@@ -2328,23 +2234,29 @@ export default function ContentStudioAdmin() {
             setDraftsSearch={setDraftsSearch}
             draftsStatusFilter={draftsStatusFilter}
             setDraftsStatusFilter={setDraftsStatusFilter}
-            batchSelectedDraftIds={batchSelectedDraftIds}
-            toggleBatchSelectDraft={toggleBatchSelectDraft}
-            selectAllFilteredDrafts={selectAllFilteredDrafts}
-            clearBatchSelection={clearBatchSelection}
-            batchRunning={batchRunning}
-            batchProgress={batchProgress}
-            batchResults={batchResults}
-            isBusy={isBusy}
-            onRunBatch={runBatch}
+            onDeleteDraft={async (draftId) => {
+              await deleteDraft({ draftId: draftId as any });
+              if (selectedDraftId === draftId) setSelectedDraftId(null);
+              toast.success(t("admin.contentStudio.toast.draftDeleted"));
+            }}
           />
         );
 
-        const inspectorContent = selectedDraftId && selected?.draft ? (
-          <InspectorPanel
-            activeStep={activeInspectorStep}
+        const editPanelContent = (
+          <DraftEditPanel
+            selectedDraftId={selectedDraftId ? String(selectedDraftId) : null}
+            onOpenInGenerator={() => setStudioView("drafts")}
+            draftTemplates={draftTemplates}
+            initialCreate={pendingDraftCreate ?? undefined}
+            onCreateDraft={async (params) => {
+              try {
+                await handleCreateDraft(params);
+                setPendingDraftCreate(null);
+              } catch (e: any) {
+                toast.error(e?.message || t("admin.contentStudio.toast.draftCreateFailed"));
+              }
+            }}
             selected={selected}
-            selectedDraftId={selectedDraftId}
             isBusy={isBusy}
             draftEditTitle={draftEditTitle}
             setDraftEditTitle={setDraftEditTitle}
@@ -2374,6 +2286,59 @@ export default function ContentStudioAdmin() {
             hasUnsavedChanges={hasUnsavedChanges}
             metaAutosaveStatus={metaAutosaveStatus}
             metaAutosavedAt={metaAutosavedAt}
+          />
+        );
+
+        return (
+          <div className="flex flex-col lg:flex-row gap-0 h-[calc(100vh-8rem)] border rounded-lg overflow-hidden bg-background">
+            {/* Mobile Sidebar Sheet */}
+            <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+              <SheetContent side="left" className="w-[300px] p-0 lg:hidden">
+                <div className="flex flex-col h-full overflow-hidden pt-8">
+                  {draftListContent}
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            {/* Zone 1: Sidebar (desktop only) */}
+            <div className="hidden lg:flex w-[260px] shrink-0 border-r flex-col overflow-hidden">
+              {draftListContent}
+            </div>
+
+            {/* Zone 2: Draft Edit Panel */}
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+              {editPanelContent}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Generator (Draft Studio) view */}
+      {studioView === "drafts" && (() => {
+        const draftListContent = (
+          <DraftList
+            drafts={drafts}
+            filteredDrafts={filteredDrafts}
+            selectedDraftId={selectedDraftId}
+            onSelectDraft={(id) => { handleSelectDraft(id); setMobileSidebarOpen(false); }}
+            draftsSearch={draftsSearch}
+            setDraftsSearch={setDraftsSearch}
+            draftsStatusFilter={draftsStatusFilter}
+            setDraftsStatusFilter={setDraftsStatusFilter}
+            onDeleteDraft={async (draftId) => {
+              await deleteDraft({ draftId: draftId as any });
+              if (selectedDraftId === draftId) setSelectedDraftId(null);
+              toast.success(t("admin.contentStudio.toast.draftDeleted"));
+            }}
+          />
+        );
+
+        const inspectorContent = selectedDraftId && selected?.draft ? (
+          <InspectorPanel
+            activeStep={activeInspectorStep}
+            selected={selected}
+            selectedDraftId={selectedDraftId}
+            isBusy={isBusy}
             runningCreator={runningCreator}
             runningValidator={runningValidator}
             runningCreateValidate={runningCreateValidate}
@@ -2465,7 +2430,15 @@ export default function ContentStudioAdmin() {
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             {!selectedDraftId || !selected?.draft ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm">
-                <span>Select a draft from the sidebar or create a new one.</span>
+                <span>Select a draft from the sidebar to start generating.</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setStudioView("draftManager")}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Go to Drafts Manager
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
@@ -2496,8 +2469,8 @@ export default function ContentStudioAdmin() {
                     {hasUnsavedChanges && <Badge variant="secondary" className="text-[10px]">Unsaved</Badge>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Button size="sm" variant="secondary" onClick={handleSaveDraftSkillsAndReference} disabled={!selectedDraftId || isBusy}>
-                      Save
+                    <Button size="sm" variant="outline" onClick={() => setStudioView("draftManager")} disabled={isBusy}>
+                      Edit Draft
                     </Button>
                     {inspectorContent && (
                       <Button
@@ -2512,15 +2485,14 @@ export default function ContentStudioAdmin() {
                   </div>
                 </div>
 
-                {/* 4-Step Stepper */}
+                {/* 3-Step Stepper */}
                 <div className="px-3 lg:px-4 py-2 border-b flex items-center gap-1 shrink-0 overflow-x-auto">
-                  {(["setup", "generate", "review", "publish"] as InspectorStep[]).map((step, idx) => {
+                  {(["generate", "review", "publish"] as InspectorStep[]).map((step, idx) => {
                     const isActive = step === activeInspectorStep;
                     const stepLabels: Record<InspectorStep, string> = {
-                      setup: "1. Setup",
-                      generate: "2. Generate",
-                      review: "3. Review",
-                      publish: "4. Publish",
+                      generate: "1. Generate",
+                      review: "2. Review",
+                      publish: "3. Publish",
                     };
                     return (
                       <Fragment key={step}>
@@ -2539,13 +2511,28 @@ export default function ContentStudioAdmin() {
                       </Fragment>
                     );
                   })}
-                  {isBusy && (
-                    <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span className="hidden sm:inline">{currentTaskLabel}</span>
-                    </span>
-                  )}
                 </div>
+
+                {/* Process Running Banner */}
+                {isBusy && (
+                  <div className="shrink-0 border-b bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 px-3 lg:px-4 py-2 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span className="text-sm font-medium text-amber-900 dark:text-amber-200 flex-1 truncate">
+                        {currentTaskLabel}
+                      </span>
+                      <span className="text-xs text-amber-700 dark:text-amber-400 shrink-0 tabular-nums">
+                        {elapsedSeconds}s
+                      </span>
+                    </div>
+                    {progressPercent != null && (
+                      <Progress value={progressPercent} className="h-1.5" />
+                    )}
+                    {progressMessage && progressMessage !== currentTaskLabel && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 truncate">{progressMessage}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Artifacts Panel (takes remaining height) */}
                 <div className="flex-1 overflow-auto">
