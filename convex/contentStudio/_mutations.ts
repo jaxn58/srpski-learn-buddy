@@ -1090,14 +1090,6 @@ export const internalPublishUnitPackageToPreview = mutation({
         .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
         .collect();
 
-      // #region agent log
-      console.log(`[DEBUG-8cc85d] publishPreview vocab PRE-ARCHIVE: Unit ${unitNumber}, total existing rows=${existing.length}, active=${(existing as any[]).filter((v: any) => v.isActive !== false).length}, preview=${(existing as any[]).filter((v: any) => v.releaseStatus === "preview" && v.isActive !== false).length}, published=${(existing as any[]).filter((v: any) => (v.releaseStatus === undefined || v.releaseStatus === "published") && v.isActive !== false).length}`);
-      for (const vdoc of existing as any[]) {
-        if (vdoc.isActive === false) continue;
-        console.log(`[DEBUG-8cc85d] publishPreview existing active: serbian="${vdoc.serbian}", serbianNormalized="${vdoc.serbianNormalized}", releaseStatus="${vdoc.releaseStatus}", unitVersion=${vdoc.unitVersion}`);
-      }
-      // #endregion
-
       // Preserve DE translations from active preview rows before archiving them.
       const deTranslationMap = new Map<string, { de?: string; deAlt?: string; noteDe?: string }>();
       for (const vdoc of existing as any[]) {
@@ -1120,20 +1112,8 @@ export const internalPublishUnitPackageToPreview = mutation({
       }
 
       const skippedDuplicates: string[] = [];
-      // #region agent log
-      const vocabKeys = vocabEn.map((e: any) => String(e.serbian || "").toLowerCase().trim());
-      const vocabKeySet = new Set(vocabKeys);
-      console.log(`[DEBUG-8cc85d] publishPreview vocab: Unit ${unitNumber}, vocabEn has ${vocabEn.length} entries, unique keys: ${vocabKeySet.size}, duplicateKeys: ${JSON.stringify(vocabKeys.filter((k: string, i: number) => vocabKeys.indexOf(k) !== i))}`);
-      // #endregion
-      const insertedInThisRun = new Set<string>();
       for (const entry of vocabEn) {
         const serbKey = String(entry.serbian || "").toLowerCase().trim();
-
-        // #region agent log
-        if (insertedInThisRun.has(serbKey)) {
-          console.log(`[DEBUG-8cc85d] publishPreview: WITHIN-UNIT DUPLICATE detected for "${entry.serbian}" (serbKey="${serbKey}") in Unit ${unitNumber} — already inserted in this run!`);
-        }
-        // #endregion
 
         // Cross-unit dedup guard: skip if word is already taught in an earlier unit
         const earlier = await findEarlierUnitVocabulary(ctx, serbKey, unitNumber);
@@ -1141,11 +1121,6 @@ export const internalPublishUnitPackageToPreview = mutation({
           skippedDuplicates.push(`"${entry.serbian}" (already in Unit ${earlier.unitNumber})`);
           continue;
         }
-
-        // #region agent log
-        console.log(`[DEBUG-8cc85d] publishPreview: INSERTING "${entry.serbian}" (serbKey="${serbKey}") into Unit ${unitNumber}, noteEn="${entry.noteEn || ""}"`);
-        // #endregion
-        insertedInThisRun.add(serbKey);
 
         const prevDe = deTranslationMap.get(serbKey);
         await ctx.db.insert("courseVocabulary", {

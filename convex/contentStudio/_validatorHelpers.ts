@@ -509,10 +509,6 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
       found = [];
     }
 
-    // #region agent log
-    console.log(`[DEBUG-8cc85d] syncVocabCoverage: lemma="${lemma}" for Unit ${unitNumber}, DB found ${found.length} entries: ${JSON.stringify((found || []).map((e: any) => ({ id: e?._id, unit: e?.unitNumber, serbian: e?.serbian, serbianNormalized: e?.serbianNormalized, isActive: e?.isActive, releaseStatus: e?.releaseStatus })))}`);
-    // #endregion
-
     // 2) Fallback list if DB doesn't have it.
     const fallback = FALLBACK_VOCAB_PAIRS.find((p) => normalizeSerbianKey(p.serbian) === lemma);
 
@@ -521,10 +517,6 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
       .filter((e: any) => isTaughtEarlier(e, unitNumber))
       .sort((a: any, b: any) => (a.unitNumber ?? 9999) - (b.unitNumber ?? 9999));
     const firstTaught = taughtEarlier.length ? taughtEarlier[0] : null;
-
-    // #region agent log
-    console.log(`[DEBUG-8cc85d] syncVocabCoverage: lemma="${lemma}" activeFound=${activeFound.length}, taughtEarlier=${taughtEarlier.length}, firstTaught=${firstTaught ? `Unit ${firstTaught.unitNumber}` : "NONE"} => ${firstTaught ? "SKIP (already taught)" : "WILL ADD"}`);
-    // #endregion
 
     // If already taught in earlier unit: do NOT auto-add to this unit's vocabulary.
     if (firstTaught) {
