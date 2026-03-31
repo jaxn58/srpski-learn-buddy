@@ -277,8 +277,11 @@ export function validateMarkdownStructure(markdown: string): {
     const hasSubsections = /###\s+.+/.test(grammarContent);
     const isSubstantial = grammarContent.length > 500;
     
-    if (!hasSubsections && !isSubstantial) {
-      errors.push("Grammar section appears truncated or empty. Must contain subsections (### ...) or substantial content (500+ chars).");
+    if (!hasSubsections) {
+      errors.push("Grammar section must contain ### subsections for grammar points (e.g., '### The Locative Case').");
+    }
+    if (!isSubstantial) {
+      errors.push("Grammar section must be substantial (minimum 500 characters). Current: " + grammarContent.length + " chars.");
     }
     
     // Check for truncation marker (single # at end without content)

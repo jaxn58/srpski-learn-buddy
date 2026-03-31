@@ -80,13 +80,14 @@ export const runSectionRevise = action({
       }
     }
 
-    // 4. Build system prompt: specialist skills (one point of truth) + section-specific prompt
+    // 4. Build system prompt: base rules (cs_unit_creator) + specialist skills + section-specific prompt
+    const basePrompt = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.unitCreator);
     const skillBlock = await buildStageSkillBlock(ctx, d as any, "specialist");
     const sectionPrompt = await resolvePromptFromDb(
       ctx,
       CS_PROMPT_KEYS.section(sectionId),
     );
-    const systemPrompt = [skillBlock, sectionPrompt].filter(Boolean).join("\n\n");
+    const systemPrompt = [basePrompt, skillBlock, sectionPrompt].filter(Boolean).join("\n\n");
 
     const userPrompt = [
       `CURRENT CONTENT of '${sectionId}':`,

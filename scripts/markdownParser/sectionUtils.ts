@@ -430,13 +430,12 @@ function validateGrammar(content: string): SectionValidationResult {
     errors.push("Missing section header '## 3. Grammar'");
   }
   
-  if (content.length < 300) {
-    warnings.push("Grammar section seems too short (less than 300 characters)");
+  if (content.length < 500) {
+    errors.push("Grammar section must be substantial (minimum 500 characters). Current: " + content.length + " chars.");
   }
   
-  // Should have at least one ### subsection
   if (!/###\s+/.test(content)) {
-    warnings.push("Grammar should have ### subsections for different grammar points");
+    errors.push("Grammar must contain ### subsections for grammar points (e.g., '### The Locative Case').");
   }
   
   return { valid: errors.length === 0, errors, warnings };

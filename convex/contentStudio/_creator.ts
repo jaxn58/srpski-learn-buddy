@@ -403,18 +403,19 @@ export const runAiSpecialistGenerate = action({
     let lastEstimatedCostUsd: number | null = null;
 
     try {
-      // Increased default from 6000 to 10000 - Grammar sections were getting truncated
-      const maxTokensRaw = typeof args.maxTokens === "number" ? args.maxTokens : 10000;
+      const maxTokensRaw = typeof args.maxTokens === "number" ? args.maxTokens : 12000;
       const maxTokens = Math.max(2000, Math.min(16000, Math.floor(maxTokensRaw)));
       const maxAttemptsRaw = typeof args.maxAttempts === "number" ? args.maxAttempts : 2;
       const maxAttempts = Math.max(1, Math.min(2, Math.floor(maxAttemptsRaw)));
 
-      const runOnce = async (attempt: 1 | 2) => {
-        const extra = attempt === 2
+      const runOnce = async (attempt: 1 | 2, previousErrors?: string[]) => {
+        const extra = attempt === 2 && previousErrors?.length
           ? [
               ``,
-              `IMPORTANT: Your previous output was invalid or missing required structure.`,
-              `Return a single, complete Markdown document with ALL required headings/tables.`,
+              `IMPORTANT: Your previous output FAILED validation with these errors:`,
+              ...previousErrors.map(e => `- ${e}`),
+              ``,
+              `Fix ALL listed errors. Return a single, complete Markdown document with ALL required headings/tables.`,
               `If you are running out of space, shorten dialogues and wording, but keep the structure complete.`,
             ].join("\n")
           : "";
@@ -462,7 +463,7 @@ export const runAiSpecialistGenerate = action({
       let structure = validateMarkdownStructure(markdown);
       
       if (!structure.valid && maxAttempts >= 2) {
-        markdown = await runOnce(2);
+        markdown = await runOnce(2, structure.errors);
         markdown = ensureDescriptionLine(markdown);
         markdown = canonicalizeDialoguesToUnit1Tables(markdown);
         structure = validateMarkdownStructure(markdown);
@@ -629,8 +630,7 @@ export const runAiCreatorRevise = action({
       `Return ONLY the full corrected Markdown.`,
     ].join("\n");
 
-    // Increased max tokens for revision too
-    const maxTokensRaw = typeof args.maxTokens === "number" ? args.maxTokens : 12000;
+    const maxTokensRaw = typeof args.maxTokens === "number" ? args.maxTokens : 14000;
     const maxTokens = Math.max(2000, Math.min(16000, Math.floor(maxTokensRaw)));
 
     let providerUsed = "unknown";

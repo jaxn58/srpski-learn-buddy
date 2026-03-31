@@ -345,6 +345,83 @@ export function collectSerbianCandidatesFromExercises(pkg: any): string[] {
   return Array.from(new Set(out.map((s) => String(s || "").trim()).filter(Boolean)));
 }
 
+const COMMON_SERBIAN_FUNCTION_WORDS = new Set([
+  "je", "su", "sam", "si", "smo", "ste",
+  "i", "a", "ali", "ili", "ni", "niti",
+  "u", "na", "sa", "za", "od", "do", "iz", "po", "o", "ka", "kod", "bez", "kroz", "između",
+  "da", "ne", "li", "se", "bi", "ce", "cu",
+  "ja", "ti", "on", "ona", "ono", "mi", "vi", "oni", "one",
+  "taj", "ta", "to", "ova", "ovo", "ovaj",
+  "što", "šta", "ko", "gde", "kad", "kako", "zašto",
+  "još", "već", "sad", "tu", "ovde", "onde",
+  "vrlo", "baš", "samo", "još",
+]);
+
+/**
+ * Extract Serbian word candidates from dialogue and phrase tables in the content markdown.
+ * Tokenizes sentences into individual words for vocabulary coverage checking.
+ */
+export function collectSerbianCandidatesFromContent(pkg: any): string[] {
+  const out: string[] = [];
+  const content = pkg?.content?.en;
+  if (!content) return out;
+
+  const mdParts = [
+    String(content.dialoguesMd || ""),
+    String(content.phrasesMd || ""),
+  ];
+
+  for (const md of mdParts) {
+    if (!md.trim()) continue;
+    const serbianTexts = extractSerbianColumnFromMdTables(md);
+    for (const text of serbianTexts) {
+      const words = tokenizeSerbianText(text);
+      out.push(...words);
+    }
+  }
+
+  return Array.from(new Set(out.filter(Boolean)));
+}
+
+function extractSerbianColumnFromMdTables(markdown: string): string[] {
+  const results: string[] = [];
+  const lines = markdown.split("\n");
+  let serbianColIdx = -1;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|")) {
+      serbianColIdx = -1;
+      continue;
+    }
+
+    const cells = trimmed.split("|").slice(1, -1).map(c => c.trim());
+    if (cells.length < 2) continue;
+
+    if (cells.some(c => /^serbian$/i.test(c.replace(/\*+/g, "").trim()))) {
+      serbianColIdx = cells.findIndex(c => /^serbian$/i.test(c.replace(/\*+/g, "").trim()));
+      continue;
+    }
+
+    if (cells.every(c => /^[-:\s]+$/.test(c))) continue;
+
+    if (serbianColIdx >= 0 && serbianColIdx < cells.length && cells[serbianColIdx]) {
+      results.push(cells[serbianColIdx]);
+    }
+  }
+
+  return results;
+}
+
+function tokenizeSerbianText(text: string): string[] {
+  return String(text || "")
+    .replace(/\*+/g, "")
+    .replace(/[.?!,:;()\[\]"'…–—\/\\]/g, " ")
+    .split(/\s+/)
+    .map(w => w.trim().toLowerCase())
+    .filter(w => w.length >= 2 && !COMMON_SERBIAN_FUNCTION_WORDS.has(w));
+}
+
 export function isTaughtEarlier(entry: any, currentUnitNumber: number): boolean {
   const unitNumber = Number(entry?.unitNumber);
   if (!Number.isFinite(unitNumber)) return false;
@@ -461,7 +538,9 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     return match || null;
   };
 
-  const candidates = collectSerbianCandidatesFromExercises(out)
+  const exerciseCandidates = collectSerbianCandidatesFromExercises(out);
+  const contentCandidates = collectSerbianCandidatesFromContent(out);
+  const candidates = [...exerciseCandidates, ...contentCandidates]
     .map((s) => String(s || "").trim())
     .filter((s) => looksLikeVocabularyItem(s));
 
