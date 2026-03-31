@@ -380,7 +380,7 @@ function PublishContent(props: InspectorPanelProps) {
               <SelectValue placeholder="Auto-detect" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Auto-detect</SelectItem>
+              <SelectItem value="__auto__">Auto-detect</SelectItem>
               {((modules || []) as any[]).map((m: any) => (
                 <SelectItem key={String(m._id)} value={String(m._id)}>
                   M{m.moduleNumber}: {m.titleEn || m.title}

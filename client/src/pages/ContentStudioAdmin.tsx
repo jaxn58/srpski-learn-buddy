@@ -116,7 +116,7 @@ export default function ContentStudioAdmin() {
   const [showMarkdownRendered, setShowMarkdownRendered] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [publishMode, setPublishMode] = useState<Mode>("update");
-  const [publishModuleId, setPublishModuleId] = useState<string>("");
+  const [publishModuleId, setPublishModuleId] = useState<string>("__auto__");
 
   const metaAutosaveInFlight = useRef(false);
   const [metaAutosaveStatus, setMetaAutosaveStatus] = useState<"idle" | "saving" | "error">("idle");
@@ -1444,6 +1444,12 @@ export default function ContentStudioAdmin() {
   const handleSaveAndPublishToPreview = async () => {
     if (!selectedDraftId) return;
     setRunningPublish(true);
+
+    const unitNumber = Number((selected as any)?.draft?.unitNumber);
+    const previewWin = Number.isFinite(unitNumber) && unitNumber > 0
+      ? window.open("about:blank", "_blank")
+      : null;
+
     try {
       const md = markdownText.trim();
       if (!md) throw new Error(t("admin.contentStudio.error.emptyMarkdown"));
@@ -1458,6 +1464,7 @@ export default function ContentStudioAdmin() {
       const valRes = await runValidate({ draftId: selectedDraftId });
       setRunningValidator(false);
       if (!valRes.ok) {
+        if (previewWin && !previewWin.closed) previewWin.close();
         toast.error("Validation failed — fix the errors in the findings before publishing.");
         return;
       }
@@ -1466,16 +1473,16 @@ export default function ContentStudioAdmin() {
       toast.info(t("admin.contentStudio.toast.publishingToPreview"));
       await publishDraftToPreview({
         draftId: selectedDraftId,
-        moduleId: publishModuleId ? (publishModuleId as any) : undefined,
+        moduleId: publishModuleId && publishModuleId !== "__auto__" ? (publishModuleId as any) : undefined,
       });
       toast.success(t("admin.contentStudio.toast.previewLive"));
 
-      // Step 4: Open unit in new tab
-      const unitNumber = Number((selected as any)?.draft?.unitNumber);
-      if (Number.isFinite(unitNumber) && unitNumber > 0) {
-        window.open(`/unit/${unitNumber}`, "_blank", "noopener,noreferrer");
+      // Step 4: Navigate pre-opened window to unit page
+      if (previewWin && !previewWin.closed) {
+        previewWin.location.href = `/unit/${unitNumber}`;
       }
     } catch (e: any) {
+      if (previewWin && !previewWin.closed) previewWin.close();
       toast.error(e?.message || "Save & Preview failed.");
     } finally {
       setRunningPublish(false);
@@ -1867,7 +1874,7 @@ export default function ContentStudioAdmin() {
       await publishDraft({
         draftId: selectedDraftId,
         mode: publishMode,
-        moduleId: publishModuleId ? (publishModuleId as any) : undefined,
+        moduleId: publishModuleId && publishModuleId !== "__auto__" ? (publishModuleId as any) : undefined,
       });
       toast.success(t("admin.contentStudio.toast.published"));
     } catch (e: any) {
@@ -2032,18 +2039,24 @@ export default function ContentStudioAdmin() {
   const handlePublishToPreview = async () => {
     if (!selectedDraftId) return;
     setRunningPublish(true);
+
+    const unitNumber = Number((selected as any)?.draft?.unitNumber);
+    const previewWin = Number.isFinite(unitNumber) && unitNumber > 0
+      ? window.open("about:blank", "_blank")
+      : null;
+
     try {
       toast.info(t("admin.contentStudio.toast.publishingToPreview"));
       await publishDraftToPreview({
         draftId: selectedDraftId,
-        moduleId: publishModuleId ? (publishModuleId as any) : undefined,
+        moduleId: publishModuleId && publishModuleId !== "__auto__" ? (publishModuleId as any) : undefined,
       });
       toast.success(t("admin.contentStudio.toast.previewLive"));
-      const unitNumber = Number((selected as any)?.draft?.unitNumber);
-      if (Number.isFinite(unitNumber) && unitNumber > 0) {
-        window.open(`/unit/${unitNumber}`, "_blank", "noopener,noreferrer");
+      if (previewWin && !previewWin.closed) {
+        previewWin.location.href = `/unit/${unitNumber}`;
       }
     } catch (e: any) {
+      if (previewWin && !previewWin.closed) previewWin.close();
       toast.error(e?.message || t("admin.contentStudio.toast.previewPublishFailed"));
     } finally {
       setRunningPublish(false);
