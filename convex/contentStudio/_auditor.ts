@@ -9,7 +9,7 @@ import {
   resolvePromptFromDb,
 } from "./_shared";
 import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
-import { LECTOR_SYSTEM_PROMPT, CS_PROMPT_KEYS } from "./prompts";
+import { CS_PROMPT_KEYS } from "./prompts";
 import type { Id } from "../_generated/dataModel";
 
 export const runAiAuditor = action({
@@ -64,8 +64,8 @@ export const runAiAuditor = action({
         .join("\n")
         .trim();
     })();
-    const { content: baseLectorPrompt } = await resolvePromptFromDb(
-      ctx, CS_PROMPT_KEYS.lector, LECTOR_SYSTEM_PROMPT,
+    const baseLectorPrompt = await resolvePromptFromDb(
+      ctx, CS_PROMPT_KEYS.lector,
     );
     const system = [
       baseLectorPrompt,

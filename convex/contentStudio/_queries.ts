@@ -5,11 +5,8 @@ import { requireSuperadmin } from "./_shared";
 import { isPublishedStatus, isPreviewStatus } from "./_shared";
 import type { Doc, Id } from "../_generated/dataModel";
 import {
-  SPECIALIST_SYSTEM_PROMPT,
-  CREATOR_REVISE_SYSTEM_PROMPT,
-  LECTOR_SYSTEM_PROMPT,
-  SECTION_PROMPTS,
   CS_PROMPT_KEYS,
+  ALL_SECTION_IDS,
 } from "./prompts";
 
 export const listDrafts = query({
@@ -1197,15 +1194,15 @@ export const getPromptPreview = query({
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
 
-    async function resolveKey(key: string, fallback: string) {
+    async function resolveKey(key: string) {
       const doc: any = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: key });
       if (doc?.content) return { content: doc.content, source: "database" as const };
-      return { content: fallback, source: "code_fallback" as const };
+      return { content: "", source: "missing" as const };
     }
 
-    const creator = await resolveKey(CS_PROMPT_KEYS.unitCreator, SPECIALIST_SYSTEM_PROMPT);
-    const fixer = await resolveKey(CS_PROMPT_KEYS.findingFixer, CREATOR_REVISE_SYSTEM_PROMPT);
-    const lector = await resolveKey(CS_PROMPT_KEYS.lector, LECTOR_SYSTEM_PROMPT);
+    const creator = await resolveKey(CS_PROMPT_KEYS.unitCreator);
+    const fixer = await resolveKey(CS_PROMPT_KEYS.findingFixer);
+    const lector = await resolveKey(CS_PROMPT_KEYS.lector);
 
     let skillsBlock = "";
     let referenceBlock = "";
@@ -1235,9 +1232,9 @@ export const getPromptPreview = query({
     }
 
     const sectionPrompts: Record<string, { content: string; source: string }> = {};
-    for (const [sectionId, codeFallback] of Object.entries(SECTION_PROMPTS)) {
-      const key = CS_PROMPT_KEYS.section(sectionId as any);
-      const resolved = await resolveKey(key, codeFallback);
+    for (const sectionId of ALL_SECTION_IDS) {
+      const key = CS_PROMPT_KEYS.section(sectionId);
+      const resolved = await resolveKey(key);
       sectionPrompts[sectionId] = { content: resolved.content, source: resolved.source };
     }
 
@@ -1250,9 +1247,8 @@ export const getPromptPreview = query({
       skillsBlock: skillsBlock || null,
       referenceBlock: referenceBlock || null,
       sectionPrompts,
-      // Backward compat: keep baseSystemPrompt for existing PromptPreview consumers
       baseSystemPrompt: creator.content,
-      source: { base: creator.source === "code_fallback" ? "code fallback" : "database (chatPrompts)" },
+      source: { base: creator.source === "missing" ? "MISSING -- create in /admin/prompt" : "database (chatPrompts)" },
     };
   },
 });

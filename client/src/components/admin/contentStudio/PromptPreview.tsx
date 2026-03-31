@@ -36,6 +36,7 @@ interface PromptStatusRowProps {
 
 function PromptStatusRow({ icon, label, dbKey, source, charCount }: PromptStatusRowProps) {
   const isDb = source === "database";
+  const isMissing = source === "missing";
   return (
     <div className="flex items-center justify-between gap-3 py-2.5 border-b last:border-0">
       <div className="flex items-center gap-2.5 min-w-0">
@@ -53,10 +54,15 @@ function PromptStatusRow({ icon, label, dbKey, source, charCount }: PromptStatus
           <Badge variant="outline" className="text-[10px] border-green-300 text-green-700 bg-green-50">
             Active
           </Badge>
+        ) : isMissing ? (
+          <Badge variant="outline" className="text-[10px] border-red-300 text-red-700 bg-red-50 flex items-center gap-1">
+            <AlertTriangle className="h-2.5 w-2.5" />
+            Missing
+          </Badge>
         ) : (
           <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50 flex items-center gap-1">
             <AlertTriangle className="h-2.5 w-2.5" />
-            Fallback
+            Unknown
           </Badge>
         )}
       </div>
@@ -80,21 +86,21 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
   const sectionEntries = Object.entries(promptPreview.sectionPrompts).map(([id, val]) => ({
     id,
     content: typeof val === "string" ? val : val.content,
-    source: typeof val === "string" ? "code_fallback" : val.source,
+    source: typeof val === "string" ? "missing" : val.source,
   }));
 
-  const hasFallbacks =
-    (roles && Object.values(roles).some((r) => r.source !== "database")) ||
-    sectionEntries.some((e) => e.source !== "database");
+  const hasMissing =
+    (roles && Object.values(roles).some((r) => r.source === "missing")) ||
+    sectionEntries.some((e) => e.source === "missing");
 
   return (
     <div className="space-y-4">
-      {hasFallbacks && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+      {hasMissing && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span>
-            Some prompts are using code fallbacks instead of database entries.
-            Open Prompt Administration and save them to activate DB versions.
+            Some prompts are missing from the database. Actions will fail until they are created.
+            Open Prompt Administration and create the missing prompts.
           </span>
         </div>
       )}
@@ -130,7 +136,7 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
               icon={<PenTool className="h-4 w-4" />}
               label="Base System Prompt"
               dbKey="cs_unit_creator"
-              source={promptPreview.source.base === "database (chatPrompts)" ? "database" : "code_fallback"}
+              source={promptPreview.source.base === "database (chatPrompts)" ? "database" : "missing"}
               charCount={promptPreview.baseSystemPrompt.length}
             />
           )}

@@ -23,7 +23,6 @@ export default defineConfig(({ mode }) => {
     cacheDir: path.resolve(import.meta.dirname, "node_modules", ".vite-client"),
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
-      __AGENT_LOG_ENABLED__: JSON.stringify(mode !== "production"),
     },
     resolve: {
       alias: {

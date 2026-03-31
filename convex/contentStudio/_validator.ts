@@ -18,6 +18,7 @@ import {
   isTaughtEarlier,
   normalizeSerbianKey,
   calculateExerciseVarietyScore,
+  stripAlreadyTaughtVocabFromMarkdown,
 } from "./_validatorHelpers";
 import { UnitPackageSchema, validateUnitPackageDeep, type ValidationIssue } from "../../scripts/unitPackage/schema";
 import { validateUnitPackageTemplateRules } from "../../scripts/unitPackage/templateRules";
@@ -238,6 +239,17 @@ export const runQcValidate = action({
       } catch {
         // If markdown injection/translation fails for any reason, keep the original markdownSource.
         nextMarkdownSource = snapshot.markdownSource;
+      }
+    }
+
+    // Sync markdown with JSON: strip already-taught vocabulary rows so the
+    // draft preview stays consistent with the cleaned unitPackage.
+    if (autoRemovedVocab.length > 0 && typeof nextMarkdownSource === "string") {
+      const taughtKeys = new Set(autoRemovedVocab.map((v) => normalizeSerbianKey(v.serbian)));
+      const { markdown: strippedMd, strippedCount } = stripAlreadyTaughtVocabFromMarkdown(nextMarkdownSource, taughtKeys);
+      if (strippedCount > 0) {
+        console.log(`[Validator] Stripped ${strippedCount} already-taught vocabulary rows from markdown source`);
+        nextMarkdownSource = strippedMd;
       }
     }
 

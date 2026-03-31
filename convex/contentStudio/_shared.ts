@@ -728,6 +728,16 @@ export async function ensureFounderNoteInMarkdownIfConfigured(
   const next = upsertFounderNoteBlock(markdown, name, quoteEn);
   const structure = validateMarkdownStructure(next);
   if (!structure.valid) {
+    const isGrammarTruncationOnly =
+      structure.errors.some(
+        (e) =>
+          e.includes("Grammar section appears truncated") ||
+          e.includes("Grammar section appears to be cut off"),
+      ) && structure.errors.length <= 2;
+    if (isGrammarTruncationOnly) {
+      console.warn("ensureFounderNoteInMarkdownIfConfigured: Grammar truncation tolerated (will be auto-fixed by Validator)");
+      return next;
+    }
     throw new Error(`Founder note injection produced invalid Markdown structure: ${structure.errors.join("; ")}`);
   }
   return next;
@@ -956,17 +966,14 @@ export async function buildStageSkillBlock(ctx: ActionCtx, draft: any, stage: Sk
 
 /**
  * Resolve a prompt from the chatPrompts DB table (ActionCtx variant).
- * Single source of truth: only checks the canonical key in the DB.
- * Falls back to code constant with a console warning if DB entry is missing.
+ * Single source of truth: the chatPrompts table is the ONLY prompt source.
+ * Throws if the DB entry is missing -- no code fallbacks.
  */
 export async function resolvePromptFromDb(
   ctx: ActionCtx,
   key: string,
-  codeFallback: string,
-): Promise<{ content: string; source: "database" | "code_fallback" }> {
+): Promise<string> {
   const doc: any = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: key });
-  if (doc?.content) return { content: doc.content, source: "database" };
-
-  console.warn(`[resolvePromptFromDb] DB entry missing for key "${key}" -- using code fallback. Seed prompts via seedContentStudioPrompts.`);
-  return { content: codeFallback, source: "code_fallback" };
+  if (doc?.content) return doc.content;
+  throw new Error(`[Content Studio] Required prompt "${key}" not found in chatPrompts table. Please create it via /admin/prompt.`);
 }

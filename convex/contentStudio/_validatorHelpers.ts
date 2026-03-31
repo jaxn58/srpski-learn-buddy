@@ -58,6 +58,78 @@ export const FALLBACK_VOCAB_PAIRS: Array<{ en: string; serbian: string }> = [
   { en: "no", serbian: "ne" },
 ];
 
+/**
+ * Remove already-taught vocabulary rows from the Markdown "## 2. Vocabulary" section.
+ * Keeps the markdown structure (headings, table headers/separators) intact;
+ * only strips data rows whose Serbian cell matches one of the given keys.
+ */
+export function stripAlreadyTaughtVocabFromMarkdown(
+  markdown: string,
+  taughtSerbianKeys: Set<string>,
+): { markdown: string; strippedCount: number } {
+  if (!taughtSerbianKeys.size) return { markdown, strippedCount: 0 };
+
+  const normalized = String(markdown || "").replace(/\r\n/g, "\n");
+  const vocabHeaderMatch = normalized.match(/^##\s+2\.\s+Vocabulary\b/m);
+  if (!vocabHeaderMatch || vocabHeaderMatch.index == null) return { markdown: normalized, strippedCount: 0 };
+
+  const vocabStart = vocabHeaderMatch.index;
+  const nextSectionMatch = normalized.slice(vocabStart + vocabHeaderMatch[0].length).match(/\n##\s+\d+\./);
+  const vocabEnd = nextSectionMatch?.index != null
+    ? vocabStart + vocabHeaderMatch[0].length + nextSectionMatch.index
+    : normalized.length;
+
+  const before = normalized.slice(0, vocabStart);
+  const vocabSection = normalized.slice(vocabStart, vocabEnd);
+  const after = normalized.slice(vocabEnd);
+
+  const lines = vocabSection.split("\n");
+  const kept: string[] = [];
+  let strippedCount = 0;
+
+  const isTableSeparator = (line: string) => /^\|[\s:|-]+\|$/.test(line.trim());
+  const isTableRow = (line: string) => line.trim().startsWith("|") && line.trim().endsWith("|");
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!isTableRow(line) || isTableSeparator(line)) {
+      kept.push(line);
+      continue;
+    }
+
+    const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+    if (cells.length < 2) {
+      kept.push(line);
+      continue;
+    }
+
+    const isHeader = /serbian/i.test(cells[0]) && /english/i.test(cells[1]);
+    if (isHeader) {
+      kept.push(line);
+      continue;
+    }
+
+    const serbianCell = cells[0]
+      .replace(/[`"'*_]/g, "")
+      .replace(/[.?!,:;]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
+    if (taughtSerbianKeys.has(serbianCell)) {
+      strippedCount++;
+      continue;
+    }
+
+    kept.push(line);
+  }
+
+  return {
+    markdown: before + kept.join("\n") + after,
+    strippedCount,
+  };
+}
+
 export function normalizeSerbianKey(s: unknown): string {
   // Normalize for matching Serbian keys across various user/model formatting.
   // IMPORTANT: this is used only for validation/matching, not for storing audio-clean Serbian.
@@ -863,7 +935,7 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
           order: orderCounter,
           questionType: "fillInBlank",
           // Auditor expects a sentence containing the blank, not just a standalone blank token.
-          question: `Ja bih _____. (I would like ____.)`,
+          question: `Ja bih _____. (I would like [blank].)`,
           correctAnswer: pair.serbian,
         });
         continue;
@@ -887,7 +959,7 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
           questionId,
           order: orderCounter,
           questionType: "matching",
-          question: String(pair.en || "").trim(),
+          question: `_____ = ${String(pair.en || "").trim()}`,
           correctAnswer: pair.serbian,
         });
         continue;

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, internalMutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 
@@ -103,30 +103,6 @@ export const getAllCourseVocabulary = query({
     
     // Versioning/soft-archive: treat undefined isActive as active; unitVersion defaults to 1
     const active = allVocab.filter((v: any) => v.isActive !== false);
-    const __agentNorm = (s: unknown) =>
-      String(s ?? "")
-        .normalize("NFC")
-        .trim()
-        .toLowerCase();
-    const __agentByNorm = new Map<string, any[]>();
-    for (const v of active as any[]) {
-      const k = __agentNorm((v as any).serbianNormalized ?? (v as any).serbian);
-      if (!k) continue;
-      const arr = __agentByNorm.get(k) ?? [];
-      arr.push(v);
-      __agentByNorm.set(k, arr);
-    }
-    const __agentCollisions = Array.from(__agentByNorm.entries())
-      .filter(([, arr]) => arr.length > 1)
-      .slice(0, 6)
-      .map(([k, arr]) => ({
-        k,
-        count: arr.length,
-        sample: arr.slice(0, 3).map((d: any) => ({ id: String(d._id), unitNumber: d.unitNumber, serbian: d.serbian, serbianJson: JSON.stringify(String(d.serbian ?? "")), unitVersion: d.unitVersion ?? 1, isActive: d.isActive !== false })),
-      }));
-    // #region agent log
-    if (process.env.NODE_ENV !== "production" && __agentCollisions.length > 0) fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'vocab-dup-pre',hypothesisId:'VOC-H4',location:'convex/vocabulary.ts:getAllCourseVocabulary:collisions',message:'normalized collisions detected in active courseVocabulary',data:{activeCount:active.length,normalizedKeys:__agentByNorm.size,collisionKeysCount:__agentCollisions.length,collisionSample:__agentCollisions},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // If multiple active versions exist (shouldn't, but possible during rollout), keep highest unitVersion per (unitNumber, serbian)
     const latestByKey = new Map<string, any>();
     for (const v of active as any[]) {
@@ -825,6 +801,25 @@ export const getVocabularyAudioUrl = query({
   },
 });
 
+// Find vocabulary entries by Serbian word (used by Content Studio Validator for duplicate detection)
+export const findVocabularyBySerbian = query({
+  args: { serbian: v.string() },
+  handler: async (ctx, args) => {
+    const exact = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_serbian", (q) => q.eq("serbian", args.serbian))
+      .collect();
+    if (exact.length > 0) return exact;
+
+    const normalized = args.serbian.toLowerCase().trim();
+    if (!normalized) return [];
+    return await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_serbian_normalized", (q) => q.eq("serbianNormalized", normalized))
+      .collect();
+  },
+});
+
 // Helper query to get vocabulary by ID (for audio generation)
 export const getVocabularyById = query({
   args: {
@@ -859,5 +854,218 @@ export const getAudioUrlFromStorageId = query({
   },
   handler: async (ctx, args) => {
     return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+// ============= CROSS-UNIT DEDUPLICATION =============
+
+/**
+ * Shared helper: find all active courseVocabulary entries in units earlier than
+ * `unitNumber` whose normalized serbian key matches `serbianNormalized`.
+ * Returns the earliest match (lowest unitNumber) or null.
+ */
+export async function findEarlierUnitVocabulary(
+  ctx: QueryCtx | MutationCtx,
+  serbianNormalized: string,
+  unitNumber: number,
+): Promise<Doc<"courseVocabulary"> | null> {
+  if (!serbianNormalized) return null;
+
+  const hits = await ctx.db
+    .query("courseVocabulary")
+    .withIndex("by_serbian_normalized", (q) =>
+      q.eq("serbianNormalized", serbianNormalized),
+    )
+    .collect();
+
+  let earliest: Doc<"courseVocabulary"> | null = null;
+  for (const h of hits) {
+    if (h.isActive === false) continue;
+    if ((h as any).releaseStatus === "offline") continue;
+    if (h.unitNumber >= unitNumber) continue;
+    if (!earliest || h.unitNumber < earliest.unitNumber) {
+      earliest = h;
+    }
+  }
+  return earliest;
+}
+
+/**
+ * One-time cleanup: deduplicate vocabulary across units.
+ * For every normalized serbian key that appears in more than one unit,
+ * the entry in the earliest unit is kept ("canonical") and later duplicates
+ * are archived. VocabularyProgress rows pointing to archived entries are
+ * remapped to the canonical entry.
+ *
+ * Run via: npx convex run vocabulary:deduplicateVocabularyAcrossUnits '{"dryRun":true}'
+ * Requires superadmin or CLI (identity-less) invocation.
+ */
+export const deduplicateVocabularyAcrossUnits = mutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun !== false;
+    const now = Date.now();
+
+    const allVocab = await ctx.db.query("courseVocabulary").collect();
+    const active = allVocab.filter(
+      (v) => v.isActive !== false && (v as any).releaseStatus !== "offline",
+    );
+
+    // Group by normalized key -> pick highest unitVersion per (unitNumber, normalizedKey)
+    const byNorm = new Map<string, Doc<"courseVocabulary">[]>();
+    for (const entry of active) {
+      const key = (entry.serbianNormalized ?? entry.serbian)
+        .toLowerCase()
+        .trim();
+      if (!key) continue;
+      const arr = byNorm.get(key) ?? [];
+      arr.push(entry);
+      byNorm.set(key, arr);
+    }
+
+    const archived: Array<{
+      serbian: string;
+      archivedUnit: number;
+      canonicalUnit: number;
+    }> = [];
+    const progressRemapped: Array<{
+      serbian: string;
+      userId: string;
+      fromId: string;
+      toId: string;
+      merged: boolean;
+    }> = [];
+
+    for (const [normKey, entries] of byNorm) {
+      const unitNumbers = new Set(entries.map((e) => e.unitNumber));
+      if (unitNumbers.size <= 1) continue;
+
+      // Per unit, keep highest unitVersion
+      const bestPerUnit = new Map<number, Doc<"courseVocabulary">>();
+      for (const e of entries) {
+        const prev = bestPerUnit.get(e.unitNumber);
+        if (!prev || (e.unitVersion ?? 1) > (prev.unitVersion ?? 1)) {
+          bestPerUnit.set(e.unitNumber, e);
+        }
+      }
+
+      const sorted = Array.from(bestPerUnit.entries()).sort(
+        ([a], [b]) => a - b,
+      );
+      const [canonicalUnit, canonical] = sorted[0];
+
+      for (let i = 1; i < sorted.length; i++) {
+        const [dupUnit, dup] = sorted[i];
+
+        archived.push({
+          serbian: dup.serbian,
+          archivedUnit: dupUnit,
+          canonicalUnit,
+        });
+
+        // Archive ALL active entries for this word in the duplicate unit
+        const dupsInUnit = entries.filter(
+          (e) => e.unitNumber === dupUnit && e.isActive !== false,
+        );
+        for (const d of dupsInUnit) {
+          if (!dryRun) {
+            await ctx.db.patch(d._id, { isActive: false, archivedAt: now });
+          }
+
+          // Remap vocabularyProgress rows
+          const progressRows = await ctx.db
+            .query("vocabularyProgress")
+            .withIndex("by_course_vocab", (q) =>
+              q.eq("courseVocabularyId", d._id),
+            )
+            .collect();
+
+          for (const prog of progressRows) {
+            const existingCanonicalProgress = await ctx.db
+              .query("vocabularyProgress")
+              .withIndex("by_user_course_vocab", (q) =>
+                q
+                  .eq("userId", prog.userId)
+                  .eq("courseVocabularyId", canonical._id),
+              )
+              .first();
+
+            if (existingCanonicalProgress) {
+              // Merge: keep better mastery + sum counts
+              if (!dryRun) {
+                await ctx.db.patch(existingCanonicalProgress._id, {
+                  correctAnswerCount:
+                    existingCanonicalProgress.correctAnswerCount +
+                    prog.correctAnswerCount,
+                  incorrectAnswerCount:
+                    existingCanonicalProgress.incorrectAnswerCount +
+                    prog.incorrectAnswerCount,
+                  reviewCount:
+                    existingCanonicalProgress.reviewCount + prog.reviewCount,
+                  mastered:
+                    existingCanonicalProgress.mastered || prog.mastered,
+                  lastAnsweredAt: Math.max(
+                    existingCanonicalProgress.lastAnsweredAt ?? 0,
+                    prog.lastAnsweredAt ?? 0,
+                  ) || undefined,
+                  lastReviewedAt: Math.max(
+                    existingCanonicalProgress.lastReviewedAt ?? 0,
+                    prog.lastReviewedAt ?? 0,
+                  ) || undefined,
+                });
+                await ctx.db.delete(prog._id);
+              }
+              progressRemapped.push({
+                serbian: dup.serbian,
+                userId: prog.userId as string,
+                fromId: d._id as string,
+                toId: canonical._id as string,
+                merged: true,
+              });
+            } else {
+              // Simply remap to canonical
+              if (!dryRun) {
+                await ctx.db.patch(prog._id, {
+                  courseVocabularyId: canonical._id,
+                });
+              }
+              progressRemapped.push({
+                serbian: dup.serbian,
+                userId: prog.userId as string,
+                fromId: d._id as string,
+                toId: canonical._id as string,
+                merged: false,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const summary = {
+      dryRun,
+      vocabularyArchived: archived.length,
+      progressRemapped: progressRemapped.length,
+      details: { archived, progressRemapped },
+    };
+    console.log(
+      `[Dedup] ${dryRun ? "DRY RUN" : "APPLIED"}: ` +
+        `${archived.length} vocab entries archived, ` +
+        `${progressRemapped.length} progress rows remapped`,
+    );
+    if (archived.length > 0) {
+      console.log(
+        `[Dedup] Archived:`,
+        archived
+          .map(
+            (a) =>
+              `"${a.serbian}" Unit ${a.archivedUnit} -> canonical Unit ${a.canonicalUnit}`,
+          )
+          .join("; "),
+      );
+    }
+    return summary;
   },
 });

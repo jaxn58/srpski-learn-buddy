@@ -28,7 +28,7 @@ import {
   appendDialogue,
   deduplicateVocabularySectionMarkdown,
 } from "../../scripts/markdownParser/sectionUtils";
-import { SECTION_PROMPTS, CS_PROMPT_KEYS } from "./prompts";
+import { CS_PROMPT_KEYS } from "./prompts";
 import { resolvePromptFromDb } from "./_shared";
 
 /**
@@ -80,15 +80,11 @@ export const runSectionRevise = action({
       }
     }
 
-    // 4. Get section-specific prompt from DB (cs_section_*), fallback to code
-    const { content: systemPrompt } = await resolvePromptFromDb(
+    // 4. Get section-specific prompt from DB (chatPrompts table)
+    const systemPrompt = await resolvePromptFromDb(
       ctx,
       CS_PROMPT_KEYS.section(sectionId),
-      SECTION_PROMPTS[sectionId] || "",
     );
-    if (!systemPrompt) {
-      throw new Error(`No prompt configuration for section '${sectionId}'`);
-    }
 
     const userPrompt = [
       `CURRENT CONTENT of '${sectionId}':`,

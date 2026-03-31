@@ -203,35 +203,6 @@ export function ImportTab() {
       : "skip"
   );
 
-  // #region agent log
-  useEffect(() => {
-    if (!__AGENT_LOG_ENABLED__) return;
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'history-pre',hypothesisId:'H1',location:'client/src/pages/ContentImportAdmin.tsx:history:useEffect',message:'history state snapshot',data:{selectedRunId:selectedRun?._id ?? null,showRunDetails,hasGetRun:!!getRun,reportJsonLen:(getRun as any)?.reportJson ? String((getRun as any).reportJson).length : null},timestamp:Date.now()})}).catch(()=>{});
-  }, [selectedRun?._id, showRunDetails, getRun]);
-  // #endregion
-
-  // #region agent log
-  useEffect(() => {
-    if (!showRunDetails) return;
-    if (!__AGENT_LOG_ENABLED__) return;
-    fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'history-post',hypothesisId:'H3',location:'client/src/pages/ContentImportAdmin.tsx:history:ui-config',message:'run details modal ui config',data:{modalClass:'w-[98vw] max-w-[98vw] sm:max-w-[98vw] h-[90vh] max-h-[90vh] overflow-y-auto overflow-x-hidden',preClass:'whitespace-pre-wrap break-all overflow-x-hidden overflow-y-auto max-h-[65vh]',hasGetRun:!!getRun,reportJsonLen:(getRun as any)?.reportJson ? String((getRun as any).reportJson).length : null},timestamp:Date.now()})}).catch(()=>{});
-  }, [showRunDetails, getRun]);
-  // #endregion
-
-  // #region agent log
-  useEffect(() => {
-    if (!showRunDetails) return;
-    if (!__AGENT_LOG_ENABLED__) return;
-    requestAnimationFrame(() => {
-      const modal = document.querySelector('[data-agent="run-details-modal"]') as HTMLElement | null;
-      const pre = document.querySelector('[data-agent="run-details-pre"]') as HTMLElement | null;
-      const modalRect = modal?.getBoundingClientRect();
-      const preRect = pre?.getBoundingClientRect();
-      fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'history-post',hypothesisId:'H4',location:'client/src/pages/ContentImportAdmin.tsx:history:dom-metrics',message:'run details dom metrics',data:{window:{w:window.innerWidth,h:window.innerHeight},modal:modal?{w:Math.round(modalRect?.width||0),h:Math.round(modalRect?.height||0),scrollW:modal.scrollWidth,scrollH:modal.scrollHeight}:null,pre:pre?{w:Math.round(preRect?.width||0),h:Math.round(preRect?.height||0),scrollW:pre.scrollWidth,scrollH:pre.scrollHeight}:null},timestamp:Date.now()})}).catch(()=>{});
-    });
-  }, [showRunDetails, getRun]);
-  // #endregion
-
   // Prevent default drag & drop behavior on the entire page
   useEffect(() => {
     const preventDefault = (e: DragEvent) => {
@@ -511,9 +482,6 @@ export function ImportTab() {
   const handleViewRunDetails = async (run: ImportRun) => {
     setSelectedRun(run);
     setShowRunDetails(true);
-    // #region agent log
-    if (__AGENT_LOG_ENABLED__) fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'history-pre',hypothesisId:'H2',location:'client/src/pages/ContentImportAdmin.tsx:handleViewRunDetails',message:'clicked View Report',data:{runId:run._id,type:run.type,status:run.status,totalErrors:run.totalErrors,filesCount:run.filesCount,unitNumbers:run.unitNumbers},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   };
 
   // ============= MARKDOWN IMPORT HANDLERS =============
@@ -584,20 +552,11 @@ export function ImportTab() {
 
     try {
       setParsing(true);
-      // #region agent log
-      if (__AGENT_LOG_ENABLED__) fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H1',location:'client/src/pages/ContentImportAdmin.tsx:handleParseMarkdown:before',message:'parse markdown request',data:{fileName:markdownFile.name,contentLength:markdownContent.length,firstLine:markdownContent.split("\\n")[0] || "",secondLine:markdownContent.split("\\n")[1] || "",hasOverview:markdownContent.includes("## 1. Overview"),hasExercises:markdownContent.includes("## 5. Interactive Test"),hasExercise8:markdownContent.includes("### Exercise 8")},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const result = await parseMarkdownAction({
         files: [{ fileName: markdownFile.name, markdownContent }],
       });
       
       setParseResults(result.results);
-      // #region agent log
-      if (__AGENT_LOG_ENABLED__) fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H2',location:'client/src/pages/ContentImportAdmin.tsx:handleParseMarkdown:after',message:'parse markdown response',data:{files:result.results?.map((r:any)=>({fileName:r.fileName,success:r.success,errorsCount:r.errorsCount,changesCount:r.changesCount,unitNumber:r.unitNumber,firstError:r.errors?.[0] || null,firstWarning:r.warnings?.[0] || null}))},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      // #region agent log
-      if (__AGENT_LOG_ENABLED__) fetch('http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'parse-md-pre',hypothesisId:'H5',location:'client/src/pages/ContentImportAdmin.tsx:handleParseMarkdown:set-state',message:'setting parseResults state',data:{resultsLength:result.results?.length || 0,resultsFirstItem:result.results?.[0] ? {fileName:result.results[0].fileName,success:result.results[0].success,errorsCount:result.results[0].errorsCount,warningsCount:result.results[0].warningsCount} : null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       
       const successCount = result.results.filter((r: any) => r.success).length;
       const failedCount = result.results.length - successCount;
@@ -1707,7 +1666,6 @@ export function ImportTab() {
       {/* Run Details Dialog */}
       <AlertDialog open={showRunDetails} onOpenChange={setShowRunDetails}>
         <AlertDialogContent
-          data-agent="run-details-modal"
           className="w-[98vw] max-w-[98vw] sm:max-w-[98vw] h-[90vh] max-h-[90vh] overflow-y-auto overflow-x-hidden"
         >
           <Button
@@ -1757,7 +1715,6 @@ export function ImportTab() {
                   <div>
                     <h4 className="font-semibold mb-2">Full Report (JSON):</h4>
                     <pre
-                      data-agent="run-details-pre"
                       className="bg-muted p-4 rounded-lg text-xs whitespace-pre-wrap break-all overflow-x-hidden overflow-y-auto max-h-[65vh]"
                     >
                       {JSON.stringify(JSON.parse(getRun.reportJson), null, 2)}

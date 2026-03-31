@@ -200,47 +200,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
     const envKey = getUpgradeEnvKey(fromPlan, newPlan);
     const upgradeEnvMissing = Array.isArray(missingUpgradeEnvKeys) && missingUpgradeEnvKeys.includes(envKey);
     if (upgradeEnvMissing) {
-      // #region agent log
-      fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "debug-session",
-          runId: "pre-fix",
-          hypothesisId: "C",
-          location: "client/src/pages/MySubscription.tsx:handleUpgrade",
-          message: "blocked upgrade due to missing env key",
-          data: { fromPlan, newPlan, envKey, missingUpgradeEnvKeysCount: missingUpgradeEnvKeys?.length ?? null },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-
       toast.error(isDev ? `Upgrade config missing: ${envKey}` : t("subscription.upgradeUnavailable"));
       return;
     }
-
-    // #region agent log
-    fetch("http://127.0.0.1:7243/ingest/e54bf5a1-a12e-470b-9800-914f012d5363", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: "pre-fix",
-        hypothesisId: "B",
-        location: "client/src/pages/MySubscription.tsx:handleUpgrade",
-        message: "user clicked upgrade",
-        data: {
-          newPlan,
-          currentPlan: String(subscriptionPlan || (subscription as any)?.planType || (subscription as any)?.plan || ""),
-          dodoConfigured,
-          dodoEnv: (billingConfig as any)?.dodo?.environment ?? null,
-          missingUpgradeEnvKeys: (billingConfig as any)?.dodo?.missingUpgradeEnvKeys ?? null,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
 
     setIsCalculating(true);
     try {

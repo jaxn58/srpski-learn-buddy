@@ -17,8 +17,6 @@ import {
 } from "./_shared";
 import { syncVocabularyCoverageFromExercises } from "./_validatorHelpers";
 import {
-  SPECIALIST_SYSTEM_PROMPT,
-  CREATOR_REVISE_SYSTEM_PROMPT,
   getSpecialistUserPromptBase,
   CS_PROMPT_KEYS,
 } from "./prompts";
@@ -386,12 +384,11 @@ export const runAiSpecialistGenerate = action({
     })();
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SPECIALIST SYSTEM PROMPT - loaded from DB, fallback to code
+    // SPECIALIST SYSTEM PROMPT - loaded from DB (chatPrompts table)
     // ═══════════════════════════════════════════════════════════════════════════
-    const { content: baseSystemPrompt } = await resolvePromptFromDb(
+    const baseSystemPrompt = await resolvePromptFromDb(
       ctx,
       CS_PROMPT_KEYS.unitCreator,
-      SPECIALIST_SYSTEM_PROMPT,
     );
 
     // Replace [LANGUAGE] placeholder if present
@@ -660,10 +657,9 @@ export const runAiCreatorRevise = action({
       ? `HUMAN REVIEW NOTES:\n${humanNotes}`
       : "";
 
-    const { content: baseSystemPrompt } = await resolvePromptFromDb(
+    const baseSystemPrompt = await resolvePromptFromDb(
       ctx,
       CS_PROMPT_KEYS.findingFixer,
-      CREATOR_REVISE_SYSTEM_PROMPT,
     );
 
     // Replace [LANGUAGE] placeholder if present

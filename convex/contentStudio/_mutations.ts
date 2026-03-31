@@ -3,12 +3,10 @@ import { mutation, internalMutation } from "../_generated/server";
 import { requireSuperadmin } from "./_shared";
 import type { DraftStatus } from "./_shared";
 import {
-  SPECIALIST_SYSTEM_PROMPT,
-  CREATOR_REVISE_SYSTEM_PROMPT,
-  LECTOR_SYSTEM_PROMPT,
-  SECTION_PROMPTS,
   CS_PROMPT_KEYS,
+  ALL_SECTION_IDS,
 } from "./prompts";
+import { findEarlierUnitVocabulary } from "../vocabulary";
 
 export const createDraft = mutation({
   args: {
@@ -1170,13 +1168,22 @@ export const internalPublishUnitPackageToPreview = mutation({
         await ctx.db.patch(vdoc._id, { isActive: false, archivedAt: now });
       }
 
+      const skippedDuplicates: string[] = [];
       for (const entry of vocabEn) {
         const serbKey = String(entry.serbian || "").toLowerCase().trim();
+
+        // Cross-unit dedup guard: skip if word is already taught in an earlier unit
+        const earlier = await findEarlierUnitVocabulary(ctx, serbKey, unitNumber);
+        if (earlier) {
+          skippedDuplicates.push(`"${entry.serbian}" (already in Unit ${earlier.unitNumber})`);
+          continue;
+        }
+
         const prevDe = deTranslationMap.get(serbKey);
         await ctx.db.insert("courseVocabulary", {
           unitNumber,
           serbian: entry.serbian,
-          serbianNormalized: String(entry.serbian || "").toLowerCase().trim(),
+          serbianNormalized: serbKey,
           en: entry.en,
           enAlt: entry.enAlt || undefined,
           translations: [{ language: "en", translation: entry.en, alt: entry.enAlt || undefined }],
@@ -1190,6 +1197,12 @@ export const internalPublishUnitPackageToPreview = mutation({
           unitVersion: args.unitVersion,
           releaseStatus: "preview",
         });
+      }
+      if (skippedDuplicates.length > 0) {
+        console.warn(
+          `[PublishPreview] Skipped ${skippedDuplicates.length} cross-unit duplicate(s) for Unit ${unitNumber}: ` +
+            skippedDuplicates.join(", "),
+        );
       }
     }
 
@@ -2000,61 +2013,27 @@ export const appendFindings = mutation({
   },
 });
 
-export const seedContentStudioPrompts = internalMutation({
+/**
+ * Check which Content Studio prompt keys are missing from the chatPrompts table.
+ * Does NOT create or seed any prompts -- all prompts must be managed via /admin/prompt.
+ */
+export const checkMissingPrompts = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const prompts: Array<{ name: string; content: string; description: string; category: string }> = [
-      {
-        name: CS_PROMPT_KEYS.unitCreator,
-        content: SPECIALIST_SYSTEM_PROMPT,
-        description: "System prompt for the AI that generates full unit markdown from scratch.",
-        category: "Content Studio",
-      },
-      {
-        name: CS_PROMPT_KEYS.findingFixer,
-        content: CREATOR_REVISE_SYSTEM_PROMPT,
-        description: "System prompt for the AI that fixes validator/lector findings in existing content.",
-        category: "Content Studio",
-      },
-      {
-        name: CS_PROMPT_KEYS.lector,
-        content: LECTOR_SYSTEM_PROMPT,
-        description: "Static instruction part of the Lector/Auditor. Dynamic context (unit number, vocabulary) is added at runtime.",
-        category: "Content Studio",
-      },
-      ...Object.entries(SECTION_PROMPTS).map(([sectionId, content]) => ({
-        name: CS_PROMPT_KEYS.section(sectionId as any),
-        content,
-        description: `Section-specific editing prompt for the "${sectionId}" section.`,
-        category: "Content Studio",
-      })),
+    const allKeys = [
+      CS_PROMPT_KEYS.unitCreator,
+      CS_PROMPT_KEYS.findingFixer,
+      CS_PROMPT_KEYS.lector,
+      ...ALL_SECTION_IDS.map((id) => CS_PROMPT_KEYS.section(id)),
     ];
 
-    const results: Array<{ name: string; action: "created" | "skipped" }> = [];
-    for (const p of prompts) {
+    const results: Array<{ name: string; status: "found" | "missing" }> = [];
+    for (const key of allKeys) {
       const existing = await ctx.db
         .query("chatPrompts")
-        .withIndex("by_name", (q) => q.eq("name", p.name))
+        .withIndex("by_name", (q) => q.eq("name", key))
         .first();
-      if (existing) {
-        results.push({ name: p.name, action: "skipped" });
-        continue;
-      }
-      await ctx.db.insert("chatPrompts", {
-        name: p.name,
-        content: p.content,
-        description: p.description,
-        updatedBy: undefined,
-        updatedAt: Date.now(),
-      });
-      await ctx.db.insert("chatPromptHistory", {
-        name: p.name,
-        content: p.content,
-        description: p.description,
-        updatedBy: undefined,
-        updatedAt: Date.now(),
-      });
-      results.push({ name: p.name, action: "created" });
+      results.push({ name: key, status: existing?.content ? "found" : "missing" });
     }
     return results;
   },
