@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiText, resolvePromptFromDb } from "./_shared";
+import { requireSuperadminAction, callAiText, resolvePromptFromDb, buildStageSkillBlock } from "./_shared";
 import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
@@ -314,9 +314,6 @@ export const runAiSpecialistGenerate = action({
     const current = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
     const d = current.draft;
 
-    // ALWAYS load ALL active Creator skills (no manual selection needed)
-    const skills = await ctx.runQuery(api.contentStudio.listStageSkills, { stage: "specialist" });
-
     // Load previous vocabulary to prevent duplicates
     const allCourseVocab = await ctx.runQuery(api.vocabulary.getAllCourseVocabulary, {});
     const previousUnitsVocab = allCourseVocab
@@ -346,17 +343,7 @@ export const runAiSpecialistGenerate = action({
         })()
       : "";
 
-    const skillBlock = (() => {
-      if (skills.length === 0) return "";
-      const lines: string[] = [];
-      lines.push("CREATOR SKILLS (apply globally while authoring this unit):");
-      for (const sk of skills as any[]) {
-        lines.push(`- Skill: ${sk.name}`);
-        lines.push(String(sk.prompt));
-        lines.push("");
-      }
-      return lines.join("\n").trim();
-    })();
+    const skillBlock = await buildStageSkillBlock(ctx, d as any, "specialist");
 
     const referenceBlock = (() => {
       if (!refDoc) return "";
@@ -606,19 +593,7 @@ export const runAiCreatorRevise = action({
        console.log("Running revision with no findings or notes (force re-roll?)");
     }
 
-    // ALWAYS load ALL active Creator skills (no manual selection needed)
-    const skills = await ctx.runQuery(api.contentStudio.listStageSkills, { stage: "specialist" });
-    const skillBlock = (() => {
-      if (skills.length === 0) return "";
-      const lines: string[] = [];
-      lines.push("CREATOR SKILLS (apply globally while authoring this unit):");
-      for (const sk of skills as any[]) {
-        lines.push(`- Skill: ${sk.name}`);
-        lines.push(String(sk.prompt));
-        lines.push("");
-      }
-      return lines.join("\n").trim();
-    })();
+    const skillBlock = await buildStageSkillBlock(ctx, d as any, "specialist");
 
     const findingsBlock = issues.length > 0 
       ? `FINDINGS TO FIX:\n${issues.map((f: any) => `- [${f.code}] ${f.message} (path: ${f.path || "root"})`).join("\n")}`
