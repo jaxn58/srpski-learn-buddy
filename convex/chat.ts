@@ -495,8 +495,24 @@ export const sendMessage = action({
     if (user) {
       assertLearnerAccountActive(user);
     }
-    const language = user?.learningLanguage || "en";
-    const languageName = language === "de" ? "German" : "English";
+    const learningLanguage = user?.learningLanguage || "en";
+    let languageName: string;
+    switch (learningLanguage) {
+      case "de":
+        languageName = "German";
+        break;
+      case "en":
+        languageName = "English";
+        break;
+      case "es":
+        languageName = "Spanish"; 
+        break;
+      case "fr":
+        languageName = "French"; 
+        break;
+      default:
+        languageName = "English"; 
+    }
 
     // Build system prompt (admin-configurable with fallback)
     let promptDoc;
