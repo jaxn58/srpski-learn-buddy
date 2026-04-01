@@ -523,7 +523,7 @@ export const sendMessage = action({
       // swallow and rely on fallback
     }
     
-    const basePrompt = promptDoc?.content || getSystemPrompt(language);
+    const basePrompt = promptDoc?.content || getSystemPrompt(learningLanguage);
     
     // Replace [LANGUAGE] placeholder with the actual language name
     const systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, languageName);
