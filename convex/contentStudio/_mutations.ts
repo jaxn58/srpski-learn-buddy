@@ -1301,7 +1301,8 @@ export const upsertPublishedUnitGermanTranslation = mutation({
           v.literal("phrases"),
           v.literal("dialogues"),
           v.literal("vocabulary"),
-          v.literal("testIntroduction")
+          v.literal("testIntroduction"),
+          v.literal("practice")
         ),
         content: v.string(),
         unitVersion: v.number(),
@@ -1508,7 +1509,8 @@ export const upsertUnitGermanTranslationToPreview = mutation({
           v.literal("phrases"),
           v.literal("dialogues"),
           v.literal("vocabulary"),
-          v.literal("testIntroduction")
+          v.literal("testIntroduction"),
+          v.literal("practice")
         ),
         content: v.string(),
       })
