@@ -121,7 +121,8 @@ export const syncUser = mutation({
     const shouldBeBetaTester =
       betaMode && (!betaEnd || now <= betaEnd);
 
-    // SECURITY: Check if email is already registered (prevent duplicate accounts)
+    // Handle Clerk account re-creation: if email exists with a different clerkId,
+    // re-link the existing account instead of creating a duplicate.
     if (identity.email) {
       const existingByEmail = await ctx.db
         .query("users")
@@ -129,11 +130,25 @@ export const syncUser = mutation({
         .first();
 
       if (existingByEmail) {
-        const error = new Error(
-          `Email ${identity.email} is already registered. ` +
-          `Please use the existing account or contact support.`
-        );
-        throw error;
+        console.log("[syncUser] Re-linking user: clerkId changed", {
+          email: identity.email,
+          oldClerkId: existingByEmail.clerkId,
+          newClerkId: identity.subject,
+        });
+        await ctx.db.patch(existingByEmail._id, {
+          clerkId: identity.subject,
+          lastActiveDate: Date.now(),
+        });
+
+        const existingProgress = await ctx.db
+          .query("userProgress")
+          .withIndex("by_user", (q) => q.eq("userId", existingByEmail._id))
+          .first();
+        if (existingProgress) {
+          await ctx.db.patch(existingProgress._id, { lastActivityAt: Date.now() });
+        }
+
+        return existingByEmail._id;
       }
     }
 
@@ -313,7 +328,7 @@ export const getMyPublicAvatarUrl = query({
   args: {},
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
+    if (!user) return null;
 
     if (user.publicAvatarStorageId) {
       const url = await ctx.storage.getUrl(user.publicAvatarStorageId);

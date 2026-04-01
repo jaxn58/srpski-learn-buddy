@@ -76,8 +76,9 @@ export default function Profile() {
   const updateLearningLanguage = useMutation(api.users.updateLearningLanguage);
   const generateAvatarUploadUrl = useMutation(api.users.generateAvatarUploadUrl);
   const setPublicAvatarFromUpload = useMutation(api.users.setPublicAvatarFromUpload);
-  const myAvatar = useQuery(api.users.getMyPublicAvatarUrl);
+  const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const communityStatus = useQuery(api.newsletter.getMyCommunityUpdatesStatus, user ? {} : "skip");
+
   const requestCommunityOptIn = useMutation(api.newsletter.requestCommunityUpdatesDoubleOptIn);
   const unsubscribeCommunity = useMutation(api.newsletter.unsubscribeMyCommunityUpdates);
 

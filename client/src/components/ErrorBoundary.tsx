@@ -35,6 +35,9 @@ class ErrorBoundary extends Component<Props, State> {
             <h2 className="text-xl mb-4">{i18n.t("errors.unexpected.title")}</h2>
 
             <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
+              <p className="text-sm font-semibold text-destructive mb-2">
+                {this.state.error?.message}
+              </p>
               <pre className="text-sm text-muted-foreground whitespace-break-spaces">
                 {this.state.error?.stack}
               </pre>

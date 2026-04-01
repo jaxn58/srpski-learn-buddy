@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-// Table imports removed — unit selection is now a dropdown
 import {
   Dialog,
   DialogContent,
@@ -26,7 +25,7 @@ import {
 } from "@/components/ui/select";
 // AlertDialog imports removed — actions use inline confirm inputs
 import { MarkdownContent } from "@/components/MarkdownContent";
-import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle, Languages } from "lucide-react";
+import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle, Languages, ChevronDown, ChevronRight } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -125,6 +124,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
 
   const [promoteConfirm, setPromoteConfirm] = useState("");
   const [offlineConfirm, setOfflineConfirm] = useState("");
+  const [publishMode, setPublishMode] = useState<"update" | "replace">("update");
   const [running, setRunning] = useState(false);
 
   const [unitOfflineConfirm, setUnitOfflineConfirm] = useState("");
@@ -245,16 +245,19 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   }, [selectedOverview]);
 
   // Handlers
-  const handlePromote = async (unitNumber: number, language: string) => {
-    const confirmStr = `PUBLISH ${language.toUpperCase()} UNIT ${unitNumber}`;
+  const handlePromote = async (unitNumber: number, language: string, mode: "update" | "replace" = "update") => {
+    const confirmStr = mode === "replace"
+      ? `REPLACE ${language.toUpperCase()} UNIT ${unitNumber}`
+      : `PUBLISH ${language.toUpperCase()} UNIT ${unitNumber}`;
     if (promoteConfirm !== confirmStr) {
       toast.error(`Please type "${confirmStr}" to confirm.`);
       return;
     }
     setRunning(true);
     try {
-      await promotePreview({ unitNumber, language, confirm: confirmStr });
-      toast.success(`${langFlag(language)} version of Unit ${unitNumber} promoted to published.`);
+      await promotePreview({ unitNumber, language, confirm: confirmStr, mode });
+      const modeLabel = mode === "replace" ? "replaced (full)" : "promoted (update)";
+      toast.success(`${langFlag(language)} version of Unit ${unitNumber} ${modeLabel} to published.`);
       setPromoteConfirm("");
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to promote preview.");
@@ -362,62 +365,25 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     );
   }
 
+  const selectUnit = (unitNumber: number) => {
+    if (selectedUnit === unitNumber) {
+      setSelectedUnit(null);
+      return;
+    }
+    setSelectedUnit(unitNumber);
+    const u = filteredUnits.find((u) => u.unitNumber === unitNumber);
+    if (u) {
+      const langs = Object.keys(u.versions).sort();
+      if (langs.length > 0 && !u.versions[detailLang]) {
+        setDetailLang(langs[0]);
+      }
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Compact header: Unit dropdown + search + filter in one row */}
+      {/* Filters row */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Unit Dropdown */}
-        <Select
-          value={selectedUnit != null ? String(selectedUnit) : ""}
-          onValueChange={(v) => {
-            const n = Number(v);
-            setSelectedUnit(n);
-            const u = filteredUnits.find((u) => u.unitNumber === n);
-            if (u) {
-              const langs = Object.keys(u.versions).sort();
-              if (langs.length > 0 && !u.versions[detailLang]) {
-                setDetailLang(langs[0]);
-              }
-            }
-          }}
-        >
-          <SelectTrigger className="w-[320px] h-9">
-            <SelectValue placeholder="Select unit..." />
-          </SelectTrigger>
-          <SelectContent className="max-h-[360px]">
-            {filteredUnits.map((u) => {
-              const isRecent = recentlyTranslatedUnits?.has(u.unitNumber) ?? false;
-              const isOutdated = u.deTranslationStale === true;
-              return (
-                <SelectItem key={u.unitNumber} value={String(u.unitNumber)}>
-                  <span className="font-mono text-xs mr-1.5">U{u.unitNumber}</span>
-                  <span className="inline-flex items-center gap-0.5 mr-1.5" title="EN / DE status">
-                    {langDot(u.versions.en)}
-                    {langDot(u.versions.de)}
-                  </span>
-                  <span className="truncate">{u.versions.en?.title ?? u.versions.de?.title ?? `Unit ${u.unitNumber}`}</span>
-                  {u.moduleNumber != null && (
-                    <span className="ml-1.5 text-xs text-muted-foreground">M{u.moduleNumber}</span>
-                  )}
-                  {u.deTranslationStale && (
-                    <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-amber-500 text-amber-600" title="EN content is newer than DE translation">DE outdated</Badge>
-                  )}
-                  {isRecent && (
-                    <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0 border-green-500 text-green-600">NEW</Badge>
-                  )}
-                  {isOutdated && (
-                    <AlertTriangle className="ml-1.5 h-3 w-3 text-amber-500 shrink-0" title="DE translation outdated" />
-                  )}
-                </SelectItem>
-              );
-            })}
-            {filteredUnits.length === 0 && (
-              <div className="py-3 text-center text-sm text-muted-foreground">No units match filters.</div>
-            )}
-          </SelectContent>
-        </Select>
-
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -428,7 +394,6 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
           />
         </div>
 
-        {/* Status filter */}
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
           <SelectTrigger className="h-9 w-[150px] text-xs">
             <SelectValue placeholder="Filter" />
@@ -443,454 +408,131 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
         </Select>
 
         <Badge variant="secondary" className="text-xs">{filteredUnits.length} / {overview.length}</Badge>
-
-        {/* Quick status indicators for selected unit */}
-        {selectedOverview && (
-          <div className="flex items-center gap-3 ml-auto">
-            {/* EN status */}
-            {selectedOverview.versions.en ? (
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-medium">EN:</span>
-                {statusBadge(selectedOverview.versions.en.releaseStatus, selectedOverview.versions.en.isOffline)}
-                {selectedOverview.versions.en.releaseStatus === "preview" && (
-                  <span className="text-[10px] text-muted-foreground ml-0.5">
-                    ({selectedOverview.versions.en.sectionCount}s/{selectedOverview.versions.en.testCount}t/{selectedOverview.versions.en.vocabCount}v)
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-medium">EN:</span>
-                <Badge variant="outline" className="text-muted-foreground text-[10px]">missing</Badge>
-              </div>
-            )}
-            {/* DE status */}
-            {selectedOverview.versions.de ? (
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-medium">DE:</span>
-                {statusBadge(selectedOverview.versions.de.releaseStatus, selectedOverview.versions.de.isOffline)}
-                {selectedOverview.versions.de.releaseStatus === "preview" && (
-                  <span className="text-[10px] text-muted-foreground ml-0.5">
-                    ({selectedOverview.versions.de.sectionCount}s/{selectedOverview.versions.de.testCount}t/{selectedOverview.versions.de.vocabCount}v)
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-medium">DE:</span>
-                <Badge variant="outline" className="text-muted-foreground text-[10px]">missing</Badge>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Full-width detail panel */}
-      {!selectedOverview ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Select a unit from the dropdown to view details.
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-base">
-                Unit {selectedOverview.unitNumber}: {selectedOverview.versions[detailLang]?.title ?? selectedOverview.versions.en?.title ?? ""}
-                {selectedOverview.moduleName && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    {selectedOverview.moduleName}
-                  </span>
-                )}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {availableLangs.length >= 2 && (
-                  <Button variant="ghost" size="sm" onClick={() => setDiffOpen(true)}>
-                    EN / DE Diff
-                  </Button>
-                )}
-                {/* Translate EN → DE button: only show when EN content exists */}
-                {selectedOverview.versions.en && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      // Default source: prefer preview if it exists, else published
-                      const enVersion = selectedOverview.versions.en;
-                      if (enVersion?.releaseStatus === "preview") setTranslateSource("preview");
-                      else setTranslateSource("published");
-                      setTranslateConfirm("");
-                      setTranslateOpen(true);
-                    }}
+      {/* Units table */}
+      <div className="rounded-md border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="px-3 py-2 text-left font-medium text-xs w-[60px]">Unit</th>
+              <th className="px-3 py-2 text-left font-medium text-xs">Title</th>
+              <th className="px-3 py-2 text-left font-medium text-xs w-[100px]">EN</th>
+              <th className="px-3 py-2 text-left font-medium text-xs w-[140px]">DE</th>
+              <th className="px-3 py-2 text-right font-medium text-xs w-[80px]">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUnits.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-muted-foreground">No units match filters.</td>
+              </tr>
+            )}
+            {filteredUnits.map((u) => {
+              const isSelected = selectedUnit === u.unitNumber;
+              const isRecent = recentlyTranslatedUnits?.has(u.unitNumber) ?? false;
+              return (
+                <Fragment key={u.unitNumber}>
+                  <tr
+                    className={`border-b cursor-pointer transition-colors hover:bg-accent/50 ${isSelected ? "bg-accent" : ""}`}
+                    onClick={() => selectUnit(u.unitNumber)}
                   >
-                    <Languages className="mr-1 h-3.5 w-3.5" />
-                    Translate EN → DE
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    window.open(`/unit/${selectedOverview.unitNumber}?lang=${detailLang}`, "_blank");
-                  }}
-                >
-                  <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                  Open in App
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-
-          {/* DE translation outdated warning */}
-          {selectedOverview.deTranslationStale && (
-            <div className="mx-6 mb-2 flex items-center justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-                <span>EN content has been updated since the last DE translation.</span>
-              </div>
-              {selectedOverview.versions.en && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10 shrink-0"
-                  onClick={() => {
-                    const enVersion = selectedOverview.versions.en;
-                    if (enVersion?.releaseStatus === "preview") setTranslateSource("preview");
-                    else setTranslateSource("published");
-                    setTranslateConfirm("");
-                    setTranslateOpen(true);
-                  }}
-                >
-                  <Languages className="mr-1 h-3.5 w-3.5" />
-                  Update DE
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Recently-translated info banner */}
-          {(() => {
-            const info = recentTranslationInfo(selectedOverview.unitNumber);
-            if (!info) return null;
-            return (
-              <div className="mx-6 mb-2 flex items-center gap-2 rounded border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm">
-                <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span>DE translation completed <strong>{info}</strong></span>
-              </div>
-            );
-          })()}
-
-          <CardContent>
-            <Tabs value={detailLang} onValueChange={(v) => setDetailLang(v)}>
-              <TabsList className="mb-4">
-                {availableLangs.map((lang) => (
-                  <TabsTrigger key={lang} value={lang} className="gap-1.5">
-                    {langFlag(lang)}
-                    {selectedOverview.versions[lang] && (
-                      <span className="ml-1">
-                        {statusBadge(
-                          selectedOverview.versions[lang].releaseStatus,
-                          selectedOverview.versions[lang].isOffline
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        {isSelected
+                          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        }
+                        <span className="font-mono text-xs font-medium">U{u.unitNumber}</span>
+                        {u.moduleNumber != null && (
+                          <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">M{u.moduleNumber}</Badge>
                         )}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              {availableLangs.map((lang) => {
-                const langDetail = lang === "de" ? detailDe : detailEn;
-                const langVersion = selectedOverview.versions[lang];
-                if (!langVersion) return null;
-
-                return (
-                  <TabsContent key={lang} value={lang} className="mt-0">
-                    {/* Stats + Actions row */}
-                    <div className="flex items-center justify-between rounded border p-3 mb-4">
-                      <div className="flex items-center gap-6">
-                        <div>
-                          <div className="font-medium">{langVersion.title}</div>
-                          {langVersion.description && (
-                            <div className="text-sm text-muted-foreground">{langVersion.description}</div>
-                          )}
-                        </div>
-                        <div className="flex gap-4 text-xs text-muted-foreground">
-                          <span>{langVersion.sectionCount} sections</span>
-                          <span>{langVersion.testCount} tests</span>
-                          <span>{langVersion.vocabCount} vocab</span>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {statusBadge(langVersion.releaseStatus, langVersion.isOffline)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="truncate block max-w-[300px]">
+                        {u.versions.en?.title ?? u.versions.de?.title ?? `Unit ${u.unitNumber}`}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {u.versions.en
+                        ? statusBadge(u.versions.en.releaseStatus, u.versions.en.isOffline)
+                        : <Badge variant="outline" className="text-muted-foreground text-[10px]">missing</Badge>
+                      }
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        {u.versions.de
+                          ? statusBadge(u.versions.de.releaseStatus, u.versions.de.isOffline)
+                          : <Badge variant="outline" className="text-muted-foreground text-[10px]">missing</Badge>
+                        }
+                        {u.deTranslationStale && (
+                          <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" title="DE translation outdated" />
+                        )}
+                        {isRecent && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 border-green-500 text-green-600">NEW</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            window.open(`/unit/${selectedOverview.unitNumber}?lang=${lang}`, "_blank");
-                          }}
+                          className="h-7 w-7 p-0"
+                          title="Open in App"
+                          onClick={() => window.open(`/unit/${u.unitNumber}`, "_blank")}
                         >
-                          <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                          Preview
+                          <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       </div>
-                    </div>
+                    </td>
+                  </tr>
+                  {isSelected && selectedOverview && (
+                    <tr className="border-b">
+                      <td colSpan={5} className="p-0">
+                        <InlineDetailCard
+                          selectedOverview={selectedOverview}
+                          detailLang={detailLang}
+                          setDetailLang={setDetailLang}
+                          availableLangs={availableLangs}
+                          detailEn={detailEn}
+                          detailDe={detailDe}
+                          promoteConfirm={promoteConfirm}
+                          setPromoteConfirm={setPromoteConfirm}
+                          offlineConfirm={offlineConfirm}
+                          setOfflineConfirm={setOfflineConfirm}
+                          publishMode={publishMode}
+                          setPublishMode={setPublishMode}
+                          unitOfflineConfirm={unitOfflineConfirm}
+                          setUnitOfflineConfirm={setUnitOfflineConfirm}
+                          unitDeleteConfirm={unitDeleteConfirm}
+                          setUnitDeleteConfirm={setUnitDeleteConfirm}
+                          running={running}
+                          onPromote={handlePromote}
+                          onOffline={handleOffline}
+                          onSetUnitOffline={handleSetUnitOffline}
+                          onDeleteUnitFull={handleDeleteUnitFull}
+                          onOpenPreview={(section) => { setInlinePreviewSection(section); setInlinePreviewOpen(true); }}
+                          onOpenDiff={() => setDiffOpen(true)}
+                          onOpenTranslate={(source) => { setTranslateSource(source); setTranslateConfirm(""); setTranslateOpen(true); }}
+                          recentTranslationInfo={recentTranslationInfo(selectedOverview.unitNumber)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
-                    {/* Content */}
-                    {langDetail ? (
-                      <div className="space-y-4">
-                        {/* Content Sections - horizontal layout */}
-                        <div>
-                          <h4 className="text-sm font-medium mb-2">Content Sections</h4>
-                          {langDetail.sections.length === 0 ? (
-                            <div className="text-sm text-muted-foreground">No content sections.</div>
-                          ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                              {langDetail.sections.map((s: any) => (
-                                <div
-                                  key={s.contentType}
-                                  className="flex flex-col items-center justify-center rounded border px-3 py-2 text-sm cursor-pointer hover:bg-accent/50 transition-colors"
-                                  onClick={() => {
-                                    setInlinePreviewSection({
-                                      ...s,
-                                      tests: s.contentType === "testIntroduction" ? langDetail.tests : undefined,
-                                    });
-                                    setInlinePreviewOpen(true);
-                                  }}
-                                >
-                                  <Eye className="h-3.5 w-3.5 text-muted-foreground mb-1" />
-                                  <span className="font-mono text-xs">{s.contentType}</span>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {s.content.length.toLocaleString()} chars
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Tests + Vocab in a row */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="text-sm font-medium mb-2">Tests</h4>
-                            {langDetail.testCategories && langDetail.testCategories.length > 0 ? (
-                              <div className="flex flex-wrap gap-1.5">
-                                {langDetail.testCategories.map((tc: any) => (
-                                  <Badge key={tc.category} variant="outline" className="text-xs">
-                                    {tc.category}: {tc.count}
-                                  </Badge>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-sm text-muted-foreground">No tests.</div>
-                            )}
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium mb-2">Vocabulary</h4>
-                            <div className="text-sm text-muted-foreground">
-                              {langDetail.vocabulary.length} words
-                              {langDetail.vocabulary.length > 0 && (
-                                <span className="ml-1">
-                                  (e.g. {langDetail.vocabulary.slice(0, 3).map((v: any) => v.serbian).join(", ")}
-                                  {langDetail.vocabulary.length > 3 ? "..." : ""})
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Danger Zone for published units */}
-                        {langVersion.releaseStatus !== "preview" && (
-                          <>
-                            <Separator />
-                            <div className="space-y-3">
-
-                              {/* Tier 1: Reversible offline toggle */}
-                              {langVersion.isOffline ? (
-                                /* Unit is currently offline — show "bring back online" */
-                                <div className="rounded border border-green-500/40 bg-green-500/5 p-4 space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-sm font-medium">
-                                      <Wifi className="h-4 w-4 text-green-600" />
-                                      Unit wieder online schalten
-                                    </div>
-                                    <Badge className="bg-green-600/80 hover:bg-green-600 text-white text-[10px]">Reversibel</Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Unit {selectedOverview.unitNumber} ist derzeit <strong>offline</strong> und für Nutzer nicht sichtbar. Alle Daten sind intakt.
-                                    Dieses Schalten gilt für <strong>alle Sprachversionen</strong> der Unit.
-                                  </p>
-                                  <Input
-                                    placeholder={`Eingabe: ONLINE UNIT ${selectedOverview.unitNumber}`}
-                                    value={unitOfflineConfirm}
-                                    onChange={(e) => setUnitOfflineConfirm(e.target.value)}
-                                    className="font-mono text-xs h-8"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                    disabled={running || unitOfflineConfirm !== `ONLINE UNIT ${selectedOverview.unitNumber}`}
-                                    onClick={() => handleSetUnitOffline(selectedOverview.unitNumber, false)}
-                                  >
-                                    {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Wifi className="mr-1 h-3.5 w-3.5" />}
-                                    Online schalten
-                                  </Button>
-                                </div>
-                              ) : (
-                                /* Unit is currently online — offer to take offline */
-                                <div className="rounded border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-sm font-medium">
-                                      <WifiOff className="h-4 w-4 text-amber-600" />
-                                      Unit offline schalten
-                                    </div>
-                                    <Badge className="bg-amber-500/80 hover:bg-amber-500 text-white text-[10px]">Reversibel</Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Die Unit wird für alle Nutzer ausgeblendet. Alle Daten bleiben erhalten und der Schritt ist jederzeit rückgängig zu machen.
-                                    Dieses Schalten gilt für <strong>alle Sprachversionen</strong> der Unit.
-                                  </p>
-                                  <Input
-                                    placeholder={`Eingabe: OFFLINE UNIT ${selectedOverview.unitNumber}`}
-                                    value={unitOfflineConfirm}
-                                    onChange={(e) => setUnitOfflineConfirm(e.target.value)}
-                                    className="font-mono text-xs h-8"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="border-amber-500/60 text-amber-700 hover:bg-amber-500/10"
-                                    disabled={running || unitOfflineConfirm !== `OFFLINE UNIT ${selectedOverview.unitNumber}`}
-                                    onClick={() => handleSetUnitOffline(selectedOverview.unitNumber, true)}
-                                  >
-                                    {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <WifiOff className="mr-1 h-3.5 w-3.5" />}
-                                    Offline schalten
-                                  </Button>
-                                </div>
-                              )}
-
-                              {/* Tier 2: Irreversible full delete (inside Accordion) */}
-                              <Accordion type="single" collapsible className="w-full">
-                                <AccordionItem value="danger-delete" className="border-destructive/40">
-                                  <AccordionTrigger className="text-sm font-medium text-destructive hover:text-destructive px-4 py-3 rounded-t border border-destructive/30 bg-destructive/5 hover:no-underline hover:bg-destructive/10">
-                                    <div className="flex items-center gap-2">
-                                      <AlertTriangle className="h-4 w-4" />
-                                      Danger Zone — Unit vollständig löschen
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent className="border border-t-0 border-destructive/30 bg-destructive/5 rounded-b px-4 py-4">
-                                    <div className="space-y-3">
-                                      <div className="flex items-center gap-2">
-                                        <Badge variant="destructive" className="text-[10px]">Nicht rückgängig zu machen</Badge>
-                                      </div>
-                                      <p className="text-xs text-destructive font-medium">
-                                        Löscht alle Inhalte, Vokabeln, Tests UND den User-Fortschritt aller Nutzer dieser Unit unwiderruflich. Drafts bleiben erhalten.
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        Empfehlung: Unit zuerst offline schalten, bevor sie gelöscht wird. Diese Aktion kann nicht rückgängig gemacht werden.
-                                      </p>
-                                      <Input
-                                        placeholder={`Eingabe: DELETE UNIT ${selectedOverview.unitNumber}`}
-                                        value={unitDeleteConfirm}
-                                        onChange={(e) => setUnitDeleteConfirm(e.target.value)}
-                                        className="font-mono text-xs h-8 border-destructive/40 focus-visible:ring-destructive/40"
-                                      />
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        disabled={running || unitDeleteConfirm !== `DELETE UNIT ${selectedOverview.unitNumber}`}
-                                        onClick={() => handleDeleteUnitFull(selectedOverview.unitNumber)}
-                                      >
-                                        {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
-                                        Unit vollständig löschen
-                                      </Button>
-                                    </div>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              </Accordion>
-
-                            </div>
-                          </>
-                        )}
-
-                        {/* Promote / Offline actions (only for preview status) */}
-                        {langVersion.releaseStatus === "preview" && (
-                          <>
-                            <Separator />
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {/* Promote Preview -> Published */}
-                              <div className="rounded border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                  <ArrowUpCircle className="h-4 w-4 text-amber-600" />
-                                  Publish {langFlag(lang)} Preview
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  Promotes this preview to published. Users will see this content.
-                                </p>
-                                <Input
-                                  placeholder={`Type: PUBLISH ${lang.toUpperCase()} UNIT ${selectedOverview.unitNumber}`}
-                                  value={promoteConfirm}
-                                  onChange={(e) => setPromoteConfirm(e.target.value)}
-                                  className="font-mono text-xs h-8"
-                                />
-                                <Button
-                                  size="sm"
-                                  disabled={
-                                    running ||
-                                    promoteConfirm !== `PUBLISH ${lang.toUpperCase()} UNIT ${selectedOverview.unitNumber}`
-                                  }
-                                  onClick={() => handlePromote(selectedOverview.unitNumber, lang)}
-                                >
-                                  {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ArrowUpCircle className="mr-1 h-3.5 w-3.5" />}
-                                  Publish
-                                </Button>
-                              </div>
-
-                              {/* Take Preview Offline */}
-                              <div className="rounded border border-destructive/30 bg-destructive/5 p-3 space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                  <XCircle className="h-4 w-4 text-destructive" />
-                                  Take {langFlag(lang)} Preview Offline
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  Removes this preview. The content will no longer be visible.
-                                </p>
-                                <Input
-                                  placeholder={`Type: OFFLINE ${lang.toUpperCase()} PREVIEW UNIT ${selectedOverview.unitNumber}`}
-                                  value={offlineConfirm}
-                                  onChange={(e) => setOfflineConfirm(e.target.value)}
-                                  className="font-mono text-xs h-8"
-                                />
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  disabled={
-                                    running ||
-                                    offlineConfirm !==
-                                      `OFFLINE ${lang.toUpperCase()} PREVIEW UNIT ${selectedOverview.unitNumber}`
-                                  }
-                                  onClick={() => handleOffline(selectedOverview.unitNumber, lang)}
-                                >
-                                  {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <XCircle className="mr-1 h-3.5 w-3.5" />}
-                                  Take Offline
-                                </Button>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-muted-foreground py-4">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading detail...
-                      </div>
-                    )}
-                  </TabsContent>
-                );
-              })}
-            </Tabs>
-          </CardContent>
-        </Card>
+      {/* Hint when no unit is selected */}
+      {!selectedUnit && (
+        <div className="text-center text-sm text-muted-foreground py-2">
+          Click a row to expand unit details.
+        </div>
       )}
 
       {/* Inline Preview Dialog */}
@@ -1214,6 +856,465 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// InlineDetailCard — rendered inside a <td colSpan> below the selected row
+// ---------------------------------------------------------------------------
+
+interface InlineDetailCardProps {
+  selectedOverview: UnitOverview;
+  detailLang: string;
+  setDetailLang: (lang: string) => void;
+  availableLangs: string[];
+  detailEn: any;
+  detailDe: any;
+  promoteConfirm: string;
+  setPromoteConfirm: (v: string) => void;
+  offlineConfirm: string;
+  setOfflineConfirm: (v: string) => void;
+  publishMode: "update" | "replace";
+  setPublishMode: (v: "update" | "replace") => void;
+  unitOfflineConfirm: string;
+  setUnitOfflineConfirm: (v: string) => void;
+  unitDeleteConfirm: string;
+  setUnitDeleteConfirm: (v: string) => void;
+  running: boolean;
+  onPromote: (unitNumber: number, language: string, mode: "update" | "replace") => void;
+  onOffline: (unitNumber: number, language: string) => void;
+  onSetUnitOffline: (unitNumber: number, goOffline: boolean) => void;
+  onDeleteUnitFull: (unitNumber: number) => void;
+  onOpenPreview: (section: { contentType: string; content: string; tests?: any[] }) => void;
+  onOpenDiff: () => void;
+  onOpenTranslate: (source: "published" | "preview") => void;
+  recentTranslationInfo: string | null;
+}
+
+function InlineDetailCard({
+  selectedOverview,
+  detailLang,
+  setDetailLang,
+  availableLangs,
+  detailEn,
+  detailDe,
+  promoteConfirm,
+  setPromoteConfirm,
+  offlineConfirm,
+  setOfflineConfirm,
+  publishMode,
+  setPublishMode,
+  unitOfflineConfirm,
+  setUnitOfflineConfirm,
+  unitDeleteConfirm,
+  setUnitDeleteConfirm,
+  running,
+  onPromote,
+  onOffline,
+  onSetUnitOffline,
+  onDeleteUnitFull,
+  onOpenPreview,
+  onOpenDiff,
+  onOpenTranslate,
+  recentTranslationInfo,
+}: InlineDetailCardProps) {
+
+  return (
+    <Card className="border-0 rounded-none shadow-none bg-muted/30">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base">
+            Unit {selectedOverview.unitNumber}: {selectedOverview.versions[detailLang]?.title ?? selectedOverview.versions.en?.title ?? ""}
+            {selectedOverview.moduleName && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {selectedOverview.moduleName}
+              </span>
+            )}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {availableLangs.length >= 2 && (
+              <Button variant="ghost" size="sm" onClick={onOpenDiff}>
+                EN / DE Diff
+              </Button>
+            )}
+            {selectedOverview.versions.en && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const enVersion = selectedOverview.versions.en;
+                  onOpenTranslate(enVersion?.releaseStatus === "preview" ? "preview" : "published");
+                }}
+              >
+                <Languages className="mr-1 h-3.5 w-3.5" />
+                Translate EN → DE
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.open(`/unit/${selectedOverview.unitNumber}?lang=${detailLang}`, "_blank");
+              }}
+            >
+              <ExternalLink className="mr-1 h-3.5 w-3.5" />
+              Open in App
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      {selectedOverview.deTranslationStale && (
+        <div className="mx-6 mb-2 flex items-center justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+            <span>EN content has been updated since the last DE translation.</span>
+          </div>
+          {selectedOverview.versions.en && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-amber-500/50 text-amber-700 hover:bg-amber-500/10 shrink-0"
+              onClick={() => {
+                const enVersion = selectedOverview.versions.en;
+                onOpenTranslate(enVersion?.releaseStatus === "preview" ? "preview" : "published");
+              }}
+            >
+              <Languages className="mr-1 h-3.5 w-3.5" />
+              Update DE
+            </Button>
+          )}
+        </div>
+      )}
+
+      {recentTranslationInfo && (
+        <div className="mx-6 mb-2 flex items-center gap-2 rounded border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm">
+          <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          <span>DE translation completed <strong>{recentTranslationInfo}</strong></span>
+        </div>
+      )}
+
+      <CardContent>
+        <Tabs value={detailLang} onValueChange={(v) => setDetailLang(v)}>
+          <TabsList className="mb-4">
+            {availableLangs.map((lang) => (
+              <TabsTrigger key={lang} value={lang} className="gap-1.5">
+                {langFlag(lang)}
+                {selectedOverview.versions[lang] && (
+                  <span className="ml-1">
+                    {statusBadge(
+                      selectedOverview.versions[lang].releaseStatus,
+                      selectedOverview.versions[lang].isOffline
+                    )}
+                  </span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {availableLangs.map((lang) => {
+            const langDetail = lang === "de" ? detailDe : detailEn;
+            const langVersion = selectedOverview.versions[lang];
+            if (!langVersion) return null;
+
+            return (
+              <TabsContent key={lang} value={lang} className="mt-0">
+                <div className="flex items-center justify-between rounded border p-3 mb-4">
+                  <div className="flex items-center gap-6">
+                    <div>
+                      <div className="font-medium">{langVersion.title}</div>
+                      {langVersion.description && (
+                        <div className="text-sm text-muted-foreground">{langVersion.description}</div>
+                      )}
+                    </div>
+                    <div className="flex gap-4 text-xs text-muted-foreground">
+                      <span>{langVersion.sectionCount} sections</span>
+                      <span>{langVersion.testCount} tests</span>
+                      <span>{langVersion.vocabCount} vocab</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {statusBadge(langVersion.releaseStatus, langVersion.isOffline)}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        window.open(`/unit/${selectedOverview.unitNumber}?lang=${lang}`, "_blank");
+                      }}
+                    >
+                      <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                      Preview
+                    </Button>
+                  </div>
+                </div>
+
+                {langDetail ? (
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Content Sections</h4>
+                      {langDetail.sections.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No content sections.</div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                          {langDetail.sections.map((s: any) => (
+                            <div
+                              key={s.contentType}
+                              className="flex flex-col items-center justify-center rounded border px-3 py-2 text-sm cursor-pointer hover:bg-accent/50 transition-colors"
+                              onClick={() => {
+                                onOpenPreview({
+                                  ...s,
+                                  tests: s.contentType === "testIntroduction" ? langDetail.tests : undefined,
+                                });
+                              }}
+                            >
+                              <Eye className="h-3.5 w-3.5 text-muted-foreground mb-1" />
+                              <span className="font-mono text-xs">{s.contentType}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {s.content.length.toLocaleString()} chars
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Tests</h4>
+                        {langDetail.testCategories && langDetail.testCategories.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {langDetail.testCategories.map((tc: any) => (
+                              <Badge key={tc.category} variant="outline" className="text-xs">
+                                {tc.category}: {tc.count}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">No tests.</div>
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Vocabulary</h4>
+                        <div className="text-sm text-muted-foreground">
+                          {langDetail.vocabulary.length} words
+                          {langDetail.vocabulary.length > 0 && (
+                            <span className="ml-1">
+                              (e.g. {langDetail.vocabulary.slice(0, 3).map((v: any) => v.serbian).join(", ")}
+                              {langDetail.vocabulary.length > 3 ? "..." : ""})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {langVersion.releaseStatus !== "preview" && (
+                      <>
+                        <Separator />
+                        <div className="space-y-3">
+                          {langVersion.isOffline ? (
+                            <div className="rounded border border-green-500/40 bg-green-500/5 p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                  <Wifi className="h-4 w-4 text-green-600" />
+                                  Unit wieder online schalten
+                                </div>
+                                <Badge className="bg-green-600/80 hover:bg-green-600 text-white text-[10px]">Reversibel</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Unit {selectedOverview.unitNumber} ist derzeit <strong>offline</strong> und fuer Nutzer nicht sichtbar. Alle Daten sind intakt.
+                                Dieses Schalten gilt fuer <strong>alle Sprachversionen</strong> der Unit.
+                              </p>
+                              <Input
+                                placeholder={`Eingabe: ONLINE UNIT ${selectedOverview.unitNumber}`}
+                                value={unitOfflineConfirm}
+                                onChange={(e) => setUnitOfflineConfirm(e.target.value)}
+                                className="font-mono text-xs h-8"
+                              />
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                disabled={running || unitOfflineConfirm !== `ONLINE UNIT ${selectedOverview.unitNumber}`}
+                                onClick={() => onSetUnitOffline(selectedOverview.unitNumber, false)}
+                              >
+                                {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Wifi className="mr-1 h-3.5 w-3.5" />}
+                                Online schalten
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="rounded border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                  <WifiOff className="h-4 w-4 text-amber-600" />
+                                  Unit offline schalten
+                                </div>
+                                <Badge className="bg-amber-500/80 hover:bg-amber-500 text-white text-[10px]">Reversibel</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Die Unit wird fuer alle Nutzer ausgeblendet. Alle Daten bleiben erhalten und der Schritt ist jederzeit rueckgaengig zu machen.
+                                Dieses Schalten gilt fuer <strong>alle Sprachversionen</strong> der Unit.
+                              </p>
+                              <Input
+                                placeholder={`Eingabe: OFFLINE UNIT ${selectedOverview.unitNumber}`}
+                                value={unitOfflineConfirm}
+                                onChange={(e) => setUnitOfflineConfirm(e.target.value)}
+                                className="font-mono text-xs h-8"
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-amber-500/60 text-amber-700 hover:bg-amber-500/10"
+                                disabled={running || unitOfflineConfirm !== `OFFLINE UNIT ${selectedOverview.unitNumber}`}
+                                onClick={() => onSetUnitOffline(selectedOverview.unitNumber, true)}
+                              >
+                                {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <WifiOff className="mr-1 h-3.5 w-3.5" />}
+                                Offline schalten
+                              </Button>
+                            </div>
+                          )}
+
+                          <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="danger-delete" className="border-destructive/40">
+                              <AccordionTrigger className="text-sm font-medium text-destructive hover:text-destructive px-4 py-3 rounded-t border border-destructive/30 bg-destructive/5 hover:no-underline hover:bg-destructive/10">
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  Danger Zone — Unit vollstaendig loeschen
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="border border-t-0 border-destructive/30 bg-destructive/5 rounded-b px-4 py-4">
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="destructive" className="text-[10px]">Nicht rueckgaengig zu machen</Badge>
+                                  </div>
+                                  <p className="text-xs text-destructive font-medium">
+                                    Loescht alle Inhalte, Vokabeln, Tests UND den User-Fortschritt aller Nutzer dieser Unit unwiderruflich. Drafts bleiben erhalten.
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Empfehlung: Unit zuerst offline schalten, bevor sie geloescht wird. Diese Aktion kann nicht rueckgaengig gemacht werden.
+                                  </p>
+                                  <Input
+                                    placeholder={`Eingabe: DELETE UNIT ${selectedOverview.unitNumber}`}
+                                    value={unitDeleteConfirm}
+                                    onChange={(e) => setUnitDeleteConfirm(e.target.value)}
+                                    className="font-mono text-xs h-8 border-destructive/40 focus-visible:ring-destructive/40"
+                                  />
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={running || unitDeleteConfirm !== `DELETE UNIT ${selectedOverview.unitNumber}`}
+                                    onClick={() => onDeleteUnitFull(selectedOverview.unitNumber)}
+                                  >
+                                    {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+                                    Unit vollstaendig loeschen
+                                  </Button>
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        </div>
+                      </>
+                    )}
+
+                    {langVersion.releaseStatus === "preview" && (() => {
+                      const confirmStr = publishMode === "replace"
+                        ? `REPLACE ${lang.toUpperCase()} UNIT ${selectedOverview.unitNumber}`
+                        : `PUBLISH ${lang.toUpperCase()} UNIT ${selectedOverview.unitNumber}`;
+                      return (
+                        <>
+                          <Separator />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="rounded border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <ArrowUpCircle className="h-4 w-4 text-amber-600" />
+                                Publish {langFlag(lang)} Preview
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-muted-foreground">Publish Mode</label>
+                                <Select value={publishMode} onValueChange={(v) => { setPublishMode(v as any); setPromoteConfirm(""); }}>
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="update">Update (merge) — keeps user progress</SelectItem>
+                                    <SelectItem value="replace">Replace (full) — resets user progress</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {publishMode === "replace" && (
+                                <div className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded p-2">
+                                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                  <span>Replace mode will archive old content and <strong>reset all user progress</strong> (XP, mastery) for this unit.</span>
+                                </div>
+                              )}
+
+                              <p className="text-xs text-muted-foreground">
+                                {publishMode === "update"
+                                  ? "Promotes this preview to published. Existing user progress is preserved."
+                                  : "Replaces all published content with this preview. User progress will be reset."
+                                }
+                              </p>
+                              <Input
+                                placeholder={`Type: ${confirmStr}`}
+                                value={promoteConfirm}
+                                onChange={(e) => setPromoteConfirm(e.target.value)}
+                                className="font-mono text-xs h-8"
+                              />
+                              <Button
+                                size="sm"
+                                disabled={running || promoteConfirm !== confirmStr}
+                                onClick={() => onPromote(selectedOverview.unitNumber, lang, publishMode)}
+                              >
+                                {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ArrowUpCircle className="mr-1 h-3.5 w-3.5" />}
+                                {publishMode === "replace" ? "Replace & Publish" : "Publish"}
+                              </Button>
+                            </div>
+
+                            <div className="rounded border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <XCircle className="h-4 w-4 text-destructive" />
+                                Take {langFlag(lang)} Preview Offline
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Removes this preview. The content will no longer be visible.
+                              </p>
+                              <Input
+                                placeholder={`Type: OFFLINE ${lang.toUpperCase()} PREVIEW UNIT ${selectedOverview.unitNumber}`}
+                                value={offlineConfirm}
+                                onChange={(e) => setOfflineConfirm(e.target.value)}
+                                className="font-mono text-xs h-8"
+                              />
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                disabled={
+                                  running ||
+                                  offlineConfirm !==
+                                    `OFFLINE ${lang.toUpperCase()} PREVIEW UNIT ${selectedOverview.unitNumber}`
+                                }
+                                onClick={() => onOffline(selectedOverview.unitNumber, lang)}
+                              >
+                                {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <XCircle className="mr-1 h-3.5 w-3.5" />}
+                                Take Offline
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-muted-foreground py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading detail...
+                  </div>
+                )}
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }
 

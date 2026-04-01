@@ -78,6 +78,7 @@ export default function Dashboard() {
   const progressLoading = progress === undefined;
   const accessibleUnits = useQuery(api.subscriptions.getAccessibleUnits);
   const currentSubscription = useQuery(api.subscriptions.getCurrent);
+
   const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
   const safeCurrentUnit =
     typeof progress?.currentUnit === "number" && Number.isFinite(progress.currentUnit) && progress.currentUnit > 0

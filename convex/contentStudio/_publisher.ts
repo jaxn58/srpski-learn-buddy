@@ -87,6 +87,8 @@ export const takeUnitPreviewOfflineByUnitNumber = action({
   },
 });
 
+// @deprecated — Publishing now goes through Unit Manager (promoteLanguagePreviewToPublished).
+// Kept for backwards compatibility with any external callers.
 // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
 export const publishDraft = action({
   args: {

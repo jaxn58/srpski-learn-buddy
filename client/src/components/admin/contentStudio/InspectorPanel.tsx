@@ -76,28 +76,12 @@ export interface InspectorPanelProps {
   onSectionRevise: () => void;
   onDismissFinding: (params: { findingId: any; dismissed: boolean }) => void;
 
-  // Publish
+  // Publish (push to preview only; lifecycle managed in Unit Manager)
   runningPublish: boolean;
-  runningTranslateDe: boolean;
-  runningApprovePreview: boolean;
-  publishMode: string;
-  setPublishMode: (v: any) => void;
   publishModuleId: string;
   setPublishModuleId: (v: string) => void;
   modules: any[] | undefined;
-  canPublishLive: boolean;
-  approvedMarkdown: any;
-  translateDeOpen: boolean;
-  setTranslateDeOpen: (v: boolean) => void;
-  translateDeConfirmation: string;
-  setTranslateDeConfirmation: (v: string) => void;
-  translateDePreview: any;
-  onPublishToPreview: () => void;
-  onTakePreviewOffline: () => void;
-  onApprovePreview: () => void;
-  onDownloadApprovedMarkdown: () => void;
-  onPublish: () => void;
-  onTranslatePublishedToGerman: () => void;
+  onPushToPreview: () => void;
   deleteUnitOpen: boolean;
   setDeleteUnitOpen: (v: boolean) => void;
   deleteConfirmation: string;
@@ -357,13 +341,8 @@ function ReviewContent(props: InspectorPanelProps) {
 
 function PublishContent(props: InspectorPanelProps) {
   const {
-    selected, selectedDraftId, isBusy, runningPublish, runningTranslateDe,
-    runningApprovePreview, publishMode, setPublishMode, publishModuleId,
-    setPublishModuleId, modules, canPublishLive, approvedMarkdown,
-    translateDeOpen, setTranslateDeOpen, translateDeConfirmation,
-    setTranslateDeConfirmation, translateDePreview,
-    onPublishToPreview, onTakePreviewOffline, onApprovePreview,
-    onDownloadApprovedMarkdown, onPublish, onTranslatePublishedToGerman,
+    selected, isBusy, runningPublish, publishModuleId,
+    setPublishModuleId, modules, onPushToPreview,
     deleteUnitOpen, setDeleteUnitOpen, deleteConfirmation, setDeleteConfirmation,
     onDeleteUnit, onDeleteSelectedDraft, showDeleteDraftDialog,
     setShowDeleteDraftDialog, onConfirmDeleteDraft,
@@ -371,7 +350,7 @@ function PublishContent(props: InspectorPanelProps) {
 
   return (
     <>
-      {/* Module & Mode */}
+      {/* Module */}
       <div className="space-y-2">
         <div>
           <Label className="text-xs">Module</Label>
@@ -389,122 +368,26 @@ function PublishContent(props: InspectorPanelProps) {
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label className="text-xs">Mode</Label>
-          <Select value={publishMode} onValueChange={setPublishMode}>
-            <SelectTrigger className="h-8 text-sm mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="update">Update (merge)</SelectItem>
-              <SelectItem value="replace">Replace (full)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
       <Separator />
 
-      {/* Preview / Approve / Publish */}
+      {/* Push to Preview */}
       <div className="space-y-2">
         <Button
           size="sm"
-          variant="outline"
           className="w-full"
-          onClick={onPublishToPreview}
+          onClick={onPushToPreview}
           disabled={isBusy}
         >
           {runningPublish ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
-          Preview in App
+          Push to Preview
         </Button>
 
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full"
-          onClick={onTakePreviewOffline}
-          disabled={isBusy}
-        >
-          Take Preview Offline
-        </Button>
-
-        <Button
-          size="sm"
-          variant="secondary"
-          className="w-full"
-          onClick={onApprovePreview}
-          disabled={isBusy || runningApprovePreview}
-        >
-          {runningApprovePreview ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <CheckCircle className="mr-2 h-3 w-3" />}
-          Approve
-        </Button>
-
-        {approvedMarkdown && (
-          <Button size="sm" variant="ghost" className="w-full text-xs" onClick={onDownloadApprovedMarkdown}>
-            Download approved .md
-          </Button>
-        )}
-
-        <Separator />
-
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={onPublish}
-          disabled={isBusy || !canPublishLive}
-        >
-          {runningPublish ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
-          Publish Live
-        </Button>
-        {!canPublishLive && (
-          <p className="text-[10px] text-muted-foreground">
-            Approve the latest snapshot before publishing live.
-          </p>
-        )}
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          Pushes this draft as a preview to the database. Use the <strong>Unit Manager</strong> to review, publish, or take it offline.
+        </p>
       </div>
-
-      <Separator />
-
-      {/* Translate */}
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="translate" className="border-none">
-          <AccordionTrigger className="text-xs font-semibold py-1">Translate EN → DE</AccordionTrigger>
-          <AccordionContent className="space-y-2 pt-2">
-            <AlertDialog open={translateDeOpen} onOpenChange={setTranslateDeOpen}>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" variant="outline" className="w-full" disabled={isBusy || runningTranslateDe}>
-                  Translate to German (Preview)
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Translate Unit {selected?.draft?.unitNumber} EN → DE?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Creates a German preview version of this unit.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="space-y-3 py-2">
-                  <Label>Confirm by typing: <code>TRANSLATE UNIT {selected?.draft?.unitNumber} TO DE</code></Label>
-                  <Input
-                    value={translateDeConfirmation}
-                    onChange={(e) => setTranslateDeConfirmation(e.target.value)}
-                    placeholder={`TRANSLATE UNIT ${selected?.draft?.unitNumber} TO DE`}
-                  />
-                </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={onTranslatePublishedToGerman}
-                    disabled={translateDeConfirmation !== `TRANSLATE UNIT ${selected?.draft?.unitNumber} TO DE`}
-                  >
-                    Translate
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
 
       <Separator />
 

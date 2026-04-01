@@ -155,6 +155,7 @@ export function TopNavigation() {
   const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" }) as
     | DbUnitMetadataForQuickSwitch[]
     | undefined;
+
   const XP_PER_LEVEL = 300;
   const totalXP = Math.floor(stats?.totalXP || 0);
   const currentLevel =

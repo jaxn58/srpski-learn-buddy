@@ -1246,6 +1246,7 @@ export const internalTakeUnitPreviewOffline = mutation({
 
 
 
+// @deprecated — Approval step removed; draft is auto-set to ready_to_publish on push-to-preview.
 export const approveAfterPreview = mutation({
   args: { draftId: v.id("contentDrafts") },
   handler: async (ctx, args) => {
@@ -1704,13 +1705,17 @@ export const promoteLanguagePreviewToPublished = mutation({
   args: {
     unitNumber: v.number(),
     language: v.string(),
-    confirm: v.string(), // Must be "PUBLISH <LANG> UNIT <N>"
+    confirm: v.string(), // "PUBLISH <LANG> UNIT <N>" or "REPLACE <LANG> UNIT <N>"
+    mode: v.optional(v.union(v.literal("update"), v.literal("replace"))),
   },
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
     const unitNumber = Number(args.unitNumber);
     const language = String(args.language).toLowerCase();
-    const expected = `PUBLISH ${language.toUpperCase()} UNIT ${unitNumber}`;
+    const mode = args.mode ?? "update";
+    const expected = mode === "replace"
+      ? `REPLACE ${language.toUpperCase()} UNIT ${unitNumber}`
+      : `PUBLISH ${language.toUpperCase()} UNIT ${unitNumber}`;
     if (String(args.confirm) !== expected) {
       throw new Error(`Confirmation mismatch. Expected "${expected}", got "${args.confirm}"`);
     }
@@ -1825,11 +1830,99 @@ export const promoteLanguagePreviewToPublished = mutation({
       }
     }
 
+    // Sync draft status: if a matching draft exists at ready_to_publish, mark it published.
+    if (language === "en") {
+      const drafts = await ctx.db
+        .query("contentDrafts")
+        .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+        .collect();
+      for (const d of drafts) {
+        if (d.status === "ready_to_publish") {
+          await ctx.db.patch(d._id, { status: "published" as DraftStatus, updatedAt: now });
+        }
+      }
+    }
+
+    // Replace mode: reset all user progress for this unit.
+    let progressReset: Record<string, number> | undefined;
+    if (mode === "replace") {
+      progressReset = {
+        questionProgress: 0,
+        exerciseQuestionProgress: 0,
+        exerciseResults: 0,
+        exerciseCompletions: 0,
+        quizProgress: 0,
+        vocabularyProgress: 0,
+      };
+
+      const qpRows = await ctx.db
+        .query("questionProgress")
+        .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+        .collect();
+      for (const row of qpRows) {
+        await ctx.db.delete(row._id);
+        progressReset.questionProgress += 1;
+      }
+
+      const eqpRows = await ctx.db
+        .query("exerciseQuestionProgress")
+        .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+        .collect();
+      for (const row of eqpRows) {
+        await ctx.db.delete(row._id);
+        progressReset.exerciseQuestionProgress += 1;
+      }
+
+      const erRows = await ctx.db
+        .query("exerciseResults")
+        .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+        .collect();
+      for (const row of erRows) {
+        await ctx.db.delete(row._id);
+        progressReset.exerciseResults += 1;
+      }
+
+      const ecRows = await ctx.db
+        .query("exerciseCompletions")
+        .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+        .collect();
+      for (const row of ecRows) {
+        await ctx.db.delete(row._id);
+        progressReset.exerciseCompletions += 1;
+      }
+
+      const qzRows = await ctx.db
+        .query("quizProgress")
+        .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+        .collect();
+      for (const row of qzRows) {
+        await ctx.db.delete(row._id);
+        progressReset.quizProgress += 1;
+      }
+
+      const unitVocabs = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+        .collect();
+      for (const vocab of unitVocabs) {
+        const vpRows = await ctx.db
+          .query("vocabularyProgress")
+          .withIndex("by_course_vocab", (q) => q.eq("courseVocabularyId", vocab._id))
+          .collect();
+        for (const vp of vpRows) {
+          await ctx.db.delete(vp._id);
+          progressReset.vocabularyProgress += 1;
+        }
+      }
+    }
+
     return {
       ok: true,
       unitNumber,
       language,
+      mode,
       promoted: { metaPromoted, contentPromoted, testsPromoted, vocabMerged },
+      ...(progressReset ? { progressReset } : {}),
     };
   },
 });
