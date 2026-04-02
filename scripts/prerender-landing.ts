@@ -199,6 +199,21 @@ function escapeHtml(input: string): string {
 }
 
 main().catch((e) => {
+  const isNetworkError =
+    e?.cause?.code === "ENOTFOUND" ||
+    e?.cause?.code === "ECONNREFUSED" ||
+    e?.cause?.code === "ETIMEDOUT" ||
+    (e instanceof TypeError && e.message === "fetch failed");
+
+  if (isNetworkError) {
+    console.warn(
+      "[prerender-landing] Skipping prerender – could not reach Convex backend (network error). " +
+      "The landing page will use client-side rendering instead.\n" +
+      `  Cause: ${e?.cause?.code ?? e.message}`
+    );
+    process.exit(0);
+  }
+
   console.error("[prerender-landing] Failed:", e);
   process.exit(1);
 });
