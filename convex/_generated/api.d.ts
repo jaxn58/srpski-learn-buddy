@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as audioAdmin from "../audioAdmin.js";
 import type * as authz from "../authz.js";
 import type * as backup from "../backup.js";
 import type * as backupAdmin from "../backupAdmin.js";
@@ -66,6 +67,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  audioAdmin: typeof audioAdmin;
   authz: typeof authz;
   backup: typeof backup;
   backupAdmin: typeof backupAdmin;
