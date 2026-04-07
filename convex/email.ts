@@ -227,7 +227,11 @@ export const sendBetaRegistrationEmail = internalAction({
   handler: async (ctx, args): Promise<SendEmailResult> => {
     return await renderAndSendTemplateEmail(ctx, {
       templateName: "beta-registration",
-      variables: { USER_NAME: args.name, USER_EMAIL: args.email },
+      variables: {
+        USER_NAME: args.name,
+        USER_EMAIL: args.email,
+        LOGIN_URL: `${process.env.VITE_APP_URL || "https://learn-with.me"}/sign-in`,
+      },
       to: args.email,
       language: args.language,
     });

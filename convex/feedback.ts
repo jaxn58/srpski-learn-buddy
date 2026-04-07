@@ -11,7 +11,7 @@ import {
   MutationCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 
 // Helper to get the current user
@@ -29,44 +29,140 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
-// Get feedback comments
-export const getComments = query({
+async function assertFeedbackThreadAccess(
+  ctx: QueryCtx | MutationCtx,
+  feedbackId: Id<"feedbackSubmissions">,
+  viewer: Doc<"users">
+) {
+  const feedback = await ctx.db.get(feedbackId);
+  if (!feedback) throw new Error("Feedback not found");
+  const isStaff = viewer.role === "admin" || viewer.role === "superadmin";
+  if (!isStaff && feedback.userId !== viewer._id) {
+    throw new Error("Unauthorized");
+  }
+  return feedback;
+}
+
+type FeedbackThreadMessage = {
+  _id: string;
+  createdAt: number;
+  body: string;
+  authorKind: "user" | "admin";
+  isInternal: boolean;
+  authorUserId: Id<"users">;
+  isSynthetic: boolean;
+  authorDisplayName?: string;
+};
+
+/** Public + internal (internal only for staff). Legacy rows without feedbackMessages get synthetic items. */
+export const getThread = query({
   args: {
     feedbackId: v.id("feedbackSubmissions"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) return [];
+    const viewer = await getCurrentUser(ctx);
+    if (!viewer) return null;
 
-    return await ctx.db
-      .query("feedbackComments")
+    const feedback = await assertFeedbackThreadAccess(ctx, args.feedbackId, viewer);
+    const isStaff = viewer.role === "admin" || viewer.role === "superadmin";
+
+    const rows = await ctx.db
+      .query("feedbackMessages")
       .withIndex("by_feedback", (q) => q.eq("feedbackId", args.feedbackId))
       .collect();
-  },
-});
 
-// Add feedback comment
-export const addComment = mutation({
-  args: {
-    feedbackId: v.id("feedbackSubmissions"),
-    content: v.string(),
-    isAdminNote: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
+    const visible = rows
+      .filter((m) => isStaff || !m.isInternal)
+      .sort((a, b) => a.createdAt - b.createdAt);
 
-    // If admin note, verify user is admin
-    if (args.isAdminNote && user.role !== "admin" && user.role !== "superadmin") {
-      throw new Error("Unauthorized");
+    const authorIds = [...new Set(visible.map((m) => m.authorUserId))];
+    const authorNames = new Map<string, string>();
+    for (const id of authorIds) {
+      const u = await ctx.db.get(id);
+      if (u) {
+        authorNames.set(
+          id,
+          u.name?.trim() || u.email?.trim() || "User"
+        );
+      }
     }
 
-    return await ctx.db.insert("feedbackComments", {
-      feedbackId: args.feedbackId,
-      userId: user._id,
-      content: args.content,
-      isAdminNote: args.isAdminNote,
-    });
+    const submitter = await ctx.db.get(feedback.userId);
+    const submitterLabel =
+      submitter?.name?.trim() || submitter?.email?.trim() || "Learner";
+
+    const out: FeedbackThreadMessage[] = visible.map((m) => ({
+      _id: m._id,
+      createdAt: m.createdAt,
+      body: m.body,
+      authorKind: m.authorKind,
+      isInternal: m.isInternal,
+      authorUserId: m.authorUserId,
+      isSynthetic: false,
+      authorDisplayName:
+        isStaff
+          ? m.authorKind === "user"
+            ? submitterLabel
+            : authorNames.get(m.authorUserId) || "Admin"
+          : m.authorUserId === viewer._id
+            ? "You"
+            : "Team",
+    }));
+
+    const publicMsgs = visible.filter((m) => !m.isInternal);
+    if (publicMsgs.length === 0 && feedback.description.trim()) {
+      out.unshift({
+        _id: "synthetic_initial",
+        createdAt: feedback.submittedAt ?? feedback._creationTime,
+        body: feedback.description,
+        authorKind: "user",
+        isInternal: false,
+        authorUserId: feedback.userId,
+        isSynthetic: true,
+        authorDisplayName: isStaff ? submitterLabel : viewer._id === feedback.userId ? "You" : "Team",
+      });
+    }
+
+    const hasAdminPublicInDb = visible.some(
+      (m) => !m.isInternal && m.authorKind === "admin"
+    );
+    const legacyReply = (feedback.aiSentContent || "").trim();
+    if (legacyReply && !hasAdminPublicInDb) {
+      const sentBy = feedback.aiSentBy;
+      let adminLabel = "Admin";
+      if (sentBy) {
+        const fromMap = authorNames.get(sentBy);
+        if (fromMap) adminLabel = fromMap;
+        else {
+          const su = await ctx.db.get(sentBy);
+          const resolved = su?.name?.trim() || su?.email?.trim();
+          if (resolved) adminLabel = resolved;
+        }
+      }
+      out.push({
+        _id: "synthetic_admin_reply",
+        createdAt:
+          feedback.aiSentAt ??
+          feedback.reviewedAt ??
+          feedback._creationTime,
+        body: feedback.aiSentContent!,
+        authorKind: "admin",
+        isInternal: false,
+        authorUserId: sentBy ?? feedback.userId,
+        isSynthetic: true,
+        authorDisplayName: isStaff ? adminLabel : "Team",
+      });
+    }
+
+    out.sort((a, b) => a.createdAt - b.createdAt);
+    return {
+      feedbackId: feedback._id,
+      title: feedback.title,
+      type: feedback.type,
+      status: feedback.status,
+      submittedAt: feedback.submittedAt,
+      messages: out,
+    };
   },
 });
 
@@ -173,7 +269,7 @@ export const getAllSubmissions = query({
   },
 });
 
-// Count new (unreviewed) feedback submissions (admin/superadmin; returns 0 for others)
+// Count conversations needing staff attention (admin/superadmin; returns 0 for others)
 export const getNewCount = query({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
@@ -181,18 +277,21 @@ export const getNewCount = query({
       return 0;
     }
 
-    // Zähle nur Feedbacks die:
-    // 1. Status "new" haben UND
-    // 2. Noch keine Antwort versendet wurde (aiSentAt nicht gesetzt)
-    const allNew = await ctx.db
-      .query("feedbackSubmissions")
-      .withIndex("by_status", (q) => q.eq("status", "new"))
-      .collect();
+    const all = await ctx.db.query("feedbackSubmissions").collect();
 
-    // Filter: Nur die ohne aiSentAt
-    const unreplied = allNew.filter((f: any) => !f.aiSentAt);
-
-    return unreplied.length;
+    return all.filter((f) => {
+      if (f.status === "completed" || f.status === "rejected") return false;
+      if (f.lastThreadActivityBy === "user") return true;
+      // Legacy: no thread metadata yet
+      if (
+        f.lastThreadActivityBy === undefined &&
+        f.status === "new" &&
+        !f.aiSentAt
+      ) {
+        return true;
+      }
+      return false;
+    }).length;
   },
 });
 
@@ -218,15 +317,37 @@ export const submit = mutation({
     if (description.length < 50) throw new Error("Description is too short");
     if (description.length > 5000) throw new Error("Description is too long");
 
+    const now = Date.now();
     const feedbackId = await ctx.db.insert("feedbackSubmissions", {
       userId: user._id,
       type: args.type,
       title,
       description,
       status: "new",
-      submittedAt: Date.now(),
+      submittedAt: now,
       aiStatus: "pending",
+      lastThreadActivityBy: "user",
+      lastThreadActivityAt: now,
     });
+
+    await ctx.db.insert("feedbackMessages", {
+      feedbackId,
+      authorUserId: user._id,
+      authorKind: "user",
+      body: description,
+      isInternal: false,
+      createdAt: now,
+    });
+
+    try {
+      await ctx.scheduler.runAfter(0, internal.feedback.notifyAdminNewUserMessage, {
+        feedbackId,
+        excerpt: description.slice(0, 4000),
+        context: "new_submission",
+      });
+    } catch (e) {
+      console.error("[feedback.submit] Failed to schedule admin notification:", e);
+    }
 
     // Fire-and-forget AI analysis (superadmin-only output stored on the submission)
     try {
@@ -240,6 +361,120 @@ export const submit = mutation({
     }
 
     return feedbackId;
+  },
+});
+
+export const addUserMessage = mutation({
+  args: {
+    feedbackId: v.id("feedbackSubmissions"),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const feedback = await ctx.db.get(args.feedbackId);
+    if (!feedback) throw new Error("Feedback not found");
+    if (feedback.userId !== user._id) throw new Error("Unauthorized");
+
+    const body = String(args.body || "").trim();
+    if (body.length < 1) throw new Error("Message is empty");
+    if (body.length > 5000) throw new Error("Message is too long");
+
+    const now = Date.now();
+    await ctx.db.insert("feedbackMessages", {
+      feedbackId: args.feedbackId,
+      authorUserId: user._id,
+      authorKind: "user",
+      body,
+      isInternal: false,
+      createdAt: now,
+    });
+
+    const patch: Partial<Doc<"feedbackSubmissions">> = {
+      lastThreadActivityBy: "user",
+      lastThreadActivityAt: now,
+    };
+    if (
+      feedback.status === "answered" ||
+      feedback.status === "completed"
+    ) {
+      patch.status = "in_progress";
+    }
+    await ctx.db.patch(args.feedbackId, patch);
+
+    try {
+      await ctx.scheduler.runAfter(0, internal.feedback.notifyAdminNewUserMessage, {
+        feedbackId: args.feedbackId,
+        excerpt: body.slice(0, 4000),
+        context: "follow_up",
+      });
+    } catch (e) {
+      console.error("[feedback.addUserMessage] Failed to schedule admin notification:", e);
+    }
+
+    return { success: true as const };
+  },
+});
+
+export const addAdminInternalNote = mutation({
+  args: {
+    feedbackId: v.id("feedbackSubmissions"),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+      throw new Error("Unauthorized");
+    }
+
+    const feedback = await ctx.db.get(args.feedbackId);
+    if (!feedback) throw new Error("Feedback not found");
+
+    const body = String(args.body || "").trim();
+    if (body.length < 1) throw new Error("Note is empty");
+    if (body.length > 8000) throw new Error("Note is too long");
+
+    const now = Date.now();
+    await ctx.db.insert("feedbackMessages", {
+      feedbackId: args.feedbackId,
+      authorUserId: user._id,
+      authorKind: "admin",
+      body,
+      isInternal: true,
+      createdAt: now,
+    });
+
+    return { success: true as const };
+  },
+});
+
+/** Public admin reply in thread without emailing the user (in-app only). */
+export const addAdminPublicMessage = mutation({
+  args: {
+    feedbackId: v.id("feedbackSubmissions"),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+      throw new Error("Unauthorized");
+    }
+
+    const feedback = await ctx.db.get(args.feedbackId);
+    if (!feedback) throw new Error("Feedback not found");
+
+    const body = String(args.body || "").trim();
+    if (body.length < 1) throw new Error("Message is empty");
+    if (body.length > 8000) throw new Error("Message is too long");
+
+    await ctx.runMutation(internal.feedback.internalRecordPublicAdminReply, {
+      feedbackId: args.feedbackId,
+      body,
+      sentBy: user._id,
+    });
+
+    return { success: true as const };
   },
 });
 
@@ -510,19 +745,30 @@ export const internalGetUserById = internalQuery({
   },
 });
 
-export const internalApplyAdminReply = internalMutation({
+export const internalRecordPublicAdminReply = internalMutation({
   args: {
     feedbackId: v.id("feedbackSubmissions"),
-    replyText: v.string(),
+    body: v.string(),
     sentBy: v.id("users"),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
+    await ctx.db.insert("feedbackMessages", {
+      feedbackId: args.feedbackId,
+      authorUserId: args.sentBy,
+      authorKind: "admin",
+      body: args.body,
+      isInternal: false,
+      createdAt: now,
+    });
     await ctx.db.patch(args.feedbackId, {
-      aiSentAt: Date.now(),
+      aiSentAt: now,
       aiSentBy: args.sentBy,
-      aiSentContent: args.replyText,
+      aiSentContent: args.body,
       status: "answered",
-      reviewedAt: Date.now(),
+      reviewedAt: now,
+      lastThreadActivityBy: "admin",
+      lastThreadActivityAt: now,
     });
   },
 });
@@ -542,6 +788,21 @@ async function requireSuperadmin(ctx: ActionCtx): Promise<Doc<"users">> {
   return user;
 }
 
+async function requireAdminOrSuperadminAction(ctx: ActionCtx): Promise<Doc<"users">> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) throw new Error("Unauthorized");
+
+  const user = await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+    clerkId: identity.subject,
+  });
+
+  if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+    throw new Error("Unauthorized");
+  }
+
+  return user;
+}
+
 export const sendAiReplyToUser = action({
   args: {
     feedbackId: v.id("feedbackSubmissions"),
@@ -554,7 +815,7 @@ export const sendAiReplyToUser = action({
     | { success: true; emailSent: true; messageId?: string }
     | { success: true; emailSent: false; emailError: string }
   > => {
-    const superadmin = await requireSuperadmin(ctx);
+    const staff = await requireAdminOrSuperadminAction(ctx);
 
     const feedback = await ctx.runQuery(internal.feedback.internalGetFeedbackById, {
       feedbackId: args.feedbackId,
@@ -568,11 +829,10 @@ export const sendAiReplyToUser = action({
     const userEmail = submitter?.email;
     const userName = submitter?.name || userEmail || "there";
 
-    // Always send in-app (feedback tool) by updating adminNotes + tracking.
-    await ctx.runMutation(internal.feedback.internalApplyAdminReply, {
+    await ctx.runMutation(internal.feedback.internalRecordPublicAdminReply, {
       feedbackId: args.feedbackId,
-      replyText: args.replyText,
-      sentBy: superadmin._id,
+      body: args.replyText,
+      sentBy: staff._id,
     });
 
     // Additionally try email (best effort). Do not fail the whole operation if email is missing/fails.
@@ -656,7 +916,55 @@ export const deleteFeedback = mutation({
       throw new Error("Unauthorized");
     }
 
+    const msgs = await ctx.db
+      .query("feedbackMessages")
+      .withIndex("by_feedback", (q) => q.eq("feedbackId", args.id))
+      .collect();
+    for (const m of msgs) {
+      await ctx.db.delete(m._id);
+    }
+
     await ctx.db.delete(args.id);
+  },
+});
+
+export const notifyAdminNewUserMessage = internalAction({
+  args: {
+    feedbackId: v.id("feedbackSubmissions"),
+    excerpt: v.string(),
+    context: v.union(v.literal("new_submission"), v.literal("follow_up")),
+  },
+  handler: async (ctx, args) => {
+    const feedback = await ctx.runQuery(internal.feedback.internalGetFeedbackById, {
+      feedbackId: args.feedbackId,
+    });
+    if (!feedback) return;
+
+    const submitter = await ctx.runQuery(internal.feedback.internalGetUserById, {
+      userId: feedback.userId,
+    });
+
+    const adminEmail =
+      process.env.ADMIN_NOTIFICATION_EMAIL ||
+      process.env.RESEND_REPLY_TO_EMAIL ||
+      "hello@jacksenn.me";
+
+    const prefix =
+      args.context === "follow_up" ? "[Follow-up] " : "[New feedback] ";
+
+    try {
+      await ctx.runAction(internal.email.sendFeedbackAdminNotificationEmail, {
+        userName: submitter?.name || submitter?.email || "User",
+        userEmail: submitter?.email || "",
+        feedbackType: feedback.type,
+        feedbackTitle: `${prefix}${feedback.title}`,
+        feedbackDescription: args.excerpt,
+        adminEmail,
+        language: "en",
+      });
+    } catch (e) {
+      console.error("[feedback.notifyAdminNewUserMessage] Email failed:", e);
+    }
   },
 });
 

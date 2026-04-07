@@ -10,7 +10,7 @@ const ALL_TABLES = [
   "unitMetadata", "moduleMetadata",
   "unitInteractiveTests", "unitContent",
   "courseVocabulary", "userBadges", "dailyActivity",
-  "feedbackSubmissions", "feedbackComments",
+  "feedbackSubmissions", "feedbackMessages", "feedbackComments",
   "feedbackStatusHistory", "userSubscriptions", "subscriptionHistory",
   "quizProgress", "emailTemplates", "chatPrompts", "chatPromptHistory",
   "appVersions", "changelogEntries", "onboardingSteps", "dashboardAnnouncements"

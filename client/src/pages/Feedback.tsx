@@ -8,8 +8,14 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 // Sidebar import removed
-import { MessageSquare } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import { useState } from "react";
+import { Link } from "wouter";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { formatDateTimeEU } from "@/lib/utils";
@@ -47,7 +53,15 @@ export default function Feedback() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const submitFeedbackMutation = useMutation(api.feedback.submit);
+  const addUserMessageMutation = useMutation(api.feedback.addUserMessage);
   const mySubmissions = (useQuery(api.feedback.getMySubmissions) ?? []) as MyFeedbackSubmission[];
+  const [openThreadId, setOpenThreadId] = useState<Id<"feedbackSubmissions"> | null>(null);
+  const [followUpDraft, setFollowUpDraft] = useState("");
+  const [followUpSending, setFollowUpSending] = useState(false);
+  const threadData = useQuery(
+    api.feedback.getThread,
+    openThreadId ? { feedbackId: openThreadId } : "skip"
+  );
 
   if (loading) {
     return (
@@ -271,56 +285,174 @@ export default function Feedback() {
                 <p className="text-xs text-center text-muted-foreground">
                   {t('feedback.thankYou')}
                 </p>
+              </form>
 
                 {mySubmissions.length > 0 && (
-                  <div className="pt-4 border-t">
+                  <div className="pt-6 border-t mt-6">
                     <h2 className="text-base font-semibold mb-3">{t('feedback.history.title')}</h2>
                     <div className="space-y-4">
-                      {mySubmissions.map((submission: MyFeedbackSubmission) => (
-                        <Card key={submission._id} className="border-l-4 border-l-primary">
-                          <CardHeader className="py-3">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <CardTitle className="text-base">{submission.title}</CardTitle>
-                                <CardDescription className="mt-0.5 text-xs">
-                                  {typeLabels[submission.type as keyof typeof typeLabels]}
-                                </CardDescription>
-                              </div>
-                              {(() => {
-                                const displayStatus = getDisplayStatus(submission);
-                                return (
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusColors[displayStatus as keyof typeof statusColors]}`}
-                                  >
-                                    {statusLabels[displayStatus as keyof typeof statusLabels]}
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          </CardHeader>
-                          <CardContent className="pt-0 pb-3">
-                            <p className="text-sm text-muted-foreground mb-2">{submission.description}</p>
-                            {submission.replyToUser && (
-                              <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                                <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-0.5">
-                                  {t("feedback.reply", { defaultValue: "Our Reply" })}:
-                                </p>
-                                <p className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
-                                  {submission.replyToUser}
-                                </p>
-                              </div>
-                            )}
-                            <p className="text-[11px] text-muted-foreground">
-                              {t("feedback.submitted")}:{" "}
-                              {submission.submittedAt ? formatDateTimeEU(submission.submittedAt) : "Unknown"}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      ))}
+                      {mySubmissions.map((submission: MyFeedbackSubmission) => {
+                        const shortRef = String(submission._id).slice(-6).toUpperCase();
+                        const isOpen = openThreadId === submission._id;
+                        return (
+                          <Card key={submission._id} className="border-l-4 border-l-primary">
+                            <Collapsible
+                              open={isOpen}
+                              onOpenChange={(next) => {
+                                if (next) {
+                                  setOpenThreadId(submission._id);
+                                  setFollowUpDraft("");
+                                } else if (openThreadId === submission._id) {
+                                  setOpenThreadId(null);
+                                  setFollowUpDraft("");
+                                }
+                              }}
+                            >
+                              <CardHeader className="py-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <CardTitle className="text-base">{submission.title}</CardTitle>
+                                    <CardDescription className="mt-0.5 text-xs space-y-0.5">
+                                      <span>{typeLabels[submission.type as keyof typeof typeLabels]}</span>
+                                      <span className="block text-[10px] opacity-80">
+                                        {t("feedback.thread.ref", { ref: shortRef })}
+                                      </span>
+                                    </CardDescription>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1 shrink-0">
+                                    {(() => {
+                                      const displayStatus = getDisplayStatus(submission);
+                                      return (
+                                        <span
+                                          className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusColors[displayStatus as keyof typeof statusColors]}`}
+                                        >
+                                          {statusLabels[displayStatus as keyof typeof statusLabels]}
+                                        </span>
+                                      );
+                                    })()}
+                                    <CollapsibleTrigger asChild>
+                                      <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1">
+                                        {isOpen ? (
+                                          <>
+                                            <ChevronUp className="h-3.5 w-3.5" />
+                                            {t("feedback.thread.hide")}
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ChevronDown className="h-3.5 w-3.5" />
+                                            {t("feedback.thread.show")}
+                                          </>
+                                        )}
+                                      </Button>
+                                    </CollapsibleTrigger>
+                                  </div>
+                                </div>
+                              </CardHeader>
+                              <CollapsibleContent>
+                                {isOpen && (
+                                  <CardContent className="pt-0 pb-4 space-y-4">
+                                    {threadData === undefined && (
+                                      <div className="flex justify-center py-6">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                                      </div>
+                                    )}
+                                    {threadData && threadData.feedbackId === submission._id && (
+                                      <>
+                                        <div className="space-y-3 max-h-[min(420px,50vh)] overflow-y-auto pr-1">
+                                          {threadData.messages.map((m) => {
+                                            const alignRight = m.authorKind === "user";
+                                            return (
+                                              <div
+                                                key={m._id}
+                                                className={`flex ${alignRight ? "justify-end" : "justify-start"}`}
+                                              >
+                                                <div
+                                                  className={`max-w-[92%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                                                    alignRight
+                                                      ? "bg-muted text-foreground"
+                                                      : "bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800 text-foreground"
+                                                  }`}
+                                                >
+                                                  <p className="text-[10px] font-semibold opacity-80 mb-1">
+                                                    {m.authorDisplayName}
+                                                    {m.isSynthetic && m.authorKind === "admin"
+                                                      ? ` · ${t("feedback.thread.legacy")}`
+                                                      : ""}
+                                                  </p>
+                                                  {m.body}
+                                                  <p className="text-[10px] opacity-60 mt-1.5">
+                                                    {formatDateTimeEU(m.createdAt)}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                        <div className="space-y-2 border-t pt-3">
+                                          <Label htmlFor={`followup-${submission._id}`}>
+                                            {t("feedback.thread.addMessage")}
+                                          </Label>
+                                          <Textarea
+                                            id={`followup-${submission._id}`}
+                                            value={followUpDraft}
+                                            onChange={(e) => setFollowUpDraft(e.target.value)}
+                                            rows={3}
+                                            maxLength={5000}
+                                            placeholder={t("feedback.thread.addMessagePlaceholder")}
+                                            className="resize-none"
+                                            disabled={followUpSending}
+                                          />
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            disabled={
+                                              followUpSending || followUpDraft.trim().length === 0
+                                            }
+                                            onClick={async () => {
+                                              const text = followUpDraft.trim();
+                                              if (!text) return;
+                                              setFollowUpSending(true);
+                                              try {
+                                                await addUserMessageMutation({
+                                                  feedbackId: submission._id,
+                                                  body: text,
+                                                });
+                                                setFollowUpDraft("");
+                                                toast.success(t("feedback.thread.sent"));
+                                              } catch (e: unknown) {
+                                                toast.error(
+                                                  e instanceof Error
+                                                    ? e.message
+                                                    : t("feedback.thread.sendFailed")
+                                                );
+                                              } finally {
+                                                setFollowUpSending(false);
+                                              }
+                                            }}
+                                          >
+                                            {followUpSending
+                                              ? t("feedback.thread.sending")
+                                              : t("feedback.thread.send")}
+                                          </Button>
+                                        </div>
+                                      </>
+                                    )}
+                                    <p className="text-[11px] text-muted-foreground">
+                                      {t("feedback.submitted")}:{" "}
+                                      {submission.submittedAt
+                                        ? formatDateTimeEU(submission.submittedAt)
+                                        : "Unknown"}
+                                    </p>
+                                  </CardContent>
+                                )}
+                              </CollapsibleContent>
+                            </Collapsible>
+                          </Card>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
-              </form>
             </CardContent>
           </Card>
 
@@ -330,10 +462,16 @@ export default function Feedback() {
                 <div className="text-3xl mb-2">💡</div>
                 <CardTitle className="text-lg">{t('feedback.suggestions.title')}</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-2">
                 <p className="text-sm text-muted-foreground">
                   {t('feedback.suggestions.desc')}
                 </p>
+                <Link
+                  href="/wishlist"
+                  className="inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  {t("feedback.thread.wishlistLink")}
+                </Link>
               </CardContent>
             </Card>
 

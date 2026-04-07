@@ -45,9 +45,27 @@ export const feedbackTables = {
     aiSentAt: v.optional(v.number()),
     aiSentBy: v.optional(v.id("users")),
     aiSentContent: v.optional(v.string()),
+
+    // Last public thread activity (user vs admin) for sidebar "needs attention" counts
+    lastThreadActivityBy: v.optional(
+      v.union(v.literal("user"), v.literal("admin"))
+    ),
+    lastThreadActivityAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"]),
+
+  // ============= FEEDBACK MESSAGES (conversation thread) =============
+  // Legacy submissions have no rows here; getThread() synthesizes the initial user text from
+  // `description` and a legacy admin reply from `aiSentContent` when needed.
+  feedbackMessages: defineTable({
+    feedbackId: v.id("feedbackSubmissions"),
+    authorUserId: v.id("users"),
+    authorKind: v.union(v.literal("user"), v.literal("admin")),
+    body: v.string(),
+    isInternal: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_feedback", ["feedbackId"]),
 
   // ============= FEEDBACK COMMENTS =============
   feedbackComments: defineTable({
