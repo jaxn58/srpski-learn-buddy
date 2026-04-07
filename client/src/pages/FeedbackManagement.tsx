@@ -28,6 +28,7 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { cn, formatDateTimeEU } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 /** Set to true to show AI draft/regenerate in the detail dialog again. */
 const FEEDBACK_AI_ASSISTANT_UI_ENABLED = false;
@@ -38,6 +39,7 @@ type FeedbackType = "bug" | "feature" | "improvement" | "other";
 
 export default function FeedbackManagement() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const adminSubmissions = useQuery(api.feedback.getAllSubmissions) as FeedbackSubmissionDoc[] | undefined;
   const superadminSubmissions = useQuery(
     api.feedback.getAllSubmissionsForSuperadmin,
@@ -129,11 +131,11 @@ export default function FeedbackManagement() {
     if (!selectedFeedback) return;
     try {
       await updateStatusMutation({ id: selectedFeedback._id, status: currentStatus });
-      toast.success("Feedback updated successfully");
+      toast.success(t("admin.feedback.toast.updated"));
       setSelectedFeedback({ ...selectedFeedback, status: currentStatus });
     } catch (error: unknown) {
       console.error("Update error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to update feedback");
+      toast.error(error instanceof Error ? error.message : t("admin.feedback.toast.updateFailed"));
     }
   };
 
@@ -141,9 +143,9 @@ export default function FeedbackManagement() {
     if (!confirm("Are you sure you want to delete this feedback?")) return;
     try {
       await deleteFeedbackMutation({ id });
-      toast.success("Feedback deleted successfully");
+      toast.success(t("admin.feedback.toast.deleted"));
     } catch {
-      toast.error("Failed to delete feedback");
+      toast.error(t("admin.feedback.toast.deleteFailed"));
     }
   };
 
@@ -177,13 +179,13 @@ export default function FeedbackManagement() {
   };
 
   const getConversationActivityHint = (f: FeedbackSubmissionDoc) => {
-    if (f.status === "completed" || f.status === "rejected") return "Closed";
+    if (f.status === "completed" || f.status === "rejected") return t("admin.feedback.overview.closed");
     const last = f.lastThreadActivityBy;
-    if (last === "user")  return "Waiting for your reply";
-    if (last === "admin") return "You replied — waiting for user";
+    if (last === "user")  return t("admin.feedback.overview.needsReply");
+    if (last === "admin") return t("admin.feedback.overview.awaitingUser");
     const hasReply = Boolean((f as { aiSentAt?: number }).aiSentAt);
-    if (!hasReply && (f.status === "new" || f.status === "reviewed")) return "Not reviewed yet";
-    if (hasReply) return "Public reply was sent";
+    if (!hasReply && (f.status === "new" || f.status === "reviewed")) return t("admin.feedback.overview.needsReview");
+    if (hasReply) return t("admin.feedback.overview.replySent");
     return null;
   };
 
@@ -212,14 +214,14 @@ export default function FeedbackManagement() {
             <MessageSquare className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-lg font-bold leading-none">Feedback</h1>
-            <p className="text-xs text-muted-foreground mt-1">Review user messages and replies in one place.</p>
+            <h1 className="text-lg font-bold leading-none">{t("admin.feedback.pageTitle")}</h1>
+            <p className="text-xs text-muted-foreground mt-1">{t("admin.feedback.pageSubtitle")}</p>
           </div>
         </div>
         <Link href="/admin">
           <Button variant="outline" size="sm">
             <Undo2 className="h-4 w-4 mr-2" />
-            Back to admin
+            {t("admin.feedback.backToAdmin")}
           </Button>
         </Link>
       </header>
@@ -228,19 +230,19 @@ export default function FeedbackManagement() {
         <Card className="overflow-hidden rounded-2xl border shadow-sm">
           <CardHeader className="border-b bg-muted/30">
             <CardTitle className="flex flex-wrap items-center gap-2 text-lg font-semibold">
-              User feedback
+              {t("admin.feedback.cardTitle")}
               {user.role === "admin" && (
                 <Badge
                   variant="outline"
                   className="rounded-full border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100"
                 >
                   <Eye className="mr-1 h-3 w-3" aria-hidden />
-                  View only
+                  {t("admin.feedback.readOnlyBadge")}
                 </Badge>
               )}
             </CardTitle>
             <CardDescription>
-              Each row is one conversation. Open it to see the full thread and reply.
+              {t("admin.feedback.cardDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -248,19 +250,19 @@ export default function FeedbackManagement() {
               <TableHeader>
                 <TableRow className="border-b hover:bg-transparent">
                   <TableHead className="w-12 pl-6 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Type
+                    {t("admin.feedback.col.type")}
                   </TableHead>
                   <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Feedback
+                    {t("admin.feedback.col.feedback")}
                   </TableHead>
                   <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Status
+                    {t("admin.feedback.col.status")}
                   </TableHead>
                   <TableHead className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Submitted
+                    {t("admin.feedback.col.submitted")}
                   </TableHead>
                   <TableHead className="pr-6 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Actions
+                    {t("admin.feedback.col.actions")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -268,7 +270,7 @@ export default function FeedbackManagement() {
                 {submissionRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
-                      No feedback yet.
+                      {t("admin.feedback.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -418,7 +420,9 @@ export default function FeedbackManagement() {
                                           {feedback.title}
                                         </DialogTitle>
                                         <DialogDescription className="text-left text-sm">
-                                          Submitted {feedback.submittedAt ? formatDateTimeEU(feedback.submittedAt) : "—"}
+                                          {t("admin.feedback.dialog.submitted", {
+                                            date: feedback.submittedAt ? formatDateTimeEU(feedback.submittedAt) : "—",
+                                          })}
                                         </DialogDescription>
                                         <div className="flex flex-wrap items-center gap-2 pt-1">
                                           <Badge
@@ -448,7 +452,7 @@ export default function FeedbackManagement() {
                                       id="fb-conv-heading"
                                       className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                                     >
-                                      Conversation history
+                                      {t("admin.feedback.section.conversation")}
                                     </h3>
                                     {threadQuery === undefined && (
                                       <div className="flex justify-center py-10">
@@ -487,7 +491,7 @@ export default function FeedbackManagement() {
                                                   {m.isInternal ? (
                                                     <span className="inline-flex items-center gap-1 font-semibold text-amber-900 dark:text-amber-100">
                                                       <Lock className="h-3 w-3" aria-hidden />
-                                                      Internal (not visible to user)
+                                                      {t("admin.feedback.thread.internalBadge")}
                                                     </span>
                                                   ) : (
                                                     <span className="inline-flex items-center gap-1 font-semibold text-foreground">
@@ -498,7 +502,7 @@ export default function FeedbackManagement() {
                                                       )}
                                                       {m.authorDisplayName}
                                                       {m.isSynthetic && !m.isInternal && m.authorKind === "admin"
-                                                        ? " · archived"
+                                                        ? ` · ${t("admin.feedback.thread.legacy")}`
                                                         : ""}
                                                     </span>
                                                   )}
@@ -530,15 +534,15 @@ export default function FeedbackManagement() {
                                           id="fb-workflow-heading"
                                           className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                                         >
-                                          Workflow
+                                          {t("admin.feedback.section.workflow")}
                                         </h3>
                                         <p className="mb-3 text-xs text-muted-foreground">
-                                          This is the stored workflow state for this feedback (separate from the chat).
+                                          {t("admin.feedback.section.workflowHelp")}
                                         </p>
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                                           <div className="min-w-0 flex-1 space-y-2">
                                             <Label htmlFor={`status-${feedback._id}`}>
-                                              Workflow status
+                                              {t("admin.feedback.field.workflowStatus")}
                                             </Label>
                                             <Select
                                               value={currentStatus}
@@ -572,7 +576,7 @@ export default function FeedbackManagement() {
                                               (selectedFeedback?.status as FeedbackStatus)
                                             }
                                           >
-                                            Save status
+                                            {t("admin.feedback.action.saveStatus")}
                                           </Button>
                                         </div>
                                       </section>
@@ -586,17 +590,17 @@ export default function FeedbackManagement() {
                                           id="fb-reply-heading"
                                           className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                                         >
-                                          Reply to user
+                                          {t("admin.feedback.section.replyToLearner")}
                                         </h3>
                                         <p className="mb-3 text-xs text-muted-foreground">
-                                          Write your reply here and send it to the user (app + email).
+                                          {t("admin.feedback.section.replyHelp")}
                                         </p>
 
                                         {FEEDBACK_AI_ASSISTANT_UI_ENABLED && (
                                           <div className="mb-4 space-y-3 rounded-xl border bg-muted/40 p-3 text-sm">
                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                                AI assistant
+                                                {t("admin.feedback.ai.sectionTitle")}
                                               </p>
                                               {user.role === "superadmin" &&
                                                 !selectedFeedback?.aiSentAt && (
@@ -613,12 +617,12 @@ export default function FeedbackManagement() {
                                                         await regenerateAiAction({
                                                           feedbackId: selectedFeedback._id,
                                                         });
-                                                        toast.success("AI suggestion regenerated");
+                                                        toast.success(t("admin.feedback.toast.aiRegenerated"));
                                                       } catch (e: unknown) {
                                                         toast.error(
                                                           e instanceof Error
                                                             ? e.message
-                                                            : "Failed to regenerate AI suggestion"
+                                                            : t("admin.feedback.toast.aiRegenerateFailed")
                                                         );
                                                       } finally {
                                                         setAiRegenerateBusy(false);
@@ -626,29 +630,29 @@ export default function FeedbackManagement() {
                                                     }}
                                                   >
                                                     {aiRegenerateBusy
-                                                      ? "Regenerating…"
-                                                      : "Regenerate draft"}
+                                                      ? t("admin.feedback.ai.regenerating")
+                                                      : t("admin.feedback.ai.regenerate")}
                                                   </Button>
                                                 )}
                                             </div>
                                             <div className="text-xs text-muted-foreground">
                                               <div>
                                                 <span className="font-medium text-foreground">
-                                                  AI status:
+                                                  {t("admin.feedback.ai.statusLabel")}
                                                 </span>{" "}
                                                 {selectedFeedback?.aiStatus || "—"}
                                               </div>
                                               {selectedFeedback?.aiGeneratedAt != null && (
                                                 <div>
                                                   <span className="font-medium text-foreground">
-                                                    Generated:
+                                                    {t("admin.feedback.ai.generatedLabel")}
                                                   </span>{" "}
                                                   {formatDateTimeEU(selectedFeedback.aiGeneratedAt)}
                                                 </div>
                                               )}
                                             </div>
                                             <div>
-                                              <Label className="text-xs">AI internal analysis</Label>
+                                              <Label className="text-xs">{t("admin.feedback.ai.internalAnalysis")}</Label>
                                               <div className="mt-1 rounded-lg bg-background p-2 text-xs whitespace-pre-wrap">
                                                 {selectedFeedback?.aiInternalNote || "—"}
                                               </div>
@@ -666,7 +670,7 @@ export default function FeedbackManagement() {
                                           id={`reply-${feedback._id}`}
                                           value={aiReplyText}
                                           onChange={(e) => setAiReplyText(e.target.value)}
-                                          placeholder="Write your reply to the user…"
+                                          placeholder={t("admin.feedback.replyComposer.placeholder")}
                                           rows={5}
                                           className="rounded-xl border-2 bg-background"
                                         />
@@ -688,20 +692,18 @@ export default function FeedbackManagement() {
                                                   emailError?: string;
                                                 };
                                                 if (r?.emailSent === false) {
-                                                  toast.success("Reply posted in tool", {
-                                                    description: `Email not sent: ${String(r?.emailError || "unknown")}`,
+                                                  toast.success(t("admin.feedback.toast.replyPostedTool.title"), {
+                                                    description: t("admin.feedback.toast.replyPostedTool.desc", { error: String(r?.emailError || "unknown") }),
                                                   });
                                                 } else {
-                                                  toast.success(
-                                                    "Reply sent to user (tool + email)"
-                                                  );
+                                                  toast.success(t("admin.feedback.toast.replySent"));
                                                 }
                                                 setAiReplyText("");
                                               } catch (e: unknown) {
                                                 toast.error(
                                                   e instanceof Error
                                                     ? e.message
-                                                    : "Failed to send reply"
+                                                    : t("admin.feedback.toast.replySendFailed")
                                                 );
                                               } finally {
                                                 setAiSendBusy(false);
@@ -709,16 +711,17 @@ export default function FeedbackManagement() {
                                             }}
                                           >
                                             {aiSendBusy
-                                              ? "Sending…"
+                                              ? t("admin.feedback.action.sending")
                                               : selectedFeedback?.aiSentAt
-                                                ? "Update / resend to user"
-                                                : "Send to user (app + email)"}
+                                                ? t("admin.feedback.action.resendReply")
+                                                : t("admin.feedback.action.sendToUser")}
                                           </Button>
                                         </div>
                                         {selectedFeedback?.aiSentAt != null && (
                                           <p className="mt-2 text-xs text-muted-foreground">
-                                            Last public reply sent{" "}
-                                            {formatDateTimeEU(selectedFeedback.aiSentAt)}
+                                            {t("admin.feedback.lastSentAt", {
+                                              date: formatDateTimeEU(selectedFeedback.aiSentAt),
+                                            })}
                                           </p>
                                         )}
                                       </section>
@@ -733,20 +736,20 @@ export default function FeedbackManagement() {
                                           className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                                         >
                                           <Lock className="h-3.5 w-3.5" aria-hidden />
-                                          Internal note
+                                          {t("admin.feedback.section.internal")}
                                         </h3>
                                         <p className="mb-3 text-xs text-muted-foreground">
-                                          Visible only to admins — not shown to the user.
+                                          {t("admin.feedback.section.internalHelp")}
                                         </p>
                                         <Label htmlFor="internal-note" className="sr-only">
-                                          Internal note (team only)
+                                          {t("admin.feedback.thread.internalLabel")}
                                         </Label>
                                         <Textarea
                                           id="internal-note"
                                           rows={3}
                                           value={internalNoteText}
                                           onChange={(e) => setInternalNoteText(e.target.value)}
-                                          placeholder="Short note for yourself or other admins…"
+                                          placeholder={t("admin.feedback.thread.internalPlaceholder")}
                                           disabled={internalNoteBusy}
                                           className="rounded-xl bg-background"
                                         />
@@ -765,28 +768,27 @@ export default function FeedbackManagement() {
                                                 body: internalNoteText.trim(),
                                               });
                                               setInternalNoteText("");
-                                              toast.success("Internal note saved");
+                                              toast.success(t("admin.feedback.toast.internalNoteSaved"));
                                             } catch (e: unknown) {
                                               toast.error(
                                                 e instanceof Error
                                                   ? e.message
-                                                  : "Could not save internal note"
+                                                  : t("admin.feedback.toast.internalNoteFailed")
                                               );
                                             } finally {
                                               setInternalNoteBusy(false);
                                             }
                                           }}
                                         >
-                                          {internalNoteBusy ? "Saving…" : "Save internal note"}
+                                          {internalNoteBusy ? t("admin.feedback.thread.saving") : t("admin.feedback.thread.saveInternal")}
                                         </Button>
                                       </section>
                                     </>
                                   ) : (
                                     <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 dark:border-blue-900 dark:bg-blue-950/30">
                                       <p className="text-sm text-blue-900 dark:text-blue-100">
-                                        <span className="font-semibold">View only.</span>{" "}
-                                        You can read the conversation but cannot change status or
-                                        send replies.
+                                        <span className="font-semibold">{t("admin.feedback.readOnlyMode.title")}</span>{" "}
+                                        {t("admin.feedback.readOnlyMode.body")}
                                       </p>
                                     </div>
                                   )}

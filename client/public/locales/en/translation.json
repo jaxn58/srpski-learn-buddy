@@ -1155,7 +1155,7 @@
   "admin.feedback.section.workflow": "Workflow",
   "admin.feedback.section.workflowHelp": "This is the stored workflow state for this feedback (separate from the chat).",
   "admin.feedback.section.replyToLearner": "Reply to user",
-  "admin.feedback.section.replyHelp": "Write your message here. Post only in the app, or send by email as well.",
+  "admin.feedback.section.replyHelp": "Write your reply here and send it to the user (app + email).",
   "admin.feedback.section.internal": "Internal note",
   "admin.feedback.section.internalHelp": "Visible only to admins — not shown to the user.",
   "admin.feedback.field.workflowStatus": "Workflow status",
