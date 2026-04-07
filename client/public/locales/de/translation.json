@@ -1092,6 +1092,7 @@
   "admin.feedback.col.submitted": "Eingereicht",
   "admin.feedback.col.actions": "Aktionen",
   "admin.feedback.empty": "Noch kein Feedback.",
+  "admin.feedback.from": "Von",
   "admin.feedback.overview.needsReply": "Wartet auf deine Antwort",
   "admin.feedback.overview.awaitingUser": "Du hast geantwortet — warte auf User",
   "admin.feedback.overview.needsReview": "Noch nicht geprüft",

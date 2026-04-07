@@ -33,7 +33,10 @@ import { useTranslation } from "react-i18next";
 /** Set to true to show AI draft/regenerate in the detail dialog again. */
 const FEEDBACK_AI_ASSISTANT_UI_ENABLED = false;
 
-type FeedbackSubmissionDoc = Doc<"feedbackSubmissions">;
+type FeedbackSubmissionDoc = Doc<"feedbackSubmissions"> & {
+  userName?: string;
+  userEmail?: string;
+};
 type FeedbackStatus = "new" | "reviewed" | "answered" | "in_progress" | "completed" | "rejected";
 type FeedbackType = "bug" | "feature" | "improvement" | "other";
 
@@ -291,6 +294,11 @@ export default function FeedbackManagement() {
                             {getDescriptionPreview(feedback.description)}
                           </p>
                         )}
+                        <p className="mt-1.5 text-xs text-muted-foreground/70">
+                          <span className="font-medium text-muted-foreground">{t("admin.feedback.from")}:</span>{" "}
+                          {feedback.userName || "—"}
+                          {feedback.userEmail ? ` · ${feedback.userEmail}` : ""}
+                        </p>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1.5">
@@ -419,10 +427,19 @@ export default function FeedbackManagement() {
                                         <DialogTitle className="text-left text-lg font-semibold leading-snug md:text-xl">
                                           {feedback.title}
                                         </DialogTitle>
-                                        <DialogDescription className="text-left text-sm">
-                                          {t("admin.feedback.dialog.submitted", {
-                                            date: feedback.submittedAt ? formatDateTimeEU(feedback.submittedAt) : "—",
-                                          })}
+                                        <DialogDescription className="text-left text-sm space-y-0.5">
+                                          <span className="block">
+                                            {t("admin.feedback.dialog.submitted", {
+                                              date: feedback.submittedAt ? formatDateTimeEU(feedback.submittedAt) : "—",
+                                            })}
+                                          </span>
+                                          <span className="block">
+                                            <span className="font-medium text-foreground/70">{t("admin.feedback.from")}:</span>{" "}
+                                            {feedback.userName || "—"}
+                                            {feedback.userEmail ? (
+                                              <> · <span className="font-mono">{feedback.userEmail}</span></>
+                                            ) : null}
+                                          </span>
                                         </DialogDescription>
                                         <div className="flex flex-wrap items-center gap-2 pt-1">
                                           <Badge

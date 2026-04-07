@@ -1145,6 +1145,7 @@
   "admin.feedback.col.submitted": "Submitted",
   "admin.feedback.col.actions": "Actions",
   "admin.feedback.empty": "No feedback yet.",
+  "admin.feedback.from": "From",
   "admin.feedback.overview.needsReply": "Waiting for your reply",
   "admin.feedback.overview.awaitingUser": "You replied — waiting for user",
   "admin.feedback.overview.needsReview": "Not reviewed yet",
