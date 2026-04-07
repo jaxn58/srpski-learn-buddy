@@ -148,7 +148,7 @@ export function TopNavigation() {
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
   const stats = useQuery(api.progress.getDashboardStats, user ? { todayStart } : "skip");
-  const currentVersion = useQuery(api.versions.getCurrentVersion, { environment: "production" });
+  const currentVersion = useQuery(api.versions.getCurrentVersion, { environment: "beta" });
   // Protected layout already requires auth; mirror `/units` data access here.
   const dbModules = useQuery(api.modules.getAllModulesConsolidated) as
     | DbModuleForQuickSwitch[]
