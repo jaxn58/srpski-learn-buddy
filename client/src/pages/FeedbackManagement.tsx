@@ -90,15 +90,11 @@ export default function FeedbackManagement() {
     const updated = submissionRows.find((s) => s._id === selectedFeedback._id);
     if (updated) {
       setSelectedFeedback(updated);
-      if (!aiReplyText.trim()) {
-        const hasBeenSent = Boolean((updated as { aiSentAt?: number }).aiSentAt);
-        const fromAiDraft = FEEDBACK_AI_ASSISTANT_UI_ENABLED
-          ? String((updated as { aiDraftReply?: string }).aiDraftReply ?? "")
-          : "";
-        const contentToShow = hasBeenSent
-          ? String((updated as { aiSentContent?: string }).aiSentContent ?? "")
-          : fromAiDraft;
-        setAiReplyText(contentToShow);
+      // Only pre-fill with AI draft when AI assistant is enabled and field is empty.
+      // Sent replies are visible in the conversation thread — never pre-fill from aiSentContent.
+      if (!aiReplyText.trim() && FEEDBACK_AI_ASSISTANT_UI_ENABLED) {
+        const fromAiDraft = String((updated as { aiDraftReply?: string }).aiDraftReply ?? "");
+        setAiReplyText(fromAiDraft);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,13 +190,9 @@ export default function FeedbackManagement() {
 
   const isDialogDirty = (feedback: FeedbackSubmissionDoc | null) => {
     if (!feedback) return false;
-    const hasBeenSent = Boolean((feedback as { aiSentAt?: number }).aiSentAt);
-    const fromDraft = FEEDBACK_AI_ASSISTANT_UI_ENABLED
+    const baselineReply = FEEDBACK_AI_ASSISTANT_UI_ENABLED
       ? String((feedback as { aiDraftReply?: string }).aiDraftReply ?? "")
       : "";
-    const baselineReply = hasBeenSent
-      ? String((feedback as { aiSentContent?: string }).aiSentContent ?? "")
-      : fromDraft;
     return (
       currentStatus !== (feedback.status as FeedbackStatus) ||
       aiReplyText !== baselineReply ||
@@ -327,23 +319,13 @@ export default function FeedbackManagement() {
                             open={dialogOpenId === String(feedback._id)}
                             onOpenChange={(open) => {
                               if (open) {
-                                const hasBeenSent = Boolean(
-                                  (feedback as { aiSentAt?: number }).aiSentAt
-                                );
-                                const draft = FEEDBACK_AI_ASSISTANT_UI_ENABLED
-                                  ? String(
-                                      (feedback as { aiDraftReply?: string }).aiDraftReply ?? ""
-                                    )
-                                  : "";
                                 setSelectedFeedback(feedback);
                                 setDialogOpenId(String(feedback._id));
                                 setCurrentStatus(feedback.status as FeedbackStatus);
                                 setAiReplyText(
-                                  hasBeenSent
-                                    ? String(
-                                        (feedback as { aiSentContent?: string }).aiSentContent ?? ""
-                                      )
-                                    : draft
+                                  FEEDBACK_AI_ASSISTANT_UI_ENABLED
+                                    ? String((feedback as { aiDraftReply?: string }).aiDraftReply ?? "")
+                                    : ""
                                 );
                                 setInternalNoteText("");
                                 return;
@@ -370,24 +352,13 @@ export default function FeedbackManagement() {
                                 size="sm"
                                 className="rounded-full"
                                 onClick={() => {
-                                  const hasBeenSent = Boolean(
-                                    (feedback as { aiSentAt?: number }).aiSentAt
-                                  );
-                                  const draft = FEEDBACK_AI_ASSISTANT_UI_ENABLED
-                                    ? String(
-                                        (feedback as { aiDraftReply?: string }).aiDraftReply ?? ""
-                                      )
-                                    : "";
                                   setSelectedFeedback(feedback);
                                   setDialogOpenId(String(feedback._id));
                                   setCurrentStatus(feedback.status as FeedbackStatus);
                                   setAiReplyText(
-                                    hasBeenSent
-                                      ? String(
-                                          (feedback as { aiSentContent?: string }).aiSentContent ??
-                                            ""
-                                        )
-                                      : draft
+                                    FEEDBACK_AI_ASSISTANT_UI_ENABLED
+                                      ? String((feedback as { aiDraftReply?: string }).aiDraftReply ?? "")
+                                      : ""
                                   );
                                 }}
                               >
