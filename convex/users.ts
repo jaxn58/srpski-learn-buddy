@@ -184,11 +184,11 @@ export const syncUser = mutation({
         lastActivityAt: Date.now(),
       });
 
-      // Sync to newsletter contacts (opt-in required, not auto-subscribed)
+      // Sync to newsletter contacts: marketing/newsletter opt-in at registration (see newsletter.ts; prior unsubscribes are respected).
       try {
         await ctx.scheduler.runAfter(0, internal.newsletter.syncUserToNewsletter, {
           userId,
-          autoSubscribe: false, // User must manually subscribe to newsletter
+          autoSubscribe: true,
         });
       } catch {}
 

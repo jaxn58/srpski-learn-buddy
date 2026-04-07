@@ -100,6 +100,20 @@ function getEnvironment(): "dev" | "prod" {
     : "dev";
 }
 
+/** Consent timestamps tied to account creation (Convex document time). */
+function newsletterConsentFromUserRegistration(user: Doc<"users">) {
+  const consentedAt = user._creationTime;
+  return {
+    subscribedAt: consentedAt,
+    optInConfirmedAt: consentedAt,
+    gdprConsent: {
+      marketing: true as const,
+      tracking: true as const,
+      consentedAt,
+    },
+  };
+}
+
 // ============= SYNCHRONIZATION =============
 
 /**
@@ -187,13 +201,15 @@ export const syncWaitlistToNewsletter = internalMutation({
 
 /**
  * Sync User to Newsletter Contacts
- * Called automatically after user registration
+ * Called automatically after user registration (and admin backfill).
+ * When autoSubscribe is true: subscribe for marketing unless the contact previously unsubscribed (unsubscribedAt).
  */
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const syncUserToNewsletter = internalMutation({
   args: {
     userId: v.id("users"),
-    autoSubscribe: v.optional(v.boolean()), // Default: false (Opt-In required)
+    /** When true: set subscribed + consent (registration opt-in), except if unsubscribedAt is set. */
+    autoSubscribe: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId);
@@ -222,6 +238,8 @@ export const syncUserToNewsletter = internalMutation({
     const preferredLocale: "en" | "de" | undefined =
       rawLang === "de" ? "de" : rawLang === "en" ? "en" : undefined;
 
+    const autoSub = args.autoSubscribe === true;
+
     if (existing) {
       // Update existing contact with user reference.
       // Only overwrite preferredLocale if derived from learningLanguage (never downgrade known locale).
@@ -229,25 +247,60 @@ export const syncUserToNewsletter = internalMutation({
         preferredLocale !== undefined && existing.preferredLocale !== preferredLocale
           ? { preferredLocale }
           : {};
-      await ctx.db.patch(existing._id, {
+
+      let mergedTags = Array.from(new Set([...(existing.tags || []), ...userTags]));
+
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      const patch: Record<string, unknown> = {
         sourceId: args.userId,
         source: "user",
         // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
         name: user.name || existing.name,
-        tags: Array.from(new Set([...(existing.tags || []), ...userTags])),
+        tags: mergedTags,
         environment,
         ...localeUpdate,
         updatedAt: Date.now(),
-      });
+      };
+
+      if (autoSub) {
+        const priorUnsub = existing.unsubscribedAt !== undefined;
+        if (priorUnsub) {
+          // Keep subscribed false; still sync profile metadata above.
+        } else if (!existing.subscribed) {
+          const c = newsletterConsentFromUserRegistration(user);
+          mergedTags = Array.from(new Set([...mergedTags, "community"]));
+          Object.assign(patch, {
+            subscribed: true,
+            subscribedAt: c.subscribedAt,
+            optInConfirmedAt: c.optInConfirmedAt,
+            gdprConsent: c.gdprConsent,
+            optInToken: undefined,
+            optInPurpose: undefined,
+            optInRequestedAt: undefined,
+            tags: mergedTags,
+          });
+        } else {
+          const c = newsletterConsentFromUserRegistration(user);
+          if (existing.optInConfirmedAt === undefined) {
+            patch.optInConfirmedAt = c.optInConfirmedAt;
+          }
+          if (!existing.gdprConsent) {
+            patch.gdprConsent = c.gdprConsent;
+          }
+        }
+      }
+
+      // @ts-ignore TS2589 – schema depth
+      await ctx.db.patch(existing._id, patch);
       // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       console.log(`[Newsletter] Updated existing contact with user reference: ${user.email}`);
       return existing._id;
     }
 
-    // Create contact record for the user (not subscribed by default).
-    // Subscribing to marketing/community updates requires explicit double opt-in.
-
     const unsubscribeToken = crypto.randomUUID();
+    const consent = autoSub ? newsletterConsentFromUserRegistration(user) : null;
+    const tags = autoSub ? Array.from(new Set([...userTags, "community"])) : userTags;
+
     const contactId = await ctx.db.insert("newsletterContacts", {
       // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
       email: user.email,
@@ -255,10 +308,12 @@ export const syncUserToNewsletter = internalMutation({
       name: user.name,
       source: "user",
       sourceId: args.userId,
-      subscribed: args.autoSubscribe === true,
-      subscribedAt: args.autoSubscribe === true ? Date.now() : undefined,
+      subscribed: autoSub,
+      subscribedAt: consent?.subscribedAt,
+      optInConfirmedAt: consent?.optInConfirmedAt,
+      gdprConsent: consent?.gdprConsent,
       unsubscribeToken,
-      tags: userTags,
+      tags,
       environment,
       ...(preferredLocale !== undefined ? { preferredLocale } : {}),
       createdAt: Date.now(),
@@ -2145,5 +2200,84 @@ export const internalBackfillLocales = internalMutation({
       skipped,
       noUser,
     };
+  },
+});
+
+/**
+ * One-time backfill: subscribe all existing users to newsletter.
+ * Skips contacts that previously unsubscribed (unsubscribedAt set).
+ * Creates missing contacts for users that don't have one yet.
+ * Zero arguments – run via: npx convex run newsletter:backfillSubscribeAll
+ * Remove this function after use.
+ */
+// @ts-ignore TS2589 – Convex schema depth limit
+export const backfillSubscribeAll = mutation({
+  args: {},
+  handler: async (ctx) => {
+
+    // @ts-ignore TS2589
+    const users = await ctx.db.query("users").collect();
+    const environment = getEnvironment();
+    let subscribed = 0;
+    let created = 0;
+    let skippedUnsub = 0;
+    let alreadyOk = 0;
+    let skippedNoEmail = 0;
+
+    for (const user of users) {
+      // @ts-ignore TS2339
+      if (!user.email) { skippedNoEmail++; continue; }
+      // @ts-ignore TS2339
+      const email: string = user.email;
+
+      const existing = await ctx.db
+        .query("newsletterContacts")
+        // @ts-ignore TS2589
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .first();
+
+      if (existing) {
+        if (existing.unsubscribedAt !== undefined) { skippedUnsub++; continue; }
+        if (existing.subscribed) { alreadyOk++; continue; }
+        const c = newsletterConsentFromUserRegistration(user);
+        await ctx.db.patch(existing._id, {
+          subscribed: true,
+          subscribedAt: c.subscribedAt,
+          optInConfirmedAt: c.optInConfirmedAt,
+          gdprConsent: c.gdprConsent,
+          tags: Array.from(new Set([...(existing.tags || []), "community"])),
+          optInToken: undefined,
+          optInPurpose: undefined,
+          optInRequestedAt: undefined,
+          updatedAt: Date.now(),
+        });
+        subscribed++;
+      } else {
+        const c = newsletterConsentFromUserRegistration(user);
+        // @ts-ignore TS2339
+        const rawLang: string | undefined = user.learningLanguage;
+        const locale: "en" | "de" | undefined = rawLang === "de" ? "de" : rawLang === "en" ? "en" : undefined;
+        await ctx.db.insert("newsletterContacts", {
+          email,
+          // @ts-ignore TS2339
+          name: user.name,
+          source: "user" as const,
+          sourceId: user._id,
+          subscribed: true,
+          subscribedAt: c.subscribedAt,
+          optInConfirmedAt: c.optInConfirmedAt,
+          gdprConsent: c.gdprConsent,
+          unsubscribeToken: crypto.randomUUID(),
+          tags: ["user", "community"],
+          environment,
+          ...(locale ? { preferredLocale: locale } : {}),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        created++;
+      }
+    }
+
+    return { subscribed, created, skippedUnsub, alreadyOk, skippedNoEmail, totalUsers: users.length };
   },
 });
