@@ -148,6 +148,7 @@ export function TopNavigation() {
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
   const stats = useQuery(api.progress.getDashboardStats, user ? { todayStart } : "skip");
+  const currentVersion = useQuery(api.versions.getCurrentVersion, { environment: "production" });
   // Protected layout already requires auth; mirror `/units` data access here.
   const dbModules = useQuery(api.modules.getAllModulesConsolidated) as
     | DbModuleForQuickSwitch[]
@@ -472,12 +473,14 @@ export function TopNavigation() {
               <Link href="/dashboard" className="font-semibold tracking-tight hover:opacity-80 transition-opacity">
                 {APP_TITLE}
               </Link>
-              <Link
-                href="/changelog"
-                className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors tabular-nums mt-1.5"
-              >
-                v{__APP_VERSION__}
-              </Link>
+              {currentVersion?.version && (
+                <Link
+                  href="/changelog"
+                  className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors tabular-nums mt-1.5"
+                >
+                  v{currentVersion.version}
+                </Link>
+              )}
             </div>
           </div>
         </div>
