@@ -460,16 +460,26 @@ export function TopNavigation() {
             </SheetContent>
           </Sheet>
 
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <img
-              src={APP_LOGO}
-              className="h-8 w-8 rounded-md object-cover ring-1 ring-border"
-              alt="Logo"
-            />
-            <span className="hidden sm:inline font-semibold tracking-tight">
-              {APP_TITLE}
-            </span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <img
+                src={APP_LOGO}
+                className="h-8 w-8 rounded-md object-cover ring-1 ring-border"
+                alt="Logo"
+              />
+            </Link>
+            <div className="hidden sm:flex flex-col leading-none items-end">
+              <Link href="/dashboard" className="font-semibold tracking-tight hover:opacity-80 transition-opacity">
+                {APP_TITLE}
+              </Link>
+              <Link
+                href="/changelog"
+                className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors tabular-nums mt-1.5"
+              >
+                v{__APP_VERSION__}
+              </Link>
+            </div>
+          </div>
         </div>
 
         <nav className="hidden md:flex flex-1 items-center justify-center gap-1">
