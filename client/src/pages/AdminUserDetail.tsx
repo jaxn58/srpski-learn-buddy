@@ -47,6 +47,13 @@ export default function AdminUserDetail({ userId }: Props) {
   const resetProgressMutation = useMutation(api.admin.resetUserProgress);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void | Promise<void>;
+    variant?: 'default' | 'destructive';
+  } | null>(null);
 
   const isLoading = authLoading || userDetail === undefined;
   const isSuperadmin = currentUser?.role === 'superadmin';
@@ -60,6 +67,16 @@ export default function AdminUserDetail({ userId }: Props) {
     }
   };
 
+  const requestRoleChange = (newRole: 'superadmin' | 'admin' | 'student') => {
+    if (!userDetail) return;
+    setConfirmDialog({
+      open: true,
+      title: 'Change User Role',
+      description: `Change the role for "${userDetail.name || userDetail.email}" from "${userDetail.role}" to "${newRole}"?`,
+      onConfirm: () => handleRoleChange(newRole),
+    });
+  };
+
   const handleToggleStatus = async () => {
     if (!userDetail) return;
     try {
@@ -68,6 +85,19 @@ export default function AdminUserDetail({ userId }: Props) {
     } catch {
       toast.error('Failed to update user status');
     }
+  };
+
+  const requestToggleStatus = () => {
+    if (!userDetail) return;
+    setConfirmDialog({
+      open: true,
+      title: userDetail.isActive ? 'Deactivate Account' : 'Activate Account',
+      description: userDetail.isActive
+        ? `Deactivate the account for "${userDetail.name || userDetail.email}"? The user will no longer be able to log in.`
+        : `Activate the account for "${userDetail.name || userDetail.email}"?`,
+      onConfirm: handleToggleStatus,
+      variant: userDetail.isActive ? 'destructive' : 'default',
+    });
   };
 
   const handleToggleBetaTester = async () => {
@@ -80,6 +110,18 @@ export default function AdminUserDetail({ userId }: Props) {
     }
   };
 
+  const requestToggleBetaTester = () => {
+    if (!userDetail) return;
+    setConfirmDialog({
+      open: true,
+      title: userDetail.isBetaTester ? 'Remove Beta Badge' : 'Add Beta Badge',
+      description: userDetail.isBetaTester
+        ? `Remove the Beta Tester badge from "${userDetail.name || userDetail.email}"?`
+        : `Add the Beta Tester badge to "${userDetail.name || userDetail.email}"?`,
+      onConfirm: handleToggleBetaTester,
+    });
+  };
+
   const handleResetProgress = async () => {
     try {
       await resetProgressMutation({ userId: userId as any });
@@ -87,6 +129,17 @@ export default function AdminUserDetail({ userId }: Props) {
     } catch {
       toast.error('Failed to reset progress');
     }
+  };
+
+  const requestResetProgress = () => {
+    if (!userDetail) return;
+    setConfirmDialog({
+      open: true,
+      title: 'Reset Learning Progress',
+      description: `Reset all learning progress for "${userDetail.name || userDetail.email}" back to Unit 1? All completed units, XP, and streaks will be lost. This cannot be undone.`,
+      onConfirm: handleResetProgress,
+      variant: 'destructive',
+    });
   };
 
   const handleDeleteUser = async () => {
@@ -360,7 +413,7 @@ export default function AdminUserDetail({ userId }: Props) {
               </div>
               <Select
                 value={userDetail.role}
-                onValueChange={(value) => handleRoleChange(value as any)}
+                onValueChange={(value) => requestRoleChange(value as any)}
               >
                 <SelectTrigger className="w-[140px]">
                   <SelectValue />
@@ -385,7 +438,7 @@ export default function AdminUserDetail({ userId }: Props) {
                   </span>
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={handleToggleStatus} className="gap-2">
+              <Button variant="outline" size="sm" onClick={requestToggleStatus} className="gap-2">
                 {userDetail.isActive ? (
                   <><Ban className="h-4 w-4" /> Deactivate</>
                 ) : (
@@ -404,7 +457,7 @@ export default function AdminUserDetail({ userId }: Props) {
                   Currently: {userDetail.isBetaTester ? 'Yes' : 'No'}
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={handleToggleBetaTester}>
+              <Button variant="outline" size="sm" onClick={requestToggleBetaTester}>
                 {userDetail.isBetaTester ? 'Remove Beta Badge' : 'Add Beta Badge'}
               </Button>
             </div>
@@ -418,7 +471,7 @@ export default function AdminUserDetail({ userId }: Props) {
                     <p className="text-sm font-medium">Reset Progress</p>
                     <p className="text-xs text-muted-foreground">Resets all learning progress to Unit 1</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={handleResetProgress} className="gap-2">
+                  <Button variant="outline" size="sm" onClick={requestResetProgress} className="gap-2">
                     <RotateCcw className="h-4 w-4" />
                     Reset
                   </Button>
@@ -442,6 +495,35 @@ export default function AdminUserDetail({ userId }: Props) {
           </CardContent>
         </Card>
       )}
+
+      {/* Generic confirmation dialog */}
+      <AlertDialog
+        open={confirmDialog?.open ?? false}
+        onOpenChange={(open) => !open && setConfirmDialog(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialog?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={
+                confirmDialog?.variant === 'destructive'
+                  ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                  : undefined
+              }
+              onClick={() => {
+                confirmDialog?.onConfirm();
+                setConfirmDialog(null);
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
