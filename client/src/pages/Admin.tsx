@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Users, UserPlus, Activity, ArrowUpDown, Copy, ExternalLink, ChevronRight } from "lucide-react";
@@ -172,7 +173,22 @@ export default function Admin() {
               <TableBody>
                 {sortedUsers.map((u: any) => (
                   <TableRow key={u._id}>
-                    <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarImage src={u.avatarUrl || undefined} alt={u.name || "User"} />
+                          <AvatarFallback className="text-xs font-semibold">
+                            {(u.name || u.email || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{u.name || "N/A"}</p>
+                          {u.publicNickname && (
+                            <p className="text-xs text-muted-foreground truncate">{u.publicNickname}</p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {u.clerkId ? (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">

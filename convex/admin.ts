@@ -125,8 +125,39 @@ export const getUserById = query({
       relaxed: "Relaxed",
     };
 
+    // Resolve avatar storage URL
+    let avatarUrl: string | null = null;
+    if (user.publicAvatarStorageId) {
+      avatarUrl = await ctx.storage.getUrl(user.publicAvatarStorageId) ?? null;
+    } else if (user.publicAvatarUrl) {
+      avatarUrl = user.publicAvatarUrl;
+    }
+
+    // Resolve newsletter/community updates status
+    let newsletterStatus: { subscribed: boolean; pending: boolean } = { subscribed: false, pending: false };
+    if (user.email) {
+      const contact = await ctx.db
+        .query("newsletterContacts")
+        // @ts-ignore TS2589 – Convex schema depth limit
+        .withIndex("by_email", (q: any) => q.eq("email", user.email!))
+        .first();
+      if (contact) {
+        const pending =
+          contact.subscribed !== true &&
+          contact.optInPurpose === "community_updates" &&
+          typeof contact.optInToken === "string" &&
+          contact.optInToken.length > 0;
+        newsletterStatus = {
+          subscribed: contact.subscribed === true,
+          pending,
+        };
+      }
+    }
+
     return {
       ...user,
+      avatarUrl,
+      newsletterStatus,
       progress: progress || null,
       subscription: activeSubscription
         ? { ...activeSubscription, planName: planNames[activeSubscription.planType] || activeSubscription.planType }
@@ -160,17 +191,26 @@ export const getAllUsers = query({
       relaxed: "Relaxed",
     };
 
-    return users.map(user => {
+    return Promise.all(users.map(async (user) => {
       const progress = progressByUser.get(user._id.toString()) || null;
       const subscription = activeSubByUser.get(user._id.toString()) || null;
+
+      let avatarUrl: string | null = null;
+      if (user.publicAvatarStorageId) {
+        avatarUrl = await ctx.storage.getUrl(user.publicAvatarStorageId) ?? null;
+      } else if (user.publicAvatarUrl) {
+        avatarUrl = user.publicAvatarUrl;
+      }
+
       return {
         ...user,
+        avatarUrl,
         progress,
         subscription: subscription
           ? { ...subscription, planName: planNames[subscription.planType] || subscription.planType }
           : null,
       };
-    });
+    }));
   },
 });
 

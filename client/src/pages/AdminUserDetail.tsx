@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
@@ -166,12 +167,23 @@ export default function AdminUserDetail({ userId }: Props) {
       <Card className="mb-6">
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle className="text-xl">{userDetail.name || 'Unnamed User'}</CardTitle>
-              <CardDescription className="mt-1">{userDetail.email || 'No email'}</CardDescription>
-              {userDetail.clerkId && (
-                <p className="text-xs text-muted-foreground font-mono mt-1 break-all">{userDetail.clerkId}</p>
-              )}
+            <div className="flex items-start gap-4">
+              <Avatar className="h-14 w-14 shrink-0 border">
+                <AvatarImage src={(userDetail as any).avatarUrl || undefined} alt={userDetail.name || "User"} />
+                <AvatarFallback className="text-base font-semibold">
+                  {(userDetail.name || userDetail.email || "?").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <CardTitle className="text-xl">{userDetail.name || 'Unnamed User'}</CardTitle>
+                {(userDetail as any).publicNickname && (
+                  <p className="text-sm text-muted-foreground">{(userDetail as any).publicNickname}</p>
+                )}
+                <CardDescription className="mt-1">{userDetail.email || 'No email'}</CardDescription>
+                {userDetail.clerkId && (
+                  <p className="text-xs text-muted-foreground font-mono mt-1 break-all">{userDetail.clerkId}</p>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -213,6 +225,45 @@ export default function AdminUserDetail({ userId }: Props) {
               <p className="font-medium">{userDetail.learningLanguage?.toUpperCase() || 'EN'}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Profile Settings */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">Profile Settings</CardTitle>
+          <CardDescription>User-configured preferences stored in the database</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs mb-0.5">Nickname</p>
+              <p className="font-medium">{(userDetail as any).publicNickname || <span className="text-muted-foreground italic">Not set</span>}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs mb-0.5">Public Profile</p>
+              <p className="font-medium">
+                {(userDetail as any).leaderboardPublicEnabled
+                  ? <span className="text-green-600">Enabled</span>
+                  : <span className="text-muted-foreground">Disabled</span>
+                }
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs mb-0.5">Community Emails</p>
+              <p className="font-medium">
+                {(userDetail as any).newsletterStatus?.subscribed
+                  ? <span className="text-green-600">Subscribed</span>
+                  : (userDetail as any).newsletterStatus?.pending
+                    ? <span className="text-yellow-600">Pending confirmation</span>
+                    : <span className="text-muted-foreground">Not subscribed</span>
+                }
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            Onboarding and session preferences are stored locally on the user's device and cannot be viewed here.
+          </p>
         </CardContent>
       </Card>
 
