@@ -7,6 +7,7 @@ import { I18nextProvider } from "react-i18next";
 import { useTranslation } from "react-i18next";
 import { deDE } from "@clerk/localizations";
 import App from "./App";
+import { SessionGuard } from "./components/SessionGuard";
 import "./index.css";
 import i18n from "./i18n";
 
@@ -57,9 +58,11 @@ const appTree = (
   <Suspense fallback={<div style={{ minHeight: "100vh" }} />}>
     <I18nextProvider i18n={i18n}>
       <DynamicClerkProvider>
-        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-          <App />
-        </ConvexProviderWithClerk>
+        <SessionGuard>
+          <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+            <App />
+          </ConvexProviderWithClerk>
+        </SessionGuard>
       </DynamicClerkProvider>
     </I18nextProvider>
   </Suspense>

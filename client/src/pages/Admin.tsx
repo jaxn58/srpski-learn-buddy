@@ -1,142 +1,70 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Users, TrendingUp, BookOpen, Activity, MoreVertical, Trash2, Ban, CheckCircle, RotateCcw, MessageSquare, UserPlus, Mail, ArrowUpDown, Copy, ExternalLink } from "lucide-react";
+import { Users, UserPlus, Activity, ArrowUpDown, Copy, ExternalLink, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
 import { useState, useMemo } from "react";
-// Sidebar import removed
 
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const users = useQuery(api.admin.getAllUsers);
-  const allProgress = useQuery(api.admin.getAllProgress);
-  const stats = useQuery(api.admin.getStatistics);
-  const usersLoading = users === undefined;
-  const progressLoading = allProgress === undefined;
-  const statsLoading = stats === undefined;
-  
-  const updateRoleMutation = useMutation(api.admin.updateUserRole);
-  const toggleStatusMutation = useMutation(api.admin.toggleUserStatus);
-  const toggleBetaTesterMutation = useMutation(api.admin.toggleBetaTester);
-  const deleteUserMutation = useMutation(api.admin.deleteUser);
-  const resetProgressMutation = useMutation(api.admin.resetUserProgress);
-  
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<{
-    open: boolean;
-    title: string;
-    description: string;
-    userId: string;
-  } | null>(null);
-  
-  // Sorting state for users table
-  const [usersSortField, setUsersSortField] = useState<string>('name');
-  const [usersSortDirection, setUsersSortDirection] = useState<'asc' | 'desc'>('asc');
-  
-  // Sorting state for progress table
-  const [progressSortField, setProgressSortField] = useState<string>('userName');
-  const [progressSortDirection, setProgressSortDirection] = useState<'asc' | 'desc'>('asc');
+  const since24h = useMemo(() => Date.now() - 86400 * 1000, []);
+  const stats24h = useQuery(api.admin.get24hStats, { since: since24h });
 
-  // Sort users
+  const usersLoading = users === undefined;
+  const statsLoading = stats24h === undefined;
+
+  const [sortField, setSortField] = useState<string>('_creationTime');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
   const sortedUsers = useMemo(() => {
     if (!users) return [];
-    const sorted = [...users].sort((a: any, b: any) => {
-      let aVal = a[usersSortField];
-      let bVal = b[usersSortField];
-      
-      if (usersSortField === 'subscription') {
-        aVal = a.subscription?.planName || 'None';
-        bVal = b.subscription?.planName || 'None';
-      }
-      
-      if (aVal === undefined || aVal === null) aVal = '';
-      if (bVal === undefined || bVal === null) bVal = '';
-      
+    return [...users].sort((a: any, b: any) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      if (aVal === undefined || aVal === null) aVal = 0;
+      if (bVal === undefined || bVal === null) bVal = 0;
+
       if (typeof aVal === 'string') aVal = aVal.toLowerCase();
       if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-      
-      if (aVal < bVal) return usersSortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return usersSortDirection === 'asc' ? 1 : -1;
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-    return sorted;
-  }, [users, usersSortField, usersSortDirection]);
-  
-  // Sort progress
-  const sortedProgress = useMemo(() => {
-    if (!allProgress) return [];
-    const filtered = allProgress.filter((p: any) => {
-      const user = users?.find((u: any) => u._id === p.userId);
-      return user?.role === 'student';
-    });
-    
-    const sorted = [...filtered].sort((a: any, b: any) => {
-      let aVal = a[progressSortField];
-      let bVal = b[progressSortField];
-      
-      if (progressSortField === 'completedUnits') {
-        aVal = a.completedUnits?.length || 0;
-        bVal = b.completedUnits?.length || 0;
-      }
-      
-      if (aVal === undefined || aVal === null) aVal = '';
-      if (bVal === undefined || bVal === null) bVal = '';
-      
-      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-      
-      if (aVal < bVal) return progressSortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return progressSortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-    return sorted;
-  }, [allProgress, users, progressSortField, progressSortDirection]);
-  
-  const toggleUserSort = (field: string) => {
-    if (usersSortField === field) {
-      setUsersSortDirection(usersSortDirection === 'asc' ? 'desc' : 'asc');
+  }, [users, sortField, sortDirection]);
+
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      setUsersSortField(field);
-      setUsersSortDirection('asc');
-    }
-  };
-  
-  const toggleProgressSort = (field: string) => {
-    if (progressSortField === field) {
-      setProgressSortDirection(progressSortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setProgressSortField(field);
-      setProgressSortDirection('asc');
+      setSortField(field);
+      setSortDirection('asc');
     }
   };
 
-  if (authLoading || usersLoading || progressLoading || statsLoading) {
+  const handleCopyClerkId = async (clerkId: string) => {
+    try {
+      if (!clerkId) return;
+      await navigator.clipboard.writeText(clerkId);
+      toast("Clerk ID copied to clipboard");
+    } catch {
+      toast.error("Failed to copy Clerk ID");
+    }
+  };
+
+  const handleOpenClerkDashboard = () => {
+    window.open("https://dashboard.clerk.com", "_blank", "noopener,noreferrer");
+  };
+
+  if (authLoading || usersLoading || statsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -150,9 +78,9 @@ export default function Admin() {
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
-            <CardDescription>You don't have permission to access this page.</CardDescription>
           </CardHeader>
           <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">You don't have permission to access this page.</p>
             <Link href="/dashboard">
               <Button>Go to Dashboard</Button>
             </Link>
@@ -162,194 +90,100 @@ export default function Admin() {
     );
   }
 
-  const handleRoleChange = async (userId: string, newRole: 'superadmin' | 'admin' | 'student') => {
-    try {
-      await updateRoleMutation({ userId: userId as any, role: newRole });
-      toast.success('Role updated successfully');
-    } catch (error) {
-      toast.error('Failed to update role');
-    }
-  };
-
-  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
-    try {
-      await toggleStatusMutation({ userId: userId as any, isActive: !currentStatus });
-      toast.success(currentStatus ? 'User deactivated' : 'User activated');
-    } catch (error) {
-      toast.error('Failed to update user status');
-    }
-  };
-
-  const handleToggleBetaTester = async (userId: string, currentStatus: boolean) => {
-    try {
-      await toggleBetaTesterMutation({ userId: userId as any, isBetaTester: !currentStatus });
-      toast.success(currentStatus ? 'Beta tester badge removed' : 'Beta tester badge added');
-    } catch (error) {
-      toast.error('Failed to update beta tester status');
-    }
-  };
-
-  const handleCopyClerkId = async (clerkId: string) => {
-    try {
-      if (!clerkId) return;
-      await navigator.clipboard.writeText(clerkId);
-      toast("Clerk ID copied to clipboard");
-    } catch (error) {
-      console.error("[Admin] Failed to copy Clerk ID:", error);
-      toast.error("Failed to copy Clerk ID");
-    }
-  };
-
-  const handleOpenClerkDashboard = () => {
-    try {
-      window.open("https://dashboard.clerk.com", "_blank", "noopener,noreferrer");
-      toast("Opened Clerk Dashboard. Search the user by email and use “Resend verification”.");
-    } catch (error) {
-      console.error("[Admin] Failed to open Clerk Dashboard:", error);
-      toast.error("Failed to open Clerk Dashboard");
-    }
-  };
-
-  const handleDeleteUser = async (userId: string) => {
-    try {
-      const result = await deleteUserMutation({ userId: userId as any });
-      
-      if (result?.warning) {
-        toast.warning(result.warning, {
-          duration: 8000,
-          description: 'To fully delete the user, also remove them from the Clerk Dashboard.',
-        });
-      } else {
-        toast.success('User deleted successfully from both Clerk and Convex');
-      }
-      
-      setDeletingUserId(null);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete user');
-      console.error('Delete user error:', error);
-    }
-  };
-
-  const handleResetProgress = async (userId: string) => {
-    try {
-      await resetProgressMutation({ userId: userId as any });
-      toast.success('Progress reset successfully');
-    } catch (error) {
-      toast.error('Failed to reset progress');
-    }
-  };
-
   return (
     <div className="container py-8">
-      {/* Statistics Cards */}
+      {/* 24h Statistics */}
       <div className="grid gap-4 md:grid-cols-3 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats24h?.totalUsers ?? 0}</div>
+            <p className="text-xs text-muted-foreground">Registered users</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">New Registrations</CardTitle>
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats24h?.registrationsLast24h ?? 0}</div>
+            <p className="text-xs text-muted-foreground">Last 24 hours</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Users</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.activeUsers || 0} von {stats?.totalUsers || 0} active</div>
-            <p className="text-xs text-muted-foreground">Last 7 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Units Completed</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalProgress || 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Progress</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.avgCompletedUnits || 0}</div>
+            <div className="text-2xl font-bold">{stats24h?.activeUsersLast24h ?? 0}</div>
+            <p className="text-xs text-muted-foreground">Last 24 hours</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* User Management */}
-      <Card className="mb-8">
+      {/* User Overview Table */}
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            User Management 
-            <span className="text-sm font-normal text-muted-foreground">({stats?.totalUsers || 0} Total Users)</span>
-            {user.role === 'admin' && (
-              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">👁️ Read-Only</span>
-            )}
+            User Management
+            <span className="text-sm font-normal text-muted-foreground">({stats24h?.totalUsers ?? 0} Total Users)</span>
           </CardTitle>
-          <CardDescription>
-            Manage user roles and permissions
-            {user.role === 'admin' && " (View only - no edit permissions)"}
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('name')} className="h-8 px-2">
-                    Name <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('email')} className="h-8 px-2">
-                    Email <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('role')} className="h-8 px-2">
-                    Role <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isActive')} className="h-8 px-2">
-                    Status <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead className="hidden sm:table-cell">
-                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('isBetaTester')} className="h-8 px-2">
-                    Beta Tester <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead className="hidden sm:table-cell">
-                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('subscription')} className="h-8 px-2">
-                    Subscription <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead className="hidden md:table-cell">
-                  <Button variant="ghost" size="sm" onClick={() => toggleUserSort('_lastModified')} className="h-8 px-2">
-                    Last Signed In <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedUsers?.map((u: any) => (
-                <TableRow key={u._id}>
-                  <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div>{u.email || "N/A"}</div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-8 px-2">
+                      Name <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleSort('clerkId')} className="h-8 px-2">
+                      ID <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button variant="ghost" size="sm" onClick={() => toggleSort('email')} className="h-8 px-2">
+                      Email <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    <Button variant="ghost" size="sm" onClick={() => toggleSort('lastActiveDate')} className="h-8 px-2">
+                      Last Login <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    <Button variant="ghost" size="sm" onClick={() => toggleSort('_creationTime')} className="h-8 px-2">
+                      Registered <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="text-right">Details</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedUsers.map((u: any) => (
+                  <TableRow key={u._id}>
+                    <TableCell className="font-medium">{u.name || 'N/A'}</TableCell>
+                    <TableCell>
                       {u.clerkId ? (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <span className="max-w-[220px] truncate font-mono" title={String(u.clerkId)}>
+                          <span className="max-w-[160px] truncate font-mono" title={String(u.clerkId)}>
                             {u.clerkId}
                           </span>
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-6 w-6 shrink-0"
                             onClick={() => handleCopyClerkId(String(u.clerkId))}
                             title="Copy Clerk ID"
                           >
@@ -359,236 +193,38 @@ export default function Admin() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-6 w-6 shrink-0"
                             onClick={handleOpenClerkDashboard}
                             title="Open Clerk Dashboard"
                           >
                             <ExternalLink className="h-3 w-3" />
                           </Button>
                         </div>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {user.role === 'superadmin' && u._id !== user._id ? (
-                      <Select
-                        value={u.role}
-                        onValueChange={(value) => handleRoleChange(u._id, value as any)}
-                      >
-                        <SelectTrigger className="w-[130px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="student">Student</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="superadmin">Superadmin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        u.role === 'superadmin' ? 'bg-purple-100 text-purple-800' :
-                        u.role === 'admin' ? 'bg-blue-100 text-blue-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {u.role}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      u.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {u.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {u.isBetaTester ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        ✨ Beta
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {u.subscription ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {u.subscription.planName || u.subscription.planType}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">None</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {u._lastModified ? formatDateEU(u._lastModified) : "Never"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {user.role === 'superadmin' && u._id !== user._id ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleToggleStatus(u._id, u.isActive)}>
-                            {u.isActive ? (
-                              <>
-                                <Ban className="mr-2 h-4 w-4" />
-                                Deactivate User
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Activate User
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleToggleBetaTester(u._id, u.isBetaTester)}>
-                            {u.isBetaTester ? (
-                              <>
-                                ✨ Remove Beta Badge
-                              </>
-                            ) : (
-                              <>
-                                ✨ Add Beta Badge
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          {u.role === 'student' && (
-                            <DropdownMenuItem onClick={() => handleResetProgress(u._id)}>
-                              <RotateCcw className="mr-2 h-4 w-4" />
-                              Reset Progress
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={() => {
-                              setConfirmDialog({
-                                open: true,
-                                title: "Delete User Account",
-                                description: "This will permanently delete the user account and all associated data (progress, vocabulary, chat history). Are you sure?",
-                                userId: u._id
-                              });
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete User
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{u.email || 'N/A'}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {u.lastActiveDate ? formatDateEU(u.lastActiveDate) : 'Never'}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {u._creationTime ? formatDateEU(u._creationTime) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link href={`/admin/users/${u._id}`}>
+                        <Button variant="ghost" size="sm" className="gap-1">
+                          Details <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
-
-      {/* Student Progress Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Student Progress</CardTitle>
-          <CardDescription>Overview of all student learning progress</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userName')} className="h-8 px-2">
-                    Student <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead className="hidden sm:table-cell">
-                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('userEmail')} className="h-8 px-2">
-                    Email <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('currentWeek')} className="h-8 px-2">
-                    Current Week <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('currentUnit')} className="h-8 px-2">
-                    Current Unit <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead className="hidden md:table-cell">
-                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('planDurationMonths')} className="h-8 px-2">
-                    Duration <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead>
-                  <Button variant="ghost" size="sm" onClick={() => toggleProgressSort('lastActivityAt')} className="h-8 px-2">
-                    Last Activity <ArrowUpDown className="ml-2 h-3 w-3" />
-                  </Button>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedProgress?.map((p: any) => (
-                <TableRow key={p._id}>
-                  <TableCell className="font-medium">{p.userName}</TableCell>
-                  <TableCell className="hidden sm:table-cell">{p.userEmail}</TableCell>
-                  <TableCell>Week {p.currentWeek}</TableCell>
-                  <TableCell>Unit {p.currentUnit}</TableCell>
-                  <TableCell className="hidden md:table-cell">{p.planDurationMonths ? `${p.planDurationMonths} months` : '—'}</TableCell>
-                  <TableCell>
-                    {p.lastActivityAt 
-                      ? formatDateEU(p.lastActivityAt)
-                      : "Never"
-                    }
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Confirmation Dialog */}
-      <AlertDialog 
-        open={confirmDialog?.open ?? false} 
-        onOpenChange={(open) => {
-          if (!open) setConfirmDialog(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmDialog?.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmDialog?.description}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmDialog(null)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={async () => {
-                if (confirmDialog?.userId) {
-                  await handleDeleteUser(confirmDialog.userId);
-                }
-                setConfirmDialog(null);
-              }}
-            >
-              Delete User
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

@@ -72,6 +72,69 @@ export const internalGetChatPromptByName = internalQuery({
   },
 });
 
+// Get 24-hour registration and activity stats (admin only)
+export const get24hStats = query({
+  args: {
+    since: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const users = await ctx.db.query("users").collect();
+
+    const registrationsLast24h = users.filter(u => u._creationTime > args.since).length;
+    const activeUsersLast24h = users.filter(u => u.lastActiveDate && u.lastActiveDate > args.since).length;
+
+    return {
+      registrationsLast24h,
+      activeUsersLast24h,
+      totalUsers: users.length,
+    };
+  },
+});
+
+// Get a single user by ID with progress and subscription (admin only)
+export const getUserById = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+
+    const progress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .first();
+
+    const allSubscriptions = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const activeSubscription = allSubscriptions.find(s => s.status === "active") || null;
+
+    const planNames: Record<string, string> = {
+      intensive: "Intensive",
+      balanced: "Balanced",
+      standard: "Standard",
+      relaxed: "Relaxed",
+    };
+
+    return {
+      ...user,
+      progress: progress || null,
+      subscription: activeSubscription
+        ? { ...activeSubscription, planName: planNames[activeSubscription.planType] || activeSubscription.planType }
+        : null,
+    };
+  },
+});
+
 // Get all users (admin only) - batch-read to avoid N+1
 export const getAllUsers = query({
   handler: async (ctx) => {

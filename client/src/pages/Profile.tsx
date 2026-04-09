@@ -24,6 +24,12 @@ import { GamificationModal } from "@/components/GamificationModal";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  type SessionPreference,
+  getSessionPreference,
+  setSessionPreference,
+} from "@/lib/sessionPreference";
 
 const AVATAR_MAX_INPUT_BYTES = 2 * 1024 * 1024; // 2 MB
 const AVATAR_TARGET_SIZE = 256; // px (square)
@@ -92,6 +98,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [languageSaving, setLanguageSaving] = useState(false);
   const [uiLanguage, setUiLanguage] = useState<"en" | "de">("en");
+  const [sessionPref, setSessionPref] = useState<SessionPreference>(getSessionPreference);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -382,6 +389,42 @@ export default function Profile() {
               </div>
               <p className="text-xs text-muted-foreground">
                 {t("profile.onboarding.hint")}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">{t("session.preference.label")}</Label>
+              <RadioGroup
+                value={sessionPref}
+                onValueChange={(value) => {
+                  const pref = value as SessionPreference;
+                  setSessionPref(pref);
+                  setSessionPreference(pref);
+                  toast.success(t("session.preference.toastSaved"));
+                }}
+                className="space-y-2"
+              >
+                <div className="flex items-start space-x-3">
+                  <RadioGroupItem value="permanent" id="profile-sp-permanent" className="mt-0.5" />
+                  <Label htmlFor="profile-sp-permanent" className="font-normal leading-snug cursor-pointer">
+                    {t("session.preference.permanent")}
+                  </Label>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <RadioGroupItem value="week" id="profile-sp-week" className="mt-0.5" />
+                  <Label htmlFor="profile-sp-week" className="font-normal leading-snug cursor-pointer">
+                    {t("session.preference.week")}
+                  </Label>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <RadioGroupItem value="browser-close" id="profile-sp-browser-close" className="mt-0.5" />
+                  <Label htmlFor="profile-sp-browser-close" className="font-normal leading-snug cursor-pointer">
+                    {t("session.preference.browserClose")}
+                  </Label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">
+                {t("session.preference.hint")}
               </p>
             </div>
 

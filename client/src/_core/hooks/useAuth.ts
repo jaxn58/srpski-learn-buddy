@@ -3,6 +3,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useMemo, useEffect, useRef } from "react";
 import { logger } from "@/lib/logger";
+import { setLoginTimestamp } from "@/lib/sessionPreference";
 
 /**
  * Determine preferred UI language for initial user sync (first login).
@@ -55,6 +56,7 @@ export function useAuth() {
   const syncAttemptedRef = useRef(false);
   // Track if we've already attempted to enforce sessions for the current Clerk session.
   const enforceAttemptedSessionRef = useRef<string | null>(null);
+  const prevSignedInRef = useRef<boolean | undefined>(undefined);
 
   // Always attempt to sync once the Clerk user is available.
   useEffect(() => {
@@ -77,6 +79,16 @@ export function useAuth() {
         syncAttemptedRef.current = false;
       });
   }, [isSignedIn, clerkLoaded, clerkUser, syncUser]);
+
+  // Record login timestamp when the user signs in (transition from not-signed-in to signed-in).
+  useEffect(() => {
+    if (clerkLoaded && isSignedIn && prevSignedInRef.current === false) {
+      setLoginTimestamp();
+    }
+    if (clerkLoaded) {
+      prevSignedInRef.current = isSignedIn ?? false;
+    }
+  }, [clerkLoaded, isSignedIn]);
 
   // Optional fallback: ensure single-session enforcement even if webhook delivery is delayed.
   // Important: wait until dbUser is loaded so Convex auth identity is definitely available.

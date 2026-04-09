@@ -7,11 +7,17 @@ import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  type SessionPreference,
+  getSessionPreference,
+  setSessionPreference,
+} from "@/lib/sessionPreference";
 
 export default function SignUpPage() {
   const { t } = useTranslation();
   const LEARNING_LANGUAGE_STORAGE_KEY = "learning-language";
   const [learningLanguage, setLearningLanguage] = useState<"en" | "de" | null>(null);
+  const [preference, setPreference] = useState<SessionPreference>(getSessionPreference);
 
   useEffect(() => {
     try {
@@ -29,6 +35,12 @@ export default function SignUpPage() {
     } catch {
       // ignore
     }
+  };
+
+  const handlePreferenceChange = (value: string) => {
+    const pref = value as SessionPreference;
+    setPreference(pref);
+    setSessionPreference(pref);
   };
 
   const redirectUrl = (() => {
@@ -108,21 +120,56 @@ export default function SignUpPage() {
           ) : null}
 
           {learningLanguage ? (
-            <SignUp
-              routing="virtual"
-              signInUrl={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
-              afterSignUpUrl={redirectUrl}
-              appearance={{
-                elements: {
-                  rootBox: "mx-auto",
-                  card: "shadow-xl border-2",
-                  headerTitle: "text-2xl font-bold",
-                  headerSubtitle: "text-muted-foreground",
-                  formButtonPrimary: "bg-primary hover:bg-primary/90",
-                  footerActionLink: "text-primary hover:text-primary/90",
-                },
-              }}
-            />
+            <>
+              <SignUp
+                routing="virtual"
+                signInUrl={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
+                afterSignUpUrl={redirectUrl}
+                appearance={{
+                  elements: {
+                    rootBox: "mx-auto",
+                    card: "shadow-xl border-2",
+                    headerTitle: "text-2xl font-bold",
+                    headerSubtitle: "text-muted-foreground",
+                    formButtonPrimary: "bg-primary hover:bg-primary/90",
+                    footerActionLink: "text-primary hover:text-primary/90",
+                  },
+                }}
+              />
+
+              <div className="rounded-lg border bg-card p-4 shadow-sm space-y-3">
+                <p className="text-sm font-medium leading-none">
+                  {t("session.preference.label")}
+                </p>
+                <RadioGroup
+                  value={preference}
+                  onValueChange={handlePreferenceChange}
+                  className="space-y-2"
+                >
+                  <div className="flex items-start space-x-3">
+                    <RadioGroupItem value="permanent" id="sp-permanent" className="mt-0.5" />
+                    <Label htmlFor="sp-permanent" className="font-normal leading-snug cursor-pointer">
+                      {t("session.preference.permanent")}
+                    </Label>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <RadioGroupItem value="week" id="sp-week" className="mt-0.5" />
+                    <Label htmlFor="sp-week" className="font-normal leading-snug cursor-pointer">
+                      {t("session.preference.week")}
+                    </Label>
+                  </div>
+                  <div className="flex items-start space-x-3">
+                    <RadioGroupItem value="browser-close" id="sp-browser-close" className="mt-0.5" />
+                    <Label htmlFor="sp-browser-close" className="font-normal leading-snug cursor-pointer">
+                      {t("session.preference.browserClose")}
+                    </Label>
+                  </div>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">
+                  {t("session.preference.hint")}
+                </p>
+              </div>
+            </>
           ) : null}
         </div>
       </div>

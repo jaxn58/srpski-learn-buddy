@@ -41,6 +41,7 @@ const WishlistNew = lazy(() => import("./pages/WishlistNew"));
 
 // Admin pages
 const Admin = lazy(() => import("./pages/Admin"));
+const AdminUserDetail = lazy(() => import("./pages/AdminUserDetail"));
 const PromptAdmin = lazy(() => import("./pages/PromptAdmin"));
 const ChangelogAdmin = lazy(() => import("./pages/ChangelogAdmin"));
 const OnboardingAdmin = lazy(() => import("./pages/OnboardingAdmin"));
@@ -431,6 +432,17 @@ function Router() {
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
                   <Admin />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/admin/users/:userId">
+          {(params) => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <AdminUserDetail userId={params.userId} />
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
