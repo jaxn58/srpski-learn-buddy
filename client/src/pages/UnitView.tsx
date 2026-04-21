@@ -226,61 +226,28 @@ export default function UnitView() {
       return word.noteEn || null;
     };
 
-    const getTranslationForLanguage = (
-      word: any,
-      language: string
-    ): { translation: string; altTranslation?: string } => {
-      // Prefer column-based translations when present
-      const hasAnyColumn =
-        (word.en && String(word.en).trim()) ||
-        (word.de && String(word.de).trim()) ||
-        (word.sr && String(word.sr).trim()) ||
-        (word.es && String(word.es).trim()) ||
-        (word.fr && String(word.fr).trim());
+    const getTranslationForLanguage = (word: any, language: string): string => {
+      const pick = (key: "en" | "de" | "sr" | "es" | "fr") => {
+        const val = word[key];
+        return val && String(val).trim() ? String(val).trim() : "";
+      };
 
-      if (hasAnyColumn) {
-        const pick = (key: "en" | "de" | "sr" | "es" | "fr") => {
-          const val = word[key];
-          return val && String(val).trim() ? String(val).trim() : "";
-        };
+      const translation =
+        language === "de"
+          ? pick("de") || pick("en")
+          : language === "sr"
+            ? pick("sr") || pick("en")
+            : language === "es"
+              ? pick("es") || pick("en")
+              : language === "fr"
+                ? pick("fr") || pick("en")
+                : pick("en") || pick("de");
 
-        const translation =
-          language === "de"
-            ? pick("de") || pick("en")
-            : language === "sr"
-              ? pick("sr") || pick("en")
-              : language === "es"
-                ? pick("es") || pick("en")
-                : language === "fr"
-                  ? pick("fr") || pick("en")
-                  : pick("en") || pick("de");
-
-        const altTranslation =
-          language === "de"
-            ? (word.deAlt && String(word.deAlt).trim() ? String(word.deAlt).trim() : undefined)
-            : language === "en"
-              ? (word.enAlt && String(word.enAlt).trim() ? String(word.enAlt).trim() : undefined)
-              : undefined;
-
-        return { translation: translation || "-", altTranslation };
-      }
-
-      // Fallback: translations[] array
-      if (word.translations && Array.isArray(word.translations)) {
-        const trans =
-          word.translations.find((t: any) => t.language === language) ||
-          word.translations.find((t: any) => t.language === "en");
-        return {
-          translation: trans?.translation || "-",
-          altTranslation: trans?.alt,
-        };
-      }
-
-      return { translation: "-" };
+      return translation || "-";
     };
 
     return vocabularyWithProgress.map((word: any, idx: number) => {
-      const { translation, altTranslation } = getTranslationForLanguage(word, displayLanguage);
+      const translation = getTranslationForLanguage(word, displayLanguage);
       const note = getNoteForLanguage(word, displayLanguage);
 
       const correctCount = Number(word.progress?.correctAnswerCount ?? 0) || 0;
@@ -291,7 +258,6 @@ export default function UnitView() {
         id: String(word._id ?? idx),
         serbian: word.serbian,
         translation,
-        altTranslation,
         note,
         audioStorageId: word.audioStorageId ?? null,
         unitNumber: word.unitNumber ?? unitNumber,

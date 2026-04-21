@@ -251,17 +251,12 @@ export const getVocabularyWithProgress = query({
         sr: word.sr,
         es: word.es,
         fr: word.fr,
-        enAlt: word.enAlt,
-        deAlt: word.deAlt,
-        gender: word.gender,
-        pronunciation: word.pronunciation,
         audioStorageId: word.audioStorageId ?? null,
         noteEn: word.noteEn,
         noteDe: word.noteDe,
         noteSr: word.noteSr,
         noteEs: word.noteEs,
         noteFr: word.noteFr,
-        translations: word.translations,
         progress: null, // No progress without user
       }));
       
@@ -297,18 +292,12 @@ export const getVocabularyWithProgress = query({
         sr: word.sr,
         es: word.es,
         fr: word.fr,
-        enAlt: word.enAlt,
-        deAlt: word.deAlt,
-        gender: word.gender,
-        pronunciation: word.pronunciation,
         audioStorageId: word.audioStorageId,
         noteEn: word.noteEn,
         noteDe: word.noteDe,
         noteSr: word.noteSr,
         noteEs: word.noteEs,
         noteFr: word.noteFr,
-        // Include old translations array for backward compatibility
-        translations: word.translations,
         // Progress data (or null if no progress)
         progress: progressData ? {
           mastered: progressData.mastered,

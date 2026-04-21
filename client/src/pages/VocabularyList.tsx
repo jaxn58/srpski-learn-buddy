@@ -84,15 +84,11 @@ export default function VocabularyList() {
         unitNumber: word.unitNumber,
         en: word.en,
         de: word.de,
-        enAlt: word.enAlt,
-        deAlt: word.deAlt,
         noteEn: word.noteEn,
         noteDe: word.noteDe,
         noteSr: word.noteSr,
         noteEs: word.noteEs,
         noteFr: word.noteFr,
-        // Include old translations array for backward compatibility
-        translations: word.translations || [],
       }));
 
     // Filter by unit
@@ -108,15 +104,10 @@ export default function VocabularyList() {
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter((v: any) => {
-        // Check if serbian word exists before calling toLowerCase
         const serbianMatch = v.serbian && v.serbian.toLowerCase().includes(search);
-        // NEW: Support column-based translations (check if values exist)
-        const translationMatch = (v.en && v.en.toLowerCase().includes(search)) || 
-                                 (v.de && v.de.toLowerCase().includes(search)) ||
-                                 // FALLBACK: Database translations array structure
-                                 (v.translations && Array.isArray(v.translations) && v.translations.some((t: any) => 
-                                   (t.translation && t.translation.toLowerCase().includes(search))
-                                 ));
+        const translationMatch =
+          (v.en && v.en.toLowerCase().includes(search)) ||
+          (v.de && v.de.toLowerCase().includes(search));
         return serbianMatch || translationMatch;
       });
     }
@@ -196,27 +187,9 @@ export default function VocabularyList() {
         (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
       );
 
-      // Englisch-only: Translation (mit Fallbacks)
       const enFromColumns = typeof word.en === "string" ? word.en.trim() : "";
       const deFromColumns = typeof word.de === "string" ? word.de.trim() : "";
-
-      let displayTranslation: string = enFromColumns || "";
-      let altTranslation: string | undefined = typeof word.enAlt === "string" ? word.enAlt : undefined;
-
-      if (!displayTranslation && word.translations && Array.isArray(word.translations)) {
-        const enObj = word.translations.find((t: any) => t?.language === "en");
-        displayTranslation = (enObj?.translation || "").trim();
-        if (!altTranslation && typeof enObj?.alt === "string") {
-          altTranslation = enObj.alt;
-        }
-      }
-
-      // Last-resort fallback
-      if (!displayTranslation) {
-        displayTranslation = deFromColumns || "";
-      }
-
-      // Englisch-only: Note
+      const displayTranslation: string = enFromColumns || deFromColumns || "";
       const note = (typeof word.noteEn === "string" ? word.noteEn : null) as string | null;
 
       const correctCountRaw = (wordProgress?.correctAnswerCount ?? 0) as number;
@@ -238,7 +211,6 @@ export default function VocabularyList() {
         id: String(word._id ?? `fallback-${idx}`),
         serbian: word.serbian,
         translation: displayTranslation,
-        altTranslation,
         note,
         audioStorageId,
         unitNumber: word.unit,

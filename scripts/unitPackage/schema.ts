@@ -22,6 +22,12 @@ export const UnitPackageVocabularyEntrySchema = z.object({
   // IMPORTANT: must be audio-clean after autofix
   serbian: z.string().min(1),
   en: z.string().min(1),
+  /**
+   * @deprecated No longer used. The app now exposes one primary English
+   * translation per entry; alternative meanings belong in `noteEn`.
+   * Kept in the schema only for backward compatibility with older JSON
+   * packages — importer and autofix ignore this field.
+   */
   enAlt: z.optional(z.string().min(1)),
   noteEn: z.optional(z.string().min(1)),
   // Optional in JSON, but we will import to DB as a string ("m" | "f" | "n")

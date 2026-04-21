@@ -7,7 +7,6 @@ export type VocabularyDictionaryRow = {
   id: string;
   serbian: string;
   translation: string;
-  altTranslation?: string;
   note?: string | null;
   audioStorageId?: string | null;
   unitNumber?: number;
@@ -93,13 +92,7 @@ export function VocabularyDictionaryTable({
                 <span className="font-semibold text-foreground">{row.serbian}</span>
               </div>
               <div className="mt-0.5 text-sm text-muted-foreground">
-                {row.altTranslation && row.altTranslation.trim() ? (
-                  <span>
-                    {row.translation} <span className="text-muted-foreground/60">•</span> {row.altTranslation}
-                  </span>
-                ) : (
-                  <span>{row.translation}</span>
-                )}
+                <span>{row.translation}</span>
               </div>
               {row.note && row.note.trim() && (
                 <div className="mt-1 text-xs text-muted-foreground italic">{row.note}</div>

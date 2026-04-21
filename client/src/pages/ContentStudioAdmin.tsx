@@ -108,6 +108,24 @@ export default function ContentStudioAdmin() {
   const translatePublishedUnitEnToDe = useAction(api.contentStudio.translatePublishedUnitEnToDe);
   const deleteUnitFull = useMutation(api.contentStudio.deleteUnitFull);
 
+  // Surface SR<->DE verifier summary as a toast; detailed issue list lives in UnitManagerTab.
+  const showVerifierToast = (res: any) => {
+    const v = res?.translationStats?.verifier;
+    if (!v) return;
+    const critical = v.finalCriticalCount ?? 0;
+    const warning = v.finalWarningCount ?? 0;
+    const retried = !!v.retryAttempted;
+    if (critical > 0) {
+      toast.warning(
+        `SR→DE Verifier: ${critical} critical issue(s) remain after${retried ? " auto-retry" : ""}. Review DE preview before publishing.`
+      );
+    } else if (retried) {
+      toast.success(`SR→DE Verifier: critical issues auto-fixed by retry (${warning} warning(s) remain).`);
+    } else if (warning > 0) {
+      toast.info(`SR→DE Verifier: ${warning} warning(s); no critical issues.`);
+    }
+  };
+
   const [unitPackageJson, setUnitPackageJson] = useState<string>("");
   const [markdownText, setMarkdownText] = useState<string>("");
   const [restoreMarkdownText, setRestoreMarkdownText] = useState<string>("");
@@ -1823,7 +1841,7 @@ export default function ContentStudioAdmin() {
   const handleTranslatePublishedToGerman = async () => {
     if (!selected) return;
     const unitNum = selected.draft.unitNumber;
-    const expected = `TRANSLATE UNIT ${unitNum} TO DE`;
+    const expected = `TRANSLATE UNIT ${unitNum} SR TO DE`;
     if (translateDeConfirmation !== expected) {
       toast.error(t("admin.contentStudio.toast.confirmationTextMismatch"));
       return;
@@ -1831,7 +1849,7 @@ export default function ContentStudioAdmin() {
 
     setRunningTranslateDe(true);
     try {
-      toast.info(`Translating Unit ${unitNum} (EN → DE Preview)…`);
+      toast.info(`Translating Unit ${unitNum} (SR → DE Preview)…`);
       const res = await translatePublishedUnitEnToDe({
         unitNumber: unitNum,
         confirm: translateDeConfirmation,
@@ -1852,6 +1870,7 @@ export default function ContentStudioAdmin() {
       } else {
         toast.success(`DE Preview created for Unit ${unitNum}${previewV ? ` (v${previewV})` : ""}.`);
       }
+      showVerifierToast(res);
       window.open(`/unit/${unitNum}?lang=de`, "_blank", "noopener,noreferrer");
       setTranslateDeOpen(false);
       setRecentlyTranslatedUnits((prev) => new Map<number, number>(prev).set(unitNum, Date.now()));
@@ -1868,7 +1887,7 @@ export default function ContentStudioAdmin() {
       toast.error("Please select a valid unit.");
       return;
     }
-    const expected = `TRANSLATE UNIT ${unitNum} TO DE`;
+    const expected = `TRANSLATE UNIT ${unitNum} SR TO DE`;
     if (translateAnyConfirmation !== expected) {
       toast.error(t("admin.contentStudio.toast.confirmationTextMismatch"));
       return;
@@ -1876,7 +1895,7 @@ export default function ContentStudioAdmin() {
 
     setRunningTranslateDe(true);
     try {
-      toast.info(`Translating Unit ${unitNum} (EN → DE Preview)…`);
+      toast.info(`Translating Unit ${unitNum} (SR → DE Preview)…`);
       const res = await translatePublishedUnitEnToDe({
         unitNumber: unitNum,
         confirm: translateAnyConfirmation,
@@ -1897,6 +1916,7 @@ export default function ContentStudioAdmin() {
       } else {
         toast.success(`DE Preview created for Unit ${unitNum}${previewV ? ` (v${previewV})` : ""}.`);
       }
+      showVerifierToast(res);
       setTranslateDeResult({
         unitNumber: unitNum,
         previewVersion: typeof previewV === "number" ? previewV : null,
@@ -1915,20 +1935,21 @@ export default function ContentStudioAdmin() {
   const handlePublishDeTranslationLive = async () => {
     if (!translateDeResult) return;
     const unitNum = translateDeResult.unitNumber;
-    const expected = `TRANSLATE UNIT ${unitNum} TO DE`;
+    const expected = `TRANSLATE UNIT ${unitNum} SR TO DE`;
     setRunningTranslateDe(true);
     try {
       toast.info(`Publishing DE translation for Unit ${unitNum} live…`);
       // First take preview offline (clean up preview rows)
       await takeUnitPreviewOfflineByUnitNumber({ unitNumber: unitNum } as any);
       // Then write as published
-      await translatePublishedUnitEnToDe({
+      const publishRes = await translatePublishedUnitEnToDe({
         unitNumber: unitNum,
         confirm: expected,
         preferredProvider: cfgSpecialistProvider,
         targetReleaseStatus: "published",
       } as any);
       toast.success(`DE translation for Unit ${unitNum} published live.`);
+      showVerifierToast(publishRes);
       setTranslateDeResult(null);
     } catch (e: any) {
       toast.error(e?.message || `Failed to publish DE translation for Unit ${unitNum}.`);

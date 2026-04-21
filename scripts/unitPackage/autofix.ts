@@ -248,12 +248,29 @@ function applyGenderSplit(
   ];
 }
 
-function splitEnglishAlt(entry: UnitPackageVocabularyEntry): UnitPackageVocabularyEntry {
-  if (entry.enAlt && entry.enAlt.trim()) return entry;
+/**
+ * Slashes in the English source used to create an `enAlt` alternative. The app
+ * now exposes only ONE primary English translation per entry; alternative
+ * meanings live in the note. This helper therefore keeps the first slashed
+ * part as `en` and appends the remaining parts to `noteEn` as "Also: …".
+ *
+ * `enAlt` is no longer written (deprecated/stillgelegt).
+ */
+function collapseEnglishSlashAlternatives(
+  entry: UnitPackageVocabularyEntry
+): UnitPackageVocabularyEntry {
   if (!entry.en.includes("/")) return entry;
   const parts = splitBySlash(entry.en);
   if (parts.length < 2) return entry;
-  return { ...entry, en: parts[0], enAlt: parts[1] };
+  const primary = parts[0];
+  const extras = parts.slice(1).filter((p) => p && p !== primary);
+  if (extras.length === 0) return { ...entry, en: primary };
+  const noteAddition = `Also: ${extras.join(", ")}`;
+  return {
+    ...entry,
+    en: primary,
+    noteEn: appendNote(entry.noteEn, noteAddition),
+  };
 }
 
 function normalizeExerciseCategories(
@@ -373,15 +390,17 @@ export function autofixUnitPackage(pkg: UnitPackage): {
             note: "Moved gender markers from English to Notes",
           });
         }
-        nextEntry = splitEnglishAlt(nextEntry);
-        if (nextEntry.enAlt && !e.enAlt && e.en.includes("/")) {
+        const collapsed = collapseEnglishSlashAlternatives(nextEntry);
+        if (collapsed.en !== nextEntry.en || collapsed.noteEn !== nextEntry.noteEn) {
           changes.push({
             kind: "splitEnglishAlt",
             path: ["vocabulary", lang],
-            before: e.en,
-            after: { en: nextEntry.en, enAlt: nextEntry.enAlt },
+            before: nextEntry.en,
+            after: { en: collapsed.en, noteEn: collapsed.noteEn },
+            note: "Collapsed slashed English alternatives into primary 'en' + 'noteEn'",
           });
         }
+        nextEntry = collapsed;
 
         newList.push(nextEntry);
       }

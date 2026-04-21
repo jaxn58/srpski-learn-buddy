@@ -34,9 +34,6 @@ type VocabItem = {
   unitNumber: number;
   en?: string;
   de?: string;
-  enAlt?: string;
-  deAlt?: string;
-  translations: Array<{ language: string; translation: string; alt?: string }>;
   noteEn?: string;
   noteDe?: string;
   noteEs?: string;
@@ -526,10 +523,6 @@ export default function Vocabulary() {
         unitNumber: word.unitNumber,
         en: word.en,
         de: word.de,
-        enAlt: word.enAlt,
-        deAlt: word.deAlt,
-        // Include old translations array for backward compatibility during migration
-        translations: (word.translations || []) as VocabItem["translations"],
         noteEn: word.noteEn,
         noteDe: word.noteDe,
         noteEs: word.noteEs,
@@ -582,10 +575,6 @@ export default function Vocabulary() {
         unitNumber: word.unitNumber,
         en: word.en,
         de: word.de,
-        enAlt: word.enAlt,
-        deAlt: word.deAlt,
-        // Include old translations array for backward compatibility during migration
-        translations: (word.translations || []) as VocabItem["translations"],
         noteEn: word.noteEn,
         noteDe: word.noteDe,
         noteEs: word.noteEs,
@@ -723,44 +712,20 @@ export default function Vocabulary() {
     const currentIndexSnapshot = currentIndex;
     const filteredVocabLengthSnapshot = filteredVocab.length;
     
-    // NEW: Support column-based translations (for both Learn Mode and Quiz Mode with database data)
-    // FALLBACK: Support old getTranslation/getAlternatives (for backward compatibility)
+    // Each vocabulary entry has exactly ONE primary translation per language
+    // (in 'de' and 'en'). Alternative meanings live in 'noteDe' / 'noteEn' and
+    // are NOT accepted as correct quiz answers.
     let correctTranslationForWord: string;
-    let alternatives: string[] = [];
-    
-    // Check if column-based translations exist AND have values
-    const hasColumnTranslations = wordToAnswer && 
-      ((wordToAnswer.en && wordToAnswer.en.trim()) || (wordToAnswer.de && wordToAnswer.de.trim()));
-    
-    
-    if (hasColumnTranslations) {
-      // NEW: Column-based structure with multi-language support
-      // Use the user's language for correct answer, with fallback to English
-      if (userLanguage === "de" && wordToAnswer.de?.trim()) {
-        correctTranslationForWord = wordToAnswer.de.trim();
-        const alt = wordToAnswer.deAlt;
-        alternatives = alt && alt.trim() ? [alt.trim()] : [];
-      } else {
-        correctTranslationForWord = (wordToAnswer.en?.trim() || wordToAnswer.de?.trim() || "");
-        const alt = wordToAnswer.enAlt;
-        alternatives = alt && alt.trim() ? [alt.trim()] : [];
-      }
-    } else if (wordToAnswer && Array.isArray(wordToAnswer.translations)) {
-      // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
-      const translationObj = wordToAnswer.translations.find((t: any) => t.language === userLanguage) ||
-                            wordToAnswer.translations.find((t: any) => t.language === "en");
-      correctTranslationForWord = translationObj?.translation || "";
-      
-      // Find alternatives from translations array
-      const altTranslation = wordToAnswer.translations.find((t: any) => 
-        t.language === userLanguage && t.alt
-      );
-      alternatives = altTranslation?.alt ? [altTranslation.alt] : [];
+
+    if (userLanguage === "de" && wordToAnswer.de?.trim()) {
+      correctTranslationForWord = wordToAnswer.de.trim();
+    } else if (wordToAnswer.en?.trim()) {
+      correctTranslationForWord = wordToAnswer.en.trim();
+    } else if (wordToAnswer.de?.trim()) {
+      correctTranslationForWord = wordToAnswer.de.trim();
     } else {
-      // No fallback - database should always provide translations
       console.error('[Vocabulary] No translation available for word:', wordToAnswer);
       correctTranslationForWord = "";
-      alternatives = [];
     }
 
     const normalizeQuizAnswer = (s: string) =>
@@ -768,8 +733,7 @@ export default function Vocabulary() {
 
     const userAnswerNorm = normalizeQuizAnswer(userAnswer);
     const correctTranslation = normalizeQuizAnswer(correctTranslationForWord);
-    const alternativesNorm = alternatives.map(normalizeQuizAnswer);
-    const correct = userAnswerNorm === correctTranslation || alternativesNorm.includes(userAnswerNorm);
+    const correct = userAnswerNorm === correctTranslation;
     
     
     setIsCorrect(correct);
@@ -1257,22 +1221,11 @@ export default function Vocabulary() {
                         <p className="text-xl sm:text-2xl text-muted-foreground mt-4">
                           {(() => {
                             const word = showAnswer && answeredWord ? answeredWord : displayWord;
-                            // Column-based translations with multi-language support
-                            if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
-                              if (userLanguage === "de" && word.de?.trim()) {
-                                return word.de.trim();
-                              }
-                              return (word.en?.trim() || word.de?.trim() || "");
+                            if (!word) return "";
+                            if (userLanguage === "de" && word.de?.trim()) {
+                              return word.de.trim();
                             }
-                            // FALLBACK: Database translations array structure
-                            if (word && Array.isArray(word.translations)) {
-                              const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
-                                                    word.translations.find((t: any) => t.language === "en");
-                              return translationObj?.translation || "";
-                            }
-                            // No fallback - database should always provide translations
-                            console.error('[Vocabulary] No translation available for display:', word);
-                            return "";
+                            return word.en?.trim() || word.de?.trim() || "";
                           })()}
                         </p>
                         {/* Note anzeigen wenn vorhanden */}
@@ -1448,22 +1401,11 @@ export default function Vocabulary() {
                                 <div className="font-semibold text-lg text-green-700">
                                   {currentCorrectTranslation || (() => {
                                     const word = answeredWord || currentWord;
-                                    // Column-based translations with multi-language support
-                                    if (word && ((word.en && word.en.trim()) || (word.de && word.de.trim()))) {
-                                      if (userLanguage === "de" && word.de?.trim()) {
-                                        return word.de.trim();
-                                      }
-                                      return (word.en?.trim() || word.de?.trim() || "");
+                                    if (!word) return "";
+                                    if (userLanguage === "de" && word.de?.trim()) {
+                                      return word.de.trim();
                                     }
-                                    // FALLBACK: Database translations array structure [{ language: "en", translation: "Hello" }]
-                                    if (word && Array.isArray(word.translations)) {
-                                      const translationObj = word.translations.find((t: any) => t.language === userLanguage) ||
-                                                            word.translations.find((t: any) => t.language === "en");
-                                      return translationObj?.translation || "";
-                                    }
-                                    // No fallback - database should always provide translations
-                                    console.error('[Vocabulary] No translation available for correct answer display');
-                                    return "";
+                                    return word.en?.trim() || word.de?.trim() || "";
                                   })()}
                                 </div>
                                 {/* Note anzeigen wenn vorhanden */}

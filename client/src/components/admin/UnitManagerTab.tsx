@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
@@ -64,6 +65,35 @@ const LANG_LABELS: Record<string, string> = {
   fr: "Francais",
 };
 
+// SR<->DE verifier report types (mirror of convex/contentStudio/_verifier.ts)
+type VerifierSeverityClient = "info" | "warning" | "critical";
+type VerifierItemKindClient = "vocabulary" | "test" | "section" | "metadata";
+interface VerifierIssueClient {
+  itemKey: string;
+  itemLabel: string;
+  itemKind: VerifierItemKindClient;
+  severity: VerifierSeverityClient;
+  code: string;
+  issue: string;
+  suggestion?: string;
+}
+interface VerifierReportClient {
+  itemsChecked: number;
+  issues: VerifierIssueClient[];
+  criticals: VerifierIssueClient[];
+  warnings: VerifierIssueClient[];
+  infos: VerifierIssueClient[];
+  durationMs: number;
+  provider: string | null;
+  model: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  thinkingTokens: number | null;
+  estimatedCostUsd: number | null;
+  error?: string;
+  pass: "pass1" | "pass2";
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -113,6 +143,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   const setUnitOffline = useMutation(api.units.setUnitOffline);
   const deleteUnitFull = useMutation(api.contentStudio.deleteUnitFull);
   const doTranslate = useAction(api.contentStudio.translatePublishedUnitEnToDe);
+  const doRetryDe = useAction(api.contentStudio.retryDeTranslationForSelectedIssues);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de" | "de_outdated">("all");
@@ -156,7 +187,33 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       estimatedCostUsd: number | null;
       qualityIssues: string[];
     }>;
+    verifier?: {
+      pass1: VerifierReportClient;
+      pass2: VerifierReportClient | null;
+      retryAttempted: boolean;
+      finalCriticalCount: number;
+      finalWarningCount: number;
+    } | null;
   } | null>(null);
+
+  // ── Manual retry workflow state ─────────────────────────────────────────────
+  // Tracks which DE release slot the last translation wrote to (needed by the
+  // selective retry action so it can upsert into the same preview unitVersion).
+  const [translateMeta, setTranslateMeta] = useState<{
+    targetReleaseStatus: "preview" | "published";
+    previewUnitVersion?: number;
+  } | null>(null);
+  // User-selected verifier issues (by itemKey) that should be retried.
+  const [selectedIssueKeys, setSelectedIssueKeys] = useState<Set<string>>(new Set());
+  // Where the retry should write back to. Default to "preview" — admin can pick
+  // "published" if the current translation is already promoted and they want to
+  // patch-fix it directly (rare but supported).
+  const [retryTargetReleaseStatus, setRetryTargetReleaseStatus] =
+    useState<"preview" | "published">("preview");
+  const [retryRunning, setRetryRunning] = useState(false);
+  const [retryHistory, setRetryHistory] = useState<
+    Array<{ retriedKeys: string[]; timestamp: number }>
+  >([]);
 
   // Auto-fade: force re-render every minute so "X min ago" updates, and entries older than 30 min disappear
   const [, setTick] = useState(0);
@@ -325,9 +382,203 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     }
   };
 
+  // Toggle a single verifier-issue key in the selection set (pure, no retry).
+  const toggleIssueKey = (key: string) => {
+    setSelectedIssueKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // Select / clear all issues currently rendered in the verifier panel.
+  const selectAllIssueKeys = (keys: string[]) => {
+    setSelectedIssueKeys((prev) => {
+      const next = new Set(prev);
+      for (const k of keys) next.add(k);
+      return next;
+    });
+  };
+  const clearAllSelectedIssues = () => setSelectedIssueKeys(new Set());
+
+  // Merge a retry verifier pass into the existing report:
+  //  - retried keys from the FIRST report are dropped (they were re-translated)
+  //  - new issues from the retry verifier replace them
+  //  - non-retried issues stay so the admin can still see (or re-try) them
+  const mergeRetryIntoReport = (
+    retriedKeys: Set<string>,
+    retryVerifierReport: VerifierReportClient | null
+  ) => {
+    setTranslateReport((prev) => {
+      if (!prev) return prev;
+      const pv = prev.verifier;
+      if (!pv) return prev;
+
+      const dropRetried = (arr: VerifierIssueClient[]) =>
+        arr.filter((i) => !retriedKeys.has(i.itemKey));
+
+      const newCriticals = retryVerifierReport?.criticals ?? [];
+      const newWarnings = retryVerifierReport?.warnings ?? [];
+      const newInfos = retryVerifierReport?.infos ?? [];
+
+      const mergedPass1: VerifierReportClient = {
+        ...pv.pass1,
+        criticals: dropRetried(pv.pass1.criticals),
+        warnings: dropRetried(pv.pass1.warnings),
+        infos: dropRetried(pv.pass1.infos),
+        issues: dropRetried(pv.pass1.issues),
+      };
+      const basePass2: VerifierReportClient | null = pv.pass2
+        ? {
+            ...pv.pass2,
+            criticals: dropRetried(pv.pass2.criticals),
+            warnings: dropRetried(pv.pass2.warnings),
+            infos: dropRetried(pv.pass2.infos),
+            issues: dropRetried(pv.pass2.issues),
+          }
+        : null;
+
+      const mergedPass2: VerifierReportClient | null =
+        basePass2 || retryVerifierReport
+          ? {
+              itemsChecked:
+                (basePass2?.itemsChecked ?? 0) + (retryVerifierReport?.itemsChecked ?? 0),
+              durationMs:
+                (basePass2?.durationMs ?? 0) + (retryVerifierReport?.durationMs ?? 0),
+              provider: retryVerifierReport?.provider ?? basePass2?.provider ?? null,
+              model: retryVerifierReport?.model ?? basePass2?.model ?? null,
+              inputTokens:
+                (basePass2?.inputTokens ?? 0) + (retryVerifierReport?.inputTokens ?? 0),
+              outputTokens:
+                (basePass2?.outputTokens ?? 0) + (retryVerifierReport?.outputTokens ?? 0),
+              thinkingTokens:
+                (basePass2?.thinkingTokens ?? 0) + (retryVerifierReport?.thinkingTokens ?? 0),
+              estimatedCostUsd:
+                (basePass2?.estimatedCostUsd ?? 0) +
+                (retryVerifierReport?.estimatedCostUsd ?? 0),
+              criticals: [...(basePass2?.criticals ?? []), ...newCriticals],
+              warnings: [...(basePass2?.warnings ?? []), ...newWarnings],
+              infos: [...(basePass2?.infos ?? []), ...newInfos],
+              issues: [
+                ...(basePass2?.issues ?? []),
+                ...(retryVerifierReport?.issues ?? []),
+              ],
+              pass: "pass2",
+            }
+          : null;
+
+      const finalCriticalCount =
+        mergedPass1.criticals.length + (mergedPass2?.criticals.length ?? 0);
+      const finalWarningCount =
+        mergedPass1.warnings.length + (mergedPass2?.warnings.length ?? 0);
+
+      return {
+        ...prev,
+        verifier: {
+          pass1: mergedPass1,
+          pass2: mergedPass2,
+          retryAttempted: true,
+          finalCriticalCount,
+          finalWarningCount,
+        },
+      };
+    });
+  };
+
+  const handleRunRetry = async () => {
+    if (!selectedUnit) return;
+    if (!translateReport?.verifier) return;
+    if (selectedIssueKeys.size === 0) return;
+
+    const pv = translateReport.verifier;
+    const allIssues: VerifierIssueClient[] = [
+      ...pv.pass1.issues,
+      ...(pv.pass2?.issues ?? []),
+    ];
+    const dedup = new Map<string, VerifierIssueClient>();
+    for (const iss of allIssues) {
+      if (!selectedIssueKeys.has(iss.itemKey)) continue;
+      const prev = dedup.get(iss.itemKey);
+      if (!prev) {
+        dedup.set(iss.itemKey, iss);
+        continue;
+      }
+      const order = { critical: 0, warning: 1, info: 2 } as const;
+      if (order[iss.severity] < order[prev.severity]) {
+        dedup.set(iss.itemKey, iss);
+      }
+    }
+    const payloadIssues = Array.from(dedup.values()).map((iss) => ({
+      itemKey: iss.itemKey,
+      itemKind: iss.itemKind,
+      itemLabel: iss.itemLabel,
+      severity: iss.severity,
+      issue: iss.issue,
+      suggestion: iss.suggestion,
+    }));
+
+    if (payloadIssues.length === 0) {
+      toast.error("No valid issues selected.");
+      return;
+    }
+    if (retryTargetReleaseStatus === "preview" && !translateMeta?.previewUnitVersion) {
+      toast.error(
+        "Cannot target 'preview' — the preview unitVersion from the last translation is missing."
+      );
+      return;
+    }
+
+    const confirmStr = `RETRY UNIT ${selectedUnit} SR TO DE`;
+    setRetryRunning(true);
+    try {
+      const result = (await doRetryDe({
+        unitNumber: selectedUnit,
+        confirm: confirmStr,
+        selectedIssues: payloadIssues,
+        preferredProvider: translateProvider,
+        targetReleaseStatus: retryTargetReleaseStatus,
+        previewUnitVersion:
+          retryTargetReleaseStatus === "preview"
+            ? translateMeta?.previewUnitVersion
+            : undefined,
+        sourceReleaseStatus: translateSource,
+      } as any)) as any;
+
+      const retriedKeys = new Set<string>(
+        Array.isArray(result?.retriedKeys) ? result.retriedKeys.map(String) : []
+      );
+      const retryVerifier: VerifierReportClient | null =
+        result?.translationStats?.verifier?.pass2 ?? null;
+
+      mergeRetryIntoReport(retriedKeys, retryVerifier);
+      setRetryHistory((prev) => [
+        ...prev,
+        { retriedKeys: Array.from(retriedKeys), timestamp: Date.now() },
+      ]);
+      setSelectedIssueKeys(new Set());
+
+      const remainCrit = retryVerifier?.criticals.length ?? 0;
+      const remainWarn = retryVerifier?.warnings.length ?? 0;
+      if (remainCrit === 0 && remainWarn === 0) {
+        toast.success(
+          `Retry done — ${retriedKeys.size} item(s) re-translated, no remaining issues.`
+        );
+      } else {
+        toast.success(
+          `Retry done — ${retriedKeys.size} item(s) re-translated (remaining: ${remainCrit} critical, ${remainWarn} warning).`
+        );
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Retry failed.");
+    } finally {
+      setRetryRunning(false);
+    }
+  };
+
   const handleTranslate = async () => {
     if (!selectedUnit) return;
-    const confirmStr = `TRANSLATE UNIT ${selectedUnit} TO DE`;
+    const confirmStr = `TRANSLATE UNIT ${selectedUnit} SR TO DE`;
     if (translateConfirm !== confirmStr) {
       toast.error(`Please type "${confirmStr}" to confirm.`);
       return;
@@ -345,6 +596,16 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       if (result?.translationStats) {
         setTranslateReport(result.translationStats);
       }
+      setTranslateMeta({
+        targetReleaseStatus: (result?.targetReleaseStatus ?? "preview") as "preview" | "published",
+        previewUnitVersion:
+          typeof result?.previewUnitVersion === "number" ? result.previewUnitVersion : undefined,
+      });
+      setRetryTargetReleaseStatus(
+        (result?.targetReleaseStatus ?? "preview") as "preview" | "published"
+      );
+      setSelectedIssueKeys(new Set());
+      setRetryHistory([]);
       toast.success(`DE translation for Unit ${selectedUnit} written to preview.`);
       setTranslateConfirm("");
       onTranslationComplete?.(selectedUnit);
@@ -606,17 +867,36 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
         </DialogContent>
       </Dialog>
 
-      {/* Translate EN → DE Dialog */}
-      <Dialog open={translateOpen} onOpenChange={(open) => { setTranslateOpen(open); if (!open) { setTranslateConfirm(""); setTranslateReport(null); } }}>
-        <DialogContent className="w-[95vw] max-w-[560px]">
+      {/* Translate SR → DE Dialog */}
+      <Dialog open={translateOpen} onOpenChange={(open) => {
+        setTranslateOpen(open);
+        if (!open) {
+          setTranslateConfirm("");
+          setTranslateReport(null);
+          setTranslateMeta(null);
+          setSelectedIssueKeys(new Set());
+          setRetryHistory([]);
+        }
+      }}>
+        <DialogContent className="w-[95vw] max-w-[1100px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Translate EN → DE — Unit {selectedUnit}
+              Translate SR → DE — Unit {selectedUnit}
             </DialogTitle>
             <DialogDescription>
-              Translates the English content into German and writes it as a <strong>Preview</strong> release. Review the DE preview before publishing live.
+              Generates the German learner-facing content using <strong>Serbian as the primary semantic source</strong>. English serves only as a bridge/reference. Result is written as a <strong>Preview</strong> release; review the DE preview before publishing live.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Info block: explain the trilingual flow + verifier */}
+          <div className="rounded border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/30 p-3 text-xs space-y-1">
+            <div className="font-medium text-blue-900 dark:text-blue-200">How this translation works</div>
+            <ul className="list-disc pl-4 space-y-0.5 text-blue-900/80 dark:text-blue-200/80">
+              <li><strong>Serbian</strong> (vocabulary, test answers, embedded phrases) is the primary meaning anchor.</li>
+              <li><strong>English</strong> is only a bridge reference — if EN and SR disagree, the German follows the Serbian meaning.</li>
+              <li>A <strong>SR↔DE verifier</strong> checks semantic alignment after translation and will auto-retry once with feedback for critical issues.</li>
+            </ul>
+          </div>
 
           <div className="space-y-4 pt-1">
             {/* Source + Provider selectors */}
@@ -686,11 +966,11 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
             {/* Confirm + Run */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground">
-                Type <span className="font-mono text-foreground">TRANSLATE UNIT {selectedUnit} TO DE</span> to confirm:
+                Type <span className="font-mono text-foreground">TRANSLATE UNIT {selectedUnit} SR TO DE</span> to confirm:
               </label>
               <Input
                 className="font-mono text-xs h-8"
-                placeholder={`TRANSLATE UNIT ${selectedUnit} TO DE`}
+                placeholder={`TRANSLATE UNIT ${selectedUnit} SR TO DE`}
                 value={translateConfirm}
                 onChange={(e) => setTranslateConfirm(e.target.value)}
                 disabled={translateRunning}
@@ -699,7 +979,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                 className="w-full"
                 disabled={
                   translateRunning ||
-                  translateConfirm !== `TRANSLATE UNIT ${selectedUnit} TO DE` ||
+                  translateConfirm !== `TRANSLATE UNIT ${selectedUnit} SR TO DE` ||
                   !(translatePreviewInfo as any)?.sourceEn?.exists
                 }
                 onClick={handleTranslate}
@@ -769,6 +1049,23 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                     </div>
                   )}
                 </div>
+
+                {/* SR <-> DE Verifier block */}
+                {translateReport.verifier && (
+                  <VerifierReportPanel
+                    verifier={translateReport.verifier}
+                    selectedKeys={selectedIssueKeys}
+                    onToggleKey={toggleIssueKey}
+                    onSelectAll={selectAllIssueKeys}
+                    onClearSelection={clearAllSelectedIssues}
+                    retryTargetReleaseStatus={retryTargetReleaseStatus}
+                    onChangeRetryTarget={setRetryTargetReleaseStatus}
+                    canTargetPreview={!!translateMeta?.previewUnitVersion}
+                    retryRunning={retryRunning}
+                    onRunRetry={handleRunRetry}
+                    retryHistory={retryHistory}
+                  />
+                )}
 
                 {/* Quality issues detail */}
                 {translateReport.qualityIssueCount > 0 && (
@@ -947,7 +1244,7 @@ function InlineDetailCard({
                 }}
               >
                 <Languages className="mr-1 h-3.5 w-3.5" />
-                Translate EN → DE
+                Translate SR → DE
               </Button>
             )}
             <Button
@@ -1546,5 +1843,331 @@ function DiffVocabColumn({ label, vocabulary }: { label: string; vocabulary: any
         )}
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SR <-> DE Verifier report panel
+// ---------------------------------------------------------------------------
+
+function VerifierReportPanel({
+  verifier,
+  selectedKeys,
+  onToggleKey,
+  onSelectAll,
+  onClearSelection,
+  retryTargetReleaseStatus,
+  onChangeRetryTarget,
+  canTargetPreview,
+  retryRunning,
+  onRunRetry,
+  retryHistory,
+}: {
+  verifier: {
+    pass1: VerifierReportClient;
+    pass2: VerifierReportClient | null;
+    retryAttempted: boolean;
+    finalCriticalCount: number;
+    finalWarningCount: number;
+  };
+  selectedKeys: Set<string>;
+  onToggleKey: (key: string) => void;
+  onSelectAll: (keys: string[]) => void;
+  onClearSelection: () => void;
+  retryTargetReleaseStatus: "preview" | "published";
+  onChangeRetryTarget: (v: "preview" | "published") => void;
+  canTargetPreview: boolean;
+  retryRunning: boolean;
+  onRunRetry: () => void;
+  retryHistory: Array<{ retriedKeys: string[]; timestamp: number }>;
+}) {
+  const { pass1, pass2, retryAttempted, finalCriticalCount, finalWarningCount } = verifier;
+
+  // Dedup issues across pass1 + pass2 by itemKey (prefer highest-severity entry).
+  // Needed because merged retry passes can yield duplicates if a key was re-verified.
+  const severityRank = { critical: 0, warning: 1, info: 2 } as const;
+  const dedupByKey = (arr: VerifierIssueClient[]): VerifierIssueClient[] => {
+    const map = new Map<string, VerifierIssueClient>();
+    for (const iss of arr) {
+      const prev = map.get(iss.itemKey);
+      if (!prev || severityRank[iss.severity] < severityRank[prev.severity]) {
+        map.set(iss.itemKey, iss);
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  const finalCriticals = dedupByKey([...pass1.criticals, ...(pass2?.criticals ?? [])]);
+  const allWarnings = dedupByKey([...pass1.warnings, ...(pass2?.warnings ?? [])]);
+  const allInfos = dedupByKey([...pass1.infos, ...(pass2?.infos ?? [])]);
+
+  const allRetryableKeys = [
+    ...finalCriticals.map((i) => i.itemKey),
+    ...allWarnings.map((i) => i.itemKey),
+  ];
+  const dedupRetryableKeys = Array.from(new Set(allRetryableKeys));
+  const anySelected = selectedKeys.size > 0;
+
+  const hasError = !!pass1.error;
+  const allGreen =
+    !hasError &&
+    finalCriticalCount === 0 &&
+    finalWarningCount === 0 &&
+    pass1.itemsChecked > 0;
+
+  return (
+    <div className="rounded border bg-muted/30 p-3 text-xs space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold text-foreground">SR → DE Verifier</span>
+        {hasError ? (
+          <Badge variant="outline" className="text-amber-700 border-amber-400">
+            Verifier error
+          </Badge>
+        ) : allGreen ? (
+          <Badge variant="outline" className="text-green-700 border-green-400">
+            All checks passed
+          </Badge>
+        ) : (
+          <>
+            {finalCriticalCount > 0 && (
+              <Badge variant="destructive">{finalCriticalCount} critical</Badge>
+            )}
+            {finalWarningCount > 0 && (
+              <Badge variant="outline" className="text-amber-700 border-amber-400">
+                {finalWarningCount} warning
+              </Badge>
+            )}
+            {finalCriticalCount === 0 && finalWarningCount === 0 && (
+              <Badge variant="outline" className="text-green-700 border-green-400">
+                No issues
+              </Badge>
+            )}
+          </>
+        )}
+        <span className="text-muted-foreground">
+          Checked {pass1.itemsChecked} item(s)
+          {pass2 ? ` · Pass 2 re-checked ${pass2.itemsChecked}` : ""}
+        </span>
+      </div>
+
+      {hasError && (
+        <div className="text-amber-700 dark:text-amber-400">
+          Verifier run failed: {pass1.error}
+        </div>
+      )}
+
+      {retryAttempted && (
+        <div className="text-muted-foreground">
+          Auto-retry: 1 additional translation pass was executed for items with critical
+          issues.
+          {finalCriticalCount === 0
+            ? " All critical issues resolved after retry."
+            : ` ${finalCriticalCount} critical issue(s) still remain after retry — pick items below to re-translate.`}
+        </div>
+      )}
+
+      {retryHistory.length > 0 && (
+        <div className="text-[11px] text-muted-foreground">
+          Manual retry rounds so far: {retryHistory.length} (last retried{" "}
+          {retryHistory[retryHistory.length - 1]?.retriedKeys.length ?? 0} item(s))
+        </div>
+      )}
+
+      {finalCriticals.length > 0 && (
+        <VerifierIssueList
+          title="Critical issues"
+          issues={finalCriticals}
+          tone="critical"
+          selectedKeys={selectedKeys}
+          onToggleKey={onToggleKey}
+        />
+      )}
+      {allWarnings.length > 0 && (
+        <VerifierIssueList
+          title="Warnings"
+          issues={allWarnings}
+          tone="warning"
+          selectedKeys={selectedKeys}
+          onToggleKey={onToggleKey}
+        />
+      )}
+      {allInfos.length > 0 && (
+        <VerifierIssueList
+          title="Info"
+          issues={allInfos}
+          tone="info"
+          defaultOpen={false}
+          selectable={false}
+          selectedKeys={selectedKeys}
+          onToggleKey={onToggleKey}
+        />
+      )}
+
+      {/* Retry control bar */}
+      {dedupRetryableKeys.length > 0 && (
+        <div className="border-t pt-3 space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-foreground">Selective retry</span>
+            <span className="text-muted-foreground">
+              {selectedKeys.size} / {dedupRetryableKeys.length} selected
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px]"
+                disabled={retryRunning || dedupRetryableKeys.length === 0}
+                onClick={() => onSelectAll(dedupRetryableKeys)}
+              >
+                Select all
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[11px]"
+                disabled={retryRunning || !anySelected}
+                onClick={onClearSelection}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-[11px] font-medium text-muted-foreground">
+              Write back to:
+            </label>
+            <Select
+              value={retryTargetReleaseStatus}
+              onValueChange={(v) => onChangeRetryTarget(v as "preview" | "published")}
+              disabled={retryRunning}
+            >
+              <SelectTrigger className="h-7 text-[11px] w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="preview" disabled={!canTargetPreview}>
+                  Preview (DE)
+                </SelectItem>
+                <SelectItem value="published">Published (DE)</SelectItem>
+              </SelectContent>
+            </Select>
+            {!canTargetPreview && retryTargetReleaseStatus === "preview" && (
+              <span className="text-[11px] text-amber-700 dark:text-amber-400">
+                No preview unitVersion from last translation — select "Published".
+              </span>
+            )}
+          </div>
+
+          <Button
+            className="w-full h-8 text-xs"
+            disabled={retryRunning || !anySelected}
+            onClick={onRunRetry}
+          >
+            {retryRunning ? (
+              <>
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                Retrying {selectedKeys.size} item(s)…
+              </>
+            ) : (
+              <>
+                <Languages className="mr-2 h-3.5 w-3.5" />
+                Retry selected ({selectedKeys.size})
+              </>
+            )}
+          </Button>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            The verifier feedback for each selected issue is forwarded to the translator.
+            Only the selected items are re-translated; everything else stays as-is.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VerifierIssueList({
+  title,
+  issues,
+  tone,
+  defaultOpen = true,
+  selectable = true,
+  selectedKeys,
+  onToggleKey,
+}: {
+  title: string;
+  issues: VerifierIssueClient[];
+  tone: "critical" | "warning" | "info";
+  defaultOpen?: boolean;
+  selectable?: boolean;
+  selectedKeys: Set<string>;
+  onToggleKey: (key: string) => void;
+}) {
+  const borderCls =
+    tone === "critical"
+      ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
+      : tone === "warning"
+      ? "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30"
+      : "border-muted bg-muted/20";
+  const titleCls =
+    tone === "critical"
+      ? "text-red-800 dark:text-red-300"
+      : tone === "warning"
+      ? "text-amber-800 dark:text-amber-300"
+      : "text-muted-foreground";
+
+  return (
+    <details className="text-xs" open={defaultOpen}>
+      <summary
+        className={`cursor-pointer select-none py-0.5 font-medium ${titleCls}`}
+      >
+        {title} ({issues.length})
+      </summary>
+      <div className="mt-2 space-y-1.5">
+        {issues.map((iss, i) => {
+          const checked = selectedKeys.has(iss.itemKey);
+          const cbId = `verifier-iss-${iss.itemKey}-${i}`;
+          return (
+            <div
+              key={`${iss.itemKey}-${i}`}
+              className={`rounded border p-2 ${borderCls} ${
+                selectable ? "flex gap-2 items-start" : ""
+              }`}
+            >
+              {selectable && (
+                <div className="pt-0.5 shrink-0">
+                  <Checkbox
+                    id={cbId}
+                    checked={checked}
+                    onCheckedChange={() => onToggleKey(iss.itemKey)}
+                    aria-label={`Select ${iss.itemLabel} for retry`}
+                  />
+                </div>
+              )}
+              <label
+                htmlFor={selectable ? cbId : undefined}
+                className={`flex-1 ${selectable ? "cursor-pointer" : ""}`}
+              >
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {iss.itemKind}
+                  </span>
+                  <span className="font-medium text-foreground">{iss.itemLabel}</span>
+                  <span className="text-[10px] text-muted-foreground">[{iss.code}]</span>
+                </div>
+                <div className="mt-1 text-foreground/90 whitespace-pre-wrap break-words">
+                  {iss.issue}
+                </div>
+                {iss.suggestion && (
+                  <div className="mt-1 text-muted-foreground italic whitespace-pre-wrap break-words">
+                    Suggested: {iss.suggestion}
+                  </div>
+                )}
+              </label>
+            </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }

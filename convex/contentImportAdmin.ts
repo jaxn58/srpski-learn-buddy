@@ -496,13 +496,10 @@ export const internalImportUnitPackage = internalMutation({
           unitNumber: fixed.unitNumber,
           serbian: entry.serbian,
           serbianNormalized: String(entry.serbian || "").toLowerCase().trim(),
-          translations: [
-            { language: "en", translation: entry.en, alt: entry.enAlt || undefined },
-          ],
+          translations: [{ language: "en", translation: entry.en }],
           gender: entry.gender || undefined,
           noteEn: entry.noteEn || undefined,
           en: entry.en,
-          enAlt: entry.enAlt || undefined,
           isActive: true,
           archivedAt: undefined,
           unitVersion: targetUnitVersion,
@@ -530,7 +527,6 @@ export const internalImportUnitPackage = internalMutation({
         {
           language: "en",
           translation: entry.en,
-          alt: entry.enAlt || undefined,
         },
       ];
 
@@ -542,7 +538,6 @@ export const internalImportUnitPackage = internalMutation({
         gender: entry.gender || undefined,
         noteEn: entry.noteEn || undefined,
         en: entry.en,
-        enAlt: entry.enAlt || undefined,
       };
 
       if (existing) {

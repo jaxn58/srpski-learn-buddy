@@ -1091,15 +1091,14 @@ export const internalPublishUnitPackageToPreview = mutation({
         .collect();
 
       // Preserve DE translations from active preview rows before archiving them.
-      const deTranslationMap = new Map<string, { de?: string; deAlt?: string; noteDe?: string }>();
+      const deTranslationMap = new Map<string, { de?: string; noteDe?: string }>();
       for (const vdoc of existing as any[]) {
         if (vdoc.isActive === false) continue;
         if (vdoc.releaseStatus !== "preview") continue;
         const key = String(vdoc.serbian || "").toLowerCase().trim();
-        if (key && (vdoc.de || vdoc.deAlt || vdoc.noteDe)) {
+        if (key && (vdoc.de || vdoc.noteDe)) {
           deTranslationMap.set(key, {
             de: vdoc.de,
-            deAlt: vdoc.deAlt,
             noteDe: vdoc.noteDe,
           });
         }
@@ -1128,12 +1127,10 @@ export const internalPublishUnitPackageToPreview = mutation({
           serbian: entry.serbian,
           serbianNormalized: serbKey,
           en: entry.en,
-          enAlt: entry.enAlt || undefined,
-          translations: [{ language: "en", translation: entry.en, alt: entry.enAlt || undefined }],
+          translations: [{ language: "en", translation: entry.en }],
           gender: entry.gender || undefined,
           noteEn: entry.noteEn || undefined,
           ...(prevDe?.de ? { de: prevDe.de } : {}),
-          ...(prevDe?.deAlt ? { deAlt: prevDe.deAlt } : {}),
           ...(prevDe?.noteDe ? { noteDe: prevDe.noteDe } : {}),
           isActive: true,
           archivedAt: undefined,
@@ -1327,7 +1324,6 @@ export const upsertPublishedUnitGermanTranslation = mutation({
       v.object({
         courseVocabularyId: v.id("courseVocabulary"),
         de: v.optional(v.string()),
-        deAlt: v.optional(v.string()),
         noteDe: v.optional(v.string()),
       })
     ),
@@ -1465,7 +1461,6 @@ export const upsertPublishedUnitGermanTranslation = mutation({
 
       const patch: any = {};
       if (typeof vrow.de === "string") patch.de = vrow.de;
-      if (typeof vrow.deAlt === "string") patch.deAlt = vrow.deAlt;
       if (typeof vrow.noteDe === "string") patch.noteDe = vrow.noteDe;
       if (Object.keys(patch).length === 0) continue;
 
@@ -1534,7 +1529,6 @@ export const upsertUnitGermanTranslationToPreview = mutation({
       v.object({
         courseVocabularyId: v.id("courseVocabulary"),
         de: v.optional(v.string()),
-        deAlt: v.optional(v.string()),
         noteDe: v.optional(v.string()),
       })
     ),
@@ -1651,7 +1645,6 @@ export const upsertUnitGermanTranslationToPreview = mutation({
 
       const dePatch: any = {};
       if (typeof vrow.de === "string" && String(vrow.de).trim()) dePatch.de = String(vrow.de).trim();
-      if (typeof vrow.deAlt === "string" && String(vrow.deAlt).trim()) dePatch.deAlt = String(vrow.deAlt).trim();
       if (typeof vrow.noteDe === "string" && String(vrow.noteDe).trim()) dePatch.noteDe = String(vrow.noteDe).trim();
 
       if (src.releaseStatus === "preview") {
@@ -1668,7 +1661,6 @@ export const upsertUnitGermanTranslationToPreview = mutation({
             ? src.serbianNormalized
             : String(src.serbian ?? "").toLowerCase().trim(),
           en: typeof src.en === "string" ? src.en : undefined,
-          enAlt: typeof src.enAlt === "string" ? src.enAlt : undefined,
           translations: Array.isArray(src.translations) ? src.translations : undefined,
           gender: typeof src.gender === "string" ? src.gender : undefined,
           pronunciation: typeof src.pronunciation === "string" ? src.pronunciation : undefined,
@@ -1820,7 +1812,6 @@ export const promoteLanguagePreviewToPublished = mutation({
           // Merge DE fields into the published row.
           const patch: any = {};
           if (typeof prev.de === "string" && String(prev.de).trim()) patch.de = prev.de;
-          if (typeof prev.deAlt === "string" && String(prev.deAlt).trim()) patch.deAlt = prev.deAlt;
           if (typeof prev.noteDe === "string" && String(prev.noteDe).trim()) patch.noteDe = prev.noteDe;
           if (Object.keys(patch).length > 0) {
             await ctx.db.patch(pubRow._id, patch);
