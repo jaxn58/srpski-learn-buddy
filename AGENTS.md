@@ -232,10 +232,10 @@ GEMINI_API_KEY=<development-key>
 ADMIN_SECRET=<production-secret>
 RESEND_API_KEY=re_...
 
-# ❌ FALSCH:
-GEMINI_API_KEY=AIzaSyAbVkoPs_cGO7ZGsitBFihF5uejPT4bCzw
-ADMIN_SECRET=kcVXfLiuzmAJZGhOydRITBgYMUbe9wqr
-RESEND_API_KEY=re_UwZ5RfBp_H7xV6RqKyk3AYzZaW7VoXPEC
+# ❌ FALSCH (NIE so in Git-getrackte Dateien schreiben - echte Keys gehoeren ausschliesslich in .env.local / Convex Dashboard / Vercel Env):
+GEMINI_API_KEY=AIzaSy<NEVER-PUT-A-REAL-KEY-HERE>
+ADMIN_SECRET=<NEVER-PUT-A-REAL-SECRET-HERE>
+RESEND_API_KEY=re_<NEVER-PUT-A-REAL-KEY-HERE>
 ```
 
 **Vor jedem Schreiben in Dateien prüfen:**
