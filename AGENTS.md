@@ -40,15 +40,17 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 
 ### KI-Prompting & Inhalts-Strategie
 - **System-Prompts (Instruktionen) sind ENGLISCH**: Alle technischen Anweisungen an die KI (z.B. im Admin-Bereich oder Content Studio) werden auf Englisch verfasst. Dies garantiert die höchste Präzision der KI-Modelle.
-- **English-First Content Workflow**: Im Content Studio werden neue Lerneinheiten (Units) grundsätzlich zuerst auf Englisch generiert. Erst nach der Fertigstellung der englischen Basisversion erfolgt die Lokalisierung (z.B. Übersetzung ins Deutsche). Dies sichert Konsistenz und Qualität über alle Sprachen hinweg.
+- **English-First Content Workflow**: Im Content Studio werden neue Lerneinheiten (Units) grundsätzlich zuerst auf Englisch generiert. Nach Freigabe der englischen Basisversion erfolgt die Übersetzung ins Deutsche als zweite, gleichwertige Zielsprache. Beide Sprachen (EN und DE) werden als Learner-Tracks ausgeliefert.
 - **Ausgabesprache steuern**: Die Zielsprache der KI-Antworten (z.B. "Erkläre auf Deutsch") wird innerhalb der englischen Instruktionen als Parameter oder spezifische Anweisung übergeben.
 
 ## Architektur & Datenbank
 
 ### Mehrsprachigkeit
-- Beim Erstellen von Datenbanken oder Strukturen gilt immer darauf zu achten, dass hier eine **Mehrsprachigkeit integrierbar, leicht integrierbar** sein soll.
-- Vorerst benutzen wir aber nur **Englisch**.
-- Bis zu dem Zeitpunkt, wo die App multi-language fähig gemacht wird, oder sobald sie freigeschaltet ist als multi-language App, sollen **alle Inhalte Englisch sein**. Darauf ist zu achten.
+- Die App ist **aktiv zweisprachig**: aktuell unterstuetzte Learner-Tracks sind **Englisch-Serbisch** und **Deutsch-Serbisch**. Beide Sprachen werden als vollwertige, parallele Zielsprachen behandelt.
+- **Inhalte muessen in beiden Sprachen gepflegt sein** (EN und DE). Das gilt fuer Vokabeln (`en`, `de`, `noteEn`, `noteDe`), Unit-Metadaten, Unit-Content, Interactive Tests und alle User-sichtbaren Texte.
+- Content-Workflow: EN wird als Basis zuerst generiert (siehe "English-First Content Workflow"), anschliessend wird in den DE-Track uebersetzt. Beide werden publiziert.
+- Beim Erstellen neuer Tabellen oder Strukturen ist Mehrsprachigkeit weiterhin mitzudenken (weitere Sprachen wie `sr`, `es`, `fr` sind im Schema bereits vorgesehen - siehe `courseVocabulary`), auch wenn aktuell nur EN und DE aktiv ausgeliefert werden.
+- **UI-Konsistenz**: Innerhalb eines Learner-Tracks muss dieselbe Zielsprache konsistent in allen Ansichten angezeigt werden (Wort-Karten, Tabelle, Unit-Detail, Quiz etc.). Mischung von EN- und DE-Uebersetzungen in parallelen Ansichten desselben Tracks ist ein Bug.
 
 ### Schema-Design & Konsistenz
 - **IMMER zuerst bestehende Tabellen und Patterns analysieren**, bevor neue Tabellen erstellt werden
@@ -252,7 +254,7 @@ RESEND_API_KEY=re_UwZ5RfBp_H7xV6RqKyk3AYzZaW7VoXPEC
 - ❌ Keine Quick & Dirty Lösungen
 - ❌ Keine Emojis im Agent Fenster
 - ❌ Keine hardcoded Inhalte - alles dynamisch aus der Datenbank
-- ❌ Keine deutschen Inhalte (bis Multi-Language aktiviert ist)
+- ❌ Keine Mischung von EN- und DE-Inhalten in derselben Ansicht desselben Learner-Tracks (Learner waehlt EN oder DE, UI muss dann durchgaengig in dieser Sprache bleiben)
 - ❌ **NIEMALS Frontend vor Convex Functions deployen** - Immer zuerst `npx convex deploy -y`, dann `vercel --prod`
 - ❌ **NIEMALS direkt auf Production entwickeln** - Immer erst lokal auf Dev testen
 - ❌ **NIEMALS Production-Datenbank für Tests verwenden**
