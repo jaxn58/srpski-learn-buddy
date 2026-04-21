@@ -9,3 +9,4 @@ export * from "./contentStudio/_validator";
 export * from "./contentStudio/_auditor";
 export * from "./contentStudio/_sectionRevise";
 export * from "./contentStudio/_publisher";
+export * from "./contentStudio/_vocabularyCleanup";

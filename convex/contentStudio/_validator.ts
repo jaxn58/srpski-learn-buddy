@@ -95,7 +95,47 @@ export const runQcValidate = action({
     }
 
     const deepIssues = validateUnitPackageDeep(ensuredWithVocab as any);
-    const templateIssuesBase = validateUnitPackageTemplateRules(ensuredWithVocab as any);
+    const templateIssuesBaseRaw = validateUnitPackageTemplateRules(ensuredWithVocab as any);
+
+    // Self-consistency safety net: filter out template findings whose path lies
+    // inside an autofix change path. Such findings would produce a Fix-Findings
+    // endless loop because the autofix deterministically re-creates the forbidden
+    // state. The canonical answer is to either (a) extend the canonicalization
+    // registry in autofix.ts, or (b) relax the template rule. Until then, we
+    // log these as internal bugs and do NOT show them in the user-facing UI.
+    const autofixTouchedPaths = new Set<string>(
+      changes
+        .filter((c) => Array.isArray(c.path))
+        .map((c) => (c.path as Array<string | number>).join("."))
+    );
+    const isPathCoveredByAutofix = (issuePath: Array<string | number> | undefined): boolean => {
+      if (!issuePath || issuePath.length === 0) return false;
+      const joined = issuePath.join(".");
+      for (const touched of autofixTouchedPaths) {
+        if (!touched) continue;
+        if (joined === touched) return true;
+        if (joined.startsWith(touched + ".")) return true;
+        if (touched.startsWith(joined + ".")) return true;
+      }
+      return false;
+    };
+    const templateIssuesBase: ValidationIssue[] = [];
+    const suppressedTemplateIssues: ValidationIssue[] = [];
+    for (const issue of templateIssuesBaseRaw) {
+      if (isPathCoveredByAutofix(issue.path)) {
+        suppressedTemplateIssues.push(issue);
+      } else {
+        templateIssuesBase.push(issue);
+      }
+    }
+    if (suppressedTemplateIssues.length > 0) {
+      console.warn(
+        "[Validator] Suppressed template findings on autofix-touched paths (internal bug - extend autofix canonicalization registry):",
+        suppressedTemplateIssues.map(
+          (i) => `${(i.path || []).join(".")}: ${i.message}`
+        )
+      );
+    }
 
     // Content Studio continuity rules (hard gate):
     // - Unit vocabulary must not include already-taught words
@@ -222,6 +262,22 @@ export const runQcValidate = action({
         severity: "info",
         code: "review_vocab_used",
         message: `'${dup.serbian}' is already taught (first seen in Unit ${dup.firstUnit}). It's fine to use for review, but do NOT list it as new vocabulary.`,
+        path: "exercises.en",
+      });
+    }
+
+    // Non-blocking informational findings about proper nouns (personal names)
+    // that were skipped so they don't end up as vocabulary entries.
+    for (const skipped of (vocabSync.skippedProperNouns ?? []).slice(0, 30)) {
+      const reasonText =
+        skipped.reason === "case_heuristic"
+          ? "capitalization pattern suggests a personal name"
+          : "AI classifier marked it as a personal name";
+      findings.push({
+        stage: "validator",
+        severity: "info",
+        code: "skipped_proper_noun",
+        message: `Skipped '${skipped.serbian}' — ${reasonText}. Not added to vocabulary.`,
         path: "exercises.en",
       });
     }

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 // AlertDialog imports removed — actions use inline confirm inputs
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { VocabularyCleanupPanel } from "@/components/admin/VocabularyCleanupPanel";
 import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle, Languages, ChevronDown, ChevronRight } from "lucide-react";
 import {
   Accordion,
@@ -643,6 +644,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
 
   return (
     <div className="space-y-4">
+      {/* Vocabulary cleanup (collapsible panel for removing wrongly auto-inserted entries) */}
+      <VocabularyCleanupPanel />
+
       {/* Filters row */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative">
@@ -878,7 +882,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
           setRetryHistory([]);
         }
       }}>
-        <DialogContent className="w-[95vw] max-w-[1100px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[1100px] sm:max-w-[1100px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Translate SR → DE — Unit {selectedUnit}

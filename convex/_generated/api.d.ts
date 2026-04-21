@@ -28,6 +28,7 @@ import type * as contentStudio__translationCore from "../contentStudio/_translat
 import type * as contentStudio__validator from "../contentStudio/_validator.js";
 import type * as contentStudio__validatorHelpers from "../contentStudio/_validatorHelpers.js";
 import type * as contentStudio__verifier from "../contentStudio/_verifier.js";
+import type * as contentStudio__vocabularyCleanup from "../contentStudio/_vocabularyCleanup.js";
 import type * as contentStudio_prompts from "../contentStudio/prompts.js";
 import type * as crons from "../crons.js";
 import type * as dashboardAnnouncements from "../dashboardAnnouncements.js";
@@ -88,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   "contentStudio/_validator": typeof contentStudio__validator;
   "contentStudio/_validatorHelpers": typeof contentStudio__validatorHelpers;
   "contentStudio/_verifier": typeof contentStudio__verifier;
+  "contentStudio/_vocabularyCleanup": typeof contentStudio__vocabularyCleanup;
   "contentStudio/prompts": typeof contentStudio_prompts;
   crons: typeof crons;
   dashboardAnnouncements: typeof dashboardAnnouncements;

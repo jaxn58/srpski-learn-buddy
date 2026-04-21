@@ -11,12 +11,115 @@ export type AutoFixChange = {
     | "mergeExerciseCategories"
     | "normalizeChoiceOption"
     | "normalizeCorrectAnswer"
-    | "fixMatchingBlank";
+    | "fixMatchingBlank"
+    | "canonicalizeNoteKey";
   path: Array<string | number>;
   before: unknown;
   after: unknown;
   note?: string;
 };
+
+/**
+ * Registry of non-canonical Note-key prefixes that must be rewritten to their
+ * canonical form before the template validator runs.
+ *
+ * Background: The template validator in scripts/unitPackage/templateRules.ts
+ * forbids certain informal prefixes in `noteEn` (e.g. "Also:") and requires the
+ * structured variants (e.g. "AlsoMeaning:"). At the same time, several
+ * upstream producers (parser, AI, legacy autofix passes) may emit the informal
+ * form. To prevent a Fix-Findings endless loop (user clicks "Fix Findings"
+ * but the autofix/validator cycle re-creates the same forbidden state), this
+ * registry canonicalizes known patterns deterministically.
+ *
+ * Extend this list whenever a new informal pattern is discovered. No other
+ * code changes are required - the canonicalization pass picks it up
+ * automatically.
+ *
+ * IMPORTANT: patterns must use `g` and `i` flags and match on a safe boundary
+ * (line start, newline, or `;` separator) to avoid rewriting text that happens
+ * to contain the substring elsewhere.
+ */
+const NOTE_KEY_CANONICALIZATIONS: Array<{
+  pattern: RegExp;
+  canonical: string;
+  label: string;
+}> = [
+  {
+    pattern: /(^|\n|;\s*)Also:\s*/gi,
+    canonical: "$1AlsoMeaning: ",
+    label: "Also: -> AlsoMeaning:",
+  },
+  {
+    pattern: /(^|\n|;\s*)Alt:\s*/gi,
+    canonical: "$1AlsoMeaning: ",
+    label: "Alt: -> AlsoMeaning:",
+  },
+  {
+    pattern: /(^|\n|;\s*)Alternative:\s*/gi,
+    canonical: "$1AlsoMeaning: ",
+    label: "Alternative: -> AlsoMeaning:",
+  },
+];
+
+/**
+ * Rewrite a single noteEn string using the canonicalization registry.
+ * Returns both the rewritten string and the labels of applied rules (for AutoFixChange).
+ */
+function canonicalizeNoteKeysInText(input: string): {
+  text: string;
+  appliedLabels: string[];
+} {
+  let text = String(input ?? "");
+  const appliedLabels: string[] = [];
+  for (const rule of NOTE_KEY_CANONICALIZATIONS) {
+    rule.pattern.lastIndex = 0;
+    if (rule.pattern.test(text)) {
+      rule.pattern.lastIndex = 0;
+      text = text.replace(rule.pattern, rule.canonical);
+      appliedLabels.push(rule.label);
+    }
+  }
+  return { text, appliedLabels };
+}
+
+/**
+ * Walk every vocabulary[lang][i].noteEn and apply canonicalization.
+ * Mutates `pkg.vocabulary` in place (or replaces the entries) and records
+ * each rewrite in `changes` so the caller (and UI) can show what happened.
+ */
+function canonicalizeVocabularyNotes(
+  pkg: UnitPackage,
+  changes: AutoFixChange[]
+): UnitPackage {
+  const nextVocab: UnitPackage["vocabulary"] = { ...pkg.vocabulary };
+  for (const lang of Object.keys(nextVocab)) {
+    const list = nextVocab[lang] ?? [];
+    const rewritten: UnitPackageVocabularyEntry[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const entry = list[i];
+      const rawNote = typeof entry.noteEn === "string" ? entry.noteEn : "";
+      if (!rawNote) {
+        rewritten.push(entry);
+        continue;
+      }
+      const { text: after, appliedLabels } = canonicalizeNoteKeysInText(rawNote);
+      if (appliedLabels.length && after !== rawNote) {
+        changes.push({
+          kind: "canonicalizeNoteKey",
+          path: ["vocabulary", lang, i, "noteEn"],
+          before: rawNote,
+          after,
+          note: `Canonicalized note keys: ${appliedLabels.join("; ")}`,
+        });
+        rewritten.push({ ...entry, noteEn: after });
+      } else {
+        rewritten.push(entry);
+      }
+    }
+    nextVocab[lang] = rewritten;
+  }
+  return { ...pkg, vocabulary: nextVocab };
+}
 
 const PUNCTUATION_DETECT_REGEX = /[.?!,:;]/;
 const PUNCTUATION_REPLACE_REGEX = /[.?!,:;]/g;
@@ -265,7 +368,7 @@ function collapseEnglishSlashAlternatives(
   const primary = parts[0];
   const extras = parts.slice(1).filter((p) => p && p !== primary);
   if (extras.length === 0) return { ...entry, en: primary };
-  const noteAddition = `Also: ${extras.join(", ")}`;
+  const noteAddition = `AlsoMeaning: ${extras.join(", ")}`;
   return {
     ...entry,
     en: primary,
@@ -329,10 +432,15 @@ export function autofixUnitPackage(pkg: UnitPackage): {
 } {
   const changes: AutoFixChange[] = [];
 
+  // 0) Pre-pass: canonicalize noteEn keys BEFORE any other transformation,
+  // so legacy inputs from Markdown/Parser are already in canonical form
+  // when the vocabulary merge/split passes run below.
+  const preCanonical = canonicalizeVocabularyNotes(pkg, changes);
+
   // 1) Vocabulary: split, gender, sanitize, english alt split
-  const vocabFixed: UnitPackage["vocabulary"] = { ...pkg.vocabulary };
-  for (const lang of pkg.languages) {
-    const list = pkg.vocabulary[lang] ?? [];
+  const vocabFixed: UnitPackage["vocabulary"] = { ...preCanonical.vocabulary };
+  for (const lang of preCanonical.languages) {
+    const list = preCanonical.vocabulary[lang] ?? [];
     const newList: UnitPackageVocabularyEntry[] = [];
 
     for (let i = 0; i < list.length; i++) {
@@ -546,12 +654,20 @@ export function autofixUnitPackage(pkg: UnitPackage): {
     exercisesFixed[lang] = fixedCats;
   }
 
+  // Final post-pass: canonicalize noteEn one more time, so anything produced
+  // by the intermediate transformations (e.g. collapseEnglishSlashAlternatives,
+  // mergeDuplicateVocabulary) is also in canonical form before the validator
+  // runs. Keeps the invariant: no template-rule violation on a path that the
+  // autofix touched.
+  const interim: UnitPackage = {
+    ...pkg,
+    vocabulary: vocabFixed,
+    exercises: exercisesFixed,
+  };
+  const finalCanonical = canonicalizeVocabularyNotes(interim, changes);
+
   return {
-    fixed: {
-      ...pkg,
-      vocabulary: vocabFixed,
-      exercises: exercisesFixed,
-    },
+    fixed: finalCanonical,
     changes,
   };
 }

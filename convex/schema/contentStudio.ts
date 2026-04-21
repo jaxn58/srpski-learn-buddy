@@ -240,6 +240,10 @@ export const contentStudioTables = {
     path: v.optional(v.string()), // dot-joined path (keeps schema simple)
     detailsJson: v.optional(v.string()),
     dismissed: v.optional(v.boolean()), // user-acknowledged: excluded from Fix prompt and status counts
+    // How many consecutive validator runs this exact finding (by fingerprint stage|code|path)
+    // has survived across replaceFindings cycles. 0 = first time seen after last clean run,
+    // >=2 = persists after at least one Fix-Findings attempt (likely not AI-fixable).
+    persistCount: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_draft", ["draftId"])

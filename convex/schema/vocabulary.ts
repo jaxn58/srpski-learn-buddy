@@ -82,6 +82,25 @@ export const vocabularyTables = {
     .index("by_unit_active_version", ["unitNumber", "isActive", "unitVersion"])
     .index("by_unit_release_active_version", ["unitNumber", "releaseStatus", "isActive", "unitVersion"]),
 
+  // ============= PROPER-NOUN ALLOWLIST =============
+  // Admin-maintained list of Serbian tokens that are explicitly confirmed to be
+  // REGULAR VOCABULARY (not proper nouns / personal names). Used to override the
+  // name heuristic (`looksLikePersonalNameByContext`) and the AI classifier's
+  // `proper_noun` decision in `syncVocabularyCoverageFromExercises`, so the
+  // same false positive (e.g. "ćao") never gets filtered again.
+  //
+  // Key: `serbianNormalized` is the lowercased, punctuation-stripped form
+  // produced by `normalizeSerbianKey` so lookups are stable regardless of
+  // capitalization/punctuation in the source text.
+  vocabularyProperNounAllowlist: defineTable({
+    serbianNormalized: v.string(),
+    serbianOriginal: v.string(),
+    confirmedBy: v.id("users"),
+    confirmedAt: v.number(),
+    source: v.string(), // e.g. "cleanup_panel"
+    note: v.optional(v.string()),
+  }).index("by_serbian_normalized", ["serbianNormalized"]),
+
   // ============= QUIZ PROGRESS =============
   quizProgress: defineTable({
     userId: v.id("users"),

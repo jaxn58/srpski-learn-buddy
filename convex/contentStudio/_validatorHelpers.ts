@@ -1,5 +1,5 @@
 import { ActionCtx } from "../_generated/server";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { callAiText, truncateForAudit } from "./_shared";
 
 export const REQUIRED_TEMPLATE_EXERCISE_CATEGORIES: Array<{
@@ -422,6 +422,145 @@ function tokenizeSerbianText(text: string): string[] {
     .filter(w => w.length >= 2 && !COMMON_SERBIAN_FUNCTION_WORDS.has(w));
 }
 
+/**
+ * Collects ORIGINAL-CASE Serbian text samples from exercises (answers/options)
+ * and from the Serbian column of content markdown tables.
+ *
+ * Unlike `collectSerbianCandidatesFromExercises` / `collectSerbianCandidatesFromContent`,
+ * this returns the raw sentences with preserved case, so downstream heuristics can
+ * detect proper nouns based on mid-sentence capitalization.
+ */
+export function collectOriginalSerbianTextSamples(pkg: any): string[] {
+  const out: string[] = [];
+
+  // Exercises: answers + options (same shape as collectSerbianCandidatesFromExercises, but we also
+  // keep multi-word and translation answers because they help detect proper-noun context).
+  const cats: any[] = Array.isArray(pkg?.exercises?.en) ? pkg.exercises.en : [];
+  for (const c of cats) {
+    const qs: any[] = Array.isArray(c?.questions) ? c.questions : [];
+    for (const q of qs) {
+      const ans = String(q?.correctAnswer || "").trim();
+      if (ans) out.push(ans);
+      if (Array.isArray(q?.options)) {
+        for (const opt of q.options) {
+          const s = String(opt || "").trim();
+          if (s) out.push(s);
+        }
+      }
+      // Hints and question text can contain the name in-context, too.
+      const hint = String(q?.hint || "").trim();
+      if (hint) out.push(hint);
+      const qt = String(q?.question || "").trim();
+      if (qt) out.push(qt);
+    }
+  }
+
+  // Content markdown: Serbian column of tables.
+  const content = pkg?.content?.en;
+  if (content) {
+    const mdParts = [
+      String(content.dialoguesMd || ""),
+      String(content.phrasesMd || ""),
+    ];
+    for (const md of mdParts) {
+      if (!md.trim()) continue;
+      const serbianTexts = extractSerbianColumnFromMdTables(md);
+      for (const text of serbianTexts) {
+        if (text && text.trim()) out.push(text.trim());
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Heuristic: Checks whether a candidate lemma is most likely a personal/proper noun
+ * based on its case pattern in the original text samples.
+ *
+ * Logic:
+ *  - We look at every occurrence of the word (case-insensitive) in the original samples.
+ *  - If the word appears CAPITALIZED mid-sentence (i.e. not as the first token of a
+ *    sentence / sample and not after ".", "!", "?"), it is almost certainly a proper noun.
+ *  - If the word appears ONLY capitalized (even when counting sentence-initial
+ *    positions — where capitalization is ambiguous because every sentence-initial word
+ *    is capitalized in Serbian too), and never lowercase, we treat it as a
+ *    "suspected proper noun" and return true as well. This catches single-word
+ *    answers like "Elena" where the word is always at position 0.
+ *  - Otherwise (mixed case, or only-lowercase) we return false and let downstream
+ *    logic (dictionary lookup + AI classifier) decide.
+ *
+ * This runs BEFORE the AI classifier, so it saves an API call for obvious cases
+ * and protects against the classifier mis-labeling a name as a regular Serbian word.
+ */
+export function looksLikePersonalNameByContext(lemma: string, samples: string[]): boolean {
+  const target = String(lemma || "").trim().toLowerCase();
+  if (!target || target.length < 2) return false;
+
+  // Word-boundary regex, case-insensitive, used to find every occurrence.
+  // Escape any regex metacharacters in the lemma (defensive — should be pure letters).
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const wordRe = new RegExp(`(^|[^\\p{L}])(${escaped})(?=$|[^\\p{L}])`, "giu");
+
+  let sawLowercase = false;
+  let sawCapitalMidSentence = false;
+  let sawAnyOccurrence = false;
+
+  for (const raw of samples) {
+    const sample = String(raw || "");
+    if (!sample) continue;
+
+    // Reset regex state for each sample.
+    wordRe.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = wordRe.exec(sample)) !== null) {
+      sawAnyOccurrence = true;
+      const prefix = match[1] || "";
+      const matchedWord = match[2] || "";
+      const firstChar = matchedWord.charAt(0);
+
+      // Lowercase occurrence? → definitely NOT a proper noun.
+      if (firstChar === firstChar.toLowerCase() && firstChar !== firstChar.toUpperCase()) {
+        sawLowercase = true;
+        continue;
+      }
+
+      // Capitalized occurrence — is it at the start of a sentence?
+      // Sentence-initial means: prefix is empty (match at index 0), or prefix is
+      // a sentence-ending punctuation/newline followed by optional whitespace.
+      const charsBeforeStart = sample.slice(0, Math.max(0, match.index));
+      const trimmedBefore = charsBeforeStart.replace(/\s+$/u, "");
+      const lastCharBefore = trimmedBefore.slice(-1);
+      const isSentenceInitial =
+        trimmedBefore.length === 0 ||
+        lastCharBefore === "." ||
+        lastCharBefore === "!" ||
+        lastCharBefore === "?" ||
+        lastCharBefore === "\n" ||
+        // Table cell boundary (dialogues/phrases markdown) also counts as sentence start.
+        lastCharBefore === "|";
+
+      if (!isSentenceInitial) {
+        sawCapitalMidSentence = true;
+      }
+    }
+  }
+
+  // No occurrences at all → heuristic cannot decide.
+  if (!sawAnyOccurrence) return false;
+
+  // Strong signal: capitalized mid-sentence at least once.
+  if (sawCapitalMidSentence) return true;
+
+  // Weaker signal: never seen lowercase anywhere. In Serbian, regular vocabulary
+  // appears lowercase somewhere (in tables, hints, options). A word that is
+  // ALWAYS capitalized is most likely a proper noun — but only treat as such if
+  // there is no lowercase evidence at all.
+  if (!sawLowercase) return true;
+
+  return false;
+}
+
 export function isTaughtEarlier(entry: any, currentUnitNumber: number): boolean {
   const unitNumber = Number(entry?.unitNumber);
   if (!Number.isFinite(unitNumber)) return false;
@@ -439,7 +578,10 @@ export function isTaughtEarlier(entry: any, currentUnitNumber: number): boolean 
  * and provides English translation for Serbian words.
  * Returns a Map of word -> { isSerbian: boolean, translation?: string }
  */
-export async function classifyAndTranslateWords(ctx: ActionCtx, words: string[]): Promise<Map<string, { isSerbian: boolean; translation?: string }>> {
+export async function classifyAndTranslateWords(
+  ctx: ActionCtx,
+  words: string[],
+): Promise<Map<string, { isSerbian: boolean; translation?: string; isProperNoun?: boolean }>> {
   const cleanWords = words
     .map(w => String(w || "").trim())
     .filter(w => w.length > 0);
@@ -448,15 +590,25 @@ export async function classifyAndTranslateWords(ctx: ActionCtx, words: string[])
 
   const system = [
     `You are a language classifier and Serbian-English translator.`,
-    `For each word, determine if it's Serbian or English/other.`,
+    `For each word, classify it into one of three categories.`,
     ``,
-    `Return a JSON object where each key is a word and the value is:`,
-    `- For Serbian words: { "lang": "sr", "en": "<English translation>" }`,
-    `- For English/grammar terms/other languages: { "lang": "en" }`,
+    `Return a JSON object where each key is a word and the value is ONE of:`,
+    `- Serbian vocabulary word: { "lang": "sr", "en": "<English translation>" }`,
+    `- English / grammar term / other language: { "lang": "en" }`,
+    `- Personal name of a human (first name, given name, nickname): { "lang": "proper_noun" }`,
+    ``,
+    `IMPORTANT — proper_noun scope:`,
+    `- Use "proper_noun" ONLY for names of PEOPLE (Elena, Marko, Ana, Milan, Jovana, Petar, Ivana, ...).`,
+    `- Do NOT use "proper_noun" for city/country/place names, product/brand names, or foods — classify those as "sr" with a translation if they are used as regular Serbian nouns (e.g. "Beograd" → { "lang": "sr", "en": "Belgrade" }).`,
+    `- If a word could be both a regular noun and a rare given name, prefer "sr" unless it is clearly being used as a personal name.`,
     ``,
     `Examples:`,
     `- "moga" → { "lang": "sr", "en": "I can" }`,
     `- "kupatilo" → { "lang": "sr", "en": "bathroom" }`,
+    `- "Beograd" → { "lang": "sr", "en": "Belgrade" }`,
+    `- "Elena" → { "lang": "proper_noun" }`,
+    `- "Marko" → { "lang": "proper_noun" }`,
+    `- "Ana" → { "lang": "proper_noun" }`,
     `- "locative" → { "lang": "en" } (English grammar term)`,
     `- "plural" → { "lang": "en" } (English grammar term)`,
     `- "nominative" → { "lang": "en" } (English grammar term)`,
@@ -474,8 +626,8 @@ export async function classifyAndTranslateWords(ctx: ActionCtx, words: string[])
     maxTokens: 2000,
   });
 
-  const result = new Map<string, { isSerbian: boolean; translation?: string }>();
-  
+  const result = new Map<string, { isSerbian: boolean; translation?: string; isProperNoun?: boolean }>();
+
   try {
     const cleanedRaw = String(raw || "")
       .replace(/^```json\s*/i, "")
@@ -487,8 +639,11 @@ export async function classifyAndTranslateWords(ctx: ActionCtx, words: string[])
     if (parsed && typeof parsed === "object") {
       for (const [word, info] of Object.entries(parsed)) {
         const data = info as any;
-        if (data?.lang === "sr" && data?.en) {
+        const lang = String(data?.lang || "").toLowerCase();
+        if (lang === "sr" && data?.en) {
           result.set(word.toLowerCase(), { isSerbian: true, translation: String(data.en).trim() });
+        } else if (lang === "proper_noun") {
+          result.set(word.toLowerCase(), { isSerbian: false, isProperNoun: true });
         } else {
           result.set(word.toLowerCase(), { isSerbian: false });
         }
@@ -506,6 +661,7 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
   added: Array<{ serbian: string; en: string; fromUnit?: number }>;
   unresolvedNew: string[];
   alreadyTaughtUsed: Array<{ serbian: string; firstUnit: number; currentUnit: number }>;
+  skippedProperNouns: Array<{ serbian: string; reason: "case_heuristic" | "ai_classifier" }>;
 }> {
   const out = pkg && typeof pkg === "object" ? { ...pkg } : {};
   if (!out.vocabulary || typeof out.vocabulary !== "object") out.vocabulary = {};
@@ -514,6 +670,27 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
   const vocabEn: any[] = out.vocabulary.en;
   const existing = new Set(vocabEn.map((v: any) => normalizeSerbianKey(v?.serbian)));
   const existingKeys = Array.from(existing.values());
+
+  // Pre-collect original-case text samples so we can detect proper nouns
+  // BEFORE spending an AI classifier call on them.
+  const originalTextSamples = collectOriginalSerbianTextSamples(out);
+  const skippedProperNouns: Array<{ serbian: string; reason: "case_heuristic" | "ai_classifier" }> = [];
+
+  // Load the admin-maintained "not-a-name" allowlist once. These tokens
+  // override both the case heuristic and the AI classifier's proper-noun
+  // decision so false positives (e.g. "ćao") stay admitted as vocabulary.
+  let allowlistSet = new Set<string>();
+  try {
+    const allowlistKeys = await ctx.runQuery(
+      internal.contentStudio.getAllowlistKeysInternal,
+      {}
+    );
+    if (Array.isArray(allowlistKeys)) {
+      allowlistSet = new Set<string>(allowlistKeys);
+    }
+  } catch (err) {
+    console.warn("Proper-noun allowlist fetch failed, continuing without:", err);
+  }
 
   const isLikelyInflectedFormOfUnitVocab = (candidate: string): string | null => {
     const key = normalizeSerbianKey(candidate);
@@ -567,6 +744,23 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     // Ignore very short tokens. (We allow 2-letter words like "od/sa".)
     if (key.length < 2) continue;
 
+    // Case heuristic: if the word appears capitalized mid-sentence (or is ALWAYS
+    // capitalized and never lowercase) in the original text, it is almost
+    // certainly a personal name. Skip it so we don't pollute vocabulary.
+    // Runs before the AI classifier to save tokens and avoid mis-classification.
+    //
+    // Exception: admin-confirmed allowlist entries override the heuristic so
+    // the same false positives don't reappear after a cleanup review.
+    if (
+      !allowlistSet.has(key) &&
+      looksLikePersonalNameByContext(key, originalTextSamples)
+    ) {
+      if (!skippedProperNouns.some((p) => normalizeSerbianKey(p.serbian) === key)) {
+        skippedProperNouns.push({ serbian: key, reason: "case_heuristic" });
+      }
+      continue;
+    }
+
     // If it's likely an inflected form of an existing unit vocab word, don't block or auto-add.
     if (isLikelyInflectedFormOfUnitVocab(key)) continue;
 
@@ -617,7 +811,10 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     .filter(c => c.needsAiTranslation)
     .map(c => c.lemma);
 
-  let classificationResults = new Map<string, { isSerbian: boolean; translation?: string }>();
+  let classificationResults = new Map<
+    string,
+    { isSerbian: boolean; translation?: string; isProperNoun?: boolean }
+  >();
   if (wordsNeedingClassification.length > 0) {
     try {
       classificationResults = await classifyAndTranslateWords(ctx, wordsNeedingClassification);
@@ -628,20 +825,35 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     }
   }
 
-  // Phase 3: Process all candidates with translations (skip English words)
+  // Phase 3: Process all candidates with translations (skip English words + proper nouns)
   for (const candidate of candidatesToProcess) {
     let en = candidate.fallbackEn;
 
     // If no fallback, use classification result
     if (!en) {
       const classification = classificationResults.get(candidate.lemma.toLowerCase());
-      
+
+      // Skip proper nouns (personal names) explicitly so we can report them.
+      // Allowlist takes precedence: if an admin confirmed a word is regular
+      // vocabulary, override the classifier and keep processing.
+      if (classification?.isProperNoun) {
+        const key = normalizeSerbianKey(candidate.lemma);
+        if (!allowlistSet.has(key)) {
+          if (!skippedProperNouns.some((p) => normalizeSerbianKey(p.serbian) === key)) {
+            skippedProperNouns.push({ serbian: candidate.lemma, reason: "ai_classifier" });
+          }
+          console.log(`Skipping '${candidate.lemma}' - classified as proper noun (personal name)`);
+          continue;
+        }
+        console.log(`Allowlist override: '${candidate.lemma}' classified as proper noun but confirmed as vocabulary`);
+      }
+
       // Skip if classified as English/other (not Serbian)
       if (classification && !classification.isSerbian) {
         console.log(`Skipping '${candidate.lemma}' - classified as English/other`);
         continue;
       }
-      
+
       en = classification?.translation || "";
     }
 
@@ -664,7 +876,7 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
   // Deterministic dialect note: gde/gdje (Montenegro ijekavian vs Serbia ekavian)
   applyMontenegroVariantNotesToVocabulary(out);
 
-  return { pkg: out, added, unresolvedNew, alreadyTaughtUsed };
+  return { pkg: out, added, unresolvedNew, alreadyTaughtUsed, skippedProperNouns };
 }
 
 export function pad2(n: number): string {

@@ -5,6 +5,11 @@ export default defineConfig({
   root: path.resolve(import.meta.dirname),
   test: {
     environment: "node",
-    include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    include: [
+      "server/**/*.test.ts",
+      "server/**/*.spec.ts",
+      "scripts/**/*.test.ts",
+      "scripts/**/*.spec.ts",
+    ],
   },
 });

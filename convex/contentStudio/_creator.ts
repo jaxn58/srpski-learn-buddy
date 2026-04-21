@@ -498,11 +498,13 @@ export const runAiSpecialistGenerate = action({
       let pkg = baseParsed.data as any;
       let vocabAdded = 0;
       let vocabUnresolved = 0;
+      let vocabSkippedProperNouns = 0;
       try {
         const vocabSync = await syncVocabularyCoverageFromExercises(ctx, pkg);
         pkg = vocabSync.pkg;
         vocabAdded = Array.isArray(vocabSync.added) ? vocabSync.added.length : 0;
         vocabUnresolved = Array.isArray(vocabSync.unresolvedNew) ? vocabSync.unresolvedNew.length : 0;
+        vocabSkippedProperNouns = Array.isArray(vocabSync.skippedProperNouns) ? vocabSync.skippedProperNouns.length : 0;
       } catch (e: any) {
         console.warn("Creator: vocabulary coverage pre-check failed (will rely on Validator):", e?.message || e);
       }
@@ -515,7 +517,11 @@ export const runAiSpecialistGenerate = action({
         validationReportJson: JSON.stringify({
           ok: false,
           note: "Generated; run Validator.",
-          vocabCoverage: { added: vocabAdded, unresolvedNew: vocabUnresolved },
+          vocabCoverage: {
+            added: vocabAdded,
+            unresolvedNew: vocabUnresolved,
+            skippedProperNouns: vocabSkippedProperNouns,
+          },
         }),
         status: "draft",
         replaceFindings: true,

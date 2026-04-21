@@ -131,9 +131,22 @@ export function QAFindingsPanel({
                           {f.stage === "auditor" && (
                             <span className="text-xs text-muted-foreground font-normal">[lector]</span>
                           )}
+                          {typeof f.persistCount === "number" && f.persistCount >= 2 && (
+                            <span
+                              title="This finding survived multiple Fix-Findings attempts. Human Notes are unlikely to help here - consider editing manually or dismissing."
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/60 text-amber-700 dark:text-amber-400 font-normal leading-none"
+                            >
+                              persists x{f.persistCount}
+                            </span>
+                          )}
                           {f.path ? <span className="text-muted-foreground font-normal">({f.path})</span> : null}
                         </div>
                         <div className="break-words text-muted-foreground">{f.message}</div>
+                        {typeof f.persistCount === "number" && f.persistCount >= 2 && (
+                          <div className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+                            Fix Findings hat bei diesem Eintrag {f.persistCount}x nicht geholfen. Lektoriert manuell oder dismisse den Eintrag.
+                          </div>
+                        )}
                       </div>
                       {f._id && (
                         <button

@@ -883,14 +883,36 @@ export const saveUnitPackageSnapshot = mutation({
         .withIndex("by_draft", (q) => q.eq("draftId", args.draftId))
         .collect();
 
+      const makeFingerprint = (
+        stage: string,
+        code: string,
+        path: string | undefined | null
+      ) => `${stage}|${code}|${String(path || "").trim().toLowerCase()}`;
+
       // Collect dismissed fingerprints so they survive a re-run of the lector/validator.
       // The AI re-words findings slightly each run, so we match on stage+code+path (stable identifiers)
       // rather than exact message text. This prevents dismissed false positives from resurfacing.
       const dismissedFingerprints = new Set<string>(
         existing
           .filter((f) => f.dismissed === true)
-          .map((f) => `${f.stage}|${f.code}|${String(f.path || "").trim().toLowerCase()}`)
+          .map((f) => makeFingerprint(f.stage, f.code, f.path))
       );
+
+      // Track persistCount per fingerprint across the replaceFindings cycle so the UI
+      // can surface "this finding survived N Fix-Findings attempts" to the user.
+      // Only non-dismissed findings count: a dismissed finding resets persistCount on
+      // re-emergence so the user isn't confused by a stale counter.
+      const priorPersistByFingerprint = new Map<string, number>();
+      for (const f of existing) {
+        if (f.dismissed === true) continue;
+        const fp = makeFingerprint(f.stage, f.code, f.path);
+        const prev = typeof f.persistCount === "number" ? f.persistCount : 0;
+        const current = priorPersistByFingerprint.get(fp);
+        priorPersistByFingerprint.set(
+          fp,
+          typeof current === "number" ? Math.max(current, prev) : prev
+        );
+      }
 
       for (const f of existing) {
         await ctx.db.delete(f._id);
@@ -898,12 +920,16 @@ export const saveUnitPackageSnapshot = mutation({
 
       if (args.findings && args.findings.length) {
         for (const f of args.findings) {
-          const fingerprint = `${f.stage}|${f.code}|${String(f.path || "").trim().toLowerCase()}`;
+          const fingerprint = makeFingerprint(f.stage, f.code, f.path);
           const alreadyDismissed = dismissedFingerprints.has(fingerprint);
+          const priorCount = priorPersistByFingerprint.get(fingerprint);
+          const nextPersistCount =
+            typeof priorCount === "number" ? priorCount + 1 : 0;
           await ctx.db.insert("contentDraftFindings", {
             draftId: args.draftId,
             ...f,
             dismissed: alreadyDismissed ? true : undefined,
+            persistCount: nextPersistCount > 0 ? nextPersistCount : undefined,
             createdAt: now,
           });
         }
