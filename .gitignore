@@ -118,3 +118,4 @@ temp/
 # Local debug dumps (e.g. Content Studio cross-unit duplicate dumps)
 _dump.json
 _dump*.json
+.env*.local
