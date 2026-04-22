@@ -326,12 +326,56 @@ Prüfe deinen Clerk-Plan:
 - **Free Tier**: Meist ausreichend für Beta (bis zu 10.000 MAU)
 - **Pro Plan**: Falls mehr User oder Features benötigt werden
 
+## User Deletion Flow
+
+Die vollständige User-Löschung (Clerk + Convex) läuft seit dem Umbau über drei
+koordinierte Pfade, die alle dieselbe Kaskaden-Mutation `internal.admin._deleteUserCascade`
+wiederverwenden:
+
+1. **Admin-Flow** (`convex/admin.ts` → `deleteUser` als `action`):
+   - Auth-Check via `internal.admin._requireAdminForUserDelete`
+   - `DELETE https://api.clerk.com/v1/users/:id` mit `CLERK_SECRET_KEY`
+   - Bei Erfolg (oder 404 „already gone") → `_deleteUserCascade`
+   - Bei Fehler: Convex-Daten bleiben erhalten, `forceIfClerkFails` optional.
+
+2. **Self-Service-Flow** (`convex/users.ts` → `deleteMyAccount` als `action`):
+   - Re-Auth via `ctx.auth.getUserIdentity()`
+   - E-Mail-Bestätigung durch den User (case-insensitive Vergleich mit der
+     Konto-E-Mail)
+   - Guard: blockiert bei aktivem Abonnement, damit kein Zahlungs-Waise entsteht.
+   - Clerk-Delete → Cascade → Frontend ruft `signOut()` + Redirect auf `/`.
+
+3. **Webhook-Safety-Net** (`convex/http.ts` → `/clerk-webhook`, Event
+   `user.deleted`): Wenn ein User manuell im Clerk-Dashboard gelöscht wird,
+   räumt der Webhook Convex auf, damit keine Zombie-Rows zurückbleiben.
+
+### Konfiguration im Clerk Dashboard (Pflicht)
+
+Im **Clerk Dashboard → Webhooks → (dein Endpoint)** muss das Event
+`user.deleted` abonniert sein. Falls nicht aktiviert, greift das Safety-Net
+nicht und manuelle Löschungen im Clerk-Dashboard führen zu Dateninkonsistenzen.
+
+Empfohlen: zusätzlich `user.created` abonnieren (für Welcome-Mails, bereits
+implementiert) und `session.created` für Single-Session-Enforcement.
+
+### Gelöschte Tabellen (Kaskade)
+
+`_deleteUserCascade` löscht alle Zeilen zum User in:
+`userProgress`, `userSubscriptions`, `subscriptionHistory`,
+`exerciseQuestionProgress`, `questionProgress`, `exerciseResults`,
+`exerciseCompletions`, `userBadges`, `dailyActivity`, `vocabularyProgress`,
+`quizProgress`, `feedbackSubmissions` (inkl. `feedbackMessages`,
+`feedbackComments`, `feedbackStatusHistory`), eigenständige `feedbackComments`,
+`wishlistItems` (inkl. `wishlistUpvotes`), `wishlistUpvotes`, `chatSessions`
+(inkl. `chatMessages`) und zuletzt die `users`-Zeile selbst.
+
 ## Nächste Schritte nach Migration
 
 1. **Beta-Schutz aktivieren**: Siehe [VERCEL_DEPLOYMENT_GUIDE.md](./VERCEL_DEPLOYMENT_GUIDE.md)
 2. **Monitoring einrichten**: Clerk Dashboard → Analytics
 3. **Error Tracking**: Vercel Dashboard → Logs
 4. **Beta-Tester einladen**: E-Mail-Liste vorbereiten
+5. **Webhook `user.deleted` abonnieren**: Siehe Abschnitt „User Deletion Flow"
 
 ## Weiterführende Ressourcen
 

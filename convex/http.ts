@@ -296,6 +296,47 @@ http.route({
         }
       }
 
+      if (eventType === "user.deleted") {
+        // Safety net: if a user is deleted directly in the Clerk Dashboard
+        // (or by the admin action which also deletes from Clerk), mirror that
+        // into Convex so no orphan rows remain.
+        const clerkId: string | undefined = evt?.data?.id;
+        if (!clerkId) {
+          console.warn("[Clerk Webhook] user.deleted missing data.id");
+          return new Response("Webhook received", { status: 200 });
+        }
+
+        try {
+          const found = await ctx.runQuery(
+            internal.admin._findUserIdByClerkId,
+            { clerkId }
+          );
+          if (!found) {
+            console.log(
+              `[Clerk Webhook] user.deleted: no Convex user for clerkId=${clerkId} (already clean)`
+            );
+            return new Response("Webhook received", { status: 200 });
+          }
+
+          const result = await ctx.runMutation(
+            internal.admin._deleteUserCascade,
+            { userId: found.userId }
+          );
+          console.log("[Clerk Webhook] user.deleted cascade done", {
+            clerkId,
+            email: found.email,
+            result,
+          });
+        } catch (error) {
+          console.error(
+            "[Clerk Webhook] user.deleted cascade failed",
+            error
+          );
+          // Return 500 so Clerk retries the webhook.
+          return new Response("Cascade failed", { status: 500 });
+        }
+      }
+
       return new Response("Webhook received", { status: 200 });
     } catch (err) {
       console.error("Error processing webhook:", err);

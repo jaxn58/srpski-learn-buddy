@@ -27,6 +27,7 @@ import type * as contentStudio__shared from "../contentStudio/_shared.js";
 import type * as contentStudio__translationCore from "../contentStudio/_translationCore.js";
 import type * as contentStudio__validator from "../contentStudio/_validator.js";
 import type * as contentStudio__validatorHelpers from "../contentStudio/_validatorHelpers.js";
+import type * as contentStudio__validatorMemory from "../contentStudio/_validatorMemory.js";
 import type * as contentStudio__verifier from "../contentStudio/_verifier.js";
 import type * as contentStudio__vocabularyCleanup from "../contentStudio/_vocabularyCleanup.js";
 import type * as contentStudio_prompts from "../contentStudio/prompts.js";
@@ -88,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   "contentStudio/_translationCore": typeof contentStudio__translationCore;
   "contentStudio/_validator": typeof contentStudio__validator;
   "contentStudio/_validatorHelpers": typeof contentStudio__validatorHelpers;
+  "contentStudio/_validatorMemory": typeof contentStudio__validatorMemory;
   "contentStudio/_verifier": typeof contentStudio__verifier;
   "contentStudio/_vocabularyCleanup": typeof contentStudio__vocabularyCleanup;
   "contentStudio/prompts": typeof contentStudio_prompts;

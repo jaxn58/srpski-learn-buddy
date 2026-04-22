@@ -243,6 +243,26 @@ RESEND_API_KEY=re_<NEVER-PUT-A-REAL-KEY-HERE>
 - Kommt diese Datei ins Git-Repository?
 - Wenn ja: Nur Platzhalter verwenden!
 
+## User-Löschung (Clerk + Convex)
+
+Die vollständige Löschung eines Users läuft über eine zentrale idempotente
+Kaskaden-Mutation `internal.admin._deleteUserCascade`. Drei Pfade rufen sie auf:
+
+- **Admin**: `api.admin.deleteUser` (`action`, nicht `mutation`, da `fetch()`
+  auf die Clerk-REST-API nicht aus einer Mutation möglich ist). Auth läuft
+  über `internal.admin._requireAdminForUserDelete`.
+- **Self-Service**: `api.users.deleteMyAccount` (`action`), verlangt
+  E-Mail-Bestätigung und blockiert bei aktivem Abonnement.
+- **Webhook**: `/clerk-webhook` verarbeitet `user.deleted` und räumt Convex
+  auf, wenn ein User im Clerk-Dashboard manuell gelöscht wird.
+
+Wichtig für neue Tabellen mit `userId`: beim Hinzufügen **immer**
+`_deleteUserCascade` in `convex/admin.ts` erweitern, sonst bleiben Waisen
+zurück. Details: [`docs/CLERK_PRODUCTION_MIGRATION.md`](docs/CLERK_PRODUCTION_MIGRATION.md).
+
+Im Clerk Dashboard muss das Webhook-Event `user.deleted` abonniert sein,
+damit das Safety-Net greift.
+
 ## Wichtige Warnungen & Verbote
 
 - ❌ **NIEMALS NIEMALS NIEMALS auf Production deployen ohne EXPLIZITE Zustimmung des Users!**

@@ -355,8 +355,26 @@ export const toggleBetaTester = mutation({
   },
 });
 
-// Delete user (admin only)
-export const deleteUser = mutation({
+// ============================================================================
+// USER DELETION — CENTRAL FLOW
+// ============================================================================
+// The deletion is split across three functions that all share the same
+// cascade logic. `fetch()` to the Clerk API is forbidden inside mutations, so
+// the public admin endpoint is an `action` that orchestrates:
+//
+//   1) internalQuery `_requireAdminForUserDelete`   – auth + look up target
+//   2) fetch DELETE https://api.clerk.com/v1/users  – remove from Clerk
+//   3) internalMutation `_deleteUserCascade`        – wipe Convex rows
+//
+// The webhook path (`user.deleted` from Clerk) and the self-service flow
+// reuse `_deleteUserCascade` so there is only one place that knows how to
+// tear down user data.
+// ============================================================================
+
+// Internal auth/lookup for the admin delete action. Returns the target user's
+// Clerk ID and a few labels for logging. The action cannot call ctx.db/auth
+// itself, so this helper is used via ctx.runQuery().
+export const _requireAdminForUserDelete = internalQuery({
   args: {
     userId: v.id("users"),
   },
@@ -364,37 +382,315 @@ export const deleteUser = mutation({
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
 
-    // Prevent deleting yourself
     if (args.userId === admin._id) {
       throw new Error("Cannot delete your own account");
     }
 
-    // Get the user to find their Clerk ID
-    const userToDelete = await ctx.db.get(args.userId);
-    if (!userToDelete) {
-      throw new Error("User not found");
+    const target = await ctx.db.get(args.userId);
+    if (!target) throw new Error("User not found");
+
+    return {
+      adminId: admin._id,
+      userId: target._id,
+      clerkId: target.clerkId ?? null,
+      email: target.email ?? null,
+      name: target.name ?? null,
+    };
+  },
+});
+
+// Idempotent cascade delete. Safe to call from:
+//   - admin action (after Clerk delete succeeded)
+//   - Clerk webhook `user.deleted`
+//   - self-service action
+// If the user row is already gone, returns { alreadyGone: true }.
+export const _deleteUserCascade = internalMutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return {
+        alreadyGone: true as const,
+        deleted: {} as Record<string, number>,
+        totalRows: 0,
+      };
     }
 
-    console.log(`[Delete User] Starting deletion for user: ${userToDelete.email || userToDelete.name || args.userId}`);
+    const counts: Record<string, number> = {};
 
-    let clerkDeletionStatus = "skipped";
+    const bump = (table: string, n: number) => {
+      counts[table] = (counts[table] ?? 0) + n;
+    };
+
+    // ---- Core user domain ----
+    const userProgress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of userProgress) await ctx.db.delete(row._id);
+    bump("userProgress", userProgress.length);
+
+    const userSubscriptions = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of userSubscriptions) await ctx.db.delete(row._id);
+    bump("userSubscriptions", userSubscriptions.length);
+
+    const subscriptionHistory = await ctx.db
+      .query("subscriptionHistory")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of subscriptionHistory) await ctx.db.delete(row._id);
+    bump("subscriptionHistory", subscriptionHistory.length);
+
+    // ---- Progress & gamification ----
+    const exerciseQuestionProgress = await ctx.db
+      .query("exerciseQuestionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of exerciseQuestionProgress) await ctx.db.delete(row._id);
+    bump("exerciseQuestionProgress", exerciseQuestionProgress.length);
+
+    const questionProgress = await ctx.db
+      .query("questionProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of questionProgress) await ctx.db.delete(row._id);
+    bump("questionProgress", questionProgress.length);
+
+    const exerciseResults = await ctx.db
+      .query("exerciseResults")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of exerciseResults) await ctx.db.delete(row._id);
+    bump("exerciseResults", exerciseResults.length);
+
+    const exerciseCompletions = await ctx.db
+      .query("exerciseCompletions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of exerciseCompletions) await ctx.db.delete(row._id);
+    bump("exerciseCompletions", exerciseCompletions.length);
+
+    const userBadges = await ctx.db
+      .query("userBadges")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of userBadges) await ctx.db.delete(row._id);
+    bump("userBadges", userBadges.length);
+
+    // dailyActivity has composite `by_user_date` index; filter by userId.
+    const dailyActivity = await ctx.db
+      .query("dailyActivity")
+      .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of dailyActivity) await ctx.db.delete(row._id);
+    bump("dailyActivity", dailyActivity.length);
+
+    // ---- Vocabulary ----
+    const vocabularyProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of vocabularyProgress) await ctx.db.delete(row._id);
+    bump("vocabularyProgress", vocabularyProgress.length);
+
+    const quizProgress = await ctx.db
+      .query("quizProgress")
+      .withIndex("by_user_unit", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of quizProgress) await ctx.db.delete(row._id);
+    bump("quizProgress", quizProgress.length);
+
+    // ---- Feedback (submissions + all child rows, regardless of author) ----
+    const feedbackSubmissions = await ctx.db
+      .query("feedbackSubmissions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    let feedbackMessagesCount = 0;
+    let feedbackCommentsCount = 0;
+    let feedbackStatusHistoryCount = 0;
+    for (const sub of feedbackSubmissions) {
+      const msgs = await ctx.db
+        .query("feedbackMessages")
+        .withIndex("by_feedback", (q) => q.eq("feedbackId", sub._id))
+        .collect();
+      for (const m of msgs) await ctx.db.delete(m._id);
+      feedbackMessagesCount += msgs.length;
+
+      const comments = await ctx.db
+        .query("feedbackComments")
+        .withIndex("by_feedback", (q) => q.eq("feedbackId", sub._id))
+        .collect();
+      for (const c of comments) await ctx.db.delete(c._id);
+      feedbackCommentsCount += comments.length;
+
+      const history = await ctx.db
+        .query("feedbackStatusHistory")
+        .withIndex("by_feedback", (q) => q.eq("feedbackId", sub._id))
+        .collect();
+      for (const h of history) await ctx.db.delete(h._id);
+      feedbackStatusHistoryCount += history.length;
+
+      await ctx.db.delete(sub._id);
+    }
+    bump("feedbackSubmissions", feedbackSubmissions.length);
+    bump("feedbackMessages", feedbackMessagesCount);
+    bump("feedbackComments", feedbackCommentsCount);
+    bump("feedbackStatusHistory", feedbackStatusHistoryCount);
+
+    // Stand-alone feedbackComments authored by this user on OTHER users'
+    // submissions (no by_user index exists, so filter scan is acceptable here
+    // since the table stays small relative to progress tables).
+    const orphanComments = await ctx.db
+      .query("feedbackComments")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    for (const row of orphanComments) await ctx.db.delete(row._id);
+    bump("feedbackCommentsOrphan", orphanComments.length);
+
+    // ---- Wishlist (items the user created + all dependent upvotes) ----
+    const wishlistItems = await ctx.db
+      .query("wishlistItems")
+      .withIndex("by_user_createdAt", (q) => q.eq("createdBy", args.userId))
+      .collect();
+
+    let wishlistUpvotesFromItemsCount = 0;
+    for (const item of wishlistItems) {
+      const upvotes = await ctx.db
+        .query("wishlistUpvotes")
+        .withIndex("by_item", (q) => q.eq("wishlistItemId", item._id))
+        .collect();
+      for (const uv of upvotes) await ctx.db.delete(uv._id);
+      wishlistUpvotesFromItemsCount += upvotes.length;
+      await ctx.db.delete(item._id);
+    }
+    bump("wishlistItems", wishlistItems.length);
+    bump("wishlistUpvotes", wishlistUpvotesFromItemsCount);
+
+    // Upvotes the user gave to OTHER items.
+    const wishlistUpvotesByUser = await ctx.db
+      .query("wishlistUpvotes")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of wishlistUpvotesByUser) await ctx.db.delete(row._id);
+    bump("wishlistUpvotes", wishlistUpvotesByUser.length);
+
+    // ---- Chat ----
+    const chatSessions = await ctx.db
+      .query("chatSessions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    let chatMessagesCount = 0;
+    for (const session of chatSessions) {
+      const messages = await ctx.db
+        .query("chatMessages")
+        .withIndex("by_session", (q) => q.eq("sessionId", session._id))
+        .collect();
+      for (const m of messages) await ctx.db.delete(m._id);
+      chatMessagesCount += messages.length;
+      await ctx.db.delete(session._id);
+    }
+    bump("chatSessions", chatSessions.length);
+    bump("chatMessages", chatMessagesCount);
+
+    // ---- Finally, the user row itself ----
+    await ctx.db.delete(args.userId);
+    bump("users", 1);
+
+    const totalRows = Object.values(counts).reduce((a, b) => a + b, 0);
+
+    console.log("[Delete User] Cascade complete", {
+      userId: args.userId,
+      email: user.email ?? null,
+      totalRows,
+      counts,
+    });
+
+    return {
+      alreadyGone: false as const,
+      deleted: counts,
+      totalRows,
+    };
+  },
+});
+
+// Look up a Convex user by their Clerk ID. Used by the Clerk `user.deleted`
+// webhook to find which Convex row to cascade-delete.
+export const _findUserIdByClerkId = internalQuery({
+  args: {
+    clerkId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+    return user ? { userId: user._id, email: user.email ?? null } : null;
+  },
+});
+
+// Public admin endpoint. Runs in the action runtime so we can call the Clerk
+// REST API. All DB work is delegated to internal queries/mutations.
+export const deleteUser = action({
+  args: {
+    userId: v.id("users"),
+    // When true, proceed with Convex deletion even if the Clerk API call
+    // fails (e.g. to clean up orphaned records). Default false.
+    forceIfClerkFails: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    clerkDeletionStatus:
+      | "success"
+      | "already_gone"
+      | "no_clerk_id"
+      | "no_api_key"
+      | "failed"
+      | "error"
+      | "skipped_by_force_flag";
+    clerkErrorMessage: string;
+    convexDeletionStatus: "success" | "skipped" | "already_gone";
+    deleted: Record<string, number>;
+    totalRows: number;
+    warning?: string;
+  }> => {
+    const target = await ctx.runQuery(
+      internal.admin._requireAdminForUserDelete,
+      { userId: args.userId }
+    );
+
+    console.log(
+      `[Delete User] Admin ${target.adminId} deleting user: ${target.email || target.name || target.userId}`
+    );
+
+    let clerkDeletionStatus:
+      | "success"
+      | "already_gone"
+      | "no_clerk_id"
+      | "no_api_key"
+      | "failed"
+      | "error"
+      | "skipped_by_force_flag" = "no_clerk_id";
     let clerkErrorMessage = "";
 
-    // Delete from Clerk first (if they have a clerkId)
-    if (userToDelete.clerkId) {
+    if (target.clerkId) {
       const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-      
       if (!clerkSecretKey) {
-        console.warn(`[Delete User] ⚠️ CLERK_SECRET_KEY not configured. User will be deleted from Convex only.`);
-        console.warn(`[Delete User] ⚠️ User can re-register if they're still in Clerk. Set CLERK_SECRET_KEY to prevent this.`);
         clerkDeletionStatus = "no_api_key";
-        clerkErrorMessage = "CLERK_SECRET_KEY not set - user not deleted from Clerk";
+        clerkErrorMessage = "CLERK_SECRET_KEY not set";
+        console.warn(
+          "[Delete User] CLERK_SECRET_KEY missing - Clerk user will survive"
+        );
       } else {
         try {
-          console.log(`[Delete User] Attempting to delete from Clerk: ${userToDelete.clerkId}`);
-          
-          const clerkResponse = await fetch(
-            `https://api.clerk.com/v1/users/${userToDelete.clerkId}`,
+          const resp = await fetch(
+            `https://api.clerk.com/v1/users/${target.clerkId}`,
             {
               method: "DELETE",
               headers: {
@@ -403,92 +699,71 @@ export const deleteUser = mutation({
               },
             }
           );
-
-          if (clerkResponse.ok) {
-            console.log(`[Delete User] ✅ Successfully deleted from Clerk`);
+          if (resp.ok) {
             clerkDeletionStatus = "success";
+            console.log(
+              `[Delete User] Clerk delete OK for ${target.clerkId}`
+            );
+          } else if (resp.status === 404) {
+            clerkDeletionStatus = "already_gone";
+            console.log(
+              `[Delete User] Clerk user ${target.clerkId} already gone (404)`
+            );
           } else {
-            const errorText = await clerkResponse.text();
-            console.error(`[Delete User] ❌ Failed to delete from Clerk (${clerkResponse.status}):`, errorText);
+            const body = await resp.text().catch(() => "<read_failed>");
             clerkDeletionStatus = "failed";
-            clerkErrorMessage = `Clerk API error: ${clerkResponse.status}`;
-            // Continue with Convex deletion even if Clerk deletion fails
+            clerkErrorMessage = `Clerk API ${resp.status}: ${body}`;
+            console.error(
+              `[Delete User] Clerk delete failed (${resp.status})`,
+              body
+            );
           }
         } catch (error) {
-          console.error("[Delete User] ❌ Error calling Clerk API:", error);
           clerkDeletionStatus = "error";
-          clerkErrorMessage = error instanceof Error ? error.message : "Unknown error";
-          // Continue with Convex deletion even if Clerk deletion fails
+          clerkErrorMessage =
+            error instanceof Error ? error.message : String(error);
+          console.error("[Delete User] Clerk API threw", error);
         }
       }
-    } else {
-      console.log(`[Delete User] No Clerk ID found, skipping Clerk deletion`);
     }
 
-    console.log(`[Delete User] Deleting from Convex database...`);
+    const clerkOk =
+      clerkDeletionStatus === "success" ||
+      clerkDeletionStatus === "already_gone" ||
+      clerkDeletionStatus === "no_clerk_id";
 
-    // Delete user's progress
-    const progress = await ctx.db
-      .query("userProgress")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-    console.log(`[Delete User] Deleting ${progress.length} progress records`);
-    for (const p of progress) {
-      await ctx.db.delete(p._id);
+    if (!clerkOk && !args.forceIfClerkFails) {
+      return {
+        success: false,
+        clerkDeletionStatus,
+        clerkErrorMessage,
+        convexDeletionStatus: "skipped",
+        deleted: {},
+        totalRows: 0,
+        warning:
+          "Clerk deletion failed. Convex data kept intact to avoid a zombie record. Re-run with forceIfClerkFails=true to override.",
+      };
     }
 
-    // Delete user's subscriptions
-    const subscriptions = await ctx.db
-      .query("userSubscriptions")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-    console.log(`[Delete User] Deleting ${subscriptions.length} subscriptions`);
-    for (const s of subscriptions) {
-      await ctx.db.delete(s._id);
-    }
+    const cascade = await ctx.runMutation(
+      internal.admin._deleteUserCascade,
+      { userId: args.userId }
+    );
 
-    // Delete user's feedback
-    const feedback = await ctx.db
-      .query("feedbackSubmissions")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-    console.log(`[Delete User] Deleting ${feedback.length} feedback submissions`);
-    for (const f of feedback) {
-      await ctx.db.delete(f._id);
-    }
-
-    // Delete user's chat sessions
-    const chatSessions = await ctx.db
-      .query("chatSessions")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-    console.log(`[Delete User] Deleting ${chatSessions.length} chat sessions`);
-    for (const session of chatSessions) {
-      // Delete messages
-      const messages = await ctx.db
-        .query("chatMessages")
-        .withIndex("by_session", (q) => q.eq("sessionId", session._id))
-        .collect();
-
-      for (const msg of messages) {
-        await ctx.db.delete(msg._id);
-      }
-
-      await ctx.db.delete(session._id);
-    }
-
-    // Finally delete the user from Convex
-    await ctx.db.delete(args.userId);
-    console.log(`[Delete User] ✅ User deleted from Convex database`);
-
-    // Return status information
     return {
       success: true,
       clerkDeletionStatus,
       clerkErrorMessage,
-      warning: clerkDeletionStatus !== "success" 
-        ? "User deleted from Convex, but may still exist in Clerk. They can re-register immediately." 
-        : "User deleted successfully. They can register again immediately.",
+      convexDeletionStatus: cascade.alreadyGone ? "already_gone" : "success",
+      deleted: cascade.deleted,
+      totalRows: cascade.totalRows,
+      warning:
+        clerkDeletionStatus === "no_api_key"
+          ? "CLERK_SECRET_KEY was not set - user still exists in Clerk and can sign in."
+          : clerkDeletionStatus === "failed" ||
+              clerkDeletionStatus === "error"
+            ? "Clerk deletion failed but Convex data was removed (forceIfClerkFails)."
+            : undefined,
     };
   },
 });

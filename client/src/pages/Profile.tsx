@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,14 +15,24 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
-import { useMutation, useQuery } from "convex/react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { UserCircle } from "lucide-react";
+import { AlertTriangle, UserCircle } from "lucide-react";
 import { MySubscriptionContent } from "./MySubscription";
 import { GamificationModal } from "@/components/GamificationModal";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -78,15 +89,22 @@ export default function Profile() {
   const { user, loading } = useAuth();
   const { t } = useTranslation();
   const { setLanguage } = useLanguage();
+  const { signOut } = useClerkAuth();
+  const [, navigate] = useLocation();
   const updatePublicProfile = useMutation(api.users.updatePublicProfile);
   const updateLearningLanguage = useMutation(api.users.updateLearningLanguage);
   const generateAvatarUploadUrl = useMutation(api.users.generateAvatarUploadUrl);
   const setPublicAvatarFromUpload = useMutation(api.users.setPublicAvatarFromUpload);
+  const deleteMyAccount = useAction(api.users.deleteMyAccount);
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const communityStatus = useQuery(api.newsletter.getMyCommunityUpdatesStatus, user ? {} : "skip");
 
   const requestCommunityOptIn = useMutation(api.newsletter.requestCommunityUpdatesDoubleOptIn);
   const unsubscribeCommunity = useMutation(api.newsletter.unsubscribeMyCommunityUpdates);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteEmailInput, setDeleteEmailInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const [nickname, setNickname] = useState("");
   // `avatarPreviewUrl` is for display only (may be a signed, expiring URL)
@@ -209,6 +227,52 @@ export default function Profile() {
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleDeleteAccountConfirm = async () => {
+    const trimmed = deleteEmailInput.trim();
+    if (!trimmed) return;
+
+    setDeleting(true);
+    try {
+      const result = await deleteMyAccount({ confirmationEmail: trimmed });
+
+      if (!result.success) {
+        // The backend surfaces specific reasons. Map known ones to localized
+        // toasts; fall back to the server-provided message or a generic one.
+        if (result.reason === "email_mismatch") {
+          toast.error(t("profile.deleteAccount.toastEmailMismatch"));
+        } else if (result.reason === "active_subscription") {
+          toast.error(t("profile.deleteAccount.toastActiveSubscription"));
+        } else {
+          toast.error(
+            result.message || t("profile.deleteAccount.toastGeneric")
+          );
+        }
+        setDeleting(false);
+        return;
+      }
+
+      toast.success(t("profile.deleteAccount.toastSuccess"));
+      setDeleteDialogOpen(false);
+
+      // Sign the user out of Clerk and redirect to the landing page. The
+      // server already deleted the Convex row + the Clerk user, so any
+      // remaining session will be rejected on the next request anyway.
+      try {
+        await signOut();
+      } catch (err) {
+        console.warn("[deleteMyAccount] signOut failed after delete", err);
+      }
+      navigate("/");
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : t("profile.deleteAccount.toastGeneric");
+      toast.error(message);
+      setDeleting(false);
+    }
   };
 
   const handleAvatarFileSelected = async (file: File | null) => {
@@ -546,6 +610,94 @@ export default function Profile() {
           <MySubscriptionContent embedded />
         </CardContent>
       </Card>
+
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            {t("profile.dangerZone.title")}
+          </CardTitle>
+          <CardDescription>{t("profile.dangerZone.desc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1">
+            <div className="text-sm font-medium">
+              {t("profile.deleteAccount.heading")}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {t("profile.deleteAccount.description")}
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setDeleteEmailInput("");
+              setDeleteDialogOpen(true);
+            }}
+          >
+            {t("profile.deleteAccount.button")}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (deleting) return;
+          setDeleteDialogOpen(open);
+          if (!open) setDeleteEmailInput("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("profile.deleteAccount.dialog.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("profile.deleteAccount.dialog.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="delete-confirm-email">
+              {t("profile.deleteAccount.dialog.emailLabel")}
+            </Label>
+            <Input
+              id="delete-confirm-email"
+              type="email"
+              autoComplete="off"
+              value={deleteEmailInput}
+              onChange={(e) => setDeleteEmailInput(e.target.value)}
+              placeholder={
+                user.email ||
+                t("profile.deleteAccount.dialog.emailPlaceholder")
+              }
+              disabled={deleting}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              {t("profile.deleteAccount.dialog.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteAccountConfirm();
+              }}
+              disabled={
+                deleting ||
+                deleteEmailInput.trim().toLowerCase() !==
+                  (user.email ?? "").trim().toLowerCase() ||
+                !user.email
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting
+                ? t("profile.deleteAccount.dialog.deleting")
+                : t("profile.deleteAccount.dialog.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

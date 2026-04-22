@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import {
   ArrowLeft,
@@ -43,7 +43,7 @@ export default function AdminUserDetail({ userId }: Props) {
   const updateRoleMutation = useMutation(api.admin.updateUserRole);
   const toggleStatusMutation = useMutation(api.admin.toggleUserStatus);
   const toggleBetaTesterMutation = useMutation(api.admin.toggleBetaTester);
-  const deleteUserMutation = useMutation(api.admin.deleteUser);
+  const deleteUserAction = useAction(api.admin.deleteUser);
   const resetProgressMutation = useMutation(api.admin.resetUserProgress);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -144,14 +144,38 @@ export default function AdminUserDetail({ userId }: Props) {
 
   const handleDeleteUser = async () => {
     try {
-      const result = await deleteUserMutation({ userId: userId as any });
-      if (result?.warning) {
+      const result = await deleteUserAction({ userId: userId as any });
+
+      if (!result.success) {
+        toast.error(
+          result.warning || 'Clerk deletion failed - user not removed.',
+          {
+            duration: 10000,
+            description: result.clerkErrorMessage || undefined,
+          }
+        );
+        return;
+      }
+
+      const rowsSummary = `Removed ${result.totalRows} database rows across ${Object.keys(result.deleted).length} tables.`;
+
+      if (result.warning) {
         toast.warning(result.warning, {
-          duration: 8000,
-          description: 'To fully delete the user, also remove them from the Clerk Dashboard.',
+          duration: 10000,
+          description: rowsSummary,
+        });
+      } else if (result.clerkDeletionStatus === 'already_gone') {
+        toast.success('User removed from Convex (Clerk record was already gone).', {
+          description: rowsSummary,
+        });
+      } else if (result.clerkDeletionStatus === 'no_clerk_id') {
+        toast.success('User removed from Convex (no linked Clerk account).', {
+          description: rowsSummary,
         });
       } else {
-        toast.success('User deleted successfully from both Clerk and Convex');
+        toast.success('User fully deleted from Clerk and Convex.', {
+          description: rowsSummary,
+        });
       }
       navigate('/admin');
     } catch (error: any) {
