@@ -458,13 +458,20 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
             {/* Category Action Buttons */}
             <div className="flex flex-wrap gap-3 pt-4 items-center">
               {!isCategoryChecked ? (
-                <Button 
-                  onClick={() => checkCategoryAnswers(category)} 
-                  disabled={!allAnswered}
-                  className="bg-primary hover:bg-primary/90"
-                >
-                  Check Answers
-                </Button>
+                <>
+                  <Button 
+                    onClick={() => checkCategoryAnswers(category)} 
+                    disabled={!allAnswered}
+                    className="bg-primary hover:bg-primary/90"
+                  >
+                    Check Answers
+                  </Button>
+                  {!allAnswered && (
+                    <p className="text-sm text-muted-foreground">
+                      {t('interactiveTest.checkAnswersHint')}
+                    </p>
+                  )}
+                </>
               ) : (
                 <>
                   {/* XP Display with Animation */}

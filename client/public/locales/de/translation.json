@@ -397,6 +397,7 @@
   "interactiveTest.encouragement.notBad": "Nicht schlecht! Versuch es nochmal für mehr XP!",
   "interactiveTest.encouragement.keepPracticing": "Weiter üben! Du schaffst das!",
   "interactiveTest.answerPlaceholder": "Schreibe deine Antwort...",
+  "interactiveTest.checkAnswersHint": "Fülle alle Antworten in diesem Abschnitt aus, um sie prüfen zu lassen.",
   "exercise.toast.xpEarned": "+{{xp}} XP verdient!",
   "exercise.toast.sessionTotal": "Gesamt-XP dieser Session: {{xp}}",
   "duration.select": "Lernplan wählen",

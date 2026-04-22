@@ -13,7 +13,7 @@ i18n
     },
     backend: {
       loadPath: '/locales/{{lng}}/{{ns}}.json',
-      queryStringParams: { v: '3' },
+      queryStringParams: { v: '4' },
     },
   });
 
