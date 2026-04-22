@@ -2,6 +2,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
@@ -47,6 +49,8 @@ export default function AdminUserDetail({ userId }: Props) {
   const resetProgressMutation = useMutation(api.admin.resetUserProgress);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteEmailInput, setDeleteEmailInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -143,6 +147,14 @@ export default function AdminUserDetail({ userId }: Props) {
   };
 
   const handleDeleteUser = async () => {
+    const targetEmail = (userDetail?.email ?? "").trim().toLowerCase();
+    const typed = deleteEmailInput.trim().toLowerCase();
+    if (!targetEmail || typed !== targetEmail) {
+      toast.error('Email confirmation does not match. Deletion aborted.');
+      return;
+    }
+
+    setDeleting(true);
     try {
       const result = await deleteUserAction({ userId: userId as any });
 
@@ -177,9 +189,13 @@ export default function AdminUserDetail({ userId }: Props) {
           description: rowsSummary,
         });
       }
+      setDeleteDialogOpen(false);
+      setDeleteEmailInput("");
       navigate('/admin');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete user');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -511,7 +527,15 @@ export default function AdminUserDetail({ userId }: Props) {
                 <p className="text-sm font-medium text-destructive">Delete Account</p>
                 <p className="text-xs text-muted-foreground">Permanently removes user and all their data</p>
               </div>
-              <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)} className="gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setDeleteEmailInput("");
+                  setDeleteDialogOpen(true);
+                }}
+                className="gap-2"
+              >
                 <Trash2 className="h-4 w-4" />
                 Delete
               </Button>
@@ -550,21 +574,61 @@ export default function AdminUserDetail({ userId }: Props) {
       </AlertDialog>
 
       {/* Delete confirmation dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (deleting) return;
+          setDeleteDialogOpen(open);
+          if (!open) setDeleteEmailInput("");
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete User Account</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the account for <strong>{userDetail.name || userDetail.email}</strong> and all associated data (progress, vocabulary, chat history). This action cannot be undone.
+              This will permanently delete the account for{" "}
+              <strong>{userDetail.name || userDetail.email}</strong> and all
+              associated data (progress, vocabulary, chat history, feedback,
+              subscriptions). This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="admin-delete-confirm-email">
+              To confirm, type the user&apos;s full email address:{" "}
+              <strong className="break-all">{userDetail.email || "(no email on record)"}</strong>
+            </Label>
+            <Input
+              id="admin-delete-confirm-email"
+              type="email"
+              autoComplete="off"
+              value={deleteEmailInput}
+              onChange={(e) => setDeleteEmailInput(e.target.value)}
+              placeholder={userDetail.email || "user@example.com"}
+              disabled={deleting || !userDetail.email}
+            />
+            {!userDetail.email && (
+              <p className="text-xs text-destructive">
+                This user has no email on record, so deletion via this dialog is disabled.
+                Please handle this account manually.
+              </p>
+            )}
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDeleteUser}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteUser();
+              }}
+              disabled={
+                deleting ||
+                !userDetail.email ||
+                deleteEmailInput.trim().toLowerCase() !==
+                  (userDetail.email ?? "").trim().toLowerCase()
+              }
             >
-              Delete User
+              {deleting ? "Deleting..." : "Delete User"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
