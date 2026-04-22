@@ -6,7 +6,8 @@ import {
   CS_PROMPT_KEYS,
   ALL_SECTION_IDS,
 } from "./prompts";
-import { findEarlierUnitVocabulary } from "../vocabulary";
+import { findEarlierUnitVocabulary, toVocabularyKey } from "../vocabulary";
+import { makeValidatorMemoryFingerprint } from "./_validatorMemory";
 
 export const createDraft = mutation({
   args: {
@@ -914,6 +915,106 @@ export const saveUnitPackageSnapshot = mutation({
         );
       }
 
+      // ---------------------------------------------------------------------
+      // Validator Memory auto-capture
+      //
+      // When the Validator re-runs after a Fix attempt and a previously-seen
+      // finding is no longer present, we promote its fingerprint into the
+      // Validator Memory as a "candidate". Admins then curate title+guidance
+      // and flip status -> "active" so the entry starts influencing future
+      // Creator / Fix / Validator runs.
+      //
+      // Guardrails:
+      //   - Only run on Validator/Auditor saves (status = qc_passed / qc_failed /
+      //     audit_failed). Fix clears findings with status = "draft" - we must
+      //     not treat that as "resolved".
+      //   - Only consider non-dismissed findings from the previous state.
+      //   - Keep the example message for context (first-fill only; we never
+      //     overwrite a curated exampleBefore later).
+      // ---------------------------------------------------------------------
+      const isValidatorSave =
+        args.status === "qc_passed" ||
+        args.status === "qc_failed" ||
+        args.status === "audit_failed";
+      if (isValidatorSave && existing.length > 0) {
+        const newFingerprints = new Set<string>(
+          (args.findings || []).map((f) =>
+            makeValidatorMemoryFingerprint(f.stage, f.code, f.path)
+          )
+        );
+
+        const resolvedByFingerprint = new Map<
+          string,
+          { stage: "validator" | "auditor"; code: string; path?: string; message: string }
+        >();
+        for (const f of existing) {
+          if (f.dismissed === true) continue;
+          if (f.severity === "info") continue;
+          const fp = makeValidatorMemoryFingerprint(f.stage, f.code, f.path);
+          if (newFingerprints.has(fp)) continue;
+          if (!resolvedByFingerprint.has(fp)) {
+            resolvedByFingerprint.set(fp, {
+              stage: f.stage,
+              code: f.code,
+              path: f.path,
+              message: String(f.message || ""),
+            });
+          }
+        }
+
+        if (resolvedByFingerprint.size > 0) {
+          const draftDoc = await ctx.db.get(args.draftId);
+          const sourceUnitNumber =
+            typeof draftDoc?.unitNumber === "number" ? draftDoc.unitNumber : undefined;
+
+          for (const [fingerprint, info] of resolvedByFingerprint) {
+            const existingMemory = await ctx.db
+              .query("contentStudioValidatorMemory")
+              .withIndex("by_fingerprint", (q) => q.eq("fingerprint", fingerprint))
+              .first();
+
+            if (existingMemory) {
+              const patch: any = {
+                occurrenceCount: (existingMemory.occurrenceCount ?? 0) + 1,
+                lastSeenAt: now,
+                updatedAt: now,
+              };
+              if (!existingMemory.exampleBefore && info.message) {
+                patch.exampleBefore = info.message.slice(0, 500);
+              }
+              await ctx.db.patch(existingMemory._id, patch);
+            } else {
+              await ctx.db.insert("contentStudioValidatorMemory", {
+                fingerprint,
+                stage: info.stage,
+                code: info.code,
+                path: info.path,
+                title: info.code,
+                guidance: "",
+                exampleBefore: info.message ? info.message.slice(0, 500) : undefined,
+                exampleAfter: undefined,
+                pattern: undefined,
+                patternFlags: undefined,
+                scope: {
+                  applyInCreator: true,
+                  applyInFix: true,
+                  applyInValidator: false,
+                },
+                status: "candidate",
+                sourceDraftId: args.draftId,
+                sourceUnitNumber,
+                occurrenceCount: 1,
+                lastSeenAt: now,
+                createdAt: now,
+                createdBy: undefined,
+                updatedAt: now,
+                updatedBy: undefined,
+              });
+            }
+          }
+        }
+      }
+
       for (const f of existing) {
         await ctx.db.delete(f._id);
       }
@@ -1121,7 +1222,7 @@ export const internalPublishUnitPackageToPreview = mutation({
       for (const vdoc of existing as any[]) {
         if (vdoc.isActive === false) continue;
         if (vdoc.releaseStatus !== "preview") continue;
-        const key = String(vdoc.serbian || "").toLowerCase().trim();
+        const key = toVocabularyKey(vdoc.serbian);
         if (key && (vdoc.de || vdoc.noteDe)) {
           deTranslationMap.set(key, {
             de: vdoc.de,
@@ -1138,7 +1239,7 @@ export const internalPublishUnitPackageToPreview = mutation({
 
       const skippedDuplicates: string[] = [];
       for (const entry of vocabEn) {
-        const serbKey = String(entry.serbian || "").toLowerCase().trim();
+        const serbKey = toVocabularyKey(entry.serbian);
 
         // Cross-unit dedup guard: skip if word is already taught in an earlier unit
         const earlier = await findEarlierUnitVocabulary(ctx, serbKey, unitNumber);

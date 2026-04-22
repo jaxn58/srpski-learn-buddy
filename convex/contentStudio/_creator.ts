@@ -21,6 +21,11 @@ import {
   CS_PROMPT_KEYS,
 } from "./prompts";
 import type { Id } from "../_generated/dataModel";
+import {
+  buildValidatorMemoryBlockFromEntries,
+  buildCorrectionRecipesBlock,
+  findMemoryForFindingsFromEntries,
+} from "./_validatorMemory";
 
 function normalizeForOverlap(s: string): string[] {
   const raw = String(s || "");
@@ -378,10 +383,22 @@ export const runAiSpecialistGenerate = action({
       CS_PROMPT_KEYS.unitCreator,
     );
 
+    // Validator-Memory ("Gehirn"): known pitfalls from previously-fixed findings.
+    // Injected into the system prompt so the Specialist proactively avoids them.
+    const creatorMemoryEntries = await ctx.runQuery(
+      internal.contentStudio.getActiveValidatorMemoryForScope,
+      { scope: "creator", limit: 60 }
+    );
+    const memoryBlock = buildValidatorMemoryBlockFromEntries(
+      creatorMemoryEntries as any,
+      { limit: 40 }
+    );
+
     // Replace [LANGUAGE] placeholder if present
     const system = [
       baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
       skillBlock ? `\n${skillBlock}\n` : ``,
+      memoryBlock ? `\n${memoryBlock}\n` : ``,
       referenceBlock ? `\n${referenceBlock}\n` : ``,
     ].join("\n");
 
@@ -615,6 +632,23 @@ export const runAiCreatorRevise = action({
       ? `HUMAN REVIEW NOTES:\n${humanNotes}`
       : "";
 
+    // Validator-Memory: pull "correction recipes" curated from past fixes that
+    // match any of the current findings. The AI sees the exact guidance, and -
+    // if provided - concrete before/after examples, so similar findings get
+    // fixed the same way every time.
+    const fixMemoryEntries = issues.length > 0
+      ? await ctx.runQuery(
+          internal.contentStudio.getActiveValidatorMemoryForScope,
+          { scope: "fix", limit: 120 }
+        )
+      : [];
+    const matchedRecipes = findMemoryForFindingsFromEntries(
+      fixMemoryEntries as any,
+      issues.map((f: any) => ({ stage: f.stage, code: f.code, path: f.path })),
+      { maxPerFinding: 2, maxTotal: 24 }
+    );
+    const recipesBlock = buildCorrectionRecipesBlock(matchedRecipes);
+
     const baseSystemPrompt = await resolvePromptFromDb(
       ctx,
       CS_PROMPT_KEYS.findingFixer,
@@ -636,6 +670,8 @@ export const runAiCreatorRevise = action({
       findingsBlock,
       ``,
       notesBlock,
+      ``,
+      recipesBlock,
       ``,
       `TASK: Revise the markdown to fix the findings and address the notes.`,
       `Return ONLY the full corrected Markdown.`,
@@ -680,6 +716,8 @@ export const runAiCreatorRevise = action({
           findingsBlock,
           ``,
           notesBlock,
+          ``,
+          recipesBlock,
           ``,
           `TASK: Revise the markdown to fix the findings. Return the ENTIRE corrected Markdown from the very first line to the very last line. Do not cut it short.`,
         ].join("\n");

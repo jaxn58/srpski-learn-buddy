@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action } from "../_generated/server";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import {
   requireSuperadminAction,
   callAiText,
@@ -10,6 +10,7 @@ import {
   translateUnitMarkdownToEnglishIfNeeded,
   ensureFounderNoteInMarkdownIfConfigured,
 } from "./_shared";
+import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
 import {
   fillMissingUnitPackageFields,
   syncVocabularyCoverageFromExercises,
@@ -87,7 +88,15 @@ export const runSectionRevise = action({
       ctx,
       CS_PROMPT_KEYS.section(sectionId),
     );
-    const systemPrompt = [basePrompt, skillBlock, sectionPrompt].filter(Boolean).join("\n\n");
+    // Validator-Memory: inject known pitfalls so the revision doesn't reintroduce them.
+    const memoryEntries = await ctx.runQuery(
+      internal.contentStudio.getActiveValidatorMemoryForScope,
+      { scope: "creator", limit: 60 }
+    );
+    const memoryBlock = buildValidatorMemoryBlockFromEntries(memoryEntries as any, { limit: 30 });
+    const systemPrompt = [basePrompt, skillBlock, memoryBlock, sectionPrompt]
+      .filter(Boolean)
+      .join("\n\n");
 
     const userPrompt = [
       `CURRENT CONTENT of '${sectionId}':`,

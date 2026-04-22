@@ -19,7 +19,7 @@ import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from "
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { Sparkles, Loader2, Settings, Plus, LayoutList, PanelLeft, PanelRight, Volume2 } from "lucide-react";
+import { Sparkles, Loader2, Settings, Plus, LayoutList, PanelLeft, PanelRight, Volume2, Brain } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
@@ -28,6 +28,7 @@ import {
 import { UnitManagerTab } from "@/components/admin/UnitManagerTab";
 const LazyImportTab = lazy(() => import("./ContentImportAdmin").then(m => ({ default: m.ImportTab })));
 const LazyAudioFilesTab = lazy(() => import("@/components/admin/contentStudio/AudioFilesTab").then(m => ({ default: m.AudioFilesTab })));
+const LazyValidatorMemoryPanel = lazy(() => import("@/components/admin/contentStudio/ValidatorMemoryPanel").then(m => ({ default: m.ValidatorMemoryPanel })));
 import { SettingsSheet } from "@/components/admin/contentStudio/SettingsSheet";
 import { DraftList } from "@/components/admin/contentStudio/DraftList";
 import { ArtifactsPanel } from "@/components/admin/contentStudio/ArtifactsPanel";
@@ -180,7 +181,14 @@ export default function ContentStudioAdmin() {
   const [studioView, setStudioView] = useState<StudioView>(() => {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
-    if (v === "import" || v === "units" || v === "drafts" || v === "audioFiles") return v as StudioView;
+    if (
+      v === "import" ||
+      v === "units" ||
+      v === "drafts" ||
+      v === "audioFiles" ||
+      v === "validatorMemory"
+    )
+      return v as StudioView;
     return "draftManager";
   });
 
@@ -2104,6 +2112,8 @@ export default function ContentStudioAdmin() {
                   ? "Upload Markdown / JSON to import units"
                   : studioView === "audioFiles"
                   ? "Manage audio files across modules and units"
+                  : studioView === "validatorMemory"
+                  ? "Content Studio Memory: kuratierte Lehren aus behobenen Findings"
                   : "Manage all units across languages"}
           </div>
         </div>
@@ -2155,6 +2165,15 @@ export default function ContentStudioAdmin() {
               <Volume2 className="mr-1.5 h-3.5 w-3.5" />
               Audio Files
             </Button>
+            <Button
+              variant={studioView === "validatorMemory" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setStudioView("validatorMemory")}
+            >
+              <Brain className="mr-1.5 h-3.5 w-3.5" />
+              Memory
+            </Button>
           </div>
           <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
             <Settings className="mr-2 h-4 w-4" />
@@ -2178,6 +2197,9 @@ export default function ContentStudioAdmin() {
 
       {/* Audio Files view */}
       {studioView === "audioFiles" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyAudioFilesTab /></Suspense>}
+
+      {/* Validator Memory view */}
+      {studioView === "validatorMemory" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyValidatorMemoryPanel /></Suspense>}
 
       {/* Draft Manager view */}
       {studioView === "draftManager" && (() => {

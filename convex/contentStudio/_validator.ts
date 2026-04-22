@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action } from "../_generated/server";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import {
   requireSuperadminAction,
   parseJsonOrThrow,
@@ -12,6 +12,7 @@ import {
   collectMarkdownLanguageIssuesForFounderNote,
   collectIncompleteHeadingIssues,
 } from "./_shared";
+import { collectMemoryRegressionIssuesFromEntries } from "./_validatorMemory";
 import {
   fillMissingUnitPackageFields,
   syncVocabularyCoverageFromExercises,
@@ -222,11 +223,24 @@ export const runQcValidate = action({
           }
         : null;
 
+    // Validator-Memory: regression check. Active entries with scope.applyInValidator=true
+    // and a regex pattern are applied to the unit package's text fields. Hits surface as
+    // soft warnings so the author can spot re-emerging known pitfalls without hard-failing.
+    const regressionMemoryEntries = await ctx.runQuery(
+      internal.contentStudio.getActiveValidatorMemoryForScope,
+      { scope: "validator", limit: 100 }
+    );
+    const memoryRegressionIssues = collectMemoryRegressionIssuesFromEntries(
+      regressionMemoryEntries as any,
+      ensuredWithVocab as any
+    );
+
     const templateIssues = [
       ...templateIssuesBase,
       ...continuityIssues,
       ...languageIssues,
       ...headingIssues,
+      ...memoryRegressionIssues,
       ...(varietyIssue ? [varietyIssue] : []),
     ];
 

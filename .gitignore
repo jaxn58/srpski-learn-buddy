@@ -114,3 +114,7 @@ temp/
 *.sqlite
 *.sqlite3
 .vercel
+
+# Local debug dumps (e.g. Content Studio cross-unit duplicate dumps)
+_dump.json
+_dump*.json

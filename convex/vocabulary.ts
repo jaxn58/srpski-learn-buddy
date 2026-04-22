@@ -56,7 +56,24 @@ export const upsertCourseVocabulary = mutation({
       .filter((q) => q.eq(q.field("serbian"), args.serbian))
       .first();
 
-    const serbianNormalized = args.serbian.toLowerCase().trim();
+    const serbianNormalized = toVocabularyKey(args.serbian);
+
+    // Cross-unit dedup guard: prevent re-introducing duplicates via legacy
+    // migration scripts that still call this mutation. Only enforced on
+    // inserts — same-unit updates (see existing branch below) are fine.
+    if (!existing) {
+      const earlier = await findEarlierUnitVocabulary(
+        ctx,
+        serbianNormalized,
+        args.unitNumber,
+      );
+      if (earlier) {
+        throw new Error(
+          `Cross-unit duplicate: "${args.serbian}" is already taught in Unit ${earlier.unitNumber} ` +
+            `(courseVocabulary id=${earlier._id}). Refusing to insert into Unit ${args.unitNumber}.`,
+        );
+      }
+    }
 
     if (existing) {
       const updates: Partial<Doc<"courseVocabulary">> = {
@@ -862,9 +879,34 @@ export const getAudioUrlFromStorageId = query({
 // ============= CROSS-UNIT DEDUPLICATION =============
 
 /**
+ * Canonical normalization for the Serbian vocabulary key.
+ *
+ * Single source of truth for every write path and every lookup against
+ * the `serbianNormalized` index. Using this helper prevents silent drift
+ * between paths (e.g. one path NFC-normalizing and another not, which
+ * lets visually-identical strings bypass the `by_serbian_normalized`
+ * index because they are byte-different).
+ *
+ * Rules:
+ *  - NFC: composed Unicode form (so decomposed `c + combining acute`
+ *    and composed `ć` compare equal).
+ *  - trim: strip leading/trailing whitespace.
+ *  - toLowerCase: case-insensitive.
+ */
+export function toVocabularyKey(s: unknown): string {
+  return String(s ?? "").normalize("NFC").trim().toLowerCase();
+}
+
+/**
  * Shared helper: find all active courseVocabulary entries in units earlier than
  * `unitNumber` whose normalized serbian key matches `serbianNormalized`.
  * Returns the earliest match (lowest unitNumber) or null.
+ *
+ * Defense-in-depth fallback: if the primary `by_serbian_normalized`
+ * lookup misses (legacy rows with missing/different-form `serbianNormalized`,
+ * or rows stored in unusual case variants), we scan `by_serbian` against a
+ * set of plausible case / unicode variants of the key. This keeps the
+ * guard robust against legacy data while normal writes remain O(index).
  */
 export async function findEarlierUnitVocabulary(
   ctx: QueryCtx | MutationCtx,
@@ -873,42 +915,51 @@ export async function findEarlierUnitVocabulary(
 ): Promise<Doc<"courseVocabulary"> | null> {
   if (!serbianNormalized) return null;
 
-  // Primary path: search via serbianNormalized index
-  const hits = await ctx.db
-    .query("courseVocabulary")
-    .withIndex("by_serbian_normalized", (q) =>
-      q.eq("serbianNormalized", serbianNormalized),
-    )
-    .collect();
+  const key = toVocabularyKey(serbianNormalized);
+
+  const considerHit = (
+    current: Doc<"courseVocabulary"> | null,
+    h: Doc<"courseVocabulary">,
+  ): Doc<"courseVocabulary"> | null => {
+    if (h.isActive === false) return current;
+    if ((h as any).releaseStatus === "offline") return current;
+    if (h.unitNumber >= unitNumber) return current;
+    if (!current || h.unitNumber < current.unitNumber) return h;
+    return current;
+  };
 
   let earliest: Doc<"courseVocabulary"> | null = null;
-  for (const h of hits) {
-    if (h.isActive === false) continue;
-    if ((h as any).releaseStatus === "offline") continue;
-    if (h.unitNumber >= unitNumber) continue;
-    if (!earliest || h.unitNumber < earliest.unitNumber) {
-      earliest = h;
-    }
-  }
 
-  // Fallback: entries with missing serbianNormalized won't be found by the index.
-  // Search by exact serbian (case-sensitive) and common capitalized form as safety net.
+  const primary = await ctx.db
+    .query("courseVocabulary")
+    .withIndex("by_serbian_normalized", (q) =>
+      q.eq("serbianNormalized", key),
+    )
+    .collect();
+  for (const h of primary) earliest = considerHit(earliest, h);
+
   if (!earliest) {
-    const capitalizedForm = serbianNormalized.charAt(0).toUpperCase() + serbianNormalized.slice(1);
-    const fallbackVariants = [serbianNormalized, capitalizedForm];
-    for (const variant of fallbackVariants) {
+    const capitalizedForm = key.charAt(0).toUpperCase() + key.slice(1);
+    const upperForm = key.toUpperCase();
+    const nfdForm = key.normalize("NFD");
+    const variants = Array.from(
+      new Set(
+        [
+          key,
+          capitalizedForm,
+          upperForm,
+          nfdForm,
+          nfdForm.charAt(0).toUpperCase() + nfdForm.slice(1),
+        ].filter(Boolean),
+      ),
+    );
+    for (const variant of variants) {
       const fallbackHits = await ctx.db
         .query("courseVocabulary")
         .withIndex("by_serbian", (q) => q.eq("serbian", variant))
         .collect();
-      for (const h of fallbackHits) {
-        if (h.isActive === false) continue;
-        if ((h as any).releaseStatus === "offline") continue;
-        if (h.unitNumber >= unitNumber) continue;
-        if (!earliest || h.unitNumber < earliest.unitNumber) {
-          earliest = h;
-        }
-      }
+      for (const h of fallbackHits) earliest = considerHit(earliest, h);
+      if (earliest) break;
     }
   }
 
@@ -916,14 +967,13 @@ export async function findEarlierUnitVocabulary(
 }
 
 /**
- * One-time cleanup: deduplicate vocabulary across units.
- * For every normalized serbian key that appears in more than one unit,
- * the entry in the earliest unit is kept ("canonical") and later duplicates
- * are archived. VocabularyProgress rows pointing to archived entries are
- * remapped to the canonical entry.
+ * @deprecated Superseded by the auth-gated, merge-aware, confirm-protected
+ * `cleanupCrossUnitVocabularyDuplicates` mutation in
+ * `convex/contentStudio/_vocabularyCleanup.ts`. Kept only so existing
+ * CLI/tool snippets don't break mid-migration — will be removed after the
+ * one-time prod cleanup.
  *
  * Run via: npx convex run vocabulary:deduplicateVocabularyAcrossUnits '{"dryRun":true}'
- * Requires superadmin or CLI (identity-less) invocation.
  */
 export const deduplicateVocabularyAcrossUnits = mutation({
   args: {
@@ -1144,3 +1194,10 @@ export const backfillSerbianNormalized = mutation({
     };
   },
 });
+
+// Cross-unit reporting and cleanup tools live in
+// `convex/contentStudio/_vocabularyCleanup.ts`:
+//   - reportCrossUnitVocabularyDuplicates (query, read-only)
+//   - inspectSerbianKeyAcrossUnits (query, read-only, single-key forensic)
+//   - cleanupCrossUnitVocabularyDuplicates (mutation, superadmin+confirm, dryRun)
+//   - takeUnitVocabularyOfflineCompletely (mutation, superadmin+confirm)

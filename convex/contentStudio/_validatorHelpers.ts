@@ -1,6 +1,7 @@
 import { ActionCtx } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { callAiText, truncateForAudit } from "./_shared";
+import { toVocabularyKey } from "../vocabulary";
 
 export const REQUIRED_TEMPLATE_EXERCISE_CATEGORIES: Array<{
   category: "translation" | "fillInBlank" | "multipleChoice" | "vocabularyMatching" | "dialogueCompletion";
@@ -133,14 +134,19 @@ export function stripAlreadyTaughtVocabFromMarkdown(
 export function normalizeSerbianKey(s: unknown): string {
   // Normalize for matching Serbian keys across various user/model formatting.
   // IMPORTANT: this is used only for validation/matching, not for storing audio-clean Serbian.
-  return String(s ?? "")
+  //
+  // The final step funnels through `toVocabularyKey` so any key used in-memory
+  // by the validator matches the exact normalization that guards and DB writes
+  // use. Without this, visually-identical keys (NFC vs NFD, different case)
+  // can miss the `by_serbian_normalized` index and bypass the dedup guard.
+  const stripped = String(s ?? "")
     .trim()
     // Strip markdown wrappers/backticks/bold/quotes (anywhere)
     .replace(/[`"'*_]/g, "")
     // Strip trailing punctuation that sometimes sneaks into lists (e.g. "od.")
     .replace(/[.?!,:;]+$/g, "")
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+    .replace(/\s+/g, " ");
+  return toVocabularyKey(stripped);
 }
 
 function normalizeTextForVariety(s: unknown): string {

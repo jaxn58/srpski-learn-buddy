@@ -6,7 +6,7 @@ import { api, internal } from "./_generated/api";
 import { UnitPackageSchema, validateUnitPackageDeep } from "../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../scripts/unitPackage/autofix";
 import { parseMarkdownToUnitPackage, validateMarkdownStructure } from "../scripts/markdownParser/parser";
-import { findEarlierUnitVocabulary } from "./vocabulary";
+import { findEarlierUnitVocabulary, toVocabularyKey } from "./vocabulary";
 
 type FileInput = { fileName: string; unitPackage: unknown };
 
@@ -478,12 +478,10 @@ export const internalImportUnitPackage = internalMutation({
 
     // 3) Vocabulary (courseVocabulary master data) — English only for now
     const vocabEn: any[] = ((fixed as any).vocabulary?.en as any[]) ?? [];
-    const normKey = (s: unknown) =>
-      String(s ?? "").normalize("NFC").trim().toLowerCase();
 
     const skippedCrossUnitDups: string[] = [];
     for (const entry of vocabEn) {
-      const entryNormKey = normKey(entry?.serbian);
+      const entryNormKey = toVocabularyKey(entry?.serbian);
 
       const earlierHit = await findEarlierUnitVocabulary(ctx, entryNormKey, fixed.unitNumber);
       if (earlierHit) {
@@ -495,7 +493,7 @@ export const internalImportUnitPackage = internalMutation({
         const payload: any = {
           unitNumber: fixed.unitNumber,
           serbian: entry.serbian,
-          serbianNormalized: String(entry.serbian || "").toLowerCase().trim(),
+          serbianNormalized: entryNormKey,
           translations: [{ language: "en", translation: entry.en }],
           gender: entry.gender || undefined,
           noteEn: entry.noteEn || undefined,
@@ -533,7 +531,7 @@ export const internalImportUnitPackage = internalMutation({
       const payload: any = {
         unitNumber: fixed.unitNumber,
         serbian: entry.serbian,
-        serbianNormalized: String(entry.serbian || "").toLowerCase().trim(), // Case-insensitive search
+        serbianNormalized: entryNormKey, // Case-insensitive + NFC-normalized
         translations,
         gender: entry.gender || undefined,
         noteEn: entry.noteEn || undefined,

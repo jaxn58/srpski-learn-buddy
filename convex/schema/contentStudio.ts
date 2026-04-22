@@ -261,6 +261,56 @@ export const contentStudioTables = {
     .index("by_snapshot", ["snapshotId"])
     .index("by_created_at", ["createdAt"]),
 
+  // ============= VALIDATOR MEMORY (Content Studio Brain) =============
+  // Persistent "memory" of previously-fixed validator/auditor findings.
+  // Auto-captured when a finding disappears after a Fix-Findings cycle,
+  // manually curated by admins, and injected back into three stages:
+  //   - Creator (prevention: "Known pitfalls to avoid")
+  //   - Fix-Findings AI (reparation: "Correction recipes from past fixes")
+  //   - Validator (regression: soft warning when a known pattern re-appears)
+  contentStudioValidatorMemory: defineTable({
+    // Stable key: stage|code|path (lowercased path). Used for upsert and de-duplication.
+    fingerprint: v.string(),
+    // Identification
+    stage: v.union(v.literal("validator"), v.literal("auditor")),
+    code: v.string(),
+    path: v.optional(v.string()),
+    // Human-friendly summary + guidance that is injected into prompts
+    title: v.string(),
+    guidance: v.string(),
+    // Optional concrete before/after examples (short strings)
+    exampleBefore: v.optional(v.string()),
+    exampleAfter: v.optional(v.string()),
+    // Optional regex for the validator regression check (applied to relevant fields)
+    pattern: v.optional(v.string()),
+    patternFlags: v.optional(v.string()),
+    // Where the entry is applied. Default on auto-capture: creator=true, fix=true, validator=false.
+    scope: v.object({
+      applyInCreator: v.boolean(),
+      applyInFix: v.boolean(),
+      applyInValidator: v.boolean(),
+    }),
+    // Lifecycle: candidate (auto-captured, not yet curated), active (in use), archived (hidden).
+    status: v.union(
+      v.literal("candidate"),
+      v.literal("active"),
+      v.literal("archived")
+    ),
+    // Source metadata (where the entry was first captured from)
+    sourceDraftId: v.optional(v.id("contentDrafts")),
+    sourceUnitNumber: v.optional(v.number()),
+    // Bookkeeping
+    occurrenceCount: v.number(),
+    lastSeenAt: v.number(),
+    createdAt: v.number(),
+    createdBy: v.optional(v.id("users")),
+    updatedAt: v.number(),
+    updatedBy: v.optional(v.id("users")),
+  })
+    .index("by_fingerprint", ["fingerprint"])
+    .index("by_status", ["status"])
+    .index("by_last_seen_at", ["lastSeenAt"]),
+
   // ============= CONTENT IMPORT RUNS (Admin Audit Log) =============
   // Stores validation/import runs from the admin content import tool.
   // Keep the report as a JSON string to stay forwards-compatible with report schema changes.
