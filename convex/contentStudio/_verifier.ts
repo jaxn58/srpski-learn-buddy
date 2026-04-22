@@ -79,11 +79,28 @@ export function runDeterministicVocabChecks(items: VerifierInputItem[]): Verifie
   // like "zu Hause" or "der Mann (Plural: die Männer)".
   const STACKED_WORDS = /\b(und|oder|bzw\.?|beziehungsweise|sowie)\b/i;
   const STACKED_PUNCT = /[\/;]|,\s*(?![a-zäöü])/; // slash, semicolon, or comma not part of a compound
+  // Legitimate single-lemma connectors. A vocabulary entry whose entire
+  // German field is exactly one of these words is a real dictionary lemma
+  // (e.g. serbian "i"/"a" -> "und", "ili" -> "oder"), NOT stacked meanings.
+  // Without this allowlist, the STACKED_WORDS regex would false-positive on
+  // every connector lemma and produce persistent noise in the verifier report.
+  // The semantic AI-verifier layer still checks these items against the
+  // Serbian source independently, so legitimacy of the translation is not
+  // lost by skipping the deterministic heuristic here.
+  const SINGLE_CONNECTOR_LEMMA = /^(und|oder|bzw\.?|beziehungsweise|sowie)$/i;
+
+  const allowlisted: Array<{ key: string; label: string; de: string }> = [];
 
   for (const it of items) {
     if (it.kind !== "vocabulary") continue;
     const de = String(it.german ?? "").trim();
     if (!de) continue;
+
+    // Whitelist: the entire DE field is exactly a single connector word -> legitimate lemma, skip.
+    if (SINGLE_CONNECTOR_LEMMA.test(de)) {
+      allowlisted.push({ key: it.key, label: it.label, de });
+      continue;
+    }
 
     const hasStackedWord = STACKED_WORDS.test(de);
     const hasStackedPunct = STACKED_PUNCT.test(de);
@@ -101,6 +118,17 @@ export function runDeterministicVocabChecks(items: VerifierInputItem[]): Verifie
       suggestion: undefined,
     });
   }
+
+  // Audit trail: log which items bypassed the heuristic because they are
+  // single-connector lemmas. Surfaces in Convex function logs so any
+  // unexpected allowlisting can be reviewed retroactively.
+  if (allowlisted.length > 0) {
+    console.log(
+      `[verifier] runDeterministicVocabChecks: allowlisted ${allowlisted.length} single-connector lemma(s) from vocab_stacked_meanings heuristic: ` +
+        allowlisted.map((a) => `${a.label}="${a.de}"`).join(", "),
+    );
+  }
+
   return issues;
 }
 
