@@ -139,6 +139,33 @@ function truncate(s: string, max: number): string {
 }
 
 /**
+ * Defensive post-filter: drop issues whose own text admits they are not
+ * actually issues. The verifier prompt instructs the model to omit items that
+ * match correctly, but in rare cases the model emits a "commentary" issue with
+ * language like "No issue here — they match" or "both are correct, no problem".
+ * Those entries have no actionable signal, clutter the admin report, and
+ * pollute the retry feedback. Filtering is conservative: we require the issue
+ * text to EXPLICITLY state that there is no issue, not merely that something
+ * is acceptable.
+ */
+const NON_ISSUE_PHRASE_PATTERNS: RegExp[] = [
+  /\bno\s+issue\s+here\b/i,
+  /\bno\s+issue\s+found\b/i,
+  /\bno\s+(real\s+)?issue(s)?\b/i,
+  /\bno\s+problem(s)?\b/i,
+  /\bthey\s+match\b/i,
+  /\bthey\s+are\s+(a\s+)?match(ing)?\b/i,
+  /\bis\s+correct\s+and\s+matches\b/i,
+  /\bmatches\s+(the\s+)?serbian\s+meaning\b/i,
+];
+
+function isNonIssueCommentary(issue: VerifierIssue): boolean {
+  const text = `${issue.issue} ${issue.suggestion ?? ""}`.trim();
+  if (!text) return false;
+  return NON_ISSUE_PHRASE_PATTERNS.some((re) => re.test(text));
+}
+
+/**
  * Batches items for the verifier call. Each batch stays under a conservative
  * character budget so we don't blow the context window. Markdown sections are
  * much larger than vocabulary items, so we let batching per-kind handle size.
@@ -175,7 +202,13 @@ const VERIFIER_SYSTEM = [
   "When in doubt between warning and critical, choose warning. Reserve 'critical' for real meaning errors.",
   "",
   "SCOPE BY ITEM KIND (read the 'kind' field of each item):",
-  "- kind == 'vocabulary' | 'test' | 'section': compare DE against the SERBIAN original. English is only a bridge. This is the zone where the learner meets the Serbian language.",
+  "- kind == 'vocabulary' | 'section': compare DE against the SERBIAN original. English is only a bridge. This is the zone where the learner meets the Serbian language.",
+  "- kind == 'test': this is an interactive test item. CRITICAL CONTRACT — read carefully:",
+  "  • The German fields to review are ONLY the question text and (if present) the hint. They appear in the 'german' payload as 'Question (DE): ...' and optionally 'Hint (DE): ...'.",
+  "  • The Serbian anchor for a test item describes the LEARNER-PRODUCED SERBIAN ANSWERS ('Expected Serbian answer', 'Answer choices (Serbian, stay untranslated)', 'Accepted Serbian variants'). These are deliberately Serbian-only by course design: the learner must answer in Serbian, so options, correctAnswer, and acceptableAlternatives ALWAYS stay Serbian in the German record too.",
+  "  • Therefore: do NOT emit 'missing_info' because 'options are not translated', 'German options are missing', 'correct answer is only in Serbian', etc. This is BY DESIGN and is NOT an issue. Any suggestion to translate options/correct-answer/alternatives into German is WRONG and must never be produced.",
+  "  • Do NOT request symmetric German counterparts for Serbian answer content. The asymmetry is intentional.",
+  "  • Your actual job for test items: verify that the German question (and hint, if present) is coherent with the learner-produced Serbian answers — i.e. the German prompt makes sense for those Serbian choices and the expected Serbian answer — and that it is a faithful rendering of the English question. Flag real mismatches of meaning, lost info in the question/hint, wrong register, or grammatical errors in the German prompt only.",
   "- kind == 'metadata': this is learner-facing UI/INFORMATIONAL text (unit title, description, topic/grammar/vocabulary-theme lists). It is maintained in ENGLISH and translated to German purely for the interface — it is NOT Serbian the learner studies. Compare DE against the ENGLISH text. IGNORE any mismatch against the Serbian field: the Serbian field for a metadata item is either empty or only thematic context, NEVER a translation source. Do NOT emit 'semantic_mismatch' or 'missing_info' for metadata on the grounds that the Serbian side is shorter, is only a vocabulary list, or lacks a descriptive paragraph. Flag metadata ONLY for real EN↔DE issues: wrong translation of the English title/description, omitted or invented topics, lost grammar-focus entries, array-length changes, etc.",
   "",
   "HARD RULES — do NOT flag these (they are not issues):",
@@ -314,6 +347,7 @@ export async function verifySerbianGermanAlignment(
         continue;
       }
       const rawIssues: any[] = Array.isArray(parsed?.issues) ? parsed.issues : [];
+      const droppedAsNonIssue: Array<{ key: string; text: string }> = [];
       for (const raw of rawIssues) {
         const key = String(raw?.key ?? "").trim();
         const src = itemByKey.get(key);
@@ -328,7 +362,7 @@ export async function verifySerbianGermanAlignment(
           typeof raw?.suggestion === "string" && String(raw.suggestion).trim()
             ? String(raw.suggestion).trim()
             : undefined;
-        allIssues.push({
+        const candidate: VerifierIssue = {
           itemKey: src.key,
           itemLabel: src.label,
           itemKind: src.kind,
@@ -336,7 +370,25 @@ export async function verifySerbianGermanAlignment(
           code,
           issue,
           suggestion,
-        });
+        };
+        // Defensive drop: the verifier occasionally emits "no issue — they
+        // match" commentary despite being told not to. Such entries are not
+        // actionable and must not reach the admin UI or the retry feedback.
+        if (isNonIssueCommentary(candidate)) {
+          droppedAsNonIssue.push({ key: src.key, text: issue });
+          continue;
+        }
+        allIssues.push(candidate);
+      }
+      if (droppedAsNonIssue.length > 0) {
+        console.log(
+          `[verifier] dropped ${droppedAsNonIssue.length} non-issue commentary entr${
+            droppedAsNonIssue.length === 1 ? "y" : "ies"
+          }: ` +
+            droppedAsNonIssue
+              .map((d) => `${d.key}="${d.text.slice(0, 120)}"`)
+              .join("; ")
+        );
       }
     } catch (e: any) {
       callError = `Verifier call failed: ${String(e?.message || e).slice(0, 400)}`;

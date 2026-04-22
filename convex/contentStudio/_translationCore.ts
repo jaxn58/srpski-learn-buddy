@@ -835,28 +835,59 @@ export function buildVerifierItems(params: {
     const qid = String((src as any)?.questionId ?? "");
     const key = `test:${qid}`;
     if (pass && !pass.has(key)) continue;
-    const srAnchor = [
-      `Correct answer (SR): ${String((src as any)?.correctAnswer ?? "")}`,
+
+    // IMPORTANT for the SR→DE verifier:
+    // `options`, `correctAnswer`, `acceptableAlternatives` are intentionally
+    // Serbian-only by course design — the learner answers in Serbian, so those
+    // fields stay untranslated in the DE record as well. We pass them to the
+    // verifier ONLY as context so it can judge whether the German question
+    // coherently frames these Serbian answers. They must NOT be interpreted as
+    // source text missing a German counterpart (that was the cause of the
+    // "options missing" false-positive storm). The explicit "do NOT translate"
+    // header below, combined with the kind=='test' rule in VERIFIER_SYSTEM,
+    // makes this contract unmistakable to the reviewing model.
+    const optionsSr =
       Array.isArray((src as any)?.options) && (src as any).options.length
-        ? `Options (SR): ${(src as any).options.join(" | ")}`
-        : "",
+        ? (src as any).options.join(" | ")
+        : "";
+    const alternativesSr =
       Array.isArray((src as any)?.acceptableAlternatives) && (src as any).acceptableAlternatives.length
-        ? `Acceptable alternatives (SR): ${(src as any).acceptableAlternatives.join(" | ")}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
-    const en = String((src as any)?.question ?? "");
+        ? (src as any).acceptableAlternatives.join(" | ")
+        : "";
+    const correctSr = String((src as any)?.correctAnswer ?? "");
+    const hasAnySrContent = Boolean(correctSr || optionsSr || alternativesSr);
+    const srAnchor = hasAnySrContent
+      ? [
+          "[Learner-produced Serbian answers — intentionally NOT translated to German; options stay Serbian in DE by course design]",
+          correctSr ? `Expected Serbian answer: ${correctSr}` : "",
+          optionsSr ? `Answer choices (Serbian, stay untranslated): ${optionsSr}` : "",
+          alternativesSr ? `Accepted Serbian variants: ${alternativesSr}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : "";
+
     const out = testsDeById.get(qid);
     const deQuestion = String(out?.question ?? "");
     if (!srAnchor || !deQuestion) continue;
+
+    const enQuestion = String((src as any)?.question ?? "");
+    const enHint = typeof (src as any)?.hint === "string" ? String((src as any).hint) : "";
+    const deHint = typeof out?.hint === "string" ? String(out.hint) : "";
+    const enSide = [`Question (EN): ${enQuestion}`, enHint ? `Hint (EN): ${enHint}` : ""]
+      .filter(Boolean)
+      .join("\n");
+    const deSide = [`Question (DE): ${deQuestion}`, deHint ? `Hint (DE): ${deHint}` : ""]
+      .filter(Boolean)
+      .join("\n");
+
     items.push({
       key,
       kind: "test",
       label: `test ${qid}`,
       serbian: srAnchor,
-      english: en,
-      german: deQuestion,
+      english: enSide,
+      german: deSide,
     });
   }
 
