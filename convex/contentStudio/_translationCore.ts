@@ -321,36 +321,42 @@ export function buildSerbianContextBlock(source: TranslationSourceEn): string {
 // ---------------------------------------------------------------------------
 
 const META_SYSTEM_BASE = [
-  "You translate Serbian-language-course unit metadata into German (de-DE) for German-speaking learners of Serbian.",
-  "The PRIMARY semantic source is the Serbian content this unit teaches (provided as context).",
-  "English is a BRIDGE/REFERENCE only and may contain imprecisions or oversimplifications.",
-  "If English and Serbian content disagree in meaning, follow the SERBIAN meaning — produce German that accurately reflects what the learner will actually study.",
-  "Do NOT invent new items. Preserve array lengths and order from the English source.",
+  "You translate Serbian-language-course unit METADATA (title, description, topics, grammarFocus, vocabularyThemes) from English into German (de-DE) for German-speaking learners of Serbian.",
+  "",
+  "IMPORTANT ROLE OF THESE FIELDS:",
+  "- Unit metadata is LEARNER-FACING UI/INFORMATIONAL text. It is NOT the Serbian language the learner studies — it is the interface copy that tells the learner what the unit is about.",
+  "- These fields are authored and maintained in ENGLISH. The ENGLISH text is the PRIMARY and ONLY semantic source for the German translation.",
+  "- A Serbian context block may be provided for THEMATIC reference only (so you can align tone and domain vocabulary). It is NOT a translation source. Do NOT add, omit, or alter meaning based on the Serbian context. Do NOT drop descriptive sentences just because the Serbian side is shorter or is only a vocabulary list.",
+  "",
+  "TRANSLATION RULES:",
+  "- Translate EN → DE faithfully. Preserve the meaning, tone, and level of detail of the English original.",
+  "- Do NOT invent new items. Preserve array lengths and order from the English source.",
+  "- If a source field is empty, return an empty string (for strings) or empty array (for arrays).",
+  "",
   "Return ONLY valid JSON with keys: titleDe, descriptionDe, topicsDe, grammarFocusDe, vocabularyThemesDe.",
-  "If a source field is empty, return an empty string (for strings) or empty array (for arrays).",
 ].join("\n");
 
 function buildMetaUserPayload(source: TranslationSourceEn, serbianContextBlock: string): string {
   const parts: string[] = [];
-  if (serbianContextBlock) {
-    parts.push(`Serbian context (primary semantic source):`);
-    parts.push(serbianContextBlock);
-    parts.push(``);
-  }
-  parts.push(`Title (EN, bridge reference):`);
+  parts.push(`Title (EN, PRIMARY SOURCE — translate this):`);
   parts.push(String(source.metadataEn?.title ?? ""));
   parts.push(``);
-  parts.push(`Description (EN, bridge reference):`);
+  parts.push(`Description (EN, PRIMARY SOURCE — translate this):`);
   parts.push(String(source.metadataEn?.description ?? ""));
   parts.push(``);
-  parts.push(`Topics (EN, bridge reference) JSON:`);
+  parts.push(`Topics (EN, PRIMARY SOURCE — translate this) JSON:`);
   parts.push(JSON.stringify(source.metadataEn?.topics ?? []));
   parts.push(``);
-  parts.push(`Grammar focus (EN, bridge reference) JSON:`);
+  parts.push(`Grammar focus (EN, PRIMARY SOURCE — translate this) JSON:`);
   parts.push(JSON.stringify(source.metadataEn?.grammarFocus ?? []));
   parts.push(``);
-  parts.push(`Vocabulary themes (EN, bridge reference) JSON:`);
+  parts.push(`Vocabulary themes (EN, PRIMARY SOURCE — translate this) JSON:`);
   parts.push(JSON.stringify(source.metadataEn?.vocabularyThemes ?? []));
+  if (serbianContextBlock) {
+    parts.push(``);
+    parts.push(`Thematic Serbian context (REFERENCE ONLY — do NOT translate from this, do NOT let it change the meaning of the German output; use only to align tone and domain terminology):`);
+    parts.push(serbianContextBlock);
+  }
   return parts.join("\n");
 }
 
@@ -365,7 +371,7 @@ export async function runMetadataTranslation(
   }
 ): Promise<{ raw: string; provider: string; model: string }> {
   const system = args.retryFeedback
-    ? `${META_SYSTEM_BASE}\n\nIMPORTANT: A previous attempt had semantic issues vs. the Serbian content. Fix these in your output:\n${args.retryFeedback}`
+    ? `${META_SYSTEM_BASE}\n\nIMPORTANT: A previous attempt had EN→DE translation issues flagged by the verifier. Fix these in your output while keeping the English meaning intact:\n${args.retryFeedback}`
     : META_SYSTEM_BASE;
   const step = args.retryFeedback ? "metadata:retry" : "metadata";
   const t0 = Date.now();
@@ -618,18 +624,25 @@ export async function translateVocabChunks(
 
 function buildTestsSystemPrompt(retryFeedback?: string): string {
   return [
-    "You translate interactive-test prompts (questions, hints, instructions) into German (de-DE) for German-speaking learners of Serbian.",
-    "Each question tests the learner on Serbian. The Serbian answer(s) are provided as context in 'correctAnswerSr' / 'optionsSr' / 'acceptableAlternativesSr'.",
-    "The PRIMARY semantic anchor is the Serbian answer content — the German question text MUST make sense for those Serbian answers.",
-    "English question text ('questionEn') is a BRIDGE/REFERENCE only and may be imprecise or lose nuance; if it disagrees with what the Serbian answers imply, follow the Serbian meaning.",
-    "Do NOT translate the Serbian answer strings, options, or alternatives. Do NOT change questionId, order, or questionType.",
-    "Preserve blanks EXACTLY as '_____' (five underscores) and keep the number of blanks identical to the English source.",
+    "You translate interactive-test prompts (questions, hints, category instructions) into German (de-DE) for German-speaking learners of Serbian.",
+    "",
+    "FIELD ROLES — this is important:",
+    "- 'categoryInstructionsEn' is LEARNER-FACING UI GUIDANCE (e.g. 'Translate the following Serbian phrases into German'). Translate it EN → DE directly and idiomatically. It is NOT Serbian content the learner studies; the Serbian-anchor rule does NOT apply to it. Do NOT let specific Serbian answers in this batch narrow or alter the meaning of the instructions.",
+    "- 'hintEn' is LEARNER-FACING HELP TEXT (UI). Translate it EN → DE directly and idiomatically. It is not part of the Serbian content being taught.",
+    "- 'questionEn' is the prompt the learner sees. The learner is expected to answer in Serbian (see 'correctAnswerSr' / 'optionsSr' / 'acceptableAlternativesSr'). The German question text MUST stay coherent with those Serbian answers: it is the ONE place where the Serbian-anchor rule applies in this prompt.",
+    "",
+    "RULES FOR questionDe:",
+    "- The PRIMARY semantic anchor is the Serbian answer content. The German question must make sense for those Serbian answers.",
+    "- English question text ('questionEn') is a BRIDGE/REFERENCE only and may be imprecise or lose nuance; if it disagrees with what the Serbian answers imply, follow the Serbian meaning.",
+    "- Do NOT translate the Serbian answer strings, options, or alternatives. Do NOT change questionId, order, or questionType.",
+    "- Preserve blanks EXACTLY as '_____' (five underscores) and keep the number of blanks identical to the English source.",
+    "",
     "Return ONLY valid JSON with keys: categoryInstructionsDe, questions.",
     "questions must be an array of { questionId, questionDe, hintDe }.",
     ...(retryFeedback && retryFeedback.trim()
       ? [
           "",
-          "IMPORTANT: A previous attempt had semantic issues vs. the Serbian answers. Address this feedback:",
+          "IMPORTANT: A previous attempt had issues flagged by the verifier. Address this feedback (it applies to questionDe, which is SR-anchored; categoryInstructions and hints remain straight EN→DE UI translations):",
           retryFeedback.trim(),
         ]
       : []),
@@ -759,7 +772,11 @@ export function buildVerifierItems(params: {
   {
     const key = "metadata:main";
     if (!pass || pass.has(key)) {
-      const srAnchor = params.serbianContextBlock;
+      // Metadata is learner-facing UI text, maintained in English. The verifier
+      // check for this item is an EN→DE translation review, NOT a SR→DE
+      // semantic check. We deliberately leave `serbian` empty so the verifier
+      // cannot accidentally measure the German description against a partial
+      // Serbian vocabulary extract.
       const enCombined = [
         String(params.source.metadataEn?.title ?? ""),
         String(params.source.metadataEn?.description ?? ""),
@@ -778,12 +795,12 @@ export function buildVerifierItems(params: {
       ]
         .filter(Boolean)
         .join("\n");
-      if (srAnchor && deCombined) {
+      if (enCombined && deCombined) {
         items.push({
           key,
           kind: "metadata",
-          label: "unit metadata (title + description + lists)",
-          serbian: srAnchor,
+          label: "unit metadata (EN→DE UI translation)",
+          serbian: "",
           english: enCombined,
           german: deCombined,
         });

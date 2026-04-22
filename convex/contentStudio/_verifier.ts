@@ -146,6 +146,10 @@ const VERIFIER_SYSTEM = [
   "Only report items that have a real issue. Do NOT report items where German correctly reflects the Serbian (even if the English phrasing was different).",
   "When in doubt between warning and critical, choose warning. Reserve 'critical' for real meaning errors.",
   "",
+  "SCOPE BY ITEM KIND (read the 'kind' field of each item):",
+  "- kind == 'vocabulary' | 'test' | 'section': compare DE against the SERBIAN original. English is only a bridge. This is the zone where the learner meets the Serbian language.",
+  "- kind == 'metadata': this is learner-facing UI/INFORMATIONAL text (unit title, description, topic/grammar/vocabulary-theme lists). It is maintained in ENGLISH and translated to German purely for the interface — it is NOT Serbian the learner studies. Compare DE against the ENGLISH text. IGNORE any mismatch against the Serbian field: the Serbian field for a metadata item is either empty or only thematic context, NEVER a translation source. Do NOT emit 'semantic_mismatch' or 'missing_info' for metadata on the grounds that the Serbian side is shorter, is only a vocabulary list, or lacks a descriptive paragraph. Flag metadata ONLY for real EN↔DE issues: wrong translation of the English title/description, omitted or invented topics, lost grammar-focus entries, array-length changes, etc.",
+  "",
   "HARD RULES — do NOT flag these (they are not issues):",
   "1. German pronoun capitalization context: 'sie' (lowercase) = 'she'/'they'; 'Sie' (capitalized) = formal 'you' OR sentence-initial 'she/they'.",
   "   - Both forms can be correct depending on context. Do NOT flag 'Sie' at the start of a German sentence, a heading, a bullet, or a table cell as 'wrong capitalization'.",
@@ -220,10 +224,18 @@ export async function verifySerbianGermanAlignment(
     return empty;
   }
 
-  // Filter: only items with non-empty Serbian anchor and non-empty German translation.
-  const usable = params.items.filter(
-    (it) => String(it.serbian ?? "").trim() && String(it.german ?? "").trim()
-  );
+  // Filter: item must have a non-empty German translation and a non-empty
+  // anchor appropriate to its kind.
+  //  - Metadata items are UI/info texts translated EN→DE; the anchor is ENGLISH.
+  //    The Serbian field is only optional thematic context and may be empty.
+  //  - All other kinds (vocabulary, test, section) are SR→DE checks and require
+  //    a non-empty Serbian anchor.
+  const usable = params.items.filter((it) => {
+    const de = String(it.german ?? "").trim();
+    if (!de) return false;
+    if (it.kind === "metadata") return !!String(it.english ?? "").trim();
+    return !!String(it.serbian ?? "").trim();
+  });
   if (usable.length === 0) {
     empty.durationMs = Date.now() - t0;
     return empty;
