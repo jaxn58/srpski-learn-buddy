@@ -43,6 +43,7 @@ const WishlistNew = lazy(() => import("./pages/WishlistNew"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminUserDetail = lazy(() => import("./pages/AdminUserDetail"));
 const PromptAdmin = lazy(() => import("./pages/PromptAdmin"));
+const ChatAdmin = lazy(() => import("./pages/ChatAdmin"));
 const ChangelogAdmin = lazy(() => import("./pages/ChangelogAdmin"));
 const OnboardingAdmin = lazy(() => import("./pages/OnboardingAdmin"));
 const DashboardAnnouncementsAdmin = lazy(() => import("./pages/DashboardAnnouncementsAdmin"));
@@ -56,6 +57,7 @@ const ContentStudioAdmin = lazy(() => import("./pages/ContentStudioAdmin"));
 const TranslationCoverageAdmin = lazy(() => import("./pages/TranslationCoverageAdmin"));
 const AdminWaitlist = lazy(() => import("./pages/AdminWaitlist"));
 const Newsletter = lazy(() => import("./pages/Newsletter"));
+const KnowledgeAdmin = lazy(() => import("./pages/KnowledgeAdmin"));
 
 // 404
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -283,6 +285,17 @@ function Router() {
             </ProtectedRoute>
           )}
         </Route>
+        <Route path="/admin/chat">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <ChatAdmin />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
         <Route path="/admin/changelog">
           {() => (
             <ProtectedRoute>
@@ -421,6 +434,17 @@ function Router() {
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
                   <Newsletter />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/admin/knowledge">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <KnowledgeAdmin />
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>

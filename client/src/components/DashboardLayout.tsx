@@ -35,6 +35,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -112,6 +113,8 @@ function AdminSidebar() {
         icon: <Database className="h-4 w-4" />,
         items: [
           { label: t("sidebar.promptAdmin"), path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+          { label: t("sidebar.chatAdmin", "Chat Admin"), path: "/admin/chat", icon: <MessageCircle className="h-4 w-4" /> },
+          { label: t("sidebar.knowledgeBase", "Knowledge Base"), path: "/admin/knowledge", icon: <BookOpen className="h-4 w-4" /> },
           { label: t("sidebar.contentStudio"), path: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
           { label: t("sidebar.changelog"), path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
           { label: t("sidebar.databaseBackups"), path: "/admin/backup", icon: <Database className="h-4 w-4" /> },

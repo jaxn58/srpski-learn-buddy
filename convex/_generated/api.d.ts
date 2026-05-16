@@ -9,6 +9,10 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as ai_chatConfig from "../ai/chatConfig.js";
+import type * as ai_chatTools from "../ai/chatTools.js";
+import type * as ai_embeddings from "../ai/embeddings.js";
+import type * as ai_ingestKnowledge from "../ai/ingestKnowledge.js";
 import type * as audioAdmin from "../audioAdmin.js";
 import type * as authz from "../authz.js";
 import type * as backup from "../backup.js";
@@ -33,11 +37,14 @@ import type * as contentStudio__vocabularyCleanup from "../contentStudio/_vocabu
 import type * as contentStudio_prompts from "../contentStudio/prompts.js";
 import type * as crons from "../crons.js";
 import type * as dashboardAnnouncements from "../dashboardAnnouncements.js";
+import type * as documents from "../documents.js";
+import type * as documentsNode from "../documentsNode.js";
 import type * as email from "../email.js";
 import type * as emailTemplates from "../emailTemplates.js";
 import type * as exercises from "../exercises.js";
 import type * as feedback from "../feedback.js";
 import type * as http from "../http.js";
+import type * as knowledge from "../knowledge.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as modules from "../modules.js";
 import type * as newsletter from "../newsletter.js";
@@ -52,6 +59,9 @@ import type * as schema_learning from "../schema/learning.js";
 import type * as schema_progress from "../schema/progress.js";
 import type * as schema_system from "../schema/system.js";
 import type * as schema_vocabulary from "../schema/vocabulary.js";
+import type * as seedChatSuggestions from "../seedChatSuggestions.js";
+import type * as seedKnowledgeArticles from "../seedKnowledgeArticles.js";
+import type * as streaming from "../streaming.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as system from "../system.js";
 import type * as unitContentAudio from "../unitContentAudio.js";
@@ -71,6 +81,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  "ai/chatConfig": typeof ai_chatConfig;
+  "ai/chatTools": typeof ai_chatTools;
+  "ai/embeddings": typeof ai_embeddings;
+  "ai/ingestKnowledge": typeof ai_ingestKnowledge;
   audioAdmin: typeof audioAdmin;
   authz: typeof authz;
   backup: typeof backup;
@@ -95,11 +109,14 @@ declare const fullApi: ApiFromModules<{
   "contentStudio/prompts": typeof contentStudio_prompts;
   crons: typeof crons;
   dashboardAnnouncements: typeof dashboardAnnouncements;
+  documents: typeof documents;
+  documentsNode: typeof documentsNode;
   email: typeof email;
   emailTemplates: typeof emailTemplates;
   exercises: typeof exercises;
   feedback: typeof feedback;
   http: typeof http;
+  knowledge: typeof knowledge;
   leaderboard: typeof leaderboard;
   modules: typeof modules;
   newsletter: typeof newsletter;
@@ -114,6 +131,9 @@ declare const fullApi: ApiFromModules<{
   "schema/progress": typeof schema_progress;
   "schema/system": typeof schema_system;
   "schema/vocabulary": typeof schema_vocabulary;
+  seedChatSuggestions: typeof seedChatSuggestions;
+  seedKnowledgeArticles: typeof seedKnowledgeArticles;
+  streaming: typeof streaming;
   subscriptions: typeof subscriptions;
   system: typeof system;
   unitContentAudio: typeof unitContentAudio;
@@ -152,4 +172,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  persistentTextStreaming: import("@convex-dev/persistent-text-streaming/_generated/component.js").ComponentApi<"persistentTextStreaming">;
+};

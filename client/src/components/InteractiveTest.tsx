@@ -10,6 +10,7 @@ import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { MasteryIndicator, MistakesIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
+import { BuddyHelpHint } from "@/components/BuddyHelpHint";
 import { useTranslation } from "react-i18next";
 
 interface InteractiveTestProps {
@@ -433,9 +434,19 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                                 {isCorrect ? "✓ Correct" : "✗ Incorrect"}
                               </span>
                               {isIncorrect && (
-                                <p className="mt-1 text-sm text-red-600">
-                                  Correct answer: <strong>{q.correctAnswer}</strong>
-                                </p>
+                                <>
+                                  <p className="mt-1 text-sm text-red-600">
+                                    Correct answer: <strong>{q.correctAnswer}</strong>
+                                  </p>
+                                  <BuddyHelpHint
+                                    serbianWord={q.question}
+                                    correctAnswer={q.correctAnswer}
+                                    userAnswer={answers[q.id] || ""}
+                                    unitNumber={unitNumber}
+                                    questionContext={q.type === "multiple-choice" ? "multiple-choice" : "fill-in-blank"}
+                                    delay={0.2}
+                                  />
+                                </>
                               )}
                             </div>
                           )}
