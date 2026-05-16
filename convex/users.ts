@@ -192,6 +192,19 @@ export const syncUser = mutation({
         });
       } catch {}
 
+      // Send welcome email with the user's chosen language.
+      // Sent here (not in the Clerk webhook) because learningLanguage is only
+      // known after the client calls syncUser with the localStorage preference.
+      if (identity.email) {
+        try {
+          await ctx.scheduler.runAfter(0, internal.email.sendBetaRegistrationEmail, {
+            email: identity.email,
+            name: identity.name ?? "New User",
+            language: (userLanguage === "en" || userLanguage === "de") ? userLanguage : "en",
+          });
+        } catch {}
+      }
+
       return userId;
     } catch (error) {
       throw error;
