@@ -314,18 +314,8 @@ http.route({
           clerkId: id,
         });
 
-        if (email) {
-          // Send welcome email to user (immediate access)
-          try {
-            await ctx.runAction(internal.email.sendBetaRegistrationEmail, {
-              email,
-              name: name || "New User",
-            });
-            console.log("[Clerk Webhook] ✅ User welcome email sent to", email);
-          } catch (error) {
-            console.error("[Clerk Webhook] ❌ Failed to send welcome email:", error);
-          }
-        }
+        // Welcome email is sent from syncUser (after first login) so that the
+        // user's chosen language (learningLanguage) is known at send time.
       }
 
       if (eventType === "user.deleted") {
