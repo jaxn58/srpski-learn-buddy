@@ -693,6 +693,39 @@ export const addStreamingAssistantMessage = mutation({
   },
 });
 
+// Internal mutation: authenticate the caller and enforce rate limits for the streaming path.
+// Called from streamChatMessage httpAction (which forwards the Authorization header).
+// Returns the verified userId so the httpAction no longer needs to trust the request body.
+export const enforceStreamRateLimit = internalMutation({
+  args: {
+    sessionId: v.id("chatSessions"),
+  },
+  handler: async (ctx, args): Promise<{ userId: Id<"users">; isPaidUser: boolean }> => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found or access denied");
+    }
+    if (session.archived) {
+      throw new Error("Cannot send messages to an archived chat.");
+    }
+
+    // Re-use the shared rate-limit logic.
+    // Pass an empty message string — the duplicate-content check is intentionally
+    // skipped here because the user message was already validated and persisted by
+    // the prior checkMessageRateLimit call in the UI layer.  What matters for the
+    // streaming path is the count-based (per-minute, per-hour, per-day) limits.
+    const result = await checkRateLimit(ctx, user._id, "");
+    if (!result.allowed) {
+      throw new Error(result.reason || "Rate limit exceeded");
+    }
+
+    return { userId: user._id, isPaidUser: result.isPaidUser ?? false };
+  },
+});
+
 // Internal mutation: update the assistant message content once the stream finishes.
 // Must remain internal — the streaming httpAction is the only valid caller.
 // A public mutation here would allow any client to overwrite arbitrary messages.
@@ -1323,7 +1356,6 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
   const body = await request.json() as {
     streamId: string;
     sessionId: string;
-    userId: string;
     messageId: string;
     attachmentStorageId?: string;
     attachmentFileName?: string;
@@ -1332,8 +1364,26 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
 
   const streamId = body.streamId as StreamId;
   const sessionId = body.sessionId as Id<"chatSessions">;
-  const userId = body.userId as Id<"users">;
   const messageId = body.messageId as Id<"chatMessages">;
+
+  // --- Auth + rate-limit gate ---
+  // The Authorization header (Clerk JWT) forwarded by the client is automatically
+  // propagated to internal mutations called via ctx.runMutation, so getCurrentUser
+  // inside enforceStreamRateLimit will resolve the real caller.
+  let verifiedUserId: Id<"users">;
+  let streamIsPaidUser: boolean;
+  try {
+    const gate = await ctx.runMutation(internal.chat.enforceStreamRateLimit, { sessionId });
+    verifiedUserId = gate.userId;
+    streamIsPaidUser = gate.isPaidUser;
+  } catch (e) {
+    const msg = (e as Error).message ?? "Unauthorized or rate limit exceeded";
+    const isRateLimit = msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("daily limit");
+    return new Response(JSON.stringify({ error: msg }), {
+      status: isRateLimit ? 429 : 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   let config;
   try {
@@ -1345,6 +1395,11 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     });
   }
 
+  // Apply token cap for non-paid users, using the value confirmed by the rate-limit gate.
+  if (!streamIsPaidUser) {
+    config.maxTokens = Math.min(config.maxTokens, RATE_LIMITS.beta.maxTokensOverride!);
+  }
+
   let promptDoc;
   try {
     promptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: "default" });
@@ -1353,17 +1408,16 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
   }
   const basePrompt = promptDoc?.content || EMERGENCY_FALLBACK_PROMPT;
 
-  const streamContext = await ctx.runQuery(api.chat.getStreamContext, { sessionId, userId });
+  // Use the server-verified userId — never trust the request body for identity.
+  const streamContext = await ctx.runQuery(api.chat.getStreamContext, {
+    sessionId,
+    userId: verifiedUserId,
+  });
   if (!streamContext) {
     return new Response(JSON.stringify({ error: "Invalid session or user" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
-  }
-
-  // Cap output tokens for non-paid (beta) users to reduce cost
-  if (!streamContext.isPaidUser) {
-    config.maxTokens = Math.min(config.maxTokens, RATE_LIMITS.beta.maxTokensOverride!);
   }
 
   let systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, streamContext.languageName);
