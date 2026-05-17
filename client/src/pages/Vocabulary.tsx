@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star, Volume2, Loader2, Calendar, PenTool, MessageSquare, Target } from "lucide-react";
+import { BookOpen, CheckCircle, XCircle, RotateCcw, ArrowRight, Info, ChevronDown, Star, Volume2, Loader2, Calendar, PenTool, MessageSquare, Target, Brain } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
@@ -21,6 +21,7 @@ import type { SupportedLanguage } from "@shared/const";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
 import { GamificationModal } from "@/components/GamificationModal";
+import { BuddyHelpHint } from "@/components/BuddyHelpHint";
 import { whenAudioCanPlayThrough } from "@/lib/whenAudioCanPlayThrough";
 
 type QuizProgressDoc = Doc<"quizProgress">;
@@ -1247,20 +1248,32 @@ export default function Vocabulary() {
 
               {/* Input/Feedback Section */}
               {mode === 'learn' ? (
-                <div className="flex gap-4 justify-center">
-                  <Button
-                    variant="outline"
-                    onClick={handlePrevious}
-                    disabled={currentIndex === 0}
-                  >
-                    {t('vocabulary.previous')}
-                  </Button>
-                  <Button
-                    onClick={handleNext}
-                    disabled={currentIndex === filteredVocab.length - 1}
-                  >
-                    {t('vocabulary.next')}
-                  </Button>
+                <div className="space-y-3">
+                  <div className="flex gap-4 justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={handlePrevious}
+                      disabled={currentIndex === 0}
+                    >
+                      {t('vocabulary.previous')}
+                    </Button>
+                    <Button
+                      onClick={handleNext}
+                      disabled={currentIndex === filteredVocab.length - 1}
+                    >
+                      {t('vocabulary.next')}
+                    </Button>
+                  </div>
+                  {currentWord && (
+                    <div className="flex justify-center">
+                      <Link href={`/chat?prefill=${encodeURIComponent(`Explain the word '${currentWord.serbian}' — usage, cases, and example sentences.`)}`}>
+                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1.5">
+                          <Brain className="h-3.5 w-3.5" />
+                          {t('vocabulary.askBuddy', 'Ask Learn Buddy')}
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4 max-w-md mx-auto w-full">
@@ -1419,6 +1432,20 @@ export default function Vocabulary() {
                                   ) : null;
                                 })()}
                               </motion.div>
+                            )}
+                            {!isCorrect && (
+                              <BuddyHelpHint
+                                serbianWord={(answeredWord || currentWord)?.serbian}
+                                correctAnswer={currentCorrectTranslation || (() => {
+                                  const word = answeredWord || currentWord;
+                                  if (!word) return "";
+                                  if (userLanguage === "de" && word.de?.trim()) return word.de.trim();
+                                  return word.en?.trim() || word.de?.trim() || "";
+                                })()}
+                                userAnswer={userAnswer}
+                                unitNumber={typeof selectedUnit === "number" ? selectedUnit : undefined}
+                                questionContext="vocabulary-quiz"
+                              />
                             )}
                           </motion.div>
                         </motion.div>

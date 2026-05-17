@@ -1,8 +1,13 @@
 import { v } from "convex/values";
-import { mutation, query, action, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
+import { mutation, query, action, internalAction, internalMutation, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
+import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
+import { streamingComponent } from "./streaming";
+import type { StreamId } from "@convex-dev/persistent-text-streaming";
+import { resolveModelConfig, generateChatResponse, streamChatResponse, generateAgenticResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
+import { embedText } from "./ai/embeddings";
 
 // Central default system prompts by language (Emergency Fallback)
 const EMERGENCY_FALLBACK_PROMPT = "You are a helpful Serbian language learning assistant. Please explain Serbian grammar and vocabulary clearly.";
@@ -33,25 +38,41 @@ const RATE_LIMITS = {
   beta: {
     messagesPerMinute: 10,
     messagesPerHour: 60,
+    messagesPerDay: 10,
     maxMessageLength: 1500,
+    maxTokensOverride: 2048,
   },
   paid: {
     messagesPerMinute: 20,
     messagesPerHour: 200,
+    messagesPerDay: 100,
     maxMessageLength: 3000,
+    maxTokensOverride: undefined as number | undefined,
   },
 };
 
+/** Returns midnight UTC (00:00:00.000) for the day that contains `nowMs`. */
+function startOfDayUtc(nowMs: number): number {
+  const d = new Date(nowMs);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
 // Check rate limits for chat messages
-async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string): Promise<{ allowed: boolean; reason?: string }> {
+async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string): Promise<{ allowed: boolean; reason?: string; isPaidUser?: boolean }> {
   const now = Date.now();
   const oneMinuteAgo = now - 60 * 1000;
   const oneHourAgo = now - 60 * 60 * 1000;
+  const todayStart = startOfDayUtc(now);
 
   // Get user and subscription to determine limits
   const user = await ctx.db.get(userId);
   if (!user) {
     return { allowed: false, reason: "User not found" };
+  }
+
+  // Admins and superadmins have unrestricted access
+  if (user.role === "admin" || user.role === "superadmin") {
+    return { allowed: true, isPaidUser: true };
   }
 
   const subscription = await ctx.db
@@ -61,7 +82,7 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     .first();
 
   // Determine if user is paid (has active non-beta subscription)
-  const isPaidUser = subscription && subscription.planType !== "beta";
+  const isPaidUser = !!(subscription && subscription.planType !== "beta");
   const limits = isPaidUser ? RATE_LIMITS.paid : RATE_LIMITS.beta;
 
   // Check message length
@@ -71,6 +92,28 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
       reason: `Message too long. Maximum ${limits.maxMessageLength} characters allowed.`,
     };
   }
+
+  // --- Daily limit check (only user-role messages count, each = one AI call) ---
+  const todayUserMessages = await ctx.db
+    .query("chatMessages")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) =>
+      q.and(
+        q.gte(q.field("_creationTime"), todayStart),
+        q.eq(q.field("role"), "user")
+      )
+    )
+    .collect();
+
+  if (todayUserMessages.length >= limits.messagesPerDay) {
+    return {
+      allowed: false,
+      reason: `Daily limit reached. You have used all ${limits.messagesPerDay} messages for today. Come back tomorrow!`,
+    };
+  }
+
+  // NOTE: Global daily budget enforcement happens in the admin dashboard (getChatUsageStats).
+  // A per-message full-table-scan in checkRateLimit would be too expensive.
 
   // Count messages in the last minute
   const recentMessages = await ctx.db
@@ -113,7 +156,7 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     };
   }
 
-  return { allowed: true };
+  return { allowed: true, isPaidUser };
 }
 
 
@@ -273,6 +316,8 @@ export const addMessage = mutation({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     unitContext: v.optional(v.number()),
+    attachmentStorageId: v.optional(v.string()),
+    attachmentFileName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -289,6 +334,9 @@ export const addMessage = mutation({
       role: args.role,
       content: args.content,
       unitContext: args.unitContext,
+      ...(args.attachmentStorageId
+        ? { attachmentStorageId: args.attachmentStorageId as Id<"_storage">, attachmentFileName: args.attachmentFileName }
+        : {}),
     });
   },
 });
@@ -398,6 +446,35 @@ export const deleteArchivedSession = mutation({
   },
 });
 
+export const batchDeleteArchivedSessions = mutation({
+  args: {
+    sessionIds: v.array(v.id("chatSessions")),
+  },
+  returns: v.object({ deleted: v.number() }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    let deleted = 0;
+    for (const sessionId of args.sessionIds) {
+      const session = await ctx.db.get(sessionId);
+      if (!session || session.userId !== user._id || session.archived !== true) {
+        continue;
+      }
+      const messages = await ctx.db
+        .query("chatMessages")
+        .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+        .collect();
+      for (const message of messages) {
+        await ctx.db.delete(message._id);
+      }
+      await ctx.db.delete(sessionId);
+      deleted++;
+    }
+    return { deleted };
+  },
+});
+
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatSessionDoc = Doc<"chatSessions">;
 
@@ -406,16 +483,6 @@ type AiMessage = {
   content: string;
 };
 
-type ChatCompletionResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
-};
 
 // AI Learn Buddy - Send message and get AI response
 // Internal mutation to check rate limits (called from action)
@@ -439,7 +506,7 @@ export const checkMessageRateLimit = mutation({
       throw new Error(rateLimitResult.reason || "Rate limit exceeded");
     }
 
-    return { allowed: true };
+    return { allowed: true, isPaidUser: rateLimitResult.isPaidUser ?? false };
   },
 });
 
@@ -456,28 +523,24 @@ export const sendMessage = action({
     }
 
     // Check rate limits before proceeding
+    let isPaidUser = false;
     try {
-      await ctx.runMutation(api.chat.checkMessageRateLimit, {
+      const rateLimitResult = await ctx.runMutation(api.chat.checkMessageRateLimit, {
         sessionId: args.sessionId,
         message: args.message,
       });
+      isPaidUser = rateLimitResult?.isPaidUser ?? false;
     } catch (error) {
       // Rate limit error - throw it to the frontend
       throw error;
     }
 
-    // Get the API key from environment
-    const apiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error("AI API Key missing:", {
-        hasOpenAI: !!process.env.OPENAI_API_KEY,
-        hasGemini: !!process.env.GEMINI_API_KEY,
-        envKeys: Object.keys(process.env).filter(k => k.includes('API') || k.includes('KEY')),
-      });
-      throw new Error("No AI API key configured. Please set OPENAI_API_KEY or GEMINI_API_KEY in Convex environment variables.");
+    const config = await resolveModelConfig(ctx);
+    // Cap output tokens for non-paid (beta) users to reduce cost
+    if (!isPaidUser) {
+      config.maxTokens = Math.min(config.maxTokens, RATE_LIMITS.beta.maxTokensOverride!);
     }
 
-    // Save user message first
     await ctx.runMutation(api.chat.addMessage, {
       sessionId: args.sessionId,
       role: "user",
@@ -485,12 +548,10 @@ export const sendMessage = action({
       unitContext: args.unitContext,
     });
 
-    // Get recent chat history for context
     const history: ChatMessageDoc[] = await ctx.runQuery(api.chat.getMessages, {
       sessionId: args.sessionId as Id<"chatSessions">,
     });
 
-    // Determine user language
     const user = await ctx.runQuery(api.users.me, {});
     if (user) {
       assertLearnerAccountActive(user);
@@ -514,21 +575,42 @@ export const sendMessage = action({
         languageName = "English"; 
     }
 
-    // Build system prompt (admin-configurable with fallback)
     let promptDoc;
     try {
-      // Always use the base "default" prompt, dynamic instruction handles the rest
       promptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: "default" });
     } catch (e) {
       // swallow and rely on fallback
     }
     
     const basePrompt = promptDoc?.content || getSystemPrompt(learningLanguage);
-    
-    // Replace [LANGUAGE] placeholder with the actual language name
-    const systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, languageName);
+    let systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, languageName);
 
-    // Prepare messages for the AI
+    // RAG v2: inject structured unit context if available
+    if (args.unitContext != null) {
+      const unitBlock = await ctx.runQuery(api.chat.getUnitContextBlock, {
+        unitNumber: args.unitContext,
+        learningLanguage,
+        userId: user?._id,
+      });
+      if (unitBlock) {
+        systemPrompt += "\n\n" + unitBlock;
+      }
+    }
+
+    // RAG v3: semantic search for relevant knowledge
+    try {
+      const semanticContext: string = await ctx.runAction(internal.chat.semanticSearch, {
+        query: args.message,
+        language: learningLanguage,
+        userId: user?._id,
+      });
+      if (semanticContext) {
+        systemPrompt += "\n\n" + semanticContext;
+      }
+    } catch (e) {
+      console.warn("[sendMessage] Semantic search failed, continuing without:", e);
+    }
+
     const recentHistory: ChatMessageDoc[] = history.slice(-8);
     const messages: AiMessage[] = [
       { role: "system", content: systemPrompt },
@@ -538,61 +620,20 @@ export const sendMessage = action({
       })),
     ];
 
-    // Determine which API to use
-    const isGemini = !!process.env.GEMINI_API_KEY;
-    const apiUrl = isGemini
-      ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-      : "https://api.openai.com/v1/chat/completions";
-    
-    // Use Gemini 2.5 Flash for OpenAI-compatible endpoint (recommended replacement for 2.0 Flash)
-    // Available models (examples): gemini-2.5-flash, gemini-2.5-pro, gemini-2.5-flash-lite
-    const model = isGemini ? "gemini-2.5-flash" : "gpt-4o-mini";
+    let assistantMessage: string;
 
-    // Call the AI API
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: 2048,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorDetails;
+    if (config.useAgenticRag) {
       try {
-        errorDetails = JSON.parse(errorText);
-      } catch {
-        errorDetails = errorText;
+        assistantMessage = await generateAgenticResponse(
+          config, messages, ctx, user?._id, learningLanguage
+        );
+      } catch (e) {
+        console.warn("[sendMessage] Agentic RAG failed, falling back to standard:", e);
+        assistantMessage = await generateChatResponse(config, messages);
       }
-      
-      console.error("AI API error:", {
-        status: response.status,
-        statusText: response.statusText,
-        url: apiUrl,
-        model: model,
-        isGemini: isGemini,
-        error: errorDetails,
-        hasApiKey: !!apiKey,
-        apiKeyPrefix: apiKey?.substring(0, 10) + "...",
-        apiKeyLength: apiKey?.length,
-      });
-      
-      const errorMessage = typeof errorDetails === 'object' && errorDetails.error?.message
-        ? errorDetails.error.message
-        : errorText || `HTTP ${response.status}`;
-      
-      throw new Error(`AI API error: ${response.status} - ${errorMessage}`);
+    } else {
+      assistantMessage = await generateChatResponse(config, messages);
     }
-
-    const data = (await response.json()) as ChatCompletionResponse;
-    const assistantMessage =
-      data.choices?.[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
 
     // Save assistant response
     await ctx.runMutation(api.chat.addMessage, {
@@ -625,5 +666,1006 @@ export const getSessionById = query({
   },
 });
 
+// ============= STREAMING CHAT =============
 
+// Internal mutation: insert an assistant message placeholder with a streamId
+export const addStreamingAssistantMessage = mutation({
+  args: {
+    sessionId: v.id("chatSessions"),
+    streamId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
 
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found or access denied");
+    }
+
+    return await ctx.db.insert("chatMessages", {
+      sessionId: args.sessionId,
+      userId: user._id,
+      role: "assistant",
+      content: "",
+      streamId: args.streamId,
+    });
+  },
+});
+
+// Internal mutation: authenticate the caller and enforce rate limits for the streaming path.
+// Called from streamChatMessage httpAction (which forwards the Authorization header).
+// Returns the verified userId so the httpAction no longer needs to trust the request body.
+export const enforceStreamRateLimit = internalMutation({
+  args: {
+    sessionId: v.id("chatSessions"),
+  },
+  handler: async (ctx, args): Promise<{ userId: Id<"users">; isPaidUser: boolean }> => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found or access denied");
+    }
+    if (session.archived) {
+      throw new Error("Cannot send messages to an archived chat.");
+    }
+
+    // Re-use the shared rate-limit logic.
+    // Pass an empty message string — the duplicate-content check is intentionally
+    // skipped here because the user message was already validated and persisted by
+    // the prior checkMessageRateLimit call in the UI layer.  What matters for the
+    // streaming path is the count-based (per-minute, per-hour, per-day) limits.
+    const result = await checkRateLimit(ctx, user._id, "");
+    if (!result.allowed) {
+      throw new Error(result.reason || "Rate limit exceeded");
+    }
+
+    return { userId: user._id, isPaidUser: result.isPaidUser ?? false };
+  },
+});
+
+// Internal mutation: update the assistant message content once the stream finishes.
+// Must remain internal — the streaming httpAction is the only valid caller.
+// A public mutation here would allow any client to overwrite arbitrary messages.
+export const finalizeStreamedMessage = internalMutation({
+  args: {
+    messageId: v.id("chatMessages"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.messageId, { content: args.content });
+  },
+});
+
+// Build a compact RAG context block from unit data
+async function buildUnitContextBlock(
+  ctx: QueryCtx,
+  unitNumber: number,
+  learningLanguage: string,
+  userId?: Id<"users">
+): Promise<string | null> {
+  const vocab = await ctx.db
+    .query("courseVocabulary")
+    .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+    .collect();
+
+  if (vocab.length === 0) return null;
+
+  const langKey = learningLanguage as "en" | "de" | "es" | "fr";
+  const noteKey = `note${learningLanguage.charAt(0).toUpperCase()}${learningLanguage.slice(1)}` as
+    "noteEn" | "noteDe" | "noteEs" | "noteFr";
+
+  const vocabLines = vocab.slice(0, 30).map((v) => {
+    const translation = v[langKey] || v.en || "";
+    const gender = v.gender ? ` (${v.gender})` : "";
+    const pron = v.pronunciation ? ` [${v.pronunciation}]` : "";
+    const note = v[noteKey] || v.noteEn || "";
+    const noteStr = note ? ` — ${note}` : "";
+    return `- ${v.serbian}${gender}${pron} = ${translation}${noteStr}`;
+  });
+
+  // unitMetadata: user language with English fallback
+  let metadata = await ctx.db
+    .query("unitMetadata")
+    .withIndex("by_unit_lang", (q) =>
+      q.eq("unitNumber", unitNumber).eq("language", learningLanguage)
+    )
+    .first();
+  if (!metadata && learningLanguage !== "en") {
+    metadata = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) =>
+        q.eq("unitNumber", unitNumber).eq("language", "en")
+      )
+      .first();
+  }
+
+  const unitTitle = metadata?.title ?? `Unit ${unitNumber}`;
+
+  const sections: string[] = [
+    `[UNIT CONTEXT: ${unitTitle} (Unit ${unitNumber})]`,
+    "",
+    "Key vocabulary for this unit:",
+    ...vocabLines,
+  ];
+
+  // Grammar: user language with English fallback, expanded to 3000 chars
+  let grammarContent = await ctx.db
+    .query("unitContent")
+    .withIndex("by_unit_lang_type", (q) =>
+      q.eq("unitNumber", unitNumber).eq("language", learningLanguage).eq("contentType", "grammar")
+    )
+    .first();
+  if (!grammarContent && learningLanguage !== "en") {
+    grammarContent = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", unitNumber).eq("language", "en").eq("contentType", "grammar")
+      )
+      .first();
+  }
+
+  if (grammarContent?.content) {
+    const grammarText = grammarContent.content.slice(0, 3000);
+    sections.push("", "Grammar:", grammarText);
+  }
+
+  // Phrases: user language with English fallback
+  let phrasesContent = await ctx.db
+    .query("unitContent")
+    .withIndex("by_unit_lang_type", (q) =>
+      q.eq("unitNumber", unitNumber).eq("language", learningLanguage).eq("contentType", "phrases")
+    )
+    .first();
+  if (!phrasesContent && learningLanguage !== "en") {
+    phrasesContent = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", unitNumber).eq("language", "en").eq("contentType", "phrases")
+      )
+      .first();
+  }
+
+  if (phrasesContent?.content) {
+    sections.push("", "Key phrases:", phrasesContent.content.slice(0, 1500));
+  }
+
+  // Dialogues: user language with English fallback
+  let dialoguesContent = await ctx.db
+    .query("unitContent")
+    .withIndex("by_unit_lang_type", (q) =>
+      q.eq("unitNumber", unitNumber).eq("language", learningLanguage).eq("contentType", "dialogues")
+    )
+    .first();
+  if (!dialoguesContent && learningLanguage !== "en") {
+    dialoguesContent = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", unitNumber).eq("language", "en").eq("contentType", "dialogues")
+      )
+      .first();
+  }
+
+  if (dialoguesContent?.content) {
+    sections.push("", "Example dialogues:", dialoguesContent.content.slice(0, 1500));
+  }
+
+  // Personalization: weak vocabulary + progress context (requires userId)
+  if (userId) {
+    // Load vocabulary progress for this unit's words
+    const vocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    if (vocabProgress.length > 0) {
+      const vocabIds = new Set(vocab.map((v) => v._id));
+      const weakProgress = vocabProgress.filter(
+        (vp) => vocabIds.has(vp.courseVocabularyId) && !vp.mastered && vp.incorrectAnswerCount > 0
+      );
+
+      if (weakProgress.length > 0) {
+        const weakWords = await Promise.all(
+          weakProgress.slice(0, 10).map((wp) => ctx.db.get(wp.courseVocabularyId))
+        );
+        const weakList = weakWords
+          .filter(Boolean)
+          .map((w) => w!.serbian)
+          .join(", ");
+        if (weakList) {
+          sections.push("", "Words the user struggles with:", weakList);
+        }
+      }
+    }
+
+    // Load user progress summary
+    const userProgress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (userProgress) {
+      const user = await ctx.db.get(userId);
+      const completedStr = userProgress.completedUnits.length > 0
+        ? userProgress.completedUnits.sort((a, b) => a - b).join(", ")
+        : "none";
+      const xp = user?.totalXP ?? 0;
+      const streak = user?.currentStreak ?? 0;
+      sections.push(
+        "",
+        `[USER PROFILE] Unit ${userProgress.currentUnit} | Completed: ${completedStr} | XP: ${xp} | Streak: ${streak} days`
+      );
+    }
+
+    // Multi-unit vocabulary: include words from the previous 2 units
+    if (unitNumber > 1) {
+      const prevUnits = [unitNumber - 1, unitNumber - 2].filter((u) => u >= 1);
+      const prevVocabLines: string[] = [];
+      for (const pu of prevUnits) {
+        const prevVocab = await ctx.db
+          .query("courseVocabulary")
+          .withIndex("by_unit", (q) => q.eq("unitNumber", pu))
+          .collect();
+        const lines = prevVocab.slice(0, 15).map((v) => {
+          const translation = v[langKey] || v.en || "";
+          return `- ${v.serbian} = ${translation}`;
+        });
+        prevVocabLines.push(...lines);
+      }
+      if (prevVocabLines.length > 0) {
+        sections.push("", "Previously learned vocabulary:", ...prevVocabLines);
+      }
+    }
+  }
+
+  sections.push("", "[END UNIT CONTEXT]");
+  return sections.join("\n");
+}
+
+// Public query wrapper for buildUnitContextBlock (used by sendMessage action)
+// @ts-ignore TS2589
+export const getUnitContextBlock = query({
+  args: {
+    unitNumber: v.number(),
+    learningLanguage: v.string(),
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    return await buildUnitContextBlock(ctx, args.unitNumber, args.learningLanguage, args.userId);
+  },
+});
+
+// Internal query: gather everything the stream httpAction needs
+export const getStreamContext = query({
+  args: {
+    sessionId: v.id("chatSessions"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== args.userId) return null;
+    if (session.archived) return null;
+
+    const learningLanguage = user.learningLanguage || "en";
+    let languageName: string;
+    switch (learningLanguage) {
+      case "de": languageName = "German"; break;
+      case "en": languageName = "English"; break;
+      case "es": languageName = "Spanish"; break;
+      case "fr": languageName = "French"; break;
+      default: languageName = "English";
+    }
+
+    const history = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .collect();
+
+    const recentHistory = history
+      .filter((msg) => msg.content.trim() !== "")
+      .slice(-8)
+      .map((msg) => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+      }));
+
+    // RAG: Find the most recent unitContext from user messages
+    let unitContextBlock: string | null = null;
+    const lastUserMsgWithUnit = [...history]
+      .reverse()
+      .find((m) => m.role === "user" && m.unitContext != null);
+
+    if (lastUserMsgWithUnit?.unitContext != null) {
+      unitContextBlock = await buildUnitContextBlock(
+        ctx,
+        lastUserMsgWithUnit.unitContext,
+        learningLanguage,
+        args.userId
+      );
+    }
+
+    // For RAG v3 semantic search: return the last user message text
+    const lastUserMessage = [...history].reverse().find((m) => m.role === "user");
+
+    // Admins and superadmins are treated as paid (no token cap)
+    let isPaidUser = user.role === "admin" || user.role === "superadmin";
+    if (!isPaidUser) {
+      const subscription = await ctx.db
+        .query("userSubscriptions")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .first();
+      isPaidUser = !!(subscription && subscription.planType !== "beta");
+    }
+
+    return {
+      languageName,
+      recentHistory,
+      unitContextBlock,
+      lastUserMessage: lastUserMessage?.content ?? null,
+      userId: args.userId,
+      learningLanguage,
+      isPaidUser,
+    };
+  },
+});
+
+// ============= CHAT USAGE TODAY (for countdown badge) =============
+
+export const getChatUsageToday = query({
+  args: {
+    nowMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return null;
+
+    // Admins and superadmins have no limits -- hide the badge entirely
+    if (user.role === "admin" || user.role === "superadmin") {
+      return null;
+    }
+
+    const subscription = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .first();
+    const isPaidUser = !!(subscription && subscription.planType !== "beta");
+    const limit = isPaidUser ? RATE_LIMITS.paid.messagesPerDay : RATE_LIMITS.beta.messagesPerDay;
+
+    const todayStart = startOfDayUtc(args.nowMs);
+
+    const todayUserMessages = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("_creationTime"), todayStart),
+          q.eq(q.field("role"), "user")
+        )
+      )
+      .collect();
+
+    const used = todayUserMessages.length;
+    return {
+      used,
+      limit,
+      remaining: Math.max(0, limit - used),
+      isPaidUser,
+    };
+  },
+});
+
+// ============= SEMANTIC SEARCH (RAG v3) =============
+
+// @ts-ignore TS2589
+export const semanticSearch = internalAction({
+  args: {
+    query: v.string(),
+    language: v.string(),
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args): Promise<string> => {
+    let queryEmbedding: number[];
+    try {
+      queryEmbedding = await embedText(args.query);
+      console.log(`[semanticSearch] Embedding OK (${queryEmbedding.length} dims) for: "${args.query.slice(0, 60)}"`);
+    } catch (e) {
+      console.warn("[semanticSearch] Embedding failed, returning empty:", e);
+      return "";
+    }
+
+    // Search knowledge base chunks in user language
+    const kbResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+      vector: queryEmbedding,
+      limit: 5,
+      filter: (q: any) => q.eq("language", args.language),
+    });
+
+    const chunks: string[] = [];
+    for (const r of kbResults) {
+      const doc = await ctx.runQuery(internal.chat.getKnowledgeChunk, { id: r._id });
+      if (doc) chunks.push(doc.content);
+    }
+
+    // Fallback: if user language yielded few results, supplement with English
+    if (chunks.length < 3 && args.language !== "en") {
+      const enResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+        vector: queryEmbedding,
+        limit: 5 - chunks.length,
+        filter: (q: any) => q.eq("language", "en"),
+      });
+
+      const existingContent = new Set(chunks);
+      for (const r of enResults) {
+        const doc = await ctx.runQuery(internal.chat.getKnowledgeChunk, { id: r._id });
+        if (doc && !existingContent.has(doc.content)) {
+          chunks.push(doc.content);
+        }
+      }
+    }
+
+    console.log(`[semanticSearch] Results: ${kbResults.length} KB chunks → ${chunks.length} total`);
+
+    if (chunks.length === 0) return "";
+
+    return "[RELEVANT KNOWLEDGE]\n\n" + chunks.join("\n\n---\n\n") + "\n\n[END RELEVANT KNOWLEDGE]";
+  },
+});
+
+// @ts-ignore TS2589
+export const getKnowledgeChunk = query({
+  args: { id: v.id("knowledgeChunks") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+// @ts-ignore TS2589
+export const getUserDocChunk = query({
+  args: { id: v.id("userDocumentChunks") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+// ============= AGENTIC RAG HELPERS (v6 -- internal queries for tool calls) =============
+
+// @ts-ignore TS2589
+export const getUnitVocabulary = internalQuery({
+  args: {
+    unitNumber: v.number(),
+    langKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const vocab = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+
+    if (vocab.length === 0) return null;
+
+    const key = args.langKey as "en" | "de" | "es" | "fr";
+    const lines = vocab.map((v) => {
+      const translation = v[key] || v.en || "";
+      const gender = v.gender ? ` (${v.gender})` : "";
+      const pron = v.pronunciation ? ` [${v.pronunciation}]` : "";
+      return `${v.serbian}${gender}${pron} = ${translation}`;
+    });
+
+    return `Unit ${args.unitNumber} Vocabulary (${vocab.length} words):\n` + lines.join("\n");
+  },
+});
+
+// @ts-ignore TS2589
+export const getUnitContentByType = internalQuery({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    contentType: v.union(
+      v.literal("overview"),
+      v.literal("grammar"),
+      v.literal("phrases"),
+      v.literal("dialogues"),
+      v.literal("vocabulary"),
+      v.literal("testIntroduction"),
+      v.literal("practice"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    let content = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", args.unitNumber)
+          .eq("language", args.language)
+          .eq("contentType", args.contentType)
+      )
+      .first();
+
+    if (!content && args.language !== "en") {
+      content = await ctx.db
+        .query("unitContent")
+        .withIndex("by_unit_lang_type", (q) =>
+          q.eq("unitNumber", args.unitNumber)
+            .eq("language", "en")
+            .eq("contentType", args.contentType)
+        )
+        .first();
+    }
+
+    return content?.content ?? null;
+  },
+});
+
+// @ts-ignore TS2589
+export const getUserProgressForTools = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const progress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!progress) return null;
+
+    const user = await ctx.db.get(args.userId);
+    const xp = user?.totalXP ?? 0;
+    const streak = user?.currentStreak ?? 0;
+
+    // Get weak vocabulary
+    const vocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const weakEntries = vocabProgress.filter((vp) => !vp.mastered && vp.incorrectAnswerCount > 0);
+    let weakWordsStr = "";
+    if (weakEntries.length > 0) {
+      const weakWords = await Promise.all(
+        weakEntries.slice(0, 15).map((wp) => ctx.db.get(wp.courseVocabularyId))
+      );
+      weakWordsStr = weakWords
+        .filter(Boolean)
+        .map((w) => w!.serbian)
+        .join(", ");
+    }
+
+    const completedStr = progress.completedUnits.length > 0
+      ? progress.completedUnits.sort((a, b) => a - b).join(", ")
+      : "none";
+
+    let result = `Current Unit: ${progress.currentUnit}\n`;
+    result += `Completed Units: ${completedStr}\n`;
+    result += `XP: ${xp} | Streak: ${streak} days\n`;
+    if (weakWordsStr) {
+      result += `Weak vocabulary: ${weakWordsStr}`;
+    }
+
+    return result;
+  },
+});
+
+// @ts-ignore TS2589
+export const searchVocabularyForTools = internalQuery({
+  args: {
+    query: v.string(),
+    langKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const allVocab = await ctx.db.query("courseVocabulary").collect();
+    const queryLower = args.query.toLowerCase();
+
+    const matches = allVocab.filter((v) => {
+      const serbian = (v.serbian || "").toLowerCase();
+      const normalized = (v.serbianNormalized || "").toLowerCase();
+      const en = (v.en || "").toLowerCase();
+      const de = (v.de || "").toLowerCase();
+      return (
+        serbian.includes(queryLower) ||
+        normalized.includes(queryLower) ||
+        en.includes(queryLower) ||
+        de.includes(queryLower)
+      );
+    });
+
+    if (matches.length === 0) return null;
+
+    const key = args.langKey as "en" | "de" | "es" | "fr";
+    const lines = matches.slice(0, 10).map((v) => {
+      const translation = v[key] || v.en || "";
+      const gender = v.gender ? ` (${v.gender})` : "";
+      const pron = v.pronunciation ? ` [${v.pronunciation}]` : "";
+      return `Unit ${v.unitNumber}: ${v.serbian}${gender}${pron} = ${translation}`;
+    });
+
+    return `Found ${matches.length} match(es):\n` + lines.join("\n");
+  },
+});
+
+// ============= MESSAGE FEEDBACK =============
+
+export const submitMessageFeedback = mutation({
+  args: {
+    messageId: v.id("chatMessages"),
+    sessionId: v.id("chatSessions"),
+    rating: v.union(v.literal("up"), v.literal("down")),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.role !== "assistant") {
+      throw new Error("Can only rate assistant messages");
+    }
+
+    const existing = await ctx.db
+      .query("chatMessageFeedback")
+      .withIndex("by_message", (q) => q.eq("messageId", args.messageId))
+      .first();
+
+    if (existing) {
+      if (existing.rating === args.rating) {
+        await ctx.db.delete(existing._id);
+        return { action: "removed" };
+      }
+      await ctx.db.patch(existing._id, {
+        rating: args.rating,
+        createdAt: Date.now(),
+      });
+      return { action: "updated" };
+    }
+
+    await ctx.db.insert("chatMessageFeedback", {
+      messageId: args.messageId,
+      sessionId: args.sessionId,
+      userId: user._id,
+      rating: args.rating,
+      createdAt: Date.now(),
+    });
+    return { action: "created" };
+  },
+});
+
+export const getSessionFeedback = query({
+  args: { sessionId: v.id("chatSessions") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+
+    return await ctx.db
+      .query("chatMessageFeedback")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .collect();
+  },
+});
+
+// httpAction: POST /chat/stream
+export const streamChatMessage = httpAction(async (ctx, request) => {
+  const body = await request.json() as {
+    streamId: string;
+    sessionId: string;
+    messageId: string;
+    attachmentStorageId?: string;
+    attachmentFileName?: string;
+    attachmentFileType?: string;
+  };
+
+  const streamId = body.streamId as StreamId;
+  const sessionId = body.sessionId as Id<"chatSessions">;
+  const messageId = body.messageId as Id<"chatMessages">;
+
+  // --- Auth + rate-limit gate ---
+  // The Authorization header (Clerk JWT) forwarded by the client is automatically
+  // propagated to internal mutations called via ctx.runMutation, so getCurrentUser
+  // inside enforceStreamRateLimit will resolve the real caller.
+  let verifiedUserId: Id<"users">;
+  let streamIsPaidUser: boolean;
+  try {
+    const gate = await ctx.runMutation(internal.chat.enforceStreamRateLimit, { sessionId });
+    verifiedUserId = gate.userId;
+    streamIsPaidUser = gate.isPaidUser;
+  } catch (e) {
+    const msg = (e as Error).message ?? "Unauthorized or rate limit exceeded";
+    const isRateLimit = msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("daily limit");
+    return new Response(JSON.stringify({ error: msg }), {
+      status: isRateLimit ? 429 : 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  let config;
+  try {
+    config = await resolveModelConfig(ctx);
+  } catch (e) {
+    return new Response(JSON.stringify({ error: (e as Error).message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Apply token cap for non-paid users, using the value confirmed by the rate-limit gate.
+  if (!streamIsPaidUser) {
+    config.maxTokens = Math.min(config.maxTokens, RATE_LIMITS.beta.maxTokensOverride!);
+  }
+
+  let promptDoc;
+  try {
+    promptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: "default" });
+  } catch {
+    // fallback below
+  }
+  const basePrompt = promptDoc?.content || EMERGENCY_FALLBACK_PROMPT;
+
+  // Use the server-verified userId — never trust the request body for identity.
+  const streamContext = await ctx.runQuery(api.chat.getStreamContext, {
+    sessionId,
+    userId: verifiedUserId,
+  });
+  if (!streamContext) {
+    return new Response(JSON.stringify({ error: "Invalid session or user" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  let systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, streamContext.languageName);
+
+  if (streamContext.unitContextBlock) {
+    systemPrompt += "\n\n" + streamContext.unitContextBlock;
+  }
+
+  // RAG v3: semantic search for relevant knowledge
+  if (streamContext.lastUserMessage) {
+    try {
+      const semanticContext: string = await ctx.runAction(internal.chat.semanticSearch, {
+        query: streamContext.lastUserMessage,
+        language: streamContext.learningLanguage,
+        userId: streamContext.userId,
+      });
+      if (semanticContext) {
+        systemPrompt += "\n\n" + semanticContext;
+      }
+    } catch (e) {
+      console.warn("[streamChat] Semantic search failed, continuing without:", e);
+    }
+  }
+
+  // Build attachment context (inline multimodal) -- use URL to avoid OOM in httpAction
+  let attachmentUrl: string | null = null;
+  let attachmentMimeType: string | null = null;
+  if (body.attachmentStorageId) {
+    try {
+      const storageId = body.attachmentStorageId as Id<"_storage">;
+      const url = await ctx.storage.getUrl(storageId);
+      if (url) {
+        attachmentUrl = url;
+        attachmentMimeType = body.attachmentFileType || "application/octet-stream";
+        console.log("[streamChat] Attachment URL ready:", body.attachmentFileName, "type:", attachmentMimeType);
+      }
+    } catch (e) {
+      console.warn("[streamChat] Failed to get attachment URL:", e);
+    }
+  }
+
+  type AiContentPart =
+    | { type: "text"; text: string }
+    | { type: "image"; image: URL; mediaType: string }
+    | { type: "file"; data: URL; mediaType: string };
+
+  type AiMsg = { role: "system" | "user" | "assistant"; content: string | AiContentPart[] };
+
+  const aiMessages: AiMsg[] = [
+    { role: "system", content: systemPrompt },
+  ];
+
+  // Add history, potentially making the last user message multimodal
+  const history = [...streamContext.recentHistory];
+  if (attachmentUrl && attachmentMimeType && history.length > 0) {
+    let lastUserIdx = -1;
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === "user") { lastUserIdx = i; break; }
+    }
+
+    if (lastUserIdx >= 0) {
+      const userMsg = history[lastUserIdx];
+      const isImage = attachmentMimeType.startsWith("image/");
+      const attachInstruction = `\n\n[The user attached a file: "${body.attachmentFileName || "attachment"}". ` +
+        `Analyze the attached content and respond in the language the user is chatting in. ` +
+        `Summarize, translate, or explain the content as appropriate.]`;
+
+      const fileUrl = new URL(attachmentUrl);
+      const parts: AiContentPart[] = [
+        { type: "text", text: userMsg.content + attachInstruction },
+      ];
+
+      if (isImage) {
+        parts.push({ type: "image", image: fileUrl, mediaType: attachmentMimeType });
+      } else {
+        parts.push({ type: "file", data: fileUrl, mediaType: attachmentMimeType });
+      }
+
+      for (let i = 0; i < history.length; i++) {
+        if (i === lastUserIdx) {
+          aiMessages.push({ role: "user", content: parts });
+        } else {
+          aiMessages.push(history[i]);
+        }
+      }
+    } else {
+      aiMessages.push(...history);
+    }
+  } else {
+    aiMessages.push(...history);
+  }
+
+  const response = await streamingComponent.stream(
+    ctx,
+    request,
+    streamId,
+    async (_ctx, _request, _streamId, append) => {
+      let fullText: string;
+      const hasAttachment = !!attachmentUrl;
+
+      const lastMsg = aiMessages[aiMessages.length - 1];
+      const lastContentType = Array.isArray(lastMsg?.content) ? `array(${lastMsg.content.length} parts)` : typeof lastMsg?.content;
+      console.log("[streamChat] Routing:", {
+        hasAttachment,
+        useAgenticRag: config.useAgenticRag,
+        totalMessages: aiMessages.length,
+        lastMessageRole: lastMsg?.role,
+        lastContentType,
+      });
+
+      if (hasAttachment) {
+        try {
+          fullText = await streamMultimodalResponse(config, aiMessages, append);
+        } catch (e) {
+          console.error("[streamChat] Multimodal streaming failed:", e);
+          fullText = await streamChatResponse(config, aiMessages, append);
+        }
+      } else if (config.useAgenticRag) {
+        try {
+          fullText = await streamAgenticResponse(
+            config, aiMessages, append,
+            ctx, streamContext.userId, streamContext.learningLanguage
+          );
+        } catch (e) {
+          console.warn("[streamChat] Agentic RAG failed, falling back to standard:", e);
+          fullText = await streamChatResponse(config, aiMessages, append);
+        }
+      } else {
+        fullText = await streamChatResponse(config, aiMessages, append);
+      }
+
+      await ctx.runMutation(internal.chat.finalizeStreamedMessage, {
+        messageId,
+        content: fullText || "I'm sorry, I couldn't generate a response.",
+      });
+    },
+  );
+
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Vary", "Origin");
+
+  return response;
+});
+
+// =============================================
+// Dynamic Chat Suggestions
+// =============================================
+
+function getSeasonFromMonth(month: number): "spring" | "summer" | "autumn" | "winter" {
+  if (month >= 2 && month <= 4) return "spring";
+  if (month >= 5 && month <= 7) return "summer";
+  if (month >= 8 && month <= 10) return "autumn";
+  return "winter";
+}
+
+function isNearHoliday(holidayMmDd: string, windowDays: number, nowMs: number): boolean {
+  const now = new Date(nowMs);
+  const [mm, dd] = holidayMmDd.split("-").map(Number);
+  const year = now.getFullYear();
+
+  const holiday = new Date(year, mm - 1, dd);
+  const diffMs = holiday.getTime() - nowMs;
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (Math.abs(diffDays) <= windowDays) return true;
+
+  const holidayNextYear = new Date(year + 1, mm - 1, dd);
+  const diffNext = (holidayNextYear.getTime() - nowMs) / (1000 * 60 * 60 * 24);
+  return Math.abs(diffNext) <= windowDays;
+}
+
+type ScoredSuggestion = Doc<"chatSuggestions"> & { _score: number };
+
+function scoreSuggestion(
+  s: Doc<"chatSuggestions">,
+  currentUnit: number | null,
+  season: "spring" | "summer" | "autumn" | "winter",
+  nowMs: number
+): number {
+  let score = s.priority ?? 0;
+
+  if (currentUnit !== null) {
+    const min = s.unitMin ?? 0;
+    const max = s.unitMax ?? 999;
+    if (currentUnit >= min && currentUnit <= max) score += 10;
+    else if (s.unitMin !== undefined || s.unitMax !== undefined) score -= 20;
+  }
+
+  if (s.holidayDate) {
+    const window = s.holidayWindowDays ?? 7;
+    if (isNearHoliday(s.holidayDate, window, nowMs)) score += 25;
+    else score -= 30;
+  }
+
+  if (s.seasonalTag) {
+    if (s.seasonalTag === season) score += 5;
+    else score -= 5;
+  }
+
+  return score;
+}
+
+// @ts-ignore TS2589
+export const getChatSuggestions = query({
+  args: {
+    currentUnit: v.optional(v.number()),
+    language: v.optional(v.string()),
+    nowMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const month = new Date(args.nowMs).getMonth();
+    const season = getSeasonFromMonth(month);
+    const unit = args.currentUnit ?? null;
+    const lang = args.language ?? "en";
+
+    const categories = ["language", "culture", "sos"] as const;
+    const results: Array<{
+      category: string;
+      text: string;
+      prefill: string;
+    }> = [];
+
+    for (const cat of categories) {
+      const all = await ctx.db
+        .query("chatSuggestions")
+        .withIndex("by_category", (q) => q.eq("category", cat).eq("isActive", true))
+        .collect();
+
+      if (all.length === 0) continue;
+
+      const scored: ScoredSuggestion[] = all.map((s) => ({
+        ...s,
+        _score: scoreSuggestion(s, unit, season, args.nowMs),
+      }));
+
+      scored.sort((a, b) => b._score - a._score);
+
+      // Take top candidates and pick one randomly for variety
+      const topN = scored.slice(0, Math.min(3, scored.length));
+      const pick = topN[Math.floor(Math.random() * topN.length)];
+
+      results.push({
+        category: cat,
+        text: lang === "de" ? pick.textDe : pick.textEn,
+        prefill: lang === "de" ? pick.prefillDe : pick.prefillEn,
+      });
+    }
+
+    return results;
+  },
+});
