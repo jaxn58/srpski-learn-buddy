@@ -640,6 +640,11 @@ export const _findUserIdByClerkId = internalQuery({
 export const deleteUser = action({
   args: {
     userId: v.id("users"),
+    /**
+     * The admin must type the target user's full email address before the
+     * deletion is allowed. Validated server-side as well as client-side.
+     */
+    confirmationEmail: v.string(),
     // When true, proceed with Convex deletion even if the Clerk API call
     // fails (e.g. to clean up orphaned records). Default false.
     forceIfClerkFails: v.optional(v.boolean()),
@@ -664,6 +669,18 @@ export const deleteUser = action({
       internal.admin._requireAdminForUserDelete,
       { userId: args.userId }
     );
+
+    // Server-side guard: confirmation email must match the target account.
+    // This is a second line of defence – the UI enforces the same check –
+    // but without it an admin could call the action directly (e.g. via the
+    // Convex dashboard or browser console) and bypass the safeguard.
+    const expectedEmail = (target.email ?? "").trim().toLowerCase();
+    const providedEmail = args.confirmationEmail.trim().toLowerCase();
+    if (!expectedEmail || expectedEmail !== providedEmail) {
+      throw new Error(
+        "Email confirmation does not match the target account. Deletion aborted."
+      );
+    }
 
     console.log(
       `[Delete User] Admin ${target.adminId} deleting user: ${target.email || target.name || target.userId}`
