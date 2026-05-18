@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, action, internalAction, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, action, internalAction, internalMutation, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -676,6 +676,17 @@ export const addStreamingAssistantMessage = mutation({
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    // Ensure the caller can only create messages for their own user record and
+    // in sessions they own — prevents one authenticated user from injecting
+    // messages into another user's chat history.
+    if (user._id !== args.userId) throw new Error("Forbidden");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) throw new Error("Session not found");
+
     return await ctx.db.insert("chatMessages", {
       sessionId: args.sessionId,
       userId: args.userId,
@@ -686,8 +697,9 @@ export const addStreamingAssistantMessage = mutation({
   },
 });
 
-// Internal mutation: update the assistant message content once the stream finishes
-export const finalizeStreamedMessage = mutation({
+// Internal mutation: update the assistant message content once the stream finishes.
+// Intentionally internal so no external caller can overwrite arbitrary messages.
+export const finalizeStreamedMessage = internalMutation({
   args: {
     messageId: v.id("chatMessages"),
     content: v.string(),
@@ -1311,6 +1323,18 @@ export const getSessionFeedback = query({
 
 // httpAction: POST /chat/stream
 export const streamChatMessage = httpAction(async (ctx, request) => {
+  // ---- Authentication: reject unauthenticated requests immediately ----
+  // The caller must supply a valid Convex/Clerk JWT as "Authorization: Bearer <token>".
+  // Without this check any internet client could trigger LLM calls and bypass
+  // all rate limits by supplying arbitrary userId/sessionId values.
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const body = await request.json() as {
     streamId: string;
     sessionId: string;
@@ -1325,6 +1349,19 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
   const sessionId = body.sessionId as Id<"chatSessions">;
   const userId = body.userId as Id<"users">;
   const messageId = body.messageId as Id<"chatMessages">;
+
+  // ---- Authorization: confirm the authenticated caller owns the given userId ----
+  // This prevents an authenticated-but-malicious user from streaming on behalf of
+  // another user's account (quota abuse, history injection).
+  const convexUser = await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+    clerkId: identity.subject,
+  });
+  if (!convexUser || convexUser._id !== userId) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   let config;
   try {
@@ -1486,7 +1523,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         fullText = await streamChatResponse(config, aiMessages, append);
       }
 
-      await ctx.runMutation(api.chat.finalizeStreamedMessage, {
+      await ctx.runMutation(internal.chat.finalizeStreamedMessage, {
         messageId,
         content: fullText || "I'm sorry, I couldn't generate a response.",
       });
