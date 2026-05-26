@@ -9,6 +9,8 @@ import { TopNavigation } from "@/components/TopNavigation";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { FloatingChatButton } from "./FloatingChatButton";
 import { useIsMobile } from "@/hooks/useMobile";
+import { BuddyModalProvider, useBuddyModal } from "@/contexts/BuddyModalContext";
+import { ChatModal } from "@/components/ChatModal";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
 
@@ -236,10 +238,11 @@ function AdminSidebar() {
   );
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
   const [location] = useLocation();
   const isMobile = useIsMobile();
+  const { isOpen, prefillText, unitNumber, closeBuddyModal } = useBuddyModal();
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isAdminRoute = location === "/admin" || location.startsWith("/admin/");
@@ -296,6 +299,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <SignedOut>
         <RedirectToSignIn />
       </SignedOut>
+      <ChatModal
+        isOpen={isOpen}
+        onClose={closeBuddyModal}
+        prefillText={prefillText}
+        unitNumber={unitNumber}
+      />
     </>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <BuddyModalProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </BuddyModalProvider>
   );
 }

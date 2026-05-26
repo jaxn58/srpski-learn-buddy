@@ -1,8 +1,13 @@
 import { v } from "convex/values";
-import { mutation, query, action, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
+import { mutation, query, action, internalAction, internalQuery, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
+import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
+import { streamingComponent } from "./streaming";
+import type { StreamId } from "@convex-dev/persistent-text-streaming";
+import { resolveModelConfig, streamChatResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
+import { embedText } from "./ai/embeddings";
 
 // Central default system prompts by language (Emergency Fallback)
 const EMERGENCY_FALLBACK_PROMPT = "You are a helpful Serbian language learning assistant. Please explain Serbian grammar and vocabulary clearly.";
@@ -33,25 +38,40 @@ const RATE_LIMITS = {
   beta: {
     messagesPerMinute: 10,
     messagesPerHour: 60,
+    messagesPerDay: 10,
     maxMessageLength: 1500,
+    maxTokensOverride: 2048,
   },
   paid: {
     messagesPerMinute: 20,
     messagesPerHour: 200,
+    messagesPerDay: 100,
     maxMessageLength: 3000,
   },
 };
 
+/** Returns midnight UTC (00:00:00.000) for the day that contains `nowMs`. */
+function startOfDayUtc(nowMs: number): number {
+  const d = new Date(nowMs);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
 // Check rate limits for chat messages
-async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string): Promise<{ allowed: boolean; reason?: string }> {
+async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string): Promise<{ allowed: boolean; reason?: string; isPaidUser?: boolean }> {
   const now = Date.now();
   const oneMinuteAgo = now - 60 * 1000;
   const oneHourAgo = now - 60 * 60 * 1000;
+  const todayStart = startOfDayUtc(now);
 
   // Get user and subscription to determine limits
   const user = await ctx.db.get(userId);
   if (!user) {
     return { allowed: false, reason: "User not found" };
+  }
+
+  // Admins and superadmins have unrestricted access
+  if (user.role === "admin" || user.role === "superadmin") {
+    return { allowed: true, isPaidUser: true };
   }
 
   const subscription = await ctx.db
@@ -61,7 +81,7 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     .first();
 
   // Determine if user is paid (has active non-beta subscription)
-  const isPaidUser = subscription && subscription.planType !== "beta";
+  const isPaidUser = !!(subscription && subscription.planType !== "beta");
   const limits = isPaidUser ? RATE_LIMITS.paid : RATE_LIMITS.beta;
 
   // Check message length
@@ -69,6 +89,25 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     return {
       allowed: false,
       reason: `Message too long. Maximum ${limits.maxMessageLength} characters allowed.`,
+    };
+  }
+
+  // Daily limit check
+  const todayUserMessages = await ctx.db
+    .query("chatMessages")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) =>
+      q.and(
+        q.gte(q.field("_creationTime"), todayStart),
+        q.eq(q.field("role"), "user")
+      )
+    )
+    .collect();
+
+  if (todayUserMessages.length >= limits.messagesPerDay) {
+    return {
+      allowed: false,
+      reason: `Daily limit reached. You have used all ${limits.messagesPerDay} messages for today. Come back tomorrow!`,
     };
   }
 
@@ -113,7 +152,7 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     };
   }
 
-  return { allowed: true };
+  return { allowed: true, isPaidUser };
 }
 
 
@@ -418,30 +457,6 @@ type ChatCompletionResponse = {
 };
 
 // AI Learn Buddy - Send message and get AI response
-// Internal mutation to check rate limits (called from action)
-export const checkMessageRateLimit = mutation({
-  args: {
-    sessionId: v.id("chatSessions"),
-    message: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
-
-    const session = await ctx.db.get(args.sessionId);
-    if (!session || session.userId !== user._id) {
-      throw new Error("Session not found");
-    }
-
-    // Check rate limits
-    const rateLimitResult = await checkRateLimit(ctx, user._id, args.message);
-    if (!rateLimitResult.allowed) {
-      throw new Error(rateLimitResult.reason || "Rate limit exceeded");
-    }
-
-    return { allowed: true };
-  },
-});
 
 export const sendMessage = action({
   args: {
@@ -623,6 +638,761 @@ export const getSessionById = query({
   handler: async (ctx, args) => {
     return await ctx.db.get(args.sessionId);
   },
+});
+
+// ============= STREAMING CHAT =============
+
+export const checkMessageRateLimit = mutation({
+  args: {
+    sessionId: v.id("chatSessions"),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found");
+    }
+
+    const rateLimitResult = await checkRateLimit(ctx, user._id, args.message);
+    if (!rateLimitResult.allowed) {
+      throw new Error(rateLimitResult.reason || "Rate limit exceeded");
+    }
+
+    return { allowed: true, isPaidUser: rateLimitResult.isPaidUser ?? false };
+  },
+});
+
+export const addStreamingAssistantMessage = mutation({
+  args: {
+    sessionId: v.id("chatSessions"),
+    userId: v.id("users"),
+    streamId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("chatMessages", {
+      sessionId: args.sessionId,
+      userId: args.userId,
+      role: "assistant",
+      content: "",
+      streamId: args.streamId,
+    });
+  },
+});
+
+export const finalizeStreamedMessage = mutation({
+  args: {
+    messageId: v.id("chatMessages"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.messageId, { content: args.content });
+  },
+});
+
+// Build a compact RAG context block from unit data
+async function buildUnitContextBlock(
+  ctx: QueryCtx,
+  unitNumber: number,
+  learningLanguage: string,
+  userId?: Id<"users">
+): Promise<string | null> {
+  const vocab = await ctx.db
+    .query("courseVocabulary")
+    .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+    .collect();
+
+  if (vocab.length === 0) return null;
+
+  const langKey = learningLanguage as "en" | "de" | "es" | "fr";
+  const noteKey = `note${learningLanguage.charAt(0).toUpperCase()}${learningLanguage.slice(1)}` as
+    "noteEn" | "noteDe" | "noteEs" | "noteFr";
+
+  const vocabLines = vocab.slice(0, 30).map((v) => {
+    const translation = v[langKey] || v.en || "";
+    const gender = v.gender ? ` (${v.gender})` : "";
+    const pron = v.pronunciation ? ` [${v.pronunciation}]` : "";
+    const note = v[noteKey] || v.noteEn || "";
+    const noteStr = note ? ` — ${note}` : "";
+    return `- ${v.serbian}${gender}${pron} = ${translation}${noteStr}`;
+  });
+
+  let metadata = await ctx.db
+    .query("unitMetadata")
+    .withIndex("by_unit_lang", (q) =>
+      q.eq("unitNumber", unitNumber).eq("language", learningLanguage)
+    )
+    .first();
+  if (!metadata && learningLanguage !== "en") {
+    metadata = await ctx.db
+      .query("unitMetadata")
+      .withIndex("by_unit_lang", (q) =>
+        q.eq("unitNumber", unitNumber).eq("language", "en")
+      )
+      .first();
+  }
+
+  const unitTitle = metadata?.title ?? `Unit ${unitNumber}`;
+
+  const sections: string[] = [
+    `[UNIT CONTEXT: ${unitTitle} (Unit ${unitNumber})]`,
+    "",
+    "Key vocabulary for this unit:",
+    ...vocabLines,
+  ];
+
+  let grammarContent = await ctx.db
+    .query("unitContent")
+    .withIndex("by_unit_lang_type", (q) =>
+      q.eq("unitNumber", unitNumber).eq("language", learningLanguage).eq("contentType", "grammar")
+    )
+    .first();
+  if (!grammarContent && learningLanguage !== "en") {
+    grammarContent = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", unitNumber).eq("language", "en").eq("contentType", "grammar")
+      )
+      .first();
+  }
+  if (grammarContent?.content) {
+    sections.push("", "Grammar:", grammarContent.content.slice(0, 3000));
+  }
+
+  let phrasesContent = await ctx.db
+    .query("unitContent")
+    .withIndex("by_unit_lang_type", (q) =>
+      q.eq("unitNumber", unitNumber).eq("language", learningLanguage).eq("contentType", "phrases")
+    )
+    .first();
+  if (!phrasesContent && learningLanguage !== "en") {
+    phrasesContent = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", unitNumber).eq("language", "en").eq("contentType", "phrases")
+      )
+      .first();
+  }
+  if (phrasesContent?.content) {
+    sections.push("", "Key phrases:", phrasesContent.content.slice(0, 1500));
+  }
+
+  let dialoguesContent = await ctx.db
+    .query("unitContent")
+    .withIndex("by_unit_lang_type", (q) =>
+      q.eq("unitNumber", unitNumber).eq("language", learningLanguage).eq("contentType", "dialogues")
+    )
+    .first();
+  if (!dialoguesContent && learningLanguage !== "en") {
+    dialoguesContent = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", unitNumber).eq("language", "en").eq("contentType", "dialogues")
+      )
+      .first();
+  }
+  if (dialoguesContent?.content) {
+    sections.push("", "Example dialogues:", dialoguesContent.content.slice(0, 1500));
+  }
+
+  if (userId) {
+    const vocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    if (vocabProgress.length > 0) {
+      const vocabIds = new Set(vocab.map((v) => v._id));
+      const weakProgress = vocabProgress.filter(
+        (vp) => vocabIds.has(vp.courseVocabularyId) && !vp.mastered && vp.incorrectAnswerCount > 0
+      );
+
+      if (weakProgress.length > 0) {
+        const weakWords = await Promise.all(
+          weakProgress.slice(0, 10).map((wp) => ctx.db.get(wp.courseVocabularyId))
+        );
+        const weakList = weakWords
+          .filter(Boolean)
+          .map((w) => w!.serbian)
+          .join(", ");
+        if (weakList) {
+          sections.push("", "Words the user struggles with:", weakList);
+        }
+      }
+    }
+
+    const userProgress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    if (userProgress) {
+      const user = await ctx.db.get(userId);
+      const completedStr = userProgress.completedUnits.length > 0
+        ? userProgress.completedUnits.sort((a, b) => a - b).join(", ")
+        : "none";
+      const xp = user?.totalXP ?? 0;
+      const streak = user?.currentStreak ?? 0;
+      sections.push(
+        "",
+        `[USER PROFILE] Unit ${userProgress.currentUnit} | Completed: ${completedStr} | XP: ${xp} | Streak: ${streak} days`
+      );
+    }
+
+    if (unitNumber > 1) {
+      const prevUnits = [unitNumber - 1, unitNumber - 2].filter((u) => u >= 1);
+      const prevVocabLines: string[] = [];
+      for (const pu of prevUnits) {
+        const prevVocab = await ctx.db
+          .query("courseVocabulary")
+          .withIndex("by_unit", (q) => q.eq("unitNumber", pu))
+          .collect();
+        const lines = prevVocab.slice(0, 15).map((v) => {
+          const translation = v[langKey] || v.en || "";
+          return `- ${v.serbian} = ${translation}`;
+        });
+        prevVocabLines.push(...lines);
+      }
+      if (prevVocabLines.length > 0) {
+        sections.push("", "Previously learned vocabulary:", ...prevVocabLines);
+      }
+    }
+  }
+
+  sections.push("", "[END UNIT CONTEXT]");
+  return sections.join("\n");
+}
+
+// @ts-ignore TS2589
+export const getUnitContextBlock = query({
+  args: {
+    unitNumber: v.number(),
+    learningLanguage: v.string(),
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    return await buildUnitContextBlock(ctx, args.unitNumber, args.learningLanguage, args.userId);
+  },
+});
+
+export const getStreamContext = query({
+  args: {
+    sessionId: v.id("chatSessions"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== args.userId) return null;
+    if (session.archived) return null;
+
+    const learningLanguage = user.learningLanguage || "en";
+    let languageName: string;
+    switch (learningLanguage) {
+      case "de": languageName = "German"; break;
+      case "en": languageName = "English"; break;
+      case "es": languageName = "Spanish"; break;
+      case "fr": languageName = "French"; break;
+      default: languageName = "English";
+    }
+
+    const history = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .collect();
+
+    const recentHistory = history
+      .filter((msg) => msg.content.trim() !== "")
+      .slice(-8)
+      .map((msg) => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+      }));
+
+    let unitContextBlock: string | null = null;
+    const lastUserMsgWithUnit = [...history]
+      .reverse()
+      .find((m) => m.role === "user" && m.unitContext != null);
+
+    if (lastUserMsgWithUnit?.unitContext != null) {
+      unitContextBlock = await buildUnitContextBlock(
+        ctx,
+        lastUserMsgWithUnit.unitContext,
+        learningLanguage,
+        args.userId
+      );
+    }
+
+    const lastUserMessage = [...history].reverse().find((m) => m.role === "user");
+
+    let isPaidUser = user.role === "admin" || user.role === "superadmin";
+    if (!isPaidUser) {
+      const subscription = await ctx.db
+        .query("userSubscriptions")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .first();
+      isPaidUser = !!(subscription && subscription.planType !== "beta");
+    }
+
+    return {
+      languageName,
+      recentHistory,
+      unitContextBlock,
+      lastUserMessage: lastUserMessage?.content ?? null,
+      userId: args.userId,
+      learningLanguage,
+      isPaidUser,
+    };
+  },
+});
+
+export const getChatUsageToday = query({
+  args: {
+    nowMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return null;
+
+    if (user.role === "admin" || user.role === "superadmin") {
+      return null;
+    }
+
+    const subscription = await ctx.db
+      .query("userSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .first();
+    const isPaidUser = !!(subscription && subscription.planType !== "beta");
+    const limit = isPaidUser ? RATE_LIMITS.paid.messagesPerDay : RATE_LIMITS.beta.messagesPerDay;
+
+    const todayStart = startOfDayUtc(args.nowMs);
+
+    const todayUserMessages = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("_creationTime"), todayStart),
+          q.eq(q.field("role"), "user")
+        )
+      )
+      .collect();
+
+    const used = todayUserMessages.length;
+    return {
+      used,
+      limit,
+      remaining: Math.max(0, limit - used),
+      isPaidUser,
+    };
+  },
+});
+
+// ============= SEMANTIC SEARCH (RAG) =============
+
+// @ts-ignore TS2589
+export const semanticSearch = internalAction({
+  args: {
+    query: v.string(),
+    language: v.string(),
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args): Promise<string> => {
+    let queryEmbedding: number[];
+    try {
+      queryEmbedding = await embedText(args.query);
+    } catch (e) {
+      console.warn("[semanticSearch] Embedding failed, returning empty:", e);
+      return "";
+    }
+
+    const kbResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+      vector: queryEmbedding,
+      limit: 5,
+      filter: (q: any) => q.eq("language", args.language),
+    });
+
+    const chunks: string[] = [];
+    for (const r of kbResults) {
+      const doc = await ctx.runQuery(internal.chat.getKnowledgeChunk, { id: r._id });
+      if (doc) chunks.push(doc.content);
+    }
+
+    if (chunks.length < 3 && args.language !== "en") {
+      const enResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+        vector: queryEmbedding,
+        limit: 5 - chunks.length,
+        filter: (q: any) => q.eq("language", "en"),
+      });
+
+      const existingContent = new Set(chunks);
+      for (const r of enResults) {
+        const doc = await ctx.runQuery(internal.chat.getKnowledgeChunk, { id: r._id });
+        if (doc && !existingContent.has(doc.content)) {
+          chunks.push(doc.content);
+        }
+      }
+    }
+
+    if (chunks.length === 0) return "";
+
+    return "[RELEVANT KNOWLEDGE]\n\n" + chunks.join("\n\n---\n\n") + "\n\n[END RELEVANT KNOWLEDGE]";
+  },
+});
+
+// @ts-ignore TS2589
+export const getKnowledgeChunk = query({
+  args: { id: v.id("knowledgeChunks") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+// @ts-ignore TS2589
+export const getUserDocChunk = query({
+  args: { id: v.id("userDocumentChunks") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+// ============= AGENTIC RAG HELPERS (internal queries for tool calls) =============
+
+// @ts-ignore TS2589
+export const getUnitVocabulary = internalQuery({
+  args: {
+    unitNumber: v.number(),
+    langKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const vocab = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+
+    if (vocab.length === 0) return null;
+
+    const key = args.langKey as "en" | "de" | "es" | "fr";
+    const lines = vocab.map((v) => {
+      const translation = v[key] || v.en || "";
+      const gender = v.gender ? ` (${v.gender})` : "";
+      const pron = v.pronunciation ? ` [${v.pronunciation}]` : "";
+      return `${v.serbian}${gender}${pron} = ${translation}`;
+    });
+
+    return `Unit ${args.unitNumber} Vocabulary (${vocab.length} words):\n` + lines.join("\n");
+  },
+});
+
+// @ts-ignore TS2589
+export const getUnitContentByType = internalQuery({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    contentType: v.union(
+      v.literal("overview"),
+      v.literal("grammar"),
+      v.literal("phrases"),
+      v.literal("dialogues"),
+      v.literal("vocabulary"),
+      v.literal("testIntroduction"),
+      v.literal("practice"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    let content = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang_type", (q) =>
+        q.eq("unitNumber", args.unitNumber)
+          .eq("language", args.language)
+          .eq("contentType", args.contentType)
+      )
+      .first();
+
+    if (!content && args.language !== "en") {
+      content = await ctx.db
+        .query("unitContent")
+        .withIndex("by_unit_lang_type", (q) =>
+          q.eq("unitNumber", args.unitNumber)
+            .eq("language", "en")
+            .eq("contentType", args.contentType)
+        )
+        .first();
+    }
+
+    return content?.content ?? null;
+  },
+});
+
+// @ts-ignore TS2589
+export const getUserProgressForTools = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const progress = await ctx.db
+      .query("userProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!progress) return null;
+
+    const user = await ctx.db.get(args.userId);
+    const xp = user?.totalXP ?? 0;
+    const streak = user?.currentStreak ?? 0;
+
+    const vocabProgress = await ctx.db
+      .query("vocabularyProgress")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const weakEntries = vocabProgress.filter((vp) => !vp.mastered && vp.incorrectAnswerCount > 0);
+    let weakWordsStr = "";
+    if (weakEntries.length > 0) {
+      const weakWords = await Promise.all(
+        weakEntries.slice(0, 15).map((wp) => ctx.db.get(wp.courseVocabularyId))
+      );
+      weakWordsStr = weakWords
+        .filter(Boolean)
+        .map((w) => w!.serbian)
+        .join(", ");
+    }
+
+    const completedStr = progress.completedUnits.length > 0
+      ? progress.completedUnits.sort((a, b) => a - b).join(", ")
+      : "none";
+
+    let result = `Current Unit: ${progress.currentUnit}\n`;
+    result += `Completed Units: ${completedStr}\n`;
+    result += `XP: ${xp} | Streak: ${streak} days\n`;
+    if (weakWordsStr) {
+      result += `Weak vocabulary: ${weakWordsStr}`;
+    }
+
+    return result;
+  },
+});
+
+// @ts-ignore TS2589
+export const searchVocabularyForTools = internalQuery({
+  args: {
+    query: v.string(),
+    langKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const allVocab = await ctx.db.query("courseVocabulary").collect();
+    const queryLower = args.query.toLowerCase();
+
+    const matches = allVocab.filter((v) => {
+      const serbian = (v.serbian || "").toLowerCase();
+      const normalized = (v.serbianNormalized || "").toLowerCase();
+      const en = (v.en || "").toLowerCase();
+      const de = (v.de || "").toLowerCase();
+      return (
+        serbian.includes(queryLower) ||
+        normalized.includes(queryLower) ||
+        en.includes(queryLower) ||
+        de.includes(queryLower)
+      );
+    });
+
+    if (matches.length === 0) return null;
+
+    const key = args.langKey as "en" | "de" | "es" | "fr";
+    const lines = matches.slice(0, 10).map((v) => {
+      const translation = v[key] || v.en || "";
+      const gender = v.gender ? ` (${v.gender})` : "";
+      const pron = v.pronunciation ? ` [${v.pronunciation}]` : "";
+      return `Unit ${v.unitNumber}: ${v.serbian}${gender}${pron} = ${translation}`;
+    });
+
+    return `Found ${matches.length} match(es):\n` + lines.join("\n");
+  },
+});
+
+// httpAction: POST /chat/stream
+export const streamChatMessage = httpAction(async (ctx, request) => {
+  const body = await request.json() as {
+    streamId: string;
+    sessionId: string;
+    userId: string;
+    messageId: string;
+    attachmentStorageId?: string;
+    attachmentFileName?: string;
+    attachmentFileType?: string;
+  };
+
+  const streamId = body.streamId as StreamId;
+  const sessionId = body.sessionId as Id<"chatSessions">;
+  const userId = body.userId as Id<"users">;
+  const messageId = body.messageId as Id<"chatMessages">;
+
+  let config;
+  try {
+    config = await resolveModelConfig(ctx);
+  } catch (e) {
+    return new Response(JSON.stringify({ error: (e as Error).message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  let promptDoc;
+  try {
+    promptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: "default" });
+  } catch {
+    // fallback below
+  }
+  const basePrompt = promptDoc?.content || EMERGENCY_FALLBACK_PROMPT;
+
+  const streamContext = await ctx.runQuery(api.chat.getStreamContext, { sessionId, userId });
+  if (!streamContext) {
+    return new Response(JSON.stringify({ error: "Invalid session or user" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (!streamContext.isPaidUser) {
+    config.maxTokens = Math.min(config.maxTokens, RATE_LIMITS.beta.maxTokensOverride!);
+  }
+
+  let systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, streamContext.languageName);
+
+  if (streamContext.unitContextBlock) {
+    systemPrompt += "\n\n" + streamContext.unitContextBlock;
+  }
+
+  if (streamContext.lastUserMessage) {
+    try {
+      const semanticContext: string = await ctx.runAction(internal.chat.semanticSearch, {
+        query: streamContext.lastUserMessage,
+        language: streamContext.learningLanguage,
+        userId: streamContext.userId,
+      });
+      if (semanticContext) {
+        systemPrompt += "\n\n" + semanticContext;
+      }
+    } catch (e) {
+      console.warn("[streamChat] Semantic search failed, continuing without:", e);
+    }
+  }
+
+  let attachmentUrl: string | null = null;
+  let attachmentMimeType: string | null = null;
+  if (body.attachmentStorageId) {
+    try {
+      const storageId = body.attachmentStorageId as Id<"_storage">;
+      const url = await ctx.storage.getUrl(storageId);
+      if (url) {
+        attachmentUrl = url;
+        attachmentMimeType = body.attachmentFileType || "application/octet-stream";
+      }
+    } catch (e) {
+      console.warn("[streamChat] Failed to get attachment URL:", e);
+    }
+  }
+
+  type AiContentPart =
+    | { type: "text"; text: string }
+    | { type: "image"; image: URL; mediaType: string }
+    | { type: "file"; data: URL; mediaType: string };
+
+  type AiMsg = { role: "system" | "user" | "assistant"; content: string | AiContentPart[] };
+
+  const aiMessages: AiMsg[] = [
+    { role: "system", content: systemPrompt },
+  ];
+
+  const history = [...streamContext.recentHistory];
+  if (attachmentUrl && attachmentMimeType && history.length > 0) {
+    let lastUserIdx = -1;
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === "user") { lastUserIdx = i; break; }
+    }
+
+    if (lastUserIdx >= 0) {
+      const userMsg = history[lastUserIdx];
+      const isImage = attachmentMimeType.startsWith("image/");
+      const attachInstruction = `\n\n[The user attached a file: "${body.attachmentFileName || "attachment"}". ` +
+        `Analyze the attached content and respond in the language the user is chatting in. ` +
+        `Summarize, translate, or explain the content as appropriate.]`;
+
+      const fileUrl = new URL(attachmentUrl);
+      const parts: AiContentPart[] = [
+        { type: "text", text: userMsg.content + attachInstruction },
+      ];
+
+      if (isImage) {
+        parts.push({ type: "image", image: fileUrl, mediaType: attachmentMimeType });
+      } else {
+        parts.push({ type: "file", data: fileUrl, mediaType: attachmentMimeType });
+      }
+
+      for (let i = 0; i < history.length; i++) {
+        if (i === lastUserIdx) {
+          aiMessages.push({ role: "user", content: parts });
+        } else {
+          aiMessages.push(history[i]);
+        }
+      }
+    } else {
+      aiMessages.push(...history);
+    }
+  } else {
+    aiMessages.push(...history);
+  }
+
+  const response = await streamingComponent.stream(
+    ctx,
+    request,
+    streamId,
+    async (_ctx, _request, _streamId, append) => {
+      let fullText: string;
+      const hasAttachment = !!attachmentUrl;
+
+      if (hasAttachment) {
+        try {
+          fullText = await streamMultimodalResponse(config, aiMessages, append);
+        } catch (e) {
+          console.error("[streamChat] Multimodal streaming failed:", e);
+          fullText = await streamChatResponse(config, aiMessages, append);
+        }
+      } else if (config.useAgenticRag) {
+        try {
+          fullText = await streamAgenticResponse(
+            config, aiMessages, append,
+            ctx, streamContext.userId, streamContext.learningLanguage
+          );
+        } catch (e) {
+          console.warn("[streamChat] Agentic RAG failed, falling back to standard:", e);
+          fullText = await streamChatResponse(config, aiMessages, append);
+        }
+      } else {
+        fullText = await streamChatResponse(config, aiMessages, append);
+      }
+
+      await ctx.runMutation(api.chat.finalizeStreamedMessage, {
+        messageId,
+        content: fullText || "I'm sorry, I couldn't generate a response.",
+      });
+    },
+  );
+
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Vary", "Origin");
+
+  return response;
 });
 
 

@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { api } from "./_generated/api";
+import { streamChatMessage } from "./chat";
 import { Webhook as SvixWebhook } from "svix";
 
 const http = httpRouter();
@@ -711,6 +712,30 @@ http.route({
       // Retryable/unknown failure: return 500 so Dodo can retry.
       return new Response("Failed", { status: 500 });
     }
+  }),
+});
+
+// ============= CHAT STREAMING =============
+
+http.route({
+  path: "/chat/stream",
+  method: "POST",
+  handler: streamChatMessage,
+});
+
+http.route({
+  path: "/chat/stream",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
   }),
 });
 

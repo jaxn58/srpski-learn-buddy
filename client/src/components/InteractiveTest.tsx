@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { MasteryIndicator, MistakesIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
+import { BuddyHelpHint } from "@/components/BuddyHelpHint";
 import { useTranslation } from "react-i18next";
 
 interface InteractiveTestProps {
@@ -32,7 +33,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
 
     const cutPoints = [
       // new format (EN) + translated variants (DE)
-      s.search(/^\s*###\s+(Exercise|Exercises|Übung|Übungen|Aufgabe|Aufgaben)\b/im),
+      s.search(/^\s*###\s+(Exercise|Exercises|├£bung|├£bungen|Aufgabe|Aufgaben)\b/im),
       s.search(/^\s*ex1\b/im), // legacy format (ex1 Translation)
       s.search(/\|\s*QUESTION\s+ID\s*\|/i), // legacy table header
       s.search(/\|\s*Answer\s*\(for database\)\s*\|/i), // legacy answer key header
@@ -75,13 +76,13 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
     return (value ?? "")
       .trim()
       .toLowerCase()
-      // diacritics: č/ć/š/ž -> c/s/z (via unicode decomposition)
+      // diacritics: ─ì/─ç/┼í/┼╛ -> c/s/z (via unicode decomposition)
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      // Serbian keyboard fallback: đ/Đ is often typed as plain "d"
-      .replace(/đ/g, "d")
+      // Serbian keyboard fallback: ─æ/─É is often typed as plain "d"
+      .replace(/─æ/g, "d")
       // strip punctuation
-      .replace(/[.,!?;:'"()\[\]{}\-–—…¡¿]/g, "")
+      .replace(/[.,!?;:'"()\[\]{}\-ΓÇôΓÇöΓÇª┬í┬┐]/g, "")
       // collapse whitespace
       .replace(/\s+/g, " ")
       .trim();
@@ -430,12 +431,23 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                           {isSubmitted && (
                             <div className="text-sm">
                               <span className={`font-medium ${isCorrect ? "text-green-600" : "text-red-600"}`}>
-                                {isCorrect ? "✓ Correct" : "✗ Incorrect"}
+                                {isCorrect ? "Γ£ô Correct" : "Γ£ù Incorrect"}
                               </span>
                               {isIncorrect && (
-                                <p className="mt-1 text-sm text-red-600">
-                                  Correct answer: <strong>{q.correctAnswer}</strong>
-                                </p>
+                                <>
+                                  <p className="mt-1 text-sm text-red-600">
+                                    Correct answer: <strong>{q.correctAnswer}</strong>
+                                  </p>
+                                  <BuddyHelpHint
+                                    exerciseQuestion={q.question}
+                                    correctAnswer={q.correctAnswer}
+                                    userAnswer={answers[q.questionId] || ""}
+                                    unitNumber={unitNumber}
+                                    questionContext={q.questionType === "multipleChoice" ? "multiple-choice" : "fill-in-blank"}
+                                    questionId={q.questionId}
+                                    delay={0.2}
+                                  />
+                                </>
                               )}
                             </div>
                           )}

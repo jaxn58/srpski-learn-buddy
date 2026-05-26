@@ -72,6 +72,25 @@ export const internalGetChatPromptByName = internalQuery({
   },
 });
 
+// Internal Query: fetch chatAiConfig without requiring user identity (used by streamChatMessage httpAction)
+export const internalGetChatAiConfig = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const configs = await ctx.db.query("chatAiConfig").collect();
+    if (configs.length === 0) return null;
+    const c = configs[0];
+    return {
+      primaryProvider: c.primaryProvider,
+      primaryModel: c.primaryModel,
+      fallbackProvider: c.fallbackProvider,
+      fallbackModel: c.fallbackModel,
+      maxTokens: c.maxTokens,
+      temperature: c.temperature,
+      useAgenticRag: c.useAgenticRag,
+    };
+  },
+});
+
 // Get 24-hour registration and activity stats (admin only)
 export const get24hStats = query({
   args: {

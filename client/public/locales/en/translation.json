@@ -1455,5 +1455,19 @@
   "admin.contentStudio.toast.previewTakenOffline": "Preview taken offline",
   "admin.contentStudio.toast.previewOfflineFailed": "Failed to take preview offline",
   "admin.contentStudio.toast.autosaveRestored": "Restored markdown from local autosave",
-  "admin.contentStudio.toast.autosaveDiscarded": "Discarded local autosave"
+  "admin.contentStudio.toast.autosaveDiscarded": "Discarded local autosave",
+
+  "vocabulary.askBuddy": "Ask Learn Buddy",
+  "unit.vocabTable.askBuddy": "Ask Learn Buddy",
+  "unit.askBuddy.grammar.title": "Need more help?",
+  "unit.askBuddy.grammar.desc": "Ask Learn Buddy to explain this grammar topic in detail.",
+  "unit.askBuddy.phrases.title": "Want to practice?",
+  "unit.askBuddy.phrases.desc": "Practice these phrases with Learn Buddy in a conversation.",
+  "unit.askBuddy.dialogues.title": "Want to practice these dialogues?",
+  "unit.askBuddy.dialogues.desc": "Practice these dialogues with Learn Buddy in a real conversation.",
+  "buddy.errorHelp.title": "Need help with this?",
+  "buddy.errorHelp.desc": "Learn Buddy can explain this to you.",
+  "buddy.sessionTitle": "Learn Buddy — Unit {{unit}}",
+  "buddy.sessionHint": "Your corrections for Unit {{unit}} are saved here. You can review them anytime in the chat archive.",
+  "buddy.alreadyAsked": "Already explained by Learn Buddy"
 }

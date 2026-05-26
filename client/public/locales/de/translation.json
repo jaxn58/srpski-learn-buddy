@@ -1439,5 +1439,19 @@
   "unit.vocabTable.header": "Vokabeln",
   "unit.vocabTable.mastery": "Gemeistert",
   "unit.vocabTable.mistakes": "Fehler",
-  "unit.practiceInVocabTrainer": "Im Vokabeltrainer üben"
+  "unit.practiceInVocabTrainer": "Im Vokabeltrainer üben",
+
+  "vocabulary.askBuddy": "Lernbuddy fragen",
+  "unit.vocabTable.askBuddy": "Lernbuddy fragen",
+  "unit.askBuddy.grammar.title": "Brauchst du mehr Hilfe?",
+  "unit.askBuddy.grammar.desc": "Lass dir dieses Grammatikthema vom Lernbuddy genauer erklären.",
+  "unit.askBuddy.phrases.title": "Möchtest du üben?",
+  "unit.askBuddy.phrases.desc": "Übe diese Phrasen mit dem Lernbuddy in einer Konversation.",
+  "unit.askBuddy.dialogues.title": "Möchtest du diese Dialoge üben?",
+  "unit.askBuddy.dialogues.desc": "Übe diese Dialoge mit dem Lernbuddy in einem echten Gespräch.",
+  "buddy.errorHelp.title": "Soll ich dir dabei helfen?",
+  "buddy.errorHelp.desc": "Der Lernbuddy erklärt dir das gerne.",
+  "buddy.sessionTitle": "Lernbuddy — Lektion {{unit}}",
+  "buddy.sessionHint": "Deine Korrekturen für Lektion {{unit}} werden hier gespeichert. Du findest sie jederzeit im Chat-Archiv.",
+  "buddy.alreadyAsked": "Bereits vom Lernbuddy erklärt"
 }

@@ -1,6 +1,7 @@
-import { Button } from "@/components/ui/button";
-import { Loader2, Volume2 } from "lucide-react";
+﻿import { Button } from "@/components/ui/button";
+import { Loader2, Volume2, Brain } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 import { MasteryIndicator, MistakesIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
 
 export type VocabularyDictionaryRow = {
@@ -39,7 +40,7 @@ export function VocabularyDictionaryTable({
   return (
     <div className="rounded-lg border bg-card overflow-hidden">
       {/* Column header */}
-      <div className="grid grid-cols-[40px_1fr] sm:grid-cols-[40px_1fr_140px_120px] items-center gap-3 border-b bg-muted/25 px-4 py-2 text-xs font-medium text-muted-foreground">
+      <div className="grid grid-cols-[40px_1fr_32px] sm:grid-cols-[40px_1fr_140px_120px_32px] items-center gap-3 border-b bg-muted/25 px-4 py-2 text-xs font-medium text-muted-foreground">
         <div className="flex items-center justify-center" title="Audio">
           <Volume2 className="h-4 w-4" aria-hidden="true" />
         </div>
@@ -50,6 +51,7 @@ export function VocabularyDictionaryTable({
         <div className="hidden sm:block text-center" title="Incorrect attempts">
           {t("unit.vocabTable.mistakes")}
         </div>
+        <div />
       </div>
 
       {rows.map((row) => {
@@ -59,10 +61,14 @@ export function VocabularyDictionaryTable({
         const incorrectCount = Math.max(0, Number(row.mastery.incorrectCount) || 0);
         const mastered = Boolean(row.mastery.mastered) || correctCount >= 3;
 
+        const askUrl = `/chat?prefill=${encodeURIComponent(
+          `Explain the word '${row.serbian}' ΓÇö how do I use it in different cases?`
+        )}`;
+
         return (
           <div
             key={row.id}
-            className="grid grid-cols-[40px_1fr] sm:grid-cols-[40px_1fr_140px_120px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/3 border-b last:border-b-0"
+            className="grid grid-cols-[40px_1fr_32px] sm:grid-cols-[40px_1fr_140px_120px_32px] items-start gap-3 px-4 py-3 transition-colors hover:bg-accent/3 border-b last:border-b-0"
           >
             <Button
               variant="ghost"
@@ -106,6 +112,18 @@ export function VocabularyDictionaryTable({
             <div className="hidden sm:flex pt-0.5 justify-center">
               <MistakesIndicator count={incorrectCount} />
             </div>
+
+            <Link href={askUrl}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="mt-0.5"
+                aria-label={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
+                title={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
+              >
+                <Brain className="h-4 w-4 text-muted-foreground hover:text-primary" />
+              </Button>
+            </Link>
           </div>
         );
       })}

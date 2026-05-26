@@ -9,6 +9,9 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as ai_chatConfig from "../ai/chatConfig.js";
+import type * as ai_chatTools from "../ai/chatTools.js";
+import type * as ai_embeddings from "../ai/embeddings.js";
 import type * as audioAdmin from "../audioAdmin.js";
 import type * as authz from "../authz.js";
 import type * as backup from "../backup.js";
@@ -52,6 +55,7 @@ import type * as schema_learning from "../schema/learning.js";
 import type * as schema_progress from "../schema/progress.js";
 import type * as schema_system from "../schema/system.js";
 import type * as schema_vocabulary from "../schema/vocabulary.js";
+import type * as streaming from "../streaming.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as system from "../system.js";
 import type * as unitContentAudio from "../unitContentAudio.js";
@@ -71,6 +75,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  "ai/chatConfig": typeof ai_chatConfig;
+  "ai/chatTools": typeof ai_chatTools;
+  "ai/embeddings": typeof ai_embeddings;
   audioAdmin: typeof audioAdmin;
   authz: typeof authz;
   backup: typeof backup;
@@ -114,6 +121,7 @@ declare const fullApi: ApiFromModules<{
   "schema/progress": typeof schema_progress;
   "schema/system": typeof schema_system;
   "schema/vocabulary": typeof schema_vocabulary;
+  streaming: typeof streaming;
   subscriptions: typeof subscriptions;
   system: typeof system;
   unitContentAudio: typeof unitContentAudio;
@@ -152,4 +160,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  persistentTextStreaming: import("@convex-dev/persistent-text-streaming/_generated/component.js").ComponentApi<"persistentTextStreaming">;
+};
