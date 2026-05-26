@@ -915,6 +915,7 @@
   "vocabulary.correct": "Correct!",
   "vocabulary.incorrect": "Incorrect",
   "vocabulary.correctAnswer": "Correct answer:",
+  "vocabulary.caseHint": "Note: The correct spelling is",
   "vocabulary.score": "Score: {{correct}}/{{total}}",
   "vocabulary.quizComplete": "Quiz Complete!",
   "vocabulary.quizComplete.desc": "Great job! You've completed this vocabulary quiz.",
