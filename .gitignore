@@ -119,3 +119,6 @@ temp/
 _dump.json
 _dump*.json
 .env*.local
+
+# Avast SSL certificate (local machine-specific, set via NODE_EXTRA_CA_CERTS)
+avast-root-ca.pem

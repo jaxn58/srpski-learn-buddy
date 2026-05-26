@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Link, useLocation } from "wouter";
+import { useBuddyModal } from "@/contexts/BuddyModalContext";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -70,6 +71,7 @@ export default function Vocabulary() {
   const { user } = useAuth();
   const { getToken } = useClerkAuth();
   const { t, i18n } = useTranslation();
+  const { openBuddyModal } = useBuddyModal();
   const progress = useQuery(api.progress.getUserProgress);
   const [location] = useLocation();
 
@@ -1266,12 +1268,20 @@ export default function Vocabulary() {
                   </div>
                   {currentWord && (
                     <div className="flex justify-center">
-                      <Link href={`/chat?prefill=${encodeURIComponent(`Explain the word '${currentWord.serbian}' ΓÇö usage, cases, and example sentences.`)}`}>
-                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1.5">
-                          <Brain className="h-3.5 w-3.5" />
-                          {t('vocabulary.askBuddy', 'Ask Learn Buddy')}
-                        </Button>
-                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted-foreground gap-1.5"
+                        onClick={() =>
+                          openBuddyModal(
+                            `Explain the word '${currentWord.serbian}' — usage, cases, and example sentences.`,
+                            typeof selectedUnit === "number" ? selectedUnit : undefined
+                          )
+                        }
+                      >
+                        <Brain className="h-3.5 w-3.5" />
+                        {t('vocabulary.askBuddy', 'Ask Learn Buddy')}
+                      </Button>
                     </div>
                   )}
                 </div>

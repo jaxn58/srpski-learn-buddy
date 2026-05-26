@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { InteractiveTest } from "@/components/InteractiveTest";
 import { VocabularyDictionaryTable, type VocabularyDictionaryRow } from "@/components/vocabulary/VocabularyDictionaryTable";
 import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
+import { useBuddyModal } from "@/contexts/BuddyModalContext";
 
 type VocabularyGroup = {
   title: string;
@@ -190,6 +191,7 @@ export default function UnitView() {
   const { t, i18n } = useTranslation();
   const params = useParams();
   const unitNumber = parseInt(params.unitNumber || "1");
+  const { openBuddyModal } = useBuddyModal();
   
   // Use user's learning language or fallback.
   // ContentStudio Preview convenience: allow forcing language via URL, e.g. /unit/1?lang=de
@@ -632,16 +634,20 @@ export default function UnitView() {
                   {content?.grammar ? (
                     <>
                       <MarkdownContent content={content.grammar} />
-                      <Link href={`/chat?prefill=${encodeURIComponent(`Can you explain the grammar from Unit ${unitNumber} in more detail with examples?`)}`}>
-                        <div className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors">
-                          <Brain className="h-5 w-5 text-primary shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{t("unit.askBuddy.grammar.title", "Need more help?")}</p>
-                            <p className="text-xs text-muted-foreground">{t("unit.askBuddy.grammar.desc", "Ask Learn Buddy to explain this grammar topic in detail.")}</p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openBuddyModal(`Can you explain the grammar from Unit ${unitNumber} in more detail with examples?`, unitNumber)}
+                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(`Can you explain the grammar from Unit ${unitNumber} in more detail with examples?`, unitNumber)}
+                        className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
+                      >
+                        <Brain className="h-5 w-5 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{t("unit.askBuddy.grammar.title", "Need more help?")}</p>
+                          <p className="text-xs text-muted-foreground">{t("unit.askBuddy.grammar.desc", "Ask Learn Buddy to explain this grammar topic in detail.")}</p>
                         </div>
-                      </Link>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
                     </>
                   ) : (
                     <p className="text-muted-foreground text-center py-8">No grammar content available.</p>
@@ -666,16 +672,20 @@ export default function UnitView() {
                         language={displayLanguage}
                         contentType="phrases"
                       />
-                      <Link href={`/chat?prefill=${encodeURIComponent(`Can you practice the phrases from Unit ${unitNumber} with me in a conversation?`)}`}>
-                        <div className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors">
-                          <Brain className="h-5 w-5 text-primary shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{t("unit.askBuddy.phrases.title", "Want to practice?")}</p>
-                            <p className="text-xs text-muted-foreground">{t("unit.askBuddy.phrases.desc", "Practice these phrases with Learn Buddy in a conversation.")}</p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openBuddyModal(`Can you practice the phrases from Unit ${unitNumber} with me in a conversation?`, unitNumber)}
+                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(`Can you practice the phrases from Unit ${unitNumber} with me in a conversation?`, unitNumber)}
+                        className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
+                      >
+                        <Brain className="h-5 w-5 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{t("unit.askBuddy.phrases.title", "Want to practice?")}</p>
+                          <p className="text-xs text-muted-foreground">{t("unit.askBuddy.phrases.desc", "Practice these phrases with Learn Buddy in a conversation.")}</p>
                         </div>
-                      </Link>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
                     </>
                   ) : (
                     <p className="text-muted-foreground text-center py-8">No phrases available.</p>
@@ -700,16 +710,20 @@ export default function UnitView() {
                         language={displayLanguage}
                         contentType="dialogues"
                       />
-                      <Link href={`/chat?prefill=${encodeURIComponent(`Can you practice the dialogues from Unit ${unitNumber} with me? Let's do a role-play conversation.`)}`}>
-                        <div className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors">
-                          <Brain className="h-5 w-5 text-primary shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{t("unit.askBuddy.dialogues.title", "Want to practice?")}</p>
-                            <p className="text-xs text-muted-foreground">{t("unit.askBuddy.dialogues.desc", "Practice these dialogues with Learn Buddy in a role-play conversation.")}</p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openBuddyModal(`Can you practice the dialogues from Unit ${unitNumber} with me? Let's do a role-play conversation.`, unitNumber)}
+                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(`Can you practice the dialogues from Unit ${unitNumber} with me? Let's do a role-play conversation.`, unitNumber)}
+                        className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
+                      >
+                        <Brain className="h-5 w-5 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{t("unit.askBuddy.dialogues.title", "Want to practice?")}</p>
+                          <p className="text-xs text-muted-foreground">{t("unit.askBuddy.dialogues.desc", "Practice these dialogues with Learn Buddy in a role-play conversation.")}</p>
                         </div>
-                      </Link>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
                     </>
                   ) : (
                     <p className="text-muted-foreground text-center py-8">No dialogues available.</p>
