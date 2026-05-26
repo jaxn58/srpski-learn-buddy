@@ -25,18 +25,18 @@ function buildPrefill({
   const unitPart = unitNumber ? ` (Unit ${unitNumber})` : "";
 
   if (questionContext === "vocabulary-quiz" && serbianWord) {
-    return `I got the word '${serbianWord}' wrong${unitPart} ΓÇö I answered '${userAnswer}' but the correct translation is '${correctAnswer}'. Can you help me understand and remember this word?`;
+    return `I got the word '${serbianWord}' wrong${unitPart} \u2014 I answered '${userAnswer}' but the correct translation is '${correctAnswer}'. Can you help me understand and remember this word?`;
   }
 
   if (exerciseQuestion) {
-    return `I made a mistake on this exercise${unitPart}: "${exerciseQuestion}" ΓÇö I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
+    return `I made a mistake on this exercise${unitPart}: "${exerciseQuestion}" \u2014 I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
   }
 
   if (serbianWord) {
-    return `I made a mistake with '${serbianWord}'${unitPart} ΓÇö I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
+    return `I made a mistake with '${serbianWord}'${unitPart} \u2014 I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
   }
 
-  return `I made a mistake on a question${unitPart} ΓÇö I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
+  return `I made a mistake on a question${unitPart} \u2014 I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
 }
 
 export function BuddyHelpHint(props: BuddyHelpHintProps) {

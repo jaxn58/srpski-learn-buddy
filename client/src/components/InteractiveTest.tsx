@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Star } from "lucide-react";
+import { Star, Check, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { MasteryIndicator, MistakesIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
@@ -33,7 +33,7 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
 
     const cutPoints = [
       // new format (EN) + translated variants (DE)
-      s.search(/^\s*###\s+(Exercise|Exercises|├£bung|├£bungen|Aufgabe|Aufgaben)\b/im),
+      s.search(/^\s*###\s+(Exercise|Exercises|\u00dcbung|\u00dcbungen|Aufgabe|Aufgaben)\b/im),
       s.search(/^\s*ex1\b/im), // legacy format (ex1 Translation)
       s.search(/\|\s*QUESTION\s+ID\s*\|/i), // legacy table header
       s.search(/\|\s*Answer\s*\(for database\)\s*\|/i), // legacy answer key header
@@ -76,13 +76,13 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
     return (value ?? "")
       .trim()
       .toLowerCase()
-      // diacritics: ─ì/─ç/┼í/┼╛ -> c/s/z (via unicode decomposition)
+      // diacritics: c/c/s/z variants fold via unicode decomposition
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      // Serbian keyboard fallback: ─æ/─É is often typed as plain "d"
-      .replace(/─æ/g, "d")
+      // Serbian keyboard fallback: d-with-stroke is often typed as plain "d"
+      .replace(/\u0111/g, "d")
       // strip punctuation
-      .replace(/[.,!?;:'"()\[\]{}\-ΓÇôΓÇöΓÇª┬í┬┐]/g, "")
+      .replace(/[.,!?;:'"()\[\]{}\-\u2013\u2014\u2026\u00a1\u00bf]/g, "")
       // collapse whitespace
       .replace(/\s+/g, " ")
       .trim();
@@ -430,8 +430,18 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                           {/* Feedback */}
                           {isSubmitted && (
                             <div className="text-sm">
-                              <span className={`font-medium ${isCorrect ? "text-green-600" : "text-red-600"}`}>
-                                {isCorrect ? "Γ£ô Correct" : "Γ£ù Incorrect"}
+                              <span className={`inline-flex items-center gap-1 font-medium ${isCorrect ? "text-green-600" : "text-red-600"}`}>
+                                {isCorrect ? (
+                                  <>
+                                    <Check className="h-4 w-4" />
+                                    {t("progress.correct")}
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="h-4 w-4" />
+                                    {t("progress.incorrect")}
+                                  </>
+                                )}
                               </span>
                               {isIncorrect && (
                                 <>

@@ -908,11 +908,11 @@
   "vocabulary.tryAgain": "Nochmal versuchen",
   "vocabulary.backToLearning": "Zurück zum Lernen",
   "vocabulary.tips": "Vokabel-Tipps",
-  "vocabulary.tip1": "📚 Übe jeden Tag für die besten Ergebnisse",
-  "vocabulary.tip2": "🗣️ Sprich die Wörter laut aus, um die Aussprache zu verbessern",
-  "vocabulary.tip3": "✍️ Schreib schwierige Wörter auf",
-  "vocabulary.tip4": "📅 Nutze Spaced Repetition – wiederhole ältere Einheiten regelmäßig",
-  "vocabulary.tip5": "💬 Versuche neue Wörter im KI Lernbuddy-Chat zu verwenden",
+  "vocabulary.tip1": "Übe jeden Tag für die besten Ergebnisse",
+  "vocabulary.tip2": "Sprich die Wörter laut aus, um die Aussprache zu verbessern",
+  "vocabulary.tip3": "Schreib schwierige Wörter auf",
+  "vocabulary.tip4": "Nutze Spaced Repetition – wiederhole ältere Einheiten regelmäßig",
+  "vocabulary.tip5": "Versuche neue Wörter im KI Lernbuddy-Chat zu verwenden",
   "vocabulary.practiceIncorrect": "Falsche Wörter üben",
   "vocabulary.practiceIncorrect.desc": "{{count}} falsch beantwortete Wörter wiederholen",
   "vocabulary.noIncorrectWords": "Super! Keine falschen Wörter zum Üben.",
@@ -1459,5 +1459,10 @@
   "buddy.modeSelect.compact": "Kompakt",
   "buddy.modeSelect.compactDesc": "3-4 Sätze, nur das Wichtigste",
   "buddy.modeSelect.detailed": "Ausführlich",
-  "buddy.modeSelect.detailedDesc": "Vollständige Erklärung mit Beispielen"
+  "buddy.modeSelect.detailedDesc": "Vollständige Erklärung mit Beispielen",
+  "buddy.modeSelect.detailedQuota": "{{remaining}} von {{limit}} übrig heute",
+  "buddy.modeSelect.detailedLimitReached": "Tageslimit erreicht",
+  "buddy.modeSelect.detailedLimitTooltip": "Du hast alle ausführlichen Antworten für heute aufgebraucht. Komm morgen wieder!",
+  "chat.usage.messagesLeft": "{{remaining}} von {{limit}} Nachrichten übrig",
+  "chat.usage.detailedLeft": "{{remaining}} von {{limit}} ausführliche übrig"
 }

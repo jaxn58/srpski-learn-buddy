@@ -512,7 +512,7 @@ export default function Vocabulary() {
         ? courseVocabulary
         : courseVocabulary.filter((v: Doc<"courseVocabulary">) => v.unitNumber === selectedUnit);
       
-      // Beta/Subscription Beschr├ñnkung
+      // Beta/Subscription Beschraenkung
       if (accessInfo && accessInfo.maxUnits > 0) {
         vocab = vocab.filter((v: Doc<"courseVocabulary">) => v.unitNumber <= accessInfo.maxUnits);
       }
@@ -548,7 +548,7 @@ export default function Vocabulary() {
         ? courseVocabulary
         : courseVocabulary.filter((v: Doc<"courseVocabulary">) => v.unitNumber === selectedUnit);
       
-      // Beta/Subscription Beschr├ñnkung
+      // Beta/Subscription Beschraenkung
       if (accessInfo && accessInfo.maxUnits > 0) {
         vocab = vocab.filter((v: Doc<"courseVocabulary">) => v.unitNumber <= accessInfo.maxUnits);
       }
@@ -732,7 +732,7 @@ export default function Vocabulary() {
     }
 
     const normalizeQuizAnswer = (s: string) =>
-      s.trim().toLowerCase().replace(/[.,!?;:'"()\[\]{}\-ΓÇôΓÇöΓÇª┬í┬┐]/g, "").replace(/\s+/g, " ").trim();
+      s.trim().toLowerCase().replace(/[.,!?;:'"()\[\]{}\-\u2013\u2014\u2026\u00a1\u00bf]/g, "").replace(/\s+/g, " ").trim();
 
     const userAnswerNorm = normalizeQuizAnswer(userAnswer);
     const correctTranslation = normalizeQuizAnswer(correctTranslationForWord);
@@ -1113,7 +1113,7 @@ export default function Vocabulary() {
               {/* Header: Unit Badge + Last Attempt Info */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  {/* Unit Badge nur anzeigen wenn "All Units" ausgew├ñhlt ist */}
+                  {/* Unit Badge nur anzeigen wenn "All Units" ausgewaehlt ist */}
                   {selectedUnit === 'all' && (
                     <Badge variant="outline">
                       {t('vocabulary.unit', { number: (showAnswer && answeredWord ? answeredWord : currentWord).unit })}
@@ -1129,7 +1129,7 @@ export default function Vocabulary() {
 
               {/* Word Section */}
               <div className="space-y-4">
-                {/* Vokabel immer anzeigen (auch w├ñhrend Feedback) */}
+                {/* Vokabel immer anzeigen (auch waehrend Feedback) */}
                 {/* Use answeredWord during feedback, otherwise use currentWord */}
                 {(() => {
                   const displayWord = showAnswer && answeredWord ? answeredWord : currentWord;
@@ -1137,7 +1137,7 @@ export default function Vocabulary() {
                   
                   return (
                     <div>
-                    {/* Audio Icon ├╝ber der Vokabel */}
+                    {/* Audio Icon ueber der Vokabel */}
                     {displayWord._id && (
                       <div className="flex justify-center mb-3">
                         <Button
@@ -1173,13 +1173,14 @@ export default function Vocabulary() {
                       // Wenn 3x richtig beantwortet: goldener Stern
                       if (correctCount >= 3) {
                         return (
-                          <Badge className="bg-yellow-500 text-white">
-                            Γ¡É Mastered
+                          <Badge className="bg-yellow-500 text-white gap-1">
+                            <Star className="h-3 w-3 fill-white text-white" />
+                            {t("common.mastered")}
                           </Badge>
                         );
                       }
                       
-                      // Anzeige f├╝r richtige Antworten
+                      // Anzeige fuer richtige Antworten
                       if (correctCount > 0) {
                         return (
                           <>
@@ -1187,8 +1188,9 @@ export default function Vocabulary() {
                               {correctCount}/3
                             </Badge>
                             {incorrectCount > 0 && (
-                              <Badge variant="outline" className="text-sm text-red-600 border-red-300">
-                                {incorrectCount}├ù incorrect
+                              <Badge variant="outline" className="text-sm text-red-600 border-red-300 gap-1">
+                                <XCircle className="h-3 w-3" />
+                                {incorrectCount} {t("vocabulary.incorrect")}
                               </Badge>
                             )}
                           </>
@@ -1198,8 +1200,9 @@ export default function Vocabulary() {
                       // Nur falsche Antworten (noch nie richtig)
                       if (incorrectCount > 0) {
                         return (
-                          <Badge variant="outline" className="text-sm text-red-600 border-red-300">
-                            {incorrectCount}├ù incorrect
+                          <Badge variant="outline" className="text-sm text-red-600 border-red-300 gap-1">
+                            <XCircle className="h-3 w-3" />
+                            {incorrectCount} {t("vocabulary.incorrect")}
                           </Badge>
                         );
                       }
@@ -1218,7 +1221,7 @@ export default function Vocabulary() {
                         </p>
                       ) : null;
                     })()}
-                    {/* ├£bersetzung nur im Learn-Mode anzeigen (im Quiz-Modus wird sie im Feedback-Bereich angezeigt) */}
+                    {/* Uebersetzung nur im Learn-Mode anzeigen (im Quiz-Modus wird sie im Feedback-Bereich angezeigt) */}
                     {mode === 'learn' && (
                       <>
                         <p className="text-xl sm:text-2xl text-muted-foreground mt-4">
@@ -1477,7 +1480,7 @@ export default function Vocabulary() {
                             />
                           </motion.div>
                         )}
-                        {/* Weiter-Button f├╝r Quiz-Modus */}
+                        {/* Weiter-Button fuer Quiz-Modus */}
                         {mode === 'quiz' && showAnswer && currentIndex < filteredVocab.length - 1 && (
                           <motion.div
                             initial={{ opacity: 0, y: 10 }}
@@ -1554,7 +1557,7 @@ export default function Vocabulary() {
             <Card className="bg-primary/5 border-primary/20">
               <CardHeader>
                 <CardTitle className="text-center">
-                  ≡ƒÄë {t('vocabulary.quizComplete')}
+                  {t('vocabulary.quizComplete')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-center space-y-4">
@@ -1615,23 +1618,23 @@ export default function Vocabulary() {
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
                   <Calendar className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip1').replace(/^≡ƒôÜ\s*/, '')}</span>
+                  <span>{t('vocabulary.tip1')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Volume2 className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip2').replace(/^≡ƒùú∩╕Å\s*/, '')}</span>
+                  <span>{t('vocabulary.tip2')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <PenTool className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip3').replace(/^Γ£ì∩╕Å\s*/, '')}</span>
+                  <span>{t('vocabulary.tip3')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <RotateCcw className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip4').replace(/^≡ƒôà\s*/, '')}</span>
+                  <span>{t('vocabulary.tip4')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <MessageSquare className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip5').replace(/^≡ƒÆ¼\s*/, '')}</span>
+                  <span>{t('vocabulary.tip5')}</span>
                 </li>
               </ul>
             </CardContent>
@@ -1642,7 +1645,7 @@ export default function Vocabulary() {
       <footer className="w-full border-t">
         <div className="container py-8">
           <div className="text-center text-sm text-muted-foreground">
-            <p className="font-semibold">┬⌐ Developed by JACKSENN.ME 2025</p>
+            <p className="font-semibold">{"\u00a9"} Developed by JACKSENN.ME 2025</p>
           </div>
         </div>
       </footer>

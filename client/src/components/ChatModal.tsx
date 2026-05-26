@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
@@ -56,11 +57,26 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   };
   
   const progress = useQuery(api.progress.getUserProgress);
+  // Stable day-start timestamp: rounded to midnight UTC so it never changes within a day
+  const [todayMs] = useState(() => {
+    const now = Date.now();
+    const d = new Date(now);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  });
+  const chatUsage = useQuery(api.chat.getChatUsageToday, { nowMs: todayMs });
   const createSessionMutation = useMutation(api.chat.createSession);
   const addMessageMutation = useMutation(api.chat.addMessage);
   const checkRateLimitMutation = useMutation(api.chat.checkMessageRateLimit);
   const createStreamMutation = useMutation(api.streaming.createStream);
   const addStreamingAssistantMsg = useMutation(api.chat.addStreamingAssistantMessage);
+
+  const showUsage = chatUsage !== null && chatUsage !== undefined
+    && (!chatUsage.isPaidUser || chatUsage.isAdmin);
+
+  const detailedDisabled = showUsage
+    && !chatUsage!.isAdmin
+    && chatUsage!.detailedRemaining !== null
+    && chatUsage!.detailedRemaining === 0;
 
   const { data: streamData, feedResponse, reset: resetStream } = useChatStream();
 
@@ -109,13 +125,14 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
 
   const messages = (sessionMessages ?? []) as ChatMessageDisplay[];
 
-  const sendStreaming = useCallback(async (text: string, sessionId: string) => {
+  const sendStreaming = useCallback(async (text: string, sessionId: string, responseMode?: "compact" | "detailed") => {
     setIsSending(true);
 
     try {
       await checkRateLimitMutation({
         sessionId: sessionId as Id<"chatSessions">,
         message: text,
+        responseMode,
       });
 
       await addMessageMutation({
@@ -123,6 +140,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
         role: "user",
         content: text,
         unitContext: progress?.currentUnit,
+        responseMode,
       });
 
       const meData = user as Doc<"users"> | null;
@@ -150,6 +168,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
           sessionId,
           userId: meData._id,
           messageId,
+          responseMode,
         }),
         signal: abortController.signal,
       }).then((response) => {
@@ -173,7 +192,9 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       console.error("Failed to send message:", error);
       const errorMessage = error.message || t('chat.sendError');
 
-      if (errorMessage.includes('Rate limit exceeded')) {
+      if (errorMessage.includes('Daily detailed limit reached')) {
+        toast.error(errorMessage);
+      } else if (errorMessage.includes('Rate limit exceeded')) {
         if (errorMessage.includes('per minute')) {
           toast.error(t('chat.rateLimit.perMinute'));
         } else if (errorMessage.includes('per hour')) {
@@ -288,7 +309,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       : "\n\nPlease give a detailed and comprehensive answer with examples, usage context, and all relevant information.";
     const fullMessage = pendingPrefill + suffix;
     setPendingPrefill(null);
-    await sendStreaming(fullMessage, currentSessionId);
+    await sendStreaming(fullMessage, currentSessionId, mode);
   }, [pendingPrefill, currentSessionId, sendStreaming]);
 
   const prefillExampleMessage = async (exampleText: string) => {
@@ -381,13 +402,33 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.compact", "Compact")}</p>
                     <p className="text-xs text-muted-foreground">{t("buddy.modeSelect.compactDesc", "3-4 sentences, essentials only")}</p>
                   </Card>
-                  <Card
-                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
-                    onClick={() => void handleModeSelect("detailed")}
-                  >
-                    <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.detailed", "Detailed")}</p>
-                    <p className="text-xs text-muted-foreground">{t("buddy.modeSelect.detailedDesc", "Full explanation with examples")}</p>
-                  </Card>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Card
+                          className={`p-4 transition-colors ${detailedDisabled ? "opacity-50 cursor-not-allowed" : "hover:bg-accent cursor-pointer"}`}
+                          onClick={() => !detailedDisabled && void handleModeSelect("detailed")}
+                        >
+                          <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.detailed", "Detailed")}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {detailedDisabled
+                              ? t("buddy.modeSelect.detailedLimitReached", "Daily limit reached")
+                              : t("buddy.modeSelect.detailedDesc", "Full explanation with examples")}
+                          </p>
+                          {!detailedDisabled && chatUsage?.detailedRemaining !== null && chatUsage?.detailedRemaining !== undefined && (
+                            <p className="text-xs text-primary/70 mt-1.5 border-t pt-1.5">
+                              {t("buddy.modeSelect.detailedQuota", "{{remaining}} of {{limit}} left today", { remaining: chatUsage.detailedRemaining, limit: chatUsage.detailedLimit })}
+                            </p>
+                          )}
+                        </Card>
+                      </TooltipTrigger>
+                      {detailedDisabled && (
+                        <TooltipContent>
+                          <p>{t("buddy.modeSelect.detailedLimitTooltip", "You have used all detailed answers for today. Come back tomorrow!")}</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             )}
@@ -428,7 +469,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
               </div>
             )}
             
-            {messages.map((msg: ChatMessageDisplay, idx: number) => {
+            {!pendingPrefill && messages.map((msg: ChatMessageDisplay, idx: number) => {
               const isStreamingMsg = msg.role === "assistant" && (msg as any).streamId && (msg as any).streamId === activeStreamId;
               const displayContent = isStreamingMsg
                 ? (streamData?.text || "")
@@ -467,7 +508,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
               );
             })}
             
-            {isSending && !activeStreamId && (
+            {!pendingPrefill && isSending && !activeStreamId && (
               <div className="flex gap-3">
                 <Avatar className="h-8 w-8 flex-shrink-0 bg-primary">
                   <AvatarFallback className="text-white text-xs bg-transparent">
@@ -494,6 +535,22 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
 
           {/* Input Area */}
           <div className="border-t p-4 bg-muted/30">
+            {showUsage && chatUsage && (
+              <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                <span>{t("chat.usage.messagesLeft", "{{remaining}} of {{limit}} messages left", { remaining: chatUsage.remaining, limit: chatUsage.limit })}</span>
+                {chatUsage.detailedLimit !== null && chatUsage.detailedRemaining !== null && (
+                  <>
+                    <span className="text-muted-foreground/40">|</span>
+                    <span className={chatUsage.detailedRemaining === 0 ? "text-destructive/70" : ""}>
+                      {t("chat.usage.detailedLeft", "{{remaining}} of {{limit}} detailed left", { remaining: chatUsage.detailedRemaining, limit: chatUsage.detailedLimit })}
+                    </span>
+                  </>
+                )}
+                {chatUsage.isAdmin && (
+                  <span className="text-muted-foreground/40 italic">(admin)</span>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
               <Input
                 ref={inputRef}

@@ -2,8 +2,8 @@
  * Embedding utilities for RAG v3+
  *
  * Supports two providers with automatic fallback:
- *   1. Gemini text-embedding-004 (768 dims) ΓÇö primary, uses GEMINI_API_KEY
- *   2. OpenAI text-embedding-3-small (768 dims) ΓÇö fallback, uses OPENAI_API_KEY
+ *   1. Gemini text-embedding-004 (768 dims) - primary, uses GEMINI_API_KEY
+ *   2. OpenAI text-embedding-3-small (768 dims) - fallback, uses OPENAI_API_KEY
  *
  * Both providers are configured for 768 dimensions for consistency.
  */
@@ -115,7 +115,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
  * Split text into chunks of approximately `maxChars` characters,
  * breaking at paragraph boundaries when possible.
  *
- * Heuristic: ~4 chars per token, so maxChars=1600 Γëê 400 tokens.
+ * Heuristic: ~4 chars per token, so maxChars=1600 ~ 400 tokens.
  */
 export function chunkText(text: string, maxChars: number = 1600): string[] {
   if (text.length <= maxChars) return [text.trim()].filter(Boolean);

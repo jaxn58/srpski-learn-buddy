@@ -1,0 +1,5 @@
+{
+  // Prevent mojibake: always read/write source files as UTF-8 (no Windows-1252 fallback).
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false
+}

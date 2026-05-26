@@ -922,11 +922,11 @@
   "vocabulary.tryAgain": "Try Again",
   "vocabulary.backToLearning": "Back to Learning",
   "vocabulary.tips": "Vocabulary Tips",
-  "vocabulary.tip1": "📚 Practice daily for best results",
-  "vocabulary.tip2": "🗣️ Say the words out loud to improve pronunciation",
-  "vocabulary.tip3": "✍️ Write down words you find difficult",
-  "vocabulary.tip4": "📅 Use spaced repetition - review older units regularly",
-  "vocabulary.tip5": "💬 Try using new words in the AI Learn Buddy chat",
+  "vocabulary.tip1": "Practice daily for best results",
+  "vocabulary.tip2": "Say the words out loud to improve pronunciation",
+  "vocabulary.tip3": "Write down words you find difficult",
+  "vocabulary.tip4": "Use spaced repetition - review older units regularly",
+  "vocabulary.tip5": "Try using new words in the AI Learn Buddy chat",
   "vocabulary.practiceIncorrect": "Practice Incorrect Words",
   "vocabulary.practiceIncorrect.desc": "Review {{count}} words you got wrong",
   "vocabulary.noIncorrectWords": "Great! No incorrect words to practice.",
@@ -1475,5 +1475,10 @@
   "buddy.modeSelect.compact": "Compact",
   "buddy.modeSelect.compactDesc": "3-4 sentences, essentials only",
   "buddy.modeSelect.detailed": "Detailed",
-  "buddy.modeSelect.detailedDesc": "Full explanation with examples"
+  "buddy.modeSelect.detailedDesc": "Full explanation with examples",
+  "buddy.modeSelect.detailedQuota": "{{remaining}} of {{limit}} left today",
+  "buddy.modeSelect.detailedLimitReached": "Daily limit reached",
+  "buddy.modeSelect.detailedLimitTooltip": "You have used all detailed answers for today. Come back tomorrow!",
+  "chat.usage.messagesLeft": "{{remaining}} of {{limit}} messages left",
+  "chat.usage.detailedLeft": "{{remaining}} of {{limit}} detailed left"
 }

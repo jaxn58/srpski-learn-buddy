@@ -27,6 +27,7 @@ export const chatTables = {
     streamId: v.optional(v.string()),
     attachmentStorageId: v.optional(v.id("_storage")),
     attachmentFileName: v.optional(v.string()),
+    responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
   })
     .index("by_session", ["sessionId"])
     .index("by_user", ["userId"]),
@@ -60,6 +61,7 @@ export const chatTables = {
     maxTokens: v.number(),
     temperature: v.optional(v.float64()),
     useAgenticRag: v.optional(v.boolean()),
+    enableSemanticSearch: v.optional(v.boolean()),
     dailyBudgetCents: v.optional(v.number()),
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.number(),

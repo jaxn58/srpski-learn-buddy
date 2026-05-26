@@ -41,6 +41,9 @@ const RATE_LIMITS = {
     messagesPerDay: 10,
     maxMessageLength: 1500,
     maxTokensOverride: 2048,
+    detailedMessagesPerDay: 3,
+    maxTokensDetailed: 800,
+    maxTokensCompact: 400,
   },
   paid: {
     messagesPerMinute: 20,
@@ -57,7 +60,7 @@ function startOfDayUtc(nowMs: number): number {
 }
 
 // Check rate limits for chat messages
-async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string): Promise<{ allowed: boolean; reason?: string; isPaidUser?: boolean }> {
+async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string, responseMode?: "compact" | "detailed"): Promise<{ allowed: boolean; reason?: string; isPaidUser?: boolean }> {
   const now = Date.now();
   const oneMinuteAgo = now - 60 * 1000;
   const oneHourAgo = now - 60 * 60 * 1000;
@@ -109,6 +112,18 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
       allowed: false,
       reason: `Daily limit reached. You have used all ${limits.messagesPerDay} messages for today. Come back tomorrow!`,
     };
+  }
+
+  // Detailed quota check for beta users
+  if (!isPaidUser && responseMode === "detailed" && "detailedMessagesPerDay" in limits) {
+    const betaLimits = limits as typeof RATE_LIMITS.beta;
+    const detailedToday = todayUserMessages.filter((m) => m.responseMode === "detailed").length;
+    if (detailedToday >= betaLimits.detailedMessagesPerDay) {
+      return {
+        allowed: false,
+        reason: `Daily detailed limit reached. You have used all ${betaLimits.detailedMessagesPerDay} detailed answers for today. Use compact answers or come back tomorrow!`,
+      };
+    }
   }
 
   // Count messages in the last minute
@@ -312,6 +327,7 @@ export const addMessage = mutation({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     unitContext: v.optional(v.number()),
+    responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -328,6 +344,7 @@ export const addMessage = mutation({
       role: args.role,
       content: args.content,
       unitContext: args.unitContext,
+      responseMode: args.responseMode,
     });
   },
 });
@@ -540,8 +557,10 @@ export const sendMessage = action({
     
     const basePrompt = promptDoc?.content || getSystemPrompt(learningLanguage);
     
-    // Replace [LANGUAGE] placeholder with the actual language name
-    const systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, languageName);
+    const userName = user?.name || "";
+    const systemPrompt = basePrompt
+      .replace(/\[LANGUAGE\]/g, languageName)
+      .replace(/\[USER_NAME\]/g, userName);
 
     // Prepare messages for the AI
     const recentHistory: ChatMessageDoc[] = history.slice(-8);
@@ -646,6 +665,7 @@ export const checkMessageRateLimit = mutation({
   args: {
     sessionId: v.id("chatSessions"),
     message: v.string(),
+    responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -656,7 +676,7 @@ export const checkMessageRateLimit = mutation({
       throw new Error("Session not found");
     }
 
-    const rateLimitResult = await checkRateLimit(ctx, user._id, args.message);
+    const rateLimitResult = await checkRateLimit(ctx, user._id, args.message, args.responseMode);
     if (!rateLimitResult.allowed) {
       throw new Error(rateLimitResult.reason || "Rate limit exceeded");
     }
@@ -947,6 +967,7 @@ export const getStreamContext = query({
       userId: args.userId,
       learningLanguage,
       isPaidUser,
+      userName: user.name || null,
     };
   },
 });
@@ -965,9 +986,7 @@ export const getChatUsageToday = query({
       .first();
     if (!user) return null;
 
-    if (user.role === "admin" || user.role === "superadmin") {
-      return null;
-    }
+    const isAdmin = user.role === "admin" || user.role === "superadmin";
 
     const subscription = await ctx.db
       .query("userSubscriptions")
@@ -991,11 +1010,24 @@ export const getChatUsageToday = query({
       .collect();
 
     const used = todayUserMessages.length;
+
+    // Admins always see the detailed quota (preview what beta users see)
+    const detailedLimit = (isPaidUser && !isAdmin) ? null : RATE_LIMITS.beta.detailedMessagesPerDay;
+    const detailedUsed = detailedLimit !== null
+      ? todayUserMessages.filter((m) => m.responseMode === "detailed").length
+      : null;
+
     return {
       used,
       limit,
       remaining: Math.max(0, limit - used),
       isPaidUser,
+      isAdmin,
+      detailedUsed,
+      detailedLimit,
+      detailedRemaining: detailedLimit !== null && detailedUsed !== null
+        ? Math.max(0, detailedLimit - detailedUsed)
+        : null,
     };
   },
 });
@@ -1230,6 +1262,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     attachmentStorageId?: string;
     attachmentFileName?: string;
     attachmentFileType?: string;
+    responseMode?: "compact" | "detailed";
   };
 
   const streamId = body.streamId as StreamId;
@@ -1264,16 +1297,25 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
   }
 
   if (!streamContext.isPaidUser) {
-    config.maxTokens = Math.min(config.maxTokens, RATE_LIMITS.beta.maxTokensOverride!);
+    const isDetailed = body.responseMode === "detailed";
+    const modeTokenCap = isDetailed
+      ? RATE_LIMITS.beta.maxTokensDetailed
+      : RATE_LIMITS.beta.maxTokensCompact;
+    config.maxTokens = Math.min(config.maxTokens, modeTokenCap);
   }
 
-  let systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, streamContext.languageName);
+  const userName = streamContext.userName || "";
+  let systemPrompt = basePrompt
+    .replace(/\[LANGUAGE\]/g, streamContext.languageName)
+    .replace(/\[USER_NAME\]/g, userName);
 
   if (streamContext.unitContextBlock) {
     systemPrompt += "\n\n" + streamContext.unitContextBlock;
   }
 
-  if (streamContext.lastUserMessage) {
+  // Semantic Search is enabled by default; admin can disable via chatAiConfig.enableSemanticSearch = false
+  const enableSemanticSearch = config.enableSemanticSearch !== false;
+  if (enableSemanticSearch && streamContext.lastUserMessage) {
     try {
       const semanticContext: string = await ctx.runAction(internal.chat.semanticSearch, {
         query: streamContext.lastUserMessage,

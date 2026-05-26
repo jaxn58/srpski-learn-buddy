@@ -14,6 +14,7 @@ export type ChatAiConfig = {
   maxTokens: number;
   temperature?: number;
   useAgenticRag?: boolean;
+  enableSemanticSearch?: boolean;
 };
 
 const DEFAULT_CONFIG: ChatAiConfig = {

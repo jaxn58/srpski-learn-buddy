@@ -43,6 +43,12 @@ export default function Chat() {
   const isMobile = useIsMobile();
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
+  const [todayMs] = useState(() => {
+    const now = Date.now();
+    const d = new Date(now);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  });
+  const chatUsage = useQuery(api.chat.getChatUsageToday, { nowMs: todayMs });
   
   const formatMessageTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -453,6 +459,22 @@ export default function Chat() {
 
           {/* Input Area */}
           <div className="p-3 sm:p-4 bg-muted/20 rounded-none sm:rounded-b-xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            {chatUsage && (!chatUsage.isPaidUser || chatUsage.isAdmin) && (
+              <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                <span>{t("chat.usage.messagesLeft", "{{remaining}} of {{limit}} messages left", { remaining: chatUsage.remaining, limit: chatUsage.limit })}</span>
+                {chatUsage.detailedLimit !== null && chatUsage.detailedRemaining !== null && (
+                  <>
+                    <span className="text-muted-foreground/40">|</span>
+                    <span className={chatUsage.detailedRemaining === 0 ? "text-destructive/70" : ""}>
+                      {t("chat.usage.detailedLeft", "{{remaining}} of {{limit}} detailed left", { remaining: chatUsage.detailedRemaining, limit: chatUsage.detailedLimit })}
+                    </span>
+                  </>
+                )}
+                {chatUsage.isAdmin && (
+                  <span className="text-muted-foreground/40 italic">(admin)</span>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
               <Input
                 ref={inputRef}

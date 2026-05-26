@@ -87,6 +87,7 @@ export const internalGetChatAiConfig = internalQuery({
       maxTokens: c.maxTokens,
       temperature: c.temperature,
       useAgenticRag: c.useAgenticRag,
+      enableSemanticSearch: c.enableSemanticSearch,
     };
   },
 });
