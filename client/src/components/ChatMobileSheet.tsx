@@ -287,10 +287,10 @@ export function ChatMobileSheet({
                         onClick={() => !isProcessing && handleSelect(id)}
                         disabled={isProcessing}
                       >
-                        <p className="text-sm truncate">{session.title}</p>
+                        <p className="text-sm line-clamp-2 break-words">{session.title}</p>
                         <p
                           className={cn(
-                            "text-xs truncate",
+                            "text-xs",
                             isActive ? "text-white/75" : "text-muted-foreground"
                           )}
                         >
@@ -388,7 +388,7 @@ export function ChatMobileSheet({
                     >
                       <Archive className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{session.title}</p>
+                        <p className="text-sm line-clamp-2 break-words">{session.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDateEU(session._creationTime)}
                         </p>

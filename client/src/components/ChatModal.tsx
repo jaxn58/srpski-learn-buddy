@@ -42,6 +42,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
+  const [pendingPrefill, setPendingPrefill] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -68,6 +69,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     if (!isOpen) {
       prefillHandledRef.current = false;
       setCurrentSessionId(null);
+      setPendingPrefill(null);
     }
   }, [isOpen]);
 
@@ -240,10 +242,10 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
 
       if (!sid) return;
       setCurrentSessionId(sid);
-      await sendStreaming(prefillText, sid);
+      setPendingPrefill(prefillText);
     };
     void run();
-  }, [isOpen, prefillText, sessions, currentSessionId, unitNumber, createSessionMutation, sendStreaming, t]);
+  }, [isOpen, prefillText, sessions, currentSessionId, unitNumber, createSessionMutation, t]);
 
   // Auto-scroll to bottom when new messages or stream text arrives
   useEffect(() => {
@@ -278,6 +280,16 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       return null;
     }
   };
+
+  const handleModeSelect = useCallback(async (mode: "compact" | "detailed") => {
+    if (!pendingPrefill || !currentSessionId) return;
+    const suffix = mode === "compact"
+      ? "\n\nPlease keep your answer compact: 3-4 sentences maximum. Cover only the most essential information. No lengthy examples, no tables, no exhaustive lists."
+      : "\n\nPlease give a detailed and comprehensive answer with examples, usage context, and all relevant information.";
+    const fullMessage = pendingPrefill + suffix;
+    setPendingPrefill(null);
+    await sendStreaming(fullMessage, currentSessionId);
+  }, [pendingPrefill, currentSessionId, sendStreaming]);
 
   const prefillExampleMessage = async (exampleText: string) => {
     const sessionId = await ensureSessionId();
@@ -352,7 +364,35 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
             ref={scrollRef}
             className="flex-1 overflow-y-auto p-6 space-y-4"
           >
-            {messages.length === 0 && !activeStreamId && (
+            {pendingPrefill && !activeStreamId && (
+              <div className="flex flex-col items-center justify-center h-full text-center space-y-6 py-12">
+                <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center">
+                  <Brain className="h-9 w-9 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold mb-2">{t("buddy.modeSelect.title", "How detailed should the answer be?")}</h2>
+                  <p className="text-sm text-muted-foreground">{t("buddy.modeSelect.subtitle", "Choose the level of detail for this answer.")}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 max-w-sm w-full">
+                  <Card
+                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                    onClick={() => void handleModeSelect("compact")}
+                  >
+                    <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.compact", "Compact")}</p>
+                    <p className="text-xs text-muted-foreground">{t("buddy.modeSelect.compactDesc", "3-4 sentences, essentials only")}</p>
+                  </Card>
+                  <Card
+                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                    onClick={() => void handleModeSelect("detailed")}
+                  >
+                    <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.detailed", "Detailed")}</p>
+                    <p className="text-xs text-muted-foreground">{t("buddy.modeSelect.detailedDesc", "Full explanation with examples")}</p>
+                  </Card>
+                </div>
+              </div>
+            )}
+
+            {messages.length === 0 && !activeStreamId && !pendingPrefill && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-6 py-12">
                 <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center">
                   <Brain className="h-12 w-12 text-white" />

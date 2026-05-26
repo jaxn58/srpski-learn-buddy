@@ -261,10 +261,10 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                   />
                 ) : (
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">{session.title}</p>
+                    <p className="text-sm line-clamp-2 break-words">{session.title}</p>
                     <p
                       className={cn(
-                        "text-xs truncate",
+                        "text-xs",
                         isActive ? "text-white/85" : "text-muted-foreground"
                       )}
                     >
@@ -332,7 +332,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                 >
                   <Archive className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">
+                    <p className="text-sm line-clamp-2 break-words">
                       {session.title}
                     </p>
                     <p className="text-xs text-muted-foreground">

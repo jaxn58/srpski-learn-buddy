@@ -1469,5 +1469,11 @@
   "buddy.errorHelp.desc": "Learn Buddy can explain this to you.",
   "buddy.sessionTitle": "Learn Buddy — Unit {{unit}}",
   "buddy.sessionHint": "Your corrections for Unit {{unit}} are saved here. You can review them anytime in the chat archive.",
-  "buddy.alreadyAsked": "Already explained by Learn Buddy"
+  "buddy.alreadyAsked": "Already explained by Learn Buddy",
+  "buddy.modeSelect.title": "How detailed should the answer be?",
+  "buddy.modeSelect.subtitle": "Choose the level of detail for this answer.",
+  "buddy.modeSelect.compact": "Compact",
+  "buddy.modeSelect.compactDesc": "3-4 sentences, essentials only",
+  "buddy.modeSelect.detailed": "Detailed",
+  "buddy.modeSelect.detailedDesc": "Full explanation with examples"
 }

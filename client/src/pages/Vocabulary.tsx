@@ -1275,7 +1275,7 @@ export default function Vocabulary() {
                         onClick={() =>
                           openBuddyModal(
                             `Explain the word '${currentWord.serbian}' — usage, cases, and example sentences.`,
-                            typeof selectedUnit === "number" ? selectedUnit : undefined
+                            currentWord.unitNumber
                           )
                         }
                       >
@@ -1453,7 +1453,7 @@ export default function Vocabulary() {
                                   return word.en?.trim() || word.de?.trim() || "";
                                 })()}
                                 userAnswer={userAnswer}
-                                unitNumber={typeof selectedUnit === "number" ? selectedUnit : undefined}
+                                unitNumber={(answeredWord || currentWord)?.unitNumber}
                                 questionContext="vocabulary-quiz"
                               />
                             )}

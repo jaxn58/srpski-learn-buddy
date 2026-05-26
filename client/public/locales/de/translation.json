@@ -1453,5 +1453,11 @@
   "buddy.errorHelp.desc": "Der Lernbuddy erklärt dir das gerne.",
   "buddy.sessionTitle": "Lernbuddy — Lektion {{unit}}",
   "buddy.sessionHint": "Deine Korrekturen für Lektion {{unit}} werden hier gespeichert. Du findest sie jederzeit im Chat-Archiv.",
-  "buddy.alreadyAsked": "Bereits vom Lernbuddy erklärt"
+  "buddy.alreadyAsked": "Bereits vom Lernbuddy erklärt",
+  "buddy.modeSelect.title": "Wie ausführlich soll die Antwort sein?",
+  "buddy.modeSelect.subtitle": "Wähle den Detailgrad für diese Antwort.",
+  "buddy.modeSelect.compact": "Kompakt",
+  "buddy.modeSelect.compactDesc": "3-4 Sätze, nur das Wichtigste",
+  "buddy.modeSelect.detailed": "Ausführlich",
+  "buddy.modeSelect.detailedDesc": "Vollständige Erklärung mit Beispielen"
 }
