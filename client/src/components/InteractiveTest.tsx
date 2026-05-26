@@ -439,11 +439,12 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
                                     Correct answer: <strong>{q.correctAnswer}</strong>
                                   </p>
                                   <BuddyHelpHint
-                                    serbianWord={q.question}
+                                    exerciseQuestion={q.question}
                                     correctAnswer={q.correctAnswer}
-                                    userAnswer={answers[q.id] || ""}
+                                    userAnswer={answers[q.questionId] || ""}
                                     unitNumber={unitNumber}
-                                    questionContext={q.type === "multiple-choice" ? "multiple-choice" : "fill-in-blank"}
+                                    questionContext={q.questionType === "multipleChoice" ? "multiple-choice" : "fill-in-blank"}
+                                    questionId={q.questionId}
                                     delay={0.2}
                                   />
                                 </>

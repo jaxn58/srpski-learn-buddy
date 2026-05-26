@@ -1465,5 +1465,8 @@
   "unit.askBuddy.phrases.desc": "Übe diese Phrasen mit dem Lernbuddy in einer Konversation.",
   "buddy.errorHelp.title": "Soll ich dir dabei helfen?",
   "buddy.errorHelp.desc": "Der Lernbuddy erklärt dir das gerne.",
+  "buddy.sessionTitle": "Lernbuddy — Lektion {{unit}}",
+  "buddy.sessionHint": "Deine Korrekturen fuer Lektion {{unit}} werden hier gespeichert. Du findest sie jederzeit im Chat-Archiv.",
+  "buddy.alreadyAsked": "Bereits vom Lernbuddy erklaert",
   "unit.practiceInVocabTrainer": "Im Vokabeltrainer üben"
 }

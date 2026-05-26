@@ -119,3 +119,6 @@ temp/
 _dump.json
 _dump*.json
 .env*.local
+
+# Avast HTTPS inspection root certificate (machine-specific)
+avast-root-ca.pem
