@@ -14,35 +14,41 @@ interface BuddyHelpHintProps {
   delay?: number;
 }
 
-function buildPrefill({
-  serbianWord,
-  exerciseQuestion,
-  correctAnswer,
-  userAnswer,
-  unitNumber,
-  questionContext,
-}: Omit<BuddyHelpHintProps, "delay" | "questionId">): string {
-  const unitPart = unitNumber ? ` (Unit ${unitNumber})` : "";
-
-  if (questionContext === "vocabulary-quiz" && serbianWord) {
-    return `I got the word '${serbianWord}' wrong${unitPart} \u2014 I answered '${userAnswer}' but the correct translation is '${correctAnswer}'. Can you help me understand and remember this word?`;
-  }
-
-  if (exerciseQuestion) {
-    return `I made a mistake on this exercise${unitPart}: "${exerciseQuestion}" \u2014 I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
-  }
-
-  if (serbianWord) {
-    return `I made a mistake with '${serbianWord}'${unitPart} \u2014 I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
-  }
-
-  return `I made a mistake on a question${unitPart} \u2014 I answered '${userAnswer}' but the correct answer was '${correctAnswer}'. Can you explain this to me?`;
-}
-
 export function BuddyHelpHint(props: BuddyHelpHintProps) {
   const { t } = useTranslation();
   const { delay = 0.45, unitNumber, questionId } = props;
-  const prefill = buildPrefill(props);
+
+  const unitPart = unitNumber ? ` (Unit ${unitNumber})` : "";
+
+  let prefill: string;
+  if (props.questionContext === "vocabulary-quiz" && props.serbianWord) {
+    prefill = t("buddy.prefill.wordWrong", {
+      word: props.serbianWord,
+      unitPart,
+      userAnswer: props.userAnswer,
+      correctAnswer: props.correctAnswer,
+    });
+  } else if (props.exerciseQuestion) {
+    prefill = t("buddy.prefill.exerciseWrong", {
+      unitPart,
+      question: props.exerciseQuestion,
+      userAnswer: props.userAnswer,
+      correctAnswer: props.correctAnswer,
+    });
+  } else if (props.serbianWord) {
+    prefill = t("buddy.prefill.wordWrongGeneric", {
+      word: props.serbianWord,
+      unitPart,
+      userAnswer: props.userAnswer,
+      correctAnswer: props.correctAnswer,
+    });
+  } else {
+    prefill = t("buddy.prefill.questionWrong", {
+      unitPart,
+      userAnswer: props.userAnswer,
+      correctAnswer: props.correctAnswer,
+    });
+  }
   const { openBuddyModal, askedQuestions } = useBuddyModal();
 
   const parsedUnit = typeof unitNumber === "number" ? unitNumber

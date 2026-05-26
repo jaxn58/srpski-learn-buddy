@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ interface ChatModalProps {
 export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModalProps) {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const [message, setMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -305,8 +306,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const handleModeSelect = useCallback(async (mode: "compact" | "detailed") => {
     if (!pendingPrefill || !currentSessionId) return;
     const suffix = mode === "compact"
-      ? "\n\nPlease keep your answer compact: 3-4 sentences maximum. Cover only the most essential information. No lengthy examples, no tables, no exhaustive lists."
-      : "\n\nPlease give a detailed and comprehensive answer with examples, usage context, and all relevant information.";
+      ? t("buddy.modeSuffix.compact")
+      : t("buddy.modeSuffix.detailed");
     const fullMessage = pendingPrefill + suffix;
     setPendingPrefill(null);
     await sendStreaming(fullMessage, currentSessionId, mode);
@@ -449,19 +450,19 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl">
                   <Card
                     className="p-4 hover:bg-accent cursor-pointer transition-colors"
-                    onClick={() => void prefillExampleMessage("Explain the verb 'biti' to me")}
+                    onClick={() => void prefillExampleMessage(t('chat.examplePrefill.1'))}
                   >
                     <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
                   </Card>
                   <Card
                     className="p-4 hover:bg-accent cursor-pointer transition-colors"
-                    onClick={() => void prefillExampleMessage("What is the locative case?")}
+                    onClick={() => void prefillExampleMessage(t('chat.examplePrefill.2'))}
                   >
                     <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
                   </Card>
                   <Card
                     className="p-4 hover:bg-accent cursor-pointer transition-colors"
-                    onClick={() => void prefillExampleMessage("Dobar dan! Kako ste?")}
+                    onClick={() => void prefillExampleMessage(t('chat.examplePrefill.3'))}
                   >
                     <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
                   </Card>
@@ -480,8 +481,11 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                   key={idx}
                   className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
                 >
-                  <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-primary' : 'bg-primary'}`}>
-                    <AvatarFallback className="text-white text-xs bg-transparent">
+                  <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-primary' : 'bg-card border'}`}>
+                    {msg.role === 'user' && myAvatar?.url ? (
+                      <AvatarImage src={myAvatar.url} alt="Your avatar" />
+                    ) : null}
+                    <AvatarFallback className={`text-xs ${msg.role === 'assistant' ? 'text-white bg-transparent' : 'bg-muted text-foreground'}`}>
                       {msg.role === 'assistant' ? <Brain className="h-5 w-5 text-white" /> : <User className="h-4 w-4" />}
                     </AvatarFallback>
                   </Avatar>

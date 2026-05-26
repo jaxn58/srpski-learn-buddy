@@ -118,7 +118,7 @@ export function VocabularyDictionaryTable({
               title={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
               onClick={() =>
                 openBuddyModal(
-                  `Explain the word '${row.serbian}' — how do I use it in different cases?`,
+                  t("buddy.prefill.explainWordCases", { word: row.serbian }),
                   row.unitNumber
                 )
               }

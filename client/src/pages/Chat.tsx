@@ -360,7 +360,7 @@ export default function Chat() {
                   <AnimatedItem>
                     <Card
                       className="p-4 hover:bg-accent cursor-pointer transition-colors"
-                      onClick={() => void prefillExampleMessage("Explain the verb 'biti' to me")}
+                      onClick={() => void prefillExampleMessage(t('chat.examplePrefill.1'))}
                     >
                       <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
                     </Card>
@@ -368,7 +368,7 @@ export default function Chat() {
                   <AnimatedItem>
                     <Card
                       className="p-4 hover:bg-accent cursor-pointer transition-colors"
-                      onClick={() => void prefillExampleMessage("What is the locative case?")}
+                      onClick={() => void prefillExampleMessage(t('chat.examplePrefill.2'))}
                     >
                       <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
                     </Card>
@@ -376,7 +376,7 @@ export default function Chat() {
                   <AnimatedItem>
                     <Card
                       className="p-4 hover:bg-accent cursor-pointer transition-colors"
-                      onClick={() => void prefillExampleMessage("Dobar dan! Kako ste?")}
+                      onClick={() => void prefillExampleMessage(t('chat.examplePrefill.3'))}
                     >
                       <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
                     </Card>

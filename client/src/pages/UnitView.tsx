@@ -637,8 +637,8 @@ export default function UnitView() {
                       <div
                         role="button"
                         tabIndex={0}
-                        onClick={() => openBuddyModal(`Can you explain the grammar from Unit ${unitNumber} in more detail with examples?`, unitNumber)}
-                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(`Can you explain the grammar from Unit ${unitNumber} in more detail with examples?`, unitNumber)}
+                        onClick={() => openBuddyModal(t("buddy.prefill.explainGrammar", { unit: unitNumber }), unitNumber)}
+                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(t("buddy.prefill.explainGrammar", { unit: unitNumber }), unitNumber)}
                         className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
                       >
                         <Brain className="h-5 w-5 text-primary shrink-0" />
@@ -675,8 +675,8 @@ export default function UnitView() {
                       <div
                         role="button"
                         tabIndex={0}
-                        onClick={() => openBuddyModal(`Can you practice the phrases from Unit ${unitNumber} with me in a conversation?`, unitNumber)}
-                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(`Can you practice the phrases from Unit ${unitNumber} with me in a conversation?`, unitNumber)}
+                        onClick={() => openBuddyModal(t("buddy.prefill.practicePhrases", { unit: unitNumber }), unitNumber)}
+                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(t("buddy.prefill.practicePhrases", { unit: unitNumber }), unitNumber)}
                         className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
                       >
                         <Brain className="h-5 w-5 text-primary shrink-0" />
@@ -713,8 +713,8 @@ export default function UnitView() {
                       <div
                         role="button"
                         tabIndex={0}
-                        onClick={() => openBuddyModal(`Can you practice the dialogues from Unit ${unitNumber} with me? Let's do a role-play conversation.`, unitNumber)}
-                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(`Can you practice the dialogues from Unit ${unitNumber} with me? Let's do a role-play conversation.`, unitNumber)}
+                        onClick={() => openBuddyModal(t("buddy.prefill.practiceDialogues", { unit: unitNumber }), unitNumber)}
+                        onKeyDown={(e) => e.key === "Enter" && openBuddyModal(t("buddy.prefill.practiceDialogues", { unit: unitNumber }), unitNumber)}
                         className="mt-6 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
                       >
                         <Brain className="h-5 w-5 text-primary shrink-0" />

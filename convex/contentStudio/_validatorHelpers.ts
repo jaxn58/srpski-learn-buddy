@@ -596,12 +596,19 @@ export async function classifyAndTranslateWords(
 
   const system = [
     `You are a language classifier and Serbian-English translator.`,
-    `For each word, classify it into one of three categories.`,
+    `For each word, classify it into one of four categories.`,
     ``,
     `Return a JSON object where each key is a word and the value is ONE of:`,
     `- Serbian vocabulary word: { "lang": "sr", "en": "<English translation>" }`,
     `- English / grammar term / other language: { "lang": "en" }`,
     `- Personal name of a human (first name, given name, nickname): { "lang": "proper_noun" }`,
+    `- Not a real word in any language (typo, gibberish, misspelling): { "lang": "unknown" }`,
+    ``,
+    `IMPORTANT — unknown category:`,
+    `- Use "unknown" for strings that do NOT exist as actual words in Serbian, English, or any other language.`,
+    `- Common signs: the string looks vaguely Slavic but has no meaning, or it resembles a real word but is misspelled (e.g. "čema", "prsto", "kuhna").`,
+    `- Do NOT guess a translation for unknown words — classify them as "unknown" instead of forcing a "sr" classification.`,
+    `- If you are unsure whether a word exists in Serbian, prefer "unknown" over hallucinating a translation.`,
     ``,
     `IMPORTANT — proper_noun scope:`,
     `- Use "proper_noun" ONLY for names of PEOPLE (Elena, Marko, Ana, Milan, Jovana, Petar, Ivana, ...).`,
@@ -619,6 +626,8 @@ export async function classifyAndTranslateWords(
     `- "plural" → { "lang": "en" } (English grammar term)`,
     `- "nominative" → { "lang": "en" } (English grammar term)`,
     `- "hotel" → { "lang": "en" } (international word, treat as English)`,
+    `- "čema" → { "lang": "unknown" } (not a real Serbian word)`,
+    `- "prsto" → { "lang": "unknown" } (misspelling, not a real word)`,
     ``,
     `Keep translations short (1-3 words).`,
   ].join("\n");
@@ -651,6 +660,9 @@ export async function classifyAndTranslateWords(
         } else if (lang === "proper_noun") {
           result.set(word.toLowerCase(), { isSerbian: false, isProperNoun: true });
         } else {
+          if (lang === "unknown") {
+            console.log(`Classifier rejected '${word}' — not a real word in any language`);
+          }
           result.set(word.toLowerCase(), { isSerbian: false });
         }
       }
@@ -854,9 +866,9 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
         console.log(`Allowlist override: '${candidate.lemma}' classified as proper noun but confirmed as vocabulary`);
       }
 
-      // Skip if classified as English/other (not Serbian)
+      // Skip if classified as English/other/unknown (not Serbian)
       if (classification && !classification.isSerbian) {
-        console.log(`Skipping '${candidate.lemma}' - classified as English/other`);
+        console.log(`Skipping '${candidate.lemma}' - classified as non-Serbian (English, unknown, or other)`);
         continue;
       }
 

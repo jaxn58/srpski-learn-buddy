@@ -1914,8 +1914,8 @@ export const promoteLanguagePreviewToPublished = mutation({
       testsPromoted += 1;
     }
 
-    // 4) courseVocabulary: merge DE fields from preview rows into published rows, then archive previews.
-    if (language === "de") {
+    // 4) courseVocabulary promotion.
+    {
       const vocabRows = await ctx.db
         .query("courseVocabulary")
         .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
@@ -1925,28 +1925,41 @@ export const promoteLanguagePreviewToPublished = mutation({
         (v.releaseStatus === undefined || v.releaseStatus === "published") && v.isActive !== false
       );
 
-      // Build a lookup: serbian (normalized) -> published row
-      const pubBySerbian = new Map<string, any>();
-      for (const pv of publishedVocab) {
-        const key = String(pv.serbian ?? "").toLowerCase().trim();
-        if (key) pubBySerbian.set(key, pv);
-      }
-
-      for (const prev of previewVocab) {
-        const key = String(prev.serbian ?? "").toLowerCase().trim();
-        const pubRow = pubBySerbian.get(key);
-        if (pubRow) {
-          // Merge DE fields into the published row.
-          const patch: any = {};
-          if (typeof prev.de === "string" && String(prev.de).trim()) patch.de = prev.de;
-          if (typeof prev.noteDe === "string" && String(prev.noteDe).trim()) patch.noteDe = prev.noteDe;
-          if (Object.keys(patch).length > 0) {
-            await ctx.db.patch(pubRow._id, patch);
-            vocabMerged += 1;
+      if (language === "en") {
+        // EN promote: preview vocabulary rows become the new published rows.
+        // In replace mode, archive existing published rows first.
+        if (mode === "replace") {
+          for (const pub of publishedVocab) {
+            await ctx.db.patch(pub._id, { isActive: false, archivedAt: now, releaseStatus: "published" });
           }
         }
-        // Archive the preview copy.
-        await ctx.db.patch(prev._id, { isActive: false, archivedAt: now, releaseStatus: "offline" });
+        for (const prev of previewVocab) {
+          await ctx.db.patch(prev._id, { releaseStatus: "published", isActive: true });
+          vocabMerged += 1;
+        }
+      } else if (language === "de") {
+        // DE promote: merge DE fields from preview rows into published rows, then archive previews.
+        const pubBySerbian = new Map<string, any>();
+        for (const pv of publishedVocab) {
+          const key = String(pv.serbian ?? "").toLowerCase().trim();
+          if (key) pubBySerbian.set(key, pv);
+        }
+
+        for (const prev of previewVocab) {
+          const key = String(prev.serbian ?? "").toLowerCase().trim();
+          const pubRow = pubBySerbian.get(key);
+          if (pubRow) {
+            const patch: any = {};
+            if (typeof prev.de === "string" && String(prev.de).trim()) patch.de = prev.de;
+            if (typeof prev.noteDe === "string" && String(prev.noteDe).trim()) patch.noteDe = prev.noteDe;
+            if (Object.keys(patch).length > 0) {
+              await ctx.db.patch(pubRow._id, patch);
+              vocabMerged += 1;
+            }
+          }
+          // Archive the preview copy.
+          await ctx.db.patch(prev._id, { isActive: false, archivedAt: now, releaseStatus: "offline" });
+        }
       }
     }
 
@@ -2192,5 +2205,130 @@ export const checkMissingPrompts = internalMutation({
       results.push({ name: key, status: existing?.content ? "found" : "missing" });
     }
     return results;
+  },
+});
+
+// ===== Repair: restore vocabulary for a published unit from its snapshot =====
+export const repairPublishedUnitVocabulary = internalMutation({
+  args: {
+    unitNumber: v.number(),
+    confirm: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const unitNumber = Number(args.unitNumber);
+    const expected = `REPAIR VOCAB UNIT ${unitNumber}`;
+    if (String(args.confirm) !== expected) {
+      throw new Error(`Confirmation required: confirm must equal '${expected}'`);
+    }
+    const now = Date.now();
+
+    // Check current active vocabulary count
+    const currentVocab = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+    const activeCount = currentVocab.filter((v: any) => v.isActive !== false && v.releaseStatus !== "offline").length;
+
+    // Strategy 1: Try to reactivate archived preview entries as published
+    const archivedPreview = currentVocab.filter(
+      (v: any) => v.isActive === false && v.releaseStatus === "preview"
+    );
+    if (archivedPreview.length > 0 && activeCount === 0) {
+      let reactivated = 0;
+      for (const v of archivedPreview) {
+        await ctx.db.patch(v._id, { isActive: true, archivedAt: undefined, releaseStatus: "published" });
+        reactivated += 1;
+      }
+      return {
+        ok: true,
+        strategy: "reactivated_archived_preview",
+        unitNumber,
+        previousActiveCount: activeCount,
+        reactivated,
+      };
+    }
+
+    // Strategy 2: Try to reactivate any archived entries
+    const archivedAny = currentVocab.filter((v: any) => v.isActive === false);
+    // Pick the latest version per serbian key
+    const latestByKey = new Map<string, any>();
+    for (const v of archivedAny as any[]) {
+      const key = String(v.serbian ?? "").toLowerCase().trim();
+      if (!key) continue;
+      const existing = latestByKey.get(key);
+      if (!existing || (v.unitVersion ?? 1) > (existing.unitVersion ?? 1)) {
+        latestByKey.set(key, v);
+      }
+    }
+    if (latestByKey.size > 0 && activeCount === 0) {
+      let reactivated = 0;
+      for (const v of latestByKey.values()) {
+        await ctx.db.patch(v._id, { isActive: true, archivedAt: undefined, releaseStatus: "published" });
+        reactivated += 1;
+      }
+      return {
+        ok: true,
+        strategy: "reactivated_latest_archived",
+        unitNumber,
+        previousActiveCount: activeCount,
+        reactivated,
+      };
+    }
+
+    // Strategy 3: Re-create from snapshot
+    const drafts = await ctx.db
+      .query("contentDrafts")
+      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+      .collect();
+    let snapshotJson: string | null = null;
+    for (const d of drafts) {
+      if (!d.lastSnapshotId) continue;
+      const snap = await ctx.db.get(d.lastSnapshotId as any);
+      if (snap && (snap as any).unitPackageJson) {
+        snapshotJson = (snap as any).unitPackageJson;
+        break;
+      }
+    }
+    if (!snapshotJson) {
+      return {
+        ok: false,
+        error: "No snapshot found and no archived entries to reactivate",
+        unitNumber,
+        previousActiveCount: activeCount,
+        archivedTotal: currentVocab.filter((v: any) => v.isActive === false).length,
+      };
+    }
+
+    const pkg = JSON.parse(snapshotJson);
+    const vocabEn: any[] = pkg?.vocabulary?.en ?? [];
+    if (vocabEn.length === 0) {
+      return { ok: false, error: "Snapshot has 0 vocabulary entries", unitNumber };
+    }
+
+    let created = 0;
+    for (const entry of vocabEn) {
+      const serbKey = toVocabularyKey(entry.serbian);
+      await ctx.db.insert("courseVocabulary", {
+        unitNumber,
+        serbian: entry.serbian,
+        serbianNormalized: serbKey,
+        en: entry.en,
+        translations: [{ language: "en", translation: entry.en }],
+        gender: entry.gender || undefined,
+        noteEn: entry.noteEn || undefined,
+        isActive: true,
+        archivedAt: undefined,
+        unitVersion: 1,
+        releaseStatus: "published",
+      });
+      created += 1;
+    }
+    return {
+      ok: true,
+      strategy: "recreated_from_snapshot",
+      unitNumber,
+      previousActiveCount: activeCount,
+      created,
+    };
   },
 });

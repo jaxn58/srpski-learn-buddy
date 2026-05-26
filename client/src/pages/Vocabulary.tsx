@@ -1277,7 +1277,7 @@ export default function Vocabulary() {
                         className="text-xs text-muted-foreground gap-1.5"
                         onClick={() =>
                           openBuddyModal(
-                            `Explain the word '${currentWord.serbian}' — usage, cases, and example sentences.`,
+                            t("buddy.prefill.explainWord", { word: currentWord.serbian }),
                             currentWord.unitNumber
                           )
                         }
