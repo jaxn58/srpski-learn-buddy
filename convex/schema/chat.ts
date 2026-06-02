@@ -100,6 +100,18 @@ export const chatTables = {
     })
     .index("by_source", ["sourceType", "sourceId"]),
 
+  // ============= CHAT MESSAGE FEEDBACK =============
+  chatMessageFeedback: defineTable({
+    messageId: v.id("chatMessages"),
+    sessionId: v.id("chatSessions"),
+    userId: v.id("users"),
+    rating: v.union(v.literal("up"), v.literal("down")),
+    createdAt: v.number(),
+  })
+    .index("by_message", ["messageId"])
+    .index("by_session", ["sessionId"])
+    .index("by_user", ["userId"]),
+
   // ============= USER DOCUMENT CHUNKS (Embedded User Upload Chunks) =============
   userDocumentChunks: defineTable({
     documentId: v.id("userDocuments"),

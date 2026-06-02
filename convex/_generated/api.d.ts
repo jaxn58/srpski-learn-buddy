@@ -36,6 +36,7 @@ import type * as contentStudio__vocabularyCleanup from "../contentStudio/_vocabu
 import type * as contentStudio_prompts from "../contentStudio/prompts.js";
 import type * as crons from "../crons.js";
 import type * as dashboardAnnouncements from "../dashboardAnnouncements.js";
+import type * as documents from "../documents.js";
 import type * as email from "../email.js";
 import type * as emailTemplates from "../emailTemplates.js";
 import type * as exercises from "../exercises.js";
@@ -102,6 +103,7 @@ declare const fullApi: ApiFromModules<{
   "contentStudio/prompts": typeof contentStudio_prompts;
   crons: typeof crons;
   dashboardAnnouncements: typeof dashboardAnnouncements;
+  documents: typeof documents;
   email: typeof email;
   emailTemplates: typeof emailTemplates;
   exercises: typeof exercises;

@@ -47,6 +47,7 @@ export default function Chat() {
     fileType: string;
   } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showAttachHint, setShowAttachHint] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -62,13 +63,6 @@ export default function Chat() {
     return date.toLocaleTimeString('de-DE', options);
   };
   const progress = useQuery(api.progress.getUserProgress);
-  const SIX_HOURS = 6 * 60 * 60 * 1000;
-  const coarseNow = Math.floor(Date.now() / SIX_HOURS) * SIX_HOURS;
-  const dynamicSuggestions = useQuery(api.chat.getChatSuggestions, {
-    currentUnit: progress?.currentUnit,
-    language: uiLang,
-    nowMs: coarseNow,
-  });
 
   // Beta daily usage tracking -- nowMs refreshes every minute to catch midnight reset
   const [usageNowMs, setUsageNowMs] = useState(() => Date.now());
@@ -244,9 +238,16 @@ export default function Chat() {
     "application/pdf", "text/plain", "text/markdown",
     "image/jpeg", "image/png", "image/webp",
   ];
-  const MAX_ATTACH_SIZE = 5 * 1024 * 1024;
+  const MAX_ATTACH_SIZE: Record<string, number> = {
+    "application/pdf":  200 * 1024,
+    "text/plain":        50 * 1024,
+    "text/markdown":     50 * 1024,
+    "image/jpeg":     3 * 1024 * 1024,
+    "image/png":      3 * 1024 * 1024,
+    "image/webp":     3 * 1024 * 1024,
+  };
 
-  const compressImage = useCallback((file: File, maxDim = 2048, quality = 0.8): Promise<Blob> => {
+  const compressImage = useCallback((file: File, maxDim = 1024, quality = 0.7): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -282,8 +283,17 @@ export default function Chat() {
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-    if (file.size > MAX_ATTACH_SIZE) {
-      toast.error(t('chat.fileTooLarge', 'Max. 5 MB per file'));
+    const maxSize = MAX_ATTACH_SIZE[file.type] ?? 1 * 1024 * 1024;
+    if (file.size > maxSize) {
+      const isImage = file.type.startsWith("image/");
+      const isText = file.type === "text/plain" || file.type === "text/markdown";
+      if (isImage) {
+        toast.error(t('chat.fileTooLarge.image', 'Images: max. 3 MB'));
+      } else if (isText) {
+        toast.error(t('chat.fileTooLarge.text', 'Text files: max. 50 KB'));
+      } else {
+        toast.error(t('chat.fileTooLarge.pdf', 'PDF: max. 200 KB'));
+      }
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -598,24 +608,6 @@ export default function Chat() {
             className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4"
           >
             {messages.length === 0 && (() => {
-              const categoryMeta = {
-                language: {
-                  icon: <Languages className="h-4 w-4 text-blue-600 dark:text-blue-400" />,
-                  bg: "bg-blue-100 dark:bg-blue-900/30",
-                  label: t('chat.category.language.title'),
-                },
-                culture: {
-                  icon: <Globe className="h-4 w-4 text-amber-600 dark:text-amber-400" />,
-                  bg: "bg-amber-100 dark:bg-amber-900/30",
-                  label: t('chat.category.culture.title'),
-                },
-                sos: {
-                  icon: <LifeBuoy className="h-4 w-4 text-red-600 dark:text-red-400" />,
-                  bg: "bg-red-100 dark:bg-red-900/30",
-                  label: t('chat.category.sos.title'),
-                },
-              } as const;
-
               return (
                 <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
                   <div className="h-20 w-20 rounded-full bg-serbian-red flex items-center justify-center">
@@ -626,28 +618,27 @@ export default function Chat() {
                     <p className="text-muted-foreground mb-2">{t('chat.welcome.subtitle')}</p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl w-full">
-                    {(dynamicSuggestions ?? []).map((s) => {
-                      const meta = categoryMeta[s.category as keyof typeof categoryMeta];
-                      if (!meta) return null;
-                      return (
-                        <AnimatedItem key={s.category}>
-                          <Card
-                            className="p-4 hover:bg-accent cursor-pointer transition-colors h-full text-left"
-                            onClick={() => void prefillExampleMessage(s.prefill)}
-                          >
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className={cn("h-7 w-7 rounded-full flex items-center justify-center", meta.bg)}>
-                                {meta.icon}
-                              </div>
-                              <p className="text-sm font-semibold">{meta.label}</p>
+                    {[
+                      { key: "language", icon: <Languages className="h-4 w-4 text-blue-600 dark:text-blue-400" />, bg: "bg-blue-100 dark:bg-blue-900/30", text: t('chat.suggestion1') },
+                      { key: "culture", icon: <Globe className="h-4 w-4 text-amber-600 dark:text-amber-400" />, bg: "bg-amber-100 dark:bg-amber-900/30", text: t('chat.suggestion2') },
+                      { key: "sos", icon: <LifeBuoy className="h-4 w-4 text-red-600 dark:text-red-400" />, bg: "bg-red-100 dark:bg-red-900/30", text: t('chat.suggestion3') },
+                    ].map((s) => (
+                      <AnimatedItem key={s.key}>
+                        <Card
+                          className="p-4 hover:bg-accent cursor-pointer transition-colors h-full text-left"
+                          onClick={() => void prefillExampleMessage(s.text)}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={cn("h-7 w-7 rounded-full flex items-center justify-center", s.bg)}>
+                              {s.icon}
                             </div>
-                            <p className="text-xs text-primary font-medium leading-relaxed">
-                              {s.text}
-                            </p>
-                          </Card>
-                        </AnimatedItem>
-                      );
-                    })}
+                          </div>
+                          <p className="text-xs text-primary font-medium leading-relaxed">
+                            {s.text}
+                          </p>
+                        </Card>
+                      </AnimatedItem>
+                    ))}
                   </div>
                 </div>
               );
@@ -833,18 +824,37 @@ export default function Chat() {
                   {t('chat.beta.usageCounter', { used: chatUsage.used, limit: chatUsage.limit })}
                 </span>
               )}
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || isSending || !currentSessionId || !!attachedFile || isDailyLimitReached}
-                size="icon"
-                variant="ghost"
-                className="rounded-full h-10 w-10"
-                title={t('chat.attachTooltip', 'PDF, TXT, MD, JPG, PNG, WebP · max 5 MB')}
+              <div
+                className="relative shrink-0"
+                onMouseEnter={() => setShowAttachHint(true)}
+                onMouseLeave={() => setShowAttachHint(false)}
               >
-                {isUploading
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Paperclip className="h-4 w-4" />}
-              </Button>
+                {showAttachHint && !isUploading && (
+                  <div className="absolute bottom-full mb-2 right-0 z-50 pointer-events-none">
+                    <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-md px-3 py-2 text-[11px] leading-relaxed whitespace-nowrap">
+                      <p className="font-semibold mb-1">{t('chat.attachHint.title', 'Supported files')}</p>
+                      <p>🖼 JPG / PNG / WebP &mdash; max. 3 MB</p>
+                      <p>📄 PDF &mdash; max. 200 KB</p>
+                      <p>📝 TXT / MD &mdash; max. 50 KB</p>
+                    </div>
+                    {/* Arrow pointing down */}
+                    <div className="absolute right-3 top-full w-2.5 h-2.5 overflow-hidden">
+                      <div className="w-2.5 h-2.5 bg-popover border-r border-b border-border rotate-45 -translate-y-1/2" />
+                    </div>
+                  </div>
+                )}
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || isSending || !currentSessionId || !!attachedFile || isDailyLimitReached}
+                  size="icon"
+                  variant="ghost"
+                  className="rounded-full h-10 w-10"
+                >
+                  {isUploading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Paperclip className="h-4 w-4" />}
+                </Button>
+              </div>
               {activeStreamId ? (
                 <Button
                   onClick={handleStopStreaming}

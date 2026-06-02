@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, User, Brain, Sparkles } from "lucide-react";
+import { Send, User, Brain, Sparkles, MessageSquarePlus } from "lucide-react";
 import { toast } from "sonner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -49,6 +49,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const prefillHandledRef = useRef(false);
+  const skipAutoSelectRef = useRef(false);
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
   
   const formatMessageTime = (timestamp: number) => {
@@ -70,6 +71,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const checkRateLimitMutation = useMutation(api.chat.checkMessageRateLimit);
   const createStreamMutation = useMutation(api.streaming.createStream);
   const addStreamingAssistantMsg = useMutation(api.chat.addStreamingAssistantMessage);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const showUsage = chatUsage !== null && chatUsage !== undefined
     && (!chatUsage.isPaidUser || chatUsage.isAdmin);
@@ -85,6 +87,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   useEffect(() => {
     if (!isOpen) {
       prefillHandledRef.current = false;
+      skipAutoSelectRef.current = false;
       setCurrentSessionId(null);
       setPendingPrefill(null);
     }
@@ -109,6 +112,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     }
 
     if (!currentSessionId) {
+      if (skipAutoSelectRef.current) return;
       setCurrentSessionId(sessions[0]._id as unknown as string);
     } else {
       const hasCurrent = sessions.some((s) => (s._id as unknown as string) === currentSessionId);
@@ -140,7 +144,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
         sessionId: sessionId as Id<"chatSessions">,
         role: "user",
         content: text,
-        unitContext: progress?.currentUnit,
+        unitContext: unitNumber ?? progress?.currentUnit,
         responseMode,
       });
 
@@ -212,7 +216,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       }
       setIsSending(false);
     }
-  }, [user, progress, checkRateLimitMutation, addMessageMutation, createStreamMutation, addStreamingAssistantMsg, resetStream, feedResponse, t]);
+  }, [user, progress, unitNumber, checkRateLimitMutation, addMessageMutation, createStreamMutation, addStreamingAssistantMsg, resetStream, feedResponse, t]);
 
   // Watch stream status: clean up when done
   useEffect(() => {
@@ -324,15 +328,28 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   };
 
   const handleNewChat = async () => {
+    if (isCreatingSession || isSending) return;
+    setIsCreatingSession(true);
     try {
+      abortControllerRef.current?.abort();
+      resetStream();
+      setActiveStreamId(null);
+      setPendingPrefill(null);
+      setMessage("");
+
       const sessionId = await createSessionMutation({ title: t('chat.newChat') });
+      skipAutoSelectRef.current = true;
       setCurrentSessionId(sessionId as unknown as string);
       toast.success(t('chat.newChatSuccess'));
     } catch (error) {
       console.error("Failed to create new chat:", error);
       toast.error(t('chat.newChatError'));
+    } finally {
+      setIsCreatingSession(false);
     }
   };
+
+  const headerActionsDisabled = isSending || isCreatingSession;
 
   const handleSend = async () => {
     if (!message.trim() || isSending) return;
@@ -368,15 +385,25 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="w-[95vw] sm:w-[90vw] max-w-5xl max-h-[90vh] min-h-[60vh] sm:min-h-[70vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
+        <DialogHeader className="px-6 pt-6 pb-3 border-b pr-14">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shrink-0">
               <Brain className="h-6 w-6 text-white" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0 pt-0.5">
               <DialogTitle>{t('chat.modal.title')}</DialogTitle>
               <DialogDescription>{t('chat.modal.subtitle')}</DialogDescription>
             </div>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => void handleNewChat()}
+              disabled={headerActionsDisabled}
+              className="h-7 px-2.5 text-xs font-normal shrink-0"
+            >
+              <MessageSquarePlus className="h-3 w-3 mr-1.5 shrink-0" />
+              {t('chat.modal.newChat')}
+            </Button>
           </div>
         </DialogHeader>
 

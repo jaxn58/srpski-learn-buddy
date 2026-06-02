@@ -1,11 +1,12 @@
 import { useState, useTransition, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { MessageSquarePlus, MessageSquare, Archive, RotateCcw, Trash2, MoreHorizontal, Pencil } from "lucide-react";
+import { MessageSquarePlus, MessageSquare, Archive, RotateCcw, Trash2, MoreHorizontal, Pencil, CheckSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn, formatDateEU } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -43,8 +44,11 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
   const archiveSessionMutation = useMutation(api.chat.archiveSession);
   const unarchiveSessionMutation = useMutation(api.chat.unarchiveSession);
   const deleteArchivedMutation = useMutation(api.chat.deleteArchivedSession);
+  const batchDeleteMutation = useMutation(api.chat.batchDeleteArchivedSessions);
   const updateSessionMutation = useMutation(api.chat.updateSession);
   const [showArchived, setShowArchived] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -179,9 +183,51 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
     });
   }, [deleteArchivedMutation]);
 
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (!archivedSessions) return;
+    const allIds = archivedSessions.map(s => s._id as unknown as string);
+    setSelectedIds(prev => prev.size === allIds.length ? new Set() : new Set(allIds));
+  }, [archivedSessions]);
+
+  const handleBatchDelete = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    setConfirmDialog({
+      open: true,
+      title: t("chatSessions.confirm.batchDelete.title", "Delete selected chats?"),
+      description: t("chatSessions.confirm.batchDelete.desc", {
+        count: selectedIds.size,
+        defaultValue: "{{count}} archived chats will be permanently deleted. This cannot be undone.",
+      }),
+      onConfirm: () => {
+        setIsBatchDeleting(true);
+        const ids = Array.from(selectedIds);
+        batchDeleteMutation({ sessionIds: ids as any })
+          .then((result) => {
+            toast.success(t("chatSessions.toast.batchDeleted", {
+              count: result.deleted,
+              defaultValue: "{{count}} chats deleted.",
+            }));
+            setSelectedIds(new Set());
+          })
+          .catch(() => {
+            toast.error(t("chatSessions.toast.batchDeleteFailed", "Could not delete selected chats."));
+          })
+          .finally(() => setIsBatchDeleting(false));
+      },
+    });
+  }, [selectedIds, batchDeleteMutation, t]);
+
   return (
-    <div className="hidden md:flex w-72 flex-col self-start max-h-[calc(100vh-6rem)]">
-      <div className="bg-card border rounded-xl shadow-sm p-4 space-y-2 overflow-hidden">
+    <div className="hidden md:flex w-72 flex-col self-start h-[calc(100vh-6rem)]">
+      <div className="bg-card border rounded-xl shadow-sm p-4 space-y-2 shrink-0">
         <Button 
           onClick={onNewChat} 
           className="w-full bg-primary hover:bg-primary/90 text-white text-xs"
@@ -193,7 +239,10 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
         
 
         <Button
-          onClick={() => setShowArchived((s) => !s)}
+          onClick={() => {
+            setShowArchived((s) => !s);
+            setSelectedIds(new Set());
+          }}
           variant="secondary"
           className="w-full text-xs"
           size="sm"
@@ -203,8 +252,8 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 mt-4">
-        <div className="space-y-1 bg-card border rounded-xl shadow-sm p-2">
+      <div className="flex-1 min-h-0 mt-4 overflow-y-auto rounded-xl border bg-card shadow-sm p-2">
+        <div className="space-y-1">
           {isLoading && (
             <div className="text-sm text-muted-foreground text-center py-4">
               {t("common.loading")}
@@ -227,7 +276,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
               <div
                 key={id}
                 className={cn(
-                  "group flex items-center gap-2 p-3 rounded-lg transition-colors",
+                  "group flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors",
                   isActive
                     ? "bg-[color:var(--accent)] text-white hover:brightness-95"
                     : "hover:bg-muted/40 cursor-pointer",
@@ -261,11 +310,11 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                   />
                 ) : (
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm line-clamp-2 break-words">{session.title}</p>
+                    <p className="text-sm truncate leading-tight">{session.title}</p>
                     <p
                       className={cn(
-                        "text-xs",
-                        isActive ? "text-white/85" : "text-muted-foreground"
+                        "text-[0.65rem] truncate leading-tight",
+                        isActive ? "text-white/70" : "text-muted-foreground/70"
                       )}
                     >
                       {formatDateEU(session._creationTime)}
@@ -318,63 +367,111 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
 
           {showArchived && (
             <div className="mt-4 border-t border-border/60 pt-3 space-y-2">
-              <div className="text-xs font-semibold text-muted-foreground px-2">{t("chatSessions.section.archived")}</div>
+              <div className="flex items-center justify-between px-2">
+                <div className="text-xs font-semibold text-muted-foreground">
+                  {t("chatSessions.section.archived")}
+                </div>
+                {archivedSessions && archivedSessions.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-1.5 text-[0.65rem] text-muted-foreground"
+                      onClick={toggleSelectAll}
+                    >
+                      <CheckSquare className="h-3 w-3 mr-1" />
+                      {selectedIds.size === archivedSessions.length
+                        ? t("chatSessions.batch.deselectAll", "Deselect all")
+                        : t("chatSessions.batch.selectAll", "Select all")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full text-xs h-7"
+                  onClick={handleBatchDelete}
+                  disabled={isBatchDeleting}
+                >
+                  <Trash2 className="h-3 w-3 mr-1.5" />
+                  {t("chatSessions.batch.deleteSelected", {
+                    count: selectedIds.size,
+                    defaultValue: "Delete {{count}} selected",
+                  })}
+                </Button>
+              )}
+
               {archivedSessions === undefined && (
                 <div className="text-sm text-muted-foreground text-center py-2">{t("common.loading")}</div>
               )}
               {archivedSessions !== undefined && archivedSessions.length === 0 && (
                 <div className="text-sm text-muted-foreground text-center py-2">{t("chatSessions.emptyArchived")}</div>
               )}
-              {archivedSessions?.map((session: ChatSession) => (
-                <div
-                  key={session._id}
-                  className="group flex items-center gap-2 p-3 rounded-lg transition-colors hover:bg-accent/60"
-                >
-                  <Archive className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm line-clamp-2 break-words">
-                      {session.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDateEU(session._creationTime)}
-                    </p>
+              {archivedSessions?.map((session: ChatSession) => {
+                const sid = session._id as unknown as string;
+                const isSelected = selectedIds.has(sid);
+                return (
+                  <div
+                    key={session._id}
+                    className={cn(
+                      "group flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors hover:bg-accent/60",
+                      isSelected && "bg-accent/30"
+                    )}
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => toggleSelected(sid)}
+                      className="shrink-0"
+                      aria-label={`Select "${session.title}"`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate leading-tight">
+                        {session.title}
+                      </p>
+                      <p className="text-[0.65rem] text-muted-foreground/70 leading-tight">
+                        {formatDateEU(session._creationTime)}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                          processingIds.has(session._id) && "opacity-50 cursor-wait"
+                        )}
+                        onClick={() => handleUnarchive(session._id)}
+                        disabled={processingIds.has(session._id)}
+                        title={t("chatSessions.action.restore", "Restore")}
+                        aria-label="Restore chat"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                          processingIds.has(session._id) && "opacity-50 cursor-wait"
+                        )}
+                        onClick={() => handleDeleteArchived(session._id)}
+                        disabled={processingIds.has(session._id)}
+                        title={t("chatSessions.action.deletePermanently", "Delete permanently")}
+                        aria-label="Delete chat permanently"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-                        processingIds.has(session._id) && "opacity-50 cursor-wait"
-                      )}
-                      onClick={() => handleUnarchive(session._id)}
-                      disabled={processingIds.has(session._id)}
-                      title="Restore"
-                      aria-label="Restore chat"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-                        processingIds.has(session._id) && "opacity-50 cursor-wait"
-                      )}
-                      onClick={() => handleDeleteArchived(session._id)}
-                      disabled={processingIds.has(session._id)}
-                      title="Delete permanently"
-                      aria-label="Delete chat permanently"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Non-blocking confirmation dialog */}
       <AlertDialog open={confirmDialog?.open || false} onOpenChange={(open) => !open && setConfirmDialog(null)}>

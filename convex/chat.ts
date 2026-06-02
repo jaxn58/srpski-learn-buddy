@@ -454,6 +454,35 @@ export const deleteArchivedSession = mutation({
   },
 });
 
+export const batchDeleteArchivedSessions = mutation({
+  args: {
+    sessionIds: v.array(v.id("chatSessions")),
+  },
+  returns: v.object({ deleted: v.number() }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    let deleted = 0;
+    for (const sessionId of args.sessionIds) {
+      const session = await ctx.db.get(sessionId);
+      if (!session || session.userId !== user._id || session.archived !== true) {
+        continue;
+      }
+      const messages = await ctx.db
+        .query("chatMessages")
+        .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+        .collect();
+      for (const message of messages) {
+        await ctx.db.delete(message._id);
+      }
+      await ctx.db.delete(sessionId);
+      deleted++;
+    }
+    return { deleted };
+  },
+});
+
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatSessionDoc = Doc<"chatSessions">;
 
@@ -1252,6 +1281,64 @@ export const searchVocabularyForTools = internalQuery({
   },
 });
 
+// ============= MESSAGE FEEDBACK =============
+
+export const submitMessageFeedback = mutation({
+  args: {
+    messageId: v.id("chatMessages"),
+    sessionId: v.id("chatSessions"),
+    rating: v.union(v.literal("up"), v.literal("down")),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.role !== "assistant") {
+      throw new Error("Can only rate assistant messages");
+    }
+
+    const existing = await ctx.db
+      .query("chatMessageFeedback")
+      .withIndex("by_message", (q) => q.eq("messageId", args.messageId))
+      .first();
+
+    if (existing) {
+      if (existing.rating === args.rating) {
+        await ctx.db.delete(existing._id);
+        return { action: "removed" };
+      }
+      await ctx.db.patch(existing._id, {
+        rating: args.rating,
+        createdAt: Date.now(),
+      });
+      return { action: "updated" };
+    }
+
+    await ctx.db.insert("chatMessageFeedback", {
+      messageId: args.messageId,
+      sessionId: args.sessionId,
+      userId: user._id,
+      rating: args.rating,
+      createdAt: Date.now(),
+    });
+    return { action: "created" };
+  },
+});
+
+export const getSessionFeedback = query({
+  args: { sessionId: v.id("chatSessions") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+
+    return await ctx.db
+      .query("chatMessageFeedback")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .collect();
+  },
+});
+
 // httpAction: POST /chat/stream
 export const streamChatMessage = httpAction(async (ctx, request) => {
   const body = await request.json() as {
@@ -1330,15 +1417,47 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     }
   }
 
+  // Hard character caps for text attachments — keeps token spend predictable.
+  const TEXT_CHAR_CAP = 8_000;
+  const PDF_CHAR_CAP = 15_000;
+
   let attachmentUrl: string | null = null;
   let attachmentMimeType: string | null = null;
+  // Inline text content for TXT/MD (fetched & truncated server-side).
+  let attachmentInlineText: string | null = null;
+
   if (body.attachmentStorageId) {
     try {
       const storageId = body.attachmentStorageId as Id<"_storage">;
       const url = await ctx.storage.getUrl(storageId);
       if (url) {
-        attachmentUrl = url;
-        attachmentMimeType = body.attachmentFileType || "application/octet-stream";
+        const mime = body.attachmentFileType || "application/octet-stream";
+        const isTextFile = mime === "text/plain" || mime === "text/markdown";
+
+        if (isTextFile) {
+          // Fetch & truncate plain text to avoid unbounded token consumption.
+          try {
+            const textResp = await fetch(url);
+            if (textResp.ok) {
+              const raw = await textResp.text();
+              const truncated = raw.length > TEXT_CHAR_CAP;
+              attachmentInlineText = truncated
+                ? raw.slice(0, TEXT_CHAR_CAP) +
+                  `\n\n[Document truncated — showing first ${TEXT_CHAR_CAP.toLocaleString()} of ${raw.length.toLocaleString()} characters]`
+                : raw;
+            } else {
+              attachmentUrl = url;
+              attachmentMimeType = mime;
+            }
+          } catch {
+            // If fetch fails, fall back to passing the URL.
+            attachmentUrl = url;
+            attachmentMimeType = mime;
+          }
+        } else {
+          attachmentUrl = url;
+          attachmentMimeType = mime;
+        }
       }
     } catch (e) {
       console.warn("[streamChat] Failed to get attachment URL:", e);
@@ -1357,7 +1476,9 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
   ];
 
   const history = [...streamContext.recentHistory];
-  if (attachmentUrl && attachmentMimeType && history.length > 0) {
+  const hasAttachmentContent = !!(attachmentUrl || attachmentInlineText);
+
+  if (hasAttachmentContent && history.length > 0) {
     let lastUserIdx = -1;
     for (let i = history.length - 1; i >= 0; i--) {
       if (history[i].role === "user") { lastUserIdx = i; break; }
@@ -1365,28 +1486,53 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
 
     if (lastUserIdx >= 0) {
       const userMsg = history[lastUserIdx];
-      const isImage = attachmentMimeType.startsWith("image/");
-      const attachInstruction = `\n\n[The user attached a file: "${body.attachmentFileName || "attachment"}". ` +
-        `Analyze the attached content and respond in the language the user is chatting in. ` +
-        `Summarize, translate, or explain the content as appropriate.]`;
+      const fileName = body.attachmentFileName || "attachment";
 
-      const fileUrl = new URL(attachmentUrl);
-      const parts: AiContentPart[] = [
-        { type: "text", text: userMsg.content + attachInstruction },
-      ];
+      if (attachmentInlineText !== null) {
+        // Plain text/markdown: inject content inline — no multimodal call needed.
+        const inlineInstruction =
+          `\n\n[The user attached a text file: "${fileName}". Content:\n---\n${attachmentInlineText}\n---\n` +
+          `Analyze the content and respond in the language the user is chatting in. ` +
+          `Summarize, translate, or explain as appropriate.]`;
 
-      if (isImage) {
-        parts.push({ type: "image", image: fileUrl, mediaType: attachmentMimeType });
-      } else {
-        parts.push({ type: "file", data: fileUrl, mediaType: attachmentMimeType });
-      }
-
-      for (let i = 0; i < history.length; i++) {
-        if (i === lastUserIdx) {
-          aiMessages.push({ role: "user", content: parts });
-        } else {
-          aiMessages.push(history[i]);
+        for (let i = 0; i < history.length; i++) {
+          if (i === lastUserIdx) {
+            aiMessages.push({ role: "user", content: userMsg.content + inlineInstruction });
+          } else {
+            aiMessages.push(history[i]);
+          }
         }
+      } else if (attachmentUrl && attachmentMimeType) {
+        const isImage = attachmentMimeType.startsWith("image/");
+        const isPdf = attachmentMimeType === "application/pdf";
+        const pdfNote = isPdf
+          ? ` Focus your analysis on the beginning of the document (max ~${PDF_CHAR_CAP.toLocaleString()} characters).`
+          : "";
+        const attachInstruction =
+          `\n\n[The user attached a file: "${fileName}". ` +
+          `Analyze the attached content and respond in the language the user is chatting in. ` +
+          `Summarize, translate, or explain the content as appropriate.${pdfNote}]`;
+
+        const fileUrl = new URL(attachmentUrl);
+        const parts: AiContentPart[] = [
+          { type: "text", text: userMsg.content + attachInstruction },
+        ];
+
+        if (isImage) {
+          parts.push({ type: "image", image: fileUrl, mediaType: attachmentMimeType });
+        } else {
+          parts.push({ type: "file", data: fileUrl, mediaType: attachmentMimeType });
+        }
+
+        for (let i = 0; i < history.length; i++) {
+          if (i === lastUserIdx) {
+            aiMessages.push({ role: "user", content: parts });
+          } else {
+            aiMessages.push(history[i]);
+          }
+        }
+      } else {
+        aiMessages.push(...history);
       }
     } else {
       aiMessages.push(...history);
@@ -1401,9 +1547,11 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     streamId,
     async (_ctx, _request, _streamId, append) => {
       let fullText: string;
-      const hasAttachment = !!attachmentUrl;
+      // Multimodal is only needed for URL-based attachments (images, PDFs).
+      // Plain-text attachments are already inlined into the message content.
+      const needsMultimodal = !!attachmentUrl;
 
-      if (hasAttachment) {
+      if (needsMultimodal) {
         try {
           fullText = await streamMultimodalResponse(config, aiMessages, append);
         } catch (e) {

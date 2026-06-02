@@ -1,0 +1,52 @@
+name: Buddy Context Streaming — Type & Smoke
+
+on:
+  pull_request:
+  push:
+    branches:
+      - feature/buddy-context-streaming
+      - beta
+      - main
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check (client + server)
+        run: pnpm check
+
+      - name: TypeScript check (Convex)
+        run: pnpm check:convex
+
+      - name: Unit tests (server + scripts)
+        run: pnpm test
+
+      - name: Unit tests (client — useChatStream)
+        run: pnpm test:client
+
+      - name: Buddy smoke — env-doc guard (dry-run)
+        run: pnpm test:buddy-smoke --dry-run
+
+      # Full CORS preflight — only runs when the secret is configured
+      - name: Buddy smoke — CORS preflight
+        if: ${{ env.CONVEX_SITE_URL != '' }}
+        run: pnpm test:buddy-smoke
+        env:
+          CONVEX_SITE_URL: ${{ secrets.CONVEX_SITE_URL }}
