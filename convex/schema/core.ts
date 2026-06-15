@@ -42,6 +42,19 @@ export const coreTables = {
     // Tracks one-time 50% beta discount usage after beta ends.
     // If set, the user already consumed the beta discount.
     betaDiscountUsedAt: v.optional(v.number()), // timestamp
+
+    // ===== Feature tier override (support / QA / comp) =====
+    // Superadmin-set override that forces a specific feature package regardless
+    // of the user's subscription. Highest precedence after staff roles in
+    // convex/featureAccess.ts. Optional → undefined means "no override".
+    // Primary use today: testing the 4-package gating before tier-specific
+    // billing products exist (all real users are otherwise full/beta/staff).
+    featureTierOverride: v.optional(v.union(
+      v.literal("course"),
+      v.literal("buddy"),
+      v.literal("basic"),
+      v.literal("full")
+    )),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])

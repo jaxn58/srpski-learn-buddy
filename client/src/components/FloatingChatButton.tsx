@@ -3,15 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Brain } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ChatModal } from "./ChatModal";
+import { useFeatureAccess, canUseBuddy } from "@/hooks/useFeatureAccess";
 
 export function FloatingChatButton() {
   const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [displayText, setDisplayText] = useState(() => t("chat.floatingButton.text"));
+  const access = useFeatureAccess();
 
   useEffect(() => {
     setDisplayText(t("chat.floatingButton.text"));
   }, [i18n.language, t]);
+
+  // Hide the Buddy entry point for plans without Buddy or course teaser access.
+  if (!canUseBuddy(access)) return null;
 
   return (
     <>

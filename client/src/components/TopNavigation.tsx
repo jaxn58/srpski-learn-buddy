@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useFeatureAccess, canUseLearning, canUseBuddy } from "@/hooks/useFeatureAccess";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
@@ -144,6 +145,9 @@ export function TopNavigation() {
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isBetaTester = Boolean(user?.isBetaTester);
+  const featureAccess = useFeatureAccess();
+  const showLearning = canUseLearning(featureAccess);
+  const showBuddy = canUseBuddy(featureAccess);
   const activeClass = "bg-accent text-accent-foreground hover:bg-accent/90 hover:text-accent-foreground";
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
@@ -365,6 +369,28 @@ export function TopNavigation() {
     [t]
   );
 
+  // Feature gating (Phase 2): hard-hide entry points the user's plan does not
+  // include. Learning items require the `learning` feature; the Buddy requires
+  // `buddyChat` or the course `teaser`. Backend + route guards enforce too.
+  const visibleMainItems = useMemo(
+    () =>
+      mainItems.filter((item) => {
+        if (item.href === "/units" || item.href === "/vocabulary") return showLearning;
+        if (item.href === "/chat") return showBuddy;
+        return true;
+      }),
+    [mainItems, showLearning, showBuddy]
+  );
+
+  const visibleMoreItems = useMemo(
+    () =>
+      moreItems.filter((item) => {
+        if (item.href === "/vocabulary-list") return showLearning;
+        return true;
+      }),
+    [moreItems, showLearning]
+  );
+
   const isItemActive = (item: NavItem) => {
     if (item.isActive) return item.isActive(location);
     return location === item.href;
@@ -373,8 +399,8 @@ export function TopNavigation() {
   const closeMobile = () => setMobileOpen(false);
 
   const isMoreActive = useMemo(() => {
-    return moreItems.some((i) => (i.isActive ? i.isActive(location) : location === i.href));
-  }, [moreItems, location]);
+    return visibleMoreItems.some((i) => (i.isActive ? i.isActive(location) : location === i.href));
+  }, [visibleMoreItems, location]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-muted/30 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
@@ -404,7 +430,7 @@ export function TopNavigation() {
               </SheetHeader>
 
               <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
-                {mainItems.map((item) => {
+                {visibleMainItems.map((item) => {
                   const active = isItemActive(item);
                   return (
                     <Link key={item.href} href={item.href} onClick={closeMobile}>
@@ -425,7 +451,7 @@ export function TopNavigation() {
                 <div className="px-2 pt-4 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {t("sidebar.more")}
                 </div>
-                {moreItems.map((item) => {
+                {visibleMoreItems.map((item) => {
                   const active = isItemActive(item);
                   return (
                     <Link key={item.href} href={item.href} onClick={closeMobile}>
@@ -488,7 +514,7 @@ export function TopNavigation() {
         </div>
 
         <nav className="hidden md:flex flex-1 items-center justify-center gap-1">
-          {mainItems.map((item) => {
+          {visibleMainItems.map((item) => {
             const active = isItemActive(item);
             const isUnitsItem = item.href === "/units";
             return (
@@ -631,7 +657,7 @@ export function TopNavigation() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
-              {moreItems.map((item) => (
+              {visibleMoreItems.map((item) => (
                 <DropdownMenuItem key={item.href} asChild>
                   <Link href={item.href} className="cursor-pointer">
                     {item.icon}

@@ -4,6 +4,7 @@ import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
+import { getFeatureAccessForUser } from "./featureAccess";
 import { streamingComponent } from "./streaming";
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
 import { resolveModelConfig, streamChatResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
@@ -32,6 +33,11 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   }
   return user;
 }
+
+// Sprachkurs (course tier) teaser: number of Buddy questions allowed per day.
+// Course users get a small preview of the Buddy as an upsell anchor; full
+// Buddy access requires a buddy / basic / full package.
+const TEASER_DAILY_LIMIT = 2;
 
 // Rate limiting configuration
 const RATE_LIMITS = {
@@ -704,6 +710,32 @@ export const checkMessageRateLimit = mutation({
     const session = await ctx.db.get(args.sessionId);
     if (!session || session.userId !== user._id) {
       throw new Error("Session not found");
+    }
+
+    // Feature-tier gating (Phase 2). The Buddy is only included in the buddy /
+    // basic / full packages. The language course (`course` tier) gets a small
+    // daily teaser instead of full Buddy access.
+    const access = await getFeatureAccessForUser(ctx, user._id);
+    if (!access.features.buddyChat && !access.features.teaser) {
+      throw new Error("The AI Buddy is not included in your current plan.");
+    }
+    if (access.features.teaser && !access.features.buddyChat) {
+      const teaserDayStart = startOfDayUtc(Date.now());
+      const teaserMessagesToday = await ctx.db
+        .query("chatMessages")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .filter((q) =>
+          q.and(
+            q.gte(q.field("_creationTime"), teaserDayStart),
+            q.eq(q.field("role"), "user")
+          )
+        )
+        .collect();
+      if (teaserMessagesToday.length >= TEASER_DAILY_LIMIT) {
+        throw new Error(
+          `Daily preview limit reached. The language course includes ${TEASER_DAILY_LIMIT} AI Buddy questions per day. Upgrade to a Buddy plan for full access.`
+        );
+      }
     }
 
     const rateLimitResult = await checkRateLimit(ctx, user._id, args.message, args.responseMode);

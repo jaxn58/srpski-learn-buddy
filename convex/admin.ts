@@ -666,6 +666,33 @@ export const toggleBetaTester = mutation({
   },
 });
 
+// Set or clear a user's feature-tier override (superadmin only).
+// `featureTier: null` clears the override (user falls back to subscription /
+// beta resolution). Used to test the 4-package gating and for support/comps.
+export const setFeatureTierOverride = mutation({
+  args: {
+    userId: v.id("users"),
+    featureTier: v.union(
+      v.literal("course"),
+      v.literal("buddy"),
+      v.literal("basic"),
+      v.literal("full"),
+      v.null()
+    ),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+    if (admin.role !== "superadmin") {
+      throw new Error("Only superadmin can set a feature-tier override");
+    }
+
+    await ctx.db.patch(args.userId, {
+      featureTierOverride: args.featureTier ?? undefined,
+    });
+  },
+});
+
 // ============================================================================
 // USER DELETION — CENTRAL FLOW
 // ============================================================================

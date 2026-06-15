@@ -16,6 +16,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Send, Brain, Sparkles, Info, ArrowLeft, Square, ThumbsUp, ThumbsDown, Languages, Globe, LifeBuoy, Paperclip, X, FileText, Image as ImageIcon, Loader2, MessageCircle } from "lucide-react";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useFeatureAccess, canUseDocuments } from "@/hooks/useFeatureAccess";
 import { ChatMobileSheet } from "@/components/ChatMobileSheet";
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -90,6 +91,8 @@ export default function Chat() {
   const addStreamingAssistantMsg = useMutation(api.chat.addStreamingAssistantMessage);
   const updateSessionMutation = useMutation(api.chat.updateSession);
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
+  const featureAccess = useFeatureAccess();
+  const canUploadDocuments = canUseDocuments(featureAccess);
 
   const { data: streamData, feedResponse, reset: resetStream } = useChatStream();
 
@@ -824,6 +827,7 @@ export default function Chat() {
                   {t('chat.beta.usageCounter', { used: chatUsage.used, limit: chatUsage.limit })}
                 </span>
               )}
+              {canUploadDocuments && (
               <div
                 className="relative shrink-0"
                 onMouseEnter={() => setShowAttachHint(true)}
@@ -855,6 +859,7 @@ export default function Chat() {
                     : <Paperclip className="h-4 w-4" />}
                 </Button>
               </div>
+              )}
               {activeStreamId ? (
                 <Button
                   onClick={handleStopStreaming}

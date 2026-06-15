@@ -18,7 +18,7 @@
  * phase changes behavior for existing users beyond exposing derived flags.
  */
 import { v } from "convex/values";
-import { query, internalQuery, type QueryCtx } from "./_generated/server";
+import { query, internalQuery, type QueryCtx, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { isStaffRole, isLearnerAccountSuspended } from "./authz";
 
@@ -61,7 +61,7 @@ type EnergyState = {
 export type FeatureAccess = {
   hasAccess: boolean;
   tier: FeatureTier | null;
-  source: "staff" | "subscription" | "beta" | "past_due" | "none" | "unauthenticated" | "suspended";
+  source: "staff" | "override" | "subscription" | "beta" | "past_due" | "none" | "unauthenticated" | "suspended";
   isStaff: boolean;
   features: FeatureFlags;
   energy: EnergyState;
@@ -79,6 +79,7 @@ const featureAccessValidator = v.object({
   ),
   source: v.union(
     v.literal("staff"),
+    v.literal("override"),
     v.literal("subscription"),
     v.literal("beta"),
     v.literal("past_due"),
@@ -180,6 +181,21 @@ export function resolveFeatureAccess(input: {
     };
   }
 
+  // Superadmin-set override wins over subscription/beta resolution. Used for
+  // support, comps and (currently) QA of the 4-package gating. Energy follows
+  // the overridden tier's rules (still limited – never unlimited for learners).
+  const override = user.featureTierOverride as FeatureTier | undefined;
+  if (override) {
+    return {
+      hasAccess: true,
+      tier: override,
+      source: "override",
+      isStaff: false,
+      features: featuresForTier(override),
+      energy: resolveEnergy(override, activeSub),
+    };
+  }
+
   // Payment failed on an installment plan → access paused entirely
   // (mirrors convex/subscriptions.ts getAccessibleUnits behavior).
   if (pastDueSub) {
@@ -217,7 +233,7 @@ export function resolveFeatureAccess(input: {
 }
 
 async function loadSubscriptions(
-  ctx: QueryCtx,
+  ctx: QueryCtx | MutationCtx,
   userId: Id<"users">
 ): Promise<{ activeSub: Doc<"userSubscriptions"> | null; pastDueSub: Doc<"userSubscriptions"> | null }> {
   // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
@@ -235,6 +251,24 @@ async function loadSubscriptions(
     .first();
 
   return { activeSub: activeSub ?? null, pastDueSub: pastDueSub ?? null };
+}
+
+/**
+ * Backend helper: resolve feature access for a known user id from any
+ * query/mutation context. This is the enforcement entry point used by
+ * chat.ts, documents.ts, etc. so gating logic lives in exactly one place.
+ */
+export async function getFeatureAccessForUser(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">
+): Promise<FeatureAccess> {
+  // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+  const user = await ctx.db.get(userId);
+  if (!user) return noAccess("unauthenticated");
+  if (isLearnerAccountSuspended(user)) return noAccess("suspended");
+
+  const { activeSub, pastDueSub } = await loadSubscriptions(ctx, userId);
+  return resolveFeatureAccess({ user, activeSub, pastDueSub });
 }
 
 /**
@@ -272,12 +306,6 @@ export const internalGetFeatureAccess = internalQuery({
   args: { userId: v.id("users") },
   returns: featureAccessValidator,
   handler: async (ctx, args): Promise<FeatureAccess> => {
-    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
-    const user = await ctx.db.get(args.userId);
-    if (!user) return noAccess("unauthenticated");
-    if (isLearnerAccountSuspended(user)) return noAccess("suspended");
-
-    const { activeSub, pastDueSub } = await loadSubscriptions(ctx, args.userId);
-    return resolveFeatureAccess({ user, activeSub, pastDueSub });
+    return await getFeatureAccessForUser(ctx, args.userId);
   },
 });

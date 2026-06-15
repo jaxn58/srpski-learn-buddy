@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch } from "wouter";
 import { DashboardLayoutSkeleton } from "./components/DashboardLayoutSkeleton";
+import { FeatureGate } from "./components/FeatureGate";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -123,7 +124,9 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <Units />
+                  <FeatureGate allow={(a) => a.features.learning}>
+                    <Units />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
@@ -134,7 +137,9 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <UnitView />
+                  <FeatureGate allow={(a) => a.features.learning}>
+                    <UnitView />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
@@ -145,7 +150,9 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <Chat />
+                  <FeatureGate allow={(a) => a.features.buddyChat || a.features.teaser}>
+                    <Chat />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
@@ -156,7 +163,9 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <Vocabulary />
+                  <FeatureGate allow={(a) => a.features.learning}>
+                    <Vocabulary />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
@@ -167,7 +176,9 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <VocabularyQuizRedirect />
+                  <FeatureGate allow={(a) => a.features.learning}>
+                    <VocabularyQuizRedirect />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
@@ -178,7 +189,9 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <VocabularyList />
+                  <FeatureGate allow={(a) => a.features.learning}>
+                    <VocabularyList />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>

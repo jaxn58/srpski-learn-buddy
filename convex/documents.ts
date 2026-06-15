@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
+import { getFeatureAccessForUser } from "./featureAccess";
 
 async function getCurrentUser(ctx: any) {
   const identity = await ctx.auth.getUserIdentity();
@@ -16,6 +17,13 @@ export const generateUploadUrl = mutation({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
+
+    // Document & photo upload (Knowledge Rack) is only included in the buddy
+    // and full packages (Phase 2 feature gating).
+    const access = await getFeatureAccessForUser(ctx, user._id);
+    if (!access.features.documents) {
+      throw new Error("Document & photo upload is not included in your current plan.");
+    }
 
     return await ctx.storage.generateUploadUrl();
   },

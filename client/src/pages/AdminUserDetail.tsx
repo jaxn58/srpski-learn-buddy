@@ -45,6 +45,7 @@ export default function AdminUserDetail({ userId }: Props) {
   const updateRoleMutation = useMutation(api.admin.updateUserRole);
   const toggleStatusMutation = useMutation(api.admin.toggleUserStatus);
   const toggleBetaTesterMutation = useMutation(api.admin.toggleBetaTester);
+  const setFeatureTierOverrideMutation = useMutation(api.admin.setFeatureTierOverride);
   const deleteUserAction = useAction(api.admin.deleteUser);
   const resetProgressMutation = useMutation(api.admin.resetUserProgress);
 
@@ -123,6 +124,29 @@ export default function AdminUserDetail({ userId }: Props) {
         ? `Remove the Beta Tester badge from "${userDetail.name || userDetail.email}"?`
         : `Add the Beta Tester badge to "${userDetail.name || userDetail.email}"?`,
       onConfirm: handleToggleBetaTester,
+    });
+  };
+
+  const handleSetTierOverride = async (value: string) => {
+    const tier = value === "none" ? null : (value as "course" | "buddy" | "basic" | "full");
+    try {
+      await setFeatureTierOverrideMutation({ userId: userId as any, featureTier: tier });
+      toast.success(tier ? `Feature tier override set to "${tier}"` : "Feature tier override cleared");
+    } catch {
+      toast.error("Failed to update feature tier override");
+    }
+  };
+
+  const requestSetTierOverride = (value: string) => {
+    if (!userDetail) return;
+    const tier = value === "none" ? null : value;
+    setConfirmDialog({
+      open: true,
+      title: "Set Feature Tier Override",
+      description: tier
+        ? `Force the "${tier}" feature package for "${userDetail.name || userDetail.email}"? This overrides their subscription/beta access (energy still limited).`
+        : `Clear the feature tier override for "${userDetail.name || userDetail.email}"? They fall back to their subscription/beta access.`,
+      onConfirm: () => handleSetTierOverride(value),
     });
   };
 
@@ -500,6 +524,33 @@ export default function AdminUserDetail({ userId }: Props) {
               <Button variant="outline" size="sm" onClick={requestToggleBetaTester}>
                 {userDetail.isBetaTester ? 'Remove Beta Badge' : 'Add Beta Badge'}
               </Button>
+            </div>
+
+            <div className="border-t" />
+
+            {/* Feature tier override */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Feature Tier Override</p>
+                <p className="text-xs text-muted-foreground">
+                  Forces a package for testing/support. Overrides subscription &amp; beta.
+                </p>
+              </div>
+              <Select
+                value={(userDetail as any).featureTierOverride ?? 'none'}
+                onValueChange={(value) => requestSetTierOverride(value)}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No override</SelectItem>
+                  <SelectItem value="course">Sprachkurs (course)</SelectItem>
+                  <SelectItem value="buddy">AI Buddy (buddy)</SelectItem>
+                  <SelectItem value="basic">Basic Kombi (basic)</SelectItem>
+                  <SelectItem value="full">Full Package (full)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Reset progress – students only */}
