@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useFeatureAccess, canUseLearning } from "@/hooks/useFeatureAccess";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, UserCircle } from "lucide-react";
@@ -98,6 +99,10 @@ export default function Profile() {
   const deleteMyAccount = useAction(api.users.deleteMyAccount);
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const communityStatus = useQuery(api.newsletter.getMyCommunityUpdatesStatus, user ? {} : "skip");
+  const featureAccess = useFeatureAccess();
+  // Standalone Buddy users (no learning) should not see learning-only features
+  // like XP/level (gamification) or the public leaderboard opt-in.
+  const showLearning = canUseLearning(featureAccess);
 
   const requestCommunityOptIn = useMutation(api.newsletter.requestCommunityUpdatesDoubleOptIn);
   const unsubscribeCommunity = useMutation(api.newsletter.unsubscribeMyCommunityUpdates);
@@ -372,8 +377,13 @@ export default function Profile() {
             <div className="flex-1 min-w-[220px] space-y-1">
               <div className="text-sm font-medium">{nickname || t("profile.nickname.fallback")}</div>
               <div className="text-xs text-muted-foreground">
-                {t("profile.avatar.hintClick")}{" "}
-                {publicEnabled ? t("profile.public.enabled") : t("profile.public.disabled")}
+                {t("profile.avatar.hintClick")}
+                {showLearning ? (
+                  <>
+                    {" "}
+                    {publicEnabled ? t("profile.public.enabled") : t("profile.public.disabled")}
+                  </>
+                ) : null}
               </div>
               <div className="text-xs text-muted-foreground">
                 {t("profile.avatar.requirements")}
@@ -415,26 +425,28 @@ export default function Profile() {
               </div>
             ) : null}
 
-            <div className="space-y-1">
-              <div className="flex items-center justify-between gap-3">
-                <Label className="text-sm font-medium">{t("profile.public.label")}</Label>
-                <Switch
-                  checked={publicEnabled}
-                  onCheckedChange={(checked) => {
-                    if (checked && !canEnablePublic) {
-                      toast.error(t("profile.public.toastMissingRequirements"));
-                      return;
-                    }
-                    setPublicEnabled(checked);
-                  }}
-                  // Allow switching OFF anytime; prevent switching ON until requirements are met.
-                  disabled={saving || (!publicEnabled && !canEnablePublic)}
-                />
+            {showLearning && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-3">
+                  <Label className="text-sm font-medium">{t("profile.public.label")}</Label>
+                  <Switch
+                    checked={publicEnabled}
+                    onCheckedChange={(checked) => {
+                      if (checked && !canEnablePublic) {
+                        toast.error(t("profile.public.toastMissingRequirements"));
+                        return;
+                      }
+                      setPublicEnabled(checked);
+                    }}
+                    // Allow switching OFF anytime; prevent switching ON until requirements are met.
+                    disabled={saving || (!publicEnabled && !canEnablePublic)}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t("profile.public.hint")}
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {t("profile.public.hint")}
-              </p>
-            </div>
+            )}
 
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-3">
@@ -589,17 +601,19 @@ export default function Profile() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>{t("profile.gamification.title")}</span>
-            <GamificationModal />
-          </CardTitle>
-          <CardDescription>
-            {t("profile.gamification.desc")}
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      {showLearning && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>{t("profile.gamification.title")}</span>
+              <GamificationModal />
+            </CardTitle>
+            <CardDescription>
+              {t("profile.gamification.desc")}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
