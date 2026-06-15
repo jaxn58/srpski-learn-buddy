@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { api } from "./_generated/api";
 import { streamChatMessage } from "./chat";
 import { Webhook as SvixWebhook } from "svix";
+import { streamChatMessage } from "./chat";
 
 const http = httpRouter();
 
@@ -112,6 +113,37 @@ async function verifyDodoWebhookSignature(args: {
 
   return false;
 }
+// ============= CHAT STREAMING =============
+http.route({
+  path: "/chat/stream",
+  method: "POST",
+  handler: streamChatMessage,
+});
+
+http.route({
+  path: "/chat/stream",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const headers = request.headers;
+    if (
+      headers.get("Origin") !== null &&
+      headers.get("Access-Control-Request-Method") !== null &&
+      headers.get("Access-Control-Request-Headers") !== null
+    ) {
+      return new Response(null, {
+        headers: new Headers({
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST",
+          "Access-Control-Allow-Headers": "Content-Type, Digest, Authorization",
+          "Access-Control-Max-Age": "86400",
+        }),
+      });
+    }
+    return new Response();
+  }),
+});
+
+// ============= CLERK WEBHOOK =============
 http.route({
   path: "/clerk-webhook",
   method: "POST",

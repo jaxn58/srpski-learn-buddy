@@ -1,7 +1,7 @@
-﻿import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Loader2, Volume2, Brain } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useBuddyModal } from "@/contexts/BuddyModalContext";
+import { Link } from "wouter";
 import { MasteryIndicator, MistakesIndicator } from "@/components/vocabulary/VocabularyDictionaryIndicators";
 
 export type VocabularyDictionaryRow = {
@@ -35,7 +35,6 @@ export function VocabularyDictionaryTable({
   loadingAudioId: string | null;
 }) {
   const { t } = useTranslation();
-  const { openBuddyModal } = useBuddyModal();
   if (!rows.length) return null;
 
   return (
@@ -61,6 +60,10 @@ export function VocabularyDictionaryTable({
         const correctCount = Math.max(0, Number(row.mastery.correctCount) || 0);
         const incorrectCount = Math.max(0, Number(row.mastery.incorrectCount) || 0);
         const mastered = Boolean(row.mastery.mastered) || correctCount >= 3;
+
+        const askUrl = `/chat?prefill=${encodeURIComponent(
+          `Explain the word '${row.serbian}' — how do I use it in different cases?`
+        )}`;
 
         return (
           <div
@@ -110,21 +113,17 @@ export function VocabularyDictionaryTable({
               <MistakesIndicator count={incorrectCount} />
             </div>
 
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="mt-0.5"
-              aria-label={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
-              title={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
-              onClick={() =>
-                openBuddyModal(
-                  t("buddy.prefill.explainWordCases", { word: row.serbian }),
-                  row.unitNumber
-                )
-              }
-            >
-              <Brain className="h-4 w-4 text-muted-foreground hover:text-primary" />
-            </Button>
+            <Link href={askUrl}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="mt-0.5"
+                aria-label={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
+                title={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
+              >
+                <Brain className="h-4 w-4 text-muted-foreground hover:text-primary" />
+              </Button>
+            </Link>
           </div>
         );
       })}

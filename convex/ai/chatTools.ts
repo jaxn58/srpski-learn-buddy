@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Agentic RAG Tool Definitions (RAG v6)
  *
  * Tool definitions for AI-driven context retrieval. The AI decides
@@ -106,7 +106,7 @@ export function buildChatTools(
         "Get the user's learning progress including current unit, completed units, XP, streak, and weak vocabulary. Use when the user asks about their progress or when personalizing advice.",
       inputSchema: z.object({}),
       execute: async () => {
-        if (!userId) return "User not identified \u2014 cannot retrieve progress.";
+        if (!userId) return "User not identified — cannot retrieve progress.";
         try {
           const progress = await ctx.runQuery(internal.chat.getUserProgressForTools, { userId });
           return progress || "No progress data available.";
@@ -142,7 +142,7 @@ export function buildChatTools(
         query: z.string().describe("What to search for in the user's documents"),
       }),
       execute: async ({ query }) => {
-        if (!userId) return "User not identified \u2014 cannot search documents.";
+        if (!userId) return "User not identified — cannot search documents.";
         try {
           const embedding = await embedText(query);
           const results = await ctx.vectorSearch("userDocumentChunks", "by_user_embedding", {

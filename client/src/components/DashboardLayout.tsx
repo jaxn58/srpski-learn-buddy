@@ -8,9 +8,9 @@ import { useQuery } from "convex/react";
 import { TopNavigation } from "@/components/TopNavigation";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { FloatingChatButton } from "./FloatingChatButton";
-import { useIsMobile } from "@/hooks/useMobile";
+import { ChatModal } from "./ChatModal";
 import { BuddyModalProvider, useBuddyModal } from "@/contexts/BuddyModalContext";
-import { ChatModal } from "@/components/ChatModal";
+import { useIsMobile } from "@/hooks/useMobile";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -114,6 +115,8 @@ function AdminSidebar() {
         icon: <Database className="h-4 w-4" />,
         items: [
           { label: t("sidebar.promptAdmin"), path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+          { label: t("sidebar.chatAdmin", "Chat Admin"), path: "/admin/chat", icon: <MessageCircle className="h-4 w-4" /> },
+          { label: t("sidebar.knowledgeBase", "Knowledge Base"), path: "/admin/knowledge", icon: <BookOpen className="h-4 w-4" /> },
           { label: t("sidebar.contentStudio"), path: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
           { label: t("sidebar.changelog"), path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
           { label: t("sidebar.databaseBackups"), path: "/admin/backup", icon: <Database className="h-4 w-4" /> },
@@ -242,7 +245,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
   const [location] = useLocation();
   const isMobile = useIsMobile();
-  const { isOpen, prefillText, unitNumber, closeBuddyModal } = useBuddyModal();
+  const { isOpen: isBuddyOpen, prefillText, unitNumber: buddyUnitNumber, closeBuddyModal } = useBuddyModal();
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isAdminRoute = location === "/admin" || location.startsWith("/admin/");
@@ -299,11 +302,12 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       <SignedOut>
         <RedirectToSignIn />
       </SignedOut>
+
       <ChatModal
-        isOpen={isOpen}
+        isOpen={isBuddyOpen}
         onClose={closeBuddyModal}
         prefillText={prefillText}
-        unitNumber={unitNumber}
+        unitNumber={buddyUnitNumber}
       />
     </>
   );

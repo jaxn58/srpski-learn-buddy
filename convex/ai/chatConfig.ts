@@ -1,4 +1,4 @@
-﻿import type { ActionCtx } from "../_generated/server";
+import type { ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { generateText, streamText, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -14,7 +14,6 @@ export type ChatAiConfig = {
   maxTokens: number;
   temperature?: number;
   useAgenticRag?: boolean;
-  enableSemanticSearch?: boolean;
 };
 
 const DEFAULT_CONFIG: ChatAiConfig = {

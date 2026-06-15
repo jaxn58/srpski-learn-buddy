@@ -37,10 +37,10 @@ importers:
         version: 3.30.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@convex-dev/auth':
         specifier: ^0.0.90
-        version: 0.0.90(@auth/core@0.37.4(nodemailer@7.0.11))(convex@1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react@19.2.3)
+        version: 0.0.90(@auth/core@0.37.4(nodemailer@7.0.11))(convex@1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react@19.2.3)
       '@convex-dev/persistent-text-streaming':
         specifier: ^0.3.2
-        version: 0.3.2(@standard-schema/spec@1.1.0)(convex@1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.4.5)(zod@4.1.13)
+        version: 0.3.2(@standard-schema/spec@1.1.0)(convex@1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.4.5)(zod@4.1.13)
       '@google-cloud/text-to-speech':
         specifier: ^6.4.0
         version: 6.4.0
@@ -168,8 +168,8 @@ importers:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       convex:
-        specifier: ^1.31.7
-        version: 1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+        specifier: ^1.36.1
+        version: 1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
       cookie:
         specifier: ^1.0.2
         version: 1.1.1
@@ -347,7 +347,7 @@ importers:
         version: 0.25.12
       happy-dom:
         specifier: ^20.9.0
-        version: 20.9.0
+        version: 20.10.3
       pnpm:
         specifier: ^10.15.1
         version: 10.25.0
@@ -377,7 +377,7 @@ importers:
         version: 0.0.42
       vitest:
         specifier: ^2.1.4
-        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@24.10.3)(happy-dom@20.9.0)(lightningcss@1.30.2)
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@24.10.3)(happy-dom@20.10.3)(lightningcss@1.30.2)
 
 packages:
 
@@ -3342,6 +3342,10 @@ packages:
   buffer-equal-constant-time@1.0.1:
     resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
 
+  buffer-image-size@0.6.4:
+    resolution: {integrity: sha512-nEh+kZOPY1w+gcCMobZ6ETUp9WfibndnosbpwB1iJk/8Gt5ZF2bhS6+B6bPYz424KtwsR6Rflc3tCz1/ghX2dQ==}
+    engines: {node: '>=4.0'}
+
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
@@ -3487,18 +3491,21 @@ packages:
       zod:
         optional: true
 
-  convex@1.31.7:
-    resolution: {integrity: sha512-PtNMe1mAIOvA8Yz100QTOaIdgt2rIuWqencVXrb4McdhxBHZ8IJ1eXTnrgCC9HydyilGT1pOn+KNqT14mqn9fQ==}
+  convex@1.36.1:
+    resolution: {integrity: sha512-NVnwNqU+h8jyPuS0Itvj4MPH9c2yF+tA/RNoSDpCqiLhmYD4+kZxm0dDkVM0QDzz66wem9NqheBb9YQGsHwzBQ==}
     engines: {node: '>=18.0.0', npm: '>=7.0.0'}
     hasBin: true
     peerDependencies:
       '@auth0/auth0-react': ^2.0.1
       '@clerk/clerk-react': ^4.12.8 || ^5.0.0
+      '@clerk/react': ^6.4.3
       react: ^18.0.0 || ^19.0.0-0 || ^19.0.0
     peerDependenciesMeta:
       '@auth0/auth0-react':
         optional: true
       '@clerk/clerk-react':
+        optional: true
+      '@clerk/react':
         optional: true
       react:
         optional: true
@@ -4152,8 +4159,8 @@ packages:
     resolution: {integrity: sha512-+CqsMbHPiSTdtSO14O51eMNlrp9N79gmeqmXeouJOhfucAedHw9noVe/n5uJk3tbKE6a+6ZCQg3RPhVhHByAIw==}
     engines: {node: '>=18'}
 
-  happy-dom@20.9.0:
-    resolution: {integrity: sha512-GZZ9mKe8r646NUAf/zemnGbjYh4Bt8/MqASJY+pSm5ZDtc3YQox+4gsLI7yi1hba6o+eCsGxpHn5+iEVn31/FQ==}
+  happy-dom@20.10.3:
+    resolution: {integrity: sha512-Hjdiy8RziuCcn5z04QI/rlsNuQoG8P0xxjgvsSMpi89cvIXIOcucQtiHS1yHSShxoBcSCeYqAskINmTiy/mlfw==}
     engines: {node: '>=20.0.0'}
 
   has-symbols@1.1.0:
@@ -5792,6 +5799,18 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  ws@8.18.0:
+    resolution: {integrity: sha512-8VbfWfHLbbwu3+N6OKsOMpBdT4kXPDDB9cJk2bJ6mh9ucxdlnNvH1e+roYkKmN9Nxw2yjz7VzeO9oOz2zJ04Pw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   ws@8.21.0:
     resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
     engines: {node: '>=10.0.0'}
@@ -6632,12 +6651,12 @@ snapshots:
       - react
       - react-dom
 
-  '@convex-dev/auth@0.0.90(@auth/core@0.37.4(nodemailer@7.0.11))(convex@1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react@19.2.3)':
+  '@convex-dev/auth@0.0.90(@auth/core@0.37.4(nodemailer@7.0.11))(convex@1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@auth/core': 0.37.4(nodemailer@7.0.11)
       '@oslojs/crypto': 1.0.1
       '@oslojs/encoding': 1.1.0
-      convex: 1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+      convex: 1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
       cookie: 1.1.1
       is-network-error: 1.3.0
       jose: 5.10.0
@@ -6649,10 +6668,10 @@ snapshots:
     optionalDependencies:
       react: 19.2.3
 
-  '@convex-dev/persistent-text-streaming@0.3.2(@standard-schema/spec@1.1.0)(convex@1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.4.5)(zod@4.1.13)':
+  '@convex-dev/persistent-text-streaming@0.3.2(@standard-schema/spec@1.1.0)(convex@1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.4.5)(zod@4.1.13)':
     dependencies:
-      convex: 1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
-      convex-helpers: 0.1.115(@standard-schema/spec@1.1.0)(convex@1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react@19.2.3)(typescript@5.4.5)(zod@4.1.13)
+      convex: 1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+      convex-helpers: 0.1.115(@standard-schema/spec@1.1.0)(convex@1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react@19.2.3)(typescript@5.4.5)(zod@4.1.13)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
     transitivePeerDependencies:
@@ -9112,6 +9131,10 @@ snapshots:
 
   buffer-equal-constant-time@1.0.1: {}
 
+  buffer-image-size@0.6.4:
+    dependencies:
+      '@types/node': 24.10.3
+
   bytes@3.1.2: {}
 
   cac@6.7.14: {}
@@ -9235,22 +9258,26 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  convex-helpers@0.1.115(@standard-schema/spec@1.1.0)(convex@1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react@19.2.3)(typescript@5.4.5)(zod@4.1.13):
+  convex-helpers@0.1.115(@standard-schema/spec@1.1.0)(convex@1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3))(react@19.2.3)(typescript@5.4.5)(zod@4.1.13):
     dependencies:
-      convex: 1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+      convex: 1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
     optionalDependencies:
       '@standard-schema/spec': 1.1.0
       react: 19.2.3
       typescript: 5.4.5
       zod: 4.1.13
 
-  convex@1.31.7(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3):
+  convex@1.36.1(@clerk/clerk-react@5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3):
     dependencies:
       esbuild: 0.27.0
       prettier: 3.7.4
+      ws: 8.18.0
     optionalDependencies:
       '@clerk/clerk-react': 5.58.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react: 19.2.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   cookie-signature@1.0.7: {}
 
@@ -9964,11 +9991,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  happy-dom@20.9.0:
+  happy-dom@20.10.3:
     dependencies:
       '@types/node': 24.10.3
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
+      buffer-image-size: 0.6.4
       entities: 7.0.1
       whatwg-mimetype: 3.0.0
       ws: 8.21.0
@@ -11805,7 +11833,7 @@ snapshots:
       lightningcss: 1.30.2
       tsx: 4.21.0
 
-  vitest@2.1.9(@edge-runtime/vm@3.2.0)(@types/node@24.10.3)(happy-dom@20.9.0)(lightningcss@1.30.2):
+  vitest@2.1.9(@edge-runtime/vm@3.2.0)(@types/node@24.10.3)(happy-dom@20.10.3)(lightningcss@1.30.2):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@24.10.3)(lightningcss@1.30.2))
@@ -11830,7 +11858,7 @@ snapshots:
     optionalDependencies:
       '@edge-runtime/vm': 3.2.0
       '@types/node': 24.10.3
-      happy-dom: 20.9.0
+      happy-dom: 20.10.3
     transitivePeerDependencies:
       - less
       - lightningcss
@@ -11906,6 +11934,8 @@ snapshots:
       strip-ansi: 7.1.2
 
   wrappy@1.0.2: {}
+
+  ws@8.18.0: {}
 
   ws@8.21.0: {}
 

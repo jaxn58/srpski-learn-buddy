@@ -1,4 +1,4 @@
-﻿import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Link, useLocation } from "wouter";
-import { useBuddyModal } from "@/contexts/BuddyModalContext";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -71,7 +70,6 @@ export default function Vocabulary() {
   const { user } = useAuth();
   const { getToken } = useClerkAuth();
   const { t, i18n } = useTranslation();
-  const { openBuddyModal } = useBuddyModal();
   const progress = useQuery(api.progress.getUserProgress);
   const [location] = useLocation();
 
@@ -513,7 +511,7 @@ export default function Vocabulary() {
         ? courseVocabulary
         : courseVocabulary.filter((v: Doc<"courseVocabulary">) => v.unitNumber === selectedUnit);
       
-      // Beta/Subscription Beschraenkung
+      // Beta/Subscription Beschränkung
       if (accessInfo && accessInfo.maxUnits > 0) {
         vocab = vocab.filter((v: Doc<"courseVocabulary">) => v.unitNumber <= accessInfo.maxUnits);
       }
@@ -549,7 +547,7 @@ export default function Vocabulary() {
         ? courseVocabulary
         : courseVocabulary.filter((v: Doc<"courseVocabulary">) => v.unitNumber === selectedUnit);
       
-      // Beta/Subscription Beschraenkung
+      // Beta/Subscription Beschränkung
       if (accessInfo && accessInfo.maxUnits > 0) {
         vocab = vocab.filter((v: Doc<"courseVocabulary">) => v.unitNumber <= accessInfo.maxUnits);
       }
@@ -736,7 +734,7 @@ export default function Vocabulary() {
     }
 
     const normalizeQuizAnswer = (s: string) =>
-      s.trim().toLowerCase().replace(/[.,!?;:'"()\[\]{}\-\u2013\u2014\u2026\u00a1\u00bf]/g, "").replace(/\s+/g, " ").trim();
+      s.trim().toLowerCase().replace(/[.,!?;:'"()\[\]{}\-–—…¡¿]/g, "").replace(/\s+/g, " ").trim();
 
     const normalizeWithoutCase = (s: string) =>
       s.trim().replace(/[.,!?;:'"()\[\]{}\-–—…¡¿]/g, "").replace(/\s+/g, " ").trim();
@@ -1123,7 +1121,7 @@ export default function Vocabulary() {
               {/* Header: Unit Badge + Last Attempt Info */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  {/* Unit Badge nur anzeigen wenn "All Units" ausgewaehlt ist */}
+                  {/* Unit Badge nur anzeigen wenn "All Units" ausgewählt ist */}
                   {selectedUnit === 'all' && (
                     <Badge variant="outline">
                       {t('vocabulary.unit', { number: (showAnswer && answeredWord ? answeredWord : currentWord).unit })}
@@ -1139,7 +1137,7 @@ export default function Vocabulary() {
 
               {/* Word Section */}
               <div className="space-y-4">
-                {/* Vokabel immer anzeigen (auch waehrend Feedback) */}
+                {/* Vokabel immer anzeigen (auch während Feedback) */}
                 {/* Use answeredWord during feedback, otherwise use currentWord */}
                 {(() => {
                   const displayWord = showAnswer && answeredWord ? answeredWord : currentWord;
@@ -1147,7 +1145,7 @@ export default function Vocabulary() {
                   
                   return (
                     <div>
-                    {/* Audio Icon ueber der Vokabel */}
+                    {/* Audio Icon über der Vokabel */}
                     {displayWord._id && (
                       <div className="flex justify-center mb-3">
                         <Button
@@ -1183,14 +1181,13 @@ export default function Vocabulary() {
                       // Wenn 3x richtig beantwortet: goldener Stern
                       if (correctCount >= 3) {
                         return (
-                          <Badge className="bg-yellow-500 text-white gap-1">
-                            <Star className="h-3 w-3 fill-white text-white" />
-                            {t("common.mastered")}
+                          <Badge className="bg-yellow-500 text-white">
+                            ⭐ Mastered
                           </Badge>
                         );
                       }
                       
-                      // Anzeige fuer richtige Antworten
+                      // Anzeige für richtige Antworten
                       if (correctCount > 0) {
                         return (
                           <>
@@ -1198,9 +1195,8 @@ export default function Vocabulary() {
                               {correctCount}/3
                             </Badge>
                             {incorrectCount > 0 && (
-                              <Badge variant="outline" className="text-sm text-red-600 border-red-300 gap-1">
-                                <XCircle className="h-3 w-3" />
-                                {incorrectCount} {t("vocabulary.incorrect")}
+                              <Badge variant="outline" className="text-sm text-red-600 border-red-300">
+                                {incorrectCount}× incorrect
                               </Badge>
                             )}
                           </>
@@ -1210,9 +1206,8 @@ export default function Vocabulary() {
                       // Nur falsche Antworten (noch nie richtig)
                       if (incorrectCount > 0) {
                         return (
-                          <Badge variant="outline" className="text-sm text-red-600 border-red-300 gap-1">
-                            <XCircle className="h-3 w-3" />
-                            {incorrectCount} {t("vocabulary.incorrect")}
+                          <Badge variant="outline" className="text-sm text-red-600 border-red-300">
+                            {incorrectCount}× incorrect
                           </Badge>
                         );
                       }
@@ -1231,7 +1226,7 @@ export default function Vocabulary() {
                         </p>
                       ) : null;
                     })()}
-                    {/* Uebersetzung nur im Learn-Mode anzeigen (im Quiz-Modus wird sie im Feedback-Bereich angezeigt) */}
+                    {/* Übersetzung nur im Learn-Mode anzeigen (im Quiz-Modus wird sie im Feedback-Bereich angezeigt) */}
                     {mode === 'learn' && (
                       <>
                         <p className="text-xl sm:text-2xl text-muted-foreground mt-4">
@@ -1281,20 +1276,12 @@ export default function Vocabulary() {
                   </div>
                   {currentWord && (
                     <div className="flex justify-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs text-muted-foreground gap-1.5"
-                        onClick={() =>
-                          openBuddyModal(
-                            t("buddy.prefill.explainWord", { word: currentWord.serbian }),
-                            currentWord.unitNumber
-                          )
-                        }
-                      >
-                        <Brain className="h-3.5 w-3.5" />
-                        {t('vocabulary.askBuddy', 'Ask Learn Buddy')}
-                      </Button>
+                      <Link href={`/chat?prefill=${encodeURIComponent(`Explain the word '${currentWord.serbian}' — usage, cases, and example sentences.`)}`}>
+                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1.5">
+                          <Brain className="h-3.5 w-3.5" />
+                          {t('vocabulary.askBuddy', 'Ask Learn Buddy')}
+                        </Button>
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -1479,7 +1466,7 @@ export default function Vocabulary() {
                                   return word.en?.trim() || word.de?.trim() || "";
                                 })()}
                                 userAnswer={userAnswer}
-                                unitNumber={(answeredWord || currentWord)?.unitNumber}
+                                unitNumber={typeof selectedUnit === "number" ? selectedUnit : undefined}
                                 questionContext="vocabulary-quiz"
                               />
                             )}
@@ -1503,7 +1490,7 @@ export default function Vocabulary() {
                             />
                           </motion.div>
                         )}
-                        {/* Weiter-Button fuer Quiz-Modus */}
+                        {/* Weiter-Button für Quiz-Modus */}
                         {mode === 'quiz' && showAnswer && currentIndex < filteredVocab.length - 1 && (
                           <motion.div
                             initial={{ opacity: 0, y: 10 }}
@@ -1580,7 +1567,7 @@ export default function Vocabulary() {
             <Card className="bg-primary/5 border-primary/20">
               <CardHeader>
                 <CardTitle className="text-center">
-                  {t('vocabulary.quizComplete')}
+                  🎉 {t('vocabulary.quizComplete')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-center space-y-4">
@@ -1641,23 +1628,23 @@ export default function Vocabulary() {
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
                   <Calendar className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip1')}</span>
+                  <span>{t('vocabulary.tip1').replace(/^📚\s*/, '')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Volume2 className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip2')}</span>
+                  <span>{t('vocabulary.tip2').replace(/^🗣️\s*/, '')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <PenTool className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip3')}</span>
+                  <span>{t('vocabulary.tip3').replace(/^✍️\s*/, '')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <RotateCcw className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip4')}</span>
+                  <span>{t('vocabulary.tip4').replace(/^📅\s*/, '')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <MessageSquare className="h-4 w-4 text-serbian-blue flex-shrink-0 mt-0.5" />
-                  <span>{t('vocabulary.tip5')}</span>
+                  <span>{t('vocabulary.tip5').replace(/^💬\s*/, '')}</span>
                 </li>
               </ul>
             </CardContent>
@@ -1668,7 +1655,7 @@ export default function Vocabulary() {
       <footer className="w-full border-t">
         <div className="container py-8">
           <div className="text-center text-sm text-muted-foreground">
-            <p className="font-semibold">{"\u00a9"} Developed by JACKSENN.ME 2025</p>
+            <p className="font-semibold">© Developed by JACKSENN.ME 2025</p>
           </div>
         </div>
       </footer>

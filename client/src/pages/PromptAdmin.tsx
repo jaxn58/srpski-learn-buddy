@@ -147,7 +147,7 @@ export default function PromptAdmin() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const [selectedKey, setSelectedKey] = useState<PromptKey>("default");
-  
+
   const currentPrompt = useQuery(api.admin.getChatPrompt, { name: selectedKey });
   const allPrompts = useQuery(api.admin.getAllChatPrompts);
   const promptHistory = useQuery(api.admin.getChatPromptHistory, { name: selectedKey, limit: 50 });
@@ -329,6 +329,7 @@ export default function PromptAdmin() {
                 </div>
               </div>
             ))}
+
           </div>
         </aside>
 

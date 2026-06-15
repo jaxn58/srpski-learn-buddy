@@ -353,6 +353,7 @@ export function TopNavigation() {
         icon: <Database className="h-4 w-4" />,
         items: [
           { label: t("sidebar.promptAdmin"), href: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+          { label: t("sidebar.chatAdmin", "Chat Admin"), href: "/admin/chat", icon: <MessageCircle className="h-4 w-4" /> },
           { label: t("sidebar.translationCoverage"), href: "/admin/translation-coverage", icon: <FileText className="h-4 w-4" /> },
           { label: t("sidebar.contentStudio"), href: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
           { label: t("sidebar.changelog"), href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
@@ -506,7 +507,12 @@ export function TopNavigation() {
                 </Link>
 
                 {isUnitsItem && (
-                  <Popover open={unitsQuickSwitchOpen} onOpenChange={setUnitsQuickSwitchOpen}>
+                  <Popover open={unitsQuickSwitchOpen} onOpenChange={(open) => {
+                      setUnitsQuickSwitchOpen(open);
+                      if (open) {
+                        setSelectedUnitNumber("");
+                      }
+                    }}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="ghost"

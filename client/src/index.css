@@ -526,6 +526,23 @@
   }
 }
 
+/* Typewriter cursor blink */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.streaming-cursor .markdown-content > *:last-child::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: currentColor;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  animation: blink 0.8s step-end infinite;
+}
+
 /* Indeterminate progress bar animation */
 @keyframes progress-indeterminate {
   0% {

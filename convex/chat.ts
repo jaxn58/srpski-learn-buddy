@@ -1,12 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query, action, internalAction, internalQuery, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
+import { mutation, query, action, internalAction, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 import { streamingComponent } from "./streaming";
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
-import { resolveModelConfig, streamChatResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
+import { resolveModelConfig, generateChatResponse, streamChatResponse, generateAgenticResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
 import { embedText } from "./ai/embeddings";
 
 // Central default system prompts by language (Emergency Fallback)
@@ -41,15 +41,13 @@ const RATE_LIMITS = {
     messagesPerDay: 10,
     maxMessageLength: 1500,
     maxTokensOverride: 2048,
-    detailedMessagesPerDay: 3,
-    maxTokensDetailed: 800,
-    maxTokensCompact: 400,
   },
   paid: {
     messagesPerMinute: 20,
     messagesPerHour: 200,
     messagesPerDay: 100,
     maxMessageLength: 3000,
+    maxTokensOverride: undefined as number | undefined,
   },
 };
 
@@ -60,7 +58,7 @@ function startOfDayUtc(nowMs: number): number {
 }
 
 // Check rate limits for chat messages
-async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string, responseMode?: "compact" | "detailed"): Promise<{ allowed: boolean; reason?: string; isPaidUser?: boolean }> {
+async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string): Promise<{ allowed: boolean; reason?: string; isPaidUser?: boolean }> {
   const now = Date.now();
   const oneMinuteAgo = now - 60 * 1000;
   const oneHourAgo = now - 60 * 60 * 1000;
@@ -95,7 +93,7 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     };
   }
 
-  // Daily limit check
+  // --- Daily limit check (only user-role messages count, each = one AI call) ---
   const todayUserMessages = await ctx.db
     .query("chatMessages")
     .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -114,17 +112,8 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     };
   }
 
-  // Detailed quota check for beta users
-  if (!isPaidUser && responseMode === "detailed" && "detailedMessagesPerDay" in limits) {
-    const betaLimits = limits as typeof RATE_LIMITS.beta;
-    const detailedToday = todayUserMessages.filter((m) => m.responseMode === "detailed").length;
-    if (detailedToday >= betaLimits.detailedMessagesPerDay) {
-      return {
-        allowed: false,
-        reason: `Daily detailed limit reached. You have used all ${betaLimits.detailedMessagesPerDay} detailed answers for today. Use compact answers or come back tomorrow!`,
-      };
-    }
-  }
+  // NOTE: Global daily budget enforcement happens in the admin dashboard (getChatUsageStats).
+  // A per-message full-table-scan in checkRateLimit would be too expensive.
 
   // Count messages in the last minute
   const recentMessages = await ctx.db
@@ -177,14 +166,12 @@ export const getSessions = query({
     const user = await getCurrentUser(ctx);
     if (!user) return [];
 
-    // Use Convex .filter() + .take() to avoid loading all sessions into memory.
-    // archived is optional (legacy docs have undefined), so we exclude only explicit true.
-    const sessions = await ctx.db
+    // Fetch all sessions for user and filter archived != true (backward compatibility)
+    const sessions = (await ctx.db
       .query("chatSessions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .order("desc")
-      .filter((q) => q.neq(q.field("archived"), true))
-      .take(50);
+      .collect()).filter((s) => s.archived !== true);
 
     return sessions;
   },
@@ -278,12 +265,13 @@ export const getArchivedSessions = query({
     const user = await getCurrentUser(ctx);
     if (!user) return [];
 
+    // Archived = true; tolerate undefined
     return await ctx.db
       .query("chatSessions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .order("desc")
       .filter((q) => q.eq(q.field("archived"), true))
-      .take(50);
+      .collect();
   },
 });
 
@@ -328,7 +316,8 @@ export const addMessage = mutation({
     role: v.union(v.literal("user"), v.literal("assistant")),
     content: v.string(),
     unitContext: v.optional(v.number()),
-    responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
+    attachmentStorageId: v.optional(v.string()),
+    attachmentFileName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -345,7 +334,9 @@ export const addMessage = mutation({
       role: args.role,
       content: args.content,
       unitContext: args.unitContext,
-      responseMode: args.responseMode,
+      ...(args.attachmentStorageId
+        ? { attachmentStorageId: args.attachmentStorageId as Id<"_storage">, attachmentFileName: args.attachmentFileName }
+        : {}),
     });
   },
 });
@@ -382,11 +373,11 @@ export const bulkDeleteNewChats = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
 
-    // Limit to 100 to stay within system-operation bounds
+    // Get all sessions with title "New Chat" for this user
     const sessions = await ctx.db
       .query("chatSessions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .take(100);
+      .collect();
 
     const newChatSessions = sessions.filter(s => s.title === "New Chat");
     let deletedCount = 0;
@@ -492,18 +483,32 @@ type AiMessage = {
   content: string;
 };
 
-type ChatCompletionResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
-};
 
 // AI Learn Buddy - Send message and get AI response
+// Internal mutation to check rate limits (called from action)
+export const checkMessageRateLimit = mutation({
+  args: {
+    sessionId: v.id("chatSessions"),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found");
+    }
+
+    // Check rate limits
+    const rateLimitResult = await checkRateLimit(ctx, user._id, args.message);
+    if (!rateLimitResult.allowed) {
+      throw new Error(rateLimitResult.reason || "Rate limit exceeded");
+    }
+
+    return { allowed: true, isPaidUser: rateLimitResult.isPaidUser ?? false };
+  },
+});
 
 export const sendMessage = action({
   args: {
@@ -518,28 +523,24 @@ export const sendMessage = action({
     }
 
     // Check rate limits before proceeding
+    let isPaidUser = false;
     try {
-      await ctx.runMutation(api.chat.checkMessageRateLimit, {
+      const rateLimitResult = await ctx.runMutation(api.chat.checkMessageRateLimit, {
         sessionId: args.sessionId,
         message: args.message,
       });
+      isPaidUser = rateLimitResult?.isPaidUser ?? false;
     } catch (error) {
       // Rate limit error - throw it to the frontend
       throw error;
     }
 
-    // Get the API key from environment
-    const apiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error("AI API Key missing:", {
-        hasOpenAI: !!process.env.OPENAI_API_KEY,
-        hasGemini: !!process.env.GEMINI_API_KEY,
-        envKeys: Object.keys(process.env).filter(k => k.includes('API') || k.includes('KEY')),
-      });
-      throw new Error("No AI API key configured. Please set OPENAI_API_KEY or GEMINI_API_KEY in Convex environment variables.");
+    const config = await resolveModelConfig(ctx);
+    // Cap output tokens for non-paid (beta) users to reduce cost
+    if (!isPaidUser) {
+      config.maxTokens = Math.min(config.maxTokens, RATE_LIMITS.beta.maxTokensOverride!);
     }
 
-    // Save user message first
     await ctx.runMutation(api.chat.addMessage, {
       sessionId: args.sessionId,
       role: "user",
@@ -547,12 +548,10 @@ export const sendMessage = action({
       unitContext: args.unitContext,
     });
 
-    // Get recent chat history for context
     const history: ChatMessageDoc[] = await ctx.runQuery(api.chat.getMessages, {
       sessionId: args.sessionId as Id<"chatSessions">,
     });
 
-    // Determine user language
     const user = await ctx.runQuery(api.users.me, {});
     if (user) {
       assertLearnerAccountActive(user);
@@ -576,23 +575,42 @@ export const sendMessage = action({
         languageName = "English"; 
     }
 
-    // Build system prompt (admin-configurable with fallback)
     let promptDoc;
     try {
-      // Always use the base "default" prompt, dynamic instruction handles the rest
       promptDoc = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: "default" });
     } catch (e) {
       // swallow and rely on fallback
     }
     
     const basePrompt = promptDoc?.content || getSystemPrompt(learningLanguage);
-    
-    const userName = user?.name || "";
-    const systemPrompt = basePrompt
-      .replace(/\[LANGUAGE\]/g, languageName)
-      .replace(/\[USER_NAME\]/g, userName);
+    let systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, languageName);
 
-    // Prepare messages for the AI
+    // RAG v2: inject structured unit context if available
+    if (args.unitContext != null) {
+      const unitBlock = await ctx.runQuery(api.chat.getUnitContextBlock, {
+        unitNumber: args.unitContext,
+        learningLanguage,
+        userId: user?._id,
+      });
+      if (unitBlock) {
+        systemPrompt += "\n\n" + unitBlock;
+      }
+    }
+
+    // RAG v3: semantic search for relevant knowledge
+    try {
+      const semanticContext: string = await ctx.runAction(internal.chat.semanticSearch, {
+        query: args.message,
+        language: learningLanguage,
+        userId: user?._id,
+      });
+      if (semanticContext) {
+        systemPrompt += "\n\n" + semanticContext;
+      }
+    } catch (e) {
+      console.warn("[sendMessage] Semantic search failed, continuing without:", e);
+    }
+
     const recentHistory: ChatMessageDoc[] = history.slice(-8);
     const messages: AiMessage[] = [
       { role: "system", content: systemPrompt },
@@ -602,61 +620,20 @@ export const sendMessage = action({
       })),
     ];
 
-    // Determine which API to use
-    const isGemini = !!process.env.GEMINI_API_KEY;
-    const apiUrl = isGemini
-      ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-      : "https://api.openai.com/v1/chat/completions";
-    
-    // Use Gemini 2.5 Flash for OpenAI-compatible endpoint (recommended replacement for 2.0 Flash)
-    // Available models (examples): gemini-2.5-flash, gemini-2.5-pro, gemini-2.5-flash-lite
-    const model = isGemini ? "gemini-2.5-flash" : "gpt-4o-mini";
+    let assistantMessage: string;
 
-    // Call the AI API
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: 2048,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorDetails;
+    if (config.useAgenticRag) {
       try {
-        errorDetails = JSON.parse(errorText);
-      } catch {
-        errorDetails = errorText;
+        assistantMessage = await generateAgenticResponse(
+          config, messages, ctx, user?._id, learningLanguage
+        );
+      } catch (e) {
+        console.warn("[sendMessage] Agentic RAG failed, falling back to standard:", e);
+        assistantMessage = await generateChatResponse(config, messages);
       }
-      
-      console.error("AI API error:", {
-        status: response.status,
-        statusText: response.statusText,
-        url: apiUrl,
-        model: model,
-        isGemini: isGemini,
-        error: errorDetails,
-        hasApiKey: !!apiKey,
-        apiKeyPrefix: apiKey?.substring(0, 10) + "...",
-        apiKeyLength: apiKey?.length,
-      });
-      
-      const errorMessage = typeof errorDetails === 'object' && errorDetails.error?.message
-        ? errorDetails.error.message
-        : errorText || `HTTP ${response.status}`;
-      
-      throw new Error(`AI API error: ${response.status} - ${errorMessage}`);
+    } else {
+      assistantMessage = await generateChatResponse(config, messages);
     }
-
-    const data = (await response.json()) as ChatCompletionResponse;
-    const assistantMessage =
-      data.choices?.[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
 
     // Save assistant response
     await ctx.runMutation(api.chat.addMessage, {
@@ -691,30 +668,7 @@ export const getSessionById = query({
 
 // ============= STREAMING CHAT =============
 
-export const checkMessageRateLimit = mutation({
-  args: {
-    sessionId: v.id("chatSessions"),
-    message: v.string(),
-    responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
-  },
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
-
-    const session = await ctx.db.get(args.sessionId);
-    if (!session || session.userId !== user._id) {
-      throw new Error("Session not found");
-    }
-
-    const rateLimitResult = await checkRateLimit(ctx, user._id, args.message, args.responseMode);
-    if (!rateLimitResult.allowed) {
-      throw new Error(rateLimitResult.reason || "Rate limit exceeded");
-    }
-
-    return { allowed: true, isPaidUser: rateLimitResult.isPaidUser ?? false };
-  },
-});
-
+// Internal mutation: insert an assistant message placeholder with a streamId
 export const addStreamingAssistantMessage = mutation({
   args: {
     sessionId: v.id("chatSessions"),
@@ -732,6 +686,7 @@ export const addStreamingAssistantMessage = mutation({
   },
 });
 
+// Internal mutation: update the assistant message content once the stream finishes
 export const finalizeStreamedMessage = mutation({
   args: {
     messageId: v.id("chatMessages"),
@@ -769,6 +724,7 @@ async function buildUnitContextBlock(
     return `- ${v.serbian}${gender}${pron} = ${translation}${noteStr}`;
   });
 
+  // unitMetadata: user language with English fallback
   let metadata = await ctx.db
     .query("unitMetadata")
     .withIndex("by_unit_lang", (q) =>
@@ -793,6 +749,7 @@ async function buildUnitContextBlock(
     ...vocabLines,
   ];
 
+  // Grammar: user language with English fallback, expanded to 3000 chars
   let grammarContent = await ctx.db
     .query("unitContent")
     .withIndex("by_unit_lang_type", (q) =>
@@ -807,10 +764,13 @@ async function buildUnitContextBlock(
       )
       .first();
   }
+
   if (grammarContent?.content) {
-    sections.push("", "Grammar:", grammarContent.content.slice(0, 3000));
+    const grammarText = grammarContent.content.slice(0, 3000);
+    sections.push("", "Grammar:", grammarText);
   }
 
+  // Phrases: user language with English fallback
   let phrasesContent = await ctx.db
     .query("unitContent")
     .withIndex("by_unit_lang_type", (q) =>
@@ -825,10 +785,12 @@ async function buildUnitContextBlock(
       )
       .first();
   }
+
   if (phrasesContent?.content) {
     sections.push("", "Key phrases:", phrasesContent.content.slice(0, 1500));
   }
 
+  // Dialogues: user language with English fallback
   let dialoguesContent = await ctx.db
     .query("unitContent")
     .withIndex("by_unit_lang_type", (q) =>
@@ -843,11 +805,14 @@ async function buildUnitContextBlock(
       )
       .first();
   }
+
   if (dialoguesContent?.content) {
     sections.push("", "Example dialogues:", dialoguesContent.content.slice(0, 1500));
   }
 
+  // Personalization: weak vocabulary + progress context (requires userId)
   if (userId) {
+    // Load vocabulary progress for this unit's words
     const vocabProgress = await ctx.db
       .query("vocabularyProgress")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -873,6 +838,7 @@ async function buildUnitContextBlock(
       }
     }
 
+    // Load user progress summary
     const userProgress = await ctx.db
       .query("userProgress")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -891,6 +857,7 @@ async function buildUnitContextBlock(
       );
     }
 
+    // Multi-unit vocabulary: include words from the previous 2 units
     if (unitNumber > 1) {
       const prevUnits = [unitNumber - 1, unitNumber - 2].filter((u) => u >= 1);
       const prevVocabLines: string[] = [];
@@ -915,6 +882,7 @@ async function buildUnitContextBlock(
   return sections.join("\n");
 }
 
+// Public query wrapper for buildUnitContextBlock (used by sendMessage action)
 // @ts-ignore TS2589
 export const getUnitContextBlock = query({
   args: {
@@ -927,6 +895,7 @@ export const getUnitContextBlock = query({
   },
 });
 
+// Internal query: gather everything the stream httpAction needs
 export const getStreamContext = query({
   args: {
     sessionId: v.id("chatSessions"),
@@ -963,6 +932,7 @@ export const getStreamContext = query({
         content: msg.content,
       }));
 
+    // RAG: Find the most recent unitContext from user messages
     let unitContextBlock: string | null = null;
     const lastUserMsgWithUnit = [...history]
       .reverse()
@@ -977,8 +947,10 @@ export const getStreamContext = query({
       );
     }
 
+    // For RAG v3 semantic search: return the last user message text
     const lastUserMessage = [...history].reverse().find((m) => m.role === "user");
 
+    // Admins and superadmins are treated as paid (no token cap)
     let isPaidUser = user.role === "admin" || user.role === "superadmin";
     if (!isPaidUser) {
       const subscription = await ctx.db
@@ -997,10 +969,11 @@ export const getStreamContext = query({
       userId: args.userId,
       learningLanguage,
       isPaidUser,
-      userName: user.name || null,
     };
   },
 });
+
+// ============= CHAT USAGE TODAY (for countdown badge) =============
 
 export const getChatUsageToday = query({
   args: {
@@ -1016,7 +989,10 @@ export const getChatUsageToday = query({
       .first();
     if (!user) return null;
 
-    const isAdmin = user.role === "admin" || user.role === "superadmin";
+    // Admins and superadmins have no limits -- hide the badge entirely
+    if (user.role === "admin" || user.role === "superadmin") {
+      return null;
+    }
 
     const subscription = await ctx.db
       .query("userSubscriptions")
@@ -1040,29 +1016,16 @@ export const getChatUsageToday = query({
       .collect();
 
     const used = todayUserMessages.length;
-
-    // Admins always see the detailed quota (preview what beta users see)
-    const detailedLimit = (isPaidUser && !isAdmin) ? null : RATE_LIMITS.beta.detailedMessagesPerDay;
-    const detailedUsed = detailedLimit !== null
-      ? todayUserMessages.filter((m) => m.responseMode === "detailed").length
-      : null;
-
     return {
       used,
       limit,
       remaining: Math.max(0, limit - used),
       isPaidUser,
-      isAdmin,
-      detailedUsed,
-      detailedLimit,
-      detailedRemaining: detailedLimit !== null && detailedUsed !== null
-        ? Math.max(0, detailedLimit - detailedUsed)
-        : null,
     };
   },
 });
 
-// ============= SEMANTIC SEARCH (RAG) =============
+// ============= SEMANTIC SEARCH (RAG v3) =============
 
 // @ts-ignore TS2589
 export const semanticSearch = internalAction({
@@ -1075,11 +1038,13 @@ export const semanticSearch = internalAction({
     let queryEmbedding: number[];
     try {
       queryEmbedding = await embedText(args.query);
+      console.log(`[semanticSearch] Embedding OK (${queryEmbedding.length} dims) for: "${args.query.slice(0, 60)}"`);
     } catch (e) {
       console.warn("[semanticSearch] Embedding failed, returning empty:", e);
       return "";
     }
 
+    // Search knowledge base chunks in user language
     const kbResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
       vector: queryEmbedding,
       limit: 5,
@@ -1092,6 +1057,7 @@ export const semanticSearch = internalAction({
       if (doc) chunks.push(doc.content);
     }
 
+    // Fallback: if user language yielded few results, supplement with English
     if (chunks.length < 3 && args.language !== "en") {
       const enResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
         vector: queryEmbedding,
@@ -1107,6 +1073,8 @@ export const semanticSearch = internalAction({
         }
       }
     }
+
+    console.log(`[semanticSearch] Results: ${kbResults.length} KB chunks → ${chunks.length} total`);
 
     if (chunks.length === 0) return "";
 
@@ -1130,7 +1098,7 @@ export const getUserDocChunk = query({
   },
 });
 
-// ============= AGENTIC RAG HELPERS (internal queries for tool calls) =============
+// ============= AGENTIC RAG HELPERS (v6 -- internal queries for tool calls) =============
 
 // @ts-ignore TS2589
 export const getUnitVocabulary = internalQuery({
@@ -1213,6 +1181,7 @@ export const getUserProgressForTools = internalQuery({
     const xp = user?.totalXP ?? 0;
     const streak = user?.currentStreak ?? 0;
 
+    // Get weak vocabulary
     const vocabProgress = await ctx.db
       .query("vocabularyProgress")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -1350,7 +1319,6 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     attachmentStorageId?: string;
     attachmentFileName?: string;
     attachmentFileType?: string;
-    responseMode?: "compact" | "detailed";
   };
 
   const streamId = body.streamId as StreamId;
@@ -1384,26 +1352,19 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     });
   }
 
+  // Cap output tokens for non-paid (beta) users to reduce cost
   if (!streamContext.isPaidUser) {
-    const isDetailed = body.responseMode === "detailed";
-    const modeTokenCap = isDetailed
-      ? RATE_LIMITS.beta.maxTokensDetailed
-      : RATE_LIMITS.beta.maxTokensCompact;
-    config.maxTokens = Math.min(config.maxTokens, modeTokenCap);
+    config.maxTokens = Math.min(config.maxTokens, RATE_LIMITS.beta.maxTokensOverride!);
   }
 
-  const userName = streamContext.userName || "";
-  let systemPrompt = basePrompt
-    .replace(/\[LANGUAGE\]/g, streamContext.languageName)
-    .replace(/\[USER_NAME\]/g, userName);
+  let systemPrompt = basePrompt.replace(/\[LANGUAGE\]/g, streamContext.languageName);
 
   if (streamContext.unitContextBlock) {
     systemPrompt += "\n\n" + streamContext.unitContextBlock;
   }
 
-  // Semantic Search is enabled by default; admin can disable via chatAiConfig.enableSemanticSearch = false
-  const enableSemanticSearch = config.enableSemanticSearch !== false;
-  if (enableSemanticSearch && streamContext.lastUserMessage) {
+  // RAG v3: semantic search for relevant knowledge
+  if (streamContext.lastUserMessage) {
     try {
       const semanticContext: string = await ctx.runAction(internal.chat.semanticSearch, {
         query: streamContext.lastUserMessage,
@@ -1418,47 +1379,17 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     }
   }
 
-  // Hard character caps for text attachments — keeps token spend predictable.
-  const TEXT_CHAR_CAP = 8_000;
-  const PDF_CHAR_CAP = 15_000;
-
+  // Build attachment context (inline multimodal) -- use URL to avoid OOM in httpAction
   let attachmentUrl: string | null = null;
   let attachmentMimeType: string | null = null;
-  // Inline text content for TXT/MD (fetched & truncated server-side).
-  let attachmentInlineText: string | null = null;
-
   if (body.attachmentStorageId) {
     try {
       const storageId = body.attachmentStorageId as Id<"_storage">;
       const url = await ctx.storage.getUrl(storageId);
       if (url) {
-        const mime = body.attachmentFileType || "application/octet-stream";
-        const isTextFile = mime === "text/plain" || mime === "text/markdown";
-
-        if (isTextFile) {
-          // Fetch & truncate plain text to avoid unbounded token consumption.
-          try {
-            const textResp = await fetch(url);
-            if (textResp.ok) {
-              const raw = await textResp.text();
-              const truncated = raw.length > TEXT_CHAR_CAP;
-              attachmentInlineText = truncated
-                ? raw.slice(0, TEXT_CHAR_CAP) +
-                  `\n\n[Document truncated — showing first ${TEXT_CHAR_CAP.toLocaleString()} of ${raw.length.toLocaleString()} characters]`
-                : raw;
-            } else {
-              attachmentUrl = url;
-              attachmentMimeType = mime;
-            }
-          } catch {
-            // If fetch fails, fall back to passing the URL.
-            attachmentUrl = url;
-            attachmentMimeType = mime;
-          }
-        } else {
-          attachmentUrl = url;
-          attachmentMimeType = mime;
-        }
+        attachmentUrl = url;
+        attachmentMimeType = body.attachmentFileType || "application/octet-stream";
+        console.log("[streamChat] Attachment URL ready:", body.attachmentFileName, "type:", attachmentMimeType);
       }
     } catch (e) {
       console.warn("[streamChat] Failed to get attachment URL:", e);
@@ -1476,10 +1407,9 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     { role: "system", content: systemPrompt },
   ];
 
+  // Add history, potentially making the last user message multimodal
   const history = [...streamContext.recentHistory];
-  const hasAttachmentContent = !!(attachmentUrl || attachmentInlineText);
-
-  if (hasAttachmentContent && history.length > 0) {
+  if (attachmentUrl && attachmentMimeType && history.length > 0) {
     let lastUserIdx = -1;
     for (let i = history.length - 1; i >= 0; i--) {
       if (history[i].role === "user") { lastUserIdx = i; break; }
@@ -1487,53 +1417,28 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
 
     if (lastUserIdx >= 0) {
       const userMsg = history[lastUserIdx];
-      const fileName = body.attachmentFileName || "attachment";
+      const isImage = attachmentMimeType.startsWith("image/");
+      const attachInstruction = `\n\n[The user attached a file: "${body.attachmentFileName || "attachment"}". ` +
+        `Analyze the attached content and respond in the language the user is chatting in. ` +
+        `Summarize, translate, or explain the content as appropriate.]`;
 
-      if (attachmentInlineText !== null) {
-        // Plain text/markdown: inject content inline — no multimodal call needed.
-        const inlineInstruction =
-          `\n\n[The user attached a text file: "${fileName}". Content:\n---\n${attachmentInlineText}\n---\n` +
-          `Analyze the content and respond in the language the user is chatting in. ` +
-          `Summarize, translate, or explain as appropriate.]`;
+      const fileUrl = new URL(attachmentUrl);
+      const parts: AiContentPart[] = [
+        { type: "text", text: userMsg.content + attachInstruction },
+      ];
 
-        for (let i = 0; i < history.length; i++) {
-          if (i === lastUserIdx) {
-            aiMessages.push({ role: "user", content: userMsg.content + inlineInstruction });
-          } else {
-            aiMessages.push(history[i]);
-          }
-        }
-      } else if (attachmentUrl && attachmentMimeType) {
-        const isImage = attachmentMimeType.startsWith("image/");
-        const isPdf = attachmentMimeType === "application/pdf";
-        const pdfNote = isPdf
-          ? ` Focus your analysis on the beginning of the document (max ~${PDF_CHAR_CAP.toLocaleString()} characters).`
-          : "";
-        const attachInstruction =
-          `\n\n[The user attached a file: "${fileName}". ` +
-          `Analyze the attached content and respond in the language the user is chatting in. ` +
-          `Summarize, translate, or explain the content as appropriate.${pdfNote}]`;
-
-        const fileUrl = new URL(attachmentUrl);
-        const parts: AiContentPart[] = [
-          { type: "text", text: userMsg.content + attachInstruction },
-        ];
-
-        if (isImage) {
-          parts.push({ type: "image", image: fileUrl, mediaType: attachmentMimeType });
-        } else {
-          parts.push({ type: "file", data: fileUrl, mediaType: attachmentMimeType });
-        }
-
-        for (let i = 0; i < history.length; i++) {
-          if (i === lastUserIdx) {
-            aiMessages.push({ role: "user", content: parts });
-          } else {
-            aiMessages.push(history[i]);
-          }
-        }
+      if (isImage) {
+        parts.push({ type: "image", image: fileUrl, mediaType: attachmentMimeType });
       } else {
-        aiMessages.push(...history);
+        parts.push({ type: "file", data: fileUrl, mediaType: attachmentMimeType });
+      }
+
+      for (let i = 0; i < history.length; i++) {
+        if (i === lastUserIdx) {
+          aiMessages.push({ role: "user", content: parts });
+        } else {
+          aiMessages.push(history[i]);
+        }
       }
     } else {
       aiMessages.push(...history);
@@ -1548,11 +1453,19 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     streamId,
     async (_ctx, _request, _streamId, append) => {
       let fullText: string;
-      // Multimodal is only needed for URL-based attachments (images, PDFs).
-      // Plain-text attachments are already inlined into the message content.
-      const needsMultimodal = !!attachmentUrl;
+      const hasAttachment = !!attachmentUrl;
 
-      if (needsMultimodal) {
+      const lastMsg = aiMessages[aiMessages.length - 1];
+      const lastContentType = Array.isArray(lastMsg?.content) ? `array(${lastMsg.content.length} parts)` : typeof lastMsg?.content;
+      console.log("[streamChat] Routing:", {
+        hasAttachment,
+        useAgenticRag: config.useAgenticRag,
+        totalMessages: aiMessages.length,
+        lastMessageRole: lastMsg?.role,
+        lastContentType,
+      });
+
+      if (hasAttachment) {
         try {
           fullText = await streamMultimodalResponse(config, aiMessages, append);
         } catch (e) {
@@ -1586,5 +1499,110 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
   return response;
 });
 
+// =============================================
+// Dynamic Chat Suggestions
+// =============================================
 
+function getSeasonFromMonth(month: number): "spring" | "summer" | "autumn" | "winter" {
+  if (month >= 2 && month <= 4) return "spring";
+  if (month >= 5 && month <= 7) return "summer";
+  if (month >= 8 && month <= 10) return "autumn";
+  return "winter";
+}
 
+function isNearHoliday(holidayMmDd: string, windowDays: number, nowMs: number): boolean {
+  const now = new Date(nowMs);
+  const [mm, dd] = holidayMmDd.split("-").map(Number);
+  const year = now.getFullYear();
+
+  const holiday = new Date(year, mm - 1, dd);
+  const diffMs = holiday.getTime() - nowMs;
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (Math.abs(diffDays) <= windowDays) return true;
+
+  const holidayNextYear = new Date(year + 1, mm - 1, dd);
+  const diffNext = (holidayNextYear.getTime() - nowMs) / (1000 * 60 * 60 * 24);
+  return Math.abs(diffNext) <= windowDays;
+}
+
+type ScoredSuggestion = Doc<"chatSuggestions"> & { _score: number };
+
+function scoreSuggestion(
+  s: Doc<"chatSuggestions">,
+  currentUnit: number | null,
+  season: "spring" | "summer" | "autumn" | "winter",
+  nowMs: number
+): number {
+  let score = s.priority ?? 0;
+
+  if (currentUnit !== null) {
+    const min = s.unitMin ?? 0;
+    const max = s.unitMax ?? 999;
+    if (currentUnit >= min && currentUnit <= max) score += 10;
+    else if (s.unitMin !== undefined || s.unitMax !== undefined) score -= 20;
+  }
+
+  if (s.holidayDate) {
+    const window = s.holidayWindowDays ?? 7;
+    if (isNearHoliday(s.holidayDate, window, nowMs)) score += 25;
+    else score -= 30;
+  }
+
+  if (s.seasonalTag) {
+    if (s.seasonalTag === season) score += 5;
+    else score -= 5;
+  }
+
+  return score;
+}
+
+// @ts-ignore TS2589
+export const getChatSuggestions = query({
+  args: {
+    currentUnit: v.optional(v.number()),
+    language: v.optional(v.string()),
+    nowMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const month = new Date(args.nowMs).getMonth();
+    const season = getSeasonFromMonth(month);
+    const unit = args.currentUnit ?? null;
+    const lang = args.language ?? "en";
+
+    const categories = ["language", "culture", "sos"] as const;
+    const results: Array<{
+      category: string;
+      text: string;
+      prefill: string;
+    }> = [];
+
+    for (const cat of categories) {
+      const all = await ctx.db
+        .query("chatSuggestions")
+        .withIndex("by_category", (q) => q.eq("category", cat).eq("isActive", true))
+        .collect();
+
+      if (all.length === 0) continue;
+
+      const scored: ScoredSuggestion[] = all.map((s) => ({
+        ...s,
+        _score: scoreSuggestion(s, unit, season, args.nowMs),
+      }));
+
+      scored.sort((a, b) => b._score - a._score);
+
+      // Take top candidates and pick one randomly for variety
+      const topN = scored.slice(0, Math.min(3, scored.length));
+      const pick = topN[Math.floor(Math.random() * topN.length)];
+
+      results.push({
+        category: cat,
+        text: lang === "de" ? pick.textDe : pick.textEn,
+        prefill: lang === "de" ? pick.prefillDe : pick.prefillEn,
+      });
+    }
+
+    return results;
+  },
+});
