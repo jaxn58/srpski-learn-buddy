@@ -910,6 +910,23 @@ export const _deleteUserCascade = internalMutation({
     bump("chatSessions", chatSessions.length);
     bump("chatMessages", chatMessagesCount);
 
+    // ---- AI Energy (top-up purchases + ledger) ----
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    const energyPurchases = await ctx.db
+      .query("energyPurchases")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of energyPurchases) await ctx.db.delete(row._id);
+    bump("energyPurchases", energyPurchases.length);
+
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    const energyLedger = await ctx.db
+      .query("energyLedger")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const row of energyLedger) await ctx.db.delete(row._id);
+    bump("energyLedger", energyLedger.length);
+
     // ---- Finally, the user row itself ----
     await ctx.db.delete(args.userId);
     bump("users", 1);

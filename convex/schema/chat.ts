@@ -175,6 +175,46 @@ export const chatTables = {
     .index("by_status", ["status"])
     .index("by_translation", ["translationOf"]),
 
+  // ============= ENERGY PURCHASES (Top-up history) =============
+  // Records one-time energy top-up purchases (Dodo). Only relevant for tiers
+  // with top-up entitlement (buddy / full). See docs/restructure/02_TOKEN_SYSTEM.md.
+  energyPurchases: defineTable({
+    userId: v.id("users"),
+    energyAdded: v.number(),
+    priceCents: v.number(),
+    purchasedAt: v.number(),
+    billingProvider: v.optional(v.string()),
+    providerPaymentId: v.optional(v.string()),
+  }).index("by_user", ["userId"]),
+
+  // ============= ENERGY LEDGER (Audit / Analytics) =============
+  // Append-only record of every energy delta (usage, monthly reset, top-up,
+  // admin adjustment). Enables per-user/per-action cost analysis and a
+  // transparent consumption history. See docs/restructure/02_TOKEN_SYSTEM.md.
+  energyLedger: defineTable({
+    userId: v.id("users"),
+    delta: v.number(), // +n credit / -n consumption (in energy units)
+    reason: v.union(
+      v.literal("usage"),
+      v.literal("monthly_reset"),
+      v.literal("topup"),
+      v.literal("admin_adjust")
+    ),
+    // For reason="usage": which action type consumed energy (for tuning).
+    actionType: v.optional(v.union(
+      v.literal("compact"),
+      v.literal("balanced"),
+      v.literal("detailed"),
+      v.literal("photo_scan"),
+      v.literal("document_analysis")
+    )),
+    ragUsed: v.optional(v.boolean()),
+    messageId: v.optional(v.id("chatMessages")),
+    estInputTokens: v.optional(v.number()),  // measured LLM tokens (internal)
+    estOutputTokens: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_user", ["userId"]),
+
   // ============= USER DOCUMENTS (User Uploads) =============
   userDocuments: defineTable({
     userId: v.id("users"),

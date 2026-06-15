@@ -95,6 +95,26 @@ export const coreTables = {
     installmentMonthlyPrice: v.optional(v.number()), // in cents
     pausedAt: v.optional(v.number()),
     installmentsCompletedAt: v.optional(v.number()),
+
+    // ===== Feature tier (2-axis model: package × duration) =====
+    // Which feature package this subscription grants. Optional for backward
+    // compatibility: existing/legacy subscriptions without this field are
+    // resolved to full feature access (Zero-Migration), see convex/featureAccess.ts.
+    featureTier: v.optional(v.union(
+      v.literal("course"), // Sprachkurs – learning content only
+      v.literal("buddy"),  // AI Buddy Standalone – buddy + documents, no learning
+      v.literal("basic"),  // Basic Kombi – learning + basic buddy (context linking)
+      v.literal("full")    // Full Package – everything
+    )),
+
+    // ===== AI Energy (consumption-based buddy credits) =====
+    // All optional → Zero-Migration. Subscriptions without these fields fall back
+    // to the tier default quota (see DEFAULT_TIER_ENERGY_QUOTA in featureAccess.ts).
+    // Energy is NOT unlimited for learners; only staff (admin/superadmin) are unlimited.
+    energyQuotaMonthly: v.optional(v.number()),   // inclusive monthly quota (energy units)
+    energyUsedThisPeriod: v.optional(v.number()), // energy consumed in the current period
+    energyTopUpBalance: v.optional(v.number()),   // purchased, non-expiring energy balance
+    energyPeriodResetAt: v.optional(v.number()),  // timestamp of the next monthly reset
   }).index("by_user", ["userId"]),
 
   // ============= SUBSCRIPTION HISTORY =============
