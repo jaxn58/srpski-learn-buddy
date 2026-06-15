@@ -354,6 +354,7 @@ export function TopNavigation() {
         items: [
           { label: t("sidebar.promptAdmin"), href: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
           { label: t("sidebar.chatAdmin", "Chat Admin"), href: "/admin/chat", icon: <MessageCircle className="h-4 w-4" /> },
+          { label: t("sidebar.knowledgeBase", "Knowledge Base"), href: "/admin/knowledge", icon: <BookOpen className="h-4 w-4" /> },
           { label: t("sidebar.translationCoverage"), href: "/admin/translation-coverage", icon: <FileText className="h-4 w-4" /> },
           { label: t("sidebar.contentStudio"), href: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
           { label: t("sidebar.changelog"), href: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
