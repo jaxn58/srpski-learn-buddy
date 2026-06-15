@@ -112,6 +112,7 @@ export default function Vocabulary() {
   const [selectedUnit, setSelectedUnit] = useState<number | 'all'>('all');
   const [userAnswer, setUserAnswer] = useState('');
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [hasCaseHint, setHasCaseHint] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
   const [quizStarted, setQuizStarted] = useState(false);
   const [lastQuizProgress, setLastQuizProgress] = useState<any>(null);
@@ -670,6 +671,7 @@ export default function Vocabulary() {
       setShowAnswer(false);
       setUserAnswer('');
       setIsCorrect(null);
+      setHasCaseHint(false);
     }
   };
 
@@ -679,6 +681,7 @@ export default function Vocabulary() {
       setShowAnswer(false);
       setUserAnswer('');
       setIsCorrect(null);
+      setHasCaseHint(false);
     }
   };
 
@@ -694,6 +697,7 @@ export default function Vocabulary() {
     setShowAnswer(false);
     setUserAnswer('');
     setIsCorrect(null);
+    setHasCaseHint(false);
     setCurrentCorrectTranslation(null);
     setAnsweredWord(null);
     
@@ -734,12 +738,17 @@ export default function Vocabulary() {
     const normalizeQuizAnswer = (s: string) =>
       s.trim().toLowerCase().replace(/[.,!?;:'"()\[\]{}\-\u2013\u2014\u2026\u00a1\u00bf]/g, "").replace(/\s+/g, " ").trim();
 
+    const normalizeWithoutCase = (s: string) =>
+      s.trim().replace(/[.,!?;:'"()\[\]{}\-–—…¡¿]/g, "").replace(/\s+/g, " ").trim();
+
     const userAnswerNorm = normalizeQuizAnswer(userAnswer);
     const correctTranslation = normalizeQuizAnswer(correctTranslationForWord);
     const correct = userAnswerNorm === correctTranslation;
-    
-    
+
+    const caseMismatch = correct && normalizeWithoutCase(userAnswer) !== normalizeWithoutCase(correctTranslationForWord);
+
     setIsCorrect(correct);
+    setHasCaseHint(caseMismatch);
     setScore({ correct: score.correct + (correct ? 1 : 0), total: score.total + 1 });
     // Store the current word and translation before showing answer (to prevent them from changing)
     setAnsweredWord(wordToAnswer);
@@ -900,6 +909,7 @@ export default function Vocabulary() {
     setScore({ correct: 0, total: 0 });
     setUserAnswer('');
     setIsCorrect(null);
+    setHasCaseHint(false);
     setXpEarned(0);
     setSessionXP(0); // Reset session XP
     setQuizStarted(false);
@@ -1416,6 +1426,19 @@ export default function Vocabulary() {
                                 })()}
                               </div>
                             </div>
+                            {isCorrect && hasCaseHint && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.3 }}
+                                className="pt-3 border-t border-amber-200"
+                              >
+                                <div className="flex items-center justify-center gap-2 text-sm text-amber-700">
+                                  <span className="font-medium">{t('vocabulary.caseHint')}</span>
+                                  <span className="font-semibold">{currentCorrectTranslation}</span>
+                                </div>
+                              </motion.div>
+                            )}
                             {!isCorrect && (
                               <motion.div
                                 initial={{ opacity: 0, y: 10 }}
