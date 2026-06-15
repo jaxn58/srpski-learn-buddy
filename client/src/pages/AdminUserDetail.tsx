@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import {
   ArrowLeft,
   Ban,
@@ -32,6 +33,7 @@ import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
 import { useState } from "react";
+import { EnergyGrantPanel } from "@/components/admin/EnergyGrantPanel";
 
 interface Props {
   userId: string;
@@ -552,6 +554,15 @@ export default function AdminUserDetail({ userId }: Props) {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="border-t" />
+
+            {/* AI Energy state + grant (superadmin can grant) */}
+            <EnergyGrantPanel
+              userId={userId as Id<"users">}
+              subscription={userDetail.subscription as any}
+              isSuperadmin={isSuperadmin}
+            />
 
             {/* Reset progress – students only */}
             {userDetail.role === 'student' && (

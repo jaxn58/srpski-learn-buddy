@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
+import { EnergyPill } from "@/components/chat/EnergyPill";
 
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
@@ -51,6 +52,19 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const prefillHandledRef = useRef(false);
   const skipAutoSelectRef = useRef(false);
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
+
+  // Live energy preview for the next message (RAG is always on in the modal
+  // because unit context is always attached). Drives the energy pill overlay
+  // and the send-button block.
+  const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
+    ragHinted: true,
+  });
+  const upcomingEnergyCost = upcomingEnergyEstimate?.cost ?? null;
+  const energyBlocksSend =
+    upcomingEnergyEstimate != null &&
+    !upcomingEnergyEstimate.unlimited &&
+    !upcomingEnergyEstimate.teaserOnly &&
+    !upcomingEnergyEstimate.enough;
   
   const formatMessageTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -138,6 +152,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
         sessionId: sessionId as Id<"chatSessions">,
         message: text,
         responseMode,
+        ragHinted: true,
       });
 
       await addMessageMutation({
@@ -394,6 +409,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
               <DialogTitle>{t('chat.modal.title')}</DialogTitle>
               <DialogDescription>{t('chat.modal.subtitle')}</DialogDescription>
             </div>
+            <EnergyPill upcomingCost={upcomingEnergyCost} className="shrink-0 self-center" />
             <Button
               variant="default"
               size="sm"
@@ -594,13 +610,24 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
               />
               <Button
                 onClick={handleSend}
-                disabled={!message.trim() || isSending}
+                disabled={!message.trim() || isSending || energyBlocksSend}
                 size="icon"
                 className="rounded-full h-10 w-10"
+                title={energyBlocksSend
+                  ? t('chat.energy.notEnough', { cost: upcomingEnergyEstimate?.cost ?? 0, available: upcomingEnergyEstimate?.available ?? 0 })
+                  : undefined}
               >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+            {energyBlocksSend && (
+              <p className="text-[11px] text-destructive text-center mt-2 px-4">
+                {t('chat.energy.notEnough',
+                  'Not enough AI Energy ({{available}}). This action needs {{cost}}. Top up or upgrade to continue.',
+                  { cost: upcomingEnergyEstimate?.cost ?? 0, available: upcomingEnergyEstimate?.available ?? 0 }
+                )}
+              </p>
+            )}
             {!currentSessionId && (
               <div className="text-center mt-2">
                 <Button variant="link" size="sm" onClick={handleNewChat} className="text-primary">

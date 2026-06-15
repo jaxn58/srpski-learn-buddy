@@ -41,6 +41,8 @@ import type * as documents from "../documents.js";
 import type * as documentsNode from "../documentsNode.js";
 import type * as email from "../email.js";
 import type * as emailTemplates from "../emailTemplates.js";
+import type * as energy from "../energy.js";
+import type * as energyAdmin from "../energyAdmin.js";
 import type * as exercises from "../exercises.js";
 import type * as featureAccess from "../featureAccess.js";
 import type * as feedback from "../feedback.js";
@@ -115,6 +117,8 @@ declare const fullApi: ApiFromModules<{
   documentsNode: typeof documentsNode;
   email: typeof email;
   emailTemplates: typeof emailTemplates;
+  energy: typeof energy;
+  energyAdmin: typeof energyAdmin;
   exercises: typeof exercises;
   featureAccess: typeof featureAccess;
   feedback: typeof feedback;

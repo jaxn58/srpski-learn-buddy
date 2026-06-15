@@ -27,6 +27,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
+import { EnergyPill } from "@/components/chat/EnergyPill";
 
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
@@ -46,6 +47,7 @@ export default function Chat() {
     storageId: string;
     fileName: string;
     fileType: string;
+    fileBytes: number;
   } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachHint, setShowAttachHint] = useState(false);
@@ -73,6 +75,19 @@ export default function Chat() {
   }, []);
   const chatUsage = useQuery(api.chat.getChatUsageToday, { nowMs: usageNowMs });
   const isDailyLimitReached = chatUsage != null && chatUsage.remaining === 0;
+
+  // Live energy preview for the next action (drives the pill overlay and the
+  // send-button "not enough Energy" state). RAG is hinted true because the
+  // chat surface ships unit context + semantic search by default.
+  const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
+    ragHinted: true,
+  });
+  const upcomingEnergyCost = upcomingEnergyEstimate?.cost ?? null;
+  const energyBlocksSend =
+    upcomingEnergyEstimate != null &&
+    !upcomingEnergyEstimate.unlimited &&
+    !upcomingEnergyEstimate.teaserOnly &&
+    !upcomingEnergyEstimate.enough;
 
   // Beta banner dismiss state (localStorage-based, per-session until dismissed)
   const BETA_BANNER_KEY = "chat_beta_banner_dismissed";
@@ -312,7 +327,13 @@ export default function Chat() {
         uploadType = "image/jpeg";
       }
 
-      const uploadUrl = await generateUploadUrl();
+      // Pre-flight: report intended bytes/type so the backend can enforce the
+      // upload cap and AI-Energy budget BEFORE we transfer the file.
+      const intendedBytes = uploadBody.size;
+      const uploadUrl = await generateUploadUrl({
+        fileBytes: intendedBytes,
+        fileType: uploadType,
+      });
       const resp = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": uploadType },
@@ -320,7 +341,12 @@ export default function Chat() {
       });
       if (!resp.ok) throw new Error("Upload failed");
       const { storageId } = await resp.json();
-      setAttachedFile({ storageId, fileName: file.name, fileType: uploadType });
+      setAttachedFile({
+        storageId,
+        fileName: file.name,
+        fileType: uploadType,
+        fileBytes: intendedBytes,
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -340,9 +366,16 @@ export default function Chat() {
     setIsSending(true);
 
     try {
+      const hasImage = !!currentAttachment && currentAttachment.fileType.startsWith("image/");
+      const hasFile = !!currentAttachment && !hasImage;
+
       await checkRateLimitMutation({
         sessionId: currentSessionId as Id<"chatSessions">,
         message: messageToSend,
+        hasImageAttachment: hasImage,
+        hasFileAttachment: hasFile,
+        attachmentBytes: currentAttachment?.fileBytes,
+        ragHinted: true,
       });
 
       await addMessageMutation({
@@ -387,6 +420,7 @@ export default function Chat() {
             attachmentStorageId: currentAttachment.storageId,
             attachmentFileName: currentAttachment.fileName,
             attachmentFileType: currentAttachment.fileType,
+            attachmentBytes: currentAttachment.fileBytes,
           } : {}),
         }),
         signal: abortController.signal,
@@ -827,6 +861,8 @@ export default function Chat() {
                   {t('chat.beta.usageCounter', { used: chatUsage.used, limit: chatUsage.limit })}
                 </span>
               )}
+              {/* AI Energy pill (always visible for metered users) */}
+              <EnergyPill upcomingCost={upcomingEnergyCost} />
               {canUploadDocuments && (
               <div
                 className="relative shrink-0"
@@ -873,9 +909,12 @@ export default function Chat() {
               ) : (
                 <Button
                   onClick={handleSend}
-                  disabled={(!message.trim() && !attachedFile) || isSending || !currentSessionId || isDailyLimitReached}
+                  disabled={(!message.trim() && !attachedFile) || isSending || !currentSessionId || isDailyLimitReached || energyBlocksSend}
                   size="icon"
                   className="rounded-full h-10 w-10"
+                  title={energyBlocksSend
+                    ? t('chat.energy.notEnough', { cost: upcomingEnergyEstimate?.cost ?? 0, available: upcomingEnergyEstimate?.available ?? 0 })
+                    : undefined}
                 >
                   <Send className="h-4 w-4" />
                 </Button>
@@ -887,6 +926,14 @@ export default function Chat() {
                   {t('chat.startNewChat', 'Start a new chat to begin')}
                 </Button>
               </div>
+            )}
+            {energyBlocksSend && (
+              <p className="text-[11px] text-destructive text-center mt-2 px-4">
+                {t('chat.energy.notEnough',
+                  'Not enough AI Energy ({{available}}). This action needs {{cost}}. Top up or upgrade to continue.',
+                  { cost: upcomingEnergyEstimate?.cost ?? 0, available: upcomingEnergyEstimate?.available ?? 0 }
+                )}
+              </p>
             )}
             <p className="text-[10px] text-muted-foreground/50 text-center mt-2 px-4">
               {t('chat.aiDisclaimer', 'AI can make mistakes. Always verify important information.')}

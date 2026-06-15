@@ -22,23 +22,26 @@ import { query, internalQuery, type QueryCtx, type MutationCtx } from "./_genera
 import type { Doc, Id } from "./_generated/dataModel";
 import { isStaffRole, isLearnerAccountSuspended } from "./authz";
 import { loadBetaPhaseActive } from "./platform";
+import { loadEnergyConfig } from "./energy";
 
 export type FeatureTier = "course" | "buddy" | "basic" | "full";
 
 /**
- * Default inclusive monthly energy quota per tier.
- *
- * These are the launch defaults from docs/restructure/02_TOKEN_SYSTEM.md. They
- * become admin-configurable in Phase 3; until then they are the fallback used
- * whenever a subscription has no explicit `energyQuotaMonthly`. Kept in one
- * place so the later migration to a config table is a single edit.
+ * Per-tier monthly energy quotas used as fallback when a subscription has no
+ * explicit `energyQuotaMonthly`. Course tier has no energy (teaser-only) by
+ * design – the other tiers are admin-tunable via `platformConfig` (see
+ * convex/energy.ts and the `loadEnergyConfig` helper).
  */
-export const DEFAULT_TIER_ENERGY_QUOTA: Record<FeatureTier, number> = {
-  course: 0, // Sprachkurs has only the teaser (separate daily counter), no energy quota
-  buddy: 450,
-  basic: 120,
-  full: 750,
-};
+type TierQuotas = { full: number; buddy: number; basic: number };
+
+function quotaForTier(tier: FeatureTier, quotas: TierQuotas): number {
+  switch (tier) {
+    case "course": return 0;
+    case "full":   return quotas.full;
+    case "buddy":  return quotas.buddy;
+    case "basic":  return quotas.basic;
+  }
+}
 
 type FeatureFlags = {
   learning: boolean;
@@ -150,8 +153,12 @@ function noAccess(source: FeatureAccess["source"]): FeatureAccess {
   };
 }
 
-function resolveEnergy(tier: FeatureTier, sub: Doc<"userSubscriptions"> | null | undefined): EnergyState {
-  const quotaMonthly = sub?.energyQuotaMonthly ?? DEFAULT_TIER_ENERGY_QUOTA[tier];
+function resolveEnergy(
+  tier: FeatureTier,
+  sub: Doc<"userSubscriptions"> | null | undefined,
+  quotas: TierQuotas
+): EnergyState {
+  const quotaMonthly = sub?.energyQuotaMonthly ?? quotaForTier(tier, quotas);
   const usedThisPeriod = sub?.energyUsedThisPeriod ?? 0;
   const topUpBalance = sub?.energyTopUpBalance ?? 0;
   const available = Math.max(0, quotaMonthly - usedThisPeriod) + topUpBalance;
@@ -168,8 +175,9 @@ export function resolveFeatureAccess(input: {
   activeSub: Doc<"userSubscriptions"> | null;
   pastDueSub: Doc<"userSubscriptions"> | null;
   betaPhaseActive: boolean;
+  energyQuotas: TierQuotas;
 }): FeatureAccess {
-  const { user, activeSub, pastDueSub, betaPhaseActive } = input;
+  const { user, activeSub, pastDueSub, betaPhaseActive, energyQuotas } = input;
 
   // Staff: full access + unlimited energy (QA, support, content verification).
   if (isStaffRole(user.role)) {
@@ -194,7 +202,7 @@ export function resolveFeatureAccess(input: {
       source: "override",
       isStaff: false,
       features: featuresForTier(override),
-      energy: resolveEnergy(override, activeSub),
+      energy: resolveEnergy(override, activeSub, energyQuotas),
     };
   }
 
@@ -214,7 +222,7 @@ export function resolveFeatureAccess(input: {
       source: "subscription",
       isStaff: false,
       features: featuresForTier(tier),
-      energy: resolveEnergy(tier, activeSub),
+      energy: resolveEnergy(tier, activeSub, energyQuotas),
     };
   }
 
@@ -228,7 +236,7 @@ export function resolveFeatureAccess(input: {
       source: "beta",
       isStaff: false,
       features: featuresForTier("full"),
-      energy: resolveEnergy("full", activeSub ?? null),
+      energy: resolveEnergy("full", activeSub ?? null, energyQuotas),
     };
   }
 
@@ -273,7 +281,14 @@ export async function getFeatureAccessForUser(
 
   const { activeSub, pastDueSub } = await loadSubscriptions(ctx, userId);
   const betaPhaseActive = await loadBetaPhaseActive(ctx);
-  return resolveFeatureAccess({ user, activeSub, pastDueSub, betaPhaseActive });
+  const energyCfg = await loadEnergyConfig(ctx);
+  return resolveFeatureAccess({
+    user,
+    activeSub,
+    pastDueSub,
+    betaPhaseActive,
+    energyQuotas: energyCfg.quotas,
+  });
 }
 
 /**
@@ -299,7 +314,14 @@ export const getFeatureAccess = query({
 
     const { activeSub, pastDueSub } = await loadSubscriptions(ctx, user._id);
     const betaPhaseActive = await loadBetaPhaseActive(ctx);
-    return resolveFeatureAccess({ user, activeSub, pastDueSub, betaPhaseActive });
+    const energyCfg = await loadEnergyConfig(ctx);
+    return resolveFeatureAccess({
+      user,
+      activeSub,
+      pastDueSub,
+      betaPhaseActive,
+      energyQuotas: energyCfg.quotas,
+    });
   },
 });
 

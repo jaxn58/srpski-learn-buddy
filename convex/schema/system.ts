@@ -188,6 +188,27 @@ export const systemTables = {
     // convex/platform.ts when unset (zero-migration).
     betaMaxUnits: v.optional(v.number()),
     betaMaxAiPerDay: v.optional(v.number()),
+
+    // ===== AI-Energy configuration (Phase 3) =====
+    // All optional → zero-migration. Defaults live in convex/energy.ts and
+    // mirror docs/restructure/02_TOKEN_SYSTEM.md so behavior is unchanged
+    // until a superadmin tunes them.
+    //
+    // Cost table (relative to "1 Energy = one compact answer without context").
+    energyCostCompact: v.optional(v.number()),       // default 1
+    energyCostDetailed: v.optional(v.number()),      // default 3
+    energyRagSurcharge: v.optional(v.number()),      // default +1 when context/RAG used
+    energyVisionSurcharge: v.optional(v.number()),   // default +3 when image attachment
+    energyUploadBase: v.optional(v.number()),        // default 5 (base for any upload)
+    energyUploadPerKb: v.optional(v.number()),       // default 0.02 → 1 Energy per 50 KB
+    // Monthly inclusive quotas per tier (fallback when subscription has no own value).
+    energyQuotaFull: v.optional(v.number()),         // default 750
+    energyQuotaBuddy: v.optional(v.number()),        // default 450
+    energyQuotaBasic: v.optional(v.number()),        // default 120
+    // Technical input limits for uploads (independent of energy balance, see
+    // 02_TOKEN_SYSTEM.md 2.2). Hard caps to prevent runaway cost / abuse.
+    uploadMaxFileBytes: v.optional(v.number()),      // default 10 MB
+
     updatedAt: v.optional(v.number()),
     updatedBy: v.optional(v.id("users")),
   }),

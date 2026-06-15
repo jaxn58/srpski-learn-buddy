@@ -10,6 +10,11 @@ import { v } from "convex/values";
 import { query, mutation, type QueryCtx, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { isStaffRole } from "./authz";
+import {
+  DEFAULT_ENERGY_COSTS,
+  DEFAULT_TIER_QUOTAS,
+  DEFAULT_UPLOAD_MAX_FILE_BYTES,
+} from "./energy";
 
 // Default while no config row exists: the closed beta is considered ACTIVE.
 // This preserves today's behavior (beta testers keep full access) until a
@@ -61,6 +66,17 @@ export const getPlatformConfig = query({
     betaPhaseActive: v.boolean(),
     betaMaxUnits: v.number(),
     betaMaxAiPerDay: v.number(),
+    // Energy config (always returned, with defaults applied)
+    energyCostCompact: v.number(),
+    energyCostDetailed: v.number(),
+    energyRagSurcharge: v.number(),
+    energyVisionSurcharge: v.number(),
+    energyUploadBase: v.number(),
+    energyUploadPerKb: v.number(),
+    energyQuotaFull: v.number(),
+    energyQuotaBuddy: v.number(),
+    energyQuotaBasic: v.number(),
+    uploadMaxFileBytes: v.number(),
     updatedAt: v.union(v.number(), v.null()),
   }),
   handler: async (ctx) => {
@@ -78,6 +94,16 @@ export const getPlatformConfig = query({
       betaPhaseActive: config?.betaPhaseActive ?? DEFAULT_BETA_PHASE_ACTIVE,
       betaMaxUnits: config?.betaMaxUnits ?? DEFAULT_BETA_MAX_UNITS,
       betaMaxAiPerDay: config?.betaMaxAiPerDay ?? DEFAULT_BETA_MAX_AI_PER_DAY,
+      energyCostCompact: config?.energyCostCompact ?? DEFAULT_ENERGY_COSTS.compact,
+      energyCostDetailed: config?.energyCostDetailed ?? DEFAULT_ENERGY_COSTS.detailed,
+      energyRagSurcharge: config?.energyRagSurcharge ?? DEFAULT_ENERGY_COSTS.ragSurcharge,
+      energyVisionSurcharge: config?.energyVisionSurcharge ?? DEFAULT_ENERGY_COSTS.visionSurcharge,
+      energyUploadBase: config?.energyUploadBase ?? DEFAULT_ENERGY_COSTS.uploadBase,
+      energyUploadPerKb: config?.energyUploadPerKb ?? DEFAULT_ENERGY_COSTS.uploadPerKb,
+      energyQuotaFull: config?.energyQuotaFull ?? DEFAULT_TIER_QUOTAS.full,
+      energyQuotaBuddy: config?.energyQuotaBuddy ?? DEFAULT_TIER_QUOTAS.buddy,
+      energyQuotaBasic: config?.energyQuotaBasic ?? DEFAULT_TIER_QUOTAS.basic,
+      uploadMaxFileBytes: config?.uploadMaxFileBytes ?? DEFAULT_UPLOAD_MAX_FILE_BYTES,
       updatedAt: config?.updatedAt ?? null,
     };
   },
@@ -88,6 +114,19 @@ export const getPlatformConfig = query({
  * Always stamps updatedAt/updatedBy. Inserts a fresh row (using current
  * defaults for unspecified fields) when none exists yet.
  */
+type EnergyPatchFields = {
+  energyCostCompact?: number;
+  energyCostDetailed?: number;
+  energyRagSurcharge?: number;
+  energyVisionSurcharge?: number;
+  energyUploadBase?: number;
+  energyUploadPerKb?: number;
+  energyQuotaFull?: number;
+  energyQuotaBuddy?: number;
+  energyQuotaBasic?: number;
+  uploadMaxFileBytes?: number;
+};
+
 async function upsertPlatformConfig(
   ctx: MutationCtx,
   updatedBy: Id<"users">,
@@ -95,7 +134,7 @@ async function upsertPlatformConfig(
     betaPhaseActive?: boolean;
     betaMaxUnits?: number;
     betaMaxAiPerDay?: number;
-  }
+  } & EnergyPatchFields
 ): Promise<void> {
   // @ts-ignore TS2589 – Convex schema depth limit (large schema)
   const existing = await ctx.db.query("platformConfig").first();
@@ -106,6 +145,16 @@ async function upsertPlatformConfig(
       betaPhaseActive: patch.betaPhaseActive ?? DEFAULT_BETA_PHASE_ACTIVE,
       betaMaxUnits: patch.betaMaxUnits ?? DEFAULT_BETA_MAX_UNITS,
       betaMaxAiPerDay: patch.betaMaxAiPerDay ?? DEFAULT_BETA_MAX_AI_PER_DAY,
+      energyCostCompact: patch.energyCostCompact,
+      energyCostDetailed: patch.energyCostDetailed,
+      energyRagSurcharge: patch.energyRagSurcharge,
+      energyVisionSurcharge: patch.energyVisionSurcharge,
+      energyUploadBase: patch.energyUploadBase,
+      energyUploadPerKb: patch.energyUploadPerKb,
+      energyQuotaFull: patch.energyQuotaFull,
+      energyQuotaBuddy: patch.energyQuotaBuddy,
+      energyQuotaBasic: patch.energyQuotaBasic,
+      uploadMaxFileBytes: patch.uploadMaxFileBytes,
       updatedAt: Date.now(),
       updatedBy,
     });
@@ -185,6 +234,74 @@ export const setBetaMaxUnits = mutation({
 
     assertValidLimit(args.betaMaxUnits, "Beta units", 1000);
     await upsertPlatformConfig(ctx, user._id, { betaMaxUnits: args.betaMaxUnits });
+    return null;
+  },
+});
+
+/** Validate a non-negative finite number (allows decimals for per-KB factor). */
+function assertNonNegative(value: number, label: string, max: number): void {
+  if (!Number.isFinite(value) || value < 0 || value > max) {
+    throw new Error(`${label} must be a number between 0 and ${max}`);
+  }
+}
+
+/**
+ * Set the full AI-Energy configuration (superadmin only). Validates inputs
+ * then upserts the singleton. All fields are optional – only the ones present
+ * in `args` are patched; the rest keep their existing values.
+ *
+ * Cost table is integer-bounded (≤ 1000) to prevent typos creating runaway
+ * deductions; `uploadPerKb` allows decimals because real cost is sub-integer
+ * per KB. Quotas are bounded to 1,000,000 (≈ 1M Energy is far beyond any
+ * realistic month).
+ */
+export const setEnergyConfig = mutation({
+  args: {
+    energyCostCompact: v.optional(v.number()),
+    energyCostDetailed: v.optional(v.number()),
+    energyRagSurcharge: v.optional(v.number()),
+    energyVisionSurcharge: v.optional(v.number()),
+    energyUploadBase: v.optional(v.number()),
+    energyUploadPerKb: v.optional(v.number()),
+    energyQuotaFull: v.optional(v.number()),
+    energyQuotaBuddy: v.optional(v.number()),
+    energyQuotaBasic: v.optional(v.number()),
+    uploadMaxFileBytes: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user || user.role !== "superadmin") {
+      throw new Error("Only superadmin can change the energy configuration");
+    }
+
+    if (args.energyCostCompact !== undefined)
+      assertValidLimit(args.energyCostCompact, "Compact cost", 1000);
+    if (args.energyCostDetailed !== undefined)
+      assertValidLimit(args.energyCostDetailed, "Detailed cost", 1000);
+    if (args.energyRagSurcharge !== undefined)
+      assertValidLimit(args.energyRagSurcharge, "RAG surcharge", 1000);
+    if (args.energyVisionSurcharge !== undefined)
+      assertValidLimit(args.energyVisionSurcharge, "Vision surcharge", 1000);
+    if (args.energyUploadBase !== undefined)
+      assertValidLimit(args.energyUploadBase, "Upload base", 1000);
+    if (args.energyUploadPerKb !== undefined)
+      assertNonNegative(args.energyUploadPerKb, "Upload per KB", 100);
+    if (args.energyQuotaFull !== undefined)
+      assertValidLimit(args.energyQuotaFull, "Full quota", 1_000_000);
+    if (args.energyQuotaBuddy !== undefined)
+      assertValidLimit(args.energyQuotaBuddy, "Buddy quota", 1_000_000);
+    if (args.energyQuotaBasic !== undefined)
+      assertValidLimit(args.energyQuotaBasic, "Basic quota", 1_000_000);
+    if (args.uploadMaxFileBytes !== undefined)
+      assertValidLimit(args.uploadMaxFileBytes, "Upload max bytes", 200 * 1024 * 1024);
+
+    await upsertPlatformConfig(ctx, user._id, args);
     return null;
   },
 });

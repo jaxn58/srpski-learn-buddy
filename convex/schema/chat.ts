@@ -212,6 +212,8 @@ export const chatTables = {
     messageId: v.optional(v.id("chatMessages")),
     estInputTokens: v.optional(v.number()),  // measured LLM tokens (internal)
     estOutputTokens: v.optional(v.number()),
+    // Free-form audit note (admin adjustments include the admin user id).
+    note: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
 
