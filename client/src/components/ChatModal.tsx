@@ -564,8 +564,8 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
             </div>
           )}
 
-          {/* Input Area */}
-          <div className="border-t p-4 bg-muted/30">
+          {/* Input Area -- hidden while mode-selection (pendingPrefill) is active */}
+          {!pendingPrefill && <div className="border-t p-4 bg-muted/30">
             {showUsage && chatUsage && (
               <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
                 <span>{t("chat.usage.messagesLeft", "{{remaining}} of {{limit}} messages left", { remaining: chatUsage.remaining, limit: chatUsage.limit })}</span>
@@ -608,7 +608,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                 </Button>
               </div>
             )}
-          </div>
+          </div>}
         </div>
       </DialogContent>
     </Dialog>

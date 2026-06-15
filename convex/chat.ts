@@ -177,12 +177,14 @@ export const getSessions = query({
     const user = await getCurrentUser(ctx);
     if (!user) return [];
 
-    // Fetch all sessions for user and filter archived != true (backward compatibility)
-    const sessions = (await ctx.db
+    // Use Convex .filter() + .take() to avoid loading all sessions into memory.
+    // archived is optional (legacy docs have undefined), so we exclude only explicit true.
+    const sessions = await ctx.db
       .query("chatSessions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .order("desc")
-      .collect()).filter((s) => s.archived !== true);
+      .filter((q) => q.neq(q.field("archived"), true))
+      .take(50);
 
     return sessions;
   },
@@ -276,13 +278,12 @@ export const getArchivedSessions = query({
     const user = await getCurrentUser(ctx);
     if (!user) return [];
 
-    // Archived = true; tolerate undefined
     return await ctx.db
       .query("chatSessions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .order("desc")
       .filter((q) => q.eq(q.field("archived"), true))
-      .collect();
+      .take(50);
   },
 });
 
@@ -381,11 +382,11 @@ export const bulkDeleteNewChats = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
 
-    // Get all sessions with title "New Chat" for this user
+    // Limit to 100 to stay within system-operation bounds
     const sessions = await ctx.db
       .query("chatSessions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .collect();
+      .take(100);
 
     const newChatSessions = sessions.filter(s => s.title === "New Chat");
     let deletedCount = 0;
