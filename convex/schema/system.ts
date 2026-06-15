@@ -209,6 +209,13 @@ export const systemTables = {
     // 02_TOKEN_SYSTEM.md 2.2). Hard caps to prevent runaway cost / abuse.
     uploadMaxFileBytes: v.optional(v.number()),      // default 10 MB
 
+    // ===== Billing config (Phase 4) =====
+    // Welcome-Energy bonus for first-time Full-tier buyers.
+    // 0 = feature disabled. Default 500 (see DEFAULT_WELCOME_ENERGY_AMOUNT in platform.ts).
+    welcomeEnergyAmount: v.optional(v.number()),
+    // Beta-tester discount applied at checkout (percent, 0–100). Default 50.
+    betaTesterDiscountPercent: v.optional(v.number()),
+
     updatedAt: v.optional(v.number()),
     updatedBy: v.optional(v.id("users")),
   }),

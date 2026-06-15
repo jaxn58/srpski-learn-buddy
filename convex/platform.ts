@@ -16,6 +16,10 @@ import {
   DEFAULT_UPLOAD_MAX_FILE_BYTES,
 } from "./energy";
 
+// Default billing config values (Phase 4).
+export const DEFAULT_WELCOME_ENERGY_AMOUNT = 500;  // Energy granted on first Full-tier purchase
+export const DEFAULT_BETA_TESTER_DISCOUNT_PERCENT = 50; // % off for beta testers after beta ends
+
 // Default while no config row exists: the closed beta is considered ACTIVE.
 // This preserves today's behavior (beta testers keep full access) until a
 // superadmin explicitly ends the beta phase.
@@ -77,6 +81,9 @@ export const getPlatformConfig = query({
     energyQuotaBuddy: v.number(),
     energyQuotaBasic: v.number(),
     uploadMaxFileBytes: v.number(),
+    // Billing config (Phase 4)
+    welcomeEnergyAmount: v.number(),
+    betaTesterDiscountPercent: v.number(),
     updatedAt: v.union(v.number(), v.null()),
   }),
   handler: async (ctx) => {
@@ -104,6 +111,8 @@ export const getPlatformConfig = query({
       energyQuotaBuddy: config?.energyQuotaBuddy ?? DEFAULT_TIER_QUOTAS.buddy,
       energyQuotaBasic: config?.energyQuotaBasic ?? DEFAULT_TIER_QUOTAS.basic,
       uploadMaxFileBytes: config?.uploadMaxFileBytes ?? DEFAULT_UPLOAD_MAX_FILE_BYTES,
+      welcomeEnergyAmount: config?.welcomeEnergyAmount ?? DEFAULT_WELCOME_ENERGY_AMOUNT,
+      betaTesterDiscountPercent: config?.betaTesterDiscountPercent ?? DEFAULT_BETA_TESTER_DISCOUNT_PERCENT,
       updatedAt: config?.updatedAt ?? null,
     };
   },
@@ -127,6 +136,11 @@ type EnergyPatchFields = {
   uploadMaxFileBytes?: number;
 };
 
+type BillingPatchFields = {
+  welcomeEnergyAmount?: number;
+  betaTesterDiscountPercent?: number;
+};
+
 async function upsertPlatformConfig(
   ctx: MutationCtx,
   updatedBy: Id<"users">,
@@ -134,7 +148,7 @@ async function upsertPlatformConfig(
     betaPhaseActive?: boolean;
     betaMaxUnits?: number;
     betaMaxAiPerDay?: number;
-  } & EnergyPatchFields
+  } & EnergyPatchFields & BillingPatchFields
 ): Promise<void> {
   // @ts-ignore TS2589 – Convex schema depth limit (large schema)
   const existing = await ctx.db.query("platformConfig").first();
@@ -234,6 +248,39 @@ export const setBetaMaxUnits = mutation({
 
     assertValidLimit(args.betaMaxUnits, "Beta units", 1000);
     await upsertPlatformConfig(ctx, user._id, { betaMaxUnits: args.betaMaxUnits });
+    return null;
+  },
+});
+
+/**
+ * Set billing-related platform config (superadmin only).
+ * Currently: Welcome-Energy amount and Beta-Tester discount percent.
+ */
+export const setBillingConfig = mutation({
+  args: {
+    welcomeEnergyAmount: v.optional(v.number()),
+    betaTesterDiscountPercent: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user || user.role !== "superadmin") {
+      throw new Error("Only superadmin can change the billing configuration");
+    }
+
+    if (args.welcomeEnergyAmount !== undefined) {
+      assertValidLimit(args.welcomeEnergyAmount, "Welcome Energy amount", 100_000);
+    }
+    if (args.betaTesterDiscountPercent !== undefined) {
+      assertValidLimit(args.betaTesterDiscountPercent, "Beta tester discount percent", 100);
+    }
+
+    await upsertPlatformConfig(ctx, user._id, args);
     return null;
   },
 });

@@ -34,17 +34,63 @@ async function getTotalUnitsCount(ctx: QueryCtx | MutationCtx): Promise<number> 
   return uniqueUnits.size;
 }
 
-// Subscription plans
-const SUBSCRIPTION_PLANS = [
-  // NOTE: Prices are in cents (EUR).
-  { id: "beta", name: "Beta Access", months: 0, price: 0, unitsPerWeek: 0 },
-  { id: "intensive", name: "Intensive", months: 3, price: 6900, unitsPerWeek: 3 },
-  { id: "balanced", name: "Balanced", months: 6, price: 7900, unitsPerWeek: 2 },
-  { id: "standard", name: "Standard", months: 9, price: 9500, unitsPerWeek: 1.5 },
-  { id: "relaxed", name: "Relaxed", months: 12, price: 11900, unitsPerWeek: 1 },
+// ============= SUBSCRIPTION PLANS (Phase 4: 4 Tiers × 3 Durations) =============
+// Prices are in cents (EUR). Charm-pricing variant: konzept_charm_mix × 3 terms.
+// Format: tier_<duration> – e.g. "full_12m" = Full Package, 12 months.
+
+type FeatureTierKey = "course" | "buddy" | "basic" | "full";
+type DurationKey = "3m" | "6m" | "12m";
+type PaidPlanId =
+  | "course_3m" | "course_6m" | "course_12m"
+  | "buddy_3m"  | "buddy_6m"  | "buddy_12m"
+  | "basic_3m"  | "basic_6m"  | "basic_12m"
+  | "full_3m"   | "full_6m"   | "full_12m";
+
+// Legacy IDs kept only for the type system (no production data exists).
+// Webhook handling falls back gracefully; featureTier defaults to "full".
+type LegacyPlanId = "intensive" | "balanced" | "standard" | "relaxed";
+
+const SUBSCRIPTION_PLANS: Array<{
+  id: PaidPlanId;
+  tier: FeatureTierKey;
+  durationMonths: number;
+  price: number; // prepaid total in cents
+  name: string;
+}> = [
+  // Course tier (Serbian language learning only, no AI Buddy)
+  { id: "course_3m",  tier: "course", durationMonths: 3,  price:  3900, name: "Course - 3 Months" },
+  { id: "course_6m",  tier: "course", durationMonths: 6,  price:  4900, name: "Course - 6 Months" },
+  { id: "course_12m", tier: "course", durationMonths: 12, price:  6900, name: "Course - 12 Months" },
+  // Buddy tier (AI Buddy standalone, no learning content)
+  { id: "buddy_3m",   tier: "buddy",  durationMonths: 3,  price:  4500, name: "Buddy - 3 Months" },
+  { id: "buddy_6m",   tier: "buddy",  durationMonths: 6,  price:  5900, name: "Buddy - 6 Months" },
+  { id: "buddy_12m",  tier: "buddy",  durationMonths: 12, price:  8900, name: "Buddy - 12 Months" },
+  // Basic tier (learning + basic AI Buddy)
+  { id: "basic_3m",   tier: "basic",  durationMonths: 3,  price:  5500, name: "Basic - 3 Months" },
+  { id: "basic_6m",   tier: "basic",  durationMonths: 6,  price:  6900, name: "Basic - 6 Months" },
+  { id: "basic_12m",  tier: "basic",  durationMonths: 12, price:  9900, name: "Basic - 12 Months" },
+  // Full tier (everything – learning + full AI Buddy + documents)
+  { id: "full_3m",    tier: "full",   durationMonths: 3,  price:  6900, name: "Full Package - 3 Months" },
+  { id: "full_6m",    tier: "full",   durationMonths: 6,  price:  8900, name: "Full Package - 6 Months" },
+  { id: "full_12m",   tier: "full",   durationMonths: 12, price: 11900, name: "Full Package - 12 Months" },
 ];
 
-type PaidPlanId = "intensive" | "balanced" | "standard" | "relaxed";
+/** Map a compound plan ID to its feature tier. Legacy IDs fall back to "full". */
+function tierForPlanType(planType: string): FeatureTierKey {
+  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
+  if (plan) return plan.tier;
+  // Legacy mapping for "intensive" / "balanced" / "standard" / "relaxed"
+  return "full";
+}
+
+/** Map a compound plan ID to its duration in months. Legacy IDs map by name. */
+function durationMonthsForPlanType(planType: string): number {
+  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
+  if (plan) return plan.durationMonths;
+  // Legacy fallback
+  const legacy: Record<string, number> = { intensive: 3, balanced: 6, standard: 9, relaxed: 12 };
+  return legacy[planType] ?? 0;
+}
 
 function charmRoundUpTo99Cents(rawMonthlyCents: number): number {
   // Round up to the next *.99 EUR boundary (e.g. 1448.33 -> 1499).
@@ -59,17 +105,17 @@ function charmRoundUpTo99Cents(rawMonthlyCents: number): number {
 
 function getInstallmentMonthlyChargeCents(planType: PaidPlanId): number {
   const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
-  if (!plan || !plan.months) return 0;
+  if (!plan || !plan.durationMonths) return 0;
   const monthlyTotal = Math.round(plan.price * 1.1);
-  const rawMonthly = monthlyTotal / plan.months;
+  const rawMonthly = monthlyTotal / plan.durationMonths;
   return charmRoundUpTo99Cents(rawMonthly);
 }
 
 function getInstallmentTotalCents(planType: PaidPlanId): number {
   const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
-  if (!plan || !plan.months) return 0;
+  if (!plan || !plan.durationMonths) return 0;
   const monthly = getInstallmentMonthlyChargeCents(planType);
-  return monthly * plan.months;
+  return monthly * plan.durationMonths;
 }
 
 // Get accessible units for current user based on subscription
@@ -212,21 +258,20 @@ export const getPlans = query({
     };
 
     return SUBSCRIPTION_PLANS.map((p) => {
-      if (p.id === "beta") return { ...p, paymentOptions: { prepaidTotal: 0 } };
       const planType = p.id as PaidPlanId;
+      const planKeyUpper = planType.toUpperCase().replace(/-/g, "_");
 
-      const envKeyPrepaid = `DODO_PRODUCT_${planType.toUpperCase()}_PREPAID`;
-      const envKeyInstallments = `DODO_PRODUCT_${planType.toUpperCase()}_INSTALLMENTS`;
+      const envKeyPrepaid = `DODO_PRODUCT_${planKeyUpper}_PREPAID`;
+      const envKeyInstallments = `DODO_PRODUCT_${planKeyUpper}_INSTALLMENTS`;
 
       const prepaidTotal = getDynamicPrice(envKeyPrepaid, p.price);
       const installmentsMonthly = getDynamicPrice(envKeyInstallments, getInstallmentMonthlyChargeCents(planType));
-      
-      // For installmentsTotal, we use the dynamic monthly price * months
-      const installmentsTotal = installmentsMonthly * (p.months || 0);
+
+      const installmentsTotal = installmentsMonthly * (p.durationMonths || 0);
 
       return {
         ...p,
-        price: prepaidTotal, // Update main price field for consistency
+        price: prepaidTotal,
         paymentOptions: {
           prepaidTotal,
           installmentsMonthly,
@@ -280,14 +325,21 @@ export const getBillingProviderConfig = query({
     ).trim();
 
     const requiredProductEnvKeys = [
-      "DODO_PRODUCT_INTENSIVE_PREPAID",
-      "DODO_PRODUCT_INTENSIVE_INSTALLMENTS",
-      "DODO_PRODUCT_BALANCED_PREPAID",
-      "DODO_PRODUCT_BALANCED_INSTALLMENTS",
-      "DODO_PRODUCT_STANDARD_PREPAID",
-      "DODO_PRODUCT_STANDARD_INSTALLMENTS",
-      "DODO_PRODUCT_RELAXED_PREPAID",
-      "DODO_PRODUCT_RELAXED_INSTALLMENTS",
+      // Subscription products (Phase 4 format: DODO_PRODUCT_<TIER>_<DURATION>_<MODE>)
+      "DODO_PRODUCT_COURSE_3M_PREPAID", "DODO_PRODUCT_COURSE_3M_INSTALLMENTS",
+      "DODO_PRODUCT_COURSE_6M_PREPAID", "DODO_PRODUCT_COURSE_6M_INSTALLMENTS",
+      "DODO_PRODUCT_COURSE_12M_PREPAID", "DODO_PRODUCT_COURSE_12M_INSTALLMENTS",
+      "DODO_PRODUCT_BUDDY_3M_PREPAID", "DODO_PRODUCT_BUDDY_3M_INSTALLMENTS",
+      "DODO_PRODUCT_BUDDY_6M_PREPAID", "DODO_PRODUCT_BUDDY_6M_INSTALLMENTS",
+      "DODO_PRODUCT_BUDDY_12M_PREPAID", "DODO_PRODUCT_BUDDY_12M_INSTALLMENTS",
+      "DODO_PRODUCT_BASIC_3M_PREPAID", "DODO_PRODUCT_BASIC_3M_INSTALLMENTS",
+      "DODO_PRODUCT_BASIC_6M_PREPAID", "DODO_PRODUCT_BASIC_6M_INSTALLMENTS",
+      "DODO_PRODUCT_BASIC_12M_PREPAID", "DODO_PRODUCT_BASIC_12M_INSTALLMENTS",
+      "DODO_PRODUCT_FULL_3M_PREPAID", "DODO_PRODUCT_FULL_3M_INSTALLMENTS",
+      "DODO_PRODUCT_FULL_6M_PREPAID", "DODO_PRODUCT_FULL_6M_INSTALLMENTS",
+      "DODO_PRODUCT_FULL_12M_PREPAID", "DODO_PRODUCT_FULL_12M_INSTALLMENTS",
+      // Top-up products
+      "DODO_TOPUP_STARTER", "DODO_TOPUP_PLUS", "DODO_TOPUP_PRO",
     ] as const;
 
     const missingProductEnvKeys = requiredProductEnvKeys.filter((k) => !(process.env[k] || "").trim());
@@ -306,7 +358,7 @@ export const getBillingProviderConfig = query({
   },
 });
 
-type DodoPlanId = "intensive" | "balanced" | "standard" | "relaxed";
+type DodoPlanId = PaidPlanId;
 type DodoPaymentMode = "prepaid" | "installments";
 
 function addMonthsUtc(timestampMs: number, monthsToAdd: number): number {
@@ -333,7 +385,9 @@ function dodoEnvToBaseUrl(env: "test_mode" | "live_mode" | "dev_mode"): string {
 }
 
 function getDodoProductId(args: { planType: DodoPlanId; paymentMode: DodoPaymentMode }): string {
-  const planKey = args.planType.toUpperCase();
+  // New env-var format: DODO_PRODUCT_<TIER>_<DURATION>_<MODE>
+  // planType compound form "full_12m" → env key segment "FULL_12M"
+  const planKey = args.planType.toUpperCase().replace(/-/g, "_");
   const modeKey = args.paymentMode === "prepaid" ? "PREPAID" : "INSTALLMENTS";
   const envKey = `DODO_PRODUCT_${planKey}_${modeKey}`;
   const value = (process.env[envKey] || "").trim();
@@ -508,8 +562,8 @@ export const internalEnsureDodoUpgradeProducts = internalAction({
     const baseUrl = dodoEnvToBaseUrl(environment);
 
     // Reuse the tax_category + brand_id from an existing prepaid product to keep setup consistent.
-    const referenceProductId = (process.env.DODO_PRODUCT_STANDARD_PREPAID || "").trim();
-    if (!referenceProductId) throw new Error("DODO_PRODUCT_STANDARD_PREPAID not configured");
+    const referenceProductId = (process.env.DODO_PRODUCT_FULL_12M_PREPAID || "").trim();
+    if (!referenceProductId) throw new Error("DODO_PRODUCT_FULL_12M_PREPAID not configured");
 
     const refResp = await fetch(`${baseUrl}/products/${encodeURIComponent(referenceProductId)}`, {
       method: "GET",
@@ -523,30 +577,39 @@ export const internalEnsureDodoUpgradeProducts = internalAction({
     const brandIdRaw: string = String(refJson?.brand_id || "").trim();
     const currency: string = String(refJson?.price?.currency || "EUR");
 
-    const planPrice = (id: "intensive" | "balanced" | "standard" | "relaxed") => {
+    const planPrice = (id: PaidPlanId) => {
       const p = SUBSCRIPTION_PLANS.find((x) => x.id === id);
       return p?.price ?? 0;
     };
-    const planName = (id: "intensive" | "balanced" | "standard" | "relaxed") => {
+    const planName = (id: PaidPlanId) => {
       const p = SUBSCRIPTION_PLANS.find((x) => x.id === id);
       return p?.name ?? id;
     };
 
-    const paths = [
-      { from: "intensive", to: "balanced" },
-      { from: "intensive", to: "standard" },
-      { from: "intensive", to: "relaxed" },
-      { from: "balanced", to: "standard" },
-      { from: "balanced", to: "relaxed" },
-      { from: "standard", to: "relaxed" },
-    ] as const;
+    // Duration upgrade paths within the same tier (most common upgrade scenario).
+    const paths: Array<{ from: PaidPlanId; to: PaidPlanId }> = [
+      { from: "course_3m",  to: "course_6m" },
+      { from: "course_3m",  to: "course_12m" },
+      { from: "course_6m",  to: "course_12m" },
+      { from: "buddy_3m",   to: "buddy_6m" },
+      { from: "buddy_3m",   to: "buddy_12m" },
+      { from: "buddy_6m",   to: "buddy_12m" },
+      { from: "basic_3m",   to: "basic_6m" },
+      { from: "basic_3m",   to: "basic_12m" },
+      { from: "basic_6m",   to: "basic_12m" },
+      { from: "full_3m",    to: "full_6m" },
+      { from: "full_3m",    to: "full_12m" },
+      { from: "full_6m",    to: "full_12m" },
+    ];
 
     const created: Record<string, string> = {};
     const alreadySet: string[] = [];
     const planned: Array<{ envKey: string; priceCents: number; name: string }> = [];
 
     for (const p of paths) {
-      const envKey = `DODO_UPG_${p.from.toUpperCase()}_${p.to.toUpperCase()}`;
+      const fromKey = p.from.toUpperCase().replace(/-/g, "_");
+      const toKey = p.to.toUpperCase().replace(/-/g, "_");
+      const envKey = `DODO_UPG_${fromKey}_${toKey}`;
       const existing = (process.env[envKey] || "").trim();
       if (existing) {
         alreadySet.push(envKey);
@@ -604,8 +667,7 @@ export const internalEnsureDodoUpgradeProducts = internalAction({
 });
 
 function getPlanDurationMonths(planType: DodoPlanId): number {
-  const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
-  return plan?.months ?? 0;
+  return durationMonthsForPlanType(planType);
 }
 
 // Creates a Dodo checkout session and returns the hosted checkout URL.
@@ -614,7 +676,12 @@ function getPlanDurationMonths(planType: DodoPlanId): number {
 // @ts-ignore
 export const createDodoCheckoutSession = action({
   args: {
-    planType: v.union(v.literal("intensive"), v.literal("balanced"), v.literal("standard"), v.literal("relaxed")),
+    planType: v.union(
+      v.literal("course_3m"), v.literal("course_6m"), v.literal("course_12m"),
+      v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
+      v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
+      v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
+    ),
     paymentMode: v.union(v.literal("prepaid"), v.literal("installments")),
     flow: v.union(v.literal("purchase"), v.literal("upgrade")),
     returnUrl: v.string(),
@@ -715,15 +782,13 @@ export const createDodoCheckoutSession = action({
       productId = getDodoProductId({ planType, paymentMode });
     }
 
-    const beta50Requested = args.beta50 === true && paymentMode === "prepaid";
-    const discountCode =
-      beta50Requested && (process.env.DODO_BETA50_DISCOUNT_CODE || "").trim()
-        ? (process.env.DODO_BETA50_DISCOUNT_CODE || "").trim()
-        : null;
-
-    // Server-side eligibility: only allow beta50 after beta ends.
+    // Server-side beta-tester discount detection.
+    // The client may pass beta50=true as a hint, but server always validates.
+    // The beta50 flag activates when the user is a beta tester AND has not yet
+    // used their one-time discount. The beta phase must have ended (BETA_END_DATE set).
     const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
     const betaEnded = Number.isFinite(betaEndTs) ? Date.now() > betaEndTs : false;
+    const beta50Requested = (args.beta50 === true || user.isBetaTester === true) && paymentMode === "prepaid";
     const betaEligible =
       beta50Requested && betaEnded && user.isBetaTester === true && (user.betaDiscountUsedAt ?? null) === null;
 
@@ -777,6 +842,119 @@ export const createDodoCheckoutSession = action({
   },
 });
 
+// ===== Phase 4: Energy Top-up Checkout =====
+// Top-up energy packs are one-time payments (no subscription).
+// Packs: starter (500 energy), plus (1500 = 1000+500 bonus), pro (5000 = 3000+2000 bonus).
+
+const TOPUP_PACKS = {
+  starter: { energyAmount: 500,  bonusAmount: 0,    priceCents:  499, name: "Energy Starter" },
+  plus:    { energyAmount: 1000, bonusAmount: 500,   priceCents:  999, name: "Energy Plus" },
+  pro:     { energyAmount: 3000, bonusAmount: 2000,  priceCents: 1999, name: "Energy Pro" },
+} as const;
+
+type TopupPack = keyof typeof TOPUP_PACKS;
+
+function getDodoTopupProductId(pack: TopupPack): string {
+  const envKey = `DODO_TOPUP_${pack.toUpperCase()}`;
+  const value = (process.env[envKey] || "").trim();
+  if (!value) throw new Error(`missing_dodo_topup_product_id:${envKey}`);
+  return value;
+}
+
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const createTopupCheckoutSession = action({
+  args: {
+    pack: v.union(v.literal("starter"), v.literal("plus"), v.literal("pro")),
+    returnUrl: v.string(),
+    language: v.optional(v.string()),
+  },
+  returns: v.object({ checkoutUrl: v.string(), provider: v.literal("dodo") }),
+  handler: async (ctx, args): Promise<{ checkoutUrl: string; provider: "dodo" }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.runQuery(api.users.me);
+    if (!user) throw new Error("User not found");
+    assertLearnerAccountActive(user);
+
+    const pack = TOPUP_PACKS[args.pack];
+    const productId = getDodoTopupProductId(args.pack);
+
+    const environment = getDodoEnvironmentFromEnv();
+    const baseUrl = dodoEnvToBaseUrl(environment);
+    const apiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
+    if (!apiKey) throw new Error("DODO_PAYMENTS_API_KEY not configured");
+
+    const body = {
+      allowed_payment_method_types: ["credit", "debit"],
+      product_cart: [{ product_id: productId, quantity: 1 }],
+      return_url: args.returnUrl,
+      customer: user.email ? { email: user.email, name: user.name ?? undefined } : undefined,
+      customization: args.language ? { force_language: args.language } : undefined,
+      metadata: {
+        clerkId: String(user.clerkId),
+        kind: "topup",
+        pack: String(args.pack),
+        energyAmount: String(pack.energyAmount),
+        bonusAmount: String(pack.bonusAmount),
+        priceCents: String(pack.priceCents),
+        paymentMode: "prepaid",
+      },
+    };
+
+    const resp = await fetch(`${baseUrl}/checkouts`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => "<failed_to_read_body>");
+      console.warn("[Dodo] Failed to create topup checkout session", {
+        status: resp.status,
+        errorText,
+        environment,
+        pack: args.pack,
+      });
+      throw new Error("dodo_topup_checkout_session_failed");
+    }
+
+    const json: any = await resp.json();
+    const checkoutUrl: string = String(json?.checkout_url || "");
+    if (!checkoutUrl) throw new Error("dodo_missing_checkout_url");
+
+    return { checkoutUrl, provider: "dodo" };
+  },
+});
+
+// ===== Energy Top-up Pack info (public read for UI pricing) =====
+export const getTopupPacks = query({
+  args: {},
+  returns: v.array(v.object({
+    id: v.union(v.literal("starter"), v.literal("plus"), v.literal("pro")),
+    energyAmount: v.number(),
+    bonusAmount: v.number(),
+    totalEnergy: v.number(),
+    priceCents: v.number(),
+    name: v.string(),
+  })),
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    return (Object.entries(TOPUP_PACKS) as [TopupPack, typeof TOPUP_PACKS[TopupPack]][]).map(([id, pack]) => ({
+      id,
+      energyAmount: pack.energyAmount,
+      bonusAmount: pack.bonusAmount,
+      totalEnergy: pack.energyAmount + pack.bonusAmount,
+      priceCents: pack.priceCents,
+      name: pack.name,
+    }));
+  },
+});
+
 // Calculate upgrade cost
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const calculateUpgradeCost = mutation({
@@ -796,7 +974,7 @@ export const calculateUpgradeCost = mutation({
     }
 
     // No downgrades: only allow upgrades to longer plans.
-    if (newPlanInfo.months <= currentPlanInfo.months) {
+    if (newPlanInfo.durationMonths <= currentPlanInfo.durationMonths) {
       throw new Error("downgrade_not_supported");
     }
 
@@ -1107,7 +1285,13 @@ function extractDodoMetadata(evt: any): Record<string, any> {
 
 function parseDodoPlanType(meta: Record<string, any>): DodoPlanId | null {
   const raw = String(meta?.planType || meta?.plan || "").trim().toLowerCase();
-  if (raw === "intensive" || raw === "balanced" || raw === "standard" || raw === "relaxed") return raw;
+  const validIds: DodoPlanId[] = [
+    "course_3m", "course_6m", "course_12m",
+    "buddy_3m", "buddy_6m", "buddy_12m",
+    "basic_3m", "basic_6m", "basic_12m",
+    "full_3m", "full_6m", "full_12m",
+  ];
+  if ((validIds as string[]).includes(raw)) return raw as DodoPlanId;
   return null;
 }
 
@@ -1291,10 +1475,15 @@ export const internalProcessDodoWebhook = internalMutation({
       // Upgrades are paid via dedicated top-up products and must only extend by the missing months.
       if (flow === "upgrade") {
         const fromRaw = String((meta as any)?.upgradeFromPlanType ?? "").trim().toLowerCase();
-        const fromPlanType =
-          fromRaw === "intensive" || fromRaw === "balanced" || fromRaw === "standard" || fromRaw === "relaxed"
-            ? (fromRaw as DodoPlanId)
-            : null;
+        const validPlanIds: DodoPlanId[] = [
+          "course_3m", "course_6m", "course_12m",
+          "buddy_3m", "buddy_6m", "buddy_12m",
+          "basic_3m", "basic_6m", "basic_12m",
+          "full_3m", "full_6m", "full_12m",
+        ];
+        const fromPlanType = validPlanIds.includes(fromRaw as DodoPlanId)
+          ? (fromRaw as DodoPlanId)
+          : null;
 
         if (!fromPlanType) {
           await ctx.db.patch(eventDocId, { processedAt: Date.now() });
@@ -1308,10 +1497,36 @@ export const internalProcessDodoWebhook = internalMutation({
           toPlanType: planType,
         });
       } else {
+        // Check if this is a top-up payment (kind="topup" in metadata).
+        const kind = String((meta as any)?.kind ?? "").trim().toLowerCase();
+        if (kind === "topup") {
+          const pack = String((meta as any)?.pack ?? "").trim().toLowerCase();
+          const energyAmount = parseInt(String((meta as any)?.energyAmount ?? "0"), 10);
+          const bonusAmount = parseInt(String((meta as any)?.bonusAmount ?? "0"), 10);
+          const totalEnergy = energyAmount + bonusAmount;
+
+          if (!clerkId || totalEnergy <= 0) {
+            await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+            return { status: "ignored" as const };
+          }
+
+          await ctx.runMutation(internal.subscriptions.internalApplyDodoTopup, {
+            dodoWebhookId: args.webhookId,
+            clerkId,
+            energyAmount,
+            bonusAmount,
+            pack: (pack === "starter" || pack === "plus" || pack === "pro") ? pack : undefined,
+            providerPaymentId: paymentId,
+          });
+
+          await ctx.db.patch(eventDocId, { processedAt: Date.now() });
+          return { status: "applied" as const };
+        }
+
         const months = getPlanDurationMonths(planType);
         const planPriceCents = getPlanPriceCentsFromConfig({ planType, isBeta50: beta50 });
 
-        await ctx.runMutation(internal.subscriptions.internalApplyDodoPurchase, {
+        const purchaseResult = await ctx.runMutation(internal.subscriptions.internalApplyDodoPurchase, {
           dodoWebhookId: args.webhookId,
           clerkId,
           planType,
@@ -1321,6 +1536,14 @@ export const internalProcessDodoWebhook = internalMutation({
           dodoSubscriptionId: undefined,
           isBeta50: beta50,
         });
+
+        // Welcome-Energy for first-time Full-tier purchase.
+        if (tierForPlanType(planType) === "full") {
+          await ctx.runMutation(internal.subscriptions.internalMaybeGrantWelcomeEnergy, {
+            userId: purchaseResult.userId,
+            dodoWebhookId: args.webhookId,
+          });
+        }
       }
 
       await ctx.db.patch(eventDocId, { processedAt: Date.now() });
@@ -1416,7 +1639,12 @@ export const internalApplyDodoPurchase = internalMutation({
   args: {
     dodoWebhookId: v.string(),
     clerkId: v.string(),
-    planType: v.union(v.literal("intensive"), v.literal("balanced"), v.literal("standard"), v.literal("relaxed")),
+    planType: v.union(
+      v.literal("course_3m"), v.literal("course_6m"), v.literal("course_12m"),
+      v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
+      v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
+      v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
+    ),
     planDurationMonths: v.number(),
     planPriceCents: v.number(),
     paymentMode: v.union(v.literal("prepaid"), v.literal("installments")),
@@ -1478,6 +1706,8 @@ export const internalApplyDodoPurchase = internalMutation({
       installmentsPaidMonths: args.paymentMode === "installments" ? 1 : undefined,
       installmentMonthlyPrice,
       pausedAt: undefined as number | undefined,
+      // Derive feature tier from compound plan ID.
+      featureTier: tierForPlanType(args.planType) as "course" | "buddy" | "basic" | "full",
     };
 
     if (existing) {
@@ -1518,8 +1748,18 @@ export const internalApplyDodoUpgrade = internalMutation({
   args: {
     dodoWebhookId: v.string(),
     clerkId: v.string(),
-    fromPlanType: v.union(v.literal("intensive"), v.literal("balanced"), v.literal("standard"), v.literal("relaxed")),
-    toPlanType: v.union(v.literal("intensive"), v.literal("balanced"), v.literal("standard"), v.literal("relaxed")),
+    fromPlanType: v.union(
+      v.literal("course_3m"), v.literal("course_6m"), v.literal("course_12m"),
+      v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
+      v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
+      v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
+    ),
+    toPlanType: v.union(
+      v.literal("course_3m"), v.literal("course_6m"), v.literal("course_12m"),
+      v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
+      v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
+      v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
+    ),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -1577,6 +1817,7 @@ export const internalApplyDodoUpgrade = internalMutation({
       paymentMode: "prepaid",
       billingProvider: "dodo",
       pausedAt: undefined,
+      featureTier: tierForPlanType(args.toPlanType) as "course" | "buddy" | "basic" | "full",
     });
 
     await ctx.db.insert("subscriptionHistory", {
@@ -1636,14 +1877,19 @@ export const syncDodoProducts = action({
     const baseUrl = dodoEnvToBaseUrl(env);
 
     const productEnvKeys = [
-      "DODO_PRODUCT_INTENSIVE_PREPAID",
-      "DODO_PRODUCT_INTENSIVE_INSTALLMENTS",
-      "DODO_PRODUCT_BALANCED_PREPAID",
-      "DODO_PRODUCT_BALANCED_INSTALLMENTS",
-      "DODO_PRODUCT_STANDARD_PREPAID",
-      "DODO_PRODUCT_STANDARD_INSTALLMENTS",
-      "DODO_PRODUCT_RELAXED_PREPAID",
-      "DODO_PRODUCT_RELAXED_INSTALLMENTS",
+      "DODO_PRODUCT_COURSE_3M_PREPAID", "DODO_PRODUCT_COURSE_3M_INSTALLMENTS",
+      "DODO_PRODUCT_COURSE_6M_PREPAID", "DODO_PRODUCT_COURSE_6M_INSTALLMENTS",
+      "DODO_PRODUCT_COURSE_12M_PREPAID", "DODO_PRODUCT_COURSE_12M_INSTALLMENTS",
+      "DODO_PRODUCT_BUDDY_3M_PREPAID", "DODO_PRODUCT_BUDDY_3M_INSTALLMENTS",
+      "DODO_PRODUCT_BUDDY_6M_PREPAID", "DODO_PRODUCT_BUDDY_6M_INSTALLMENTS",
+      "DODO_PRODUCT_BUDDY_12M_PREPAID", "DODO_PRODUCT_BUDDY_12M_INSTALLMENTS",
+      "DODO_PRODUCT_BASIC_3M_PREPAID", "DODO_PRODUCT_BASIC_3M_INSTALLMENTS",
+      "DODO_PRODUCT_BASIC_6M_PREPAID", "DODO_PRODUCT_BASIC_6M_INSTALLMENTS",
+      "DODO_PRODUCT_BASIC_12M_PREPAID", "DODO_PRODUCT_BASIC_12M_INSTALLMENTS",
+      "DODO_PRODUCT_FULL_3M_PREPAID", "DODO_PRODUCT_FULL_3M_INSTALLMENTS",
+      "DODO_PRODUCT_FULL_6M_PREPAID", "DODO_PRODUCT_FULL_6M_INSTALLMENTS",
+      "DODO_PRODUCT_FULL_12M_PREPAID", "DODO_PRODUCT_FULL_12M_INSTALLMENTS",
+      "DODO_TOPUP_STARTER", "DODO_TOPUP_PLUS", "DODO_TOPUP_PRO",
     ] as const;
 
     const results = [];
@@ -1796,6 +2042,126 @@ export const internalAddSubscriptionHistoryForServer = internalMutation({
       cost: args.cost ?? undefined,
       notes: args.notes ?? args.migrationId ?? undefined,
     });
+  },
+});
+
+// ===== Phase 4: Energy Top-up + Welcome-Energy =====
+
+/**
+ * Apply a one-time energy top-up purchase (Dodo payment.succeeded, kind="topup").
+ * Atomically increments energyTopUpBalance on the user's active subscription
+ * and records an energyPurchase + energyLedger entry.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const internalApplyDodoTopup = internalMutation({
+  args: {
+    dodoWebhookId: v.string(),
+    clerkId: v.string(),
+    energyAmount: v.number(),
+    bonusAmount: v.number(),
+    pack: v.optional(v.union(v.literal("starter"), v.literal("plus"), v.literal("pro"))),
+    providerPaymentId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const user = await ctx.db
+      .query("users")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+    if (!user) throw new Error(`User not found for clerkId=${args.clerkId}`);
+
+    const totalEnergy = args.energyAmount + args.bonusAmount;
+
+    // Find active subscription to update energyTopUpBalance.
+    const sub = await ctx.db
+      .query("userSubscriptions")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .first();
+
+    if (sub) {
+      const current = sub.energyTopUpBalance ?? 0;
+      await ctx.db.patch(sub._id, { energyTopUpBalance: current + totalEnergy });
+    }
+
+    // Record purchase history.
+    await ctx.db.insert("energyPurchases", {
+      userId: user._id,
+      energyAdded: totalEnergy,
+      priceCents: 0, // priceCents unknown at mutation level; webhook metadata could carry it
+      purchasedAt: now,
+      billingProvider: "dodo",
+      providerPaymentId: args.providerPaymentId,
+      pack: args.pack,
+    });
+
+    // Audit ledger entry.
+    await ctx.db.insert("energyLedger", {
+      userId: user._id,
+      delta: totalEnergy,
+      reason: "topup",
+      note: args.pack
+        ? `Top-up pack: ${args.pack} (${args.energyAmount}+${args.bonusAmount} bonus) | webhook:${args.dodoWebhookId}`
+        : `Top-up: ${totalEnergy} energy | webhook:${args.dodoWebhookId}`,
+      createdAt: now,
+    });
+
+    return { userId: user._id, energyAdded: totalEnergy };
+  },
+});
+
+/**
+ * Grant the Welcome-Energy bonus to a user who just made their first Full-tier purchase.
+ * Idempotency: checks whether any previous welcome_bonus ledger entry exists for this user.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const internalMaybeGrantWelcomeEnergy = internalMutation({
+  args: {
+    userId: v.id("users"),
+    dodoWebhookId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Idempotency check: if user already has a welcome_bonus ledger entry, skip.
+    const existing = await ctx.db
+      .query("energyLedger")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .filter((q) => q.eq(q.field("reason"), "welcome_bonus"))
+      .first();
+    if (existing) return { granted: false, reason: "already_granted" };
+
+    // Load welcome energy amount from platformConfig (default 500, 0 = disabled).
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    const config = await ctx.db.query("platformConfig").first();
+    const welcomeAmount = config?.welcomeEnergyAmount ?? 500;
+    if (welcomeAmount <= 0) return { granted: false, reason: "disabled" };
+
+    // Apply to active subscription's top-up balance.
+    const sub = await ctx.db
+      .query("userSubscriptions")
+      // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .first();
+
+    if (sub) {
+      const current = sub.energyTopUpBalance ?? 0;
+      await ctx.db.patch(sub._id, { energyTopUpBalance: current + welcomeAmount });
+    }
+
+    await ctx.db.insert("energyLedger", {
+      userId: args.userId,
+      delta: welcomeAmount,
+      reason: "welcome_bonus",
+      note: `Welcome-Energy for first Full-tier purchase | webhook:${args.dodoWebhookId}`,
+      createdAt: now,
+    });
+
+    return { granted: true, amount: welcomeAmount };
   },
 });
 

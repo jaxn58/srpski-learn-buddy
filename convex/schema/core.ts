@@ -75,10 +75,24 @@ export const coreTables = {
     userId: v.id("users"),
     planType: v.union(
       v.literal("beta"),
+      // Legacy plan IDs (kept for zero-migration – no production data, safe to keep in union)
       v.literal("intensive"),
       v.literal("balanced"),
       v.literal("standard"),
-      v.literal("relaxed")
+      v.literal("relaxed"),
+      // New compound IDs: <tier>_<duration> (Phase 4)
+      v.literal("course_3m"),
+      v.literal("course_6m"),
+      v.literal("course_12m"),
+      v.literal("buddy_3m"),
+      v.literal("buddy_6m"),
+      v.literal("buddy_12m"),
+      v.literal("basic_3m"),
+      v.literal("basic_6m"),
+      v.literal("basic_12m"),
+      v.literal("full_3m"),
+      v.literal("full_6m"),
+      v.literal("full_12m")
     ),
     planDurationMonths: v.number(), // 3, 6, 9, or 12
     planPrice: v.number(), // in cents (e.g., 6900 = €69.00)

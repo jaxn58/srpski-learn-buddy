@@ -205,6 +205,41 @@ pnpm sync:email-templates
 - `VITE_CONVEX_URL=https://fleet-labrador-324.convex.cloud`
 - Clerk Production Keys (`pk_live_...`, `sk_live_...`)
 
+**Dodo Payments (Convex Dashboard Env Vars - Phase 4):**
+
+Subscription-Produkte (je 2 Modi = 24 Env-Vars):
+- `DODO_PRODUCT_COURSE_3M_PREPAID`, `DODO_PRODUCT_COURSE_3M_INSTALLMENTS`
+- `DODO_PRODUCT_COURSE_6M_PREPAID`, `DODO_PRODUCT_COURSE_6M_INSTALLMENTS`
+- `DODO_PRODUCT_COURSE_12M_PREPAID`, `DODO_PRODUCT_COURSE_12M_INSTALLMENTS`
+- `DODO_PRODUCT_BUDDY_3M_PREPAID`, `DODO_PRODUCT_BUDDY_3M_INSTALLMENTS`
+- `DODO_PRODUCT_BUDDY_6M_PREPAID`, `DODO_PRODUCT_BUDDY_6M_INSTALLMENTS`
+- `DODO_PRODUCT_BUDDY_12M_PREPAID`, `DODO_PRODUCT_BUDDY_12M_INSTALLMENTS`
+- `DODO_PRODUCT_BASIC_3M_PREPAID`, `DODO_PRODUCT_BASIC_3M_INSTALLMENTS`
+- `DODO_PRODUCT_BASIC_6M_PREPAID`, `DODO_PRODUCT_BASIC_6M_INSTALLMENTS`
+- `DODO_PRODUCT_BASIC_12M_PREPAID`, `DODO_PRODUCT_BASIC_12M_INSTALLMENTS`
+- `DODO_PRODUCT_FULL_3M_PREPAID`, `DODO_PRODUCT_FULL_3M_INSTALLMENTS`
+- `DODO_PRODUCT_FULL_6M_PREPAID`, `DODO_PRODUCT_FULL_6M_INSTALLMENTS`
+- `DODO_PRODUCT_FULL_12M_PREPAID`, `DODO_PRODUCT_FULL_12M_INSTALLMENTS`
+
+Energy Top-up-Produkte (3 Env-Vars):
+- `DODO_TOPUP_STARTER` (500 Energy, 4.99 EUR)
+- `DODO_TOPUP_PLUS` (1500 Energy = 1000+500 Bonus, 9.99 EUR)
+- `DODO_TOPUP_PRO` (5000 Energy = 3000+2000 Bonus, 19.99 EUR)
+
+Weitere Dodo-Vars:
+- `DODO_PAYMENTS_API_KEY` - API Key (Dev: test-key, Prod: live-key)
+- `DODO_PAYMENTS_WEBHOOK_SECRET` - Webhook-Signatur-Secret
+- `DODO_PAYMENTS_ENVIRONMENT` - `test_mode` | `live_mode` | `dev_mode`
+- `DODO_BETA50_DISCOUNT_CODE` - Discount-Code-ID in Dodo fuer Beta-Tester-50%-Rabatt
+- `BETA_END_DATE` - ISO-Datum wann die Beta endet (z.B. `2026-09-01`)
+
+Upgrade Top-up-Produkte (auto-created via `internalEnsureDodoUpgradeProducts`):
+- `DODO_UPG_FULL_3M_FULL_6M`, `DODO_UPG_FULL_3M_FULL_12M`, `DODO_UPG_FULL_6M_FULL_12M` (und analog fuer andere Tiers)
+
+Platfrom-Config Defaults (konfigurierbar im Admin-Bereich):
+- Welcome-Energy fuer ersten Full-Kauf: **500** (0 = deaktiviert)
+- Beta-Tester-Discount: **50%** (einmalig nach Beta-Ende)
+
 ### Secrets & API Keys - KRITISCH!
 
 **🚨 ABSOLUTE REGEL: NIEMALS echte Secrets in Dateien schreiben, die ins Git-Repository kommen!**

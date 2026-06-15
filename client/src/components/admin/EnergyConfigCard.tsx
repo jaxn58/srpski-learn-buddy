@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Zap } from "lucide-react";
+import { Zap, CreditCard } from "lucide-react";
 
 type EnergyFields = {
   energyCostCompact: number;
@@ -43,17 +43,24 @@ const QUOTA_FIELDS: FieldDef[] = [
   { key: "energyQuotaBasic", label: "Basic quota", hint: "Inclusive monthly Energy for the Basic plan", step: 10 },
 ];
 
+type BillingFields = {
+  welcomeEnergyAmount: number;
+  betaTesterDiscountPercent: number;
+};
+
 /**
  * Superadmin control for the AI-Energy configuration: per-action cost table,
- * monthly tier quotas, and the technical upload cap. Reads/writes the
- * platform-config singleton. Defaults from the concept apply when no value is
- * set yet.
+ * monthly tier quotas, and the technical upload cap. Also handles billing
+ * config (Welcome-Energy and Beta-Tester discount). Reads/writes the
+ * platform-config singleton.
  */
 export function EnergyConfigCard() {
   const config = useQuery(api.platform.getPlatformConfig);
   const setEnergyConfig = useMutation(api.platform.setEnergyConfig);
+  const setBillingConfig = useMutation(api.platform.setBillingConfig);
 
   const [draft, setDraft] = useState<EnergyFields | null>(null);
+  const [billingDraft, setBillingDraft] = useState<BillingFields | null>(null);
 
   useEffect(() => {
     if (config) {
@@ -68,6 +75,10 @@ export function EnergyConfigCard() {
         energyQuotaBuddy: config.energyQuotaBuddy,
         energyQuotaBasic: config.energyQuotaBasic,
         uploadMaxFileBytes: config.uploadMaxFileBytes,
+      });
+      setBillingDraft({
+        welcomeEnergyAmount: config.welcomeEnergyAmount,
+        betaTesterDiscountPercent: config.betaTesterDiscountPercent,
       });
     }
   }, [config]);
@@ -85,11 +96,23 @@ export function EnergyConfigCard() {
     draft.uploadMaxFileBytes !== config.uploadMaxFileBytes
   );
 
+  const billingDirty = billingDraft !== null && config !== undefined && (
+    billingDraft.welcomeEnergyAmount !== config.welcomeEnergyAmount ||
+    billingDraft.betaTesterDiscountPercent !== config.betaTesterDiscountPercent
+  );
+
   const handleField = (key: keyof EnergyFields, raw: string) => {
     if (!draft) return;
     const n = Number(raw);
     if (!Number.isFinite(n) || n < 0) return;
     setDraft({ ...draft, [key]: n });
+  };
+
+  const handleBillingField = (key: keyof BillingFields, raw: string) => {
+    if (!billingDraft) return;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return;
+    setBillingDraft({ ...billingDraft, [key]: n });
   };
 
   const handleSave = async () => {
@@ -99,6 +122,16 @@ export function EnergyConfigCard() {
       toast.success("Energy configuration saved");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save energy configuration");
+    }
+  };
+
+  const handleBillingSave = async () => {
+    if (!billingDraft) return;
+    try {
+      await setBillingConfig(billingDraft);
+      toast.success("Billing configuration saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save billing configuration");
     }
   };
 
@@ -192,6 +225,58 @@ export function EnergyConfigCard() {
           <Button onClick={handleSave} disabled={!dirty || draft === null}>
             Save energy configuration
           </Button>
+        </div>
+
+        {/* Billing config (Phase 4) */}
+        <div className="mt-8 border-t pt-6">
+          <div className="flex items-center gap-2 mb-1">
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <h4 className="text-sm font-medium">Billing configuration</h4>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Welcome-Energy granted on first Full-tier purchase. Beta-Tester discount applied at checkout after beta ends.
+            Set to 0 to disable.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="bc-welcome" className="text-sm">Welcome Energy (Full tier)</Label>
+              <Input
+                id="bc-welcome"
+                type="number"
+                min={0}
+                step={100}
+                value={billingDraft ? String(billingDraft.welcomeEnergyAmount) : ""}
+                onChange={(e) => handleBillingField("welcomeEnergyAmount", e.target.value)}
+                disabled={billingDraft === null}
+                className="mt-1 w-full"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Energy added once to the top-up balance on first Full purchase. 0 = disabled.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="bc-discount" className="text-sm">Beta-Tester discount (%)</Label>
+              <Input
+                id="bc-discount"
+                type="number"
+                min={0}
+                max={100}
+                step={5}
+                value={billingDraft ? String(billingDraft.betaTesterDiscountPercent) : ""}
+                onChange={(e) => handleBillingField("betaTesterDiscountPercent", e.target.value)}
+                disabled={billingDraft === null}
+                className="mt-1 w-full"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Discount percent for beta testers at checkout (0–100). Applied once per user after beta ends.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Button onClick={handleBillingSave} disabled={!billingDirty || billingDraft === null}>
+              Save billing configuration
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

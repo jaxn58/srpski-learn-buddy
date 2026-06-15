@@ -185,6 +185,8 @@ export const chatTables = {
     purchasedAt: v.number(),
     billingProvider: v.optional(v.string()),
     providerPaymentId: v.optional(v.string()),
+    // Top-up pack identifier (starter / plus / pro). Optional for backward compat.
+    pack: v.optional(v.union(v.literal("starter"), v.literal("plus"), v.literal("pro"))),
   }).index("by_user", ["userId"]),
 
   // ============= ENERGY LEDGER (Audit / Analytics) =============
@@ -198,7 +200,8 @@ export const chatTables = {
       v.literal("usage"),
       v.literal("monthly_reset"),
       v.literal("topup"),
-      v.literal("admin_adjust")
+      v.literal("admin_adjust"),
+      v.literal("welcome_bonus")
     ),
     // For reason="usage": which action type consumed energy (for tuning).
     actionType: v.optional(v.union(
