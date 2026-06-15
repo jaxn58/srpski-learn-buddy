@@ -132,7 +132,7 @@ Example for a user in **Unit 1** with learning language **English**:
 
 ```
 [SYSTEM PROMPT]
-You are Brate — the personal Serbian language & Balkan life companion...
+You are the AI Buddy — the personal Serbian language & Balkan life companion...
 (~400-600 tokens)
 
 [UNIT CONTEXT: Greetings & Introductions (Unit 1)]
@@ -177,7 +177,7 @@ User: How do I say "nice to meet you"?
 | 4 | **No personalization** | AI doesn't know which words the user struggles with | High |
 | 5 | **No phrases/dialogues** | AI misses conversational examples from the unit | Medium |
 | 6 | **No relevance filtering** | Full block always attached, even for off-topic questions | Low |
-| 7 | **No external knowledge** | Brate can't reference uploaded PDFs, guides, or external docs | High (for Brate concept) |
+| 7 | **No external knowledge** | AI Buddy can't reference uploaded PDFs, guides, or external docs | High (for AI Buddy concept) |
 | 8 | **No pronunciation data** | Can't help with "How do I pronounce...?" questions effectively | Medium |
 | 9 | **Max 30 vocabulary entries** | Large units lose vocabulary | Low |
 | 10 | **No isActive/published filter** | Could theoretically include draft/archived content | Low |
@@ -360,13 +360,13 @@ Structured RAG (v2):        Semantic RAG (v3):
 
 ## 9. RAG v4 — User Knowledge Uploads (PDF, Documents)
 
-**Effort: High (~2-3 weeks) | Impact: Very High for Brate concept**
+**Effort: High (~2-3 weeks) | Impact: Very High for AI Buddy concept**
 
-This enables users (or the "Brate" experience) to work with **uploaded documents** — immigration forms, rental contracts, medical documents, travel guides, etc.
+This enables users (or the "AI Buddy" experience) to work with **uploaded documents** — immigration forms, rental contracts, medical documents, travel guides, etc.
 
 ### Use Cases
 
-| Scenario | Document Type | What Brate Does |
+| Scenario | Document Type | What AI Buddy Does |
 |----------|-------------|----------------|
 | **Immigration** | PDF visa application form | "This field asks for 'Ime i prezime' — that's your first and last name" |
 | **Rental** | Lease contract (Serbian) | "This clause says 'zakupnina' (rent) is 500€ per month, due on the 1st" |
@@ -451,7 +451,7 @@ userDocumentChunks: defineTable({
 
 ## 10. RAG v5 — Admin Knowledge Base
 
-**Effort: Medium (~1-2 weeks) | Impact: High for Brate's cultural knowledge**
+**Effort: Medium (~1-2 weeks) | Impact: High for AI Buddy's cultural knowledge**
 
 This is where **we** (admins) upload curated knowledge that **all users** benefit from — cultural guides, holiday explanations, common phrases, city guides, etc.
 
@@ -635,7 +635,7 @@ const tools = {
 | **🔴 P0** | **v2 — Enhanced Structured** | 2-3 days | High | **Now** — Quick wins, no new infra |
 | **🟡 P1** | **v3 — Semantic Search** | 1-2 weeks | Very High | Next sprint — enables intelligent retrieval |
 | **🟡 P1** | **v5 — Admin Knowledge Base** | 1-2 weeks | High | Same sprint as v3 — shares embedding infra |
-| **🟢 P2** | **v4 — User Document Uploads** | 2-3 weeks | Very High (Brate) | After v3 infra is in place |
+| **🟢 P2** | **v4 — User Document Uploads** | 2-3 weeks | Very High (AI Buddy) | After v3 infra is in place |
 | **🔵 P3** | **v6 — Agentic RAG** | 3-4 weeks | Transformative | When KB is large enough to warrant it |
 
 ### Recommended Implementation Order
@@ -651,7 +651,7 @@ Week 3-4:   v3 + v5 — Semantic Search + Admin KB
 
 Week 5-7:   v4 — User Document Uploads
             └─ PDF upload UI, processing pipeline
-            └─ Brate can reference user's documents
+            └─ AI Buddy can reference user's documents
             └─ "Upload your rental contract — I'll help you understand it"
 
 Week 8+:    v6 — Agentic RAG (if needed)
@@ -693,7 +693,7 @@ Week 8+:    v6 — Agentic RAG (if needed)
 | File | Content |
 |------|---------|
 | `docs/RAG-CHAT-INTEGRATION.md` | Original RAG documentation (v1 focused) |
-| `docs/BUDDY_SYSTEM_PROMPT_V2.md` | Brate persona & system prompt spec |
+| `docs/BUDDY_SYSTEM_PROMPT_V2.md` | AI Buddy persona & system prompt spec |
 | `docs/FEATURE_PACKAGES_MARKETING.md` | Package tiers (Learning, Buddy, Complete) |
 | `docs/FEATURE_PACKAGES_IMPLEMENTATION_PLAN.md` | Feature gating implementation plan |
 

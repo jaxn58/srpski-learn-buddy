@@ -13,6 +13,7 @@ import type * as ai_chatConfig from "../ai/chatConfig.js";
 import type * as ai_chatTools from "../ai/chatTools.js";
 import type * as ai_embeddings from "../ai/embeddings.js";
 import type * as ai_ingestKnowledge from "../ai/ingestKnowledge.js";
+import type * as ai_modelPricing from "../ai/modelPricing.js";
 import type * as audioAdmin from "../audioAdmin.js";
 import type * as authz from "../authz.js";
 import type * as backup from "../backup.js";
@@ -89,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   "ai/chatTools": typeof ai_chatTools;
   "ai/embeddings": typeof ai_embeddings;
   "ai/ingestKnowledge": typeof ai_ingestKnowledge;
+  "ai/modelPricing": typeof ai_modelPricing;
   audioAdmin: typeof audioAdmin;
   authz: typeof authz;
   backup: typeof backup;

@@ -37,7 +37,7 @@ const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string;
 
 export default function Chat() {
   const { user, loading: authLoading } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [message, setMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -63,7 +63,7 @@ export default function Chat() {
   const formatMessageTime = (timestamp: number) => {
     const date = new Date(timestamp);
     const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
-    return date.toLocaleTimeString('de-DE', options);
+    return date.toLocaleTimeString(i18n.language || 'en', options);
   };
   const progress = useQuery(api.progress.getUserProgress);
 
@@ -520,7 +520,7 @@ export default function Chat() {
       {isMobile && (
         <div className="flex items-center gap-2 px-3 py-2 bg-background border-b shrink-0 pt-[env(safe-area-inset-top)]">
           <Link href="/dashboard">
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={t("chat.backAria")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
@@ -632,7 +632,7 @@ export default function Chat() {
               <button
                 type="button"
                 onClick={dismissBetaBanner}
-                className="shrink-0 text-[10px] font-semibold underline underline-offset-2 hover:no-underline ml-1"
+                className="shrink-0 p-1.5 font-semibold underline underline-offset-2 hover:no-underline ml-1 text-xs min-h-[44px] min-w-[44px] flex items-center"
               >
                 {t('chat.beta.bannerDismiss')}
               </button>
@@ -767,14 +767,14 @@ export default function Chat() {
                               rating: "up",
                             })}
                             className={cn(
-                              "p-1 rounded-md transition-colors",
+                              "p-2.5 rounded-md transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center",
                               feedbackByMessage.get(msg._id as Id<"chatMessages">) === "up"
                                 ? "text-green-600 bg-green-100"
                                 : "text-muted-foreground/40 hover:text-green-600 hover:bg-green-50"
                             )}
-                            title="Helpful"
+                            aria-label={t("chat.feedback.helpful")}
                           >
-                            <ThumbsUp className="h-3 w-3" />
+                            <ThumbsUp className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => submitFeedback({
@@ -783,14 +783,14 @@ export default function Chat() {
                               rating: "down",
                             })}
                             className={cn(
-                              "p-1 rounded-md transition-colors",
+                              "p-2.5 rounded-md transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center",
                               feedbackByMessage.get(msg._id as Id<"chatMessages">) === "down"
                                 ? "text-red-500 bg-red-100"
                                 : "text-muted-foreground/40 hover:text-red-500 hover:bg-red-50"
                             )}
-                            title="Not helpful"
+                            aria-label={t("chat.feedback.notHelpful")}
                           >
-                            <ThumbsDown className="h-3 w-3" />
+                            <ThumbsDown className="h-4 w-4" />
                           </button>
                         </div>
                       )}

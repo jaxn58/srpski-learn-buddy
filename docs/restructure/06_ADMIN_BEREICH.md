@@ -8,7 +8,7 @@
 
 ## 1. Ziel & Scope
 
-Der Admin-Bereich ist heute auf das laufzeitbasierte Modell (`planType`, `isBetaTester`) ausgelegt. Mit der Einführung von **`featureTier`** (Sprachkurs/Buddy/Basic/Full) und dem **AI-Energy-System** braucht er neue Sichten und Steuerungsmöglichkeiten. Ziel: Support, Monitoring und Konfiguration des neuen Modells vollständig im Admin abbilden – ohne Eingriff in die DB oder ins Dodo-Dashboard.
+Der Admin-Bereich ist heute auf das laufzeitbasierte Modell (`planType`, `isBetaTester`) ausgelegt. Mit der Einführung von **`featureTier`** (Sprachkurs / AI Chat Standalone / Sprachkurs + AI / Sprachkurs + AI Pro – Tier-IDs `course` / `standalone` / `course_ai` / `course_ai_pro`) und dem **AI-Energy-System** braucht er neue Sichten und Steuerungsmöglichkeiten. Ziel: Support, Monitoring und Konfiguration des neuen Modells vollständig im Admin abbilden – ohne Eingriff in die DB oder ins Dodo-Dashboard.
 
 ## 2. Ist-Zustand (Inventar)
 
@@ -34,7 +34,7 @@ Zugriff: Rolle `admin` oder `superadmin` (Prüfung in `convex/authz.ts` / `conve
 
 Erweiterung von `AdminUserDetail.tsx` + neue Mutations in `convex/admin.ts`:
 
-- **Tier-Anzeige & Override:** aktuellen `featureTier` anzeigen; manueller Grant/Override (Sprachkurs/Buddy/Basic/Full) für Support- und Komplimentär-Fälle. Setzt `featureTier` auf `userSubscriptions` (bzw. Override-Feld), unabhängig vom Dodo-Kauf.
+- **Tier-Anzeige & Override:** aktuellen `featureTier` anzeigen; manueller Grant/Override (Sprachkurs / AI Chat Standalone / Sprachkurs + AI / Sprachkurs + AI Pro) für Support- und Komplimentär-Fälle. Setzt `featureTier` auf `userSubscriptions` (bzw. Override-Feld), unabhängig vom Dodo-Kauf.
 - **Energy-Sicht:** `energyQuotaMonthly`, `energyUsedThisPeriod`, `energyTopUpBalance`, `energyPeriodResetAt` anzeigen; verbleibende Energy berechnet.
 - **Energy-Grant/Adjust:** manuelles Gutschreiben/Korrigieren von Energy → schreibt `energyLedger`-Eintrag mit `reason: "admin_adjust"` (Audit).
 - **Energy-Reset:** manueller Monats-Reset (z. B. Kulanz), schreibt Ledger-Eintrag.
@@ -48,7 +48,7 @@ Konform zur Projektregel „Config dynamisch". Admin-editierbare Werte (eigene C
 
 - **Verbrauchstabelle:** Energy je Aktionstyp (compact/balanced/detailed, Aufschläge RAG/Foto-Scan, Upload-Skalierung pro N Input-Tokens) – siehe `02_TOKEN_SYSTEM.md` Abschnitt 2.
 - **Technisches Input-Limit für Uploads:** max. Dateigröße / Seitenzahl / Input-Tokens je Anfrage. Dies ist die eigentliche Kostenbremse (Uploads werden dynamisch über Energy abgerechnet, **ohne** fixen Energy-Cap – siehe `02` Abschnitt 2.2). Muss admin-konfigurierbar sein, da an Modell-Kontextfenster und Kostenrisiko gekoppelt.
-- **Inklusiv-Kontingente** je `featureTier` (Vorschlag: Basic 120 / Standalone 450 / Full 750 – final laut Entscheidung). Bewusst auch als **Post-Launch-Hebel** ohne Deploy erhöhbar (siehe `02` Abschnitt 3 / `07_MARKTANALYSE.md`).
+- **Inklusiv-Kontingente** je `featureTier` (Sprachkurs + AI 250 / AI Chat Standalone 600 / Sprachkurs + AI Pro 750). Juni 2026: Standalone von 450 → 600 angehoben, Sprachkurs + AI von 120 → 250 angehoben. Bewusst auch als **Post-Launch-Hebel** ohne Deploy erhöhbar (siehe `02` Abschnitt 3 / `07_MARKTANALYSE.md`).
 - **Modellwahl** (Gemini 2.5 Flash vs. Flash-Lite) und **`dailyBudgetCents`** (globale Notbremse) – bereits in `chatAiConfig` verankert (`convex/ai/chatConfig.ts`).
 
 Vorteil: Verbrauchskosten und Großzügigkeit können ohne Deploy justiert werden.
@@ -60,7 +60,7 @@ Erweiterung der Subscription-Analytics (`convex/subscriptions.ts` + Analytics-Pa
 - Aufschlüsselung nach **`featureTier`** (nicht nur `planType`): aktive Abos je Paket.
 - **Umsatz je Paket** + **Top-up-Umsatz** (aus `energyPurchases`).
 - **Energy-Verbrauch & KI-Kosten** je Tier/User (aus `energyLedger`): Identifikation von Heavy-Usern und Kostenkontrolle.
-- Conversion-/Upgrade-Sicht (Sprachkurs→Basic, Standalone/Basic→Full).
+- Conversion-/Upgrade-Sicht (Sprachkurs → Sprachkurs + AI, AI Chat Standalone / Sprachkurs + AI → Sprachkurs + AI Pro).
 
 ### 3.4 Dodo-Produkt-Verwaltung
 

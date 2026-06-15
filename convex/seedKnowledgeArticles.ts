@@ -1,7 +1,7 @@
 /**
  * Seed Knowledge Articles (RAG v5)
  *
- * Initial cultural and practical articles for the Brate knowledge base.
+ * Initial cultural and practical articles for the AI Buddy knowledge base.
  * Run once via Convex Dashboard: npx convex run seedKnowledgeArticles:seedAll
  */
 import { internalMutation } from "./_generated/server";

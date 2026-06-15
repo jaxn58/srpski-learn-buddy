@@ -669,11 +669,18 @@ export const toggleBetaTester = mutation({
 // Set or clear a user's feature-tier override (superadmin only).
 // `featureTier: null` clears the override (user falls back to subscription /
 // beta resolution). Used to test the 4-package gating and for support/comps.
+// Accepts both new canonical tier IDs and legacy aliases (buddy/basic/full)
+// for backward compatibility; convex/featureAccess.ts normalizes on read.
 export const setFeatureTierOverride = mutation({
   args: {
     userId: v.id("users"),
     featureTier: v.union(
+      // New canonical IDs
       v.literal("course"),
+      v.literal("standalone"),
+      v.literal("course_ai"),
+      v.literal("course_ai_pro"),
+      // Legacy aliases (still accepted, normalized at read-time)
       v.literal("buddy"),
       v.literal("basic"),
       v.literal("full"),

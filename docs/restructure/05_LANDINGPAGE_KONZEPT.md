@@ -18,20 +18,20 @@ Besucher sollen innerhalb eines einzigen Seitenbesuchs **sowohl den Mehrwert sp�
 
 | Zielgruppe | Ihr Bedürfnis | Einstiegspaket | Hook |
 |---|---|---|---|
-| **Strukturierte Lerner** (Einsteiger, Schüler, Reisende) | Schritt-für-Schritt-Kurs, Gamification, klarer Fortschritt | Sprachkurs → Basic Kombi | „Learn Serbian step by step." |
-| **Sofort-Helfer-Sucher** (Expats, Einwanderer, Profis, Reisende) | Antworten jetzt, Alltagshilfe, Kulturwissen | AI Buddy Standalone → Full | „Your Serbian brother. Always there for you." |
+| **Strukturierte Lerner** (Einsteiger, Schüler, Reisende) | Schritt-für-Schritt-Kurs, Gamification, klarer Fortschritt | Sprachkurs → Sprachkurs + AI | „Learn Serbian step by step." |
+| **Sofort-Helfer-Sucher** (Expats, Einwanderer, Profis, Reisende in der gesamten Region) | Antworten jetzt, Alltagshilfe, Kulturwissen | AI Chat Standalone → Sprachkurs + AI Pro | „Your AI Buddy. Available 24/7 across the Balkans." |
 
 ### 1.3 Paket-Positionierung auf der Seite
 
-- **Full Package** = visueller Anker (prominent, „Best Value"-Badge, als erstes oder in der Mitte).
-- **„Missing-Half"-Effekt**: Sprachkurs-User sehen, was fehlt (kein Buddy) → Upsell Richtung Basic Kombi. Standalone-User sehen, was fehlt (keine Struktur) → Upsell Richtung Full.
-- **Basic Kombi** = „Sweetspot"-Paket: bekommt auf der Seite einen eigenen kurzen Erklärungsmoment, damit Besucher nicht zwischen Sprachkurs und Standalone hängen bleiben.
+- **Sprachkurs + AI Pro** = visueller Anker (prominent, „Best Value"-Badge, als erstes oder in der Mitte).
+- **„Missing-Half"-Effekt**: Sprachkurs-User sehen, was fehlt (kein Buddy) → Upsell Richtung Sprachkurs + AI. AI-Chat-Standalone-User sehen, was fehlt (keine Struktur) → Upsell Richtung Sprachkurs + AI Pro.
+- **Sprachkurs + AI** = „Sweetspot"-Paket: bekommt auf der Seite einen eigenen kurzen Erklärungsmoment, damit Besucher nicht zwischen Sprachkurs und AI Chat Standalone hängen bleiben.
 
 ### 1.4 Primäres Conversion-Ziel je Besucher-Segment
 
 | Besucher-Typ | Primäres Ziel | Sekundäres Ziel |
 |---|---|---|
-| Kauf-bereit | Direktkauf Full/Basic | – |
+| Kauf-bereit | Direktkauf Sprachkurs + AI / Sprachkurs + AI Pro | – |
 | Neugierig | E-Mail-Lead-Magnet eintragen | Demo spielen |
 | Preissensibel | Demo → Sprachkurs kaufen | E-Mail |
 | Skeptisch | Demo → Vertrauen aufbauen | E-Mail → Nurture |
@@ -44,7 +44,7 @@ Branchenstandards, konkret auf dieses Produkt angewendet. Aufbauend auf `docs/LA
 
 ### 2.1 Emotionaler Hook (Above the Fold)
 
-Richtwert: **kurz und scanbar (ca. 6–10 Wörter)**, Emotion oder Ergebnis vor Features. Der Nutzer muss in 3 Sekunden wissen: „Das ist für mich." Eine bewusst rhythmische Dreierstruktur (siehe Hero 6.1: „Learn Serbian. Or get a Serbian brother. Or both.") ist erlaubt, wenn sie sofort verständlich bleibt – sie wird als A/B-Variante gegen eine kürzere Single-Hook-Headline getestet (siehe 8.2).
+Richtwert: **kurz und scanbar (ca. 6–10 Wörter)**, Emotion oder Ergebnis vor Features. Der Nutzer muss in 3 Sekunden wissen: „Das ist für mich." Eine rhythmische Dreierstruktur (siehe Hero 6.1: „Learn Serbian. Discover the Balkans. With your AI Buddy.") ist erlaubt, wenn sie sofort verständlich bleibt – sie wird als A/B-Variante gegen eine kürzere Single-Hook-Headline getestet (siehe 8.2).
 
 - Headline kommuniziert **Outcome**, nicht Feature.
 - Sub-Headline erklärt **Wie**, nicht **Was**.
@@ -80,7 +80,7 @@ Richtwert: **kurz und scanbar (ca. 6–10 Wörter)**, Emotion oder Ergebnis vor 
 
 ### 2.6 AI Energy vertrauensbildend erklären
 
-Das Energy-Konzept ist nicht selbsterklärend. Regeln: **positiv formulieren** (Guthaben, nicht Verbrauch); **klare Erwartung setzen** (verschiedene Aktionen kosten unterschiedlich viel); **Vergleichsgröße** geben (z. B. „450 Energy ≈ ~150 Gespräche mit Kontext pro Monat"). Wichtig: nicht „1 Nachricht = 1 Token" versprechen – stattdessen „Energy für alles, was der Buddy tut: Chatten, Dokumente analysieren, Fotos scannen". Quelle der Zahlen: `02_TOKEN_SYSTEM.md`.
+Das Energy-Konzept ist nicht selbsterklärend. Regeln: **positiv formulieren** (Guthaben, nicht Verbrauch); **klare Erwartung setzen** (verschiedene Aktionen kosten unterschiedlich viel); **Vergleichsgröße** geben (z. B. „600 Energy ≈ ~200 Gespräche mit Kontext pro Monat"). Wichtig: nicht „1 Nachricht = 1 Token" versprechen – stattdessen „Energy für alles, was der Buddy tut: Chatten, Dokumente analysieren, Fotos scannen". Quelle der Zahlen: `02_TOKEN_SYSTEM.md`.
 
 ---
 
@@ -95,7 +95,7 @@ flowchart TD
   demogate --> signup["Signup-Flow + Paket-Wahl"]
   magnet --> nurture["5-Mail-Nurture-Sequenz via Resend"]
   nurture --> signup
-  hero --> proof["Stats-Bar + Brate-Story + How-it-works"]
+  hero --> proof["Stats-Bar + Buddy-Story + How-it-works"]
   proof --> packages["4-Paket-Praesentation Full als Anker"]
   packages --> faq["FAQ Kaufeinwaende"]
   faq --> finalcta["Final CTA + Floating CTA"]
@@ -121,13 +121,13 @@ Ziel: Besucher „fühlen" den Mehrwert, bevor sie irgendwas eingeben. Das ist d
 │  │ Ask anything about Serbian...                   │    │
 │  └─────────────────────────────────────────────────┘    │
 │  [ Examples: "How do I say hello?" / "What is Slava?" ] │
-│                                         [ Ask Brate → ] │
+│                                      [ Ask the Buddy → ] │
 └─────────────────────────────────────────────────────────┘
 ```
 
 - 3 Beispiel-Chips (anklickbar, prefüllen das Eingabefeld) als Einstiegshilfe.
 - Antwort erscheint direkt im Widget (Streaming, Typewriter-Effekt wie im Chat).
-- Nach 3 Nachrichten: freundliche Einblendung „You've used your free preview. Continue with Basic Kombi."
+- Nach 3 Nachrichten: freundliche Einblendung „You've used your free preview. Continue with Course + AI."
 
 ### 4.3 Feasibility und Kosten-Guardrails
 
@@ -146,47 +146,47 @@ Ziel: Besucher „fühlen" den Mehrwert, bevor sie irgendwas eingeben. Das ist d
 ### 4.4 Demo-Copy (EN)
 
 **Widget-Heading:**
-> "Meet your Brate. Ask him anything."
+> "Meet your AI Buddy. Ask anything about the language and the region."
 
 **Placeholder-Text im Input:**
-> "Try: 'How do I say thank you?' or 'What is Slava?'"
+> "Try: 'How do I say thank you?' or 'Will I be understood in Croatia?'"
 
 **Beispiel-Chips (anklickbar):**
 - „How do I order coffee in Serbian?"
-- „What is Slava? How does it work?"
+- „Will Serbian work in Montenegro and Croatia?"
 - „Explain the difference between ti and Vi"
 
 **Soft-Gate-Nachricht (nach 3 Fragen):**
-> "You've used your free preview — and your Brate is just getting warmed up.
-> Get Basic Kombi and ask him anything, anytime."
-> `[ Start with Basic Kombi ]` `[ See all plans ]`
+> "You've used your free preview — and your AI Buddy is just getting warmed up.
+> Get Course + AI and ask anything, anytime."
+> `[ Start with Course + AI ]` `[ See all plans ]`
 
 ---
 
 ## 5. Bait 2 – E-Mail-Lead-Magnet
 
-### 5.1 Freebie-Idee: „Serbian Survival Kit"
+### 5.1 Freebie-Idee: „Balkan Survival Kit"
 
-Ein **kostenloser PDF-Download** (oder E-Mail-Serie) mit den wichtigsten Phrasen für den Alltag in Serbien.
+Ein **kostenloser PDF-Download** (oder E-Mail-Serie) mit den wichtigsten Phrasen für den Alltag in der Region.
 
 **Inhalt (Vorschlag):**
 - Top 50 Survival-Phrasen (Begrüßung, Essen/Trinken, Einkaufen, Transport, Notfälle)
 - Grundzahlen und Preise auf Serbisch
 - Cyrillic Cheat Sheet (10 wichtigste Buchstaben zum Entziffern)
-- 5 kulturelle „Do's and Don'ts"
+- 5 kulturelle „Do's and Don'ts" für die Region
 - Bonus: QR-Code zur Lern-App (erste Unit kostenlos starten)
 
 Titel-Optionen:
-- **„The Serbian Survival Kit"** (sachlich, klar)
-- **„Your Brate's First Gift"** (emotional, passt zur Persona-Idee)
+- **„The Balkan Survival Kit"** (sachlich, regional, klar)
+- **„Your First Phrases — Free from your AI Buddy"** (persona-bezogen, etwas länger)
 
 ### 5.2 E-Mail-Capture-Sektion auf der Landing Page
 
 Platzierung: nach der Demo-Sektion / vor der Pricing-Sektion (wenn Demo Neugier weckt, aber Preis noch nicht klar ist → E-Mail als low-commitment Schritt).
 
 Copy (EN):
-> **Heading:** „Get your free Serbian Survival Kit"
-> **Subheading:** „50 essential phrases, a Cyrillic cheat sheet, and 5 cultural rules every Serbian speaker needs. Free, instant, no strings attached."
+> **Heading:** „Get your free Balkan Survival Kit"
+> **Subheading:** „50 essential phrases, a Cyrillic cheat sheet, and 5 cultural rules that work across Serbia, Croatia, Bosnia and Montenegro. Free, instant, no strings attached."
 > **Input placeholder:** „Your email address"
 > **CTA-Button:** „Send me the kit"
 > **Trust-Signal darunter:** „No spam. Unsubscribe anytime." *(Optional eine Zahl ergänzen – dann konsistent mit der Stats-Bar aus derselben Quelle `landingData.ts`, keine widersprüchlichen Platzhalter.)*
@@ -197,47 +197,49 @@ System: bestehendes E-Mail-System mit **Resend API** (dokumentiert in `docs/NEWS
 
 | Mail | Timing | Betreff (EN) | Ziel |
 |---|---|---|---|
-| 1 | Sofort | „Here's your Serbian Survival Kit + a surprise" | Freebie liefern, erste Erwähnung der App |
+| 1 | Sofort | „Here's your Balkan Survival Kit + a surprise" | Freebie liefern, erste Erwähnung der App |
 | 2 | Tag 2 | „The one Serbian phrase that changes everything" | Mehrwert, Teaser App-Feature |
-| 3 | Tag 4 | „Meet your Brate – he knows something you don't" | Buddy-Demo vorstellen, CTA zur Landing Page (Demo-Widget) |
+| 3 | Tag 4 | „Meet your AI Buddy — and the language that opens four countries" | Buddy-Demo + BCMS-USP, CTA zur Landing Page (Demo-Widget) |
 | 4 | Tag 7 | „How Sarah learned to order food in Serbian in 3 weeks" | Testimonial/Story, Social Proof, Paket-Link |
 | 5 | Tag 12 | „Still thinking about it? Here's what's included." | Einwände abräumen, Vergleichstabelle, finaler CTA |
 
 **Mail 1 – Struktur (EN):**
 ```
-Betreff: Here's your Serbian Survival Kit + a surprise
+Betreff: Here's your Balkan Survival Kit + a surprise
 
 Hi [Vorname],
 
-Your Serbian Survival Kit is attached. 50 phrases, a Cyrillic cheat sheet, and a few 
-things your guidebook forgot to mention.
+Your Balkan Survival Kit is attached. 50 phrases, a Cyrillic cheat sheet, and a few
+things your guidebook forgot to mention — works across Serbia, Croatia, Bosnia and
+Montenegro.
 
-Use it. Then come back and tell your Brate what you practiced.
+Use it. Then come back and tell your AI Buddy what you practiced.
 
 [→ Try 1 free question, no account needed]  ← CTA zu Demo-Widget
 
-See you in Serbia,
+See you in the region,
 The Learn-with-me Team
 
-P.S. Tomorrow I'll share the one phrase that makes Serbians smile every time.
+P.S. Tomorrow I'll share the one phrase that makes locals smile every time.
 ```
 
-**Mail 3 – Brate-Intro (EN):**
+**Mail 3 – AI-Buddy-Intro (EN):**
 ```
-Betreff: Meet your Brate – he knows something you don't
+Betreff: Meet your AI Buddy — and the language that opens four countries
 
 Hi [Vorname],
 
 You've got the phrases. But there's something a PDF can't give you:
-someone who explains WHY.
+someone who explains WHY — and where else it works.
 
-Why Serbians say "ajde" in 15 different ways.
+Why people say "ajde" in 15 different ways.
 Why you bring flowers when visiting someone's home.
-Why nobody actually calls it "Serbian coffee."
+Why one Serbian sentence will get you understood from Belgrade to Zagreb,
+from Sarajevo to Podgorica.
 
-Your Brate knows. And he's available 24/7 — no scheduling, no awkward silences.
+Your AI Buddy knows. Available 24/7 — no scheduling, no awkward silences.
 
-[→ Ask him one free question]  ← CTA zu Demo-Widget
+[→ Ask one free question]  ← CTA zu Demo-Widget
 
 The first question is on us.
 ```
@@ -255,10 +257,10 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 **Zweck:** Besucher sofort in eine der zwei Zielgruppen einsortieren und neugierig machen. Kein langer Text.
 
 **Haupt-Headline:**
-> „Learn Serbian. Or get a Serbian brother. Or both."
+> „Learn Serbian. Discover the Balkans. With your AI Buddy."
 
 **Sub-Headline:**
-> „Structured lessons for learners. A 24/7 AI companion for expats, immigrants, and everyone navigating Balkan life."
+> „One language opens doors across the region — Croatian, Bosnian, Montenegrin all become readable. Course for structure, chat for the rest. Pay once, no subscription."
 
 **Zwei primäre CTAs (nebeneinander):**
 > `[ Try the Buddy — it's free ]` (primär, führt zur Demo direkt darunter)
@@ -278,7 +280,7 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 **Zweck:** Unmittelbares Erlebnis, Zero-Friction. Direkt nach dem Hero.
 
 **Widget-Heading:**
-> „Meet your Brate. Ask him anything — free, no account needed."
+> „Meet your AI Buddy. Ask anything — free, no account needed."
 
 **Design-Hinweis:** Card-Komponente, `border-2 border-primary/20`. 3 anklickbare Beispiel-Chips in `bg-accent/10 text-accent-foreground`. Chat-Input mit Sende-Button. Antwort-Bereich mit Typewriter-Effekt (analog `useChatStream.ts`). Soft-Gate nach 3 Nachrichten als Banner, **nicht als Blocking-Modal**.
 
@@ -301,24 +303,26 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 
 ---
 
-### 6.4 „Meet your Brate" – Story-Sektion
+### 6.4 „Why Serbian?" – Story-Sektion
 
-**Zweck:** Emotionale Verbindung zur Buddy-Persona aufbauen. Erklärt den Unterschied zu ChatGPT und anderen Chatbots.
+**Zweck:** Strategischen USP positionieren (Serbisch als Zugangssprache zur Region) und den Unterschied der KI zu generischen Chatbots erklären. Politisch unverfänglich formuliert: keine Wertung zwischen den Sprachvarianten, sondern pragmatischer Zugang.
 
 **Heading:**
-> „Not a chatbot. A Brate."
+> „One language. The whole region."
 
 **Body-Copy (EN):**
-> „Brate" means brother in Serbian. And that's exactly what this is — not a language processing engine, but a companion who knows the language, the culture, the customs, and the unwritten rules.
+> Serbian, Croatian, Bosnian and Montenegrin share a deep common base — what linguists call a dialect continuum. Learn one and you can read, hear and largely understand the others. Serbian is the most widely taught variety internationally and the most practical entry point.
 >
-> He explains why „ajde" means 10 different things depending on tone. He knows why you should always bring flowers. He'll help you decode a letter from the municipality, find the right words for the doctor, and understand why everything is closed on Vidovdan.
+> So this isn't an app for one country. It's an app for the region. Order coffee in Belgrade, decode a menu in Kotor, read a contract in Zagreb, ask for directions in Sarajevo — same language base, same plan, your pace.
 >
-> Your Brate is part of every plan that includes the AI Buddy. In Basic Kombi and Full Package, he even knows which unit you're currently studying.
+> Your AI Buddy is built for exactly that. Not a generic language model, but a companion that knows the words, the culture and the unwritten rules. Why people say „ajde" in 15 different ways. Why you bring flowers when visiting someone's home. How to decode a letter from a municipality, find the right words at the doctor, or understand why a holiday closes everything down.
+>
+> The Buddy is part of every plan with AI access — AI Chat Standalone, Course + AI and Course + AI Pro. In Course + AI and Course + AI Pro, the Buddy even knows which unit you're currently studying.
 
 **CTA:**
-> `[ Try asking him something ]` (scrollt zur Demo, falls noch nicht benutzt)
+> `[ Try asking your Buddy something ]` (scrollt zur Demo, falls noch nicht benutzt)
 
-**Design-Hinweis:** Zweispaltiges Layout (Text links, illustratives Bild/Icon rechts). Kein neues Design — kein Bild ist eher besser als Platzhalter. Alternativ: großes Zitat-Block-Element mit serbischem „Brate" als Typografie-Akzent in `text-primary`.
+**Design-Hinweis:** Zweispaltiges Layout (Text links, illustratives Bild/Icon rechts). Kein neues Design — kein Bild ist eher besser als Platzhalter. Alternativ: großes Zitat-Block-Element mit „One language. Four countries understood." als Typografie-Akzent in `text-primary`.
 
 ---
 
@@ -330,10 +334,10 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 > „Simple. Start in 60 seconds."
 
 **Schritt 1:**
-> **Choose your path.** Course for structured learners. Buddy for everyday Balkan life. Basic Kombi for both. Full Package for everything.
+> **Choose your path.** Course for structured learners. AI Chat Standalone for everyday Balkan life. Course + AI for both. Course + AI Pro for everything.
 
 **Schritt 2:**
-> **Pick your duration.** 3, 6, 9, or 12 months. Pay once, learn at your pace. No recurring charges.
+> **Pick your duration.** 3, 6 or 12 months. Pay once (or in installments from Course + AI upwards), learn at your pace.
 
 **Schritt 3:**
 > **Start learning.** Your units, vocabulary, and Buddy are ready immediately. No setup. No downloads required.
@@ -344,7 +348,7 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 
 ### 6.6 4-Paket-Karten + Vergleichstabelle
 
-**Zweck:** Kaufentscheidung herbeiführen. Full Package als Anker, Basic Kombi als Sweetspot.
+**Zweck:** Kaufentscheidung herbeiführen. Sprachkurs + AI Pro als Anker, Sprachkurs + AI als Sweetspot.
 
 **Sektion-Heading:**
 > „Choose your plan. Change when you need."
@@ -365,37 +369,38 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 > `[ Get Course ]`
 > *1-2 AI previews per day included*
 
-**AI Buddy Standalone:**
-> „Your Serbian brother. Available 24/7."
-> For expats, immigrants, and professionals navigating Balkan life.
+**AI Chat Standalone:**
+> „Your AI Buddy. Available 24/7 across the region."
+> For expats, immigrants, and professionals navigating Balkan life — Serbia, Croatia, Bosnia, Montenegro.
 > Chat · Document upload · Knowledge library · Photo scan
-> 450 AI Energy/month · top-ups available
+> 600 AI Energy/month · top-ups available
 > From €45 for 3 months
-> `[ Get Buddy ]`
+> `[ Get AI Chat Standalone ]`
 
-**Basic Kombi** ← Sweetspot-Badge: „Most popular for learners"
+**Course + AI** ← Sweetspot-Badge: „Most popular for learners"
 > „Structured lessons + your AI companion."
 > The Buddy knows your current unit. He walks alongside your progress.
-> Everything in Course + Buddy chat (context-aware) · 120 AI Energy/month
+> Everything in Course + Buddy chat (context-aware) · 250 AI Energy/month · top-ups available
 > From €55 for 3 months
-> `[ Get Basic Kombi ]`
+> `[ Get Course + AI ]`
 
-**Full Package** ← „Best Value"-Badge
+**Course + AI Pro** ← „Best Value"-Badge
 > „The complete Serbian experience."
-> Lessons, your Brate, document analysis, knowledge library, and more.
-> Everything in Basic Kombi + documents · knowledge · photo scan · community
+> Lessons, your AI Buddy, document analysis, knowledge library, and more.
+> Everything in Course + AI + documents · knowledge · photo scan · community
 > 750 AI Energy/month · top-ups available
 > From €69 for 3 months
-> `[ Get Full Package ]`
+> `[ Get Course + AI Pro ]`
 
 #### AI-Energy-Erklärung (unter den Karten, für Standalone + Full)
 
 > **What is AI Energy?** Energy powers everything your Buddy does — chatting, analysing documents, scanning photos. Different actions use different amounts (a quick reply uses a little; analysing a long PDF uses more), so you only spend what you actually use.
 >
-> - **AI Buddy Standalone:** 450 Energy/month — roughly 150 conversations with context.
-> - **Full Package:** 750 Energy/month — plenty for chat, photo scans and document analysis combined.
+> - **AI Chat Standalone:** 600 Energy/month — roughly 200 conversations with context (no course included, so the AI chat does all the heavy lifting).
+> - **Course + AI:** 250 Energy/month — roughly 80–125 learning questions with context (≈ 3–4/day for active learners); top up anytime if you go heavy.
+> - **Course + AI Pro:** 750 Energy/month — plenty for chat, photo scans and document analysis combined.
 >
-> Need more? Top up anytime (Standalone & Full): Starter (150 Energy / €4.99), Plus (500 Energy / €11.99), Pro (1,500 Energy / €29.99). Top-up Energy never expires while your plan is active.
+> Need more? Top up anytime (AI Chat Standalone, Course + AI, Course + AI Pro): Starter (500 Energy / €4.99), Plus (1,500 Energy incl. 500 bonus / €9.99), Pro (4,000 Energy incl. 1,500 bonus / €22.99). Top-up Energy never expires while your plan is active.
 
 #### Laufzeit-Toggle
 
@@ -403,7 +408,7 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 
 #### Vergleichstabelle (nach den Karten, aufklappbar oder dauerhaft sichtbar)
 
-| | Sprachkurs | AI Buddy | Basic Kombi | Full Package |
+| | Course | AI Chat Standalone | Course + AI | Course + AI Pro |
 |---|:---:|:---:|:---:|:---:|
 | Structured units (A1–B1) | ✓ | – | ✓ | ✓ |
 | Vocabulary + audio | ✓ | – | ✓ | ✓ |
@@ -413,13 +418,13 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 | Document upload & analysis | – | ✓ | – | ✓ |
 | Knowledge library (PDF) | – | ✓ | – | ✓ |
 | Photo scan | – | ✓ | – | ✓ |
-| AI Energy / month | – | 450 | 120 | 750 |
-| Buy extra AI Energy (top-ups) | – | ✓ | – | ✓ |
+| AI Energy / month | – | 600 | 250 | 750 |
+| Buy extra AI Energy (top-ups) | – | ✓ | ✓ | ✓ |
 | Community & study groups | – | – | – | ✓ |
 
-**Design-Hinweis:** Full Package hat `border-2 border-primary` und Badge in `bg-primary text-primary-foreground`. Basic Kombi hat Badge in `bg-accent text-accent-foreground`. Laufzeit-Toggle als `<Tabs>` oder Button-Gruppe.
+**Design-Hinweis:** Sprachkurs + AI Pro hat `border-2 border-primary` und Badge in `bg-primary text-primary-foreground`. Sprachkurs + AI hat Badge in `bg-accent text-accent-foreground`. Laufzeit-Toggle als `<Tabs>` oder Button-Gruppe.
 
-**Mobile-Hinweis:** Die 4 Paket-Karten **vertikal gestapelt** (`grid-cols-1 lg:grid-cols-4`); Full Package zuerst (Anker oben). Vergleichstabelle auf Mobile **nicht** als breite Tabelle horizontal scrollen lassen (schlechte UX), sondern als **Accordion je Paket** (pro Paket eine aufklappbare Feature-Liste) oder als „nur Unterschiede"-Kurzansicht. Laufzeit-Toggle als volle-Breite-Segmented-Control. Sticky-Preisleiste optional am unteren Rand.
+**Mobile-Hinweis:** Die 4 Paket-Karten **vertikal gestapelt** (`grid-cols-1 lg:grid-cols-4`); Sprachkurs + AI Pro zuerst (Anker oben). Vergleichstabelle auf Mobile **nicht** als breite Tabelle horizontal scrollen lassen (schlechte UX), sondern als **Accordion je Paket** (pro Paket eine aufklappbare Feature-Liste) oder als „nur Unterschiede"-Kurzansicht. Laufzeit-Toggle als volle-Breite-Segmented-Control. Sticky-Preisleiste optional am unteren Rand.
 
 ---
 
@@ -431,15 +436,15 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 > „What learners say"
 
 **Testimonial 1 (Placeholder):**
-> „I've been living in Belgrade for 8 months. My Brate helped me understand a tax letter, navigate the health system, and finally understand why my neighbor says „Ma daj!" all the time."
-> — **Markus T.**, Germany → Belgrade
+> „I've been living in Podgorica for 8 months. My AI Buddy helped me decode a utility letter, navigate the health system, and finally understand why my neighbour says „Ma daj!" all the time."
+> — **Markus T.**, Germany → Montenegro
 
 **Testimonial 2 (Placeholder):**
-> „I tried Duolingo. I tried YouTube. Nothing stuck. The structured units in Basic Kombi finally made Serbian grammar click — and when I got stuck, my Brate explained it my way."
+> „I tried Duolingo. I tried YouTube. Nothing stuck. The structured units in Course + AI finally made the grammar click — and when I got stuck, my AI Buddy explained it my way."
 > — **Lena K.**, Austria
 
-**Testimonial 3 (Placeholder, für AI Buddy Standalone):**
-> „I'm not learning Serbian to pass a test. I'm learning it to live here. The Buddy understands that."
+**Testimonial 3 (Placeholder, für AI Chat Standalone):**
+> „I'm not learning to pass a test. I'm learning to live here. One language, and I get by from Belgrade to the Adriatic coast — the Buddy understands that."
 > — **James O.**, UK → Novi Sad
 
 **Design-Hinweis:** 3-spaltig auf Desktop, 1-spaltig auf Mobile. Cards mit `border border-border bg-card`. Initials-Avatar in `bg-primary/10 text-primary`. Alle Testimonials sind Platzhalter – **vor Launch durch echte Beta-Tester ersetzen** (Einholung via kurze E-Mail-Anfrage).
@@ -470,23 +475,26 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 
 **Zweck:** Letzte Bedenken ausräumen, direkt über Final-CTA platziert.
 
+**Q: Why Serbian — and not Croatian, Bosnian, or Montenegrin?**
+> Because they share the same linguistic base. Learn Serbian and you can read, hear, and largely understand the others. Serbian is the most widely taught variety internationally and the most practical entry point for the region. We focus on the language; the politics we leave aside.
+
 **Q: Do I need a credit card to try?**
 > No. The live demo on this page works without any account. Sign up only when you're ready to buy.
 
 **Q: Can I upgrade later?**
-> Yes. Upgrade anytime within the same duration and pay only the difference. Example: Course (€39) → Basic Kombi (€55) = €16 extra.
+> Yes. Upgrade anytime within the same duration and pay only the difference. Example: Course (€39) → Course + AI (€55) = €16 extra.
 
 **Q: What is AI Energy?**
-> Energy powers everything your Buddy does — chatting, analysing documents, scanning photos. Different actions use different amounts, so you only spend what you use. Standalone includes 450 Energy/month, Full Package 750, Basic Kombi 120. Your monthly Energy resets at the start of each billing month.
+> Energy powers everything your Buddy does — chatting, analysing documents, scanning photos. Different actions use different amounts, so you only spend what you use. AI Chat Standalone includes 600 Energy/month, Course + AI Pro 750, Course + AI 250. Your monthly Energy resets at the start of each billing month.
 
 **Q: Can I buy more AI Energy?**
-> Yes, on AI Buddy Standalone and Full Package. Top-up packs (Starter/Plus/Pro) never expire while your plan is active. Basic Kombi has a fixed monthly allowance without top-ups — upgrade to Full Package if you need more.
+> Yes, on AI Chat Standalone, Course + AI, and Course + AI Pro. Top-up packs (Starter/Plus/Pro) never expire while your plan is active.
 
 **Q: Can I get a refund?**
 > Yes. We offer a 14-day money-back guarantee. If you're not satisfied within the first 14 days, contact us for a full refund — no questions asked.
 
 **Q: Is this a subscription?**
-> No. You pay once for your chosen duration (3, 6, 9, or 12 months). No recurring charges. No auto-renewal.
+> No. You pay once for your chosen duration (3, 6 or 12 months). No recurring charges. No auto-renewal. From Course + AI upwards you can also split the price into monthly installments.
 
 **Q: What happens when my plan expires?**
 > Your progress is saved forever. You can renew, upgrade, or switch plans anytime.
@@ -503,10 +511,10 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 **Zweck:** Letzte Handlungsaufforderung für alle, die bis hierher gescrollt sind.
 
 **Heading:**
-> „Your Brate is waiting."
+> „Your AI Buddy is waiting."
 
 **Sub-Heading:**
-> „Start with the live demo. Or pick your plan and begin today."
+> „One language. The whole region. Start with the free demo or pick your plan today."
 
 **Zwei Buttons:**
 > `[ Try the free demo ]` (primär, scrollt nach oben zur Demo)
@@ -571,9 +579,10 @@ Keine neuen Design-Entscheidungen. Alle Elemente auf bestehende Komponenten gema
 
 ### 8.2 A/B-Tests (nach Launch)
 
-| Element | Variante A | Variante B |
+| Element | Variante A (Default) | Variante B (Test) |
 |---|---|---|
-| Hero-Headline | „Learn Serbian. Or get a Serbian brother. Or both." | „Your Serbian brother. Always there." |
+| Hero-Headline | „Learn Serbian. Discover the Balkans. With your AI Buddy." | „Learn Serbian. Feel the Balkans. One AI Buddy for both." |
+| Hero-Sub-Headline | Region/BCMS-Erklärung mit Länder-Aufzählung | Kürzere Variante ohne Länder-Aufzählung („A language that opens doors across the region…") |
 | Primärer CTA | „Try the Buddy — it's free" | „Ask your first question — free" |
 | Demo-Position | Direkt unter Hero | Eigene Sektion nach Stats-Bar |
 | Lead-Magnet-CTA | „Send me the kit" | „Get my free phrases" |
@@ -674,11 +683,11 @@ trackEvent('plan_cta_clicked', { plan: 'basic_kombi', duration: '6m' });
 3. **Freebie erstellen:** „Serbian Survival Kit" als PDF produzieren (Inhalte im `chat`-Branch als kuratierte Knowledge-Basis vorhanden, diese könnte via `ingestKnowledge.ts` als Quelle dienen).
 4. **Double-Opt-in für E-Mail:** DSGVO-konform. Resend unterstützt Double-Opt-in; muss im Capture-Flow aktiviert sein.
 5. **Demo-Missbrauchsschutz:** IP-Rate-Limiting-Implementierung sorgfältig testen (Proxy-/VPN-Umgehung akzeptiertes Risiko bei dieser Kalkulation).
-6. **Buddy-Name „Brate":** Dieser Begriff wird in der Copy als Persona-Name verwendet. Finale Entscheidung steht noch aus (kein Blocking für das Dokument, aber vor Code-Implementierung zu bestätigen).
+6. **Persona-Name:** Geklärt — die Persona heißt durchgehend **„AI Buddy"**. Begründung: kulturell unverfänglich, in EN/DE gleichermaßen lesbar, kein politisches Statement. Der frühere Arbeitsname „Brate" ist überall in der Copy entfernt.
 7. **Legaltext für E-Mail-Capture:** Datenschutzhinweis unter dem Formular (Link zur Privacy Policy). Muss rechtlich geprüft sein.
 8. **Teaser-Formulierung „1–2 AI-Fragen/24h" im Sprachkurs-Paket:** Die Copy nennt das als Feature. Muss exakt dem implementierten Limit entsprechen (zu bestätigen nach Phase 2 der Roadmap).
 9. **GDPR/Cookie-Consent für Analytics:** Die in Abschnitt 8.3 genannten Tracking-Events erfordern eine Consent-Lösung (Cookie-/Tracking-Banner) bzw. eine datenschutzkonforme, anonyme Analytics-Variante. Vor Aktivierung des Trackings klären.
 10. **Mobile-QA:** Mobile-Checkliste aus Abschnitt 9.3 vor Go-Live auf realen Geräten abarbeiten (verpflichtend).
-11. **Finale Energy-Werte:** Inklusiv-Kontingente (120/450/750) und Verbrauchstabelle aus `02_TOKEN_SYSTEM.md` sind Vorschläge; die in der Copy genannten Zahlen müssen nach finaler Festlegung angeglichen werden.
+11. **Finale Energy-Werte:** Inklusiv-Kontingente (Sprachkurs + AI 250 / AI Chat Standalone 600 / Sprachkurs + AI Pro 750), Quelle in `02_TOKEN_SYSTEM.md`. Juni 2026 angehoben: Standalone 450 → 600, Sprachkurs + AI 120 → 250.
 
 > **Geklärt:** 14-Tage-Geld-zurück-Garantie ist als offizielle Policy vorhanden (`docs/PRICING_FAQ_CONTENT.md`) und in Copy/FAQ aufgenommen – kein offener Punkt mehr.

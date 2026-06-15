@@ -45,6 +45,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 const AdminUserDetail = lazy(() => import("./pages/AdminUserDetail"));
 const PromptAdmin = lazy(() => import("./pages/PromptAdmin"));
 const ChatAdmin = lazy(() => import("./pages/ChatAdmin"));
+const AdminEnergyConfig = lazy(() => import("./pages/AdminEnergyConfig"));
 const ChangelogAdmin = lazy(() => import("./pages/ChangelogAdmin"));
 const OnboardingAdmin = lazy(() => import("./pages/OnboardingAdmin"));
 const DashboardAnnouncementsAdmin = lazy(() => import("./pages/DashboardAnnouncementsAdmin"));
@@ -315,6 +316,17 @@ function Router() {
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
                   <ChatAdmin />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/admin/energy">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <AdminEnergyConfig />
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>

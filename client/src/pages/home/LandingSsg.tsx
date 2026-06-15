@@ -31,8 +31,8 @@ export function LandingSsg(props: {
     : t("home.units.subtitle", counts);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50">
-      <header className="w-full border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 backdrop-blur-sm">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50 dark:from-red-950/20 dark:via-background dark:to-blue-950/20">
+      <header className="w-full border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 dark:from-background dark:via-background dark:to-background backdrop-blur-sm">
         <div className="container py-3 sm:py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -96,10 +96,10 @@ export function LandingSsg(props: {
         </section>
 
         {/* Features (copy-heavy, good for SEO) */}
-        <section className="w-full bg-white/50">
+        <section className="w-full bg-background/50">
           <div className="container py-16">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
-              <div className="border-2 bg-white rounded-xl p-6">
+              <div className="border-2 bg-card rounded-xl p-6">
                 <h3 className="font-semibold">{t("home.features.structuredPlan.title")}</h3>
                 <p className="text-sm text-muted-foreground mt-2">
                   {showWaitlist
@@ -107,19 +107,19 @@ export function LandingSsg(props: {
                     : t("home.features.structuredPlan.desc", counts)}
                 </p>
               </div>
-              <div className="border-2 bg-white rounded-xl p-6">
+              <div className="border-2 bg-card rounded-xl p-6">
                 <h3 className="font-semibold">{t("home.features.aiProfessor.title")}</h3>
                 <p className="text-sm text-muted-foreground mt-2">{t("home.features.aiProfessor.desc")}</p>
               </div>
-              <div className="border-2 bg-white rounded-xl p-6">
+              <div className="border-2 bg-card rounded-xl p-6">
                 <h3 className="font-semibold">{t("home.features.gamification.title")}</h3>
                 <p className="text-sm text-muted-foreground mt-2">{t("home.features.gamification.desc")}</p>
               </div>
-              <div className="border-2 bg-white rounded-xl p-6">
+              <div className="border-2 bg-card rounded-xl p-6">
                 <h3 className="font-semibold">{t("home.features.progress.title")}</h3>
                 <p className="text-sm text-muted-foreground mt-2">{t("home.features.progress.desc")}</p>
               </div>
-              <div className="border-2 bg-white rounded-xl p-6">
+              <div className="border-2 bg-card rounded-xl p-6">
                 <h3 className="font-semibold">{t("home.features.vocabulary.title")}</h3>
                 <p className="text-sm text-muted-foreground mt-2">
                   {showWaitlist ? t("home.features.vocabulary.descWaitlist") : t("home.features.vocabulary.desc", counts)}
@@ -130,7 +130,7 @@ export function LandingSsg(props: {
         </section>
 
         {/* Modules (DB-backed) */}
-        <section id="units" className="w-full bg-gradient-to-br from-red-50 via-blue-50/30 to-white">
+        <section id="units" className="w-full bg-gradient-to-br from-red-50 via-blue-50/30 to-white dark:from-red-950/10 dark:via-blue-950/10 dark:to-background">
           <div className="container py-12 sm:py-16 md:py-20">
             <div className="max-w-7xl mx-auto">
               <div className="text-center space-y-4 mb-12">
@@ -143,7 +143,7 @@ export function LandingSsg(props: {
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {modules.map((m) => (
-                  <div key={m.id} className="border-2 bg-white rounded-xl p-6">
+                  <div key={m.id} className="border-2 bg-card rounded-xl p-6">
                     <div className="text-sm font-semibold text-primary mb-1">
                       {t("home.units.module", { number: m.number })}
                     </div>

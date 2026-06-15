@@ -24,6 +24,8 @@
 
 Basiswert: **1 Energy = eine kurze (kompakte) Antwort ohne schweren Kontext.** Alle anderen Werte sind relativ dazu. Werte sind ein Vorschlag und vor Implementierung final zu bestaetigen.
 
+> **Live im Admin (seit Juni 2026):** Diese Werte sind unter **Admin → Content & System → AI Energy Config** (`/admin/energy`, Superadmin-only) zur Laufzeit aenderbar. Die Karte zeigt einen **Live-Kalkulator**, der vor dem Speichern $/Energy, Tier-Margen und Top-up-Margen anhand des **aktiven LLM-Modells** (aus `chatAiConfig`) durchrechnet. Aenderungen greifen sofort fuer neue Aktionen; bestehende Ledger-Eintraege bleiben unveraendert.
+
 | Aktion | Energy | Anmerkung |
 |---|---:|---|
 | Kompakte Antwort (`compact`) | 1 | `maxTokensCompact` ~400 Output (`convex/chat.ts`) |
@@ -55,8 +57,7 @@ Statt eines Energy-Caps greifen drei Schutzschienen:
 **Effektiver „Cap" = das verfuegbare Energy-Guthaben des Users** (zzgl. technischem Input-Limit).
 
 **Grenzfall „nicht genug Energy" (Variante A – gewaehlt):** Reicht das geschaetzte Energy-Budget fuer die Analyse nicht aus, wird die Aktion **blockiert** mit klarem Hinweis statt sie zuzuschneiden:
-- Standalone / Full Package: „Nicht genug Energy — jetzt aufladen" (Top-up-CTA).
-- Basic Kombi (kein Nachkauf): „Energy diesen Monat aufgebraucht — Upgrade auf Full Package oder naechster Monat".
+- AI Chat Standalone / Sprachkurs + AI / Sprachkurs + AI Pro: „Nicht genug Energy — jetzt aufladen" (Top-up-CTA, alle drei Tarife haben Nachkauf).
 - **Kein** stilles Truncaten des Dokuments (keine schlechtere Analyse-Qualitaet ohne Wissen des Users).
 
 ## 3. Inklusiv-Kontingente je Paket (Vorschlag)
@@ -64,31 +65,82 @@ Statt eines Energy-Caps greifen drei Schutzschienen:
 | Paket | Inklusiv-Energy / Monat | Nachkauf moeglich? | Reset |
 |---|---:|:---:|---|
 | Sprachkurs | 0 (nur Teaser 1–2 / 24 h) | – | Teaser-Tageszaehler |
-| AI Buddy Standalone | 450 | Ja | monatlich |
-| Basic Kombi | 120 | **Nein** | monatlich |
-| Full Package | 750 | Ja | monatlich |
+| AI Chat Standalone | 600 | Ja | monatlich |
+| Sprachkurs + AI | 250 | **Ja** | monatlich |
+| Sprachkurs + AI Pro | 750 | Ja | monatlich |
 
 **Grobe Orientierung fuer den User (Kommunikation, nicht exakt):**
-- **120 Energy** ≈ ~40–60 ausgewogene Lernfragen mit Kontext pro Monat.
-- **450 Energy** ≈ ~150 ausgewogene Gespraeche mit Kontext, oder ~30–90 Dokumenten-Analysen.
+- **250 Energy** ≈ ~80–125 ausgewogene Lernfragen mit Kontext pro Monat (≈ 3–4/Tag fuer aktive Lerner).
+- **600 Energy** ≈ ~200 ausgewogene Gespraeche mit Kontext, oder ~40–120 Dokumenten-Analysen.
 - **750 Energy** ≈ ~250 ausgewogene Gespraeche, oder eine Mischung aus Chat, Foto-Scans und Uploads.
 
 - Werte sind ein Vorschlag und vor Implementierung final zu bestaetigen.
 - Der Teaser im Sprachkurs ist **kein** Energy-Guthaben, sondern ein separater Tageszaehler (1–2 Fragen / 24 h).
+- **Sprachkurs + AI** hat mit **250 Energy** ein komfortables Inklusiv-Kontingent fuer aktive Lerner (ca. 3–4 Lernfragen pro Tag); Top-ups bleiben moeglich, falls Spitzennutzung ausnahmsweise mehr verlangt. Wert wurde Juni 2026 von 120 auf 250 angehoben, da 120 als „Demo-Quota" wahrgenommen wurde und den Mid-Tier-Wert geschwaecht hat – wirtschaftlich unproblematisch (Worst-Case-KI-Kosten <7 % vom Monatsumsatz, siehe `03_PREISKALKULATION.md` §3).
+- **AI Chat Standalone** bekommt mit **600 Energy** deutlich mehr Inklusiv-Menge als die Combo-Tarife (Begruendung: keine Kurs-Inhalte → der AI-Chat ist das einzige Produkt-Element des Tarifs und wird entsprechend intensiver genutzt). Wert wurde Juni 2026 von 450 auf 600 angehoben.
 
 > **Entscheidung (Juni 2026):** Die Inklusiv-Mengen werden zum Launch **nicht** angehoben (Marktanalyse-Empfehlung dazu siehe `07_MARKTANALYSE.md`). Eine Anhebung bleibt als bewusster **Post-Launch-Hebel** offen: Da die Mengen admin-konfigurierbar sind (siehe `06_ADMIN_BEREICH.md`), koennen wir das Inklusiv-Kontingent spaeter ohne Deploy als kleines Goodwill-/Marketing-„Top-up" fuer bestehende Kunden erhoehen. Preislich nach unten oder grosszuegiger zu werden, ist jederzeit moeglich – der umgekehrte Weg nicht.
 
-## 4. Nachkauf-Pakete (Top-ups, Vorschlag)
+## 4. Nachkauf-Pakete (Top-ups)
 
-Einmalkauf ueber Dodo, gueltig bis Abo-Ende. Nur fuer Pakete mit Nachkauf-Berechtigung (Standalone, Full).
+Einmalkauf ueber Dodo, gueltig bis Abo-Ende. Verfuegbar fuer alle Buddy-haltigen Tarife mit Nachkauf-Berechtigung: AI Chat Standalone, Sprachkurs + AI, Sprachkurs + AI Pro.
 
-| Pack | Energy | Preis (Vorschlag) |
-|---|---:|---:|
-| Starter | 150 | 4,99 € |
-| Plus | 500 | 11,99 € |
-| Pro | 1.500 | 29,99 € |
+### 4.1 Finale Werte (Entscheidung Juni 2026)
 
-(Marge/Begruendung siehe `03_PREISKALKULATION.md`.)
+| Pack | Energy gesamt | Davon Bonus | Preis | €/Energy | Δ €/Energy zum naechst-kleineren Pack |
+|---|---:|---:|---:|---:|---:|
+| **Starter** | 500 | 0 | **4,99 €** | **0,00998 €** | – |
+| **Plus** | 1 500 | 500 (50 % Bonus) | **9,99 €** | **0,00666 €** | **−33 %** |
+| **Pro** | **4 000** | **1 500 (60 % Bonus)** | **22,99 €** | **0,00575 €** | **−14 %** |
+
+### 4.2 Design-Regeln, die diese Werte erfuellen
+
+Die Treppe muss fuenf Bedingungen gleichzeitig erfuellen — sonst ist sie kaputt:
+
+1. **Monotoner Bulk-Discount:** €/Energy faellt mit jedem groesseren Pack.
+2. **Pro nicht durch 2× Plus schlagbar:** 2× Plus = 3 000 Energy / 19,98 € (0,00666 €/Energy). 1× Pro = 4 000 Energy / 22,99 € (0,00575 €/Energy). Pro bleibt billiger pro Energy ✓ und liefert 1 000 Energy mehr. Die zusaetzlichen 1 000 Energy kosten effektiv nur **0,003 €/Energy** (Marginalpreis) — starker Pro-Upgrade-Anreiz.
+3. **Worst-Case-Marge ≥ 70 %** auf reine KI-Kosten in jedem Pack (siehe Tabelle 4.3).
+4. **Spuerbarer Sprung** (≥ 15 % €/Energy-Reduktion pro Stufe) — Starter→Plus: −33 %, Plus→Pro: −14 % (knapp, aber wirksam).
+5. **`.99`-Preise** fuer psychologisches Pricing.
+
+### 4.3 Margen-Tabelle
+
+Aktives Modell Gemini 2.5 Flash. Worst Case = 1 250 Input + 512 Output Tokens/Energy → ~$0,00166/Energy. Typical Mix = 833 in + 267 out → ~$0,00092/Energy. USD ~ EUR (siehe `03_PREISKALKULATION.md` §1).
+
+| Pack | Preis | KI-Kosten Worst | Marge Worst | KI-Kosten Typical | Marge Typical |
+|---|---:|---:|---:|---:|---:|
+| Starter | 4,99 € | $0,83 | **83 %** | $0,46 | 91 % |
+| Plus | 9,99 € | $2,49 | **75 %** | $1,38 | 86 % |
+| Pro | 22,99 € | $6,64 | **71 %** | $3,67 | 84 % |
+
+Die Live-Margen mit der **tatsaechlich aktiven** Modell-Konfiguration sind im Admin-UI (`/admin/energy`) tagesaktuell sichtbar.
+
+### 4.4 Verhaeltnis zu den Tarif-Inklusiv-Preisen (Anti-Kannibalisierung)
+
+| Energy-Quelle | €/Energy |
+|---|---:|
+| Sprachkurs + AI Inklusiv (250 Energy/Monat aus 8,25 € Monatspreis) | 0,033 € |
+| AI Chat Standalone Inklusiv (600 Energy/Monat aus 7,42 € Monatspreis) | 0,012 € |
+| Sprachkurs + AI Pro Inklusiv (750 Energy/Monat aus 9,92 € Monatspreis) | 0,013 € |
+| Top-Up Starter | 0,00998 € |
+| Top-Up Plus | 0,00666 € |
+| Top-Up Pro | 0,00575 € |
+
+Top-Ups liegen pro Energy unter dem **AI-zentrierten Tarif-Anker (0,012–0,013 €)**, **kannibalisieren** die Tarife aber nicht: Inklusiv-Energy kommt **jeden Monat neu**, Top-Up nur einmal. Wer dauerhaft mehr braucht, faehrt mit einem Tarif-Upgrade besser — Top-Up ist die saubere Spitzennutzungs-Option.
+
+### 4.5 Bonus-Logik (Marketing)
+
+- **Starter** (0 % Bonus): Einstiegspack, keine Versuessung – Pflichteinkauf fuer Erst-Nachkaeufer.
+- **Plus** (50 % Bonus): „kaufe 1 000, bekomme 500 dazu" – psychologisch starker Aha-Moment.
+- **Pro** (60 % Bonus): „kaufe 2 500, bekomme 1 500 dazu" – signalisiert „je groesser, desto besser".
+
+Bonus-Eskalation 0 % → 50 % → 60 % ist monoton und liefert dem User einen klaren visuellen Grund, das groessere Pack zu nehmen.
+
+### 4.6 Dodo-Produkte
+
+Drei Dodo-Top-up-Produkt-IDs (Env-Variablen): `DODO_TOPUP_STARTER`, `DODO_TOPUP_PLUS`, `DODO_TOPUP_PRO`.
+
+> **Quelle der Wahrheit:** `convex/subscriptions.ts → TOPUP_PACKS`. Die Dodo-Produkte im Dodo-Dashboard **muessen** auf dieselben Energy/Preis-Werte gepflegt sein, sonst bucht Dodo den falschen Betrag und der User bekommt eine falsche Energy-Gutschrift. Energy-Total in Dodo = `energyAmount + bonusAmount`.
 
 ## 5. Verfalls- und Reset-Regeln
 
@@ -153,6 +205,8 @@ energyLedger: defineTable({
 
 Der Ledger ist empfohlen: ermoeglicht Kostenanalyse je User/Aktionstyp, transparente Anzeige und spaeteres Feintuning der Verbrauchstabelle.
 
+> **Skalierungs-Hinweis (Juni 2026):** Der Ledger hat aktuell **keinen** Index auf `createdAt`. Der Admin-Live-Kalkulator (`getEnergyEconomics`) liest die letzten 30 Tage ueber ein `.take(50_000)`-Safety-Cap. Sobald die Tabelle dauerhaft >40 000 Eintraege fuehrt, **blendet die Admin-Karte automatisch eine Warnung ein** („Energy ledger scan cap nearing limit" / „cap reached"). In dem Fall: `by_createdAt`-Index hinzufuegen (`convex/schema/chat.ts` oder wo die Tabelle definiert ist) und in `convex/platform.ts → getEnergyEconomics` von `.take(50_000)` auf eine ranged Query (`withIndex("by_createdAt", q => q.gte("createdAt", windowStartMs))`) umstellen. Bis dahin sind die 30-Tage-Werte korrekt; nur Reports ueber einen laengeren Zeitraum koennten unvollstaendig werden.
+
 ## 7. Metering (Verbrauch verbuchen)
 
 - Der Verbrauch wird **in derselben Mutation** verbucht, die die Buddy-Antwort/Aktion finalisiert (Convex serialisiert Mutationen pro Dokument -> keine Race-Condition).
@@ -165,6 +219,28 @@ Der Ledger ist empfohlen: ermoeglicht Kostenanalyse je User/Aktionstyp, transpar
   6. Nach Erfolg: **real gemessene** Energy abbuchen (zuerst Inklusiv, dann Top-up) und ggf. die Reservierung aus Schritt 4 auf den Ist-Wert abgleichen; `energyLedger`-Eintrag mit Aktionstyp + gemessenen LLM-Tokens. Die Vorschau ist eine Schaetzung (`~`); verrechnet wird der gemessene Verbrauch.
 - **Monatlicher Reset:** per Convex-Cron (`convex/crons.ts`) – setzt `energyUsedThisPeriod` auf 0 und `energyPeriodResetAt` neu, sobald faellig. (Reset darf nicht in einer Query passieren – siehe Convex-Regel „kein `Date.now()` in Queries".)
 
+## 7a. Modell-Preise als Code-Konstante (Pricing-Quelle)
+
+Der Live-Kalkulator im Admin (`/admin/energy`) braucht **echte LLM-Preise (USD pro 1M Tokens)**, um $/Energy und Tier-Margen zu berechnen. Diese Preise leben **bewusst nicht in der Datenbank**, sondern als Code-Konstante in `convex/ai/modelPricing.ts`.
+
+**Begruendung (Entscheidung Juni 2026, Option A):**
+- Modell-Preise aendern sich selten (typischerweise 1–2× pro Jahr) – ein UI-Editor dafuer waere Overengineering.
+- Code-Versionierung gibt einen **sauberen Audit-Trail**: „Wann wurde der Preis von 0.30 auf X geaendert? In welchem Commit? Von wem?" → das beantwortet `git log convex/ai/modelPricing.ts`.
+- Kein Risiko von versehentlichen Live-Aenderungen ueber ein UI-Feld.
+
+**Was ist ein PR?** PR = **Pull Request** = der normale Code-Aenderungs-Workflow: Datei editieren → committen → Pull Request stellen → reviewen → mergen → deployen. Wenn Google/OpenAI ihre Preise anpassen, muss `convex/ai/modelPricing.ts` per PR aktualisiert werden (Werte plus `PRICING_LAST_VERIFIED_AT`-Datum hochsetzen). Kein Hexenwerk, aber explizit ein Code-Schritt – kein UI-Toggle.
+
+**Pricing-Freshness-Warnung (live im Admin):**
+- Datei haelt `PRICING_LAST_VERIFIED_AT` (ISO-Datum, hardcoded).
+- Admin-Karte berechnet daraus das Alter und zeigt:
+  - **`fresh`** (< 90 Tage): keine Warnung.
+  - **`warn`** (≥ 90 Tage, gelber Banner): „Model pricing table may be outdated – please re-check."
+  - **`alert`** (≥ 180 Tage, roter Banner): „Model pricing table is outdated – please verify prices and request a code update."
+- Der Banner verlinkt direkt auf die offizielle Pricing-Doku des aktiven Providers (`https://ai.google.dev/gemini-api/docs/pricing` bzw. `https://platform.openai.com/docs/pricing`).
+- **Workflow bei Aenderung:** Provider-Doku oeffnen → neue Preise in `MODEL_PRICING` eintragen → `PRICING_LAST_VERIFIED_AT` auf heutiges Datum setzen → PR + Deploy. Banner verschwindet automatisch nach dem Deploy.
+
+> **Alternative (verworfen):** Datenbankspalte `chatAiConfig.modelInputUsdPer1M` plus Admin-UI-Eingabe. Vorteil: keine Code-Aenderung noetig. Nachteil: Audit-Trail nur in Convex-Logs (weniger sichtbar), Risiko von Tippfehlern mit unmittelbarer Produktions-Wirkung, und der Pflege-Aufwand fuer „aenderbar, was sich faktisch nie aendert" rechtfertigt das Schema-Feld nicht. Diese Option bleibt jederzeit nachruestbar, falls sich die Pflege-Realitaet aendert (z. B. wir wollen Pricing pro Customer-Segment differenzieren).
+
 ## 8. Anzeige im Frontend (Konzept)
 
 Leitidee: Der aktuelle Energy-Stand ist **immer sichtbar**, und vor jeder Aktion sieht der User **live**, was sie kostet.
@@ -176,12 +252,13 @@ Leitidee: Der aktuelle Energy-Stand ist **immer sichtbar**, und vor jeder Aktion
 - **Abrechnung nach der Aktion (Reconciliation):** kurzes Feedback „−11⚡", Pill aktualisiert sich; der exakte, gemessene Wert steht im `energyLedger`. Vorschau = Schaetzung (`~`), Abbuchung = Ist-Wert (siehe 2.2 / Abschnitt 7).
 - Bei 10 % Restguthaben: dezenter Hinweis (nicht blockierend).
 - Bei 0 (und Nachkauf moeglich): freundlicher Top-up-CTA statt Fehler.
-- **Grenzfall (Variante A):** reicht die geschaetzte Energy nicht, wird der Bestaetigen-Button zu „Nicht genug Energy — aufladen" (Standalone/Full) bzw. „Energy diesen Monat aufgebraucht — Upgrade / naechster Monat" (Basic Kombi). Kein stilles Zuschneiden.
+- **Grenzfall (Variante A):** reicht die geschaetzte Energy nicht, wird der Bestaetigen-Button zu „Nicht genug Energy — aufladen" (Top-up-CTA, gilt fuer AI Chat Standalone, Sprachkurs + AI, Sprachkurs + AI Pro). Kein stilles Zuschneiden.
 
 ## 9. Dodo-Produkt-Matrix (Energy + Abos)
 
-- **Top-up-Produkte (Einmalzahlung):** Starter / Plus / Pro -> je eine Dodo-Produkt-ID (Env-Variablen, analog zum bestehenden Muster `DODO_PRODUCT_*`).
-- **Abo-Produkte:** Paket × Laufzeit × Zahlungsmodus. Bei 4 Paketen × 4 Laufzeiten × 2 Modi = bis zu **32 Produkt-IDs**. Empfehlung zur Reduktion (zu bestaetigen):
-  - Sprachkurs ggf. nur prepaid (kein Ratenkauf fuer niedrigste Preisstufe).
-  - Ratenzahlung erst ab Basic Kombi.
+- **Top-up-Produkte (Einmalzahlung):** Starter / Plus / Pro -> je eine Dodo-Produkt-ID (Env-Variablen, Muster `DODO_PRODUCT_TOPUP_*`). Insgesamt **3 Top-up-Produkt-IDs**.
+- **Abo-Produkte (Entscheidung Juni 2026):** Paket × Laufzeit × Zahlungsmodus. **Drei Laufzeiten: 3 / 6 / 12 Monate** (9-Monats-Variante entfernt). Mit der Ratenzahlungs-Entscheidung (Ratenzahlung nur ab „Sprachkurs + AI"; Sprachkurs prepaid-only) ergibt sich:
+  - **Sprachkurs:** 3 Laufzeiten × 1 Modus (prepaid) = **3 Produkte**.
+  - **AI Chat Standalone / Sprachkurs + AI / Sprachkurs + AI Pro:** je 3 Laufzeiten × 2 Modi (prepaid + Raten) = **18 Produkte**.
+  - **Summe: 21 Abo-Produkte** + 3 Top-ups = **24 Dodo-Produkt-IDs**.
 - Webhook-Verarbeitung (`convex/subscriptions.ts` `internalProcessDodoWebhook`) wird erweitert, um `featureTier` und Energy-Felder aus den Checkout-Metadaten zu uebernehmen und Top-ups dem `energyTopUpBalance` gutzuschreiben (Idempotenz ueber bestehendes `dodoWebhookEvents`-Muster).

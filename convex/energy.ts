@@ -33,8 +33,18 @@ export const DEFAULT_ENERGY_COSTS = {
 
 export const DEFAULT_TIER_QUOTAS = {
   full: 750,
-  buddy: 450,
-  basic: 120,
+  // AI Chat Standalone (legacy key "buddy"): higher quota than the combo tier
+  // because Standalone users have NO course content – the AI chat is their
+  // only product surface, so they will use it more intensively.
+  // Raised from 450 → 600 (decision: June 2026).
+  buddy: 600,
+  // Sprachkurs + AI (legacy key "basic"): raised from 120 → 250 (June 2026).
+  // Reason: 120 was sized as a token "demo quota" – ~1-2 active questions per
+  // day, which felt punitive for engaged learners and undermined the mid-tier
+  // value proposition. 250 ≈ 80-125 balanced learning questions/month
+  // (~3-4/day). Worst-case KI cost stays <7% of monthly revenue – economics
+  // remain very healthy (see docs/restructure/03_PREISKALKULATION.md §3).
+  basic: 250,
   course: 0, // course tier uses the teaser counter, not energy
 } as const;
 

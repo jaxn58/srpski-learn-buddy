@@ -100,7 +100,7 @@ export default function ChatDocumentUpload() {
           size="icon"
           className="relative"
           disabled={isUploading}
-          title="Upload documents for Brate"
+          title="Upload documents for the AI Buddy"
         >
           {isUploading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -149,7 +149,7 @@ export default function ChatDocumentUpload() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground text-center py-2">
-              Upload documents or photos so Brate can reference them
+              Upload documents or photos so the AI Buddy can reference them
             </p>
           )}
 

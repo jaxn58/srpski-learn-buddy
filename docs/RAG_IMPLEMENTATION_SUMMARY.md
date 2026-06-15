@@ -18,7 +18,7 @@ Das bestehende System hat Grammatik und Unit-Metadaten ausschließlich auf Engli
 
 ### v2 — Enhanced Structured Retrieval
 
-Der Brate-AI sieht jetzt massiv mehr Kontext:
+Der AI Buddy sieht jetzt massiv mehr Kontext:
 
 | Verbesserung | Vorher | Nachher |
 |---|---|---|
@@ -39,7 +39,7 @@ Der Brate-AI sieht jetzt massiv mehr Kontext:
 - **Neue Tabelle** `knowledgeChunks` mit Vektor-Index (1536 Dimensionen, OpenAI `text-embedding-3-small`)
 - **Embedding-Utility** `convex/ai/embeddings.ts` — `embedText()`, `embedTexts()`, `chunkText()`
 - **Ingestion-Pipeline** `convex/ai/ingestKnowledge.ts` — verarbeitet alle Unit-Inhalte, Artikel und User-Dokumente automatisch in durchsuchbare Chunks
-- **Hybrid Retrieval**: Jede User-Frage wird sowohl strukturiert (v2) als auch semantisch (Vektor-Suche) beantwortet — der Brate findet relevantes Wissen auch ohne exakte Schlüsselwort-Treffer
+- **Hybrid Retrieval**: Jede User-Frage wird sowohl strukturiert (v2) als auch semantisch (Vektor-Suche) beantwortet — der AI Buddy findet relevantes Wissen auch ohne exakte Schlüsselwort-Treffer
 
 **Neue Dateien:**
 - `convex/ai/embeddings.ts`
@@ -72,7 +72,7 @@ Der Brate-AI sieht jetzt massiv mehr Kontext:
 
 - **Neue Tabelle** `knowledgeArticles` mit 7 Kategorien: Culture, Practical, Language, Cuisine, Geography, Immigration, History
 - **Vollständige Admin-UI** unter `/admin/knowledge`: Artikel erstellen, bearbeiten, veröffentlichen
-- **Auto-Ingestion**: Beim Publish wird der Artikel automatisch gechukt, embedded und für den Brate durchsuchbar
+- **Auto-Ingestion**: Beim Publish wird der Artikel automatisch gechukt, embedded und für den AI Buddy durchsuchbar
 - **10 initiale Seed-Artikel** vorbereitet:
   - Slava (Familienfeier des Patron-Heiligen)
   - Kafana-Kultur
@@ -98,7 +98,7 @@ Der Brate-AI sieht jetzt massiv mehr Kontext:
 
 ### v6 — Agentic RAG mit Tool-Calling
 
-**5 intelligente Tools**, die der Brate eigenständig aufrufen kann:
+**5 intelligente Tools**, die der AI Buddy eigenständig aufrufen kann:
 
 | Tool | Beschreibung |
 |---|---|
@@ -125,9 +125,9 @@ Der Brate-AI sieht jetzt massiv mehr Kontext:
 
 ## Welche Vorteile wir dadurch haben
 
-1. **Massiv intelligenterer AI-Assistent**: Der Brate kann jetzt auf das gesamte Kursmaterial, kulturelles Wissen, praktische Guides und sogar User-eigene Dokumente zugreifen — nicht nur auf eine Handvoll Vokabeln.
+1. **Massiv intelligenterer AI-Assistent**: Der AI Buddy kann jetzt auf das gesamte Kursmaterial, kulturelles Wissen, praktische Guides und sogar User-eigene Dokumente zugreifen — nicht nur auf eine Handvoll Vokabeln.
 
-2. **Skalierbare Wissensbasis**: Neue Artikel können Admins direkt über die UI hinzufügen — kein Code-Deployment nötig. Veröffentlichen genügt, und der Brate weiß sofort Bescheid.
+2. **Skalierbare Wissensbasis**: Neue Artikel können Admins direkt über die UI hinzufügen — kein Code-Deployment nötig. Veröffentlichen genügt, und der AI Buddy weiß sofort Bescheid.
 
 3. **Robuste Architektur**: Jede Stufe hat einen Fallback. Agentic RAG fällt auf Hybrid-RAG zurück, Hybrid-RAG auf strukturiertes Retrieval, mehrsprachige Inhalte auf Englisch. Das System ist widerstandsfähig.
 
@@ -139,13 +139,13 @@ Der Brate-AI sieht jetzt massiv mehr Kontext:
 
 ## Welche Vorteile der User hat
 
-1. **Personalisierte Antworten**: Der Brate kennt jetzt die Schwächen des Users ("Du hast Probleme mit kuća, prozor und vrata — lass uns die nochmal üben!") und seinen Fortschritt.
+1. **Personalisierte Antworten**: Der AI Buddy kennt jetzt die Schwächen des Users ("Du hast Probleme mit kuća, prozor und vrata — lass uns die nochmal üben!") und seinen Fortschritt.
 
-2. **Tieferes Sprachverständnis**: Statt nur 500 Zeichen Grammatik-Zusammenfassung bekommt der Brate jetzt die volle Grammatik, Phrases, Dialogbeispiele und Aussprache-Hilfen.
+2. **Tieferes Sprachverständnis**: Statt nur 500 Zeichen Grammatik-Zusammenfassung bekommt der AI Buddy jetzt die volle Grammatik, Phrases, Dialogbeispiele und Aussprache-Hilfen.
 
 3. **Kulturelles und praktisches Wissen**: Fragen wie "Was ist Slava?", "Wie eröffne ich ein Bankkonto in Serbien?" oder "Was isst man zu Weihnachten?" werden jetzt mit fundiertem, spezifischem Wissen beantwortet.
 
-4. **Eigene Dokumente einbinden**: Der User kann ein serbisches PDF, Studiennotizen oder ein Rezeptbuch hochladen — und der Brate kann daraus zitieren und Fragen dazu beantworten.
+4. **Eigene Dokumente einbinden**: Der User kann ein serbisches PDF, Studiennotizen oder ein Rezeptbuch hochladen — und der AI Buddy kann daraus zitieren und Fragen dazu beantworten.
 
 5. **Mehrsprachigkeit**: Alle Inhalte werden in der eingestellten Sprache des Users geladen (Deutsch oder Englisch), nicht mehr nur auf Englisch.
 
@@ -156,12 +156,12 @@ Der Brate-AI sieht jetzt massiv mehr Kontext:
 ### Serbisch lernen mit Kontext
 > "Erkläre mir die Grammatik von Unit 3"
 
-Der Brate holt sich die vollständige Grammatik, Beispiel-Dialoge und relevante Vokabeln.
+Der AI Buddy holt sich die vollständige Grammatik, Beispiel-Dialoge und relevante Vokabeln.
 
 ### Schwächen gezielt trainieren
 > "Welche Wörter habe ich oft falsch?"
 
-Der Brate kennt die schwachen Vokabeln und kann Übungen vorschlagen.
+Der AI Buddy kennt die schwachen Vokabeln und kann Übungen vorschlagen.
 
 ### Kultur entdecken
 > "Was ist eine Kafana?" oder "Wie feiert man Slava?"
@@ -171,45 +171,45 @@ Fundierte, detaillierte Antworten aus der Knowledge Base.
 ### Praktische Lebenshilfe
 > "Ich ziehe nach Belgrad. Was muss ich zum Thema Wohnung wissen?"
 
-Der Brate liefert praktische Tipps zu Miete, Bankkonto, Arztbesuch.
+Der AI Buddy liefert praktische Tipps zu Miete, Bankkonto, Arztbesuch.
 
 ### Eigene Materialien nutzen
 > Ein Serbisch-Lehrbuch als PDF hochladen
 
-Der Brate kann daraus zitieren: "Was steht in meinem Dokument über Perfekt?"
+Der AI Buddy kann daraus zitieren: "Was steht in meinem Dokument über Perfekt?"
 
 ### Vokabeln überall suchen
 > "Was bedeutet 'zdravo'?"
 
-Der Brate durchsucht alle Units und liefert das Wort mit Aussprache, Übersetzung und Kontext.
+Der AI Buddy durchsucht alle Units und liefert das Wort mit Aussprache, Übersetzung und Kontext.
 
 ### Automatische Wiederholung
-Der Brate bezieht Vokabeln der letzten 2 Units automatisch mit ein — Wiederholung ohne Extra-Aufwand.
+Der AI Buddy bezieht Vokabeln der letzten 2 Units automatisch mit ein — Wiederholung ohne Extra-Aufwand.
 
 ---
 
 ## Möglichkeiten für erfolgreicheres Lernen und ein tolles Erlebnis
 
 ### 1. Adaptives Lernen
-Der Brate passt seine Antworten an den Lernstand an. Ein Anfänger in Unit 1 bekommt einfache Erklärungen, ein Fortgeschrittener in Unit 10 tiefere Grammatik-Details.
+Der AI Buddy passt seine Antworten an den Lernstand an. Ein Anfänger in Unit 1 bekommt einfache Erklärungen, ein Fortgeschrittener in Unit 10 tiefere Grammatik-Details.
 
 ### 2. Immersives Kulturerlebnis
-Durch die 10+ vorbereiteten Kultur-Artikel und die wachsende Knowledge Base wird der Brate zu einem echten kulturellen Begleiter — nicht nur ein Sprachlehrer, sondern ein "Brate" der das Balkan-Leben erklärt.
+Durch die 10+ vorbereiteten Kultur-Artikel und die wachsende Knowledge Base wird der AI Buddy zu einem echten kulturellen Begleiter — nicht nur ein Sprachlehrer, sondern ein Companion, der das Balkan-Leben erklärt.
 
 ### 3. SOS-Buddy für den Alltag
 Akute Fragen ("Wie sage ich beim Arzt, dass ich Halsschmerzen habe?") werden sofort mit relevantem Wissen beantwortet — inklusive der richtigen serbischen Sätze.
 
 ### 4. Eigenes Lerntempo
-Durch hochgeladene Dokumente kann jeder User sein individuelles Lernmaterial einbringen — der Brate wird zum personalisierten Tutor.
+Durch hochgeladene Dokumente kann jeder User sein individuelles Lernmaterial einbringen — der AI Buddy wird zum personalisierten Tutor.
 
 ### 5. Kontinuierlich wachsendes Wissen
-Admins können jederzeit neue Artikel zu aktuellen Themen hinzufügen (neuer Feiertag, neues Gesetz, saisonale Themen). Das Wissen des Brate wächst mit jedem Tag.
+Admins können jederzeit neue Artikel zu aktuellen Themen hinzufügen (neuer Feiertag, neues Gesetz, saisonale Themen). Das Wissen des AI Buddy wächst mit jedem Tag.
 
 ### 6. Gamification-Verstärkung
-Der Brate kennt den Streak und XP des Users und kann motivieren: "Du hast eine 7-Tage-Serie! Weiter so, Brate — lass uns heute Unit 5 knacken!"
+Der AI Buddy kennt den Streak und XP des Users und kann motivieren: "Du hast eine 7-Tage-Serie! Weiter so — lass uns heute Unit 5 knacken!"
 
 ### 7. Nahtlose Mehrsprachigkeit
-Ob der User Deutsch oder Englisch bevorzugt — der Brate liefert Inhalte in der richtigen Sprache und stellt sicher, dass keine Information verloren geht.
+Ob der User Deutsch oder Englisch bevorzugt — der AI Buddy liefert Inhalte in der richtigen Sprache und stellt sicher, dass keine Information verloren geht.
 
 ---
 

@@ -1045,10 +1045,10 @@ export default function Vocabulary() {
               )}
               {mode === 'quiz' && sessionXP > 0 && (
                 <div className="flex items-center justify-center gap-2 text-sm bg-yellow-50 p-2 rounded border border-yellow-200">
-                  <span className="font-semibold text-yellow-700">Session XP: +{sessionXP}</span>
+                  <span className="font-semibold text-yellow-700">{t('vocabulary.sessionXp', { xp: sessionXP })}</span>
                   <GamificationModal trigger={
                     <button className="text-blue-600 hover:text-blue-700 underline text-xs">
-                      How does XP work?
+                      {t('vocabulary.xpHowItWorks')}
                     </button>
                   } />
                 </div>
@@ -1122,7 +1122,7 @@ export default function Vocabulary() {
                 </div>
                 {mode === 'quiz' && lastQuizProgress && lastQuizProgress.lastScore > 0 && (
                   <div className="text-xs text-muted-foreground bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
-                    Last attempt: {lastQuizProgress.lastScore}% ({lastQuizProgress.totalAttempts} attempts)
+                    {t('vocabulary.lastAttempt', { score: lastQuizProgress.lastScore, attempts: lastQuizProgress.totalAttempts })}
                   </div>
                 )}
               </div>
@@ -1582,7 +1582,7 @@ export default function Vocabulary() {
                   </Button>
                   <Button variant="outline" onClick={handleResetQuizProgress}>
                     <RotateCcw className="mr-2 h-4 w-4" />
-                    Reset Progress
+                    {t('vocabulary.resetProgress')}
                   </Button>
                   {/* Auto-advance to next unit */}
                   {selectedUnit !== 'all' && typeof selectedUnit === 'number' && selectedUnit < availableUnits[availableUnits.length - 1] && (

@@ -24,22 +24,64 @@ import { isStaffRole, isLearnerAccountSuspended } from "./authz";
 import { loadBetaPhaseActive } from "./platform";
 import { loadEnergyConfig } from "./energy";
 
-export type FeatureTier = "course" | "buddy" | "basic" | "full";
+/**
+ * Canonical feature tier identifiers (Phase 5, June 2026).
+ *
+ *   course         – Sprachkurs (learning content only, no AI)
+ *   standalone     – AI Chat Standalone (AI Buddy + documents, no learning)
+ *   course_ai      – Sprachkurs + AI (learning + AI Buddy with context linking)
+ *   course_ai_pro  – Sprachkurs + AI Pro (everything: learning, AI, documents, community)
+ *
+ * The legacy names (buddy | basic | full) are still accepted on input for
+ * zero-migration of existing DB records – they are normalized to the canonical
+ * names via `normalizeFeatureTier()` before any feature-resolution logic runs.
+ */
+export type FeatureTier = "course" | "standalone" | "course_ai" | "course_ai_pro";
+
+/**
+ * Raw tier as it may appear in the DB or via override (includes legacy aliases).
+ * Use `normalizeFeatureTier()` to convert into a canonical FeatureTier.
+ */
+export type RawFeatureTier = FeatureTier | "buddy" | "basic" | "full";
+
+/**
+ * Normalize a legacy tier identifier to its canonical equivalent.
+ *   buddy → standalone, basic → course_ai, full → course_ai_pro
+ * Canonical IDs pass through unchanged. Returns null for unknown values.
+ */
+export function normalizeFeatureTier(raw: RawFeatureTier | null | undefined): FeatureTier | null {
+  if (!raw) return null;
+  switch (raw) {
+    case "course":         return "course";
+    case "standalone":     return "standalone";
+    case "course_ai":      return "course_ai";
+    case "course_ai_pro":  return "course_ai_pro";
+    // Legacy aliases
+    case "buddy":          return "standalone";
+    case "basic":          return "course_ai";
+    case "full":           return "course_ai_pro";
+    default:               return null;
+  }
+}
 
 /**
  * Per-tier monthly energy quotas used as fallback when a subscription has no
- * explicit `energyQuotaMonthly`. Course tier has no energy (teaser-only) by
- * design – the other tiers are admin-tunable via `platformConfig` (see
+ * explicit `energyQuotaMonthly`. The `course` tier has no energy (teaser-only)
+ * by design – the other tiers are admin-tunable via `platformConfig` (see
  * convex/energy.ts and the `loadEnergyConfig` helper).
+ *
+ * Field names match the legacy tier IDs (full/buddy/basic) for backward
+ * compatibility with `loadEnergyConfig` and the admin energy panel; they map
+ * to canonical tiers as: full=course_ai_pro, buddy=standalone, basic=course_ai.
  */
 type TierQuotas = { full: number; buddy: number; basic: number };
 
 function quotaForTier(tier: FeatureTier, quotas: TierQuotas): number {
   switch (tier) {
-    case "course": return 0;
-    case "full":   return quotas.full;
-    case "buddy":  return quotas.buddy;
-    case "basic":  return quotas.basic;
+    case "course":         return 0;
+    case "course_ai_pro":  return quotas.full;
+    case "standalone":     return quotas.buddy;
+    case "course_ai":      return quotas.basic;
   }
 }
 
@@ -72,13 +114,15 @@ export type FeatureAccess = {
 };
 
 // Validator mirror of FeatureAccess for query `returns`.
+// Note: `tier` is always the canonical value (legacy aliases are normalized
+// before they reach this validator), so the union only lists canonical IDs.
 const featureAccessValidator = v.object({
   hasAccess: v.boolean(),
   tier: v.union(
     v.literal("course"),
-    v.literal("buddy"),
-    v.literal("basic"),
-    v.literal("full"),
+    v.literal("standalone"),
+    v.literal("course_ai"),
+    v.literal("course_ai_pro"),
     v.null()
   ),
   source: v.union(
@@ -113,13 +157,22 @@ const featureAccessValidator = v.object({
 
 function featuresForTier(tier: FeatureTier): FeatureFlags {
   return {
-    learning: tier === "course" || tier === "basic" || tier === "full",
-    buddyChat: tier === "buddy" || tier === "basic" || tier === "full",
-    contextLinking: tier === "basic" || tier === "full", // NOT for standalone buddy
-    documents: tier === "buddy" || tier === "full",
-    community: tier === "full",
-    energyTopUp: tier === "buddy" || tier === "full",
-    teaser: tier === "course", // 1-2 buddy questions / 24h preview
+    // Learning content is included in every paid tier EXCEPT the buddy-only "standalone" tier.
+    learning: tier === "course" || tier === "course_ai" || tier === "course_ai_pro",
+    // AI Buddy chat is included in every tier except "course" (teaser-only).
+    buddyChat: tier === "standalone" || tier === "course_ai" || tier === "course_ai_pro",
+    // Context linking (Buddy ties answers to current unit/vocab) requires both
+    // learning content AND AI. NOT for "standalone" (no learning) and NOT for "course" (no AI).
+    contextLinking: tier === "course_ai" || tier === "course_ai_pro",
+    // Documents: only the buddy-tiers that include the AI Buddy's full toolset.
+    // Excludes "course" (no AI) and "course_ai" (entry-level AI, no documents).
+    documents: tier === "standalone" || tier === "course_ai_pro",
+    // Community (forum, group exercises) – Pro tier only.
+    community: tier === "course_ai_pro",
+    // Energy top-up: any tier that has AI Buddy access (excludes "course" – it has 0 energy).
+    energyTopUp: tier === "standalone" || tier === "course_ai" || tier === "course_ai_pro",
+    // Teaser: the entry-level "course" tier gets 1-2 buddy questions / 24h preview.
+    teaser: tier === "course",
   };
 }
 
@@ -183,10 +236,10 @@ export function resolveFeatureAccess(input: {
   if (isStaffRole(user.role)) {
     return {
       hasAccess: true,
-      tier: "full",
+      tier: "course_ai_pro",
       source: "staff",
       isStaff: true,
-      features: featuresForTier("full"),
+      features: featuresForTier("course_ai_pro"),
       energy: { ...NO_ENERGY, unlimited: true },
     };
   }
@@ -194,7 +247,9 @@ export function resolveFeatureAccess(input: {
   // Superadmin-set override wins over subscription/beta resolution. Used for
   // support, comps and (currently) QA of the 4-package gating. Energy follows
   // the overridden tier's rules (still limited – never unlimited for learners).
-  const override = user.featureTierOverride as FeatureTier | undefined;
+  // Legacy override values (buddy/basic/full) are normalized to canonical IDs.
+  const overrideRaw = user.featureTierOverride as RawFeatureTier | undefined;
+  const override = normalizeFeatureTier(overrideRaw ?? null);
   if (override) {
     return {
       hasAccess: true,
@@ -213,9 +268,12 @@ export function resolveFeatureAccess(input: {
   }
 
   // Active PAID subscription → use its featureTier; legacy subs without the
-  // field are grandfathered to full feature access (Zero-Migration).
+  // field are grandfathered to "course_ai_pro" so nobody loses functionality
+  // on deploy (Zero-Migration). Legacy tier values (buddy/basic/full) are
+  // normalized to canonical IDs before use.
   if (activeSub && activeSub.planType !== "beta") {
-    const tier: FeatureTier = activeSub.featureTier ?? "full";
+    const rawTier = activeSub.featureTier as RawFeatureTier | undefined;
+    const tier: FeatureTier = normalizeFeatureTier(rawTier ?? null) ?? "course_ai_pro";
     return {
       hasAccess: true,
       tier,
@@ -232,11 +290,11 @@ export function resolveFeatureAccess(input: {
   if (betaPhaseActive && (activeSub?.planType === "beta" || user.isBetaTester === true)) {
     return {
       hasAccess: true,
-      tier: "full",
+      tier: "course_ai_pro",
       source: "beta",
       isStaff: false,
-      features: featuresForTier("full"),
-      energy: resolveEnergy("full", activeSub ?? null, energyQuotas),
+      features: featuresForTier("course_ai_pro"),
+      energy: resolveEnergy("course_ai_pro", activeSub ?? null, energyQuotas),
     };
   }
 

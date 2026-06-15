@@ -56,45 +56,59 @@ Selbst im **Worst Case** (~$0,002 pro Energy, siehe 2.1) sind die monatlichen In
 
 | Paket | Inklusiv-Energy/Monat | Max. KI-Kosten/Monat (Worst Case) |
 |---|---:|---:|
-| Basic Kombi | 120 | ~$0,24 |
-| AI Buddy Standalone | 450 | ~$0,90 |
-| Full Package | 750 | ~$1,50 |
+| Sprachkurs + AI | 250 | ~$0,50 |
+| AI Chat Standalone | 600 | ~$1,20 |
+| Sprachkurs + AI Pro | 750 | ~$1,50 |
 
 Schlussfolgerung: Die Pakete und Energy-Mengen sind **wertbasiert** zu bepreisen (Zahlungsbereitschaft, Positionierung), nicht kostenbasiert. Die KI-Kosten sind ein kleiner einstelliger Prozentsatz des Paketpreises.
 
 ## 4. Energy-Nachkauf-Ökonomie
 
-| Pack | Energy | Verkaufspreis | KI-Kosten (Worst Case) | Deckungsbeitrag |
+> **Entscheidung (Juni 2026, finalisiert):** Saubere monoton fallende €/Energy-Treppe über alle drei Packs, mit Worst-Case-Marge ≥ 70 %. Das Pro-Pack wurde gegenüber einem früheren Entwurf (3 000 Energy / 24,99 €) auf **4 000 Energy / 22,99 €** angepasst, weil dieser Entwurf einen Anti-Bulk-Discount erzeugte (1× Pro war teurer als 2× Plus für dieselbe Energy-Menge). Vollständige Herleitung in `02_TOKEN_SYSTEM.md` §4.
+
+Annahmen: Aktives Modell Gemini 2.5 Flash ($0,30 Input / $2,50 Output pro 1M Tokens). Worst Case = 1 250 Input + 512 Output Tokens je Energy → ~$0,00166/Energy. Typical Mix = 833 in + 267 out → ~$0,00092/Energy. USD ~ EUR (1:1 konservativ).
+
+| Pack | Energy (inkl. Bonus) | Bonus-Anteil | Preis | **€/Energy** | KI-Kosten Worst | **Marge Worst** | KI-Kosten Typical | Marge Typical |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Starter | 500 (0 Bonus) | 0 % | 4,99 € | **0,00998 €** | $0,83 | **83 %** | $0,46 | 91 % |
+| Plus | 1 500 (500 Bonus) | 50 % | 9,99 € | **0,00666 €** (−33 % zu Starter) | $2,49 | **75 %** | $1,38 | 86 % |
+| Pro | **4 000 (1 500 Bonus)** | **60 %** | **22,99 €** | **0,00575 €** (−14 % zu Plus) | $6,64 | **71 %** | $3,67 | 84 % |
+
+Live-Werte (mit dem tatsächlich aktiven Modell und der tatsächlichen Verbrauchstabelle) sind im Admin-UI unter `/admin/energy` jederzeit sichtbar (`getEnergyEconomics` rechnet die Tabelle bei jedem Aufruf neu durch).
+
+**Konsistenz-Check:** 2× Plus = 3 000 Energy für 19,98 € (0,00666 €/Energy). 1× Pro = 4 000 Energy für 22,99 € (0,00575 €/Energy). Pro bleibt **günstiger pro Energy** und liefert 1 000 Energy mehr; der Marginalpreis für die zusätzlichen 1 000 Energy = 3,01 €, also 0,003 €/Energy — starker Pro-Upgrade-Anreiz. ✓
+
+**Strategische Notiz:** Heavy-User, die Top-ups kaufen, lösen tendenziell teurere Aktionen aus (Dokumenten-Analyse, viel RAG, detaillierte Antworten). Deswegen ist die Worst-Case-Spalte die für Top-up-Kalkulation relevantere — und genau die wurde als Untergrenze ≥ 70 % gehalten. Die typische Marge liegt 13–17 Prozentpunkte darüber.
+
+(Andere Kostenanteile wie Zahlungsgebühren ~3 %, Infrastruktur ~5–10 %, Content/Entwicklung sind hier nicht enthalten und müssen im Paketpreis zusätzlich gedeckt sein. Auch nach Abzug dieser Posten bleibt jeder Top-up im positiven Deckungsbeitrag — Pro mit ~58 % effektiver Vollkosten-Marge, Plus ~62 %, Starter ~70 %.)
+
+## 5. Abo-Preis-Grid
+
+Prepaid-Gesamtpreise in EUR, je Laufzeit. **Sprachkurs + AI Pro = aktueller Preis-Anker** (heutige Plan-Preise), damit Bestands-/Beta-User konform bleiben; die anderen Pakete darunter gestaffelt.
+
+> **Entscheidung (Juni 2026):** Preis-Grid final festgelegt. **Drei Laufzeiten: 3 / 6 / 12 Monate** (9-Monats-Variante entfernt – reduziert Komplexität in Pricing-UI und Dodo-Produkt-Matrix; die Mid-Tier-Laufzeit wird durch das 6-Monats-Paket abgedeckt).
+
+| Paket | 3 Monate | 6 Monate | 12 Monate | €/Monat (12M) |
 |---|---:|---:|---:|---:|
-| Starter | 150 | 4,99 € | ~$0,30 | ~94 % |
-| Plus | 500 | 11,99 € | ~$1,00 | ~92 % |
-| Pro | 1.500 | 29,99 € | ~$3,00 | ~90 % |
-
-Selbst bei durchgehend „schweren" Aktionen (~$0,002 pro Energy) bleibt die Marge auf die reinen KI-Kosten über 90 %. (Andere Kostenanteile wie Zahlungsgebühren, Infrastruktur, Content/Entwicklung sind hier nicht enthalten und im Paketpreis zu decken.)
-
-## 5. Abo-Preis-Grid (Vorschlag)
-
-Prepaid-Gesamtpreise in EUR, je Laufzeit. **Full Package = aktueller Preis-Anker** (heutige Plan-Preise), damit Bestands-/Beta-User konform bleiben; die anderen Pakete darunter gestaffelt.
-
-| Paket | 3 Monate | 6 Monate | 9 Monate | 12 Monate |
-|---|---:|---:|---:|---:|
-| Sprachkurs | 39 € | 49 € | 59 € | 69 € |
-| AI Buddy Standalone | 45 € | 59 € | 75 € | 89 € |
-| Basic Kombi | 55 € | 69 € | 85 € | 99 € |
-| Full Package | 69 € | 79 € | 95 € | 119 € |
+| Sprachkurs | 39 € | 49 € | 69 € | 5,75 € |
+| AI Chat Standalone | 45 € | 59 € | 89 € | 7,42 € |
+| Sprachkurs + AI | 55 € | 69 € | 99 € | 8,25 € |
+| Sprachkurs + AI Pro | 69 € | 79 € | 119 € | 9,92 € |
 
 Eigenschaften des Grids:
-- „Just-€20-more"-Logik: Basic Kombi 12M (99 €) → Full Package 12M (119 €) = +20 €.
-- AI Buddy Standalone liegt unter Basic Kombi (kein Kurs enthalten), aber mit Nachkauf-Option.
-- Sprachkurs als klarer Einstiegspreis.
+- **Bestandsschutz:** Sprachkurs + AI Pro 12M = 119 € identisch zum heutigen Plan-Preis (Beta-/Bestandskunden bleiben konform).
+- **„Just-€20-more"-Logik:** Sprachkurs + AI 12M (99 €) → Sprachkurs + AI Pro 12M (119 €) = +20 € Aufpreis für Documents, Knowledge Rack, Photo-Scan, Community + 500 Energy mehr/Monat → starkes Upsell-Argument auf der Pricing-Page (Documents/Photo-Scan/Community sind die primären Upsell-Hebel, nicht die Energy-Differenz).
+- **AI Chat Standalone** liegt unter Sprachkurs + AI (kein Kurs enthalten), kompensiert mit deutlich größerem Energy-Kontingent (600 vs. 250) + Top-up-Option. Juni 2026: Standalone-Quote von 450 → 600 angehoben (kein Kurs → AI-Chat ist einziges Produkt-Element); Sprachkurs-+-AI-Quote von 120 → 250 angehoben (UX-Korrektur: 120 wirkte als „Demo-Quota").
+- **Sprachkurs** als klarer Einstiegspreis (5,75 €/Monat bei 12M), prepaid-only.
+- **Marktpositionierung:** Alle Tarife liegen effektiv €/Monat unter dem Wettbewerber-Marktpreis (~$10–$16/Monat-Abos), Einmalzahlung zusätzlicher USP (siehe `07_MARKTANALYSE.md`).
 
 ### Ratenzahlung (bestehende Logik)
 
 Aufschlag +10 %, monatliche Rate auf `*.99` aufgerundet (`getInstallmentMonthlyChargeCents` in `convex/subscriptions.ts`).
 
-Beispiel Full Package 12 Monate: 119 € × 1,1 = 130,90 € → / 12 ≈ 10,91 € → gerundet **10,99 €/Monat**.
+Beispiel Sprachkurs + AI Pro 12 Monate: 119 € × 1,1 = 130,90 € → / 12 ≈ 10,91 € → gerundet **10,99 €/Monat**.
 
-Empfehlung (zu bestätigen): Ratenzahlung erst ab Basic Kombi anbieten; Sprachkurs nur prepaid. Das reduziert die Zahl der Dodo-Produkte.
+> **Entscheidung (Juni 2026):** Ratenzahlung wird **ab „Sprachkurs + AI" aufwärts** angeboten (Sprachkurs nur prepaid). Das ergibt eine Dodo-Produkt-Matrix von **1 Tarif × 3 Laufzeiten** (Sprachkurs prepaid) + **3 Tarife × 3 Laufzeiten × 2 Modi** (prepaid + Raten) = **21 Abo-Produkte** zzgl. 3 Top-up-Produkte. Begründung: Beim niedrigsten Einstiegspreis (Sprachkurs ab 39 €) ist Ratenzahlung wirtschaftlich uninteressant und produziert mehr Pflegeaufwand als Conversion-Vorteil.
 
 ## 6. Sensitivität / Annahmen
 
@@ -103,9 +117,9 @@ Empfehlung (zu bestätigen): Ratenzahlung erst ab Basic Kombi anbieten; Sprachku
 - Globales Tages-Budget (`chatAiConfig.dailyBudgetCents`) bleibt als Notbremse aktiv.
 - Bei Bedarf günstigeres Modell (Flash-Lite) für einfache Anfragen → Kostenhebel ohne Preis-/Produktänderung.
 
-## 7. Offene Preis-Entscheidungen
+## 7. Preis-Entscheidungen (Stand)
 
-1. Finale Abo-Preise je Zelle des Grids.
-2. Finale Energy-Inklusiv-Mengen, Verbrauchstabelle (Energy je Aktionstyp) und Nachkauf-Preise.
-3. Ratenzahlung für welche Pakete?
-4. Modellwahl (2.5 Flash vs. günstiger/neuer) als bewusste Margen-Entscheidung.
+1. ~~Finale Abo-Preise je Zelle des Grids.~~ **Entschieden Juni 2026:** Preis-Grid final (siehe Abschnitt 5).
+2. **Finale Energy-Inklusiv-Mengen** (entschieden: Sprachkurs + AI 250 / AI Chat Standalone 600 / Sprachkurs + AI Pro 750), **Verbrauchstabelle** (Energy je Aktionstyp, weiter Vorschlag, admin-konfigurierbar) und **Nachkauf-Preise** (entschieden Juni 2026, finalisiert: Starter 500/4,99 €, Plus 1 500/9,99 €, Pro 4 000/22,99 € — siehe Abschnitt 4 für die vollständige Treppen-Herleitung und Marge-Tabelle).
+3. ~~Ratenzahlung für welche Pakete?~~ **Entschieden Juni 2026:** ab „Sprachkurs + AI" aufwärts; Sprachkurs prepaid-only (siehe Abschnitt 5 / Ratenzahlung).
+4. **Modellwahl** (2.5 Flash vs. günstiger/neuer) als bewusste Margen-Entscheidung. *(weiter offen, kein Blocker — admin-konfigurierbar zur Laufzeit)*

@@ -49,8 +49,17 @@ export const coreTables = {
     // convex/featureAccess.ts. Optional → undefined means "no override".
     // Primary use today: testing the 4-package gating before tier-specific
     // billing products exist (all real users are otherwise full/beta/staff).
+    //
+    // The new canonical tier names are: course | standalone | course_ai | course_ai_pro.
+    // The legacy names (buddy | basic | full) are kept in the union for
+    // zero-migration of existing override records and are normalized in
+    // convex/featureAccess.ts (buddy → standalone, basic → course_ai, full → course_ai_pro).
     featureTierOverride: v.optional(v.union(
       v.literal("course"),
+      v.literal("standalone"),    // NEW: AI Chat Standalone (was "buddy")
+      v.literal("course_ai"),     // NEW: Sprachkurs + AI (was "basic")
+      v.literal("course_ai_pro"), // NEW: Sprachkurs + AI Pro (was "full")
+      // Legacy aliases (kept for backward compatibility, normalized at read-time)
       v.literal("buddy"),
       v.literal("basic"),
       v.literal("full")
@@ -75,15 +84,13 @@ export const coreTables = {
     userId: v.id("users"),
     planType: v.union(
       v.literal("beta"),
-      // Legacy plan IDs (kept for zero-migration – no production data, safe to keep in union)
+      // ===== Legacy plan IDs (kept for zero-migration – may exist in production) =====
+      // Old 4-duration single-tier model
       v.literal("intensive"),
       v.literal("balanced"),
       v.literal("standard"),
       v.literal("relaxed"),
-      // New compound IDs: <tier>_<duration> (Phase 4)
-      v.literal("course_3m"),
-      v.literal("course_6m"),
-      v.literal("course_12m"),
+      // First 4-tier × 3-duration iteration (kept for any Beta/QA data)
       v.literal("buddy_3m"),
       v.literal("buddy_6m"),
       v.literal("buddy_12m"),
@@ -92,9 +99,27 @@ export const coreTables = {
       v.literal("basic_12m"),
       v.literal("full_3m"),
       v.literal("full_6m"),
-      v.literal("full_12m")
+      v.literal("full_12m"),
+      // ===== New canonical compound IDs: <tier>_<duration> (Phase 5) =====
+      // Three durations across all tiers: 3 / 6 / 12 months
+      // Course tier (Sprachkurs) – prepaid-only
+      v.literal("course_3m"),
+      v.literal("course_6m"),
+      v.literal("course_12m"),
+      // Standalone tier (AI Chat Standalone)
+      v.literal("standalone_3m"),
+      v.literal("standalone_6m"),
+      v.literal("standalone_12m"),
+      // Course + AI tier (Sprachkurs + AI)
+      v.literal("course_ai_3m"),
+      v.literal("course_ai_6m"),
+      v.literal("course_ai_12m"),
+      // Course + AI Pro tier (Sprachkurs + AI Pro)
+      v.literal("course_ai_pro_3m"),
+      v.literal("course_ai_pro_6m"),
+      v.literal("course_ai_pro_12m")
     ),
-    planDurationMonths: v.number(), // 3, 6, 9, or 12
+    planDurationMonths: v.number(), // 3, 6, or 12
     planPrice: v.number(), // in cents (e.g., 6900 = €69.00)
     expiresAt: v.number(), // timestamp
     status: v.union(
@@ -126,12 +151,23 @@ export const coreTables = {
     // ===== Feature tier (2-axis model: package × duration) =====
     // Which feature package this subscription grants. Optional for backward
     // compatibility: existing/legacy subscriptions without this field are
-    // resolved to full feature access (Zero-Migration), see convex/featureAccess.ts.
+    // resolved to course_ai_pro feature access (Zero-Migration), see
+    // convex/featureAccess.ts.
+    //
+    // The new canonical tier names are: course | standalone | course_ai | course_ai_pro.
+    // The legacy names (buddy | basic | full) are kept in the union for
+    // zero-migration of existing subscription records and are normalized in
+    // convex/featureAccess.ts (buddy → standalone, basic → course_ai, full → course_ai_pro).
     featureTier: v.optional(v.union(
-      v.literal("course"), // Sprachkurs – learning content only
-      v.literal("buddy"),  // AI Buddy Standalone – buddy + documents, no learning
-      v.literal("basic"),  // Basic Kombi – learning + basic buddy (context linking)
-      v.literal("full")    // Full Package – everything
+      // New canonical tier IDs
+      v.literal("course"),         // Sprachkurs – learning content only, no AI
+      v.literal("standalone"),     // AI Chat Standalone – AI Buddy + documents, no learning
+      v.literal("course_ai"),      // Sprachkurs + AI – learning + AI Buddy with context linking
+      v.literal("course_ai_pro"),  // Sprachkurs + AI Pro – everything (learning, AI, documents, community)
+      // Legacy aliases (kept for backward compatibility, normalized at read-time)
+      v.literal("buddy"),  // → standalone
+      v.literal("basic"),  // → course_ai
+      v.literal("full")    // → course_ai_pro
     )),
 
     // ===== AI Energy (consumption-based buddy credits) =====

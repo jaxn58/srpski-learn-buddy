@@ -205,26 +205,39 @@ pnpm sync:email-templates
 - `VITE_CONVEX_URL=https://fleet-labrador-324.convex.cloud`
 - Clerk Production Keys (`pk_live_...`, `sk_live_...`)
 
-**Dodo Payments (Convex Dashboard Env Vars - Phase 4):**
+**Dodo Payments (Convex Dashboard Env Vars - Phase 5, Stand Juni 2026):**
 
-Subscription-Produkte (je 2 Modi = 24 Env-Vars):
-- `DODO_PRODUCT_COURSE_3M_PREPAID`, `DODO_PRODUCT_COURSE_3M_INSTALLMENTS`
-- `DODO_PRODUCT_COURSE_6M_PREPAID`, `DODO_PRODUCT_COURSE_6M_INSTALLMENTS`
-- `DODO_PRODUCT_COURSE_12M_PREPAID`, `DODO_PRODUCT_COURSE_12M_INSTALLMENTS`
-- `DODO_PRODUCT_BUDDY_3M_PREPAID`, `DODO_PRODUCT_BUDDY_3M_INSTALLMENTS`
-- `DODO_PRODUCT_BUDDY_6M_PREPAID`, `DODO_PRODUCT_BUDDY_6M_INSTALLMENTS`
-- `DODO_PRODUCT_BUDDY_12M_PREPAID`, `DODO_PRODUCT_BUDDY_12M_INSTALLMENTS`
-- `DODO_PRODUCT_BASIC_3M_PREPAID`, `DODO_PRODUCT_BASIC_3M_INSTALLMENTS`
-- `DODO_PRODUCT_BASIC_6M_PREPAID`, `DODO_PRODUCT_BASIC_6M_INSTALLMENTS`
-- `DODO_PRODUCT_BASIC_12M_PREPAID`, `DODO_PRODUCT_BASIC_12M_INSTALLMENTS`
-- `DODO_PRODUCT_FULL_3M_PREPAID`, `DODO_PRODUCT_FULL_3M_INSTALLMENTS`
-- `DODO_PRODUCT_FULL_6M_PREPAID`, `DODO_PRODUCT_FULL_6M_INSTALLMENTS`
-- `DODO_PRODUCT_FULL_12M_PREPAID`, `DODO_PRODUCT_FULL_12M_INSTALLMENTS`
+Kanonische 4-Tarife-Struktur (siehe `docs/restructure/01_TARIFE_UND_FEATURES.md`):
+- `course` = Sprachkurs (prepaid-only, keine Raten)
+- `standalone` = AI Chat Standalone (prepaid + Raten)
+- `course_ai` = Sprachkurs + AI (prepaid + Raten)
+- `course_ai_pro` = Sprachkurs + AI Pro (prepaid + Raten)
 
-Energy Top-up-Produkte (3 Env-Vars):
-- `DODO_TOPUP_STARTER` (500 Energy, 4.99 EUR)
-- `DODO_TOPUP_PLUS` (1500 Energy = 1000+500 Bonus, 9.99 EUR)
-- `DODO_TOPUP_PRO` (5000 Energy = 3000+2000 Bonus, 19.99 EUR)
+Subscription-Produkte (21 Env-Vars: 3 fuer `course` prepaid-only + 18 fuer die anderen drei Tiers x 3 Laufzeiten x 2 Modi). Laufzeiten: **3 / 6 / 12 Monate** (9-Monats-Variante entfernt, Entscheidung Phase 4).
+
+Sprachkurs (prepaid only, 3 Vars):
+- `DODO_PRODUCT_COURSE_3M_PREPAID`, `DODO_PRODUCT_COURSE_6M_PREPAID`, `DODO_PRODUCT_COURSE_12M_PREPAID`
+
+AI Chat Standalone (6 Vars):
+- `DODO_PRODUCT_STANDALONE_3M_PREPAID`, `DODO_PRODUCT_STANDALONE_6M_PREPAID`, `DODO_PRODUCT_STANDALONE_12M_PREPAID`
+- `DODO_PRODUCT_STANDALONE_3M_INSTALLMENTS`, `DODO_PRODUCT_STANDALONE_6M_INSTALLMENTS`, `DODO_PRODUCT_STANDALONE_12M_INSTALLMENTS`
+
+Sprachkurs + AI (6 Vars):
+- `DODO_PRODUCT_COURSE_AI_3M_PREPAID`, `DODO_PRODUCT_COURSE_AI_6M_PREPAID`, `DODO_PRODUCT_COURSE_AI_12M_PREPAID`
+- `DODO_PRODUCT_COURSE_AI_3M_INSTALLMENTS`, `DODO_PRODUCT_COURSE_AI_6M_INSTALLMENTS`, `DODO_PRODUCT_COURSE_AI_12M_INSTALLMENTS`
+
+Sprachkurs + AI Pro (6 Vars):
+- `DODO_PRODUCT_COURSE_AI_PRO_3M_PREPAID`, `DODO_PRODUCT_COURSE_AI_PRO_6M_PREPAID`, `DODO_PRODUCT_COURSE_AI_PRO_12M_PREPAID`
+- `DODO_PRODUCT_COURSE_AI_PRO_3M_INSTALLMENTS`, `DODO_PRODUCT_COURSE_AI_PRO_6M_INSTALLMENTS`, `DODO_PRODUCT_COURSE_AI_PRO_12M_INSTALLMENTS`
+
+> Legacy-Env-Vars (`DODO_PRODUCT_BUDDY_*`, `DODO_PRODUCT_BASIC_*`, `DODO_PRODUCT_FULL_*`) bleiben fuer Bestandskunden-Webhooks aktiv (Zero-Migration), neue Kaeufe laufen ueber die kanonischen IDs oben.
+
+Energy Top-up-Produkte (3 Env-Vars, Werte siehe `docs/restructure/02_TOKEN_SYSTEM.md` §4 – Entscheidung Juni 2026 finalisiert, monoton fallende €/Energy-Treppe):
+- `DODO_TOPUP_STARTER` (500 Energy, 4.99 EUR, 0 % Bonus, 0,00998 €/Energy)
+- `DODO_TOPUP_PLUS` (1500 Energy = 1000 + 500 Bonus, 9.99 EUR, 50 % Bonus, 0,00666 €/Energy)
+- `DODO_TOPUP_PRO` (4000 Energy = 2500 + 1500 Bonus, 22.99 EUR, 60 % Bonus, 0,00575 €/Energy)
+
+> **Quelle der Wahrheit:** `convex/subscriptions.ts → TOPUP_PACKS`. Code und Doku sind synchronisiert; Dodo-Produkte im Dashboard muessen auf dieselben Werte gepflegt sein.
 
 Weitere Dodo-Vars:
 - `DODO_PAYMENTS_API_KEY` - API Key (Dev: test-key, Prod: live-key)
@@ -234,11 +247,13 @@ Weitere Dodo-Vars:
 - `BETA_END_DATE` - ISO-Datum wann die Beta endet (z.B. `2026-09-01`)
 
 Upgrade Top-up-Produkte (auto-created via `internalEnsureDodoUpgradeProducts`):
-- `DODO_UPG_FULL_3M_FULL_6M`, `DODO_UPG_FULL_3M_FULL_12M`, `DODO_UPG_FULL_6M_FULL_12M` (und analog fuer andere Tiers)
+- Werden dynamisch aus `SUBSCRIPTION_PLANS` generiert (alle gleichen Tiers, kuerzere Laufzeit -> laengere Laufzeit). Beispiele: `DODO_UPG_COURSE_AI_3M_COURSE_AI_6M`, `DODO_UPG_COURSE_AI_PRO_6M_COURSE_AI_PRO_12M`, sowie analog fuer Legacy-Tiers (`BUDDY`, `BASIC`, `FULL`) fuer Bestandskunden-Pfade.
 
-Platfrom-Config Defaults (konfigurierbar im Admin-Bereich):
-- Welcome-Energy fuer ersten Full-Kauf: **500** (0 = deaktiviert)
+Platform-Config Defaults (konfigurierbar im Admin-Bereich, **alle Werte in DB**):
+- Welcome-Energy fuer ersten `course_ai_pro`-Kauf: **500** (0 = deaktiviert)
 - Beta-Tester-Discount: **50%** (einmalig nach Beta-Ende)
+- Energy-Quotas pro Tier (siehe `02_TOKEN_SYSTEM.md` §3): `course` = 0 (Teaser-only), `course_ai` = 250 (Juni 2026 von 120 angehoben – UX-Korrektur), `standalone` = 600 (Juni 2026 von 450 angehoben, da der Tarif keine Kurs-Inhalte enthält), `course_ai_pro` = 750. Felder in `platformConfig`: `energyQuotaBasic`, `energyQuotaBuddy`, `energyQuotaFull`. Defaults nur im Code als Fallback bei leerer Tabelle.
+- Plan-Preise: dynamisch aus `dodoProducts`-Tabelle via `getDynamicPrice()`. `priceCents` in `SUBSCRIPTION_PLANS` sind reine Fallback-Defaults.
 
 ### Secrets & API Keys - KRITISCH!
 

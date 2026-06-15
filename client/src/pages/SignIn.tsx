@@ -32,8 +32,8 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50 flex flex-col">
-      <header className="w-full border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 backdrop-blur-sm">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-blue-50 dark:from-red-950/20 dark:via-background dark:to-blue-950/20 flex flex-col">
+      <header className="w-full border-b bg-gradient-to-r from-red-50/80 via-white/80 to-blue-50/80 dark:from-background dark:via-background dark:to-background backdrop-blur-sm">
         <div className="container py-6">
           <div className="flex items-center justify-between">
             <Link href="/">

@@ -3,7 +3,7 @@
 **Teil von:** Tarif- und Token-Umbau (siehe `00_KONZEPT_UEBERSICHT.md`)
 **Stand:** Juni 2026 (Momentaufnahme – Wettbewerber-Preise/Features ändern sich laufend)
 
-> Auslöser: Frage, ob die Kombination aus **strukturiertem Sprachkurs + KI-Begleiter + AI-Energy-Modell + Einmalzahlung** am Markt einzigartig ist – und wie viel AI Energy im Full Package (z. B. 119 € / 12 Monate) enthalten sein sollte. Recherche-Werte sind Näherungen und vor strategischen Festlegungen ggf. erneut zu prüfen.
+> Auslöser: Frage, ob die Kombination aus **strukturiertem Sprachkurs + KI-Begleiter + AI-Energy-Modell + Einmalzahlung** am Markt einzigartig ist – und wie viel AI Energy im Sprachkurs + AI Pro (z. B. 119 € / 12 Monate) enthalten sein sollte. Recherche-Werte sind Näherungen und vor strategischen Festlegungen ggf. erneut zu prüfen.
 
 ---
 
@@ -45,15 +45,15 @@ Einzeln ist nichts davon weltneu – die **Kombination** ist jedoch am Markt nic
 
 ## 3. Strategische Implikation für die Energy-Menge
 
-Frage war: Wie viel AI Energy gehört ins Full Package (Anker 119 € / 12 Monate)?
+Frage war: Wie viel AI Energy gehört ins Sprachkurs + AI Pro (Anker 119 € / 12 Monate)?
 
 - **Kostenseite (Fakt):** Energy ist extrem günstig in der Bereitstellung. Selbst im Worst Case ~$0,002 pro Energy → 750 Energy/Monat ≈ ~$1,50/Monat KI-Kosten (siehe `03_PREISKALKULATION.md`). Es besteht **großer Spielraum**, großzügiger zu sein, ohne die Marge zu gefährden.
 - **Markt-/Wahrnehmungsseite:** Ein großzügiges, klar kommuniziertes Kontingent verstärkt den USP „kein knausriges Daily-Cap-Abo".
-- **Empfehlung der Recherche:** Full Package perspektivisch großzügiger ausstatten (Größenordnung ~1.000 Energy/Monat statt 750), weil die Differenzkosten vernachlässigbar sind.
+- **Empfehlung der Recherche:** Sprachkurs + AI Pro perspektivisch großzügiger ausstatten (Größenordnung ~1.000 Energy/Monat statt 750), weil die Differenzkosten vernachlässigbar sind.
 
 ### 3.1 Entscheidung (Juni 2026)
 
-- **Zum Launch werden die Energy-Mengen NICHT angehoben** (Basic 120 / Standalone 450 / Full 750 bleiben vorerst der Vorschlagsstand).
+- **Launch-Inklusiv-Mengen final:** Sprachkurs + AI: 250 / AI Chat Standalone: 600 / Sprachkurs + AI Pro: 750. Anhebungen im Juni 2026: Standalone 450 → 600 (kein Kurs enthalten, AI-Chat ist einziges Produkt-Element), Sprachkurs + AI 120 → 250 (UX-Korrektur: 120 wirkte als „Demo-Quota" und schwaechte das Mid-Tier; wirtschaftlich unbedenklich, KI-Kostenanteil <7 % vom Umsatz).
 - **Begründung:** „Nach unten" (günstiger/großzügiger) ist jederzeit möglich, „nach oben" (knapper) nicht. Erst Launch-Daten zum realen Verbrauch sammeln.
 - **Post-Launch-Hebel:** Da die Inklusiv-Mengen **admin-konfigurierbar** sind (siehe `06_ADMIN_BEREICH.md`), kann das Kontingent später ohne Deploy als kleines Goodwill-/Marketing-„Top-up" für bestehende Kunden angehoben werden – ein günstiger Retention-/PR-Hebel.
 
@@ -61,7 +61,7 @@ Frage war: Wie viel AI Energy gehört ins Full Package (Anker 119 € / 12 Monat
 
 - **Markt bewegt sich schnell:** KI-Tutoren-Segment wächst stark; Einmalzahlung könnte von Wettbewerbern kopiert werden. USP-Vorsprung aktiv nutzen.
 - **Erwartungshaltung „unbegrenzt":** Da KI-Chats oft als „flat" wahrgenommen werden, muss die Energy-Kommunikation Erwartungsmanagement leisten (großzügiges Kontingent + transparente Live-Anzeige, siehe `02` Abschnitt 8).
-- **Preis-Anker:** Full Package bleibt am bestehenden Plan-Preis verankert (Grandfathering der Beta-/Bestandskunden, siehe `03`/`04`).
+- **Preis-Anker:** Sprachkurs + AI Pro bleibt am bestehenden Plan-Preis verankert (Grandfathering der Beta-/Bestandskunden, siehe `03`/`04`).
 
 ## 5. Quellenlage
 

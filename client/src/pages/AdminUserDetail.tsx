@@ -130,7 +130,9 @@ export default function AdminUserDetail({ userId }: Props) {
   };
 
   const handleSetTierOverride = async (value: string) => {
-    const tier = value === "none" ? null : (value as "course" | "buddy" | "basic" | "full");
+    const tier = value === "none"
+      ? null
+      : (value as "course" | "standalone" | "course_ai" | "course_ai_pro");
     try {
       await setFeatureTierOverrideMutation({ userId: userId as any, featureTier: tier });
       toast.success(tier ? `Feature tier override set to "${tier}"` : "Feature tier override cleared");
@@ -548,9 +550,9 @@ export default function AdminUserDetail({ userId }: Props) {
                 <SelectContent>
                   <SelectItem value="none">No override</SelectItem>
                   <SelectItem value="course">Sprachkurs (course)</SelectItem>
-                  <SelectItem value="buddy">AI Buddy (buddy)</SelectItem>
-                  <SelectItem value="basic">Basic Kombi (basic)</SelectItem>
-                  <SelectItem value="full">Full Package (full)</SelectItem>
+                  <SelectItem value="standalone">AI Chat Standalone (standalone)</SelectItem>
+                  <SelectItem value="course_ai">Sprachkurs + AI (course_ai)</SelectItem>
+                  <SelectItem value="course_ai_pro">Sprachkurs + AI Pro (course_ai_pro)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

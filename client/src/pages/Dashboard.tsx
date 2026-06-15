@@ -368,20 +368,20 @@ export default function Dashboard() {
         <div className="pb-24">
         {/* Beta tester banner: copy from Convex when key dashboard_beta exists; else i18n fallback */}
         {user.isBetaTester && showBetaBanner && dbBetaBanner !== undefined && (
-          <div className="mb-4 border border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg p-3 md:p-4">
+          <div className="mb-4 border border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 rounded-lg p-3 md:p-4">
             <div className="flex items-start gap-2 md:gap-3">
               <div className="bg-yellow-400 rounded-full p-1.5 md:p-2 flex-shrink-0">
                 <Gift className="h-4 w-4 md:h-5 md:w-5 text-yellow-900" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
-                  <h3 className="font-bold text-base md:text-lg text-gray-900">
+                  <h3 className="font-bold text-base md:text-lg text-foreground">
                     {dbBetaBanner ? dbBetaBanner.title : t("dashboard.betaBanner.title")}
                   </h3>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 flex-shrink-0"
+                    size="icon"
+                    className="flex-shrink-0"
                     onClick={handleDismissBetaBanner}
                     aria-label={t("dashboard.betaBanner.dismissAria")}
                   >
@@ -390,17 +390,17 @@ export default function Dashboard() {
                 </div>
                 {dbBetaBanner ? (
                   <>
-                    <p className="text-xs md:text-sm text-gray-700 mb-1 md:mb-2">{dbBetaBanner.intro}</p>
-                    <div className="bg-white/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
-                      <p className="text-xs md:text-sm text-gray-600 whitespace-pre-wrap">{dbBetaBanner.body}</p>
+                    <p className="text-xs md:text-sm text-foreground/80 mb-1 md:mb-2">{dbBetaBanner.intro}</p>
+                    <div className="bg-background/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
+                      <p className="text-xs md:text-sm text-muted-foreground whitespace-pre-wrap">{dbBetaBanner.body}</p>
                     </div>
                   </>
                 ) : (
                   <>
-                    <p className="text-xs md:text-sm text-gray-700 mb-1 md:mb-2">
+                    <p className="text-xs md:text-sm text-foreground/80 mb-1 md:mb-2">
                       <strong>{t("dashboard.betaBanner.thankYou")}</strong> {t("dashboard.betaBanner.intro")}
                     </p>
-                    <ul className="text-xs md:text-sm text-gray-700 space-y-0.5 md:space-y-1 mb-1 md:mb-2">
+                    <ul className="text-xs md:text-sm text-foreground/80 space-y-0.5 md:space-y-1 mb-1 md:mb-2">
                       <li className="flex items-start">
                         <span className="mr-1 md:mr-2">✓</span>
                         <span>{t("dashboard.betaBanner.benefit1")}</span>
@@ -410,8 +410,8 @@ export default function Dashboard() {
                         <span>{t("dashboard.betaBanner.benefit2")}</span>
                       </li>
                     </ul>
-                    <div className="bg-white/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
-                      <p className="text-xs text-gray-600">
+                    <div className="bg-background/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
+                      <p className="text-xs text-muted-foreground">
                         <strong>{t("dashboard.betaBanner.afterLaunch")}</strong>{" "}
                         {t("dashboard.betaBanner.afterLaunchDesc")}
                       </p>
@@ -848,13 +848,13 @@ export default function Dashboard() {
                                   <Lock className="h-4 w-4 text-gray-500" />
                                   <span className="text-gray-500 text-sm font-medium">{t('dashboard.locked')}</span>
                                 </div>
-                                <div className="font-semibold text-lg mb-1 text-gray-600">
+                                <div className="font-semibold text-lg mb-1 text-muted-foreground">
                                   {unit?.title}
                                 </div>
-                                <div className="text-sm text-gray-500 mb-3">
+                                <div className="text-sm text-muted-foreground mb-3">
                                   {unit?.description}
                                 </div>
-                                <div className="text-xs text-gray-600 bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
+                                <div className="text-xs text-foreground/70 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded p-2 mt-2">
                                   <strong>{t('dashboard.betaTester.note')}</strong> {t('dashboard.betaTester.unlockNote')}
                                 </div>
                               </div>

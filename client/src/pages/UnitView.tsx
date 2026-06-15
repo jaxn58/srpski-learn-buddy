@@ -412,10 +412,10 @@ export default function UnitView() {
     setIsMarkingComplete(true);
     try {
       await markUnit1CompleteMutation();
-      toast.success('Unit 1 marked as complete!');
+      toast.success(t('unit.mark1CompleteSuccess'));
       setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
-      toast.error('Failed to mark Unit 1 as complete');
+      toast.error(t('unit.mark1CompleteFailed'));
     } finally {
       setIsMarkingComplete(false);
     }
@@ -428,7 +428,7 @@ export default function UnitView() {
   }
 
   if (!user || !unitMetadata) {
-    return <div className="min-h-screen flex items-center justify-center">Unit not found</div>;
+    return <div className="min-h-screen flex items-center justify-center">{t('unit.notFound')}</div>;
   }
 
   if (isLocked) {
@@ -444,7 +444,7 @@ export default function UnitView() {
               <CardDescription>{t('unit.lockedDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/dashboard"><Button>Back to Dashboard</Button></Link>
+              <Link href="/dashboard"><Button>{t('unit.backToDashboard')}</Button></Link>
             </CardContent>
           </Card>
         </div>
@@ -488,7 +488,7 @@ export default function UnitView() {
                 <span className="font-semibold text-foreground">
                   {unitMetadata.title}{" "}
                   <span className="font-normal text-muted-foreground">
-                    (Unit {unitNumber})
+                    {t('unit.number', { number: unitNumber })}
                   </span>
                 </span>
               </>
@@ -536,7 +536,7 @@ export default function UnitView() {
                 {/* {isCompleted && <Badge className="bg-green-600"><CheckCircle2 className="w-4 h-4 mr-1"/> Completed</Badge>} */}
                 {isMastered && (
                   <Badge className="bg-amber-500">
-                    <Star className="w-4 h-4 mr-1" /> Mastered
+                    <Star className="w-4 h-4 mr-1" /> {t('unit.mastered')}
                   </Badge>
                 )}
               </div>

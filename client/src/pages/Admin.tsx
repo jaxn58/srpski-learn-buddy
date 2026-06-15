@@ -13,8 +13,6 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
 import { useState, useMemo, useEffect } from "react";
-import { EnergyConfigCard } from "@/components/admin/EnergyConfigCard";
-
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
@@ -203,9 +201,6 @@ export default function Admin() {
           </div>
         </CardContent>
       </Card>
-
-      {/* AI Energy configuration (superadmin only — read-only otherwise) */}
-      {isSuperadmin && <EnergyConfigCard />}
 
       {/* 24h Statistics */}
       <div className="grid gap-4 md:grid-cols-3 mb-8">

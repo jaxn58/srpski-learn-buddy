@@ -27,15 +27,15 @@ Die App vermarktet heute **rein laufzeitbasierte Tarife**. Es gibt kein Feature-
 Die vier Pakete (Namen final):
 
 1. **Sprachkurs** (EN: „Course") – günstiger Einstieg, nur Lerninhalte, kein vollwertiger Buddy
-2. **AI Buddy Standalone** – nur der Buddy mit allen erweiterten Fähigkeiten, ohne Lerninhalte
-3. **Basic Kombi** – Lerninhalte + Basis-Buddy (kontextverknüpft), ohne erweiterte Buddy-Funktionen
-4. **Full Package** – alles, inkl. Community/Lerngruppen, größtes Token-Kontingent
+2. **AI Chat Standalone** – nur der Buddy mit allen erweiterten Fähigkeiten, ohne Lerninhalte
+3. **Sprachkurs + AI** (EN: „Course + AI") – Lerninhalte + Basis-Buddy (kontextverknüpft), ohne erweiterte Buddy-Funktionen
+4. **Sprachkurs + AI Pro** (EN: „Course + AI Pro") – alles, inkl. Community/Lerngruppen, größtes Token-Kontingent
 
 ## 3. Aktualisierte Feature-Matrix (nach Entscheidungen)
 
 Quelle: `My First Board.csv`, mit zwei getroffenen Entscheidungen eingearbeitet (Context-Linking aus Standalone entfernt; günstigstes Paket = „Sprachkurs").
 
-| Feature | Sprachkurs | AI Buddy Standalone | Basic Kombi | Full Package |
+| Feature | Sprachkurs | AI Chat Standalone | Sprachkurs + AI | Sprachkurs + AI Pro |
 |---|:---:|:---:|:---:|:---:|
 | Feste Lerninhalte (strukturierte Kurse) | ✓ | ✗ | ✓ | ✓ |
 | AI Buddy Chat (Basis) | ✗ | ✓ | ✓ | ✓ |
@@ -43,33 +43,37 @@ Quelle: `My First Board.csv`, mit zwei getroffenen Entscheidungen eingearbeitet 
 | Dokumenten-Upload & Analyse | ✗ | ✓ | ✗ | ✓ |
 | Knowledge Rack (PDF-Bibliothek) | ✗ | ✓ | ✗ | ✓ |
 | Foto-Scan (Dokumente, Speisekarten …) | ✗ | ✓ | ✗ | ✓ |
-| Energy-Nachkauf möglich | ✗ | ✓ | ✗ | ✓ |
+| Energy-Nachkauf möglich | ✗ | ✓ | **✓** | ✓ |
 | Community/Lerngruppen | ✗ | ✗ | ✗ | ✓ |
 | Teaser: 1–2 AI-Fragen/24h | ✓ | ✗ | ✗ | ✗ |
 | Zielgruppe | Preisbewusste Lerner, Einsteiger | Expats, Einwanderer, Profis | Lerner mit AI-Support | Power-User, Experten |
-| Preis-Positionierung | Günstig (€) | Mittel (€€) + Energy-Pakete | Mittel (€€) | Premium (€€€) + Energy-Pakete |
+| Preis-Positionierung | Günstig (€) | Mittel (€€) + Energy-Pakete | Mittel (€€) + Energy-Pakete | Premium (€€€) + Energy-Pakete |
 
-**Fett markiert** = Änderung gegenüber der Original-CSV (Context-Linking aus Standalone entfernt).
+**Fett markiert** = Änderung gegenüber der Original-CSV (Context-Linking aus Standalone entfernt; Energy-Nachkauf jetzt auch in „Sprachkurs + AI" möglich).
 
 ## 4. Getroffene Entscheidungen
 
 - **Abrechnungsmodell:** 2-Achsen-Modell (Paket × Laufzeit), Wiederverwendung des bestehenden Laufzeit-/Dodo-Systems. (Details: `01_TARIFE_UND_FEATURES.md`)
 - **Verbrauchseinheit:** **AI Energy** (nicht „Token = 1 Nachricht"). Verschiedene KI-Aktionen verbrauchen unterschiedlich viel Energy (kompakt/ausgewogen/ausführlich, RAG-Kontext, Foto-Scan, Datei-Upload). Intern werden echte LLM-Tokens + Aktionstyp gemessen und in einen gerundeten Energy-Betrag umgerechnet. (Details: `02_TOKEN_SYSTEM.md`)
-- **Energy-Verfügbarkeit:** Nur Buddy-haltige Pakete haben Energy-Guthaben. Nachkauf nur bei **AI Buddy Standalone** und **Full Package**. **Basic Kombi** erhält kleines Fix-Kontingent ohne Nachkauf. Sprachkurs hat nur den Teaser.
-- **Context-Linking:** Nur in Basic Kombi + Full Package (aus Standalone entfernt).
-- **Name günstigstes Paket:** „Sprachkurs" (EN „Course"). „Standalone-App" verworfen (Kollision mit „AI Buddy Standalone").
-- **Teaser-Semantik:** Der Sprachkurs-Teaser (1–2 Fragen/24h) zeigt den **Basic-Kombi-Buddy** (kontextverknüpfter Basis-Buddy) als Upsell-Vorschau.
+- **Energy-Verfügbarkeit:** Nur Buddy-haltige Pakete haben Energy-Guthaben. Nachkauf bei **AI Chat Standalone**, **Sprachkurs + AI** und **Sprachkurs + AI Pro**. **Sprachkurs + AI** hat 250 Energy/Monat (Mid-Tier-Komfort-Quote für aktive Lerner, ~3–4 Fragen/Tag); zusätzlicher Nachkauf ist möglich. Sprachkurs hat nur den Teaser.
+- **Context-Linking:** Nur in Sprachkurs + AI und Sprachkurs + AI Pro (aus Standalone entfernt).
+- **Name günstigstes Paket:** „Sprachkurs" (EN „Course"). „Standalone-App" verworfen (Kollision mit „AI Chat Standalone").
+- **Teaser-Semantik:** Der Sprachkurs-Teaser (1–2 Fragen/24h) zeigt den **Buddy aus Sprachkurs + AI** (kontextverknüpfter Basis-Buddy) als Upsell-Vorschau.
 - **Branch-Basis (empfohlen):** `chat`-Branch als technische Grundlage für die Buddy-/RAG-Features. (Details: `04_BRANCH_KONSOLIDIERUNG_UND_ROADMAP.md`)
 
 ## 5. Offene Punkte (vor Implementierung final zu bestätigen)
 
-1. **Finale Preise** je Paket × Laufzeit (Vorschlag-Grid in `03_PREISKALKULATION.md`).
-2. **Finale Energy-Kontingente** (Inklusiv-Mengen + Nachkauf-Pakete) und **finale Verbrauchstabelle** (Energy je Aktionstyp). *Entscheidung Juni 2026:* Launch-Mengen bleiben unverändert (Basic 120 / Standalone 450 / Full 750); Anhebung als Post-Launch-Hebel offen (siehe `07_MARKTANALYSE.md`).
+1. **Finale Preise** je Paket × Laufzeit. *Entschieden Juni 2026:* Preis-Grid final (Sprachkurs 39–69 € / AI Chat Standalone 45–89 € / Sprachkurs + AI 55–99 € / Sprachkurs + AI Pro 69–119 €). Anker-Preis = bestehender Plan-Preis (Bestandsschutz). Details: `03_PREISKALKULATION.md` Abschnitt 5.
+2. **Finale Energy-Kontingente** (Inklusiv-Mengen + Nachkauf-Pakete) und **finale Verbrauchstabelle** (Energy je Aktionstyp).
+   - *Entschieden Juni 2026:* Launch-Inklusiv-Mengen (Sprachkurs + AI: **250** / AI Chat Standalone: **600** / Sprachkurs + AI Pro: 750). Standalone von 450 → 600 angehoben (kein Kurs → AI-Chat ist einziges Produkt-Element), Sprachkurs + AI von 120 → 250 angehoben (UX-Korrektur, 120 wirkte als „Demo-Quota"). Weitere Anhebungen als Post-Launch-Hebel offen (siehe `07_MARKTANALYSE.md`).
+   - *Entschieden Juni 2026 (finalisiert):* Top-up-Pakete mit monoton fallender €/Energy-Treppe: Starter 500 Energy / 4,99 € (0,00998 €/Energy), Plus 1 500 (1 000 + 500 Bonus) / 9,99 € (0,00666 €/Energy, −33 %), Pro 4 000 (2 500 + 1 500 Bonus) / 22,99 € (0,00575 €/Energy, −14 %). Worst-Case-Marge ≥ 70 % in jedem Pack. Pro nicht durch 2× Plus schlagbar (siehe `02_TOKEN_SYSTEM.md` Abschnitt 4 und `03_PREISKALKULATION.md` Abschnitt 4).
+   - *Weiter offen:* Verbrauchstabelle (Energy je Aktionstyp) bleibt Vorschlag, da admin-konfigurierbar zur Laufzeit (kein Implementierungs-Blocker).
 3. **Energy-Verfallsregel:** Inklusiv-Kontingent monatlich zurücksetzen (Vorschlag), gekaufte Top-up-Energy bis Abo-Ende gültig.
    - *Entschieden:* **Upload-Abrechnung dynamisch** (proportional, kein fixer Energy-Cap), abgesichert über Pflicht-Vorabbestätigung + technisches Input-Limit; Grenzfall „nicht genug Energy" = blockieren statt zuschneiden (Variante A). Details: `02_TOKEN_SYSTEM.md` 2.2.
-4. **Laufzeit-/Ratenzahlungs-Matrix:** Bekommen wirklich alle 4 Pakete alle 4 Laufzeiten + Ratenzahlung? Das ergäbe bis zu 32 Dodo-Subscription-Produkte + Top-up-Produkte. Ggf. Ratenzahlung erst ab Basic Kombi.
-5. **Grandfathering der Beta-/Bestandskunden:** Vorschlag = automatisch „Full Package" (Zero-Migration via Default).
-6. **Buddy-Naming/Persona:** z. B. „Brate" (aus den chat-Branch-Konzepten) – separat zu entscheiden.
+4. **Laufzeit-/Ratenzahlungs-Matrix:**
+   - *Entschieden Juni 2026:* Ratenzahlung **ab „Sprachkurs + AI" aufwärts**; Sprachkurs prepaid-only. Daraus 28 Abo-Produkt-IDs + 3 Top-ups = **31 Dodo-Produkt-IDs** (siehe `02_TOKEN_SYSTEM.md` Abschnitt 9, `03_PREISKALKULATION.md` Abschnitt 5).
+5. **Grandfathering der Beta-/Bestandskunden:** Vorschlag = automatisch „Sprachkurs + AI Pro" (Zero-Migration via Default `featureTier = "course_ai_pro"`). *(noch zu bestätigen)*
+6. **Buddy-Naming/Persona:** Geklärt — die Persona heißt durchgehend **„AI Buddy"**. Kulturell unverfänglich, in EN/DE gleichermaßen lesbar, kein politisches Statement. Der frühere Arbeitsname „Brate" ist überall ersetzt.
 7. **Community/Lerngruppen:** existiert in keinem Branch, echtes Neu-Feature → eigener, späterer Arbeits-Track.
 
 ## 6. Dokument-Index

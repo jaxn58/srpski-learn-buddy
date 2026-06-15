@@ -284,7 +284,7 @@ export default function KnowledgeAdmin() {
         <div>
           <h1 className="text-2xl font-bold">Knowledge Base</h1>
           <p className="text-sm text-muted-foreground">
-            Manage articles for Brate's cultural and practical knowledge
+            Manage articles for the AI Buddy's cultural and practical knowledge
           </p>
         </div>
         {!showForm && (

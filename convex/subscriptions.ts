@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 import { loadBetaMaxUnits } from "./platform";
+import { loadEnergyConfig } from "./energy";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -34,60 +35,109 @@ async function getTotalUnitsCount(ctx: QueryCtx | MutationCtx): Promise<number> 
   return uniqueUnits.size;
 }
 
-// ============= SUBSCRIPTION PLANS (Phase 4: 4 Tiers × 3 Durations) =============
-// Prices are in cents (EUR). Charm-pricing variant: konzept_charm_mix × 3 terms.
-// Format: tier_<duration> – e.g. "full_12m" = Full Package, 12 months.
+// ============= SUBSCRIPTION PLANS (Phase 5: 4 Tiers × 4 Durations) =============
+// Prices are in cents (EUR). Final price grid (June 2026), see
+// `docs/restructure/03_PREISKALKULATION.md` for the rationale.
+// Format: <tier>_<duration> – e.g. "course_ai_pro_12m" = Sprachkurs + AI Pro, 12 months.
 
-type FeatureTierKey = "course" | "buddy" | "basic" | "full";
+type FeatureTierKey = "course" | "standalone" | "course_ai" | "course_ai_pro";
 type DurationKey = "3m" | "6m" | "12m";
 type PaidPlanId =
-  | "course_3m" | "course_6m" | "course_12m"
+  // New canonical IDs (Phase 5) – three durations (3 / 6 / 12 months)
+  | "course_3m"         | "course_6m"         | "course_12m"
+  | "standalone_3m"     | "standalone_6m"     | "standalone_12m"
+  | "course_ai_3m"      | "course_ai_6m"      | "course_ai_12m"
+  | "course_ai_pro_3m"  | "course_ai_pro_6m"  | "course_ai_pro_12m"
+  // Legacy IDs kept for zero-migration of existing DB records.
+  // Each legacy ID maps to the canonical tier of the same shape (no production
+  // data is expected outside the beta cohort; webhook handling normalizes them).
   | "buddy_3m"  | "buddy_6m"  | "buddy_12m"
   | "basic_3m"  | "basic_6m"  | "basic_12m"
   | "full_3m"   | "full_6m"   | "full_12m";
 
-// Legacy IDs kept only for the type system (no production data exists).
-// Webhook handling falls back gracefully; featureTier defaults to "full".
+// Pre-Phase-4 legacy IDs (4 durations, single tier). Kept only for the type
+// system to satisfy any historical webhook payloads – no production data exists.
 type LegacyPlanId = "intensive" | "balanced" | "standard" | "relaxed";
 
-const SUBSCRIPTION_PLANS: Array<{
+export const SUBSCRIPTION_PLANS: Array<{
   id: PaidPlanId;
   tier: FeatureTierKey;
   durationMonths: number;
   price: number; // prepaid total in cents
   name: string;
+  /** Whether this plan supports installments (false = prepaid-only). */
+  allowsInstallments: boolean;
 }> = [
-  // Course tier (Serbian language learning only, no AI Buddy)
-  { id: "course_3m",  tier: "course", durationMonths: 3,  price:  3900, name: "Course - 3 Months" },
-  { id: "course_6m",  tier: "course", durationMonths: 6,  price:  4900, name: "Course - 6 Months" },
-  { id: "course_12m", tier: "course", durationMonths: 12, price:  6900, name: "Course - 12 Months" },
-  // Buddy tier (AI Buddy standalone, no learning content)
-  { id: "buddy_3m",   tier: "buddy",  durationMonths: 3,  price:  4500, name: "Buddy - 3 Months" },
-  { id: "buddy_6m",   tier: "buddy",  durationMonths: 6,  price:  5900, name: "Buddy - 6 Months" },
-  { id: "buddy_12m",  tier: "buddy",  durationMonths: 12, price:  8900, name: "Buddy - 12 Months" },
-  // Basic tier (learning + basic AI Buddy)
-  { id: "basic_3m",   tier: "basic",  durationMonths: 3,  price:  5500, name: "Basic - 3 Months" },
-  { id: "basic_6m",   tier: "basic",  durationMonths: 6,  price:  6900, name: "Basic - 6 Months" },
-  { id: "basic_12m",  tier: "basic",  durationMonths: 12, price:  9900, name: "Basic - 12 Months" },
-  // Full tier (everything – learning + full AI Buddy + documents)
-  { id: "full_3m",    tier: "full",   durationMonths: 3,  price:  6900, name: "Full Package - 3 Months" },
-  { id: "full_6m",    tier: "full",   durationMonths: 6,  price:  8900, name: "Full Package - 6 Months" },
-  { id: "full_12m",   tier: "full",   durationMonths: 12, price: 11900, name: "Full Package - 12 Months" },
+  // ===== Course tier (Sprachkurs – learning content only) =====
+  // Prepaid-only by design (lowest entry price; installments uneconomical).
+  { id: "course_3m",  tier: "course", durationMonths: 3,  price:  3900, name: "Sprachkurs - 3 Months",  allowsInstallments: false },
+  { id: "course_6m",  tier: "course", durationMonths: 6,  price:  4900, name: "Sprachkurs - 6 Months",  allowsInstallments: false },
+  { id: "course_12m", tier: "course", durationMonths: 12, price:  6900, name: "Sprachkurs - 12 Months", allowsInstallments: false },
+
+  // ===== Standalone tier (AI Chat Standalone – AI Buddy + documents, no learning) =====
+  { id: "standalone_3m",  tier: "standalone", durationMonths: 3,  price: 4500, name: "AI Chat Standalone - 3 Months",  allowsInstallments: true },
+  { id: "standalone_6m",  tier: "standalone", durationMonths: 6,  price: 5900, name: "AI Chat Standalone - 6 Months",  allowsInstallments: true },
+  { id: "standalone_12m", tier: "standalone", durationMonths: 12, price: 8900, name: "AI Chat Standalone - 12 Months", allowsInstallments: true },
+
+  // ===== Course + AI tier (Sprachkurs + AI – learning + entry-level AI Buddy) =====
+  { id: "course_ai_3m",  tier: "course_ai", durationMonths: 3,  price: 5500, name: "Sprachkurs + AI - 3 Months",  allowsInstallments: true },
+  { id: "course_ai_6m",  tier: "course_ai", durationMonths: 6,  price: 6900, name: "Sprachkurs + AI - 6 Months",  allowsInstallments: true },
+  { id: "course_ai_12m", tier: "course_ai", durationMonths: 12, price: 9900, name: "Sprachkurs + AI - 12 Months", allowsInstallments: true },
+
+  // ===== Course + AI Pro tier (Sprachkurs + AI Pro – everything) =====
+  // 12M price (119 €) is the historical anchor (matches legacy "relaxed").
+  { id: "course_ai_pro_3m",  tier: "course_ai_pro", durationMonths: 3,  price:  6900, name: "Sprachkurs + AI Pro - 3 Months",  allowsInstallments: true },
+  { id: "course_ai_pro_6m",  tier: "course_ai_pro", durationMonths: 6,  price:  7900, name: "Sprachkurs + AI Pro - 6 Months",  allowsInstallments: true },
+  { id: "course_ai_pro_12m", tier: "course_ai_pro", durationMonths: 12, price: 11900, name: "Sprachkurs + AI Pro - 12 Months", allowsInstallments: true },
+
+  // ===== Legacy plan IDs (kept for zero-migration of existing DB records) =====
+  // These map to canonical tiers but should not be offered for new purchases.
+  // tierForPlanType() resolves their canonical tier via the inline mapping below.
+  { id: "buddy_3m",   tier: "standalone",    durationMonths: 3,  price:  4500, name: "[Legacy] Buddy - 3 Months",  allowsInstallments: true },
+  { id: "buddy_6m",   tier: "standalone",    durationMonths: 6,  price:  5900, name: "[Legacy] Buddy - 6 Months",  allowsInstallments: true },
+  { id: "buddy_12m",  tier: "standalone",    durationMonths: 12, price:  8900, name: "[Legacy] Buddy - 12 Months", allowsInstallments: true },
+  { id: "basic_3m",   tier: "course_ai",     durationMonths: 3,  price:  5500, name: "[Legacy] Basic - 3 Months",  allowsInstallments: true },
+  { id: "basic_6m",   tier: "course_ai",     durationMonths: 6,  price:  6900, name: "[Legacy] Basic - 6 Months",  allowsInstallments: true },
+  { id: "basic_12m",  tier: "course_ai",     durationMonths: 12, price:  9900, name: "[Legacy] Basic - 12 Months", allowsInstallments: true },
+  { id: "full_3m",    tier: "course_ai_pro", durationMonths: 3,  price:  6900, name: "[Legacy] Full - 3 Months",   allowsInstallments: true },
+  { id: "full_6m",    tier: "course_ai_pro", durationMonths: 6,  price:  8900, name: "[Legacy] Full - 6 Months",   allowsInstallments: true },
+  { id: "full_12m",   tier: "course_ai_pro", durationMonths: 12, price: 11900, name: "[Legacy] Full - 12 Months",  allowsInstallments: true },
 ];
 
-/** Map a compound plan ID to its feature tier. Legacy IDs fall back to "full". */
+/**
+ * Convex validator that accepts every paid plan ID (canonical + legacy).
+ * Reused across createDodoCheckoutSession, internalApplyDodoPurchase and
+ * internalApplyDodoUpgrade so we have exactly one place to maintain the list.
+ */
+const PAID_PLAN_ID_VALIDATOR = v.union(
+  // Canonical (Phase 5) – three durations (3 / 6 / 12 months)
+  v.literal("course_3m"),         v.literal("course_6m"),         v.literal("course_12m"),
+  v.literal("standalone_3m"),     v.literal("standalone_6m"),     v.literal("standalone_12m"),
+  v.literal("course_ai_3m"),      v.literal("course_ai_6m"),      v.literal("course_ai_12m"),
+  v.literal("course_ai_pro_3m"),  v.literal("course_ai_pro_6m"),  v.literal("course_ai_pro_12m"),
+  // Legacy (kept so in-flight webhook events from the prior plan generation still process)
+  v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
+  v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
+  v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
+);
+
+/**
+ * Map a compound plan ID to its canonical feature tier.
+ * Pre-Phase-4 legacy IDs (intensive/balanced/standard/relaxed) fall back to
+ * "course_ai_pro" so existing subscriptions retain full feature access.
+ */
 function tierForPlanType(planType: string): FeatureTierKey {
   const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
   if (plan) return plan.tier;
-  // Legacy mapping for "intensive" / "balanced" / "standard" / "relaxed"
-  return "full";
+  // Pre-Phase-4 legacy fallback (intensive/balanced/standard/relaxed) → all = pro tier
+  return "course_ai_pro";
 }
 
 /** Map a compound plan ID to its duration in months. Legacy IDs map by name. */
 function durationMonthsForPlanType(planType: string): number {
   const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planType);
   if (plan) return plan.durationMonths;
-  // Legacy fallback
+  // Pre-Phase-4 legacy fallback
   const legacy: Record<string, number> = { intensive: 3, balanced: 6, standard: 9, relaxed: 12 };
   return legacy[planType] ?? 0;
 }
@@ -587,20 +637,23 @@ export const internalEnsureDodoUpgradeProducts = internalAction({
     };
 
     // Duration upgrade paths within the same tier (most common upgrade scenario).
-    const paths: Array<{ from: PaidPlanId; to: PaidPlanId }> = [
-      { from: "course_3m",  to: "course_6m" },
-      { from: "course_3m",  to: "course_12m" },
-      { from: "course_6m",  to: "course_12m" },
-      { from: "buddy_3m",   to: "buddy_6m" },
-      { from: "buddy_3m",   to: "buddy_12m" },
-      { from: "buddy_6m",   to: "buddy_12m" },
-      { from: "basic_3m",   to: "basic_6m" },
-      { from: "basic_3m",   to: "basic_12m" },
-      { from: "basic_6m",   to: "basic_12m" },
-      { from: "full_3m",    to: "full_6m" },
-      { from: "full_3m",    to: "full_12m" },
-      { from: "full_6m",    to: "full_12m" },
-    ];
+    // Generated from SUBSCRIPTION_PLANS so adding a new tier/duration here is
+    // sufficient – no separate list to maintain. We include every (from, to)
+    // pair within the same tier where to.durationMonths > from.durationMonths.
+    // Legacy plans (buddy/basic/full) are excluded; users on those plans upgrade
+    // to the canonical tier instead, via the cross-tier upgrade flow.
+    const tiers: FeatureTierKey[] = ["course", "standalone", "course_ai", "course_ai_pro"];
+    const paths: Array<{ from: PaidPlanId; to: PaidPlanId }> = [];
+    for (const tier of tiers) {
+      const plansInTier = SUBSCRIPTION_PLANS
+        .filter((p) => p.tier === tier && !p.name.startsWith("[Legacy]"))
+        .sort((a, b) => a.durationMonths - b.durationMonths);
+      for (let i = 0; i < plansInTier.length; i++) {
+        for (let j = i + 1; j < plansInTier.length; j++) {
+          paths.push({ from: plansInTier[i].id, to: plansInTier[j].id });
+        }
+      }
+    }
 
     const created: Record<string, string> = {};
     const alreadySet: string[] = [];
@@ -676,12 +729,7 @@ function getPlanDurationMonths(planType: DodoPlanId): number {
 // @ts-ignore
 export const createDodoCheckoutSession = action({
   args: {
-    planType: v.union(
-      v.literal("course_3m"), v.literal("course_6m"), v.literal("course_12m"),
-      v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
-      v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
-      v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
-    ),
+    planType: PAID_PLAN_ID_VALIDATOR,
     paymentMode: v.union(v.literal("prepaid"), v.literal("installments")),
     flow: v.union(v.literal("purchase"), v.literal("upgrade")),
     returnUrl: v.string(),
@@ -846,10 +894,23 @@ export const createDodoCheckoutSession = action({
 // Top-up energy packs are one-time payments (no subscription).
 // Packs: starter (500 energy), plus (1500 = 1000+500 bonus), pro (5000 = 3000+2000 bonus).
 
-const TOPUP_PACKS = {
-  starter: { energyAmount: 500,  bonusAmount: 0,    priceCents:  499, name: "Energy Starter" },
-  plus:    { energyAmount: 1000, bonusAmount: 500,   priceCents:  999, name: "Energy Plus" },
-  pro:     { energyAmount: 3000, bonusAmount: 2000,  priceCents: 1999, name: "Energy Pro" },
+// Top-up packs (decision June 2026, finalized).
+//
+// Design rules these values satisfy (see docs/restructure/02_TOKEN_SYSTEM.md §4
+// and 03_PREISKALKULATION.md §4 for the derivation):
+//   1. €/Energy decreases monotonically with pack size (real bulk discount).
+//   2. Pro is never beatable by 2× Plus on €/Energy (no anti-bulk anomaly).
+//   3. Worst-case margin on raw AI cost ≥ 70 % for every pack.
+//   4. ≥ 15 % €/Energy drop from one pack to the next (upgrade incentive).
+//   5. Prices end on .99.
+//
+// €/Energy ladder: Starter 0.00998 € → Plus 0.00666 € (−33 %) → Pro 0.00575 € (−14 %).
+// Worst-case margins (Gemini 2.5 Flash, 1 250 in + 512 out tokens per Energy):
+// Starter 83 %, Plus 75 %, Pro 71 %.
+export const TOPUP_PACKS = {
+  starter: { energyAmount:  500, bonusAmount:    0, priceCents:  499, name: "Energy Starter" },
+  plus:    { energyAmount: 1000, bonusAmount:  500, priceCents:  999, name: "Energy Plus"    },
+  pro:     { energyAmount: 2500, bonusAmount: 1500, priceCents: 2299, name: "Energy Pro"     },
 } as const;
 
 type TopupPack = keyof typeof TOPUP_PACKS;
@@ -941,9 +1002,9 @@ export const getTopupPacks = query({
     priceCents: v.number(),
     name: v.string(),
   })),
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+  handler: async (_ctx) => {
+    // Public read: Top-up pack metadata is generic marketing info (name, energy, price)
+    // and is rendered on the public landing page alongside getPlans(). No user data exposed.
     return (Object.entries(TOPUP_PACKS) as [TopupPack, typeof TOPUP_PACKS[TopupPack]][]).map(([id, pack]) => ({
       id,
       energyAmount: pack.energyAmount,
@@ -952,6 +1013,49 @@ export const getTopupPacks = query({
       priceCents: pack.priceCents,
       name: pack.name,
     }));
+  },
+});
+
+// ===== Public energy display info for landing page =====
+// Returns the monthly AI Energy quota per tier plus a few cost examples,
+// so the public pricing page can show realistic "what does X energy get me?"
+// hints. Reads from platformConfig with fallback to DEFAULT_TIER_QUOTAS in
+// convex/energy.ts (i.e. fully dynamic, no hardcoded numbers in the client).
+export const getPublicEnergyInfo = query({
+  args: {},
+  returns: v.object({
+    quotas: v.object({
+      course: v.number(),
+      standalone: v.number(),
+      course_ai: v.number(),
+      course_ai_pro: v.number(),
+    }),
+    costs: v.object({
+      typicalChat: v.number(),
+      detailedAnswer: v.number(),
+      photoScan: v.number(),
+    }),
+    monthlyReset: v.boolean(),
+  }),
+  handler: async (ctx) => {
+    const cfg = await loadEnergyConfig(ctx);
+    return {
+      quotas: {
+        course: 0,
+        standalone: cfg.quotas.buddy,
+        course_ai: cfg.quotas.basic,
+        course_ai_pro: cfg.quotas.full,
+      },
+      costs: {
+        // A "typical" chat question: compact answer + context-link surcharge
+        typicalChat: cfg.costs.compact + cfg.costs.ragSurcharge,
+        // A detailed answer with course context
+        detailedAnswer: cfg.costs.detailed + cfg.costs.ragSurcharge,
+        // A photo-scan (vision) + detailed answer
+        photoScan: cfg.costs.detailed + cfg.costs.visionSurcharge,
+      },
+      monthlyReset: true,
+    };
   },
 });
 
@@ -1285,13 +1389,11 @@ function extractDodoMetadata(evt: any): Record<string, any> {
 
 function parseDodoPlanType(meta: Record<string, any>): DodoPlanId | null {
   const raw = String(meta?.planType || meta?.plan || "").trim().toLowerCase();
-  const validIds: DodoPlanId[] = [
-    "course_3m", "course_6m", "course_12m",
-    "buddy_3m", "buddy_6m", "buddy_12m",
-    "basic_3m", "basic_6m", "basic_12m",
-    "full_3m", "full_6m", "full_12m",
-  ];
-  if ((validIds as string[]).includes(raw)) return raw as DodoPlanId;
+  // Derive the set of valid IDs from SUBSCRIPTION_PLANS so we only maintain it
+  // in one place. Webhook events may still reference legacy IDs (buddy/basic/full)
+  // because in-flight Dodo events from the previous plan generation use them.
+  const validIds = new Set<string>(SUBSCRIPTION_PLANS.map((p) => p.id));
+  if (validIds.has(raw)) return raw as DodoPlanId;
   return null;
 }
 
@@ -1475,13 +1577,8 @@ export const internalProcessDodoWebhook = internalMutation({
       // Upgrades are paid via dedicated top-up products and must only extend by the missing months.
       if (flow === "upgrade") {
         const fromRaw = String((meta as any)?.upgradeFromPlanType ?? "").trim().toLowerCase();
-        const validPlanIds: DodoPlanId[] = [
-          "course_3m", "course_6m", "course_12m",
-          "buddy_3m", "buddy_6m", "buddy_12m",
-          "basic_3m", "basic_6m", "basic_12m",
-          "full_3m", "full_6m", "full_12m",
-        ];
-        const fromPlanType = validPlanIds.includes(fromRaw as DodoPlanId)
+        const validPlanIds = new Set<string>(SUBSCRIPTION_PLANS.map((p) => p.id));
+        const fromPlanType = validPlanIds.has(fromRaw)
           ? (fromRaw as DodoPlanId)
           : null;
 
@@ -1537,8 +1634,8 @@ export const internalProcessDodoWebhook = internalMutation({
           isBeta50: beta50,
         });
 
-        // Welcome-Energy for first-time Full-tier purchase.
-        if (tierForPlanType(planType) === "full") {
+        // Welcome-Energy for first-time Sprachkurs + AI Pro purchase (highest tier).
+        if (tierForPlanType(planType) === "course_ai_pro") {
           await ctx.runMutation(internal.subscriptions.internalMaybeGrantWelcomeEnergy, {
             userId: purchaseResult.userId,
             dodoWebhookId: args.webhookId,
@@ -1639,12 +1736,7 @@ export const internalApplyDodoPurchase = internalMutation({
   args: {
     dodoWebhookId: v.string(),
     clerkId: v.string(),
-    planType: v.union(
-      v.literal("course_3m"), v.literal("course_6m"), v.literal("course_12m"),
-      v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
-      v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
-      v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
-    ),
+    planType: PAID_PLAN_ID_VALIDATOR,
     planDurationMonths: v.number(),
     planPriceCents: v.number(),
     paymentMode: v.union(v.literal("prepaid"), v.literal("installments")),
@@ -1707,7 +1799,7 @@ export const internalApplyDodoPurchase = internalMutation({
       installmentMonthlyPrice,
       pausedAt: undefined as number | undefined,
       // Derive feature tier from compound plan ID.
-      featureTier: tierForPlanType(args.planType) as "course" | "buddy" | "basic" | "full",
+      featureTier: tierForPlanType(args.planType) as "course" | "standalone" | "course_ai" | "course_ai_pro",
     };
 
     if (existing) {
@@ -1748,18 +1840,8 @@ export const internalApplyDodoUpgrade = internalMutation({
   args: {
     dodoWebhookId: v.string(),
     clerkId: v.string(),
-    fromPlanType: v.union(
-      v.literal("course_3m"), v.literal("course_6m"), v.literal("course_12m"),
-      v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
-      v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
-      v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
-    ),
-    toPlanType: v.union(
-      v.literal("course_3m"), v.literal("course_6m"), v.literal("course_12m"),
-      v.literal("buddy_3m"),  v.literal("buddy_6m"),  v.literal("buddy_12m"),
-      v.literal("basic_3m"),  v.literal("basic_6m"),  v.literal("basic_12m"),
-      v.literal("full_3m"),   v.literal("full_6m"),   v.literal("full_12m"),
-    ),
+    fromPlanType: PAID_PLAN_ID_VALIDATOR,
+    toPlanType: PAID_PLAN_ID_VALIDATOR,
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -1817,7 +1899,7 @@ export const internalApplyDodoUpgrade = internalMutation({
       paymentMode: "prepaid",
       billingProvider: "dodo",
       pausedAt: undefined,
-      featureTier: tierForPlanType(args.toPlanType) as "course" | "buddy" | "basic" | "full",
+      featureTier: tierForPlanType(args.toPlanType) as "course" | "standalone" | "course_ai" | "course_ai_pro",
     });
 
     await ctx.db.insert("subscriptionHistory", {
