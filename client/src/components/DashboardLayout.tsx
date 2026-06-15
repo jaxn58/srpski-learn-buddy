@@ -11,8 +11,6 @@ import { FloatingChatButton } from "./FloatingChatButton";
 import { ChatModal } from "./ChatModal";
 import { BuddyModalProvider, useBuddyModal } from "@/contexts/BuddyModalContext";
 import { useIsMobile } from "@/hooks/useMobile";
-import { BuddyModalProvider, useBuddyModal } from "@/contexts/BuddyModalContext";
-import { ChatModal } from "@/components/ChatModal";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
 
