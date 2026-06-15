@@ -27,6 +27,7 @@ import {
 // AlertDialog imports removed — actions use inline confirm inputs
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { VocabularyCleanupPanel } from "@/components/admin/VocabularyCleanupPanel";
+import { BetaUnitsLimitCard } from "@/components/admin/BetaUnitsLimitCard";
 import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle, Languages, ChevronDown, ChevronRight } from "lucide-react";
 import {
   Accordion,
@@ -644,6 +645,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
 
   return (
     <div className="space-y-4">
+      {/* Beta unit limit (one of the two admin-tunable beta boundaries) */}
+      <BetaUnitsLimitCard />
+
       {/* Vocabulary cleanup (collapsible panel for removing wrongly auto-inserted entries) */}
       <VocabularyCleanupPanel />
 

@@ -21,6 +21,7 @@ import { v } from "convex/values";
 import { query, internalQuery, type QueryCtx, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { isStaffRole, isLearnerAccountSuspended } from "./authz";
+import { loadBetaPhaseActive } from "./platform";
 
 export type FeatureTier = "course" | "buddy" | "basic" | "full";
 
@@ -166,8 +167,9 @@ export function resolveFeatureAccess(input: {
   user: Doc<"users">;
   activeSub: Doc<"userSubscriptions"> | null;
   pastDueSub: Doc<"userSubscriptions"> | null;
+  betaPhaseActive: boolean;
 }): FeatureAccess {
-  const { user, activeSub, pastDueSub } = input;
+  const { user, activeSub, pastDueSub, betaPhaseActive } = input;
 
   // Staff: full access + unlimited energy (QA, support, content verification).
   if (isStaffRole(user.role)) {
@@ -217,7 +219,9 @@ export function resolveFeatureAccess(input: {
   }
 
   // Beta testers (virtual beta sub or flag): full features, but LIMITED energy.
-  if (activeSub?.planType === "beta" || user.isBetaTester === true) {
+  // Only while the global beta phase is active. Once a superadmin ends the beta
+  // phase, beta status no longer grants access – users need a package/override.
+  if (betaPhaseActive && (activeSub?.planType === "beta" || user.isBetaTester === true)) {
     return {
       hasAccess: true,
       tier: "full",
@@ -268,7 +272,8 @@ export async function getFeatureAccessForUser(
   if (isLearnerAccountSuspended(user)) return noAccess("suspended");
 
   const { activeSub, pastDueSub } = await loadSubscriptions(ctx, userId);
-  return resolveFeatureAccess({ user, activeSub, pastDueSub });
+  const betaPhaseActive = await loadBetaPhaseActive(ctx);
+  return resolveFeatureAccess({ user, activeSub, pastDueSub, betaPhaseActive });
 }
 
 /**
@@ -293,7 +298,8 @@ export const getFeatureAccess = query({
     if (isLearnerAccountSuspended(user)) return noAccess("suspended");
 
     const { activeSub, pastDueSub } = await loadSubscriptions(ctx, user._id);
-    return resolveFeatureAccess({ user, activeSub, pastDueSub });
+    const betaPhaseActive = await loadBetaPhaseActive(ctx);
+    return resolveFeatureAccess({ user, activeSub, pastDueSub, betaPhaseActive });
   },
 });
 

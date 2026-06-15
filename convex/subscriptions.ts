@@ -4,6 +4,7 @@ import { mutation, query, action, QueryCtx, MutationCtx, internalMutation, inter
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
+import { loadBetaMaxUnits } from "./platform";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -44,9 +45,6 @@ const SUBSCRIPTION_PLANS = [
 ];
 
 type PaidPlanId = "intensive" | "balanced" | "standard" | "relaxed";
-
-// Beta phase policy: during beta, only Unit 1 is accessible for normal users.
-const BETA_MAX_UNITS = 1;
 
 function charmRoundUpTo99Cents(rawMonthlyCents: number): number {
   // Round up to the next *.99 EUR boundary (e.g. 1448.33 -> 1499).
@@ -105,17 +103,25 @@ export const getAccessibleUnits = query({
       return { maxUnits: 0, isBeta: false };
     }
 
+    // Beta subscriptions are capped by the admin-tunable beta unit limit
+    // (single source of truth in platformConfig), not by any stored value.
+    if (subscription?.planType === "beta") {
+      const betaMaxUnits = await loadBetaMaxUnits(ctx);
+      return { maxUnits: betaMaxUnits, isBeta: true };
+    }
+
     if (subscription?.maxAccessibleUnits) {
       return {
         maxUnits: subscription.maxAccessibleUnits,
-        isBeta: subscription.planType === "beta",
+        isBeta: false,
       };
     }
 
     // Fallback: Check Beta Tester Flag (for backwards compatibility)
-    // Beta testers have access to Unit 1 during beta.
+    // Beta testers' unit access is governed by the beta unit limit.
     if (user.isBetaTester) {
-      return { maxUnits: BETA_MAX_UNITS, isBeta: true };
+      const betaMaxUnits = await loadBetaMaxUnits(ctx);
+      return { maxUnits: betaMaxUnits, isBeta: true };
     }
 
     // Check if they have any paid subscription (full access to all units)
@@ -141,13 +147,14 @@ export const getCurrent = query({
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .first();
 
-    // Virtual Beta Subscription for Beta Testers without subscription
-    // Beta testers have access to Unit 1 during beta.
+    // Virtual Beta Subscription for Beta Testers without subscription.
+    // Unit access is governed by the admin-tunable beta unit limit.
     if (!subscription && user.isBetaTester) {
+      const betaMaxUnits = await loadBetaMaxUnits(ctx);
       return {
         planType: "beta" as const,
         planName: "Beta Access",
-        maxAccessibleUnits: BETA_MAX_UNITS,
+        maxAccessibleUnits: betaMaxUnits,
         status: "active" as const,
         expiresAt: null,
         planDurationMonths: 0,

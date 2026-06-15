@@ -355,6 +355,7 @@ export default function UnitView() {
   const completeUnitMutation = useMutation(api.progress.completeUnit);
   const markUnit1CompleteMutation = useMutation(api.admin.markUnit1Complete);
   const unitCompletionStatus = useQuery(api.progress.canCompleteUnit, { unitNumber });
+  const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
   const [showSuccess, setShowSuccess] = React.useState(false);
   const [isCompleting, setIsCompleting] = React.useState(false);
   const [isMarkingComplete, setIsMarkingComplete] = React.useState(false);
@@ -364,13 +365,16 @@ export default function UnitView() {
   const isLoading = unitMetadata === undefined || content === undefined;
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
   const isMastered = masteryStatus?.isMastered ?? false;
-  const isLocked = user?.isBetaTester && unitNumber > 1; // Beta phase: only Unit 1
+  // Beta unit access is governed by the admin-tunable beta unit limit.
+  const betaMaxUnits = accessInfo?.maxUnits ?? 1;
+  const isLocked = Boolean(user?.isBetaTester) && unitNumber > betaMaxUnits;
 
-  // During beta we only expose Unit 1 for students, so hide Next for beta users.
+  // During beta we only expose units up to the beta limit, so hide Next once
+  // a beta user reaches the last accessible unit.
   const nextUnit = user?.role === "admin" || user?.role === "superadmin"
     ? unitNumber + 1
     : user?.isBetaTester
-      ? null
+      ? (unitNumber < betaMaxUnits ? unitNumber + 1 : null)
       : unitNumber + 1;
   const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
 

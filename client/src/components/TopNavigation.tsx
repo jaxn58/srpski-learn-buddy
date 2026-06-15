@@ -148,6 +148,12 @@ export function TopNavigation() {
   const featureAccess = useFeatureAccess();
   const showLearning = canUseLearning(featureAccess);
   const showBuddy = canUseBuddy(featureAccess);
+  // Standalone Buddy (buddy tier): no learning features → the learning
+  // dashboard is irrelevant, the chat is their home.
+  const isBuddyOnly =
+    featureAccess !== undefined &&
+    !featureAccess.features.learning &&
+    featureAccess.features.buddyChat;
   const activeClass = "bg-accent text-accent-foreground hover:bg-accent/90 hover:text-accent-foreground";
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
@@ -157,6 +163,7 @@ export function TopNavigation() {
   const dbModules = useQuery(api.modules.getAllModulesConsolidated) as
     | DbModuleForQuickSwitch[]
     | undefined;
+  const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
   const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" }) as
     | DbUnitMetadataForQuickSwitch[]
     | undefined;
@@ -375,17 +382,19 @@ export function TopNavigation() {
   const visibleMainItems = useMemo(
     () =>
       mainItems.filter((item) => {
+        if (item.href === "/dashboard") return !isBuddyOnly;
         if (item.href === "/units" || item.href === "/vocabulary") return showLearning;
         if (item.href === "/chat") return showBuddy;
         return true;
       }),
-    [mainItems, showLearning, showBuddy]
+    [mainItems, showLearning, showBuddy, isBuddyOnly]
   );
 
   const visibleMoreItems = useMemo(
     () =>
       moreItems.filter((item) => {
-        if (item.href === "/vocabulary-list") return showLearning;
+        // Learning-only entries: hidden for standalone Buddy users.
+        if (item.href === "/vocabulary-list" || item.href === "/leaderboards") return showLearning;
         return true;
       }),
     [moreItems, showLearning]
@@ -606,7 +615,7 @@ export function TopNavigation() {
                                   {(unitsByModuleSlugForQuickSwitch[selectedModuleSlug] || []).map(
                                     (u) => {
                                       const locked =
-                                        !isAdmin && isBetaTester && u.unitNumber > 1;
+                                        !isAdmin && isBetaTester && u.unitNumber > (accessInfo?.maxUnits ?? 1);
                                       return (
                                         <SelectItem
                                           key={u.unitNumber}
@@ -691,7 +700,7 @@ export function TopNavigation() {
             <DropdownMenuTrigger asChild>
               <button className="inline-flex items-center gap-2 rounded-full p-1 hover:bg-accent/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <div className="relative h-11 w-11">
-                  {currentLevel !== null && (
+                  {showLearning && currentLevel !== null && (
                     <svg
                       className="absolute inset-0"
                       viewBox="0 0 40 40"
@@ -735,7 +744,7 @@ export function TopNavigation() {
                       {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  {currentLevel !== null && (
+                  {showLearning && currentLevel !== null && (
                     <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-[color:var(--brand-blue)] text-white text-[11px] font-bold flex items-center justify-center border-2 border-white">
                       {currentLevel}
                     </div>
@@ -744,12 +753,14 @@ export function TopNavigation() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link href="/progress" className="cursor-pointer">
-                  <TrendingUp className="mr-2 h-4 w-4" />
-                  <span>{t("sidebar.viewProgress")}</span>
-                </Link>
-              </DropdownMenuItem>
+              {showLearning && (
+                <DropdownMenuItem asChild>
+                  <Link href="/progress" className="cursor-pointer">
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    <span>{t("sidebar.viewProgress")}</span>
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
                 <Link href="/profile" className="cursor-pointer">
                   <UserCircle className="mr-2 h-4 w-4" />

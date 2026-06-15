@@ -265,7 +265,7 @@ export default function Dashboard() {
       const unit = getUnitRow(unitNum);
       const isCompleted = completedUnits.includes(unitNum);
       const isCurrent = unitNum === progress?.currentUnit;
-      const isLocked = isBetaTester && unitNum > 1;
+      const isLocked = isBetaTester && unitNum > (accessibleUnits?.maxUnits ?? 1);
       
       // Apply filter
       if (unitFilter === 'completed' && !isCompleted) return false;
@@ -833,7 +833,7 @@ export default function Dashboard() {
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
                     const isMastered = masteredUnits?.includes(unitNum);
-                    const isLocked = isBetaTester && unitNum > 1;
+                    const isLocked = isBetaTester && unitNum > (accessibleUnits?.maxUnits ?? 1);
 
                     if (isLocked) {
                       return (

@@ -2,9 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { upsertDailyActivityByUserId } from "./units";
 import { assertLearnerAccountActive } from "./authz";
-
-// Beta phase policy: during beta, only Unit 1 is accessible for normal users.
-const BETA_MAX_UNITS = 1;
+import { loadBetaMaxUnits } from "./platform";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -38,20 +36,28 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     .filter((q) => q.eq(q.field("status"), "active"))
     .first();
 
+  const betaMaxUnits = await loadBetaMaxUnits(ctx);
+
+  // Beta subscriptions are hard-capped by the admin-tunable beta unit limit.
+  if (subscription?.planType === "beta") {
+    return unitNumber <= betaMaxUnits;
+  }
+
   if (subscription?.maxAccessibleUnits && unitNumber <= subscription.maxAccessibleUnits) {
     return true;
   }
 
   // Paid subscriptions get full access (bounded by current course length in DB).
-  if (subscription && subscription.planType !== "beta") {
+  // Beta subscriptions already returned above, so any remaining sub is paid.
+  if (subscription) {
     const units = await ctx.db.query("unitMetadata").collect();
     const englishUnits = units.filter((u) => u.language === "en");
     const totalUnits = new Set(englishUnits.map((u) => u.unitNumber)).size;
     if (unitNumber <= totalUnits) return true;
   }
 
-  // Fallback: Beta Tester Flag (beta phase: only Unit 1)
-  if (user.isBetaTester && unitNumber <= BETA_MAX_UNITS) {
+  // Fallback: Beta Tester Flag (governed by the beta unit limit).
+  if (user.isBetaTester && unitNumber <= betaMaxUnits) {
     return true;
   }
 

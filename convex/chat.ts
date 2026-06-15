@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 import { getFeatureAccessForUser } from "./featureAccess";
+import { loadBetaMaxAiPerDay } from "./platform";
 import { streamingComponent } from "./streaming";
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
 import { resolveModelConfig, streamChatResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
@@ -93,6 +94,11 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
   const isPaidUser = !!(subscription && subscription.planType !== "beta");
   const limits = isPaidUser ? RATE_LIMITS.paid : RATE_LIMITS.beta;
 
+  // Daily AI-query limit for beta users is admin-tunable (platformConfig).
+  const dailyMessageLimit = isPaidUser
+    ? RATE_LIMITS.paid.messagesPerDay
+    : await loadBetaMaxAiPerDay(ctx);
+
   // Check message length
   if (message.length > limits.maxMessageLength) {
     return {
@@ -113,10 +119,10 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     )
     .collect();
 
-  if (todayUserMessages.length >= limits.messagesPerDay) {
+  if (todayUserMessages.length >= dailyMessageLimit) {
     return {
       allowed: false,
-      reason: `Daily limit reached. You have used all ${limits.messagesPerDay} messages for today. Come back tomorrow!`,
+      reason: `Daily limit reached. You have used all ${dailyMessageLimit} messages for today. Come back tomorrow!`,
     };
   }
 
@@ -1056,7 +1062,9 @@ export const getChatUsageToday = query({
       .filter((q) => q.eq(q.field("status"), "active"))
       .first();
     const isPaidUser = !!(subscription && subscription.planType !== "beta");
-    const limit = isPaidUser ? RATE_LIMITS.paid.messagesPerDay : RATE_LIMITS.beta.messagesPerDay;
+    const limit = isPaidUser
+      ? RATE_LIMITS.paid.messagesPerDay
+      : await loadBetaMaxAiPerDay(ctx);
 
     const todayStart = startOfDayUtc(args.nowMs);
 

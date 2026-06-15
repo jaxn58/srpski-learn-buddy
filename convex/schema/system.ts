@@ -171,4 +171,24 @@ export const systemTables = {
     .index("by_timestamp", ["timestamp"])
     .index("by_environment", ["environment"])
     .index("by_status", ["status"]),
+
+  // ============= PLATFORM CONFIG (Singleton) =============
+  // Global, app-wide switches. Exactly one row is expected; helpers read it via
+  // `.first()` and fall back to defaults when no row exists yet (zero-migration).
+  // Currently holds the master beta-phase switch that governs whether beta
+  // testers receive free full access (see convex/featureAccess.ts).
+  platformConfig: defineTable({
+    // Master switch: is the closed beta currently running?
+    // true  → users flagged isBetaTester get full access (limited beta energy).
+    // false → beta no longer grants access; users need a package / override.
+    betaPhaseActive: v.boolean(),
+    // Beta boundaries (admin-tunable). These define the scope the beta test
+    // "stakes out" for the whole app: how many learning units and how many AI
+    // queries per day a beta user may use. Read paths fall back to defaults in
+    // convex/platform.ts when unset (zero-migration).
+    betaMaxUnits: v.optional(v.number()),
+    betaMaxAiPerDay: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
+  }),
 };

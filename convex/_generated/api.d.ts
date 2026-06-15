@@ -50,6 +50,7 @@ import type * as leaderboard from "../leaderboard.js";
 import type * as modules from "../modules.js";
 import type * as newsletter from "../newsletter.js";
 import type * as onboarding from "../onboarding.js";
+import type * as platform from "../platform.js";
 import type * as progress from "../progress.js";
 import type * as schema_chat from "../schema/chat.js";
 import type * as schema_communication from "../schema/communication.js";
@@ -123,6 +124,7 @@ declare const fullApi: ApiFromModules<{
   modules: typeof modules;
   newsletter: typeof newsletter;
   onboarding: typeof onboarding;
+  platform: typeof platform;
   progress: typeof progress;
   "schema/chat": typeof schema_chat;
   "schema/communication": typeof schema_communication;

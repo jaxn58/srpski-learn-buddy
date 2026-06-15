@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
+import { loadBetaMaxUnits } from "./platform";
 // TS2589 suppression applied – see scripts/add-ts-expect-errors.mjs
 
 /**
@@ -163,6 +164,13 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     .filter((q) => q.eq(q.field("status"), "active"))
     .first();
 
+  const betaMaxUnits = await loadBetaMaxUnits(ctx);
+
+  // Beta subscriptions are hard-capped by the admin-tunable beta unit limit.
+  if (subscription?.planType === "beta") {
+    return unitNumber <= betaMaxUnits;
+  }
+
   if (subscription?.maxAccessibleUnits && unitNumber <= subscription.maxAccessibleUnits) {
     return true;
   }
@@ -170,14 +178,15 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
   // Get total units count dynamically from database
   const totalUnits = await getTotalUnitsCount(ctx);
 
-  // Paid subscriptions get full access (if within total course length)
-  if (subscription && subscription.planType !== "beta" && unitNumber <= totalUnits) {
+  // Paid subscriptions get full access (if within total course length).
+  // Beta subscriptions already returned above, so any remaining sub is paid.
+  if (subscription && unitNumber <= totalUnits) {
     return true;
   }
 
-  // Fallback: Beta Tester Flag (beta phase: only Unit 1)
-  if (user.isBetaTester && unitNumber <= 1) {
-    return true;
+  // Fallback: Beta Tester Flag (governed by the beta unit limit).
+  if (user.isBetaTester) {
+    return unitNumber <= betaMaxUnits;
   }
 
   return unlockedByProgress;

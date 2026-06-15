@@ -22,6 +22,10 @@ export default function Units() {
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const completedUnits = progress?.completedUnits || [];
 
+  // Beta unit access is governed by the admin-tunable beta unit limit.
+  const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
+  const betaMaxUnits = accessInfo?.maxUnits ?? 1;
+
   // Load modules from database (new consolidated structure)
   const dbModules = useQuery(api.modules.getAllModulesConsolidated);
   
@@ -173,8 +177,12 @@ export default function Units() {
             // Calculate progress from DB units
             const moduleProgress = getModuleProgressFromDB(module.id, completedUnits);
             
-            // Check if module is locked (beta testers only have access to Module 1)
-            const isModuleLocked = !isAdmin && isBetaTester && module.number > 1;
+            // Check if module is locked: for beta testers a module is locked
+            // when all of its units lie beyond the beta unit limit.
+            const moduleMinUnit = moduleUnits.length > 0
+              ? Math.min(...moduleUnits.map((u) => u.number))
+              : Number.POSITIVE_INFINITY;
+            const isModuleLocked = !isAdmin && isBetaTester && moduleMinUnit > betaMaxUnits;
             
             // Get module title and description based on language
             const moduleTitle = i18n.language === "de" ? module.titleGerman : module.titleEnglish;
@@ -266,7 +274,7 @@ export default function Units() {
                       <AccordionContent>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                           {moduleUnits.map((unit) => {
-                            const locked = !isAdmin && isBetaTester && unit.number > 1;
+                            const locked = !isAdmin && isBetaTester && unit.number > betaMaxUnits;
                             const isCurrent = progress?.currentUnit === unit.number;
                             const isCompleted = completedUnits.includes(unit.number);
                             const isMastered = masteredUnits?.includes(unit.number);

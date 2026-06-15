@@ -113,7 +113,14 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <Dashboard />
+                  {/* Standalone Buddy users (no learning) don't need the
+                      learning dashboard – send them straight to the chat. */}
+                  <FeatureGate
+                    allow={(a) => a.features.learning || !a.features.buddyChat}
+                    redirectTo="/chat"
+                  >
+                    <Dashboard />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
@@ -202,7 +209,9 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <Progress />
+                  <FeatureGate allow={(a) => a.features.learning} redirectTo="/chat">
+                    <Progress />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
@@ -213,7 +222,9 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <Leaderboards />
+                  <FeatureGate allow={(a) => a.features.learning} redirectTo="/chat">
+                    <Leaderboards />
+                  </FeatureGate>
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>
