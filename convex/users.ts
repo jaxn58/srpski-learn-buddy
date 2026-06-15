@@ -63,6 +63,7 @@ export const syncUser = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
+
     if (!identity) {
       throw new Error("Not authenticated");
     }

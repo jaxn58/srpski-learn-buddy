@@ -52,6 +52,18 @@ export const chatTables = {
   })
     .index("by_name_updatedAt", ["name", "updatedAt"]),
 
+  // ============= CHAT MESSAGE FEEDBACK =============
+  chatMessageFeedback: defineTable({
+    messageId: v.id("chatMessages"),
+    sessionId: v.id("chatSessions"),
+    userId: v.id("users"),
+    rating: v.union(v.literal("up"), v.literal("down")),
+    createdAt: v.number(),
+  })
+    .index("by_message", ["messageId"])
+    .index("by_session", ["sessionId"])
+    .index("by_user", ["userId"]),
+
   // ============= CHAT AI CONFIG (admin-managed model settings) =============
   chatAiConfig: defineTable({
     primaryProvider: v.string(),
@@ -62,10 +74,44 @@ export const chatTables = {
     temperature: v.optional(v.float64()),
     useAgenticRag: v.optional(v.boolean()),
     enableSemanticSearch: v.optional(v.boolean()),
+    // Global daily cost cap in cents (e.g. 100 = $1.00/day). 0 or undefined = no cap.
     dailyBudgetCents: v.optional(v.number()),
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.number(),
   }),
+
+  // ============= DYNAMIC CHAT SUGGESTIONS =============
+  chatSuggestions: defineTable({
+    category: v.union(
+      v.literal("language"),
+      v.literal("culture"),
+      v.literal("sos")
+    ),
+    unitMin: v.optional(v.number()),
+    unitMax: v.optional(v.number()),
+    // Holiday/seasonal targeting: MM-DD format for recurring annual dates
+    holidayDate: v.optional(v.string()),
+    // How many days before/after holidayDate this suggestion is relevant
+    holidayWindowDays: v.optional(v.number()),
+    // Seasonal tag for broader time ranges
+    seasonalTag: v.optional(v.union(
+      v.literal("spring"),
+      v.literal("summer"),
+      v.literal("autumn"),
+      v.literal("winter")
+    )),
+    // Display text per language
+    textEn: v.string(),
+    textDe: v.string(),
+    // The actual message that gets prefilled into the chat input
+    prefillEn: v.string(),
+    prefillDe: v.string(),
+    // Priority: higher = preferred when multiple match
+    priority: v.optional(v.number()),
+    isActive: v.boolean(),
+  })
+    .index("by_category", ["category", "isActive"])
+    .index("by_holiday", ["holidayDate", "isActive"]),
 
   // ============= KNOWLEDGE CHUNKS (RAG -- Semantic Search) =============
   knowledgeChunks: defineTable({
@@ -100,32 +146,34 @@ export const chatTables = {
     })
     .index("by_source", ["sourceType", "sourceId"]),
 
-  // ============= CHAT MESSAGE FEEDBACK =============
-  chatMessageFeedback: defineTable({
-    messageId: v.id("chatMessages"),
-    sessionId: v.id("chatSessions"),
-    userId: v.id("users"),
-    rating: v.union(v.literal("up"), v.literal("down")),
-    createdAt: v.number(),
-  })
-    .index("by_message", ["messageId"])
-    .index("by_session", ["sessionId"])
-    .index("by_user", ["userId"]),
-
-  // ============= USER DOCUMENT CHUNKS (Embedded User Upload Chunks) =============
-  userDocumentChunks: defineTable({
-    documentId: v.id("userDocuments"),
-    userId: v.id("users"),
+  // ============= KNOWLEDGE ARTICLES (RAG -- Admin Knowledge Base) =============
+  knowledgeArticles: defineTable({
+    title: v.string(),
     content: v.string(),
-    embedding: v.array(v.float64()),
-    chunkIndex: v.number(),
+    category: v.union(
+      v.literal("culture"),
+      v.literal("practical"),
+      v.literal("language"),
+      v.literal("cuisine"),
+      v.literal("geography"),
+      v.literal("immigration"),
+      v.literal("history"),
+      v.literal("other")
+    ),
+    customCategory: v.optional(v.string()),
+    language: v.string(),
+    tags: v.optional(v.array(v.string())),
+    status: v.union(v.literal("draft"), v.literal("published")),
+    // Links translated articles to their English original
+    translationOf: v.optional(v.id("knowledgeArticles")),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    chunkedAt: v.optional(v.number()),
   })
-    .index("by_document", ["documentId"])
-    .vectorIndex("by_user_embedding", {
-      vectorField: "embedding",
-      dimensions: 768,
-      filterFields: ["userId"],
-    }),
+    .index("by_category", ["category", "status"])
+    .index("by_status", ["status"])
+    .index("by_translation", ["translationOf"]),
 
   // ============= USER DOCUMENTS (User Uploads) =============
   userDocuments: defineTable({
@@ -149,4 +197,19 @@ export const chatTables = {
   })
     .index("by_user", ["userId"])
     .index("by_user_status", ["userId", "status"]),
+
+  // ============= USER DOCUMENT CHUNKS (Embedded User Upload Chunks) =============
+  userDocumentChunks: defineTable({
+    documentId: v.id("userDocuments"),
+    userId: v.id("users"),
+    content: v.string(),
+    embedding: v.array(v.float64()),
+    chunkIndex: v.number(),
+  })
+    .index("by_document", ["documentId"])
+    .vectorIndex("by_user_embedding", {
+      vectorField: "embedding",
+      dimensions: 768,
+      filterFields: ["userId"],
+    }),
 };

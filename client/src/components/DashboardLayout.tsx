@@ -8,6 +8,8 @@ import { useQuery } from "convex/react";
 import { TopNavigation } from "@/components/TopNavigation";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { FloatingChatButton } from "./FloatingChatButton";
+import { ChatModal } from "./ChatModal";
+import { BuddyModalProvider, useBuddyModal } from "@/contexts/BuddyModalContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { BuddyModalProvider, useBuddyModal } from "@/contexts/BuddyModalContext";
 import { ChatModal } from "@/components/ChatModal";
@@ -37,6 +39,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   Database,
@@ -114,6 +117,8 @@ function AdminSidebar() {
         icon: <Database className="h-4 w-4" />,
         items: [
           { label: t("sidebar.promptAdmin"), path: "/admin/prompt", icon: <Sparkles className="h-4 w-4" /> },
+          { label: t("sidebar.chatAdmin", "Chat Admin"), path: "/admin/chat", icon: <MessageCircle className="h-4 w-4" /> },
+          { label: t("sidebar.knowledgeBase", "Knowledge Base"), path: "/admin/knowledge", icon: <BookOpen className="h-4 w-4" /> },
           { label: t("sidebar.contentStudio"), path: "/admin/content-studio", icon: <Sparkles className="h-4 w-4" /> },
           { label: t("sidebar.changelog"), path: "/admin/changelog", icon: <ScrollText className="h-4 w-4" /> },
           { label: t("sidebar.databaseBackups"), path: "/admin/backup", icon: <Database className="h-4 w-4" /> },

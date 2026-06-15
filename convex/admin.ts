@@ -72,6 +72,8 @@ export const internalGetChatPromptByName = internalQuery({
   },
 });
 
+// ============= CHAT AI CONFIG =============
+
 // Internal Query: fetch chatAiConfig without requiring user identity (used by streamChatMessage httpAction)
 export const internalGetChatAiConfig = internalQuery({
   args: {},
@@ -89,6 +91,295 @@ export const internalGetChatAiConfig = internalQuery({
       useAgenticRag: c.useAgenticRag,
       enableSemanticSearch: c.enableSemanticSearch,
     };
+  },
+});
+
+export const getChatAiConfig = query({
+  args: {},
+  handler: async (ctx) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+    const configs = await ctx.db.query("chatAiConfig").collect();
+    return configs[0] ?? null;
+  },
+});
+
+export const updateChatAiConfig = mutation({
+  args: {
+    primaryProvider: v.string(),
+    primaryModel: v.string(),
+    fallbackProvider: v.optional(v.string()),
+    fallbackModel: v.optional(v.string()),
+    maxTokens: v.number(),
+    temperature: v.optional(v.float64()),
+    useAgenticRag: v.optional(v.boolean()),
+    dailyBudgetCents: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const existing = await ctx.db.query("chatAiConfig").collect();
+    const payload = {
+      ...args,
+      updatedBy: admin._id as Id<"users">,
+      updatedAt: Date.now(),
+    };
+
+    if (existing.length > 0) {
+      await ctx.db.patch(existing[0]._id, payload);
+      return { updated: true };
+    } else {
+      await ctx.db.insert("chatAiConfig", payload);
+      return { created: true };
+    }
+  },
+});
+
+// ============= CHAT FEEDBACK ANALYTICS =============
+
+export const getChatFeedbackStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const allFeedback = await ctx.db.query("chatMessageFeedback").collect();
+
+    const totalUp = allFeedback.filter((f) => f.rating === "up").length;
+    const totalDown = allFeedback.filter((f) => f.rating === "down").length;
+    const total = allFeedback.length;
+    const satisfactionRate = total > 0 ? Math.round((totalUp / total) * 100) : null;
+
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+    const last7 = allFeedback.filter((f) => f.createdAt >= sevenDaysAgo);
+    const last30 = allFeedback.filter((f) => f.createdAt >= thirtyDaysAgo);
+
+    const last7Up = last7.filter((f) => f.rating === "up").length;
+    const last30Up = last30.filter((f) => f.rating === "up").length;
+
+    const uniqueUsers = new Set(allFeedback.map((f) => f.userId)).size;
+
+    return {
+      total,
+      totalUp,
+      totalDown,
+      satisfactionRate,
+      last7Days: {
+        total: last7.length,
+        up: last7Up,
+        down: last7.length - last7Up,
+        rate: last7.length > 0 ? Math.round((last7Up / last7.length) * 100) : null,
+      },
+      last30Days: {
+        total: last30.length,
+        up: last30Up,
+        down: last30.length - last30Up,
+        rate: last30.length > 0 ? Math.round((last30Up / last30.length) * 100) : null,
+      },
+      uniqueUsers,
+    };
+  },
+});
+
+export const getChatFeedbackDetails = query({
+  args: {
+    limit: v.optional(v.number()),
+    ratingFilter: v.optional(v.union(v.literal("up"), v.literal("down"))),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    let allFeedback = await ctx.db.query("chatMessageFeedback").collect();
+
+    if (args.ratingFilter) {
+      allFeedback = allFeedback.filter((f) => f.rating === args.ratingFilter);
+    }
+
+    allFeedback.sort((a, b) => b.createdAt - a.createdAt);
+
+    const limited = allFeedback.slice(0, args.limit ?? 100);
+
+    const enriched = await Promise.all(
+      limited.map(async (f) => {
+        const message = await ctx.db.get(f.messageId);
+        const user = await ctx.db.get(f.userId);
+        return {
+          _id: f._id,
+          rating: f.rating,
+          createdAt: f.createdAt,
+          messageContent: message?.content?.slice(0, 200) ?? "[deleted]",
+          userName: user?.name ?? user?.email ?? "Unknown",
+          sessionId: f.sessionId,
+        };
+      })
+    );
+
+    return enriched;
+  },
+});
+
+// ============= CHAT USAGE & COST ANALYTICS =============
+
+/**
+ * Estimate cost in cents for a set of messages using character-based token approximation.
+ * Gemini 2.5 Flash pricing (non-thinking):
+ *   Input:  $0.075 / 1M tokens
+ *   Output: $0.30  / 1M tokens
+ * ~4 characters per token (rough average for mixed Serbian/English).
+ */
+function estimateCostCents(inputChars: number, outputChars: number): number {
+  const inputTokens = inputChars / 4;
+  const outputTokens = outputChars / 4;
+  const inputCost = (inputTokens / 1_000_000) * 7.5;   // cents per 1M
+  const outputCost = (outputTokens / 1_000_000) * 30;  // cents per 1M
+  return inputCost + outputCost;
+}
+
+function startOfDayUtcAdmin(nowMs: number): number {
+  const d = new Date(nowMs);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+export const getChatUsageStats = query({
+  args: { nowMs: v.number() },
+  handler: async (ctx, args) => {
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
+
+    const now = args.nowMs;
+    const todayStart = startOfDayUtcAdmin(now);
+    const weekStart = now - 7 * 24 * 60 * 60 * 1000;
+    const monthStart = now - 30 * 24 * 60 * 60 * 1000;
+
+    // Collect all messages (both roles needed for cost estimation)
+    const allMessages = await ctx.db.query("chatMessages").collect();
+
+    const todayMsgs = allMessages.filter((m) => m._creationTime >= todayStart);
+    const weekMsgs = allMessages.filter((m) => m._creationTime >= weekStart);
+    const monthMsgs = allMessages.filter((m) => m._creationTime >= monthStart);
+
+    // Only user messages count as "requests" (each triggers one AI call)
+    const todayRequests = todayMsgs.filter((m) => m.role === "user").length;
+    const weekRequests = weekMsgs.filter((m) => m.role === "user").length;
+    const monthRequests = monthMsgs.filter((m) => m.role === "user").length;
+
+    // Cost estimation: user msgs = input, assistant msgs = output
+    const calcCost = (msgs: typeof allMessages) => {
+      const inputChars = msgs.filter((m) => m.role === "user").reduce((s, m) => s + m.content.length, 0);
+      const outputChars = msgs.filter((m) => m.role === "assistant").reduce((s, m) => s + m.content.length, 0);
+      return estimateCostCents(inputChars, outputChars);
+    };
+
+    const todayCostCents = calcCost(todayMsgs);
+    const weekCostCents = calcCost(weekMsgs);
+    const monthCostCents = calcCost(monthMsgs);
+
+    // Extrapolated monthly cost based on last 7-day average
+    const dailyAvgCost = weekCostCents / 7;
+    const estimatedMonthlyCostCents = dailyAvgCost * 30;
+
+    // Active users today / this week
+    const activeUsersToday = new Set(todayMsgs.filter((m) => m.role === "user").map((m) => m.userId)).size;
+    const activeUsersWeek = new Set(weekMsgs.filter((m) => m.role === "user").map((m) => m.userId)).size;
+
+    // Avg messages per active user today
+    const avgMsgsPerUserToday = activeUsersToday > 0 ? todayRequests / activeUsersToday : 0;
+
+    // Per-user breakdown: aggregate today + total
+    const userTodayMap = new Map<string, { todayCount: number; totalCount: number; lastActive: number }>();
+    for (const m of allMessages) {
+      if (m.role !== "user") continue;
+      const uid = m.userId as string;
+      const entry = userTodayMap.get(uid) ?? { todayCount: 0, totalCount: 0, lastActive: 0 };
+      entry.totalCount++;
+      if (m._creationTime >= todayStart) entry.todayCount++;
+      if (m._creationTime > entry.lastActive) entry.lastActive = m._creationTime;
+      userTodayMap.set(uid, entry);
+    }
+
+    // Enrich top-10 users by total count
+    const sorted = [...userTodayMap.entries()]
+      .sort((a, b) => b[1].totalCount - a[1].totalCount)
+      .slice(0, 10);
+
+    const topUsers = await Promise.all(
+      sorted.map(async ([uid, stats]) => {
+        const user = await ctx.db.get(uid as Id<"users">);
+        // Estimate per-user cost from their messages
+        const userMsgs = allMessages.filter((m) => m.userId === uid);
+        const userCost = calcCost(userMsgs);
+        return {
+          userId: uid,
+          name: user?.name ?? user?.email ?? "Unknown",
+          todayCount: stats.todayCount,
+          totalCount: stats.totalCount,
+          lastActive: stats.lastActive,
+          estimatedCostCents: userCost,
+        };
+      })
+    );
+
+    // Daily trend: messages per day for the last 30 days
+    const dailyTrend: Array<{ dateMs: number; requests: number }> = [];
+    for (let i = 29; i >= 0; i--) {
+      const dayStart = startOfDayUtcAdmin(now - i * 24 * 60 * 60 * 1000);
+      const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+      const dayCount = allMessages.filter(
+        (m) => m.role === "user" && m._creationTime >= dayStart && m._creationTime < dayEnd
+      ).length;
+      dailyTrend.push({ dateMs: dayStart, requests: dayCount });
+    }
+
+    // Global budget from config
+    const aiConfig = await ctx.db.query("chatAiConfig").order("desc").first();
+    const dailyBudgetCents = aiConfig?.dailyBudgetCents ?? 0;
+
+    return {
+      today: { requests: todayRequests, costCents: todayCostCents, activeUsers: activeUsersToday },
+      week: { requests: weekRequests, costCents: weekCostCents, activeUsers: activeUsersWeek },
+      month: { requests: monthRequests, costCents: monthCostCents },
+      estimatedMonthlyCostCents,
+      avgMsgsPerUserToday,
+      dailyBudgetCents,
+      topUsers,
+      dailyTrend,
+    };
+  },
+});
+
+export const internalUpdateChatPrompt = internalMutation({
+  args: {
+    name: v.string(),
+    content: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("chatPrompts")
+      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .first();
+
+    const payload = {
+      name: args.name,
+      content: args.content,
+      description: args.description,
+      updatedAt: Date.now(),
+    };
+
+    await ctx.db.insert("chatPromptHistory", payload);
+
+    if (existing) {
+      await ctx.db.patch(existing._id, payload);
+      return { updated: true, name: args.name };
+    } else {
+      await ctx.db.insert("chatPrompts", payload);
+      return { created: true, name: args.name };
+    }
   },
 });
 
