@@ -44,7 +44,7 @@ Branchenstandards, konkret auf dieses Produkt angewendet. Aufbauend auf `docs/LA
 
 ### 2.1 Emotionaler Hook (Above the Fold)
 
-Regel: **6–8 Wörter**, Emotion oder Ergebnis vor Features. Der Nutzer muss in 3 Sekunden wissen: „Das ist für mich."
+Richtwert: **kurz und scanbar (ca. 6–10 Wörter)**, Emotion oder Ergebnis vor Features. Der Nutzer muss in 3 Sekunden wissen: „Das ist für mich." Eine bewusst rhythmische Dreierstruktur (siehe Hero 6.1: „Learn Serbian. Or get a Serbian brother. Or both.") ist erlaubt, wenn sie sofort verständlich bleibt – sie wird als A/B-Variante gegen eine kürzere Single-Hook-Headline getestet (siehe 8.2).
 
 - Headline kommuniziert **Outcome**, nicht Feature.
 - Sub-Headline erklärt **Wie**, nicht **Was**.
@@ -58,8 +58,9 @@ Regel: **6–8 Wörter**, Emotion oder Ergebnis vor Features. Der Nutzer muss in
 
 ### 2.3 Risiko-Umkehr (Trust-Builder)
 
-- Klare Preis-Transparenz: keine versteckten Kosten, Token sind verständlich erklärt.
-- Geld-zurück-Garantie oder kostenloser Einstieg als Signal.
+- **14-Tage-Geld-zurück-Garantie** als zentrales Trust-Signal. Belegt durch die bestehende offizielle Policy (`docs/PRICING_FAQ_CONTENT.md`: „full refund within 14 days—no questions asked"). Wird nahe den Paket-Karten, im FAQ und am Final-CTA sichtbar gemacht.
+- **Zweite Risiko-Umkehr-Ebene:** die anmeldefreie Live-Demo („try before you buy, no signup").
+- Klare Preis-Transparenz: keine versteckten Kosten, AI Energy verständlich erklärt.
 - FAQ direkt unter Pricing (häufigste Kaufeinwände).
 
 ### 2.4 Mehrere CTAs (Conversion-Momentum)
@@ -70,14 +71,16 @@ Regel: **6–8 Wörter**, Emotion oder Ergebnis vor Features. Der Nutzer muss in
 
 ### 2.5 Mobile-first, Scan-Barkeit
 
+> Mobilgerätefähigkeit ist projektweit verpflichtend (gilt für die gesamte App, nicht nur die Landing Page). Die Landing Page wird **mobile-first** entworfen; Desktop ist die Erweiterung, nicht der Ausgangspunkt. Details siehe Abschnitt 9 „Mobile-First & Responsiveness".
+
 - Maximal 2 Sätze pro Abschnitt für Fließtext.
 - Bulletpoints statt Absätze für Feature-Listen.
 - Pricing-Cards: 1 Zeile Beschreibung, keine Prosa.
 - Alle CTAs mindestens 44px Touch-Target.
 
-### 2.6 Token/Nachkauf vertrauensbildend erklären
+### 2.6 AI Energy vertrauensbildend erklären
 
-Token-Konzept ist nicht selbstverständlich. Regel: **positiv formulieren** (Guthaben, nicht Verbrauch); **Vergleichsgröße** geben (z. B. „150 Nachrichten/Monat = 5 pro Tag").
+Das Energy-Konzept ist nicht selbsterklärend. Regeln: **positiv formulieren** (Guthaben, nicht Verbrauch); **klare Erwartung setzen** (verschiedene Aktionen kosten unterschiedlich viel); **Vergleichsgröße** geben (z. B. „450 Energy ≈ ~150 Gespräche mit Kontext pro Monat"). Wichtig: nicht „1 Nachricht = 1 Token" versprechen – stattdessen „Energy für alles, was der Buddy tut: Chatten, Dokumente analysieren, Fotos scannen". Quelle der Zahlen: `02_TOKEN_SYSTEM.md`.
 
 ---
 
@@ -186,7 +189,7 @@ Copy (EN):
 > **Subheading:** „50 essential phrases, a Cyrillic cheat sheet, and 5 cultural rules every Serbian speaker needs. Free, instant, no strings attached."
 > **Input placeholder:** „Your email address"
 > **CTA-Button:** „Send me the kit"
-> **Trust-Signal darunter:** „No spam. Unsubscribe anytime. ~2,000 learners already got it." *(Zahl erst ersetzen, wenn real.)*
+> **Trust-Signal darunter:** „No spam. Unsubscribe anytime." *(Optional eine Zahl ergänzen – dann konsistent mit der Stats-Bar aus derselben Quelle `landingData.ts`, keine widersprüchlichen Platzhalter.)*
 
 ### 5.3 Nurture-E-Mail-Sequenz (5 Mails via Resend)
 
@@ -266,6 +269,8 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 
 **Design-Hinweis:** Bestehende Hero-Struktur aus `Home.tsx` verwenden. Gradient-Headline `from-primary to-secondary`. Zwei Buttons: primärer `bg-primary`, sekundärer `variant="outline"`.
 
+**Mobile-Hinweis:** Headline-Schrift skaliert herunter (`text-3xl md:text-5xl`). Die zwei CTAs **untereinander, je volle Breite** (`w-full md:w-auto`, gestapelt via `flex-col md:flex-row`). Primärer CTA zuerst (oben). Hero-Höhe ohne erzwungenes `100vh`, damit der nächste Abschnitt „anteasert".
+
 ---
 
 ### 6.2 Live-Demo-Widget
@@ -276,6 +281,8 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 > „Meet your Brate. Ask him anything — free, no account needed."
 
 **Design-Hinweis:** Card-Komponente, `border-2 border-primary/20`. 3 anklickbare Beispiel-Chips in `bg-accent/10 text-accent-foreground`. Chat-Input mit Sende-Button. Antwort-Bereich mit Typewriter-Effekt (analog `useChatStream.ts`). Soft-Gate nach 3 Nachrichten als Banner, **nicht als Blocking-Modal**.
+
+**Mobile-Hinweis:** Beispiel-Chips horizontal scrollbar oder umbrechend (kein Abschneiden). Input-Feld nutzt `inputMode`/`enterKeyHint`; beim Fokus darf die Bildschirmtastatur das Eingabefeld **nicht verdecken** (Widget in den sichtbaren Bereich scrollen). Antwort-Bereich mit begrenzter Höhe + intern scrollbar, damit die Seite nicht „springt". Send-Button als Touch-Target ≥44px.
 
 ---
 
@@ -289,6 +296,8 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 > `[800+]` Vocabulary words with audio
 
 **Design-Hinweis:** 3-Spalten-Grid, große Zahl in `text-primary font-bold text-5xl`, Text darunter `text-muted-foreground`. Hintergrund `bg-gradient-to-r from-primary/5 to-secondary/5`.
+
+**Mobile-Hinweis:** Auf Mobile **1-spaltig gestapelt** (`grid-cols-1 sm:grid-cols-3`), Zahlen kleiner (`text-3xl sm:text-5xl`). Keine vier+ Werte nebeneinander quetschen.
 
 ---
 
@@ -343,6 +352,9 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 **Sub-Heading:**
 > „All plans are one-time payments. Pick a duration. No subscription trap."
 
+**Garantie-Zeile (direkt unter der Sub-Heading, prominent):**
+> „14-day money-back guarantee — try any plan risk-free."
+
 #### Paket-Karten (je eine Card, EN)
 
 **Sprachkurs (Course):**
@@ -357,26 +369,33 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 > „Your Serbian brother. Available 24/7."
 > For expats, immigrants, and professionals navigating Balkan life.
 > Chat · Document upload · Knowledge library · Photo scan
-> From €45 for 3 months + token packs
+> 450 AI Energy/month · top-ups available
+> From €45 for 3 months
 > `[ Get Buddy ]`
 
 **Basic Kombi** ← Sweetspot-Badge: „Most popular for learners"
 > „Structured lessons + your AI companion."
 > The Buddy knows your current unit. He walks alongside your progress.
-> Everything in Course + Buddy chat (context-aware) · 40 messages/month
+> Everything in Course + Buddy chat (context-aware) · 120 AI Energy/month
 > From €55 for 3 months
 > `[ Get Basic Kombi ]`
 
 **Full Package** ← „Best Value"-Badge
 > „The complete Serbian experience."
 > Lessons, your Brate, document analysis, knowledge library, and more.
-> Everything in Basic Kombi + documents · knowledge · photo scan · community · top-up packs
+> Everything in Basic Kombi + documents · knowledge · photo scan · community
+> 750 AI Energy/month · top-ups available
 > From €69 for 3 months
 > `[ Get Full Package ]`
 
-#### Token-Erklärung (unter den Karten, für Standalone + Full)
+#### AI-Energy-Erklärung (unter den Karten, für Standalone + Full)
 
-> **About message tokens:** Each AI Buddy reply uses 1 token. 150 tokens = 5 messages per day for a whole month. Need more? Top up anytime with Starter (50 tokens / €4.99), Plus (150 tokens / €11.99), or Pro (500 tokens / €29.99).
+> **What is AI Energy?** Energy powers everything your Buddy does — chatting, analysing documents, scanning photos. Different actions use different amounts (a quick reply uses a little; analysing a long PDF uses more), so you only spend what you actually use.
+>
+> - **AI Buddy Standalone:** 450 Energy/month — roughly 150 conversations with context.
+> - **Full Package:** 750 Energy/month — plenty for chat, photo scans and document analysis combined.
+>
+> Need more? Top up anytime (Standalone & Full): Starter (150 Energy / €4.99), Plus (500 Energy / €11.99), Pro (1,500 Energy / €29.99). Top-up Energy never expires while your plan is active.
 
 #### Laufzeit-Toggle
 
@@ -394,10 +413,13 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 | Document upload & analysis | – | ✓ | – | ✓ |
 | Knowledge library (PDF) | – | ✓ | – | ✓ |
 | Photo scan | – | ✓ | – | ✓ |
-| Buy extra message tokens | – | ✓ | – | ✓ |
+| AI Energy / month | – | 450 | 120 | 750 |
+| Buy extra AI Energy (top-ups) | – | ✓ | – | ✓ |
 | Community & study groups | – | – | – | ✓ |
 
-**Design-Hinweis:** Full Package hat `border-2 border-primary` und Badge in `bg-primary text-primary-foreground`. Basic Kombi hat Badge in `bg-accent text-accent-foreground`. Laufzeit-Toggle als `<Tabs>` oder Button-Gruppe. Tabelle responsive (horizontal scrollen auf Mobile).
+**Design-Hinweis:** Full Package hat `border-2 border-primary` und Badge in `bg-primary text-primary-foreground`. Basic Kombi hat Badge in `bg-accent text-accent-foreground`. Laufzeit-Toggle als `<Tabs>` oder Button-Gruppe.
+
+**Mobile-Hinweis:** Die 4 Paket-Karten **vertikal gestapelt** (`grid-cols-1 lg:grid-cols-4`); Full Package zuerst (Anker oben). Vergleichstabelle auf Mobile **nicht** als breite Tabelle horizontal scrollen lassen (schlechte UX), sondern als **Accordion je Paket** (pro Paket eine aufklappbare Feature-Liste) oder als „nur Unterschiede"-Kurzansicht. Laufzeit-Toggle als volle-Breite-Segmented-Control. Sticky-Preisleiste optional am unteren Rand.
 
 ---
 
@@ -440,6 +462,8 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 
 **Design-Hinweis:** Hintergrundfarbe `bg-secondary/5`, Border `border border-secondary/20`. CTA `bg-primary`. Kein Modal – Inline-Sektion auf der Seite.
 
+**Mobile-Hinweis:** Input + Button **untereinander, je volle Breite** (`flex-col`); `type="email"` + `inputMode="email"` + `autocomplete="email"` für die passende Tastatur. Button-Touch-Target ≥44px.
+
 ---
 
 ### 6.9 FAQ (gekürzt, Kaufeinwände)
@@ -452,8 +476,14 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 **Q: Can I upgrade later?**
 > Yes. Upgrade anytime within the same duration and pay only the difference. Example: Course (€39) → Basic Kombi (€55) = €16 extra.
 
-**Q: What are message tokens?**
-> Each Buddy reply uses 1 token. Your plan includes a monthly allowance. AI Buddy Standalone and Full Package let you buy extra packs when needed. Basic Kombi includes 40 tokens/month (no top-up, but no expiry on the 40).
+**Q: What is AI Energy?**
+> Energy powers everything your Buddy does — chatting, analysing documents, scanning photos. Different actions use different amounts, so you only spend what you use. Standalone includes 450 Energy/month, Full Package 750, Basic Kombi 120. Your monthly Energy resets at the start of each billing month.
+
+**Q: Can I buy more AI Energy?**
+> Yes, on AI Buddy Standalone and Full Package. Top-up packs (Starter/Plus/Pro) never expire while your plan is active. Basic Kombi has a fixed monthly allowance without top-ups — upgrade to Full Package if you need more.
+
+**Q: Can I get a refund?**
+> Yes. We offer a 14-day money-back guarantee. If you're not satisfied within the first 14 days, contact us for a full refund — no questions asked.
 
 **Q: Is this a subscription?**
 > No. You pay once for your chosen duration (3, 6, 9, or 12 months). No recurring charges. No auto-renewal.
@@ -482,6 +512,9 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 > `[ Try the free demo ]` (primär, scrollt nach oben zur Demo)
 > `[ See all plans ]` (sekundär, scrollt zur Pricing-Sektion)
 
+**Trust-Zeile unter den Buttons:**
+> „14-day money-back guarantee · No subscription · Your progress is saved forever."
+
 **Design-Hinweis:** Dunkler Hintergrund (`bg-primary/5` oder `bg-foreground/5`), starker Kontrast. Gleiche Button-Styles wie im Hero.
 
 ---
@@ -492,9 +525,11 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 
 **Copy:** `[ Start learning → ]`
 
-**Verhalten:** Erscheint nach erstem Scroll (300px), verschwindet wenn Pricing-Sektion im Viewport ist (kein doppelter CTA). Nur auf Desktop (`hidden md:block`).
+**Verhalten:** Erscheint nach erstem Scroll (300px), verschwindet wenn Pricing-Sektion im Viewport ist (kein doppelter CTA).
 
-**Design-Hinweis:** `position: fixed`, `bottom-6 right-6`, `z-50`. Button `bg-primary shadow-xl`. Bestehende Floating-Button-Logik aus `FloatingChatButton.tsx` als Referenz für Position/Stil.
+**Design-Hinweis (Desktop):** `position: fixed`, `bottom-6 right-6`, `z-50`. Button `bg-primary shadow-xl`. Bestehende Floating-Button-Logik aus `FloatingChatButton.tsx` als Referenz für Position/Stil.
+
+**Mobile-Variante (wichtig):** Statt eines Eck-Buttons eine **sticky Bottom-CTA-Leiste** über die volle Breite (`fixed bottom-0 inset-x-0`), die in der Daumenzone liegt, mit Safe-Area-Padding (`pb-[env(safe-area-inset-bottom)]`). Darf den Inhalt nicht dauerhaft verdecken (unten `padding-bottom` auf der Seite reservieren). Kollision mit dem bestehenden Floating-Buddy-Button vermeiden (auf der Landing Page nur einer von beiden).
 
 ---
 
@@ -561,7 +596,78 @@ trackEvent('plan_cta_clicked', { plan: 'basic_kombi', duration: '6m' });
 
 ---
 
-## 9. Offene Punkte (vor Go-Live zu klären)
+## 9. Mobile-First & Responsiveness
+
+> Mobilgerätefähigkeit ist für die **gesamte App** verpflichtend (Projektregel), nicht nur für die Landing Page. Dieser Abschnitt bündelt die landingseitigen Anforderungen; dieselben Prinzipien gelten in App-Views (Units, Vokabeln, Chat/Buddy, Subscription).
+
+### 9.1 Grundregeln
+
+- **Mobile-first entwerfen:** Basis-Styles für Mobile, Desktop via `sm:`/`md:`/`lg:`-Breakpoints (Tailwind). Bestehende Breakpoints aus `Home.tsx` wiederverwenden.
+- **Touch-Targets ≥44px**, ausreichende Abstände (keine eng gedrängten Links/Buttons).
+- **Keine horizontalen Scroll-Fallen:** kein Inhalt breiter als der Viewport; breite Tabellen werden zu gestapelten Karten/Accordions.
+- **Daumenzone:** primäre CTAs unten erreichbar (sticky Bottom-CTA statt Eck-Floating auf Mobile).
+- **Performance:** Bilder responsive (`srcset`, moderne Formate, `loading="lazy"` außerhalb des Viewports), Above-the-fold leichtgewichtig (gut für LCP/Core Web Vitals auf Mobilnetz).
+- **Safe-Area:** `env(safe-area-inset-*)` für Notch-/Gesten-Geräte berücksichtigen.
+
+### 9.2 Sektions-Spezifika (Zusammenfassung)
+
+| Sektion | Mobile-Verhalten |
+|---|---|
+| Hero | Headline kleiner; CTAs gestapelt, volle Breite; keine 100vh-Falle |
+| Live-Demo | Tastatur verdeckt Input nicht; Chips scrollbar; Antwort intern scrollbar |
+| Stats-Bar | 1-spaltig gestapelt |
+| Paket-Karten | vertikal gestapelt, Full zuerst |
+| Vergleichstabelle | Accordion je Paket statt breiter Tabelle |
+| Lead-Magnet | Input + Button gestapelt, `type=email` |
+| Floating-CTA | sticky Bottom-Bar volle Breite, Safe-Area-Padding |
+
+### 9.3 Mobile-QA vor Go-Live
+
+- Test auf realen Geräten (iOS Safari, Android Chrome), nicht nur Emulator.
+- Portrait + Landscape, kleine (≤360px) und große Phones, Tablet.
+- Tastatur-Overlap im Demo-Widget, Sticky-CTA verdeckt keinen Inhalt, kein horizontales Scrollen.
+
+---
+
+## 10. SEO & statisches Rendering (SSG)
+
+> Wichtig wegen der bestehenden Architektur: Laut `AGENTS.md` wird die Landing Page (`/`) beim Build als **statisches HTML prerendered** (`client/src/pages/home/LandingSsg.tsx`), inkl. SEO-Head-Tags.
+
+- **SEO-Head:** Title, Meta-Description, Open-Graph/Twitter-Cards, `lang`-Attribut, kanonische URL – im Prerender enthalten. Strukturierte Daten (JSON-LD: `Product`/`FAQPage`) für Pakete und FAQ erwägen.
+- **Prerender-fähiger Inhalt:** Hero, Stats, Story, How-it-works, Paket-Karten, Testimonials, FAQ als statischer Inhalt (gut für SEO + schnellen First Paint).
+- **Interaktive Inseln (Hydration):** Das **Live-Demo-Widget** und das Lead-Magnet-Formular sind client-seitig. Sie dürfen den Prerender/LCP nicht blockieren → **Lazy-Hydration** bzw. nachgelagertes Laden des Chat-Codes; statischer Platzhalter im SSR-HTML, JS-Logik erst nach Interaktion/`requestIdleCallback`.
+- **Deploy-Hinweis (aus `AGENTS.md`):** Wenn sich nur Content (Convex) ändert, Landing Page per Vercel-Redeploy des letzten erfolgreichen Production-Deployments aktualisieren (kein In-App-Deploy-Hook).
+
+---
+
+## 11. Accessibility (a11y)
+
+- **Farbkontrast:** Text auf farbigen Flächen (primary Rot, secondary Blau, accent Gold) muss WCAG AA erfüllen; Gold-Akzente nicht für kleinen Fließtext auf hellem Grund.
+- **Tastaturbedienung:** alle CTAs, Chips, Accordion, Tabs, Demo-Input per Tab erreichbar; sichtbare Fokus-States (nicht entfernen).
+- **Screenreader:** sinnvolle `aria-label` für Icon-Buttons, Chat-Widget mit `role`/Live-Region für streamende Antworten; Accordion/Tabs mit korrekten ARIA-Patterns.
+- **Bewegung:** Typewriter-/Streaming-Effekt respektiert `prefers-reduced-motion` (dann sofortige Anzeige statt Animation).
+- **Formulare:** Lead-Magnet-Input mit `<label>`, Fehlertexte programmatisch verknüpft.
+- **Bilder:** sinnvolle `alt`-Texte; dekorative Bilder `alt=""`.
+
+---
+
+## 12. Dynamische Inhalte (Datenquellen)
+
+> Projektregel: Inhalte dynamisch aus der DB/Config, **nicht hartcodiert**. Die in diesem Dokument genannten Zahlen sind Konzept-Platzhalter und müssen aus den echten Quellen gespeist werden.
+
+| Inhalt | Quelle |
+|---|---|
+| Paket-Preise (je Laufzeit) | Preis-Grid `03_PREISKALKULATION.md` → `convex/subscriptions.ts` (Plan-/Tier-Preise) |
+| Energy-Kontingente & Top-up-Preise | `02_TOKEN_SYSTEM.md` → spätere Config/Schema |
+| Unit-/Vokabel-Counts | `client/src/pages/home/landingData.ts` (dynamische Zählung) |
+| Stats-Bar-Zahlen (User etc.) | Convex-Analytics (erst wenn valide) |
+| Testimonials | echte Beta-Tester (siehe offene Punkte) |
+
+- Preise/Counts nie als Magic Numbers in die Komponente schreiben; aus einer zentralen Quelle ziehen, damit Landing Page und Pricing/Checkout konsistent bleiben.
+
+---
+
+## 13. Offene Punkte (vor Go-Live zu klären)
 
 1. **Echte Testimonials:** Placeholder-Zitate durch echte Beta-Tester ersetzen. Einholung per E-Mail: „Darf ich dein Feedback auf der Website zeigen?"
 2. **Echte Stats:** User-Anzahl, Lernfortschritt-Daten aus Convex-Analytics. Platzhalter erst ersetzen, wenn Zahlen valide und dauerhaft wahr sind.
@@ -571,3 +677,8 @@ trackEvent('plan_cta_clicked', { plan: 'basic_kombi', duration: '6m' });
 6. **Buddy-Name „Brate":** Dieser Begriff wird in der Copy als Persona-Name verwendet. Finale Entscheidung steht noch aus (kein Blocking für das Dokument, aber vor Code-Implementierung zu bestätigen).
 7. **Legaltext für E-Mail-Capture:** Datenschutzhinweis unter dem Formular (Link zur Privacy Policy). Muss rechtlich geprüft sein.
 8. **Teaser-Formulierung „1–2 AI-Fragen/24h" im Sprachkurs-Paket:** Die Copy nennt das als Feature. Muss exakt dem implementierten Limit entsprechen (zu bestätigen nach Phase 2 der Roadmap).
+9. **GDPR/Cookie-Consent für Analytics:** Die in Abschnitt 8.3 genannten Tracking-Events erfordern eine Consent-Lösung (Cookie-/Tracking-Banner) bzw. eine datenschutzkonforme, anonyme Analytics-Variante. Vor Aktivierung des Trackings klären.
+10. **Mobile-QA:** Mobile-Checkliste aus Abschnitt 9.3 vor Go-Live auf realen Geräten abarbeiten (verpflichtend).
+11. **Finale Energy-Werte:** Inklusiv-Kontingente (120/450/750) und Verbrauchstabelle aus `02_TOKEN_SYSTEM.md` sind Vorschläge; die in der Copy genannten Zahlen müssen nach finaler Festlegung angeglichen werden.
+
+> **Geklärt:** 14-Tage-Geld-zurück-Garantie ist als offizielle Policy vorhanden (`docs/PRICING_FAQ_CONTENT.md`) und in Copy/FAQ aufgenommen – kein offener Punkt mehr.

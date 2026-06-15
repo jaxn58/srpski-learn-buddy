@@ -33,27 +33,44 @@ Token-Zusammensetzung je Nachricht (Schätzung, gedeckt durch `docs/CHAT_BETA_CO
 
 Mit **Flash-Lite** sänken dieselben Anfragen auf ~$0,0006 (typisch) bzw. ~$0,0013 (schwer) – Faktor ~6 günstiger. Im Chat-Admin ohne Deploy umschaltbar.
 
+### 2.1 Brücke zu AI Energy
+
+Die nutzersichtbare Einheit ist **AI Energy** (siehe `02_TOKEN_SYSTEM.md`), kein „1 Nachricht = 1 Token". Eine Aktion kostet je nach Typ unterschiedlich viel Energy (kompakt 1, ausgewogen 2, ausführlich 3, +1 für RAG-Kontext, +3 Foto-Scan, Dokumenten-Analyse **proportional zur Größe ab ~5, ohne fixen Cap**).
+
+Übersetzt in KI-Kosten (2.5 Flash, konservativ):
+
+| Aktion | Energy | KI-Kosten (Worst Case) | Kosten / Energy |
+|---|---:|---:|---:|
+| Kompakt, kein Kontext | 1 | ~$0,0012 | ~$0,0012 |
+| Ausgewogen + RAG | 3 | ~$0,003 | ~$0,0010 |
+| Ausführlich + RAG | 4 | ~$0,007 | ~$0,0018 |
+| Dokumenten-Analyse | ab ~5, proportional | skaliert mit Größe | ~$0,0007–0,0010 |
+
+**Konservative Obergrenze für die Kalkulation: ~$0,002 pro Energy** (deckt den teuersten Fall ab). Diese Größe verwenden wir unten für Worst-Case-Abschätzungen.
+
+> Die **dynamische** Upload-Abrechnung (proportional, kein Energy-Cap) ist per Definition kostendeckend: Der User verbraucht nur so viel Energy, wie die Analyse real kostet. Das echte Kostenrisiko begrenzt das **technische Input-Limit** (max. Tokens/Seiten), nicht ein Energy-Cap (siehe `02` Abschnitt 2.2).
+
 ## 3. Kernaussage: KI-Kosten sind nicht der Preistreiber
 
-Selbst im **Worst Case** kostet eine Buddy-Nachricht ~$0,007. Die monatlichen Inklusiv-Kontingente sind damit extrem günstig in der Bereitstellung:
+Selbst im **Worst Case** (~$0,002 pro Energy, siehe 2.1) sind die monatlichen Inklusiv-Kontingente extrem günstig in der Bereitstellung:
 
-| Paket | Inklusiv-Token/Monat | Max. KI-Kosten/Monat (Worst Case) |
+| Paket | Inklusiv-Energy/Monat | Max. KI-Kosten/Monat (Worst Case) |
 |---|---:|---:|
-| Basic Kombi | 40 | ~$0,28 |
-| AI Buddy Standalone | 150 | ~$1,05 |
-| Full Package | 250 | ~$1,75 |
+| Basic Kombi | 120 | ~$0,24 |
+| AI Buddy Standalone | 450 | ~$0,90 |
+| Full Package | 750 | ~$1,50 |
 
-Schlussfolgerung: Die Pakete und Token-Mengen sind **wertbasiert** zu bepreisen (Zahlungsbereitschaft, Positionierung), nicht kostenbasiert. Die KI-Kosten sind ein kleiner einstelliger Prozentsatz des Paketpreises.
+Schlussfolgerung: Die Pakete und Energy-Mengen sind **wertbasiert** zu bepreisen (Zahlungsbereitschaft, Positionierung), nicht kostenbasiert. Die KI-Kosten sind ein kleiner einstelliger Prozentsatz des Paketpreises.
 
-## 4. Token-Nachkauf-Ökonomie
+## 4. Energy-Nachkauf-Ökonomie
 
-| Pack | Token | Verkaufspreis | KI-Kosten (Worst Case) | Deckungsbeitrag |
+| Pack | Energy | Verkaufspreis | KI-Kosten (Worst Case) | Deckungsbeitrag |
 |---|---:|---:|---:|---:|
-| Starter | 50 | 4,99 € | ~$0,35 | ~93 % |
-| Plus | 150 | 11,99 € | ~$1,05 | ~91 % |
-| Pro | 500 | 29,99 € | ~$3,50 | ~88 % |
+| Starter | 150 | 4,99 € | ~$0,30 | ~94 % |
+| Plus | 500 | 11,99 € | ~$1,00 | ~92 % |
+| Pro | 1.500 | 29,99 € | ~$3,00 | ~90 % |
 
-Selbst bei durchgehend „schweren" Anfragen bleibt die Marge auf die reinen KI-Kosten über 85 %. (Andere Kostenanteile wie Zahlungsgebühren, Infrastruktur, Content/Entwicklung sind hier nicht enthalten und im Paketpreis zu decken.)
+Selbst bei durchgehend „schweren" Aktionen (~$0,002 pro Energy) bleibt die Marge auf die reinen KI-Kosten über 90 %. (Andere Kostenanteile wie Zahlungsgebühren, Infrastruktur, Content/Entwicklung sind hier nicht enthalten und im Paketpreis zu decken.)
 
 ## 5. Abo-Preis-Grid (Vorschlag)
 
@@ -89,6 +106,6 @@ Empfehlung (zu bestätigen): Ratenzahlung erst ab Basic Kombi anbieten; Sprachku
 ## 7. Offene Preis-Entscheidungen
 
 1. Finale Abo-Preise je Zelle des Grids.
-2. Finale Token-Inklusiv-Mengen und Nachkauf-Preise.
+2. Finale Energy-Inklusiv-Mengen, Verbrauchstabelle (Energy je Aktionstyp) und Nachkauf-Preise.
 3. Ratenzahlung für welche Pakete?
 4. Modellwahl (2.5 Flash vs. günstiger/neuer) als bewusste Margen-Entscheidung.

@@ -21,7 +21,7 @@ Der Kern der Empfehlung: Das **Paket** (Welche Features?) wird zur zweiten Dimen
 
 ### Warum dieses Modell?
 
-- **Minimaler Bruch mit der Produktion.** Die bestehende Laufzeit-/Dodo-/Webhook-Logik in `convex/subscriptions.ts` bleibt strukturell erhalten. Es kommt im Wesentlichen ein Feld (`featureTier`) plus Token-Felder hinzu.
+- **Minimaler Bruch mit der Produktion.** Die bestehende Laufzeit-/Dodo-/Webhook-Logik in `convex/subscriptions.ts` bleibt strukturell erhalten. Es kommt im Wesentlichen ein Feld (`featureTier`) plus Energy-Felder hinzu.
 - **Zero-Migration.** Bestandsabos ohne `featureTier` werden serverseitig als `"full"` interpretiert → kein Datenmigrations-Schritt, kein Zugriffsverlust.
 - **Klarer Upgrade-Pfad.** Innerhalb derselben Laufzeit zwischen Paketen upgraden (Preisdifferenz als Top-up, wie heute bei Laufzeit-Upgrades).
 
@@ -34,27 +34,27 @@ Klassisches wiederkehrendes Monats-/Jahres-Abo pro Paket. Vorteil: marktübliche
 ### 2.1 Sprachkurs (EN: „Course")
 
 - **Enthält:** Alle Units, Vokabelsystem, interaktive Übungen, XP/Streak/Leaderboard, Fortschritt, Audio (TTS).
-- **Enthält NICHT:** vollwertigen AI-Buddy, Dokumenten-Upload, Knowledge Rack, Foto-Scan, Token-Nachkauf, Community.
+- **Enthält NICHT:** vollwertigen AI-Buddy, Dokumenten-Upload, Knowledge Rack, Foto-Scan, Energy-Guthaben/-Nachkauf, Community.
 - **Besonderheit – Teaser:** 1–2 AI-Fragen / 24 h. Der Teaser zeigt bewusst den **Basic-Kombi-Buddy** (kontextverknüpfter Basis-Buddy) – als Vorschau und Upsell-Anker Richtung Basic Kombi.
 - **Zielgruppe:** Preisbewusste Lerner, Einsteiger.
 
 ### 2.2 AI Buddy Standalone
 
-- **Enthält:** Buddy-Chat, Dokumenten-Upload & Analyse, Knowledge Rack (persönliche PDF-Bibliothek), Foto-Scan, Token-Nachkauf.
+- **Enthält:** Buddy-Chat, Dokumenten-Upload & Analyse, Knowledge Rack (persönliche PDF-Bibliothek), Foto-Scan, Energy-Nachkauf.
 - **Enthält NICHT:** Lerninhalte/Units, Context-Linking (Entscheidung: entfernt, da keine Units vorhanden), Community.
 - **Zielgruppe:** Expats, Einwanderer, Profis (Büro / öffentliche Einrichtungen), die einen Sprach-/Alltagshelfer brauchen – ohne Kurs.
 
 ### 2.3 Basic Kombi
 
 - **Enthält:** Alle Lerninhalte (wie Sprachkurs) **+ Basis-Buddy** (`AI Buddy Chat (Basis)`) **mit Context-Linking** (Buddy kennt die aktuelle Unit/den Lernkontext).
-- **Enthält NICHT:** Dokumenten-Upload, Knowledge Rack, Foto-Scan, Token-Nachkauf, Community.
-- **Token:** kleines **festes** Monatskontingent, **kein** Nachkauf.
+- **Enthält NICHT:** Dokumenten-Upload, Knowledge Rack, Foto-Scan, Energy-Nachkauf, Community.
+- **Energy:** kleines **festes** Monatskontingent (Vorschlag: 120 Energy), **kein** Nachkauf.
 - **Zielgruppe:** Lerner mit AI-Support.
 
 ### 2.4 Full Package
 
-- **Enthält:** Alles aus Basic Kombi **+** die erweiterten Buddy-Funktionen aus Standalone (Dokumenten-Upload, Knowledge Rack, Foto-Scan) **+** Token-Nachkauf **+ Community/Lerngruppen** (Neu-Feature).
-- **Token:** größtes Monatskontingent + Nachkauf.
+- **Enthält:** Alles aus Basic Kombi **+** die erweiterten Buddy-Funktionen aus Standalone (Dokumenten-Upload, Knowledge Rack, Foto-Scan) **+** Energy-Nachkauf **+ Community/Lerngruppen** (Neu-Feature).
+- **Energy:** größtes Monatskontingent (Vorschlag: 750 Energy) + Nachkauf.
 - **Zielgruppe:** Power-User, Experten, Professionals.
 
 ## 3. Feature-zu-Code-Mapping (Was existiert, was ist neu?)
@@ -67,7 +67,7 @@ Klassisches wiederkehrendes Monats-/Jahres-Abo pro Paket. Vorteil: marktübliche
 | Dokumenten-Upload & Analyse | `client/.../ChatDocumentUpload.tsx`, `convex/documentsNode.ts`, `userDocuments`/`userDocumentChunks` | **Nur chat-Branch**; Ingestion teils unvollständig |
 | Knowledge Rack (PDF-Bibliothek) | `convex/knowledge.ts`, `convex/ai/ingestKnowledge.ts`, `client/.../KnowledgeAdmin.tsx` | **Nur chat-Branch** |
 | Foto-Scan | Bild-Upload + multimodal (Gemini Vision) im Chat | Vorhanden (feature + chat) |
-| Token-Kauf möglich | – | **Neu zu bauen** (siehe `02_TOKEN_SYSTEM.md`) |
+| Energy-Nachkauf möglich | – | **Neu zu bauen** (siehe `02_TOKEN_SYSTEM.md`) |
 | Community/Lerngruppen | – | **Neu zu bauen** (eigener Track, keine Vorlage in den Branches) |
 | Teaser 1–2/24h | – (Rate-Limits existieren, aber kein Teaser-Zähler dieser Art) | **Neu zu bauen** (kleiner Tageszähler) |
 
@@ -101,7 +101,7 @@ Eine einzige Query (`getFeatureAccess`) liefert die abgeleiteten Flags – Singl
   contextLinking: tier === "basic" || tier === "full",          // NICHT bei buddy (Standalone)
   documents:     tier === "buddy"  || tier === "full",          // Upload + Knowledge Rack + Foto-Scan
   community:     tier === "full",
-  tokenTopUp:    tier === "buddy"  || tier === "full",
+  energyTopUp:   tier === "buddy"  || tier === "full",
   // Admin/Superadmin und Beta-Tester: alles true (siehe Grandfathering)
 }
 ```
@@ -113,7 +113,7 @@ Eine einzige Query (`getFeatureAccess`) liefert die abgeleiteten Flags – Singl
 
 ### 4.4 Teaser-Logik (Sprachkurs)
 
-- Separater Tageszähler (z. B. 1–2 Fragen / 24 h), unabhängig vom Token-Guthaben.
+- Separater Tageszähler (z. B. 1–2 Fragen / 24 h), unabhängig vom Energy-Guthaben.
 - Antwortverhalten = Basic-Kombi-Buddy (mit Context-Linking zur aktuellen Unit), damit die Vorschau exakt das nächsthöhere Paket repräsentiert.
 - Bei aufgebrauchtem Teaser: freundlicher Upsell-Hinweis Richtung Basic Kombi (kein blockierender Fehler).
 
@@ -128,7 +128,7 @@ flowchart LR
 ```
 
 - **Sprachkurs → Basic Kombi:** natürlicher Upgrade, vom Teaser getrieben.
-- **Basic Kombi → Full Package:** für erweiterte Buddy-Funktionen + Community + Token-Nachkauf.
+- **Basic Kombi → Full Package:** für erweiterte Buddy-Funktionen + Community + Energy-Nachkauf.
 - **AI Buddy Standalone → Full Package:** wenn zusätzlich Lerninhalte gewünscht sind.
 
 Upgrades innerhalb derselben Laufzeit: Preisdifferenz als Dodo-Top-up (analog zum bestehenden Laufzeit-Upgrade in `convex/subscriptions.ts`).
