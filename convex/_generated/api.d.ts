@@ -20,6 +20,7 @@ import type * as backup from "../backup.js";
 import type * as backupAdmin from "../backupAdmin.js";
 import type * as badges from "../badges.js";
 import type * as chat from "../chat.js";
+import type * as chatLibrary from "../chatLibrary.js";
 import type * as contentImportAdmin from "../contentImportAdmin.js";
 import type * as contentStudio from "../contentStudio.js";
 import type * as contentStudio__auditor from "../contentStudio/_auditor.js";
@@ -98,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   backupAdmin: typeof backupAdmin;
   badges: typeof badges;
   chat: typeof chat;
+  chatLibrary: typeof chatLibrary;
   contentImportAdmin: typeof contentImportAdmin;
   contentStudio: typeof contentStudio;
   "contentStudio/_auditor": typeof contentStudio__auditor;

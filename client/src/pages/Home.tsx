@@ -121,7 +121,7 @@ export default function Home() {
   // single source of truth for prices/features – this drives icons, ordering
   // and which tier gets the "most popular" highlight.
   const TIER_META: Record<TierId, { icon: typeof Sparkles; highlight: boolean; allowsInstallments: boolean }> = {
-    course:        { icon: BookOpen,  highlight: false, allowsInstallments: false },
+    course:        { icon: BookOpen,  highlight: false, allowsInstallments: true },
     standalone:    { icon: Sparkles,  highlight: false, allowsInstallments: true },
     course_ai:     { icon: Target,    highlight: false, allowsInstallments: true },
     course_ai_pro: { icon: TrendingUp,highlight: true,  allowsInstallments: true },
@@ -357,7 +357,8 @@ export default function Home() {
       return;
     }
 
-    // Honour the per-tier installments rule: "course" is prepaid-only.
+    // Honour the per-tier installments rule (all tiers support installments as
+    // of June 2026; the flag stays so a tier can be set prepaid-only again).
     const effectiveMode: PaymentMode =
       TIER_META[tier].allowsInstallments ? paymentMode : "prepaid";
 

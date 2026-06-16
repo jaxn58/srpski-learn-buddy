@@ -177,6 +177,8 @@ export const coreTables = {
     energyQuotaMonthly: v.optional(v.number()),   // inclusive monthly quota (energy units)
     energyUsedThisPeriod: v.optional(v.number()), // energy consumed in the current period
     energyTopUpBalance: v.optional(v.number()),   // purchased, non-expiring energy balance
+    /** Outstanding energy debt from a single overdraft action (cleared on top-up). */
+    energyDebtBalance: v.optional(v.number()),
     energyPeriodResetAt: v.optional(v.number()),  // timestamp of the next monthly reset
   }).index("by_user", ["userId"]),
 

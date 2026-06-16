@@ -257,8 +257,7 @@ Leitidee: Der aktuelle Energy-Stand ist **immer sichtbar**, und vor jeder Aktion
 ## 9. Dodo-Produkt-Matrix (Energy + Abos)
 
 - **Top-up-Produkte (Einmalzahlung):** Starter / Plus / Pro -> je eine Dodo-Produkt-ID (Env-Variablen `DODO_TOPUP_STARTER`, `DODO_TOPUP_PLUS`, `DODO_TOPUP_PRO`). Insgesamt **3 Top-up-Produkt-IDs**.
-- **Abo-Produkte (Entscheidung Juni 2026):** Paket × Laufzeit × Zahlungsmodus. **Drei Laufzeiten: 3 / 6 / 12 Monate** (9-Monats-Variante entfernt). Mit der Ratenzahlungs-Entscheidung (Ratenzahlung nur ab „Sprachkurs + AI"; Sprachkurs prepaid-only) ergibt sich:
-  - **Sprachkurs:** 3 Laufzeiten × 1 Modus (prepaid) = **3 Produkte**.
-  - **AI Chat Standalone / Sprachkurs + AI / Sprachkurs + AI Pro:** je 3 Laufzeiten × 2 Modi (prepaid + Raten) = **18 Produkte**.
-  - **Summe: 21 Abo-Produkte** + 3 Top-ups = **24 Dodo-Produkt-IDs**.
+- **Abo-Produkte (Entscheidung Juni 2026, aktualisiert Juni 2026):** Paket × Laufzeit × Zahlungsmodus. **Drei Laufzeiten: 3 / 6 / 12 Monate** (9-Monats-Variante entfernt). Ratenzahlung gilt seit der Aktualisierung für **alle vier Tarife** (zuvor war der Sprachkurs prepaid-only):
+  - **Alle vier Tarife (Sprachkurs, AI Chat Standalone, Sprachkurs + AI, Sprachkurs + AI Pro):** je 3 Laufzeiten × 2 Modi (prepaid + Raten) = **6 Produkte pro Tarif**.
+  - **Summe: 4 × 6 = 24 Abo-Produkte** + 3 Top-ups = **27 Dodo-Produkt-IDs**.
 - Webhook-Verarbeitung (`convex/subscriptions.ts` `internalProcessDodoWebhook`) wird erweitert, um `featureTier` und Energy-Felder aus den Checkout-Metadaten zu uebernehmen und Top-ups dem `energyTopUpBalance` gutzuschreiben (Idempotenz ueber bestehendes `dodoWebhookEvents`-Muster).

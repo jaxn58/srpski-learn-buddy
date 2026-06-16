@@ -7,15 +7,28 @@ import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export const chatTables = {
+  // ============= CHAT FOLDERS (user library organization) =============
+  chatFolders: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    parentId: v.optional(v.id("chatFolders")),
+    createdAt: v.number(),
+    sortOrder: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_parent", ["userId", "parentId"]),
+
   // ============= CHAT SESSIONS =============
   chatSessions: defineTable({
     userId: v.id("users"),
     title: v.string(),
     archived: v.optional(v.boolean()), // optional for backward compatibility
     archivedAt: v.optional(v.number()),
+    folderId: v.optional(v.id("chatFolders")),
   })
     .index("by_user", ["userId"])
-    .index("by_user_archived", ["userId", "archived"]),
+    .index("by_user_archived", ["userId", "archived"])
+    .index("by_user_and_folder", ["userId", "folderId"]),
 
   // ============= CHAT MESSAGES =============
   chatMessages: defineTable({
@@ -215,6 +228,10 @@ export const chatTables = {
     messageId: v.optional(v.id("chatMessages")),
     estInputTokens: v.optional(v.number()),  // measured LLM tokens (internal)
     estOutputTokens: v.optional(v.number()),
+    /** Energy estimate shown to user before the action (preview only). */
+    estimatedEnergyCost: v.optional(v.number()),
+    /** Actual energy charged after measured token usage. */
+    actualEnergyCost: v.optional(v.number()),
     // Free-form audit note (admin adjustments include the admin user id).
     note: v.optional(v.string()),
     createdAt: v.number(),

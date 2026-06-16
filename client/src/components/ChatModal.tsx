@@ -61,7 +61,6 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
     ragHinted: true,
   });
-  const upcomingEnergyCost = upcomingEnergyEstimate?.cost ?? null;
   const energyBlocksSend =
     upcomingEnergyEstimate != null &&
     !upcomingEnergyEstimate.unlimited &&
@@ -417,7 +416,11 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
               <DialogTitle>{t('chat.modal.title')}</DialogTitle>
               <DialogDescription>{t('chat.modal.subtitle')}</DialogDescription>
             </div>
-            <EnergyPill upcomingCost={upcomingEnergyCost} className="shrink-0 self-center" />
+            <EnergyPill
+              upcomingCostMin={upcomingEnergyEstimate?.costMin ?? null}
+              upcomingCostMax={upcomingEnergyEstimate?.costMax ?? null}
+              className="shrink-0 self-center"
+            />
             <Button
               variant="default"
               size="sm"
@@ -622,7 +625,12 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                 size="icon"
                 className="rounded-full h-10 w-10"
                 title={energyBlocksSend
-                  ? t('chat.energy.notEnough', { cost: upcomingEnergyEstimate?.cost ?? 0, available: upcomingEnergyEstimate?.available ?? 0 })
+                  ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
+                    ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
+                    : t('chat.energy.notEnough', {
+                        cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
+                        available: upcomingEnergyEstimate?.available ?? 0,
+                      })
                   : undefined}
               >
                 <Send className="h-4 w-4" />
@@ -630,10 +638,12 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
             </div>
             {energyBlocksSend && (
               <p className="text-[11px] text-destructive text-center mt-2 px-4">
-                {t('chat.energy.notEnough',
-                  'Not enough AI Energy ({{available}}). This action needs {{cost}}. Top up or upgrade to continue.',
-                  { cost: upcomingEnergyEstimate?.cost ?? 0, available: upcomingEnergyEstimate?.available ?? 0 }
-                )}
+                {(upcomingEnergyEstimate?.debtBalance ?? 0) > 0
+                  ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
+                  : t('chat.energy.notEnough', {
+                      cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
+                      available: upcomingEnergyEstimate?.available ?? 0,
+                    })}
               </p>
             )}
             {!currentSessionId && (

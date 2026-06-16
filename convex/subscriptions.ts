@@ -5,7 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 import { loadBetaMaxUnits, loadBetaTesterDiscountPercent, DEFAULT_WELCOME_ENERGY_AMOUNT } from "./platform";
-import { loadEnergyConfig } from "./energy";
+import { applyTopUpToSubscriptionBalances, loadEnergyConfig } from "./energy";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -69,10 +69,11 @@ export const SUBSCRIPTION_PLANS: Array<{
   allowsInstallments: boolean;
 }> = [
   // ===== Course tier (Sprachkurs – learning content only) =====
-  // Prepaid-only by design (lowest entry price; installments uneconomical).
-  { id: "course_3m",  tier: "course", durationMonths: 3,  price:  3900, name: "Sprachkurs - 3 Months",  allowsInstallments: false },
-  { id: "course_6m",  tier: "course", durationMonths: 6,  price:  4900, name: "Sprachkurs - 6 Months",  allowsInstallments: false },
-  { id: "course_12m", tier: "course", durationMonths: 12, price:  6900, name: "Sprachkurs - 12 Months", allowsInstallments: false },
+  // Installments supported (same 10% uplift model as the other tiers): learners
+  // can pay the fixed-term plan monthly instead of prepaid up-front.
+  { id: "course_3m",  tier: "course", durationMonths: 3,  price:  3900, name: "Sprachkurs - 3 Months",  allowsInstallments: true },
+  { id: "course_6m",  tier: "course", durationMonths: 6,  price:  4900, name: "Sprachkurs - 6 Months",  allowsInstallments: true },
+  { id: "course_12m", tier: "course", durationMonths: 12, price:  6900, name: "Sprachkurs - 12 Months", allowsInstallments: true },
 
   // ===== Standalone tier (AI Chat Standalone – AI Buddy + documents, no learning) =====
   { id: "standalone_3m",  tier: "standalone", durationMonths: 3,  price: 4500, name: "AI Chat Standalone - 3 Months",  allowsInstallments: true },
@@ -314,7 +315,13 @@ export const getPlans = query({
       return product ? product.price : fallbackPrice;
     };
 
-    return SUBSCRIPTION_PLANS.map((p) => {
+    return SUBSCRIPTION_PLANS
+      // Legacy plan IDs (buddy/basic/full) are kept only for zero-migration of
+      // existing DB records and in-flight webhooks. They must NOT be offered for
+      // new purchases (their DODO_PRODUCT_* env vars are intentionally unset),
+      // so we exclude them from the publicly listed/buyable plans.
+      .filter((p) => !LEGACY_PLAN_ID_PREFIXES.some((pre) => p.id.startsWith(pre)))
+      .map((p) => {
       const planType = p.id as PaidPlanId;
       const planKeyUpper = planType.toUpperCase().replace(/-/g, "_");
 
@@ -359,6 +366,18 @@ export const getBetaDiscountStatus = query({
   },
 });
 
+// Internal query wrapper so actions (which have no ctx.db) can read the
+// admin-tunable beta-tester discount percent without touching the database
+// directly. loadBetaTesterDiscountPercent expects a QueryCtx/MutationCtx.
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const internalGetBetaTesterDiscountPercent = internalQuery({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    return await loadBetaTesterDiscountPercent(ctx);
+  },
+});
+
 function getBillingProviderFromEnv(): "dodo" {
   return "dodo";
 }
@@ -386,8 +405,9 @@ export const getBillingProviderConfig = query({
     // Derive the required env vars from the canonical SUBSCRIPTION_PLANS so the
     // health-check stays in sync with the offered tiers automatically. Legacy
     // plan IDs (buddy/basic/full) keep their env vars active for in-flight
-    // webhooks but are NOT required for a healthy config. Prepaid-only plans
-    // (course tier) intentionally do not require an INSTALLMENTS var.
+    // webhooks but are NOT required for a healthy config. A plan only requires
+    // an INSTALLMENTS var when it has allowsInstallments=true (all canonical
+    // tiers, including the course tier as of June 2026).
     const requiredProductEnvKeys = [
       ...SUBSCRIPTION_PLANS
         .filter((p) => !LEGACY_PLAN_ID_PREFIXES.some((pre) => p.id.startsWith(pre)))
@@ -730,6 +750,145 @@ export const internalEnsureDodoUpgradeProducts = internalAction({
   },
 });
 
+// Creates the canonical subscription products (prepaid one-time + monthly
+// installments) for every non-legacy plan in SUBSCRIPTION_PLANS, using the
+// app's own Dodo API key + environment (so the products live in the exact same
+// Dodo account/mode the app talks to). Idempotent: a product whose env var is
+// already set is skipped. Returns a mapping of env var -> created product ID so
+// the caller can persist them via `npx convex env set`.
+//
+// Run (DEV, test_mode):
+//   npx convex run internal.subscriptions.internalEnsureDodoSubscriptionProducts '{"dryRun":true}'
+//   npx convex run internal.subscriptions.internalEnsureDodoSubscriptionProducts
+//
+// NEVER run against production without an explicit go-ahead (live_mode creates
+// real, chargeable live products).
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const internalEnsureDodoSubscriptionProducts = internalAction({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (_ctx, args): Promise<{
+    environment: "test_mode" | "live_mode" | "dev_mode";
+    created: Record<string, string>;
+    alreadySet: string[];
+    planned: Array<{ envKey: string; mode: "prepaid" | "installments"; priceCents: number; name: string }>;
+  }> => {
+    const apiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
+    if (!apiKey) throw new Error("DODO_PAYMENTS_API_KEY not configured");
+
+    const environment = getDodoEnvironmentFromEnv();
+    const baseUrl = dodoEnvToBaseUrl(environment);
+    const brandId = (process.env.DODO_BRAND_ID || "").trim();
+    const currency = "EUR";
+
+    // Only canonical plans (skip legacy buddy/basic/full mappings).
+    const canonicalPlans = SUBSCRIPTION_PLANS.filter(
+      (p) => !LEGACY_PLAN_ID_PREFIXES.some((pre) => p.id.startsWith(pre)),
+    );
+
+    const created: Record<string, string> = {};
+    const alreadySet: string[] = [];
+    const planned: Array<{ envKey: string; mode: "prepaid" | "installments"; priceCents: number; name: string }> = [];
+
+    const createProduct = async (body: Record<string, unknown>): Promise<string> => {
+      const resp = await fetch(`${baseUrl}/products`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const errorText = await resp.text().catch(() => "<failed_to_read_body>");
+        throw new Error(`dodo_create_product_failed:${resp.status}:${errorText}`);
+      }
+      const json: any = await resp.json().catch(() => ({}));
+      const productId = String(json?.product_id ?? json?.productId ?? "").trim();
+      if (!productId) throw new Error("dodo_missing_created_product_id");
+      return productId;
+    };
+
+    for (const plan of canonicalPlans) {
+      const planKey = plan.id.toUpperCase().replace(/-/g, "_");
+
+      // ---- Prepaid (one-time) ----
+      const prepaidEnvKey = `DODO_PRODUCT_${planKey}_PREPAID`;
+      if ((process.env[prepaidEnvKey] || "").trim()) {
+        alreadySet.push(prepaidEnvKey);
+      } else {
+        const priceCents = plan.price;
+        planned.push({ envKey: prepaidEnvKey, mode: "prepaid", priceCents, name: `${plan.name} (Prepaid)` });
+        if (!args.dryRun) {
+          created[prepaidEnvKey] = await createProduct({
+            name: `${plan.name} (Prepaid)`,
+            description: `Prepaid one-time purchase for ${plan.name}.`,
+            brand_id: brandId || undefined,
+            tax_category: "edtech",
+            price: {
+              currency,
+              discount: 0,
+              price: priceCents,
+              purchasing_power_parity: false,
+              type: "one_time_price",
+            },
+            metadata: {
+              app: "serbian-ai-tutor",
+              kind: "subscription_plan",
+              planType: plan.id,
+              paymentMode: "prepaid",
+              envKey: prepaidEnvKey,
+              environment,
+            },
+          });
+        }
+      }
+
+      // ---- Installments (monthly recurring, fixed term) ----
+      if (plan.allowsInstallments) {
+        const instEnvKey = `DODO_PRODUCT_${planKey}_INSTALLMENTS`;
+        if ((process.env[instEnvKey] || "").trim()) {
+          alreadySet.push(instEnvKey);
+        } else {
+          const monthlyCents = getInstallmentMonthlyChargeCents(plan.id);
+          planned.push({ envKey: instEnvKey, mode: "installments", priceCents: monthlyCents, name: `${plan.name} (Installments)` });
+          if (!args.dryRun) {
+            created[instEnvKey] = await createProduct({
+              name: `${plan.name} (Monthly Installments)`,
+              description: `Monthly installments for ${plan.name} (${plan.durationMonths} payments, +10% vs prepaid).`,
+              brand_id: brandId || undefined,
+              tax_category: "edtech",
+              price: {
+                currency,
+                discount: 0,
+                price: monthlyCents,
+                purchasing_power_parity: false,
+                type: "recurring_price",
+                payment_frequency_count: 1,
+                payment_frequency_interval: "Month",
+                subscription_period_count: plan.durationMonths,
+                subscription_period_interval: "Month",
+                trial_period_days: 0,
+              },
+              metadata: {
+                app: "serbian-ai-tutor",
+                kind: "subscription_plan",
+                planType: plan.id,
+                paymentMode: "installments",
+                envKey: instEnvKey,
+                environment,
+              },
+            });
+          }
+        }
+      }
+    }
+
+    return { environment, created, alreadySet, planned };
+  },
+});
+
 function getPlanDurationMonths(planType: DodoPlanId): number {
   return durationMonthsForPlanType(planType);
 }
@@ -845,7 +1004,10 @@ export const createDodoCheckoutSession = action({
     // The client may pass beta50=true as a hint, but server always validates.
     // The beta50 flag activates when the user is a beta tester AND has not yet
     // used their one-time discount. The beta phase must have ended (BETA_END_DATE set).
-    const betaDiscountPercent = await loadBetaTesterDiscountPercent(ctx);
+    const betaDiscountPercent = await ctx.runQuery(
+      internal.subscriptions.internalGetBetaTesterDiscountPercent,
+      {},
+    );
     const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
     const betaEnded = Number.isFinite(betaEndTs) ? Date.now() > betaEndTs : false;
     const beta50Requested = (args.beta50 === true || user.isBetaTester === true) && paymentMode === "prepaid";
@@ -934,6 +1096,93 @@ function getDodoTopupProductId(pack: TopupPack): string {
   if (!value) throw new Error(`missing_dodo_topup_product_id:${envKey}`);
   return value;
 }
+
+// Creates the Energy top-up products (one-time) from TOPUP_PACKS, using the
+// app's own Dodo API key + environment. Idempotent over the DODO_TOPUP_* env
+// var. Returns env var -> created product ID for persisting via
+// `npx convex env set`.
+//
+// Run (DEV, test_mode):
+//   npx convex run internal.subscriptions.internalEnsureDodoTopupProducts '{"dryRun":true}'
+//   npx convex run internal.subscriptions.internalEnsureDodoTopupProducts
+//
+// NEVER run against production without an explicit go-ahead (live_mode).
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const internalEnsureDodoTopupProducts = internalAction({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (_ctx, args): Promise<{
+    environment: "test_mode" | "live_mode" | "dev_mode";
+    created: Record<string, string>;
+    alreadySet: string[];
+    planned: Array<{ envKey: string; priceCents: number; totalEnergy: number; name: string }>;
+  }> => {
+    const apiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
+    if (!apiKey) throw new Error("DODO_PAYMENTS_API_KEY not configured");
+
+    const environment = getDodoEnvironmentFromEnv();
+    const baseUrl = dodoEnvToBaseUrl(environment);
+    const brandId = (process.env.DODO_BRAND_ID || "").trim();
+    const currency = "EUR";
+
+    const created: Record<string, string> = {};
+    const alreadySet: string[] = [];
+    const planned: Array<{ envKey: string; priceCents: number; totalEnergy: number; name: string }> = [];
+
+    for (const [packId, pack] of Object.entries(TOPUP_PACKS) as [TopupPack, typeof TOPUP_PACKS[TopupPack]][]) {
+      const envKey = `DODO_TOPUP_${packId.toUpperCase()}`;
+      if ((process.env[envKey] || "").trim()) {
+        alreadySet.push(envKey);
+        continue;
+      }
+
+      const totalEnergy = pack.energyAmount + pack.bonusAmount;
+      planned.push({ envKey, priceCents: pack.priceCents, totalEnergy, name: pack.name });
+      if (args.dryRun) continue;
+
+      const resp = await fetch(`${baseUrl}/products`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: `${pack.name} (${totalEnergy} Energy)`,
+          description: `One-time Energy top-up: ${pack.energyAmount} Energy${pack.bonusAmount > 0 ? ` + ${pack.bonusAmount} bonus` : ""} (= ${totalEnergy} total).`,
+          brand_id: brandId || undefined,
+          tax_category: "edtech",
+          price: {
+            currency,
+            discount: 0,
+            price: pack.priceCents,
+            purchasing_power_parity: false,
+            type: "one_time_price",
+          },
+          metadata: {
+            app: "serbian-ai-tutor",
+            kind: "topup",
+            pack: packId,
+            energyAmount: String(pack.energyAmount),
+            bonusAmount: String(pack.bonusAmount),
+            envKey,
+            environment,
+          },
+        }),
+      });
+      if (!resp.ok) {
+        const errorText = await resp.text().catch(() => "<failed_to_read_body>");
+        throw new Error(`dodo_create_topup_failed:${envKey}:${resp.status}:${errorText}`);
+      }
+      const json: any = await resp.json().catch(() => ({}));
+      const productId = String(json?.product_id ?? json?.productId ?? "").trim();
+      if (!productId) throw new Error(`dodo_missing_created_topup_id:${envKey}`);
+      created[envKey] = productId;
+    }
+
+    return { environment, created, alreadySet, planned };
+  },
+});
 
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const createTopupCheckoutSession = action({
@@ -1049,9 +1298,13 @@ export const getPublicEnergyInfo = query({
       photoScan: v.number(),
     }),
     monthlyReset: v.boolean(),
+    welcomeEnergyAmount: v.number(),
   }),
   handler: async (ctx) => {
     const cfg = await loadEnergyConfig(ctx);
+    const platformConfig = await ctx.db.query("platformConfig").first();
+    const welcomeEnergyAmount =
+      platformConfig?.welcomeEnergyAmount ?? DEFAULT_WELCOME_ENERGY_AMOUNT;
     return {
       quotas: {
         course: 0,
@@ -1068,6 +1321,7 @@ export const getPublicEnergyInfo = query({
         photoScan: cfg.costs.detailed + cfg.costs.visionSurcharge,
       },
       monthlyReset: true,
+      welcomeEnergyAmount,
     };
   },
 });
@@ -2184,8 +2438,8 @@ export const internalApplyDodoTopup = internalMutation({
       .first();
 
     if (sub) {
-      const current = sub.energyTopUpBalance ?? 0;
-      await ctx.db.patch(sub._id, { energyTopUpBalance: current + totalEnergy });
+      const balances = applyTopUpToSubscriptionBalances(sub, totalEnergy);
+      await ctx.db.patch(sub._id, balances);
     }
 
     // Record purchase history.
@@ -2251,8 +2505,8 @@ export const internalMaybeGrantWelcomeEnergy = internalMutation({
       .first();
 
     if (sub) {
-      const current = sub.energyTopUpBalance ?? 0;
-      await ctx.db.patch(sub._id, { energyTopUpBalance: current + welcomeAmount });
+      const balances = applyTopUpToSubscriptionBalances(sub, welcomeAmount);
+      await ctx.db.patch(sub._id, balances);
     }
 
     await ctx.db.insert("energyLedger", {

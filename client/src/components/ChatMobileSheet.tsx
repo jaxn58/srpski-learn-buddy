@@ -44,7 +44,9 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  FileDown,
 } from "lucide-react";
+import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 
 type ChatSession = Doc<"chatSessions">;
 
@@ -85,6 +87,7 @@ export function ChatMobileSheet({
   const unarchiveSessionMutation = useMutation(api.chat.unarchiveSession);
   const deleteArchivedMutation = useMutation(api.chat.deleteArchivedSession);
   const updateSessionMutation = useMutation(api.chat.updateSession);
+  const { exportSession, exportingSessionId } = useChatPdfExport();
 
   const markProcessing = (id: string) =>
     setProcessingIds((prev) => new Set(prev).add(id));
@@ -318,6 +321,14 @@ export function ChatMobileSheet({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem
+                            disabled={exportingSessionId === id}
+                            onSelect={() => void exportSession(session._id, session.title)}
+                            className="cursor-pointer"
+                          >
+                            <FileDown className="h-4 w-4 mr-2" />
+                            {t("chatLibrary.export.action")}
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onSelect={() => startRename(session)}
                             className="cursor-pointer"

@@ -28,6 +28,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Units = lazy(() => import("./pages/Units"));
 const UnitView = lazy(() => import("./pages/UnitView"));
 const Chat = lazy(() => import("./pages/Chat"));
+const ChatLibrary = lazy(() => import("./pages/ChatLibrary"));
 const Vocabulary = lazy(() => import("./pages/Vocabulary"));
 const VocabularyQuizRedirect = lazy(() => import("./pages/VocabularyQuizRedirect"));
 const VocabularyList = lazy(() => import("./pages/VocabularyList"));
@@ -160,6 +161,19 @@ function Router() {
                 <DashboardLayout>
                   <FeatureGate allow={(a) => a.features.buddyChat || a.features.teaser}>
                     <Chat />
+                  </FeatureGate>
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/library">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <FeatureGate allow={(a) => a.features.documents} redirectTo="/chat">
+                    <ChatLibrary />
                   </FeatureGate>
                 </DashboardLayout>
               </Suspense>

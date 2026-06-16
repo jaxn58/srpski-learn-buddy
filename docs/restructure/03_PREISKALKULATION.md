@@ -99,7 +99,7 @@ Eigenschaften des Grids:
 - **Bestandsschutz:** Sprachkurs + AI Pro 12M = 119 € identisch zum heutigen Plan-Preis (Beta-/Bestandskunden bleiben konform).
 - **„Just-€20-more"-Logik:** Sprachkurs + AI 12M (99 €) → Sprachkurs + AI Pro 12M (119 €) = +20 € Aufpreis für Documents, Knowledge Rack, Photo-Scan, Community + 500 Energy mehr/Monat → starkes Upsell-Argument auf der Pricing-Page (Documents/Photo-Scan/Community sind die primären Upsell-Hebel, nicht die Energy-Differenz).
 - **AI Chat Standalone** liegt unter Sprachkurs + AI (kein Kurs enthalten), kompensiert mit deutlich größerem Energy-Kontingent (600 vs. 250) + Top-up-Option. Juni 2026: Standalone-Quote von 450 → 600 angehoben (kein Kurs → AI-Chat ist einziges Produkt-Element); Sprachkurs-+-AI-Quote von 120 → 250 angehoben (UX-Korrektur: 120 wirkte als „Demo-Quota").
-- **Sprachkurs** als klarer Einstiegspreis (5,75 €/Monat bei 12M), prepaid-only.
+- **Sprachkurs** als klarer Einstiegspreis (5,75 €/Monat bei 12M), prepaid **oder** Ratenzahlung.
 - **Marktpositionierung:** Alle Tarife liegen effektiv €/Monat unter dem Wettbewerber-Marktpreis (~$10–$16/Monat-Abos), Einmalzahlung zusätzlicher USP (siehe `07_MARKTANALYSE.md`).
 
 ### Ratenzahlung (bestehende Logik)
@@ -108,7 +108,11 @@ Aufschlag +10 %, monatliche Rate auf `*.99` aufgerundet (`getInstallmentMonthlyC
 
 Beispiel Sprachkurs + AI Pro 12 Monate: 119 € × 1,1 = 130,90 € → / 12 ≈ 10,91 € → gerundet **10,99 €/Monat**.
 
-> **Entscheidung (Juni 2026):** Ratenzahlung wird **ab „Sprachkurs + AI" aufwärts** angeboten (Sprachkurs nur prepaid). Das ergibt eine Dodo-Produkt-Matrix von **1 Tarif × 3 Laufzeiten** (Sprachkurs prepaid) + **3 Tarife × 3 Laufzeiten × 2 Modi** (prepaid + Raten) = **21 Abo-Produkte** zzgl. 3 Top-up-Produkte. Begründung: Beim niedrigsten Einstiegspreis (Sprachkurs ab 39 €) ist Ratenzahlung wirtschaftlich uninteressant und produziert mehr Pflegeaufwand als Conversion-Vorteil.
+Beispiele Sprachkurs (Raten, +10 %, auf `*.99` gerundet): 3M 39 € → **14,99 €/Monat**, 6M 49 € → **8,99 €/Monat**, 12M 69 € → **6,99 €/Monat**.
+
+> **Entscheidung (Juni 2026):** Ratenzahlung wird ursprünglich **ab „Sprachkurs + AI" aufwärts** angeboten (Sprachkurs nur prepaid).
+>
+> **Aktualisiert (Juni 2026):** Auf Produktwunsch erhält **auch der Sprachkurs** die Ratenzahlung (gleiches 10-%-Modell). Damit gilt für **alle vier Tarife** prepaid **und** Raten. Die Dodo-Produkt-Matrix wächst auf **4 Tarife × 3 Laufzeiten × 2 Modi = 24 Abo-Produkte** zzgl. 3 Top-up-Produkte (= 27 Produkt-IDs). Die ursprüngliche Begründung (geringe Conversion beim niedrigsten Einstiegspreis) wird zugunsten einer einheitlichen, marktüblichen Zahlungsoption verworfen.
 
 ## 6. Sensitivität / Annahmen
 
@@ -121,5 +125,5 @@ Beispiel Sprachkurs + AI Pro 12 Monate: 119 € × 1,1 = 130,90 € → / 12 ≈
 
 1. ~~Finale Abo-Preise je Zelle des Grids.~~ **Entschieden Juni 2026:** Preis-Grid final (siehe Abschnitt 5).
 2. **Finale Energy-Inklusiv-Mengen** (entschieden: Sprachkurs + AI 250 / AI Chat Standalone 600 / Sprachkurs + AI Pro 750), **Verbrauchstabelle** (Energy je Aktionstyp, weiter Vorschlag, admin-konfigurierbar) und **Nachkauf-Preise** (entschieden Juni 2026, finalisiert: Starter 500/4,99 €, Plus 1 500/9,99 €, Pro 4 000/22,99 € — siehe Abschnitt 4 für die vollständige Treppen-Herleitung und Marge-Tabelle).
-3. ~~Ratenzahlung für welche Pakete?~~ **Entschieden Juni 2026:** ab „Sprachkurs + AI" aufwärts; Sprachkurs prepaid-only (siehe Abschnitt 5 / Ratenzahlung).
+3. ~~Ratenzahlung für welche Pakete?~~ **Entschieden Juni 2026, aktualisiert Juni 2026:** Ratenzahlung für **alle vier Tarife** inkl. Sprachkurs (siehe Abschnitt 5 / Ratenzahlung).
 4. **Modellwahl** (2.5 Flash vs. günstiger/neuer) als bewusste Margen-Entscheidung. *(weiter offen, kein Blocker — admin-konfigurierbar zur Laufzeit)*

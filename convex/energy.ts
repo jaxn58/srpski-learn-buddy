@@ -1,23 +1,21 @@
 /**
  * AI Energy – Single Source of Truth for cost calculation, charging and resets.
  *
- * Implements the energy model from docs/restructure/02_TOKEN_SYSTEM.md:
- *  - Cost is derived from action type (compact/detailed) + surcharges (RAG,
- *    vision, upload-size). All values are admin-tunable via `platformConfig`
- *    and fall back to the launch defaults below (zero-migration).
- *  - Charging order: monthly inclusive quota first, then non-expiring top-up
- *    balance (see 02_TOKEN_SYSTEM.md §5).
- *  - "Variant A": when the available balance is not enough for the action,
- *    the action is BLOCKED with a clear top-up/upgrade hint – never silently
- *    truncated.
- *  - Staff (admin/superadmin) and tier "full" without an explicit quota are
- *    treated as unlimited (see featureAccess.ts).
+ * Billing model (Phase 1 – measured usage):
+ *  - **Preview**: heuristic token band → approximate Energy range (`~min–max`).
+ *  - **Actual charge**: measured LLM input/output tokens → Energy via USD formula.
+ *  - **Overdraft**: one action may exceed available balance; deficit becomes
+ *    `energyDebtBalance`. Further actions blocked until top-up clears debt.
  *
- * Energy is only deducted on successful action completion. Streams that fail
- * mid-way are not charged (we deduct after `finalizeStreamedMessage`).
+ * Charging order: monthly inclusive quota first, then non-expiring top-up
+ * balance (see 02_TOKEN_SYSTEM.md §5).
  */
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import {
+  getModelPricing,
+  usdPerEnergy,
+} from "./ai/modelPricing";
 
 // ============= Launch defaults (mirror 02_TOKEN_SYSTEM.md) =============
 
@@ -31,21 +29,14 @@ export const DEFAULT_ENERGY_COSTS = {
   uploadPerKb: 0.02, // → 1 Energy per 50 KB
 } as const;
 
+/** Default USD target per 1 Energy (worst-case mix from 03_PREISKALKULATION.md). */
+export const DEFAULT_ENERGY_USD_PER_UNIT = 0.00166;
+
 export const DEFAULT_TIER_QUOTAS = {
   full: 750,
-  // AI Chat Standalone (legacy key "buddy"): higher quota than the combo tier
-  // because Standalone users have NO course content – the AI chat is their
-  // only product surface, so they will use it more intensively.
-  // Raised from 450 → 600 (decision: June 2026).
   buddy: 600,
-  // Sprachkurs + AI (legacy key "basic"): raised from 120 → 250 (June 2026).
-  // Reason: 120 was sized as a token "demo quota" – ~1-2 active questions per
-  // day, which felt punitive for engaged learners and undermined the mid-tier
-  // value proposition. 250 ≈ 80-125 balanced learning questions/month
-  // (~3-4/day). Worst-case KI cost stays <7% of monthly revenue – economics
-  // remain very healthy (see docs/restructure/03_PREISKALKULATION.md §3).
   basic: 250,
-  course: 0, // course tier uses the teaser counter, not energy
+  course: 0,
 } as const;
 
 /** Hard technical input cap for uploads (independent of energy balance). */
@@ -68,6 +59,8 @@ export type EnergyConfig = {
     basic: number;
   };
   uploadMaxFileBytes: number;
+  /** USD cost target for converting measured LLM spend → 1 Energy unit. */
+  usdPerEnergyUnit: number;
 };
 
 export async function loadEnergyConfig(ctx: QueryCtx | MutationCtx): Promise<EnergyConfig> {
@@ -88,10 +81,80 @@ export async function loadEnergyConfig(ctx: QueryCtx | MutationCtx): Promise<Ene
       basic: cfg?.energyQuotaBasic ?? DEFAULT_TIER_QUOTAS.basic,
     },
     uploadMaxFileBytes: cfg?.uploadMaxFileBytes ?? DEFAULT_UPLOAD_MAX_FILE_BYTES,
+    usdPerEnergyUnit: cfg?.energyUsdPerUnit ?? DEFAULT_ENERGY_USD_PER_UNIT,
   };
 }
 
-// ============= Cost calculation =============
+// ============= Token usage → Energy =============
+
+export type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
+/** Convert measured LLM tokens to Energy units (minimum 1). */
+export function measuredTokensToEnergy(
+  usage: TokenUsage,
+  modelName: string,
+  config: Pick<EnergyConfig, "usdPerEnergyUnit">
+): number {
+  const pricing = getModelPricing(modelName);
+  const usd = usdPerEnergy(pricing, {
+    input: Math.max(0, usage.inputTokens),
+    output: Math.max(0, usage.outputTokens),
+  });
+  return Math.max(1, Math.ceil(usd / config.usdPerEnergyUnit));
+}
+
+/** Heuristic char→token estimate when the provider omits usage metadata. */
+export function estimateTokensFromText(inputChars: number, outputChars: number): TokenUsage {
+  return {
+    inputTokens: Math.max(1, Math.ceil(inputChars / 4)),
+    outputTokens: Math.max(1, Math.ceil(outputChars / 4)),
+  };
+}
+
+/** Preview band for UI – not used for billing. */
+export type EnergyPreviewBand = {
+  costMin: number;
+  costMax: number;
+  /** Midpoint for legacy single-value displays. */
+  costMid: number;
+};
+
+export function previewEnergyBandForChat(
+  config: EnergyConfig,
+  input: EnergyEstimateInput,
+  modelName: string
+): EnergyPreviewBand {
+  const isDetailed = input.responseMode === "detailed";
+  const withRag = input.ragUsed === true;
+
+  // Token heuristics: compact vs detailed output caps + RAG inflates input.
+  const inputMin = withRag ? 600 : 400;
+  const inputMax = withRag ? 3500 : 1200;
+  const outputMin = isDetailed ? 300 : 120;
+  const outputMax = isDetailed ? 4096 : 450;
+
+  const minEnergy = measuredTokensToEnergy(
+    { inputTokens: inputMin, outputTokens: outputMin },
+    modelName,
+    config
+  );
+  const maxEnergy = measuredTokensToEnergy(
+    { inputTokens: inputMax, outputTokens: outputMax },
+    modelName,
+    config
+  );
+
+  return {
+    costMin: minEnergy,
+    costMax: maxEnergy,
+    costMid: Math.ceil((minEnergy + maxEnergy) / 2),
+  };
+}
+
+// ============= Cost calculation (uploads + legacy flat preview helpers) =============
 
 export type ActionType =
   | "compact"
@@ -134,6 +197,7 @@ function resolveActionType(input: EnergyEstimateInput): ActionType {
   return input.responseMode === "detailed" ? "detailed" : "compact";
 }
 
+/** Flat-rate estimate – used for upload pricing preview only (not chat billing). */
 export function estimateEnergyCost(config: EnergyConfig, input: EnergyEstimateInput): EnergyEstimate {
   const isDetailed = input.responseMode === "detailed";
   const base = isDetailed ? config.costs.detailed : config.costs.compact;
@@ -169,7 +233,8 @@ export type EnergyBalance = {
   quotaMonthly: number;
   usedThisPeriod: number;
   topUpBalance: number;
-  /** Effective remaining energy: (quota - used, floored at 0) + topUp. */
+  debtBalance: number;
+  /** Effective spendable energy before a possible single overdraft. */
   available: number;
 };
 
@@ -179,29 +244,33 @@ export function deriveEnergyBalance(
   unlimited: boolean
 ): EnergyBalance {
   if (unlimited) {
-    return { unlimited: true, quotaMonthly: 0, usedThisPeriod: 0, topUpBalance: 0, available: Number.POSITIVE_INFINITY };
+    return {
+      unlimited: true,
+      quotaMonthly: 0,
+      usedThisPeriod: 0,
+      topUpBalance: 0,
+      debtBalance: 0,
+      available: Number.POSITIVE_INFINITY,
+    };
   }
   const quotaMonthly = sub?.energyQuotaMonthly ?? fallbackQuota;
   const usedThisPeriod = sub?.energyUsedThisPeriod ?? 0;
   const topUpBalance = sub?.energyTopUpBalance ?? 0;
-  const available = Math.max(0, quotaMonthly - usedThisPeriod) + topUpBalance;
-  return { unlimited: false, quotaMonthly, usedThisPeriod, topUpBalance, available };
+  const debtBalance = sub?.energyDebtBalance ?? 0;
+  const quotaRemaining = Math.max(0, quotaMonthly - usedThisPeriod);
+  const available = Math.max(0, quotaRemaining + topUpBalance - debtBalance);
+  return { unlimited: false, quotaMonthly, usedThisPeriod, topUpBalance, debtBalance, available };
 }
 
 // ============= Charging =============
 
 export type ChargeResult =
-  | { ok: true; charged: number; fromQuota: number; fromTopUp: number }
-  | { ok: false; reason: "insufficient"; available: number; required: number };
+  | { ok: true; charged: number; fromQuota: number; fromTopUp: number; debtCreated: number }
+  | { ok: false; reason: "insufficient" | "debt"; available: number; required: number; debtBalance?: number };
 
 /**
- * Atomically charge `amount` energy. Idempotency / race-safety is provided by
- * Convex's per-document mutation serialization; this helper still re-reads the
- * subscription to compute fresh balances. Inclusive quota is consumed first,
- * top-up balance second (see 02_TOKEN_SYSTEM.md §5).
- *
- * Writes an `energyLedger` row with `reason="usage"` on success and patches the
- * subscription's `energyUsedThisPeriod` / `energyTopUpBalance`.
+ * Atomically charge `amount` energy from measured usage.
+ * Allows a single overdraft when `energyDebtBalance === 0` and available < amount.
  */
 export async function chargeEnergy(
   ctx: MutationCtx,
@@ -211,11 +280,13 @@ export async function chargeEnergy(
     actionType: ActionType;
     ragUsed?: boolean;
     messageId?: Id<"chatMessages">;
-    estInputTokens?: number;
-    estOutputTokens?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    estimatedEnergyCost?: number;
+    actualEnergyCost?: number;
   }
 ): Promise<ChargeResult> {
-  if (amount <= 0) return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0 };
+  if (amount <= 0) return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0, debtCreated: 0 };
 
   // @ts-ignore TS2589 – Convex schema depth limit (large schema)
   const sub = await ctx.db
@@ -224,9 +295,6 @@ export async function chargeEnergy(
     .filter((q) => q.eq(q.field("status"), "active"))
     .first();
 
-  // Without an active subscription row we have nothing to charge against –
-  // staff/beta enforcement happens in featureAccess; here we just record a
-  // ledger entry with zero charge to keep the audit trail truthful.
   if (!sub) {
     await ctx.db.insert("energyLedger", {
       userId,
@@ -235,30 +303,54 @@ export async function chargeEnergy(
       actionType: meta.actionType,
       ragUsed: meta.ragUsed,
       messageId: meta.messageId,
-      estInputTokens: meta.estInputTokens,
-      estOutputTokens: meta.estOutputTokens,
+      estInputTokens: meta.inputTokens,
+      estOutputTokens: meta.outputTokens,
+      estimatedEnergyCost: meta.estimatedEnergyCost,
+      actualEnergyCost: meta.actualEnergyCost,
       createdAt: Date.now(),
     });
-    return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0 };
+    return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0, debtCreated: 0 };
   }
 
   const quotaMonthly = sub.energyQuotaMonthly ?? 0;
   const usedThisPeriod = sub.energyUsedThisPeriod ?? 0;
   const topUpBalance = sub.energyTopUpBalance ?? 0;
+  const debtBalance = sub.energyDebtBalance ?? 0;
   const quotaRemaining = Math.max(0, quotaMonthly - usedThisPeriod);
   const available = quotaRemaining + topUpBalance;
 
-  if (available < amount) {
-    return { ok: false, reason: "insufficient", available, required: amount };
+  if (debtBalance > 0) {
+    return {
+      ok: false,
+      reason: "debt",
+      available: 0,
+      required: amount,
+      debtBalance,
+    };
   }
 
-  const fromQuota = Math.min(quotaRemaining, amount);
-  const fromTopUp = amount - fromQuota;
+  let fromQuota = 0;
+  let fromTopUp = 0;
+  let debtCreated = 0;
 
-  await ctx.db.patch(sub._id, {
-    energyUsedThisPeriod: usedThisPeriod + fromQuota,
-    energyTopUpBalance: topUpBalance - fromTopUp,
-  });
+  if (available >= amount) {
+    fromQuota = Math.min(quotaRemaining, amount);
+    fromTopUp = amount - fromQuota;
+    await ctx.db.patch(sub._id, {
+      energyUsedThisPeriod: usedThisPeriod + fromQuota,
+      energyTopUpBalance: topUpBalance - fromTopUp,
+    });
+  } else {
+    // Single overdraft: consume all available balance, remainder becomes debt.
+    fromQuota = quotaRemaining;
+    fromTopUp = topUpBalance;
+    debtCreated = amount - available;
+    await ctx.db.patch(sub._id, {
+      energyUsedThisPeriod: usedThisPeriod + fromQuota,
+      energyTopUpBalance: topUpBalance - fromTopUp,
+      energyDebtBalance: debtCreated,
+    });
+  }
 
   await ctx.db.insert("energyLedger", {
     userId,
@@ -267,12 +359,27 @@ export async function chargeEnergy(
     actionType: meta.actionType,
     ragUsed: meta.ragUsed,
     messageId: meta.messageId,
-    estInputTokens: meta.estInputTokens,
-    estOutputTokens: meta.estOutputTokens,
+    estInputTokens: meta.inputTokens,
+    estOutputTokens: meta.outputTokens,
+    estimatedEnergyCost: meta.estimatedEnergyCost,
+    actualEnergyCost: meta.actualEnergyCost ?? amount,
     createdAt: Date.now(),
   });
 
-  return { ok: true, charged: amount, fromQuota, fromTopUp };
+  return { ok: true, charged: amount, fromQuota, fromTopUp, debtCreated };
+}
+
+/** Apply a top-up: clear debt first, remainder goes to topUpBalance. */
+export function applyTopUpToSubscriptionBalances(
+  sub: Pick<Doc<"userSubscriptions">, "energyTopUpBalance" | "energyDebtBalance">,
+  energyAdded: number
+): { energyTopUpBalance: number; energyDebtBalance: number } {
+  const debt = sub.energyDebtBalance ?? 0;
+  const cleared = Math.min(debt, energyAdded);
+  return {
+    energyDebtBalance: debt - cleared,
+    energyTopUpBalance: (sub.energyTopUpBalance ?? 0) + (energyAdded - cleared),
+  };
 }
 
 // ============= Monthly reset =============
@@ -286,7 +393,6 @@ export function nextMonthlyResetAt(nowMs: number): number {
 /** True if the subscription's period has ended and a reset is due. */
 export function isResetDue(sub: Doc<"userSubscriptions">, nowMs: number): boolean {
   const resetAt = sub.energyPeriodResetAt;
-  // If never initialized, treat as due (will be set on first reset).
   if (resetAt === undefined) return true;
   return nowMs >= resetAt;
 }

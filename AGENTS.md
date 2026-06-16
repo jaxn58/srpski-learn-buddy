@@ -208,15 +208,16 @@ pnpm sync:email-templates
 **Dodo Payments (Convex Dashboard Env Vars - Phase 5, Stand Juni 2026):**
 
 Kanonische 4-Tarife-Struktur (siehe `docs/restructure/01_TARIFE_UND_FEATURES.md`):
-- `course` = Sprachkurs (prepaid-only, keine Raten)
+- `course` = Sprachkurs (prepaid + Raten; Raten seit Juni 2026)
 - `standalone` = AI Chat Standalone (prepaid + Raten)
 - `course_ai` = Sprachkurs + AI (prepaid + Raten)
 - `course_ai_pro` = Sprachkurs + AI Pro (prepaid + Raten)
 
-Subscription-Produkte (21 Env-Vars: 3 fuer `course` prepaid-only + 18 fuer die anderen drei Tiers x 3 Laufzeiten x 2 Modi). Laufzeiten: **3 / 6 / 12 Monate** (9-Monats-Variante entfernt, Entscheidung Phase 4).
+Subscription-Produkte (24 Env-Vars: 4 Tiers x 3 Laufzeiten x 2 Modi). Laufzeiten: **3 / 6 / 12 Monate** (9-Monats-Variante entfernt, Entscheidung Phase 4). Hinweis: Der `course`-Tarif war urspruenglich prepaid-only; seit Juni 2026 unterstuetzt er ebenfalls Ratenzahlung (gleiches 10-%-Modell).
 
-Sprachkurs (prepaid only, 3 Vars):
+Sprachkurs (prepaid + Raten, 6 Vars):
 - `DODO_PRODUCT_COURSE_3M_PREPAID`, `DODO_PRODUCT_COURSE_6M_PREPAID`, `DODO_PRODUCT_COURSE_12M_PREPAID`
+- `DODO_PRODUCT_COURSE_3M_INSTALLMENTS`, `DODO_PRODUCT_COURSE_6M_INSTALLMENTS`, `DODO_PRODUCT_COURSE_12M_INSTALLMENTS`
 
 AI Chat Standalone (6 Vars):
 - `DODO_PRODUCT_STANDALONE_3M_PREPAID`, `DODO_PRODUCT_STANDALONE_6M_PREPAID`, `DODO_PRODUCT_STANDALONE_12M_PREPAID`

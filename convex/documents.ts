@@ -58,6 +58,12 @@ export const generateUploadUrl = mutation({
     // Pre-charge check: skip for unlimited (staff). We do NOT skip for beta
     // testers — they have a metered quota.
     if (!access.energy.unlimited && typeof args.fileBytes === "number") {
+      if (access.energy.debtBalance > 0) {
+        throw new Error(
+          `Outstanding AI Energy debt of ${access.energy.debtBalance}. Top up to continue.`
+        );
+      }
+
       const mime = args.fileType ?? "application/octet-stream";
       const isImage = mime.startsWith("image/");
       const estimate = estimateEnergyCost(cfg, {
@@ -66,16 +72,6 @@ export const generateUploadUrl = mutation({
         attachmentBytes: args.fileBytes,
       });
 
-      if (access.energy.available < estimate.cost) {
-        throw new Error(
-          `Not enough AI Energy: this upload costs ${estimate.cost} Energy, you have ${access.energy.available}. Top up or upgrade to continue.`
-        );
-      }
-
-      // Optional client-side acknowledgement: if the frontend showed the user
-      // a confirmation dialog with a cost, it must echo that cost back. We
-      // reject only when the acknowledged cost is strictly below the real
-      // cost (frontend tried to under-report).
       if (typeof args.acknowledgedCost === "number" && args.acknowledgedCost < estimate.cost) {
         throw new Error(
           `Cost mismatch: upload requires ${estimate.cost} Energy, but client acknowledged only ${args.acknowledgedCost}. Please retry.`

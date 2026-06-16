@@ -5,11 +5,22 @@ import { Input } from "@/components/ui/input";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { MessageSquarePlus, MessageSquare, Archive, RotateCcw, Trash2, MoreHorizontal, Pencil, CheckSquare } from "lucide-react";
+import { MessageSquarePlus, MessageSquare, Archive, RotateCcw, Trash2, MoreHorizontal, Pencil, CheckSquare, FileDown, Folder, Library } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn, formatDateEU } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
+import { useFeatureAccess, canUseDocuments } from "@/hooks/useFeatureAccess";
+import { useChatPdfExport } from "@/hooks/useChatPdfExport";
+import type { Id } from "../../../convex/_generated/dataModel";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +49,18 @@ type ChatSession = Doc<"chatSessions">;
 
 export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewChat }: ChatSessionsSidebarProps) {
   const { t } = useTranslation();
-  const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
+  const featureAccess = useFeatureAccess();
+  const canUseLibrary = canUseDocuments(featureAccess);
+  const { exportSession, exportingSessionId } = useChatPdfExport();
+  const [folderFilter, setFolderFilter] = useState<string>("all");
+  const folders = useQuery(api.chatLibrary.listFolders, canUseLibrary ? {} : "skip");
+  const sessionsQueryArgs =
+    !canUseLibrary || folderFilter === "all"
+      ? {}
+      : folderFilter === "uncategorized"
+        ? { folderId: "uncategorized" as const }
+        : { folderId: folderFilter as Id<"chatFolders"> };
+  const sessions = useQuery(api.chat.getSessions, sessionsQueryArgs) as ChatSession[] | undefined;
   const archivedSessions = useQuery(api.chat.getArchivedSessions) as ChatSession[] | undefined;
   const isLoading = sessions === undefined;
   const archiveSessionMutation = useMutation(api.chat.archiveSession);
@@ -236,7 +258,33 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
           <MessageSquarePlus className="h-4 w-4 mr-2" />
           {t("chatSessions.button.newChat")}
         </Button>
-        
+
+        {canUseLibrary && (
+          <Button variant="outline" className="w-full text-xs" size="sm" asChild>
+            <Link href="/library">
+              <Library className="h-4 w-4 mr-2" />
+              {t("sidebar.chatLibrary")}
+            </Link>
+          </Button>
+        )}
+
+        {canUseLibrary && folders && folders.length > 0 && (
+          <Select value={folderFilter} onValueChange={setFolderFilter}>
+            <SelectTrigger className="h-9 text-xs">
+              <Folder className="h-3.5 w-3.5 mr-2 shrink-0" />
+              <SelectValue placeholder={t("chatLibrary.sidebar.filterFolders")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("chatLibrary.sidebar.allFolders")}</SelectItem>
+              <SelectItem value="uncategorized">{t("chatLibrary.uncategorized")}</SelectItem>
+              {folders.map((folder) => (
+                <SelectItem key={folder._id as string} value={folder._id as string}>
+                  {folder.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Button
           onClick={() => {
@@ -343,6 +391,14 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem
+                        disabled={exportingSessionId === id}
+                        onSelect={() => void exportSession(session._id, session.title)}
+                        className="cursor-pointer"
+                      >
+                        <FileDown className="h-4 w-4 mr-2" />
+                        {t("chatLibrary.export.action")}
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         onSelect={() => startRename(session)}
                         className="cursor-pointer"

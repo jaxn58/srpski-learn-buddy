@@ -930,6 +930,13 @@ export const _deleteUserCascade = internalMutation({
     bump("wishlistUpvotes", wishlistUpvotesByUser.length);
 
     // ---- Chat ----
+    const chatFolders = await ctx.db
+      .query("chatFolders")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const folder of chatFolders) await ctx.db.delete(folder._id);
+    bump("chatFolders", chatFolders.length);
+
     const chatSessions = await ctx.db
       .query("chatSessions")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))

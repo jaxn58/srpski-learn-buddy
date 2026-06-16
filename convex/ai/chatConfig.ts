@@ -4,6 +4,7 @@ import { generateText, streamText, stepCountIs } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { Id } from "../_generated/dataModel";
+import type { TokenUsage } from "../energy";
 import { buildChatTools } from "./chatTools";
 
 export type ChatAiConfig = {
@@ -106,6 +107,15 @@ export type AiMessage = {
   content: string | AiContentPart[];
 };
 
+export type StreamChatResult = {
+  text: string;
+  truncated: boolean;
+  usage: TokenUsage | null;
+  model: string;
+};
+
+const FALLBACK_RESPONSE = "I'm sorry, I couldn't generate a response.";
+
 export async function generateChatResponse(
   config: ChatAiConfig,
   messages: AiMessage[]
@@ -186,7 +196,7 @@ export async function streamChatResponse(
   config: ChatAiConfig,
   messages: AiMessage[],
   onChunk: (delta: string) => Promise<void>
-): Promise<string> {
+): Promise<StreamChatResult> {
   try {
     return await doStream(
       config.primaryProvider, config.primaryModel, config, messages, onChunk
@@ -217,7 +227,7 @@ async function doStream(
   config: ChatAiConfig,
   messages: AiMessage[],
   onChunk: (delta: string) => Promise<void>
-): Promise<string> {
+): Promise<StreamChatResult> {
   const params = buildFetchParams(provider, model);
 
   const response = await fetch(params.url, {
@@ -228,6 +238,7 @@ async function doStream(
       messages: messages.map((m) => ({ role: m.role, content: toOpenAiContent(m.content) })),
       max_tokens: config.maxTokens,
       stream: true,
+      stream_options: { include_usage: true },
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
     }),
   });
@@ -243,6 +254,8 @@ async function doStream(
   const decoder = new TextDecoder();
   let fullText = "";
   let buffer = "";
+  let finishReason: string | null = null;
+  let usage: TokenUsage | null = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -259,11 +272,22 @@ async function doStream(
       if (data === "[DONE]") continue;
 
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(data) as {
+          choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+        };
         const delta = parsed.choices?.[0]?.delta?.content;
         if (delta) {
           fullText += delta;
           await onChunk(delta);
+        }
+        const reason = parsed.choices?.[0]?.finish_reason;
+        if (reason) finishReason = reason;
+        if (parsed.usage) {
+          usage = {
+            inputTokens: parsed.usage.prompt_tokens ?? 0,
+            outputTokens: parsed.usage.completion_tokens ?? 0,
+          };
         }
       } catch {
         // skip malformed SSE chunks
@@ -271,7 +295,54 @@ async function doStream(
     }
   }
 
-  return fullText;
+  return {
+    text: fullText || FALLBACK_RESPONSE,
+    truncated: finishReason === "length",
+    usage,
+    model,
+  };
+}
+
+type SdkTextStream = {
+  textStream: AsyncIterable<string>;
+  finishReason: PromiseLike<string | undefined>;
+  usage: PromiseLike<
+    | {
+        inputTokens?: number;
+        outputTokens?: number;
+        promptTokens?: number;
+        completionTokens?: number;
+      }
+    | undefined
+  >;
+};
+
+async function collectSdkTextStream(
+  result: SdkTextStream,
+  model: string,
+  onChunk: (delta: string) => Promise<void>
+): Promise<StreamChatResult> {
+  let fullText = "";
+  for await (const part of result.textStream) {
+    if (part) {
+      fullText += part;
+      await onChunk(part);
+    }
+  }
+  const finishReason = await result.finishReason;
+  const rawUsage = await result.usage;
+  const usage: TokenUsage | null = rawUsage
+    ? {
+        inputTokens: rawUsage.inputTokens ?? rawUsage.promptTokens ?? 0,
+        outputTokens: rawUsage.outputTokens ?? rawUsage.completionTokens ?? 0,
+      }
+    : null;
+  return {
+    text: fullText || FALLBACK_RESPONSE,
+    truncated: finishReason === "length",
+    usage,
+    model,
+  };
 }
 
 // ============= AGENTIC RAG (v6) =============
@@ -301,7 +372,7 @@ export async function streamMultimodalResponse(
   config: ChatAiConfig,
   messages: AiMessage[],
   onChunk: (delta: string) => Promise<void>
-): Promise<string> {
+): Promise<StreamChatResult> {
   const sdkMessages = toAiSdkMessages(messages);
   const lastSdkMsg = sdkMessages[sdkMessages.length - 1];
   console.log("[streamMultimodal] Using:", config.primaryProvider, config.primaryModel,
@@ -319,15 +390,7 @@ export async function streamMultimodalResponse(
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
     });
 
-    let fullText = "";
-    for await (const part of result.textStream) {
-      if (part) {
-        fullText += part;
-        await onChunk(part);
-      }
-    }
-
-    return fullText || "I'm sorry, I couldn't generate a response.";
+    return await collectSdkTextStream(result, config.primaryModel, onChunk);
   } catch (primaryError) {
     if (!config.fallbackProvider || !config.fallbackModel) throw primaryError;
 
@@ -341,15 +404,7 @@ export async function streamMultimodalResponse(
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
     });
 
-    let fullText = "";
-    for await (const part of result.textStream) {
-      if (part) {
-        fullText += part;
-        await onChunk(part);
-      }
-    }
-
-    return fullText || "I'm sorry, I couldn't generate a response.";
+    return await collectSdkTextStream(result, config.fallbackModel ?? config.primaryModel, onChunk);
   }
 }
 
@@ -423,7 +478,7 @@ export async function streamAgenticResponse(
   ctx: ActionCtx,
   userId: Id<"users"> | undefined,
   learningLanguage: string
-): Promise<string> {
+): Promise<StreamChatResult> {
   const model = getAiSdkModel(config.primaryProvider, config.primaryModel);
   const tools = buildChatTools(ctx, userId, learningLanguage);
 
@@ -437,15 +492,7 @@ export async function streamAgenticResponse(
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
     });
 
-    let fullText = "";
-    for await (const part of result.textStream) {
-      if (part) {
-        fullText += part;
-        await onChunk(part);
-      }
-    }
-
-    return fullText || "I'm sorry, I couldn't generate a response.";
+    return await collectSdkTextStream(result, config.primaryModel, onChunk);
   } catch (primaryError) {
     if (!config.fallbackProvider || !config.fallbackModel) throw primaryError;
 
@@ -464,14 +511,6 @@ export async function streamAgenticResponse(
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
     });
 
-    let fullText = "";
-    for await (const part of result.textStream) {
-      if (part) {
-        fullText += part;
-        await onChunk(part);
-      }
-    }
-
-    return fullText || "I'm sorry, I couldn't generate a response.";
+    return await collectSdkTextStream(result, config.fallbackModel ?? config.primaryModel, onChunk);
   }
 }

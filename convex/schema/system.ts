@@ -212,6 +212,8 @@ export const systemTables = {
     // Technical input limits for uploads (independent of energy balance, see
     // 02_TOKEN_SYSTEM.md 2.2). Hard caps to prevent runaway cost / abuse.
     uploadMaxFileBytes: v.optional(v.number()),      // default 10 MB
+    /** Target USD cost per 1 Energy unit for measured token→Energy conversion. */
+    energyUsdPerUnit: v.optional(v.number()),
 
     // ===== Billing config (Phase 4) =====
     // Welcome-Energy bonus for first-time Full-tier buyers.

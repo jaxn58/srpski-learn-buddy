@@ -16,7 +16,7 @@ import {
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, Brain, Sparkles, Info, ArrowLeft, Square, ThumbsUp, ThumbsDown, Languages, Globe, LifeBuoy, Paperclip, X, FileText, Image as ImageIcon, Loader2, MessageCircle } from "lucide-react";
+import { Send, Brain, Sparkles, Info, ArrowLeft, Square, ThumbsUp, ThumbsDown, Languages, Globe, LifeBuoy, Paperclip, X, FileText, Image as ImageIcon, Loader2, MessageCircle, FileDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess, canUseDocuments } from "@/hooks/useFeatureAccess";
 import { ChatMobileSheet } from "@/components/ChatMobileSheet";
@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
 import { EnergyPill } from "@/components/chat/EnergyPill";
+import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
@@ -85,7 +86,6 @@ export default function Chat() {
   const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
     ragHinted: true,
   });
-  const upcomingEnergyCost = upcomingEnergyEstimate?.cost ?? null;
   const energyBlocksSend =
     upcomingEnergyEstimate != null &&
     !upcomingEnergyEstimate.unlimited &&
@@ -111,6 +111,7 @@ export default function Chat() {
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const featureAccess = useFeatureAccess();
   const canUploadDocuments = canUseDocuments(featureAccess);
+  const { exportSession, exportingSessionId } = useChatPdfExport();
 
   const { data: streamData, feedResponse, reset: resetStream } = useChatStream();
 
@@ -136,6 +137,21 @@ export default function Chat() {
 
   const prefillHandledRef = useRef(false);
 
+  const consumeSearchParam = useCallback((param: string): string | null => {
+    const params = new URLSearchParams(window.location.search);
+    const value = params.get(param);
+    if (value === null) return null;
+
+    params.delete(param);
+    const remaining = params.toString();
+    window.history.replaceState(
+      {},
+      "",
+      remaining ? `${window.location.pathname}?${remaining}` : window.location.pathname
+    );
+    return value;
+  }, []);
+
   const prefillExampleMessage = async (exampleText: string) => {
     const sessionIdToUse = currentSessionId ?? (await createNewSession());
     if (!sessionIdToUse) return;
@@ -146,12 +162,24 @@ export default function Chat() {
     });
   };
 
-  // Wähle den ersten vorhandenen Chat, wenn keiner selektiert ist oder der aktuelle nicht mehr existiert.
-  // Keine Auto-Erstellung eines neuen Chats bei leerer Liste.
+  // Deep-link from Chat Library: ?session= opens that chat.
+  // Otherwise select the latest session when none is active or the current one was removed.
   useEffect(() => {
-    if (!sessions) return; // loading
+    if (!sessions) return;
 
-    const hasCurrent = currentSessionId && sessions.some((s) => (s._id as unknown as string) === currentSessionId);
+    const sessionParam = consumeSearchParam("session");
+    if (sessionParam) {
+      const exists = sessions.some((s) => (s._id as unknown as string) === sessionParam);
+      if (exists) {
+        setCurrentSessionId(sessionParam);
+        return;
+      }
+      toast.error(t("chatSessions.toast.notFound", "Chat not found"));
+    }
+
+    const hasCurrent =
+      currentSessionId &&
+      sessions.some((s) => (s._id as unknown as string) === currentSessionId);
 
     if (sessions.length === 0) {
       if (currentSessionId) {
@@ -164,7 +192,7 @@ export default function Chat() {
       const latestSessionId = sessions[0]._id as unknown as string;
       setCurrentSessionId(latestSessionId);
     }
-  }, [sessions, currentSessionId]);
+  }, [sessions, currentSessionId, consumeSearchParam, t]);
 
   // Deep-link: read ?prefill= from URL and pre-fill the chat input
   useEffect(() => {
@@ -176,7 +204,7 @@ export default function Chat() {
     if (!prefillText) return;
 
     prefillHandledRef.current = true;
-    window.history.replaceState({}, "", window.location.pathname);
+    consumeSearchParam("prefill");
 
     const run = async () => {
       const sid = currentSessionId ?? (await createNewSession());
@@ -187,7 +215,7 @@ export default function Chat() {
       });
     };
     void run();
-  }, [sessions, currentSessionId]);
+  }, [sessions, currentSessionId, consumeSearchParam]);
 
   // Fetch messages for current session - Convex handles reactivity automatically
   const sessionMessages = useQuery(
@@ -561,7 +589,24 @@ export default function Chat() {
           <main className="w-full flex-1 flex flex-col min-h-0">
         <div className="flex flex-col bg-card border-0 sm:border rounded-none sm:rounded-xl shadow-none sm:shadow-sm flex-1 min-h-0">
           {/* Top tools row: nur auf Desktop sichtbar */}
-          <div className="hidden sm:flex px-4 pt-4 items-center justify-end">
+          <div className="hidden sm:flex px-4 pt-4 items-center justify-end gap-2">
+            {currentSessionId && currentSession && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={exportingSessionId === currentSessionId}
+                onClick={() =>
+                  void exportSession(
+                    currentSessionId as Id<"chatSessions">,
+                    currentSession.title
+                  )
+                }
+              >
+                <FileDown className="h-4 w-4" />
+                <span className="hidden sm:inline">{t("chatLibrary.export.action")}</span>
+              </Button>
+            )}
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
@@ -877,7 +922,10 @@ export default function Chat() {
                 </span>
               )}
               {/* AI Energy pill (always visible for metered users) */}
-              <EnergyPill upcomingCost={upcomingEnergyCost} />
+              <EnergyPill
+                upcomingCostMin={upcomingEnergyEstimate?.costMin ?? null}
+                upcomingCostMax={upcomingEnergyEstimate?.costMax ?? null}
+              />
               {canUploadDocuments && (
               <div
                 className="relative shrink-0"
@@ -928,7 +976,12 @@ export default function Chat() {
                   size="icon"
                   className="rounded-full h-10 w-10"
                   title={energyBlocksSend
-                    ? t('chat.energy.notEnough', { cost: upcomingEnergyEstimate?.cost ?? 0, available: upcomingEnergyEstimate?.available ?? 0 })
+                    ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
+                      ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
+                      : t('chat.energy.notEnough', {
+                          cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
+                          available: upcomingEnergyEstimate?.available ?? 0,
+                        })
                     : undefined}
                 >
                   <Send className="h-4 w-4" />
@@ -944,10 +997,12 @@ export default function Chat() {
             )}
             {energyBlocksSend && (
               <p className="text-[11px] text-destructive text-center mt-2 px-4">
-                {t('chat.energy.notEnough',
-                  'Not enough AI Energy ({{available}}). This action needs {{cost}}. Top up or upgrade to continue.',
-                  { cost: upcomingEnergyEstimate?.cost ?? 0, available: upcomingEnergyEstimate?.available ?? 0 }
-                )}
+                {(upcomingEnergyEstimate?.debtBalance ?? 0) > 0
+                  ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
+                  : t('chat.energy.notEnough', {
+                      cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
+                      available: upcomingEnergyEstimate?.available ?? 0,
+                    })}
               </p>
             )}
             <p className="text-[10px] text-muted-foreground/50 text-center mt-2 px-4">

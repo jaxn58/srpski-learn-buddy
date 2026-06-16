@@ -9,12 +9,16 @@ import { loadBetaMaxAiPerDay, loadTeaserDailyLimit } from "./platform";
 import {
   chargeEnergy,
   estimateEnergyCost,
+  estimateTokensFromText,
   loadEnergyConfig,
+  measuredTokensToEnergy,
+  previewEnergyBandForChat,
   type EnergyEstimateInput,
+  type TokenUsage,
 } from "./energy";
 import { streamingComponent } from "./streaming";
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
-import { resolveModelConfig, generateChatResponse, streamChatResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
+import { resolveModelConfig, generateChatResponse, streamChatResponse, streamAgenticResponse, streamMultimodalResponse, type StreamChatResult } from "./ai/chatConfig";
 import { embedText } from "./ai/embeddings";
 
 // Central default system prompts by language (Emergency Fallback)
@@ -55,7 +59,7 @@ const RATE_LIMITS = {
     maxMessageLength: 1500,
     maxTokensOverride: 2048,
     detailedMessagesPerDay: 3,
-    maxTokensDetailed: 800,
+    maxTokensDetailed: 4096,
     maxTokensCompact: 400,
   },
   paid: {
@@ -65,6 +69,32 @@ const RATE_LIMITS = {
     maxMessageLength: 3000,
   },
 };
+
+/** Minimum output tokens for paid detailed answers (e.g. full grammar walkthroughs). */
+const PAID_DETAILED_MIN_TOKENS = 4096;
+
+const DETAILED_RESPONSE_GUIDANCE =
+  "\n\n[RESPONSE LENGTH GUIDANCE] This is a DETAILED answer request. Cover the topic thoroughly with examples, but if the subject is large (e.g. an entire unit's grammar), prioritize the most important concepts first and use clear sections. If you cannot cover everything in one answer, finish the current section cleanly, list what remains, and invite the user to ask for the next part. Never stop mid-sentence or mid-heading.";
+
+function getTruncationNotice(learningLanguage: string): string {
+  switch (learningLanguage) {
+    case "de":
+      return "\n\n---\n\n*Die Antwort wurde aus Längengründen gekürzt. Schreib „Mach weiter“ oder nenne den Abschnitt, den du als Nächstes erklärt haben möchtest.*";
+    default:
+      return "\n\n---\n\n*This answer was shortened due to length limits. Write \"Continue\" or name the section you'd like explained next.*";
+  }
+}
+
+async function finalizeStreamText(
+  result: StreamChatResult,
+  learningLanguage: string,
+  append: (delta: string) => Promise<void>
+): Promise<string> {
+  if (!result.truncated) return result.text;
+  const notice = getTruncationNotice(learningLanguage);
+  await append(notice);
+  return result.text + notice;
+}
 
 /** Returns midnight UTC (00:00:00.000) for the day that contains `nowMs`. */
 function startOfDayUtc(nowMs: number): number {
@@ -191,9 +221,36 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
 
 // Get all chat sessions for current user
 export const getSessions = query({
-  handler: async (ctx) => {
+  args: {
+    folderId: v.optional(v.union(v.id("chatFolders"), v.literal("uncategorized"))),
+  },
+  handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) return [];
+
+    if (args.folderId && args.folderId !== "uncategorized") {
+      const sessions = await ctx.db
+        .query("chatSessions")
+        .withIndex("by_user_and_folder", (q) =>
+          q.eq("userId", user._id).eq("folderId", args.folderId as Id<"chatFolders">)
+        )
+        .order("desc")
+        .filter((q) => q.neq(q.field("archived"), true))
+        .take(50);
+      return sessions;
+    }
+
+    if (args.folderId === "uncategorized") {
+      const sessions = await ctx.db
+        .query("chatSessions")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .order("desc")
+        .filter((q) =>
+          q.and(q.neq(q.field("archived"), true), q.eq(q.field("folderId"), undefined))
+        )
+        .take(50);
+      return sessions;
+    }
 
     // Use Convex .filter() + .take() to avoid loading all sessions into memory.
     // archived is optional (legacy docs have undefined), so we exclude only explicit true.
@@ -347,7 +404,10 @@ export const addMessage = mutation({
     content: v.string(),
     unitContext: v.optional(v.number()),
     responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
+    attachmentStorageId: v.optional(v.id("_storage")),
+    attachmentFileName: v.optional(v.string()),
   },
+  returns: v.id("chatMessages"),
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
@@ -364,6 +424,8 @@ export const addMessage = mutation({
       content: args.content,
       unitContext: args.unitContext,
       responseMode: args.responseMode,
+      attachmentStorageId: args.attachmentStorageId,
+      attachmentFileName: args.attachmentFileName,
     });
   },
 });
@@ -711,13 +773,21 @@ export const checkMessageRateLimit = mutation({
       throw new Error(rateLimitResult.reason || "Rate limit exceeded");
     }
 
-    // Energy pre-check (Variant A): block the send if the user does not have
-    // enough energy for the action. Teaser-only users have their own daily
-    // counter and are not metered against energy. Staff and explicitly
-    // unlimited plans pass through untouched.
-    let energyEstimate = 0;
+    // Energy pre-check: block only when the user already has outstanding debt
+    // from a prior overdraft action. Actual cost is billed after measured usage.
+    let energyEstimateMin = 0;
+    let energyEstimateMax = 0;
+    let energyEstimateMid = 0;
     if (!isTeaserOnly && !access.energy.unlimited) {
+      if (access.energy.debtBalance > 0) {
+        throw new Error(
+          `Outstanding AI Energy debt of ${access.energy.debtBalance}. Top up to continue.`
+        );
+      }
+
       const cfg = await loadEnergyConfig(ctx);
+      const aiConfig = await ctx.db.query("chatAiConfig").first();
+      const modelName = aiConfig?.primaryModel ?? "gemini-2.5-flash";
       const estInput: EnergyEstimateInput = {
         responseMode: args.responseMode,
         ragUsed: args.ragHinted ?? false,
@@ -725,21 +795,20 @@ export const checkMessageRateLimit = mutation({
         hasFileAttachment: args.hasFileAttachment ?? false,
         attachmentBytes: args.attachmentBytes ?? 0,
       };
-      const estimate = estimateEnergyCost(cfg, estInput);
-      energyEstimate = estimate.cost;
-
-      if (access.energy.available < estimate.cost) {
-        throw new Error(
-          `Not enough AI Energy: this action costs ${estimate.cost} Energy, you have ${access.energy.available}. Top up or upgrade to continue.`
-        );
-      }
+      const band = previewEnergyBandForChat(cfg, estInput, modelName);
+      energyEstimateMin = band.costMin;
+      energyEstimateMax = band.costMax;
+      energyEstimateMid = band.costMid;
     }
 
     return {
       allowed: true,
       isPaidUser: rateLimitResult.isPaidUser ?? false,
-      energyEstimate,
+      energyEstimate: energyEstimateMid,
+      energyEstimateMin,
+      energyEstimateMax,
       energyAvailable: access.energy.unlimited ? null : access.energy.available,
+      energyDebtBalance: access.energy.unlimited ? 0 : access.energy.debtBalance,
     };
   },
 });
@@ -779,33 +848,33 @@ export const finalizeStreamedMessage = internalMutation({
   args: {
     messageId: v.id("chatMessages"),
     content: v.string(),
-    // Energy metering inputs (Phase 3). All optional so legacy callers stay
-    // functional; in that case we patch the content but record a zero-cost
-    // ledger entry. The streaming HTTP action passes the real values.
     responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
     ragUsed: v.optional(v.boolean()),
     hasImageAttachment: v.optional(v.boolean()),
     hasFileAttachment: v.optional(v.boolean()),
     attachmentBytes: v.optional(v.number()),
+    modelName: v.optional(v.string()),
+    inputTokens: v.optional(v.number()),
+    outputTokens: v.optional(v.number()),
+    inputCharEstimate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.messageId, { content: args.content });
 
-    // Skip charging if the stream actually failed (empty content). The user
-    // should not pay energy for an answer they did not get.
     if (!args.content || args.content.trim().length === 0) return;
 
     const message = await ctx.db.get(args.messageId);
     if (!message) return;
 
     const access = await getFeatureAccessForUser(ctx, message.userId);
-    // Staff/unlimited: no charge. Teaser-only (course tier): teaser counter,
-    // not energy. Anything else (buddy/basic/full + beta): charge.
     if (access.energy.unlimited) return;
     if (access.features.teaser && !access.features.buddyChat) return;
 
     const cfg = await loadEnergyConfig(ctx);
-    const estimate = estimateEnergyCost(cfg, {
+    const aiConfig = await ctx.db.query("chatAiConfig").first();
+    const modelName = args.modelName ?? aiConfig?.primaryModel ?? "gemini-2.5-flash";
+
+    const flatEstimate = estimateEnergyCost(cfg, {
       responseMode: args.responseMode,
       ragUsed: args.ragUsed ?? false,
       hasImageAttachment: args.hasImageAttachment ?? false,
@@ -813,10 +882,46 @@ export const finalizeStreamedMessage = internalMutation({
       attachmentBytes: args.attachmentBytes ?? 0,
     });
 
-    await chargeEnergy(ctx, message.userId, estimate.cost, {
-      actionType: estimate.actionType,
-      ragUsed: estimate.ragUsed,
+    const hasMeasuredUsage =
+      args.inputTokens != null &&
+      args.outputTokens != null &&
+      (args.inputTokens > 0 || args.outputTokens > 0);
+
+    let usage: TokenUsage;
+    if (hasMeasuredUsage) {
+      usage = { inputTokens: args.inputTokens!, outputTokens: args.outputTokens! };
+    } else {
+      usage = estimateTokensFromText(
+        args.inputCharEstimate ?? 0,
+        args.content.length
+      );
+    }
+
+    const actualCost =
+      args.hasFileAttachment && !args.hasImageAttachment && !hasMeasuredUsage
+        ? flatEstimate.cost
+        : measuredTokensToEnergy(usage, modelName, cfg);
+
+    const previewBand = previewEnergyBandForChat(
+      cfg,
+      {
+        responseMode: args.responseMode,
+        ragUsed: args.ragUsed ?? false,
+        hasImageAttachment: args.hasImageAttachment ?? false,
+        hasFileAttachment: args.hasFileAttachment ?? false,
+        attachmentBytes: args.attachmentBytes ?? 0,
+      },
+      modelName
+    );
+
+    await chargeEnergy(ctx, message.userId, actualCost, {
+      actionType: flatEstimate.actionType,
+      ragUsed: flatEstimate.ragUsed,
       messageId: args.messageId,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      estimatedEnergyCost: previewBand.costMid,
+      actualEnergyCost: actualCost,
     });
   },
 });
@@ -836,6 +941,8 @@ export const estimateEnergyForAction = query({
   },
   returns: v.object({
     cost: v.number(),
+    costMin: v.number(),
+    costMax: v.number(),
     actionType: v.union(
       v.literal("compact"),
       v.literal("detailed"),
@@ -843,6 +950,7 @@ export const estimateEnergyForAction = query({
       v.literal("document_analysis"),
     ),
     available: v.union(v.number(), v.null()),
+    debtBalance: v.number(),
     unlimited: v.boolean(),
     teaserOnly: v.boolean(),
     enough: v.boolean(),
@@ -856,25 +964,37 @@ export const estimateEnergyForAction = query({
   }),
   handler: async (ctx, args) => {
     const cfg = await loadEnergyConfig(ctx);
-    const estimate = estimateEnergyCost(cfg, {
+    const aiConfig = await ctx.db.query("chatAiConfig").first();
+    const modelName = aiConfig?.primaryModel ?? "gemini-2.5-flash";
+    const flatEstimate = estimateEnergyCost(cfg, {
       responseMode: args.responseMode,
       ragUsed: args.ragHinted ?? false,
       hasImageAttachment: args.hasImageAttachment ?? false,
       hasFileAttachment: args.hasFileAttachment ?? false,
       attachmentBytes: args.attachmentBytes ?? 0,
     });
+    const band = previewEnergyBandForChat(cfg, {
+      responseMode: args.responseMode,
+      ragUsed: args.ragHinted ?? false,
+      hasImageAttachment: args.hasImageAttachment ?? false,
+      hasFileAttachment: args.hasFileAttachment ?? false,
+      attachmentBytes: args.attachmentBytes ?? 0,
+    }, modelName);
 
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return {
-        cost: estimate.cost,
-        actionType: estimate.actionType,
+        cost: band.costMid,
+        costMin: band.costMin,
+        costMax: band.costMax,
+        actionType: flatEstimate.actionType,
         available: null,
+        debtBalance: 0,
         unlimited: false,
         teaserOnly: false,
         enough: false,
         uploadMaxFileBytes: cfg.uploadMaxFileBytes,
-        breakdown: estimate.breakdown,
+        breakdown: flatEstimate.breakdown,
       };
     }
     const user = await ctx.db
@@ -883,31 +1003,40 @@ export const estimateEnergyForAction = query({
       .first();
     if (!user) {
       return {
-        cost: estimate.cost,
-        actionType: estimate.actionType,
+        cost: band.costMid,
+        costMin: band.costMin,
+        costMax: band.costMax,
+        actionType: flatEstimate.actionType,
         available: null,
+        debtBalance: 0,
         unlimited: false,
         teaserOnly: false,
         enough: false,
         uploadMaxFileBytes: cfg.uploadMaxFileBytes,
-        breakdown: estimate.breakdown,
+        breakdown: flatEstimate.breakdown,
       };
     }
 
     const access = await getFeatureAccessForUser(ctx, user._id);
     const teaserOnly = access.features.teaser && !access.features.buddyChat;
     const available = access.energy.unlimited ? null : access.energy.available;
-    const enough = access.energy.unlimited || teaserOnly || access.energy.available >= estimate.cost;
+    const enough =
+      access.energy.unlimited ||
+      teaserOnly ||
+      access.energy.debtBalance === 0;
 
     return {
-      cost: estimate.cost,
-      actionType: estimate.actionType,
+      cost: band.costMid,
+      costMin: band.costMin,
+      costMax: band.costMax,
+      actionType: flatEstimate.actionType,
       available,
+      debtBalance: access.energy.debtBalance,
       unlimited: access.energy.unlimited,
       teaserOnly,
       enough,
       uploadMaxFileBytes: cfg.uploadMaxFileBytes,
-      breakdown: estimate.breakdown,
+      breakdown: flatEstimate.breakdown,
     };
   },
 });
@@ -1518,6 +1647,17 @@ export const getSessionFeedback = query({
   },
 });
 
+function estimateAiMessagesInputChars(
+  messages: Array<{ role: string; content: string | Array<{ type: string; text?: string }> }>
+): number {
+  return messages.reduce((sum, msg) => {
+    if (typeof msg.content === "string") return sum + msg.content.length;
+    return sum + msg.content
+      .filter((part): part is { type: "text"; text: string } => part.type === "text" && typeof part.text === "string")
+      .reduce((partSum, part) => partSum + part.text.length, 0);
+  }, 0);
+}
+
 // httpAction: POST /chat/stream
 const STREAM_JSON_HEADERS = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Vary": "Origin" };
 
@@ -1604,6 +1744,8 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
       ? RATE_LIMITS.beta.maxTokensDetailed
       : RATE_LIMITS.beta.maxTokensCompact;
     config.maxTokens = Math.min(config.maxTokens, modeTokenCap);
+  } else if (body.responseMode === "detailed") {
+    config.maxTokens = Math.max(config.maxTokens, PAID_DETAILED_MIN_TOKENS);
   }
 
   const userName = streamContext.userName || "";
@@ -1630,6 +1772,10 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     } catch (e) {
       console.warn("[streamChat] Semantic search failed, continuing without:", e);
     }
+  }
+
+  if (body.responseMode === "detailed") {
+    systemPrompt += DETAILED_RESPONSE_GUIDANCE;
   }
 
   // Hard character caps for text attachments — keeps token spend predictable.
@@ -1761,31 +1907,37 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     request,
     streamId,
     async (_ctx, _request, _streamId, append) => {
-      let fullText: string;
+      let streamResult: StreamChatResult;
       // Multimodal is only needed for URL-based attachments (images, PDFs).
       // Plain-text attachments are already inlined into the message content.
       const needsMultimodal = !!attachmentUrl;
 
       if (needsMultimodal) {
         try {
-          fullText = await streamMultimodalResponse(config, aiMessages, append);
+          streamResult = await streamMultimodalResponse(config, aiMessages, append);
         } catch (e) {
           console.error("[streamChat] Multimodal streaming failed:", e);
-          fullText = await streamChatResponse(config, aiMessages, append);
+          streamResult = await streamChatResponse(config, aiMessages, append);
         }
       } else if (config.useAgenticRag) {
         try {
-          fullText = await streamAgenticResponse(
+          streamResult = await streamAgenticResponse(
             config, aiMessages, append,
             ctx, streamContext.userId, streamContext.learningLanguage
           );
         } catch (e) {
           console.warn("[streamChat] Agentic RAG failed, falling back to standard:", e);
-          fullText = await streamChatResponse(config, aiMessages, append);
+          streamResult = await streamChatResponse(config, aiMessages, append);
         }
       } else {
-        fullText = await streamChatResponse(config, aiMessages, append);
+        streamResult = await streamChatResponse(config, aiMessages, append);
       }
+
+      const fullText = await finalizeStreamText(
+        streamResult,
+        streamContext.learningLanguage,
+        append
+      );
 
       const hasImage = !!attachmentMimeType && attachmentMimeType.startsWith("image/");
       const hasFile = !!attachmentUrl && !hasImage;
@@ -1799,6 +1951,10 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         hasImageAttachment: hasImage,
         hasFileAttachment: hasFile,
         attachmentBytes: body.attachmentBytes,
+        modelName: streamResult.model,
+        inputTokens: streamResult.usage?.inputTokens,
+        outputTokens: streamResult.usage?.outputTokens,
+        inputCharEstimate: estimateAiMessagesInputChars(aiMessages),
       });
     },
   );

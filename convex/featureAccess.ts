@@ -100,6 +100,7 @@ type EnergyState = {
   quotaMonthly: number;
   usedThisPeriod: number;
   topUpBalance: number;
+  debtBalance: number;
   available: number;
   periodResetAt: number | null;
 };
@@ -150,6 +151,7 @@ const featureAccessValidator = v.object({
     quotaMonthly: v.number(),
     usedThisPeriod: v.number(),
     topUpBalance: v.number(),
+    debtBalance: v.number(),
     available: v.number(),
     periodResetAt: v.union(v.number(), v.null()),
   }),
@@ -191,6 +193,7 @@ const NO_ENERGY: EnergyState = {
   quotaMonthly: 0,
   usedThisPeriod: 0,
   topUpBalance: 0,
+  debtBalance: 0,
   available: 0,
   periodResetAt: null,
 };
@@ -214,9 +217,11 @@ function resolveEnergy(
   const quotaMonthly = sub?.energyQuotaMonthly ?? quotaForTier(tier, quotas);
   const usedThisPeriod = sub?.energyUsedThisPeriod ?? 0;
   const topUpBalance = sub?.energyTopUpBalance ?? 0;
-  const available = Math.max(0, quotaMonthly - usedThisPeriod) + topUpBalance;
+  const debtBalance = sub?.energyDebtBalance ?? 0;
+  const quotaRemaining = Math.max(0, quotaMonthly - usedThisPeriod);
+  const available = Math.max(0, quotaRemaining + topUpBalance - debtBalance);
   const periodResetAt = sub?.energyPeriodResetAt ?? null;
-  return { unlimited: false, quotaMonthly, usedThisPeriod, topUpBalance, available, periodResetAt };
+  return { unlimited: false, quotaMonthly, usedThisPeriod, topUpBalance, debtBalance, available, periodResetAt };
 }
 
 /**

@@ -8,7 +8,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Calendar, Check, Clock, CreditCard, TrendingUp } from "lucide-react";
+import { Calendar, Check, Clock, CreditCard, TrendingUp, Zap } from "lucide-react";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { TopupOptions } from "@/components/energy/TopupOptions";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -28,6 +30,83 @@ type SubscriptionPlan = {
     installmentsUpliftPercent?: number;
   };
 };
+
+function EnergyCard() {
+  const { t } = useTranslation();
+  const access = useFeatureAccess();
+  const energyInfo = useQuery(api.subscriptions.getPublicEnergyInfo);
+
+  if (!access) return null;
+  if (access.energy.unlimited) return null;
+  // Course-tier (teaser) users don't have Energy
+  if (access.features.teaser && !access.features.buddyChat) return null;
+  if (!access.features.buddyChat) return null;
+
+  const { quotaMonthly, usedThisPeriod, topUpBalance, available, periodResetAt } = access.energy;
+  const quotaRemaining = Math.max(0, quotaMonthly - usedThisPeriod);
+  const quotaPercent = quotaMonthly > 0 ? (quotaRemaining / quotaMonthly) * 100 : 0;
+  const welcomeEnergyAmount = energyInfo?.welcomeEnergyAmount ?? 0;
+  const showWelcomeNote = access.tier === "course_ai_pro" && welcomeEnergyAmount > 0;
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Zap className="h-5 w-5 text-primary" />
+          {t("energy.title")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Monthly Quota */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">{t("energy.monthlyQuota")}</span>
+            <span className="text-sm tabular-nums">
+              {quotaRemaining} / {quotaMonthly} {t("energy.remaining")}
+            </span>
+          </div>
+          <Progress value={quotaPercent} className="h-2" />
+          <div className="text-xs text-muted-foreground mt-1">
+            {t("energy.used")}: {usedThisPeriod}
+            {periodResetAt && (
+              <span className="ml-2">
+                · {t("energy.resetInfo", { date: formatDateEU(periodResetAt) })}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Extra Energy + Total */}
+        <div className="flex gap-4">
+          <div className="flex-1 rounded-lg bg-muted p-3">
+            <div className="text-xs text-muted-foreground">{t("energy.topUpBalance")}</div>
+            <div className="text-lg font-bold tabular-nums">{topUpBalance}</div>
+            <div className="text-xs text-muted-foreground">{t("energy.topUpNeverExpires")}</div>
+          </div>
+          <div className="flex-1 rounded-lg bg-primary/5 border border-primary/20 p-3">
+            <div className="text-xs text-muted-foreground">{t("energy.totalAvailable")}</div>
+            <div className="text-lg font-bold tabular-nums text-primary">{available}</div>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">{t("energy.extraHint")}</p>
+
+        {showWelcomeNote && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
+            {t("energy.welcomeBonusOnce", { amount: welcomeEnergyAmount })}
+          </div>
+        )}
+
+        {/* Buy extra Energy */}
+        <div className="pt-2 border-t">
+          <h4 className="text-sm font-semibold mb-1">{t("energy.topUp")}</h4>
+          <p className="text-xs text-muted-foreground mb-3">{t("energy.topUpDesc")}</p>
+          <TopupOptions />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function MySubscriptionContent({ embedded = false }: { embedded?: boolean }) {
   const { user, loading: authLoading } = useAuth();
@@ -402,7 +481,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                       className="w-full"
                                     >
                                       <CreditCard className="h-4 w-4 mr-2" />
-                                      Continue with {plan.name}
+                                      {t("subscription.continuePurchase")}
                                     </Button>
                                   </span>
                                 </TooltipTrigger>
@@ -483,7 +562,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                     className="w-full"
                                   >
                                     <CreditCard className="h-4 w-4 mr-2" />
-                                    Continue with {plan.name}
+                                    {t("subscription.continuePurchase")}
                                   </Button>
                                 </span>
                               </TooltipTrigger>
@@ -589,7 +668,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                       className="w-full"
                                     >
                                       <CreditCard className="h-4 w-4 mr-2" />
-                                      Continue with {plan.name}
+                                      {t("subscription.continuePurchase")}
                                     </Button>
                                   </span>
                                 </TooltipTrigger>
@@ -722,7 +801,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-2xl capitalize">{normalizedPlan} {t('subscription.plan')}</CardTitle>
+                <CardTitle className="text-2xl">{(subscription as any)?.planName || normalizedPlan} {t('subscription.plan')}</CardTitle>
                 <CardDescription>
                   {subscription.status === "active"
                     ? t('subscription.active')
@@ -785,6 +864,9 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
             </div>
           </CardContent>
         </Card>
+
+        {/* Energy Card */}
+        <EnergyCard />
 
         {/* Upgrade Options */}
         {subscription.status === "active" && availablePlans && (
