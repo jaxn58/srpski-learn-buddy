@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
 import { useState } from "react";
 import { EnergyGrantPanel } from "@/components/admin/EnergyGrantPanel";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   userId: string;
@@ -41,6 +42,7 @@ interface Props {
 
 export default function AdminUserDetail({ userId }: Props) {
   const { user: currentUser, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const [, navigate] = useLocation();
   const userDetail = useQuery(api.admin.getUserById, { userId: userId as any });
 
@@ -68,9 +70,9 @@ export default function AdminUserDetail({ userId }: Props) {
   const handleRoleChange = async (newRole: 'superadmin' | 'admin' | 'student') => {
     try {
       await updateRoleMutation({ userId: userId as any, role: newRole });
-      toast.success('Role updated successfully');
+      toast.success(t('admin.userDetail.roleUpdated'));
     } catch {
-      toast.error('Failed to update role');
+      toast.error(t('admin.userDetail.roleUpdateFailed'));
     }
   };
 
@@ -78,7 +80,7 @@ export default function AdminUserDetail({ userId }: Props) {
     if (!userDetail) return;
     setConfirmDialog({
       open: true,
-      title: 'Change User Role',
+      title: t('admin.userDetail.changeRole'),
       description: `Change the role for "${userDetail.name || userDetail.email}" from "${userDetail.role}" to "${newRole}"?`,
       onConfirm: () => handleRoleChange(newRole),
     });
@@ -88,9 +90,9 @@ export default function AdminUserDetail({ userId }: Props) {
     if (!userDetail) return;
     try {
       await toggleStatusMutation({ userId: userId as any, isActive: !userDetail.isActive });
-      toast.success(userDetail.isActive ? 'User deactivated' : 'User activated');
+      toast.success(userDetail.isActive ? t('admin.userDetail.userDeactivated') : t('admin.userDetail.userActivated'));
     } catch {
-      toast.error('Failed to update user status');
+      toast.error(t('admin.userDetail.statusUpdateFailed'));
     }
   };
 
@@ -98,7 +100,7 @@ export default function AdminUserDetail({ userId }: Props) {
     if (!userDetail) return;
     setConfirmDialog({
       open: true,
-      title: userDetail.isActive ? 'Deactivate Account' : 'Activate Account',
+      title: userDetail.isActive ? t('admin.userDetail.deactivateAccount') : t('admin.userDetail.activateAccount'),
       description: userDetail.isActive
         ? `Deactivate the account for "${userDetail.name || userDetail.email}"? The user will no longer be able to log in.`
         : `Activate the account for "${userDetail.name || userDetail.email}"?`,
@@ -240,12 +242,12 @@ export default function AdminUserDetail({ userId }: Props) {
       <div className="min-h-screen flex items-center justify-center">
         <Card>
           <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
+            <CardTitle>{t('admin.common.accessDenied.title')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">You don't have permission to access this page.</p>
+            <p className="text-sm text-muted-foreground mb-4">{t('admin.common.accessDenied.desc')}</p>
             <Link href="/dashboard">
-              <Button>Go to Dashboard</Button>
+              <Button>{t('admin.common.goToDashboard')}</Button>
             </Link>
           </CardContent>
         </Card>
@@ -259,12 +261,12 @@ export default function AdminUserDetail({ userId }: Props) {
         <Link href="/admin">
           <Button variant="ghost" size="sm" className="mb-6 gap-2">
             <ArrowLeft className="h-4 w-4" />
-            Back to User Management
+            {t('admin.userDetail.backToUserMgmt')}
           </Button>
         </Link>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-muted-foreground">User not found.</p>
+            <p className="text-muted-foreground">{t('admin.userDetail.notFound')}</p>
           </CardContent>
         </Card>
       </div>
@@ -280,7 +282,7 @@ export default function AdminUserDetail({ userId }: Props) {
       <Link href="/admin">
         <Button variant="ghost" size="sm" className="mb-6 gap-2">
           <ArrowLeft className="h-4 w-4" />
-          Back to User Management
+          {t('admin.userDetail.backToUserMgmt')}
         </Button>
       </Link>
 

@@ -1106,7 +1106,7 @@ export default function Vocabulary() {
           </Card>
         </AnimatedItem>
         {/* Flashcard */}
-        {currentWord && (
+        {currentWord ? (
           <AnimatedItem>
             <Card className="min-h-[300px] sm:min-h-[400px] flex flex-col">
             <CardContent className="text-center space-y-6 py-8">
@@ -1548,6 +1548,14 @@ export default function Vocabulary() {
               )}
             </CardContent>
           </Card>
+          </AnimatedItem>
+        ) : (
+          <AnimatedItem>
+            <Card className="min-h-[200px] flex items-center justify-center">
+              <CardContent className="text-center py-12">
+                <p className="text-muted-foreground">{t('vocabulary.allCorrect')}</p>
+              </CardContent>
+            </Card>
           </AnimatedItem>
         )}
 

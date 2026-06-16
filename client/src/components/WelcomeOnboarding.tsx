@@ -1,11 +1,15 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Info, X } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { AVAILABLE_ICONS } from "@/components/ui/icon-picker";
 import { useTranslation } from "react-i18next";
 
@@ -70,33 +74,22 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
   // Show loading state
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="max-w-2xl w-full relative">
-          <CardContent className="py-8">
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent className="max-w-2xl">
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+        </DialogContent>
+      </Dialog>
     );
   }
 
   // Fallback: If no steps in database, show simple welcome message
   if (!onboardingSteps || onboardingSteps.length === 0) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <Card className="max-w-2xl w-full relative">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute top-4 right-4"
-            onClick={() => onClose()}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-
-          <CardHeader>
+      <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent className="max-w-2xl">
+          <CardHeader className="p-0 pb-4">
             <CardTitle className="text-2xl">
               {t("dashboard.welcome", { name: userName })}
             </CardTitle>
@@ -105,7 +98,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-0">
             <p className="text-muted-foreground">
               Start learning Serbian with our interactive platform. Complete units, earn XP, and track your progress!
             </p>
@@ -114,8 +107,8 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
               {t("onboarding.finish")}
             </Button>
           </CardContent>
-        </Card>
-      </div>
+        </DialogContent>
+      </Dialog>
     );
   }
 
@@ -140,23 +133,14 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <Card 
-        className="max-w-2xl w-full relative my-8 max-h-[90vh] overflow-y-auto"
+    <Dialog open onOpenChange={(open) => { if (!open) skipTutorial(); }}>
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto"
         style={currentStepData?.backgroundColor ? { backgroundColor: currentStepData.backgroundColor } : undefined}
       >
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-4 right-4"
-          onClick={skipTutorial}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-
-        <CardHeader>
+        <CardHeader className="p-0 pb-4">
           <div className="flex items-center gap-3">
-            <IconComponent className="h-6 w-6" />
+            <IconComponent className="h-6 w-6 shrink-0" />
             <CardTitle className="text-2xl">
               {renderTitle()}
             </CardTitle>
@@ -166,7 +150,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 p-0">
           {/* Render HTML content from database */}
           {currentStepData && (
             <div 
@@ -226,7 +210,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
             </Label>
           </div>
         </CardContent>
-      </Card>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

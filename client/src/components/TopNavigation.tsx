@@ -513,7 +513,7 @@ export function TopNavigation() {
               {currentVersion?.version && (
                 <Link
                   href="/changelog"
-                  className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors tabular-nums mt-1.5"
+                  className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors tabular-nums"
                 >
                   v{currentVersion.version}
                 </Link>

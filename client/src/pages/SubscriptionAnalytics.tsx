@@ -6,9 +6,11 @@ import { api } from "../../../convex/_generated/api";
 import { BarChart3, DollarSign, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { Redirect } from "wouter";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 export default function SubscriptionAnalytics() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const analytics = useQuery(api.subscriptions.getAnalytics);
   const isLoading = analytics === undefined;
   const runId = "sub-analytics-fix";
@@ -25,7 +27,7 @@ export default function SubscriptionAnalytics() {
       <div className="flex items-center justify-center h-full min-h-[50vh]">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading analytics...</p>
+          <p className="mt-4 text-muted-foreground">{t('admin.analytics.loading')}</p>
         </div>
       </div>
     );

@@ -162,7 +162,7 @@ function AdminSidebar() {
           <TooltipTrigger asChild>
             <button
               onClick={toggleSidebar}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              className="h-11 w-11 inline-flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
               aria-label={isCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
             >
               {isCollapsed ? (
@@ -292,7 +292,8 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
               className={cn(
                 "w-full max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pt-6",
                 isChatRoute && "flex-1 flex flex-col min-h-0 overflow-hidden pt-0",
-                isChatRoute && isMobile && "p-0"
+                isChatRoute && isMobile && "p-0",
+                !isChatRoute && "pb-28 md:pb-8 lg:pb-10"
               )}
             >
               {children}

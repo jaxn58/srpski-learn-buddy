@@ -100,6 +100,11 @@ export function VocabularyDictionaryTable({
               {row.note && row.note.trim() && (
                 <div className="mt-1 text-xs text-muted-foreground italic">{row.note}</div>
               )}
+              {/* Compact mastery/mistakes only visible on mobile */}
+              <div className="mt-1 flex items-center gap-3 sm:hidden">
+                <MasteryIndicator correctCount={correctCount} mastered={mastered} />
+                {incorrectCount > 0 && <MistakesIndicator count={incorrectCount} />}
+              </div>
             </div>
 
             <div className="hidden sm:flex pt-0.5 justify-center">

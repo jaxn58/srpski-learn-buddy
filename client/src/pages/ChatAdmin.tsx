@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -57,6 +58,7 @@ const MODEL_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
 
 export default function ChatAdmin() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
 
   const aiConfig = useQuery(api.admin.getChatAiConfig);
   const updateAiConfigMutation = useMutation(api.admin.updateChatAiConfig);
@@ -195,10 +197,10 @@ export default function ChatAdmin() {
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               {/* Primary Provider & Model */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Primary Provider
+                    {t('admin.chat.primaryProvider')}
                   </Label>
                   <Select value={primaryProvider} onValueChange={(v) => {
                     setPrimaryProvider(v);
@@ -242,7 +244,7 @@ export default function ChatAdmin() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Fallback Provider
@@ -278,7 +280,7 @@ export default function ChatAdmin() {
 
               {/* Advanced Settings */}
               <div className="border-t pt-6">
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Max Tokens

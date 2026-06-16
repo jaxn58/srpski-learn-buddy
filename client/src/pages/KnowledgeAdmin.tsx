@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Send, FileText, ArrowLeft, Languages, Loader2, Upload } from "lucide-react";
 import { AnimatedPage } from "@/components/AnimatedPage";
+import { useTranslation } from "react-i18next";
 
 const BASE_CATEGORIES = [
   { value: "culture", label: "Culture" },
@@ -39,6 +40,7 @@ type CategoryValue = typeof BASE_CATEGORIES[number]["value"] | "other";
 const LANG_LABELS: Record<string, string> = { en: "English", de: "Deutsch", sr: "Srpski" };
 
 export default function KnowledgeAdmin() {
+  const { t } = useTranslation();
   const [filterStatus, setFilterStatus] = useState<"all" | "draft" | "published">("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [editingId, setEditingId] = useState<Id<"knowledgeArticles"> | null>(null);
@@ -280,20 +282,20 @@ export default function KnowledgeAdmin() {
 
   return (
     <AnimatedPage className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Knowledge Base</h1>
+          <h1 className="text-2xl font-bold">{t('admin.knowledge.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Manage articles for the AI Buddy's cultural and practical knowledge
+            {t('admin.knowledge.subtitle')}
           </p>
         </div>
         {!showForm && (
-          <div className="flex gap-2">
-            <Button onClick={() => setIsCreating(true)} className="gap-2">
-              <Plus className="h-4 w-4" /> New Article
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setIsCreating(true)} className="gap-2 w-full sm:w-auto">
+              <Plus className="h-4 w-4" /> {t('admin.knowledge.newArticle')}
             </Button>
-            <Button variant="outline" onClick={() => setUploadOpen(true)} className="gap-2">
-              <Upload className="h-4 w-4" /> Upload Document
+            <Button variant="outline" onClick={() => setUploadOpen(true)} className="gap-2 w-full sm:w-auto">
+              <Upload className="h-4 w-4" /> {t('admin.knowledge.uploadDocument')}
             </Button>
           </div>
         )}

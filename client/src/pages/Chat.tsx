@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -499,8 +500,14 @@ export default function Chat() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex flex-col p-4 gap-4">
+        <Skeleton className="h-14 w-full rounded-none" />
+        <div className="flex-1 space-y-3 px-4">
+          <Skeleton className="h-16 w-3/4 rounded-xl" />
+          <Skeleton className="h-16 w-2/3 rounded-xl ml-auto" />
+          <Skeleton className="h-16 w-3/4 rounded-xl" />
+        </div>
+        <Skeleton className="h-14 w-full rounded-xl" />
       </div>
     );
   }

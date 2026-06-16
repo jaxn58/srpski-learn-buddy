@@ -471,26 +471,33 @@ export default function Home() {
         <div className="container py-3 sm:py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src={APP_LOGO} className="h-8 w-8 rounded-md object-cover" alt="Serbian AI Tutor" />
-              <h1 className="hidden sm:inline text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              <img src={APP_LOGO} className="h-9 w-9 rounded-md object-cover" alt="Serbian AI Tutor" />
+              <h1 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
                 {t('home.header.title')}
               </h1>
             </div>
             
             <div className="flex items-center gap-2 sm:gap-3">
               {!isAuthenticated ? (
-                <Select
-                  value={displayLanguage}
-                  onValueChange={(v) => setDisplayLanguage(v as "en" | "de")}
-                >
-                  <SelectTrigger className="w-[100px] sm:w-[140px]" aria-label={t("settings.language")}>
-                    <SelectValue placeholder={t("settings.language")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="de">Deutsch</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Select
+                      value={displayLanguage}
+                      onValueChange={(v) => setDisplayLanguage(v as "en" | "de")}
+                    >
+                      <SelectTrigger className="w-[100px] sm:w-[140px]" aria-label={t("settings.language")}>
+                        <SelectValue placeholder={t("settings.language")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="de">Deutsch</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{t("home.header.languageTooltip")}</p>
+                  </TooltipContent>
+                </Tooltip>
               ) : null}
 
               {isAuthenticated ? (
@@ -812,8 +819,9 @@ export default function Home() {
             </div>
 
             {/* Desktop / Tablet: comparison grid (md and up) */}
-            <div className="hidden md:block lg:-mx-12 xl:-mx-20">
-              <div className="rounded-2xl border-2 border-gray-200 bg-white overflow-hidden shadow-sm">
+            <div className="hidden md:block">
+              <div className="overflow-x-auto lg:-mx-12 xl:-mx-20">
+              <div className="rounded-2xl border-2 border-border bg-card overflow-hidden shadow-sm min-w-[700px]">
                 {/* Header row: feature label column + 4 tier columns */}
                 <div className="grid grid-cols-[minmax(220px,2fr)_repeat(4,1fr)] bg-gradient-to-br from-gray-50 to-white border-b-2 border-gray-200">
                   <div className="p-4 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -1059,6 +1067,8 @@ export default function Home() {
                 className="text-xs text-muted-foreground text-center mt-4"
                 dangerouslySetInnerHTML={{ __html: t("home.pricing.compare.footnote") }}
               />
+            </div>
+            </div>
             </div>
 
             {/* Mobile: one accordion card per tier (<md) */}

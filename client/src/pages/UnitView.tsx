@@ -3,6 +3,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -422,9 +423,17 @@ export default function UnitView() {
   };
 
   if (authLoading || isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-    </div>;
+    return (
+      <div className="min-h-screen p-4 md:p-6 lg:p-8 space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-6 w-64" />
+        <div className="space-y-4">
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+        </div>
+      </div>
+    );
   }
 
   if (!user || !unitMetadata) {
@@ -583,8 +592,10 @@ export default function UnitView() {
                 </CardHeader>
                 <CardContent>
                   {vocabularyWithProgress === undefined ? (
-                    <div className="py-10 flex justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="py-6 space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-12 w-full rounded-md" />
+                      ))}
                     </div>
                   ) : vocabularyRows.length > 0 ? (
                     vocabularyGroupsForUnitView.hasGroups ? (
