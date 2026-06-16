@@ -1013,6 +1013,7 @@
   "vocabulary.correct": "Richtig!",
   "vocabulary.incorrect": "Falsch",
   "vocabulary.correctAnswer": "Richtige Antwort:",
+  "vocabulary.caseHint": "Hinweis: Die korrekte Schreibweise lautet",
   "vocabulary.score": "Punktestand: {{correct}}/{{total}}",
   "vocabulary.quizComplete": "Quiz abgeschlossen!",
   "vocabulary.quizComplete.desc": "Super! Du hast dieses Vokabel-Quiz abgeschlossen.",
