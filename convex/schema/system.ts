@@ -188,6 +188,10 @@ export const systemTables = {
     // convex/platform.ts when unset (zero-migration).
     betaMaxUnits: v.optional(v.number()),
     betaMaxAiPerDay: v.optional(v.number()),
+    // Course-tier teaser: number of AI Buddy preview questions per day for
+    // teaser-only users. Falls back to DEFAULT_TEASER_DAILY_LIMIT in
+    // convex/platform.ts when unset (zero-migration).
+    teaserDailyLimit: v.optional(v.number()),
 
     // ===== AI-Energy configuration (Phase 3) =====
     // All optional → zero-migration. Defaults live in convex/energy.ts and

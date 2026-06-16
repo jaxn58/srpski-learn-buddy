@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query, MutationCtx } from "./_generated/server";
+import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
 
 // ============= MODULE METADATA =============
 
@@ -90,9 +90,11 @@ async function createConsolidatedModule(
   });
 }
 
-// Insert module metadata (for migration script)
+// Insert module metadata (migration tooling only).
+// SECURITY: was a public mutation allowing anyone to write module metadata.
+// Now internal -- run via `npx convex run`.
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-export const insertModuleMetadata = mutation({
+export const insertModuleMetadata = internalMutation({
   args: {
     moduleId: v.string(),
     language: v.string(),

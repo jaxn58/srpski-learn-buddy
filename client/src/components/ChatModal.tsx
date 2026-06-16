@@ -1,4 +1,5 @@
 ﻿import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ interface ChatModalProps {
 
 export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModalProps) {
   const { user } = useAuth();
+  const { getToken } = useClerkAuth();
   const { t } = useTranslation();
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const [message, setMessage] = useState("");
@@ -180,13 +182,19 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
+      // Send the Convex-issued Clerk JWT so the streaming endpoint can
+      // authenticate the caller (it no longer trusts userId from the body).
+      const streamToken = await getToken({ template: "convex" });
+
       fetch(`${CONVEX_SITE_URL}/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(streamToken ? { Authorization: `Bearer ${streamToken}` } : {}),
+        },
         body: JSON.stringify({
           streamId,
           sessionId,
-          userId: meData._id,
           messageId,
           responseMode,
         }),

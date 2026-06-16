@@ -54,6 +54,7 @@ type EnergyFields = {
 type BillingFields = {
   welcomeEnergyAmount: number;
   betaTesterDiscountPercent: number;
+  teaserDailyLimit: number;
 };
 
 type FieldDef = {
@@ -164,6 +165,7 @@ export function EnergyConfigCard() {
       setBillingDraft({
         welcomeEnergyAmount: config.welcomeEnergyAmount,
         betaTesterDiscountPercent: config.betaTesterDiscountPercent,
+        teaserDailyLimit: config.teaserDailyLimit,
       });
     }
   }, [config]);
@@ -184,7 +186,8 @@ export function EnergyConfigCard() {
 
   const billingDirty = billingDraft !== null && config !== undefined && (
     billingDraft.welcomeEnergyAmount !== config.welcomeEnergyAmount ||
-    billingDraft.betaTesterDiscountPercent !== config.betaTesterDiscountPercent
+    billingDraft.betaTesterDiscountPercent !== config.betaTesterDiscountPercent ||
+    billingDraft.teaserDailyLimit !== config.teaserDailyLimit
   );
 
   // ---- Live preview values (re-computed on every draft change) ----
@@ -685,6 +688,22 @@ export function EnergyConfigCard() {
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Discount percent for beta testers at checkout (0–100). Applied once per user after beta ends.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="bc-teaser" className="text-sm">Course teaser questions / day</Label>
+                <Input
+                  id="bc-teaser"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={billingDraft ? String(billingDraft.teaserDailyLimit) : ""}
+                  onChange={(e) => handleBillingField("teaserDailyLimit", e.target.value)}
+                  disabled={billingDraft === null}
+                  className="mt-1 w-full"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  AI Buddy preview questions per day for course-tier (teaser-only) users. 0 = disabled.
                 </p>
               </div>
             </div>

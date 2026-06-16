@@ -1,11 +1,11 @@
 import { v } from "convex/values";
-import { mutation, query, action, internalAction, internalQuery, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
+import { mutation, query, action, internalAction, internalQuery, internalMutation, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 import { getFeatureAccessForUser } from "./featureAccess";
-import { loadBetaMaxAiPerDay } from "./platform";
+import { loadBetaMaxAiPerDay, loadTeaserDailyLimit } from "./platform";
 import {
   chargeEnergy,
   estimateEnergyCost,
@@ -14,7 +14,7 @@ import {
 } from "./energy";
 import { streamingComponent } from "./streaming";
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
-import { resolveModelConfig, streamChatResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
+import { resolveModelConfig, generateChatResponse, streamChatResponse, streamAgenticResponse, streamMultimodalResponse } from "./ai/chatConfig";
 import { embedText } from "./ai/embeddings";
 
 // Central default system prompts by language (Emergency Fallback)
@@ -41,10 +41,10 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
-// Sprachkurs (course tier) teaser: number of Buddy questions allowed per day.
-// Course users get a small preview of the Buddy as an upsell anchor; full
-// Buddy access requires a buddy / basic / full package.
-const TEASER_DAILY_LIMIT = 2;
+// Sprachkurs (course tier) teaser: the number of Buddy questions allowed per
+// day is admin-tunable via platformConfig (loadTeaserDailyLimit). Course users
+// get a small preview of the Buddy as an upsell anchor; full Buddy access
+// requires a buddy / basic / full package.
 
 // Rate limiting configuration
 const RATE_LIMITS = {
@@ -510,17 +510,6 @@ type AiMessage = {
   content: string;
 };
 
-type ChatCompletionResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
-};
-
 // AI Learn Buddy - Send message and get AI response
 
 export const sendMessage = action({
@@ -530,7 +519,7 @@ export const sendMessage = action({
     unitContext: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<{ message: string }> => {
-    const session = await ctx.runQuery(api.chat.getSessionById, { sessionId: args.sessionId });
+    const session = await ctx.runQuery(internal.chat.getSessionById, { sessionId: args.sessionId });
     if (session?.archived) {
       throw new Error("Cannot send messages to an archived chat.");
     }
@@ -546,14 +535,9 @@ export const sendMessage = action({
       throw error;
     }
 
-    // Get the API key from environment
-    const apiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error("AI API Key missing:", {
-        hasOpenAI: !!process.env.OPENAI_API_KEY,
-        hasGemini: !!process.env.GEMINI_API_KEY,
-        envKeys: Object.keys(process.env).filter(k => k.includes('API') || k.includes('KEY')),
-      });
+    // Early guard: at least one provider key must be configured. The concrete
+    // provider/model selection and validation happens in resolveModelConfig.
+    if (!process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) {
       throw new Error("No AI API key configured. Please set OPENAI_API_KEY or GEMINI_API_KEY in Convex environment variables.");
     }
 
@@ -620,61 +604,12 @@ export const sendMessage = action({
       })),
     ];
 
-    // Determine which API to use
-    const isGemini = !!process.env.GEMINI_API_KEY;
-    const apiUrl = isGemini
-      ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-      : "https://api.openai.com/v1/chat/completions";
-    
-    // Use Gemini 2.5 Flash for OpenAI-compatible endpoint (recommended replacement for 2.0 Flash)
-    // Available models (examples): gemini-2.5-flash, gemini-2.5-pro, gemini-2.5-flash-lite
-    const model = isGemini ? "gemini-2.5-flash" : "gpt-4o-mini";
-
-    // Call the AI API
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: 2048,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorDetails;
-      try {
-        errorDetails = JSON.parse(errorText);
-      } catch {
-        errorDetails = errorText;
-      }
-      
-      console.error("AI API error:", {
-        status: response.status,
-        statusText: response.statusText,
-        url: apiUrl,
-        model: model,
-        isGemini: isGemini,
-        error: errorDetails,
-        hasApiKey: !!apiKey,
-        apiKeyPrefix: apiKey?.substring(0, 10) + "...",
-        apiKeyLength: apiKey?.length,
-      });
-      
-      const errorMessage = typeof errorDetails === 'object' && errorDetails.error?.message
-        ? errorDetails.error.message
-        : errorText || `HTTP ${response.status}`;
-      
-      throw new Error(`AI API error: ${response.status} - ${errorMessage}`);
-    }
-
-    const data = (await response.json()) as ChatCompletionResponse;
-    const assistantMessage =
-      data.choices?.[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
+    // Resolve the admin-configured model (single source of truth: chatAiConfig)
+    // and generate the response via the shared helper. This avoids hardcoding a
+    // model/provider here and keeps fallback handling consistent with the
+    // streaming path.
+    const config = await resolveModelConfig(ctx);
+    const assistantMessage = await generateChatResponse(config, messages);
 
     // Save assistant response
     await ctx.runMutation(api.chat.addMessage, {
@@ -684,7 +619,7 @@ export const sendMessage = action({
     });
 
     // Update session title if it's still "New Chat"
-    const sessionForTitle: ChatSessionDoc | null = await ctx.runQuery(api.chat.getSessionById, {
+    const sessionForTitle: ChatSessionDoc | null = await ctx.runQuery(internal.chat.getSessionById, {
       sessionId: args.sessionId as Id<"chatSessions">,
     });
     if (sessionForTitle?.title === "New Chat" && history.length <= 1) {
@@ -699,11 +634,21 @@ export const sendMessage = action({
   },
 });
 
-// Get session by ID (helper for action)
-export const getSessionById = query({
+// Get session by ID (internal helper for server-side actions only).
+// SECURITY: was a public query with no ownership check (enumerable). Now internal.
+export const getSessionById = internalQuery({
   args: { sessionId: v.id("chatSessions") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.sessionId);
+  },
+});
+
+// Internal helper: load a chat message for server-side ownership verification
+// in the streaming HTTP action.
+export const internalGetChatMessage = internalQuery({
+  args: { messageId: v.id("chatMessages") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.messageId);
   },
 });
 
@@ -742,6 +687,7 @@ export const checkMessageRateLimit = mutation({
     }
     const isTeaserOnly = access.features.teaser && !access.features.buddyChat;
     if (isTeaserOnly) {
+      const teaserDailyLimit = await loadTeaserDailyLimit(ctx);
       const teaserDayStart = startOfDayUtc(Date.now());
       const teaserMessagesToday = await ctx.db
         .query("chatMessages")
@@ -753,9 +699,9 @@ export const checkMessageRateLimit = mutation({
           )
         )
         .collect();
-      if (teaserMessagesToday.length >= TEASER_DAILY_LIMIT) {
+      if (teaserMessagesToday.length >= teaserDailyLimit) {
         throw new Error(
-          `Daily preview limit reached. The language course includes ${TEASER_DAILY_LIMIT} AI Buddy questions per day. Upgrade to a Buddy plan for full access.`
+          `Daily preview limit reached. The language course includes ${teaserDailyLimit} AI Buddy questions per day. Upgrade to a Buddy plan for full access.`
         );
       }
     }
@@ -801,13 +747,24 @@ export const checkMessageRateLimit = mutation({
 export const addStreamingAssistantMessage = mutation({
   args: {
     sessionId: v.id("chatSessions"),
+    // Kept for backwards compatibility with the client signature, but the value
+    // is ignored: the owner is derived from the authenticated identity.
     userId: v.id("users"),
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
+    // SECURITY: require auth and verify the session belongs to the caller.
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found");
+    }
+
     return await ctx.db.insert("chatMessages", {
       sessionId: args.sessionId,
-      userId: args.userId,
+      userId: user._id,
       role: "assistant",
       content: "",
       streamId: args.streamId,
@@ -815,7 +772,10 @@ export const addStreamingAssistantMessage = mutation({
   },
 });
 
-export const finalizeStreamedMessage = mutation({
+// SECURITY: only invoked server-side from the streaming HTTP action; converted
+// from a public mutation to internal so it cannot be called directly to charge
+// another user's energy.
+export const finalizeStreamedMessage = internalMutation({
   args: {
     messageId: v.id("chatMessages"),
     content: v.string(),
@@ -1137,7 +1097,9 @@ export const getUnitContextBlock = query({
   },
 });
 
-export const getStreamContext = query({
+// SECURITY: internal-only. The streaming HTTP action derives `userId` from the
+// authenticated Clerk identity (not the request body) before calling this.
+export const getStreamContext = internalQuery({
   args: {
     sessionId: v.id("chatSessions"),
     userId: v.id("users"),
@@ -1327,7 +1289,9 @@ export const semanticSearch = internalAction({
 });
 
 // @ts-ignore TS2589
-export const getKnowledgeChunk = query({
+// SECURITY: internal-only (RAG tool calls). Was public, allowing enumeration of
+// arbitrary knowledge chunks by id.
+export const getKnowledgeChunk = internalQuery({
   args: { id: v.id("knowledgeChunks") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
@@ -1335,7 +1299,9 @@ export const getKnowledgeChunk = query({
 });
 
 // @ts-ignore TS2589
-export const getUserDocChunk = query({
+// SECURITY: internal-only (RAG tool calls). Was public, allowing enumeration of
+// arbitrary user-document chunks by id.
+export const getUserDocChunk = internalQuery({
   args: { id: v.id("userDocumentChunks") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
@@ -1553,11 +1519,25 @@ export const getSessionFeedback = query({
 });
 
 // httpAction: POST /chat/stream
+const STREAM_JSON_HEADERS = { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Vary": "Origin" };
+
 export const streamChatMessage = httpAction(async (ctx, request) => {
+  // SECURITY: require an authenticated Clerk identity. The previous version
+  // trusted `userId` from the request body, allowing anyone to drive AI streams
+  // and drain another user's energy. We now derive the user from the verified
+  // JWT and ignore any client-supplied userId.
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return new Response(JSON.stringify({ error: "Not authenticated" }), {
+      status: 401,
+      headers: STREAM_JSON_HEADERS,
+    });
+  }
+
   const body = await request.json() as {
     streamId: string;
     sessionId: string;
-    userId: string;
+    userId?: string;
     messageId: string;
     attachmentStorageId?: string;
     attachmentFileName?: string;
@@ -1566,10 +1546,31 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     responseMode?: "compact" | "detailed";
   };
 
+  const authedUser = await ctx.runQuery(internal.users.internalGetUserByClerkId, {
+    clerkId: identity.subject,
+  });
+  if (!authedUser) {
+    return new Response(JSON.stringify({ error: "User not found" }), {
+      status: 401,
+      headers: STREAM_JSON_HEADERS,
+    });
+  }
+
   const streamId = body.streamId as StreamId;
   const sessionId = body.sessionId as Id<"chatSessions">;
-  const userId = body.userId as Id<"users">;
+  const userId = authedUser._id;
   const messageId = body.messageId as Id<"chatMessages">;
+
+  // Ownership: the target assistant message must belong to the authed user and
+  // the given session, otherwise an attacker could finalize/charge a foreign
+  // message.
+  const targetMessage = await ctx.runQuery(internal.chat.internalGetChatMessage, { messageId });
+  if (!targetMessage || targetMessage.userId !== userId || targetMessage.sessionId !== sessionId) {
+    return new Response(JSON.stringify({ error: "Invalid message" }), {
+      status: 403,
+      headers: STREAM_JSON_HEADERS,
+    });
+  }
 
   let config;
   try {
@@ -1589,7 +1590,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
   }
   const basePrompt = promptDoc?.content || EMERGENCY_FALLBACK_PROMPT;
 
-  const streamContext = await ctx.runQuery(api.chat.getStreamContext, { sessionId, userId });
+  const streamContext = await ctx.runQuery(internal.chat.getStreamContext, { sessionId, userId });
   if (!streamContext) {
     return new Response(JSON.stringify({ error: "Invalid session or user" }), {
       status: 400,
@@ -1790,7 +1791,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
       const hasFile = !!attachmentUrl && !hasImage;
       const ragUsed = !!streamContext.unitContextBlock || enableSemanticSearch;
 
-      await ctx.runMutation(api.chat.finalizeStreamedMessage, {
+      await ctx.runMutation(internal.chat.finalizeStreamedMessage, {
         messageId,
         content: fullText || "I'm sorry, I couldn't generate a response.",
         responseMode: body.responseMode,

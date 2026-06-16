@@ -1,8 +1,9 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { upsertDailyActivityByUserId } from "./units";
 import { assertLearnerAccountActive } from "./authz";
 import { loadBetaMaxUnits } from "./platform";
+import { spacedRepetitionXp, levelFromXp } from "./gamification";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -210,8 +211,7 @@ export const submitResult = mutation({
         
         // Update user XP in Convex
         const newTotalXP = user.totalXP + xpEarned;
-        // Level calculation: every 300 XP = 1 level (consistent with Drizzle)
-        const newLevel = Math.floor(newTotalXP / 300) + 1;
+        const newLevel = levelFromXp(newTotalXP);
         
         await ctx.db.patch(user._id, {
           totalXP: newTotalXP,
@@ -242,8 +242,12 @@ export const submitResult = mutation({
   },
 });
 
-// Add exercise completion with XP (legacy - kept for compatibility)
-export const addCompletion = mutation({
+// Add exercise completion with XP (legacy).
+// SECURITY: was a public mutation that applied a client-supplied `xpEarned`
+// directly to the user, i.e. arbitrary XP injection. It is no longer called from
+// the client (vocabulary XP is now awarded server-side in
+// vocabulary.recordVocabularyAnswer). Converted to internalMutation.
+export const addCompletion = internalMutation({
   args: {
     unitNumber: v.number(),
     exerciseId: v.string(),
@@ -277,8 +281,7 @@ export const addCompletion = mutation({
 
     // Update user XP
     const newTotalXP = user.totalXP + args.xpEarned;
-    // Level calculation: every 300 XP = 1 level (consistent with Drizzle)
-    const newLevel = Math.floor(newTotalXP / 300) + 1;
+    const newLevel = levelFromXp(newTotalXP);
 
     await ctx.db.patch(user._id, {
       totalXP: newTotalXP,
@@ -492,27 +495,11 @@ export const recordExerciseQuestionAnswer = mutation({
       )
       .first();
 
-    // Progressive XP System: Award XP based on repetition level
-    let earnedXP = 0;
+    // Progressive XP System: XP is determined server-side from the canonical
+    // spaced-repetition schema (5 / 10 / 20 for the 1st / 2nd / 3rd correct
+    // answer; nothing after mastery). See convex/gamification.ts.
     const currentCorrectCount = existing?.correctAnswerCount || 0;
-    
-    if (args.isCorrect) {
-      // XP based on Spaced Repetition level
-      if (currentCorrectCount === 0) {
-        earnedXP = 10; // 1st time correct
-      } else if (currentCorrectCount === 1) {
-        earnedXP = 5; // 2nd time correct
-      } else if (currentCorrectCount === 2) {
-        earnedXP = 3; // 3rd time correct (Mastered!)
-      }
-      // After mastery (3+ correct): NO MORE XP
-      
-      console.log('[Convex] Progressive XP awarded:', {
-        questionId: args.questionId,
-        currentCorrectCount,
-        earnedXP,
-      });
-    }
+    const earnedXP = args.isCorrect ? spacedRepetitionXp(currentCorrectCount) : 0;
 
     if (existing) {
       // Update existing entry
@@ -537,7 +524,7 @@ export const recordExerciseQuestionAnswer = mutation({
       // Award XP to user if earned
       if (earnedXP > 0) {
         const newTotalXP = user.totalXP + earnedXP;
-        const newLevel = Math.floor(newTotalXP / 300) + 1;
+        const newLevel = levelFromXp(newTotalXP);
         
         await ctx.db.patch(user._id, {
           totalXP: newTotalXP,
@@ -579,7 +566,7 @@ export const recordExerciseQuestionAnswer = mutation({
       // Award XP to user if earned
       if (earnedXP > 0) {
         const newTotalXP = user.totalXP + earnedXP;
-        const newLevel = Math.floor(newTotalXP / 300) + 1;
+        const newLevel = levelFromXp(newTotalXP);
         
         await ctx.db.patch(user._id, {
           totalXP: newTotalXP,

@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +39,7 @@ const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string;
 
 export default function Chat() {
   const { user, loading: authLoading } = useAuth();
+  const { getToken } = useClerkAuth();
   const { t, i18n } = useTranslation();
   const [message, setMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -409,13 +411,19 @@ export default function Chat() {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
+      // Send the Convex-issued Clerk JWT so the streaming endpoint can
+      // authenticate the caller (it no longer trusts userId from the body).
+      const streamToken = await getToken({ template: "convex" });
+
       fetch(`${CONVEX_SITE_URL}/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(streamToken ? { Authorization: `Bearer ${streamToken}` } : {}),
+        },
         body: JSON.stringify({
           streamId,
           sessionId: currentSessionId,
-          userId: meData._id,
           messageId,
           ...(currentAttachment ? {
             attachmentStorageId: currentAttachment.storageId,

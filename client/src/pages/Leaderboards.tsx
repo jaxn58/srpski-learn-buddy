@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useConvex, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { XP_PER_LEVEL } from "../../../convex/gamification";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -121,7 +122,6 @@ export default function Leaderboards() {
     (user && stats === undefined) ||
     (user && myAvatar === undefined) ||
     levelDistribution === undefined;
-  const XP_PER_LEVEL = 300;
   const LAST_LEVEL = 25;
   const LAST_LEVEL_TOTAL_XP = (LAST_LEVEL - 1) * XP_PER_LEVEL; // 7200
   const totalXP = Math.floor(stats?.totalXP || 0);

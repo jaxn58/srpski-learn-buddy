@@ -1666,5 +1666,13 @@
   "admin.knowledge.uploadDocument": "Upload Document",
   "admin.chat.primaryProvider": "Primary Provider",
   "admin.analytics.loading": "Loading analytics...",
-  "admin.analytics.title": "Subscription Analytics"
+  "admin.analytics.title": "Subscription Analytics",
+  "home.units.unit": "Unit {{number}}",
+  "dashboard.progressMessage": "You have completed {{completed}} of {{total}} units. Keep it up!",
+  "dashboard.lessonsThisWeek": "Units this week:",
+  "dashboard.week": "Week {{number}}",
+  "progress.hero.activeDaysBadge_one": "{{count}} active day",
+  "progress.hero.activeDaysBadge_other": "{{count}} active days",
+  "progress.hero.badgesBadge_one": "{{count}} badge",
+  "progress.hero.badgesBadge_other": "{{count}} badges"
 }

@@ -4,6 +4,7 @@ import { api, internal } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
 import { upsertDailyActivityByUserId } from "./units";
 import { assertLearnerAccountActive } from "./authz";
+import { levelFromXp } from "./gamification";
 
 type UserDoc = Doc<"users">;
 type FixUserNameResult = { success: boolean; userId: Id<"users">; name: string };
@@ -484,8 +485,12 @@ export const setBetaTester = mutation({
   },
 });
 
-// Update user XP and level
-export const updateUserXP = mutation({
+// Update user XP and level.
+// SECURITY: was a public mutation that added a client-supplied XP amount to the
+// authenticated user (arbitrary XP injection). It has no app caller; converted
+// to internalMutation. Learner XP is awarded by the gamification flows
+// (vocabulary / exercises) which compute the amount server-side.
+export const updateUserXP = internalMutation({
   args: {
     xpToAdd: v.number(),
   },
@@ -494,8 +499,7 @@ export const updateUserXP = mutation({
     if (!user) throw new Error("Not authenticated");
 
     const newTotalXP = user.totalXP + args.xpToAdd;
-    // Level calculation: every 300 XP = 1 level (consistent with Drizzle)
-    const newLevel = Math.floor(newTotalXP / 300) + 1;
+    const newLevel = levelFromXp(newTotalXP);
 
     await ctx.db.patch(user._id, {
       totalXP: newTotalXP,
@@ -754,8 +758,7 @@ export const internalUpdateXPByClerkId = internalMutation({
     const oldTotalXP = user.totalXP || 0;
     const oldLevel = user.level || 1;
     const newTotalXP = oldTotalXP + args.xpToAdd;
-    // Level calculation: every 300 XP = 1 level (consistent with Drizzle)
-    const newLevel = Math.floor(newTotalXP / 300) + 1;
+    const newLevel = levelFromXp(newTotalXP);
 
     console.log(`[Convex] Updating user XP: ${oldTotalXP} -> ${newTotalXP} (+${args.xpToAdd}), Level: ${oldLevel} -> ${newLevel}`);
 
@@ -778,7 +781,10 @@ export const internalUpdateXPByClerkId = internalMutation({
 });
 
 // Action to update XP by Clerk ID (can be called from tRPC)
-export const updateXPByClerkId = action({
+// SECURITY: was a public action with no auth, allowing arbitrary XP injection
+// for any Clerk ID. Converted to an internalAction (server-side only). Learner
+// XP must be awarded through the gamification flows, not this raw setter.
+export const updateXPByClerkId = internalAction({
   args: {
     clerkId: v.string(),
     xpToAdd: v.number(),

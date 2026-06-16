@@ -53,6 +53,10 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   const betaDiscountStatus = useQuery(api.subscriptions.getBetaDiscountStatus);
   const betaEnded = betaDiscountStatus?.betaEnded === true;
   const betaDiscountEligible = betaDiscountStatus?.eligible === true;
+  // Discount percentage is admin-tunable via platformConfig (single source of truth).
+  const betaDiscountPercent = betaDiscountStatus?.discountPercent ?? 0;
+  const applyBetaDiscount = (priceCents: number) =>
+    Math.round((priceCents * (100 - betaDiscountPercent)) / 100);
   
   const daysRemaining = useQuery(
     api.subscriptions.getDaysRemaining,
@@ -326,7 +330,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                 </p>
                 {betaDiscountEligible ? (
                   <p>
-                    <strong>Special offer:</strong> You can use a one-time 50% discount on your first purchase.
+                    <strong>Special offer:</strong> You can use a one-time {betaDiscountPercent}% discount on your first purchase.
                   </p>
                 ) : (
                   <p>You can now choose a plan to continue.</p>
@@ -347,7 +351,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                       .map((plan) => {
                         const isBetaPrice = betaDiscountEligible;
                         const selectedPaymentMode = paymentModeByPlan[plan.id] || "prepaid";
-                        const displayPrice = isBetaPrice ? Math.round(plan.price / 2) : plan.price;
+                        const displayPrice = isBetaPrice ? applyBetaDiscount(plan.price) : plan.price;
                         const installmentMonthly = plan.paymentOptions?.installmentsMonthly ?? 0;
                         return (
                         <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
@@ -361,7 +365,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                   ? `${formatCurrency(installmentMonthly)}/mo`
                                   : formatCurrency(displayPrice)}
                                 {selectedPaymentMode === "prepaid" && isBetaPrice ? (
-                                  <span className="text-sm text-muted-foreground"> (Beta 50%)</span>
+                                  <span className="text-sm text-muted-foreground"> (Beta {betaDiscountPercent}%)</span>
                                 ) : null}
                               </div>
                               <RadioGroup
@@ -522,7 +526,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                 </p>
                 {betaDiscountEligible ? (
                   <p>
-                    <strong>Special offer:</strong> One-time 50% discount available.
+                    <strong>Special offer:</strong> One-time {betaDiscountPercent}% discount available.
                   </p>
                 ) : null}
               </CardContent>
@@ -541,7 +545,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                       .map((plan) => {
                         const isBetaPrice = betaDiscountEligible;
                         const selectedPaymentMode = paymentModeByPlan[plan.id] || "prepaid";
-                        const displayPrice = isBetaPrice ? Math.round(plan.price / 2) : plan.price;
+                        const displayPrice = isBetaPrice ? applyBetaDiscount(plan.price) : plan.price;
                         const installmentMonthly = plan.paymentOptions?.installmentsMonthly ?? 0;
                         return (
                         <Card key={plan.id} className="border-2 hover:border-primary transition-colors">
@@ -555,7 +559,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                   ? `${formatCurrency(installmentMonthly)}/mo`
                                   : formatCurrency(displayPrice)}
                                 {selectedPaymentMode === "prepaid" && isBetaPrice ? (
-                                  <span className="text-sm text-muted-foreground"> (Beta 50%)</span>
+                                  <span className="text-sm text-muted-foreground"> (Beta {betaDiscountPercent}%)</span>
                                 ) : null}
                               </div>
                               <RadioGroup

@@ -131,7 +131,9 @@ async function uploadToConvex(audioBuffer: Buffer, contentType: string): Promise
   const uploadUrlResponse = await fetch(`${ENV.convexUrl}/api/mutation`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: "vocabulary:generateUploadUrl", args: {} }),
+    // Shared secret gate: the Convex mutation validates this against its own
+    // TTS_API_SECRET env var (this REST call carries no Clerk identity).
+    body: JSON.stringify({ path: "vocabulary:generateUploadUrl", args: { secret: process.env.TTS_API_SECRET ?? "" } }),
   });
   if (!uploadUrlResponse.ok) throw new Error(`Failed to generate upload URL: ${uploadUrlResponse.status}`);
 

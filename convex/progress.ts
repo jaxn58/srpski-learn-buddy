@@ -3,6 +3,7 @@ import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { getRequiredExercises } from "./unitExercises";
 import { upsertDailyActivityByUserId } from "./units";
 import { assertLearnerAccountActive } from "./authz";
+import { spacedRepetitionXp, cumulativeSpacedRepetitionXp, levelFromXp } from "./gamification";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -656,15 +657,10 @@ export const submitCategoryResult = mutation({
       const incorrectAttempts = result.isCorrect ? prevIncorrectAttempts : prevIncorrectAttempts + 1;
       const isMastered = correctAttempts >= 3;
 
-      // XP-Berechnung: Einheitlich für Vocabulary + Exercises
-      // 1st correct=5 XP, 2nd correct=10 XP, 3rd correct=20 XP (Mastered!), danach=0 XP
-      let xpForQuestion = 0;
-      if (result.isCorrect) {
-        if (correctAttempts === 1) xpForQuestion = 5;
-        else if (correctAttempts === 2) xpForQuestion = 10;
-        else if (correctAttempts === 3) xpForQuestion = 20;
-      }
-      // Nach Mastery (>3): 0 XP
+      // XP determined from the canonical spaced-repetition schema (single source
+      // of truth in convex/gamification.ts): 5 / 10 / 20 for the 1st / 2nd / 3rd
+      // correct answer; nothing after mastery.
+      const xpForQuestion = result.isCorrect ? spacedRepetitionXp(prevCorrectAttempts) : 0;
 
       totalXP += xpForQuestion;
 
@@ -699,9 +695,11 @@ export const submitCategoryResult = mutation({
       });
     }
 
-    // Update User XP
+    // Update User XP (and keep level in sync with the central threshold).
+    const newTotalXP = (user.totalXP ?? 0) + totalXP;
     await ctx.db.patch(user._id, {
-      totalXP: (user.totalXP ?? 0) + totalXP,
+      totalXP: newTotalXP,
+      level: levelFromXp(newTotalXP),
     });
 
     // Daily activity aggregation (for 7/30-day leaderboards + analytics)
@@ -1096,14 +1094,15 @@ export const backfillDailyActivityForCurrentUser = mutation({
       add(p.lastAttemptAt, p.totalXPEarned ?? 0, 0, 1);
     }
 
-    // 3) exerciseQuestionProgress: derive max XP per question from correctAnswerCount (10/5/3)
+    // 3) exerciseQuestionProgress: derive cumulative XP per question from
+    // correctAnswerCount using the canonical 5/10/20 schema (cumulative 5/15/35).
     const exerciseQuestionProgress = await ctx.db
       .query("exerciseQuestionProgress")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
     for (const p of exerciseQuestionProgress) {
       const n = Math.min(Math.max(p.correctAnswerCount ?? 0, 0), 3);
-      const xpForQuestion = n === 0 ? 0 : n === 1 ? 10 : n === 2 ? 15 : 18;
+      const xpForQuestion = cumulativeSpacedRepetitionXp(n);
       add(p.lastAnsweredAt ?? p.lastReviewedAt ?? p._creationTime, xpForQuestion, 0, 1);
     }
 

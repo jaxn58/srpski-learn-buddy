@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 import { mutation, internalMutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { assertLearnerAccountActive } from "./authz";
+import { assertLearnerAccountActive, assertAdminSecret } from "./authz";
+import { upsertDailyActivityByUserId } from "./units";
+import { spacedRepetitionXp, levelFromXp } from "./gamification";
 
 // ============= COURSE VOCABULARY (Master Data) =============
 
@@ -30,8 +32,11 @@ async function isPreviewUnit(ctx: QueryCtx | MutationCtx, unitNumber: number): P
   return (metas as any[]).some((m) => (m as any)?.releaseStatus === "preview");
 }
 
-// Upsert course vocabulary (for migration script)
-export const upsertCourseVocabulary = mutation({
+// Upsert course vocabulary (migration/content tooling only).
+// SECURITY: was a public mutation that allowed anyone to overwrite course
+// content. Now internal -- run via `npx convex run` or call from trusted
+// backend code (e.g. Content Studio publishing).
+export const upsertCourseVocabulary = internalMutation({
   args: {
     unitNumber: v.number(),
     serbian: v.string(),
@@ -506,8 +511,10 @@ export const getPracticePreview = query({
   },
 });
 
-// Delete vocabulary by unit numbers (for migration/cleanup)
-export const deleteVocabularyByUnits = mutation({
+// Delete vocabulary by unit numbers (migration/cleanup tooling only).
+// SECURITY: was a public mutation allowing anyone to delete course content.
+// Now internal -- run via `npx convex run`.
+export const deleteVocabularyByUnits = internalMutation({
   args: {
     unitNumbers: v.array(v.number()),
   },
@@ -612,13 +619,20 @@ export const recordVocabularyAnswer = mutation({
       )
       .first();
 
+    const previousCorrectCount = existingProgress?.correctAnswerCount || 0;
     const newCorrectCount = args.isCorrect 
-      ? ((existingProgress?.correctAnswerCount || 0) + 1)
-      : (existingProgress?.correctAnswerCount || 0);
+      ? (previousCorrectCount + 1)
+      : previousCorrectCount;
     const newIncorrectCount = args.isCorrect 
       ? (existingProgress?.incorrectAnswerCount || 0)
       : ((existingProgress?.incorrectAnswerCount || 0) + 1);
     const isMastered = newCorrectCount >= 3;
+
+    // SECURITY: XP is determined server-side from the server-tracked repetition
+    // level (5 / 10 / 20 for the 1st / 2nd / 3rd correct answer), never trusted
+    // from the client. The previous flow let the client send an arbitrary
+    // xpEarned via exercises.addCompletion.
+    const earnedXP = args.isCorrect ? spacedRepetitionXp(previousCorrectCount) : 0;
 
     // Ensure we have courseVocab (should already be fetched above)
     if (!courseVocab && courseVocabId) {
@@ -653,9 +667,24 @@ export const recordVocabularyAnswer = mutation({
       });
     }
 
+    // Award the server-determined XP (if any) to the user.
+    if (earnedXP > 0) {
+      const newTotalXP = user.totalXP + earnedXP;
+      await ctx.db.patch(user._id, {
+        totalXP: newTotalXP,
+        level: levelFromXp(newTotalXP),
+        lastActiveDate: Date.now(),
+      });
+      await upsertDailyActivityByUserId(ctx, user._id, {
+        xpEarned: earnedXP,
+        exercisesCompleted: 1,
+      });
+    }
+
     return { 
       vocabularyProgressId: vocabProgressId,
       courseVocabularyId: courseVocabId,
+      earnedXP,
     };
   },
 });
@@ -730,13 +759,19 @@ export const getUserVocabularyProgress = query({
 
 // ============= AUDIO GENERATION =============
 
-// Internal mutation to update vocabulary audio Storage ID
+// Update vocabulary audio Storage ID.
+// SECURITY: was public with no auth (anyone could repoint audio for any word).
+// The legit caller is the authenticated learner who just generated TTS audio via
+// the auth-gated /api/audio/generate endpoint, so we require a logged-in user.
 export const updateVocabularyAudioStorageId = mutation({
   args: {
     vocabularyId: v.id("courseVocabulary"),
     audioStorageId: v.string(),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
     await ctx.db.patch(args.vocabularyId, {
       audioStorageId: args.audioStorageId,
       audioUrl: undefined, // Clear old URL (deprecated)
@@ -753,10 +788,7 @@ export const resetVocabularyAudio = mutation({
   handler: async (ctx, args) => {
     // Check if using admin secret (for scripts)
     if (args.adminSecret) {
-      const expectedSecret = process.env.ADMIN_SECRET;
-      if (!expectedSecret || args.adminSecret !== expectedSecret) {
-        throw new Error("Invalid admin secret");
-      }
+      assertAdminSecret(args.adminSecret);
     } else {
       // Regular auth check
       const user = await getCurrentUser(ctx);
@@ -853,13 +885,26 @@ export const getVocabularyById = query({
 
 /**
  * Generate an upload URL for audio files.
- * Called by the TTS serverless function (already auth-gated) via Convex REST API.
- * The TTS endpoint itself requires Clerk auth, so this mutation does not need
- * its own auth check -- the upload URL is single-use and short-lived.
+ *
+ * Called server-to-server by the TTS serverless function (`/api/audio/generate`)
+ * via the Convex REST API, which carries no Clerk identity. To stop anyone from
+ * minting upload URLs and pushing arbitrary files into storage, this mutation is
+ * gated by a shared secret.
+ *
+ * REQUIRED ENV: `TTS_API_SECRET` must be set in the Convex deployment (it already
+ * exists in the Vercel TTS function's env). The TTS function forwards it as
+ * `secret`.
  */
 export const generateUploadUrl = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { secret: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const expected = process.env.TTS_API_SECRET;
+    if (!expected) {
+      throw new Error("Audio upload is not configured (TTS_API_SECRET missing).");
+    }
+    if (args.secret !== expected) {
+      throw new Error("Unauthorized");
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });

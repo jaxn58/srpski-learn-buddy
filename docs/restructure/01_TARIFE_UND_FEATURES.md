@@ -10,14 +10,16 @@ Der Kern der Empfehlung: Das **Paket** (Welche Features?) wird zur zweiten Dimen
 
 ```
                  Laufzeit (bestehend)
-                 3 Mon. | 6 Mon. | 9 Mon. | 12 Mon.
+                 3 Mon. | 6 Mon. | 12 Mon.
    Paket
-   ──────────────────────────────────────────────────
-   Sprachkurs            ·       ·       ·       ·
-   AI Chat Standalone    ·       ·       ·       ·
-   Sprachkurs + AI       ·       ·       ·       ·
-   Sprachkurs + AI Pro   ·       ·       ·       ·
+   ────────────────────────────────────────
+   Sprachkurs            ·       ·       ·
+   AI Chat Standalone    ·       ·       ·
+   Sprachkurs + AI       ·       ·       ·
+   Sprachkurs + AI Pro   ·       ·       ·
 ```
+
+> **Hinweis (Phase 4):** Die 9-Monats-Variante wurde entfernt. Es gibt nur noch **drei Laufzeiten: 3 / 6 / 12 Monate** (siehe `00_KONZEPT_UEBERSICHT.md` §5.4 und `02_TOKEN_SYSTEM.md` §9).
 
 ### Warum dieses Modell?
 

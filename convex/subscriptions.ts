@@ -4,7 +4,7 @@ import { mutation, query, action, QueryCtx, MutationCtx, internalMutation, inter
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
-import { loadBetaMaxUnits } from "./platform";
+import { loadBetaMaxUnits, loadBetaTesterDiscountPercent, DEFAULT_WELCOME_ENERGY_AMOUNT } from "./platform";
 import { loadEnergyConfig } from "./energy";
 
 // Helper to get the current user
@@ -103,6 +103,13 @@ export const SUBSCRIPTION_PLANS: Array<{
   { id: "full_6m",    tier: "course_ai_pro", durationMonths: 6,  price:  8900, name: "[Legacy] Full - 6 Months",   allowsInstallments: true },
   { id: "full_12m",   tier: "course_ai_pro", durationMonths: 12, price: 11900, name: "[Legacy] Full - 12 Months",  allowsInstallments: true },
 ];
+
+/**
+ * Plan-ID prefixes that are kept only for zero-migration of existing DB records
+ * and in-flight webhooks. They are NOT offered for new purchases and are
+ * excluded from the env-var health-check in getBillingProviderConfig.
+ */
+const LEGACY_PLAN_ID_PREFIXES = ["buddy_", "basic_", "full_"] as const;
 
 /**
  * Convex validator that accepts every paid plan ID (canonical + legacy).
@@ -338,15 +345,17 @@ export const getBetaDiscountStatus = query({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
     if (!user) {
-      return { betaEnded: false, eligible: false, usedAt: null as number | null };
+      return { betaEnded: false, eligible: false, usedAt: null as number | null, discountPercent: 0 };
     }
 
+    const discountPercent = await loadBetaTesterDiscountPercent(ctx);
     const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
     const betaEnded = Number.isFinite(betaEndTs) ? Date.now() > betaEndTs : false;
     const usedAt = user.betaDiscountUsedAt ?? null;
-    const eligible = betaEnded && user.isBetaTester === true && usedAt === null;
+    const eligible =
+      discountPercent > 0 && betaEnded && user.isBetaTester === true && usedAt === null;
 
-    return { betaEnded, eligible, usedAt };
+    return { betaEnded, eligible, usedAt, discountPercent };
   },
 });
 
@@ -374,23 +383,25 @@ export const getBillingProviderConfig = query({
       ""
     ).trim();
 
+    // Derive the required env vars from the canonical SUBSCRIPTION_PLANS so the
+    // health-check stays in sync with the offered tiers automatically. Legacy
+    // plan IDs (buddy/basic/full) keep their env vars active for in-flight
+    // webhooks but are NOT required for a healthy config. Prepaid-only plans
+    // (course tier) intentionally do not require an INSTALLMENTS var.
     const requiredProductEnvKeys = [
-      // Subscription products (Phase 4 format: DODO_PRODUCT_<TIER>_<DURATION>_<MODE>)
-      "DODO_PRODUCT_COURSE_3M_PREPAID", "DODO_PRODUCT_COURSE_3M_INSTALLMENTS",
-      "DODO_PRODUCT_COURSE_6M_PREPAID", "DODO_PRODUCT_COURSE_6M_INSTALLMENTS",
-      "DODO_PRODUCT_COURSE_12M_PREPAID", "DODO_PRODUCT_COURSE_12M_INSTALLMENTS",
-      "DODO_PRODUCT_BUDDY_3M_PREPAID", "DODO_PRODUCT_BUDDY_3M_INSTALLMENTS",
-      "DODO_PRODUCT_BUDDY_6M_PREPAID", "DODO_PRODUCT_BUDDY_6M_INSTALLMENTS",
-      "DODO_PRODUCT_BUDDY_12M_PREPAID", "DODO_PRODUCT_BUDDY_12M_INSTALLMENTS",
-      "DODO_PRODUCT_BASIC_3M_PREPAID", "DODO_PRODUCT_BASIC_3M_INSTALLMENTS",
-      "DODO_PRODUCT_BASIC_6M_PREPAID", "DODO_PRODUCT_BASIC_6M_INSTALLMENTS",
-      "DODO_PRODUCT_BASIC_12M_PREPAID", "DODO_PRODUCT_BASIC_12M_INSTALLMENTS",
-      "DODO_PRODUCT_FULL_3M_PREPAID", "DODO_PRODUCT_FULL_3M_INSTALLMENTS",
-      "DODO_PRODUCT_FULL_6M_PREPAID", "DODO_PRODUCT_FULL_6M_INSTALLMENTS",
-      "DODO_PRODUCT_FULL_12M_PREPAID", "DODO_PRODUCT_FULL_12M_INSTALLMENTS",
+      ...SUBSCRIPTION_PLANS
+        .filter((p) => !LEGACY_PLAN_ID_PREFIXES.some((pre) => p.id.startsWith(pre)))
+        .flatMap((p) => {
+          const planKeyUpper = p.id.toUpperCase().replace(/-/g, "_");
+          const keys = [`DODO_PRODUCT_${planKeyUpper}_PREPAID`];
+          if (p.allowsInstallments) {
+            keys.push(`DODO_PRODUCT_${planKeyUpper}_INSTALLMENTS`);
+          }
+          return keys;
+        }),
       // Top-up products
       "DODO_TOPUP_STARTER", "DODO_TOPUP_PLUS", "DODO_TOPUP_PRO",
-    ] as const;
+    ];
 
     const missingProductEnvKeys = requiredProductEnvKeys.filter((k) => !(process.env[k] || "").trim());
 
@@ -834,10 +845,12 @@ export const createDodoCheckoutSession = action({
     // The client may pass beta50=true as a hint, but server always validates.
     // The beta50 flag activates when the user is a beta tester AND has not yet
     // used their one-time discount. The beta phase must have ended (BETA_END_DATE set).
+    const betaDiscountPercent = await loadBetaTesterDiscountPercent(ctx);
     const betaEndTs = process.env.BETA_END_DATE ? Date.parse(process.env.BETA_END_DATE) : NaN;
     const betaEnded = Number.isFinite(betaEndTs) ? Date.now() > betaEndTs : false;
     const beta50Requested = (args.beta50 === true || user.isBetaTester === true) && paymentMode === "prepaid";
     const betaEligible =
+      betaDiscountPercent > 0 &&
       beta50Requested && betaEnded && user.isBetaTester === true && (user.betaDiscountUsedAt ?? null) === null;
 
     const effectiveDiscountCode = betaEligible ? (process.env.DODO_BETA50_DISCOUNT_CODE || "BETA50OFF") : null;
@@ -1209,7 +1222,11 @@ export const getAnalytics = query({
 
 // Create/update subscription
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-export const createSubscription = mutation({
+// SECURITY/LEGACY: pre-Dodo mutation that activated a subscription without any
+// payment proof. It had no callers but was publicly invocable, so it was a
+// paywall bypass. Converted to internalMutation. Real purchases go through the
+// Dodo checkout + webhook flow (see `createCheckoutSession` / `/dodo/webhook`).
+export const createSubscription = internalMutation({
   args: {
     planType: v.union(
       v.literal("intensive"),
@@ -1948,8 +1965,11 @@ export const internalUpsertDodoProduct = internalMutation({
 });
 
 // Syncs product data from Dodo Payments for all configured product IDs.
+// SECURITY: was a public action (no auth) exposing Dodo API usage and DB writes
+// to anyone. No app caller exists; converted to internalAction. Run via
+// `npx convex run internal.subscriptions.syncDodoProducts` or schedule it.
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-export const syncDodoProducts = action({
+export const syncDodoProducts = internalAction({
   args: {},
   handler: async (ctx) => {
     const apiKey = (process.env.DODO_PAYMENTS_API_KEY || "").trim();
@@ -2219,7 +2239,7 @@ export const internalMaybeGrantWelcomeEnergy = internalMutation({
     // Load welcome energy amount from platformConfig (default 500, 0 = disabled).
     // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
     const config = await ctx.db.query("platformConfig").first();
-    const welcomeAmount = config?.welcomeEnergyAmount ?? 500;
+    const welcomeAmount = config?.welcomeEnergyAmount ?? DEFAULT_WELCOME_ENERGY_AMOUNT;
     if (welcomeAmount <= 0) return { granted: false, reason: "disabled" };
 
     // Apply to active subscription's top-up balance.

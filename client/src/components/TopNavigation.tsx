@@ -37,6 +37,7 @@ import { APP_LOGO, APP_TITLE } from "@/const";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { XP_PER_LEVEL } from "../../../convex/gamification";
 import { useTheme } from "@/contexts/ThemeContext";
 
 import { Button } from "@/components/ui/button";
@@ -168,7 +169,6 @@ export function TopNavigation() {
     | DbUnitMetadataForQuickSwitch[]
     | undefined;
 
-  const XP_PER_LEVEL = 300;
   const totalXP = Math.floor(stats?.totalXP || 0);
   const currentLevel =
     typeof stats?.level === "number" && Number.isFinite(stats.level) ? stats.level : null;

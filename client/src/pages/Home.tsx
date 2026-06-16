@@ -149,6 +149,12 @@ export default function Home() {
     "topups",
   ] as const;
 
+  // Marketing comparison matrix for the landing page. The enforcement-relevant
+  // rows MUST stay consistent with the canonical tier→feature mapping in
+  // convex/featureAccess.ts (featuresForTier). "teaser" cells reflect the
+  // course-tier preview (see docs/restructure/01_TARIFE_UND_FEATURES.md §4.4).
+  // When changing tier capabilities, update featureAccess.ts first, then mirror
+  // it here.
   const FEATURE_MATRIX: Record<FeatureKey, Record<TierId, FeatureCell>> = {
     courseContent:  { course: true,     standalone: false, course_ai: true,     course_ai_pro: true  },
     aiBuddy:        { course: "teaser", standalone: true,  course_ai: true,     course_ai_pro: true  },
@@ -1067,7 +1073,6 @@ export default function Home() {
                 className="text-xs text-muted-foreground text-center mt-4"
                 dangerouslySetInnerHTML={{ __html: t("home.pricing.compare.footnote") }}
               />
-            </div>
             </div>
             </div>
 

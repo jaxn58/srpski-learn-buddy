@@ -25,6 +25,10 @@ export const getStreamBody = query({
 export const createStream = mutation({
   args: {},
   handler: async (ctx) => {
+    // SECURITY: require authentication so anonymous callers cannot create
+    // unlimited stream resources.
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
     return await streamingComponent.createStream(ctx);
   },
 });

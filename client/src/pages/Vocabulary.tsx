@@ -181,7 +181,6 @@ export default function Vocabulary() {
   // Mutations for quiz progress
   const updateQuizProgressMutation = useMutation(api.exercises.updateQuizProgress);
   const resetQuizProgressMutation = useMutation(api.exercises.resetQuizProgress);
-  const addExerciseCompletionMutation = useMutation(api.exercises.addCompletion);
   const recordVocabularyAnswerMutation = useMutation(api.vocabulary.recordVocabularyAnswer);
   
   // Handle audio playback
@@ -781,30 +780,12 @@ export default function Vocabulary() {
           earnedXP = 20; // 3rd time correct (Mastered!)
         }
         
-        // Update session XP (for display)
+        // Optimistic XP display only. The authoritative XP is awarded
+        // server-side by recordVocabularyAnswer (see below), which computes the
+        // amount from the server-tracked repetition level. We no longer send a
+        // client-computed xpEarned to the backend.
         setSessionXP(prev => prev + earnedXP);
         setXpEarned(prev => prev + earnedXP);
-        
-        // Award XP to user immediately
-        if (earnedXP > 0) {
-          try {
-            // NEW: Use courseVocabularyId for exerciseId (if available)
-            // FALLBACK: Use old serbianWord format for backward compatibility
-            const exerciseId = wordToAnswer._id 
-              ? `vocab_word_${wordToAnswer._id}_${newCorrectCount}`
-              : `vocab_word_${wordToAnswer.serbian}_${newCorrectCount}`;
-            
-            await addExerciseCompletionMutation({
-              unitNumber: wordToAnswer.unit || wordToAnswer.unitNumber,
-              exerciseId,
-              score: 1,
-              totalQuestions: 1,
-              xpEarned: earnedXP,
-            });
-          } catch (e) {
-            console.error('Failed to award XP', e);
-          }
-        }
       }
       
       // Save to database

@@ -42,6 +42,11 @@ export const DEFAULT_BETA_PHASE_ACTIVE = true;
 export const DEFAULT_BETA_MAX_UNITS = 1;
 export const DEFAULT_BETA_MAX_AI_PER_DAY = 10;
 
+// Course-tier teaser: AI Buddy preview questions per day for teaser-only users.
+// Mirrors the previously hard-coded value in convex/chat.ts (TEASER_DAILY_LIMIT)
+// so behavior is unchanged until a superadmin tunes it.
+export const DEFAULT_TEASER_DAILY_LIMIT = 2;
+
 /**
  * Read the global beta-phase flag from any query/mutation context.
  * Shared by featureAccess resolution so there is one definition of "is beta on".
@@ -73,6 +78,32 @@ export async function loadBetaMaxAiPerDay(ctx: QueryCtx | MutationCtx): Promise<
 }
 
 /**
+ * Daily AI Buddy preview-question limit for course-tier (teaser-only) users.
+ * Single source of truth for the teaser gate in convex/chat.ts.
+ */
+export async function loadTeaserDailyLimit(ctx: QueryCtx | MutationCtx): Promise<number> {
+  // @ts-ignore TS2589 – Convex schema depth limit (large schema)
+  const config = await ctx.db.query("platformConfig").first();
+  return config?.teaserDailyLimit ?? DEFAULT_TEASER_DAILY_LIMIT;
+}
+
+/**
+ * Beta-tester discount percentage (admin-tunable via platformConfig).
+ * Single source of truth for the one-time beta-tester discount. A value of 0
+ * disables the discount offer entirely. The actual price reduction is enforced
+ * by the configured Dodo discount code; this value gates eligibility and is
+ * surfaced to the UI so the displayed percentage stays in sync with the admin
+ * configuration.
+ */
+export async function loadBetaTesterDiscountPercent(
+  ctx: QueryCtx | MutationCtx,
+): Promise<number> {
+  // @ts-ignore TS2589 – Convex schema depth limit (large schema)
+  const config = await ctx.db.query("platformConfig").first();
+  return config?.betaTesterDiscountPercent ?? DEFAULT_BETA_TESTER_DISCOUNT_PERCENT;
+}
+
+/**
  * Public (staff-only) read of the platform config for the admin UI.
  */
 export const getPlatformConfig = query({
@@ -81,6 +112,7 @@ export const getPlatformConfig = query({
     betaPhaseActive: v.boolean(),
     betaMaxUnits: v.number(),
     betaMaxAiPerDay: v.number(),
+    teaserDailyLimit: v.number(),
     // Energy config (always returned, with defaults applied)
     energyCostCompact: v.number(),
     energyCostDetailed: v.number(),
@@ -112,6 +144,7 @@ export const getPlatformConfig = query({
       betaPhaseActive: config?.betaPhaseActive ?? DEFAULT_BETA_PHASE_ACTIVE,
       betaMaxUnits: config?.betaMaxUnits ?? DEFAULT_BETA_MAX_UNITS,
       betaMaxAiPerDay: config?.betaMaxAiPerDay ?? DEFAULT_BETA_MAX_AI_PER_DAY,
+      teaserDailyLimit: config?.teaserDailyLimit ?? DEFAULT_TEASER_DAILY_LIMIT,
       energyCostCompact: config?.energyCostCompact ?? DEFAULT_ENERGY_COSTS.compact,
       energyCostDetailed: config?.energyCostDetailed ?? DEFAULT_ENERGY_COSTS.detailed,
       energyRagSurcharge: config?.energyRagSurcharge ?? DEFAULT_ENERGY_COSTS.ragSurcharge,
@@ -150,6 +183,7 @@ type EnergyPatchFields = {
 type BillingPatchFields = {
   welcomeEnergyAmount?: number;
   betaTesterDiscountPercent?: number;
+  teaserDailyLimit?: number;
 };
 
 async function upsertPlatformConfig(
@@ -159,6 +193,7 @@ async function upsertPlatformConfig(
     betaPhaseActive?: boolean;
     betaMaxUnits?: number;
     betaMaxAiPerDay?: number;
+    teaserDailyLimit?: number;
   } & EnergyPatchFields & BillingPatchFields
 ): Promise<void> {
   // @ts-ignore TS2589 – Convex schema depth limit (large schema)
@@ -170,6 +205,7 @@ async function upsertPlatformConfig(
       betaPhaseActive: patch.betaPhaseActive ?? DEFAULT_BETA_PHASE_ACTIVE,
       betaMaxUnits: patch.betaMaxUnits ?? DEFAULT_BETA_MAX_UNITS,
       betaMaxAiPerDay: patch.betaMaxAiPerDay ?? DEFAULT_BETA_MAX_AI_PER_DAY,
+      teaserDailyLimit: patch.teaserDailyLimit,
       energyCostCompact: patch.energyCostCompact,
       energyCostDetailed: patch.energyCostDetailed,
       energyRagSurcharge: patch.energyRagSurcharge,
@@ -271,6 +307,7 @@ export const setBillingConfig = mutation({
   args: {
     welcomeEnergyAmount: v.optional(v.number()),
     betaTesterDiscountPercent: v.optional(v.number()),
+    teaserDailyLimit: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -289,6 +326,9 @@ export const setBillingConfig = mutation({
     }
     if (args.betaTesterDiscountPercent !== undefined) {
       assertValidLimit(args.betaTesterDiscountPercent, "Beta tester discount percent", 100);
+    }
+    if (args.teaserDailyLimit !== undefined) {
+      assertValidLimit(args.teaserDailyLimit, "Teaser daily limit", 1000);
     }
 
     await upsertPlatformConfig(ctx, user._id, args);

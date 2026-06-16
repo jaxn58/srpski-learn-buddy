@@ -3,7 +3,7 @@ import { mutation, query, internalMutation, internalQuery, internalAction, actio
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { Resend } from "resend";
-import { assertLearnerAccountActive } from "./authz";
+import { assertLearnerAccountActive, assertAdminSecret } from "./authz";
 import { callAiJson } from "./contentStudio/_shared";
 
 // ============= HELPER FUNCTIONS =============
@@ -2057,11 +2057,7 @@ export const runInitialMigration = action({
     adminSecret: v.string(),
   },
   handler: async (ctx, args) => {
-    // Verify admin access via ADMIN_SECRET
-    const ADMIN_SECRET = process.env.ADMIN_SECRET;
-    if (!ADMIN_SECRET || args.adminSecret !== ADMIN_SECRET) {
-      throw new Error("Unauthorized - Invalid admin secret");
-    }
+    assertAdminSecret(args.adminSecret);
 
     console.log("[Newsletter Migration] Starting initial migration...");
 
@@ -2126,10 +2122,7 @@ export const adminBackfillNewsletterLocales = action({
     skipped: number;
     noUser: number;
   }> => {
-    const expectedSecret = process.env.ADMIN_SECRET;
-    if (!expectedSecret || args.adminSecret !== expectedSecret) {
-      throw new Error("Unauthorized");
-    }
+    assertAdminSecret(args.adminSecret);
 
     const result = await ctx.runMutation(
       internal.newsletter.internalBackfillLocales,

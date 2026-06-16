@@ -71,7 +71,7 @@ Quelle: `My First Board.csv`, mit zwei getroffenen Entscheidungen eingearbeitet 
 3. **Energy-Verfallsregel:** Inklusiv-Kontingent monatlich zurücksetzen (Vorschlag), gekaufte Top-up-Energy bis Abo-Ende gültig.
    - *Entschieden:* **Upload-Abrechnung dynamisch** (proportional, kein fixer Energy-Cap), abgesichert über Pflicht-Vorabbestätigung + technisches Input-Limit; Grenzfall „nicht genug Energy" = blockieren statt zuschneiden (Variante A). Details: `02_TOKEN_SYSTEM.md` 2.2.
 4. **Laufzeit-/Ratenzahlungs-Matrix:**
-   - *Entschieden Juni 2026:* Ratenzahlung **ab „Sprachkurs + AI" aufwärts**; Sprachkurs prepaid-only. Daraus 28 Abo-Produkt-IDs + 3 Top-ups = **31 Dodo-Produkt-IDs** (siehe `02_TOKEN_SYSTEM.md` Abschnitt 9, `03_PREISKALKULATION.md` Abschnitt 5).
+   - *Entschieden Juni 2026:* Ratenzahlung für alle Buddy-haltigen Tarife (AI Chat Standalone, Sprachkurs + AI, Sprachkurs + AI Pro); **Sprachkurs prepaid-only**. Daraus 21 Abo-Produkt-IDs (3 Sprachkurs prepaid + 3×3×2 = 18 für die anderen drei Tarife) + 3 Top-ups = **24 Dodo-Produkt-IDs** (siehe `02_TOKEN_SYSTEM.md` Abschnitt 9, `03_PREISKALKULATION.md` Abschnitt 5).
 5. **Grandfathering der Beta-/Bestandskunden:** Vorschlag = automatisch „Sprachkurs + AI Pro" (Zero-Migration via Default `featureTier = "course_ai_pro"`). *(noch zu bestätigen)*
 6. **Buddy-Naming/Persona:** Geklärt — die Persona heißt durchgehend **„AI Buddy"**. Kulturell unverfänglich, in EN/DE gleichermaßen lesbar, kein politisches Statement. Der frühere Arbeitsname „Brate" ist überall ersetzt.
 7. **Community/Lerngruppen:** existiert in keinem Branch, echtes Neu-Feature → eigener, späterer Arbeits-Track.

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { assertLearnerAccountActive } from "./authz";
+import { assertLearnerAccountActive, assertAdminSecret } from "./authz";
+import { levelFromXp } from "./gamification";
 import { mutation, query, internalQuery, internalMutation, action, QueryCtx, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
@@ -599,9 +600,12 @@ export const updateUserRole = mutation({
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
 
-    // Only superadmin can assign superadmin role
-    if (args.role === "superadmin" && admin.role !== "superadmin") {
-      throw new Error("Only superadmin can assign superadmin role");
+    // SECURITY: privilege escalation guard. Role management (granting/removing
+    // admin or superadmin) is restricted to superadmins. A regular admin could
+    // previously promote any user (including themselves via another account) to
+    // admin. This matches the UI, which only exposes role changes to superadmins.
+    if (admin.role !== "superadmin") {
+      throw new Error("Only superadmin can change user roles");
     }
 
     await ctx.db.patch(args.userId, {
@@ -1455,11 +1459,7 @@ export const seedChatPrompt = mutation({
     adminSecret: v.string(),
   },
   handler: async (ctx, args) => {
-    // Verify admin secret from environment
-    const expectedSecret = process.env.ADMIN_SECRET;
-    if (!expectedSecret || args.adminSecret !== expectedSecret) {
-      throw new Error("Invalid admin secret");
-    }
+    assertAdminSecret(args.adminSecret);
 
     const name = args.name;
     const existing = await ctx.db
@@ -1649,7 +1649,7 @@ export const markUnit1Complete = mutation({
     // 4. Update user XP and level
     console.log('[markUnit1Complete] Updating XP and level...');
     const newTotalXP = user.totalXP + totalXPEarned;
-    const newLevel = Math.floor(newTotalXP / 300) + 1;
+    const newLevel = levelFromXp(newTotalXP);
 
     await ctx.db.patch(user._id, {
       totalXP: newTotalXP,
@@ -1802,7 +1802,7 @@ export const simulateUnitProgress = mutation({
 
     const xpEarned = exercisesProcessed * xpPerExercise;
     const newTotalXP = user.totalXP + xpEarned;
-    const newLevel = Math.floor(newTotalXP / 300) + 1;
+    const newLevel = levelFromXp(newTotalXP);
 
     await ctx.db.patch(user._id, {
       totalXP: newTotalXP,
@@ -1831,14 +1831,16 @@ export const simulateUnitProgress = mutation({
   },
 });
 
-// ============= TEMPORARY CLEANUP FUNCTIONS (BETA ONLY) =============
-// These functions are used for beta cleanup scripts and should be removed after beta
+// ============= INTERNAL CLEANUP / MIGRATION FUNCTIONS (CLI ONLY) =============
+// SECURITY: These were previously public (query/mutation) with no auth check,
+// which exposed full user PII and allowed IDOR writes to anyone. They are now
+// internalQuery/internalMutation and can only be invoked from trusted backend
+// code or via `npx convex run internal.admin.<name>`.
 
 /**
- * TEMPORARY: Get all users without auth (for cleanup scripts)
- * TODO: Remove after beta phase
+ * Get all users (CLI/migration only).
  */
-export const getAllUsersTemp = query({
+export const getAllUsersTemp = internalQuery({
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
     return users;
@@ -1846,10 +1848,9 @@ export const getAllUsersTemp = query({
 });
 
 /**
- * TEMPORARY: Update user language without auth (for cleanup scripts)
- * TODO: Remove after beta phase
+ * Update a single user's learning language (CLI/migration only).
  */
-export const updateUserLanguageTemp = mutation({
+export const updateUserLanguageTemp = internalMutation({
   args: {
     userId: v.id("users"),
     learningLanguage: v.union(
@@ -1868,10 +1869,9 @@ export const updateUserLanguageTemp = mutation({
 });
 
 /**
- * TEMPORARY: Get all userProgress without auth (for migration scripts)
- * TODO: Remove after migration
+ * Get all userProgress documents (CLI/migration only).
  */
-export const getAllUserProgressTemp = query({
+export const getAllUserProgressTemp = internalQuery({
   handler: async (ctx) => {
     const allProgress = await ctx.db.query("userProgress").collect();
     return allProgress;
@@ -1879,10 +1879,9 @@ export const getAllUserProgressTemp = query({
 });
 
 /**
- * TEMPORARY: Remove currentWeek field from userProgress (for migration)
- * TODO: Remove after migration
+ * Remove deprecated currentWeek field from a single userProgress doc (CLI only).
  */
-export const removeCurrentWeekFromProgress = mutation({
+export const removeCurrentWeekFromProgress = internalMutation({
   args: {
     progressId: v.id("userProgress"),
   },
@@ -1903,6 +1902,39 @@ export const removeCurrentWeekFromProgress = mutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Batch migration: remove deprecated currentWeek field from ALL userProgress
+ * documents in one server-side pass. Run via:
+ *   npx convex run internal.admin.removeCurrentWeekFromAllProgress
+ * (add `--prod` to target the production deployment).
+ */
+export const removeCurrentWeekFromAllProgress = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allProgress = await ctx.db.query("userProgress").collect();
+    let updated = 0;
+    let skipped = 0;
+
+    for (const progress of allProgress) {
+      if ("currentWeek" in progress) {
+        await ctx.db.replace(progress._id, {
+          userId: progress.userId,
+          currentUnit: progress.currentUnit,
+          completedUnits: progress.completedUnits,
+          learningDuration: progress.learningDuration,
+          uiLanguage: progress.uiLanguage,
+          lastActivityAt: progress.lastActivityAt,
+        });
+        updated++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return { total: allProgress.length, updated, skipped };
   },
 });
 
@@ -1967,10 +1999,7 @@ export const adminGetAllEmailTemplates = query({
     adminSecret: v.string(),
   },
   handler: async (ctx, args) => {
-    const expectedSecret = process.env.ADMIN_SECRET;
-    if (!expectedSecret || args.adminSecret !== expectedSecret) {
-      throw new Error("Unauthorized - Invalid admin secret");
-    }
+    assertAdminSecret(args.adminSecret);
 
     return await ctx.db.query("emailTemplates").collect();
   },
@@ -1982,10 +2011,7 @@ export const adminGetAllEmailSignatures = query({
     adminSecret: v.string(),
   },
   handler: async (ctx, args) => {
-    const expectedSecret = process.env.ADMIN_SECRET;
-    if (!expectedSecret || args.adminSecret !== expectedSecret) {
-      throw new Error("Unauthorized - Invalid admin secret");
-    }
+    assertAdminSecret(args.adminSecret);
 
     return await ctx.db.query("emailSignatures").collect();
   },
@@ -2004,10 +2030,7 @@ export const adminUpsertEmailSignature = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const expectedSecret = process.env.ADMIN_SECRET;
-    if (!expectedSecret || args.adminSecret !== expectedSecret) {
-      throw new Error("Unauthorized - Invalid admin secret");
-    }
+    assertAdminSecret(args.adminSecret);
 
     const existing = await ctx.db
       .query("emailSignatures")
@@ -2052,11 +2075,7 @@ export const adminUpsertEmailTemplate = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    // Verify admin secret from environment
-    const expectedSecret = process.env.ADMIN_SECRET;
-    if (!expectedSecret || args.adminSecret !== expectedSecret) {
-      throw new Error("Invalid admin secret");
-    }
+    assertAdminSecret(args.adminSecret);
 
     const existing = await ctx.db
       .query("emailTemplates")

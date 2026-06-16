@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { XP_PER_LEVEL } from "../../../convex/gamification";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
@@ -293,8 +294,7 @@ export default function Progress() {
   const masteryEfficiencyLabel =
     masteryEfficiency === null || masteryEfficiency === undefined ? "—" : `${Math.round(masteryEfficiency * 100)}%`;
 
-  // Level (source of truth: 300 XP per level)
-  const XP_PER_LEVEL = 300;
+  // Level source of truth: XP_PER_LEVEL from convex/gamification.ts
   const totalXP = Math.floor(stats?.totalXP || 0);
   const currentLevel = stats?.level || 1;
   const xpIntoLevel = ((totalXP % XP_PER_LEVEL) + XP_PER_LEVEL) % XP_PER_LEVEL;

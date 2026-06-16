@@ -47,6 +47,7 @@ import type * as energyAdmin from "../energyAdmin.js";
 import type * as exercises from "../exercises.js";
 import type * as featureAccess from "../featureAccess.js";
 import type * as feedback from "../feedback.js";
+import type * as gamification from "../gamification.js";
 import type * as http from "../http.js";
 import type * as knowledge from "../knowledge.js";
 import type * as leaderboard from "../leaderboard.js";
@@ -124,6 +125,7 @@ declare const fullApi: ApiFromModules<{
   exercises: typeof exercises;
   featureAccess: typeof featureAccess;
   feedback: typeof feedback;
+  gamification: typeof gamification;
   http: typeof http;
   knowledge: typeof knowledge;
   leaderboard: typeof leaderboard;
