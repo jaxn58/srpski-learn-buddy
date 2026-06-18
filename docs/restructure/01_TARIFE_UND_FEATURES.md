@@ -36,26 +36,27 @@ Klassisches wiederkehrendes Monats-/Jahres-Abo pro Paket. Vorteil: marktübliche
 ### 2.1 Sprachkurs (EN: „Course")
 
 - **Enthält:** Alle Units, Vokabelsystem, interaktive Übungen, XP/Streak/Leaderboard, Fortschritt, Audio (TTS).
-- **Enthält NICHT:** vollwertigen AI-Buddy, Dokumenten-Upload, Knowledge Rack, Foto-Scan, Energy-Guthaben/-Nachkauf, Community.
+- **Enthält NICHT:** vollwertigen AI-Buddy, Chat-Anhänge, Wissensablage, Energy-Guthaben/-Nachkauf, Community.
 - **Besonderheit – Teaser:** 1–2 AI-Fragen / 24 h. Der Teaser zeigt bewusst den **Buddy aus Sprachkurs + AI** (kontextverknüpfter Basis-Buddy) – als Vorschau und Upsell-Anker Richtung Sprachkurs + AI.
 - **Zielgruppe:** Preisbewusste Lerner, Einsteiger.
 
 ### 2.2 AI Chat Standalone
 
-- **Enthält:** Buddy-Chat, Dokumenten-Upload & Analyse, Knowledge Rack (persönliche PDF-Bibliothek), Foto-Scan, Energy-Nachkauf.
+- **Enthält:** Buddy-Chat, **Chat-Anhänge** (Fotos & Dateien direkt in einer Nachricht, inkl. multimodale Analyse), **Wissensablage** (persistente Dokumenten-Bibliothek in der Wissensbasis / Meine Bibliothek), Energy-Nachkauf.
 - **Enthält NICHT:** Lerninhalte/Units, Context-Linking (Entscheidung: entfernt, da keine Units vorhanden), Community.
 - **Zielgruppe:** Expats, Einwanderer, Profis (Büro / öffentliche Einrichtungen), die einen Sprach-/Alltagshelfer brauchen – ohne Kurs.
 
 ### 2.3 Sprachkurs + AI (EN: „Course + AI")
 
-- **Enthält:** Alle Lerninhalte (wie Sprachkurs) **+ Basis-Buddy** (`AI Buddy Chat (Basis)`) **mit Context-Linking** (Buddy kennt die aktuelle Unit/den Lernkontext) **+ Energy-Nachkauf**.
-- **Enthält NICHT:** Dokumenten-Upload, Knowledge Rack, Foto-Scan, Community.
+- **Enthält:** Alle Lerninhalte (wie Sprachkurs) **+ Basis-Buddy** (`AI Buddy Chat (Basis)`) **mit Context-Linking** (Buddy kennt die aktuelle Unit/den Lernkontext) **+ Chat-Anhänge** (Fotos & Dateien im Chat, inkl. Vision-Aufschlag in der Energy-Tabelle) **+ Energy-Nachkauf**.
+- **Enthält NICHT:** Wissensablage (Wissensbasis in Meine Bibliothek), Community.
+- **Speicher:** 100 MB nur für Chat-Anhänge (kein Knowledge-Rack-Speicher).
 - **Energy:** **250 Energy/Monat** (Juni 2026 von 120 angehoben – UX-Korrektur, 120 wirkte als Demo-Quota) **mit** Nachkauf-Option (Top-up). Reicht für aktive Lerner mit ~3–4 Lernfragen pro Tag. Top-ups erlauben Spitzennutzung ohne Sperrung.
 - **Zielgruppe:** Lerner mit AI-Support.
 
 ### 2.4 Sprachkurs + AI Pro
 
-- **Enthält:** Alles aus Sprachkurs + AI **+** die erweiterten Buddy-Funktionen aus Standalone (Dokumenten-Upload, Knowledge Rack, Foto-Scan) **+** größeres Energy-Kontingent **+ Community/Lerngruppen** (Neu-Feature).
+- **Enthält:** Alles aus Sprachkurs + AI **+ Wissensablage** (wie Standalone) **+** größeres Energy-Kontingent **+ Community/Lerngruppen** (Neu-Feature).
 - **Energy:** größtes Monatskontingent (Vorschlag: 750 Energy) + Nachkauf.
 - **Zielgruppe:** Power-User, Experten, Professionals.
 
@@ -63,15 +64,17 @@ Klassisches wiederkehrendes Monats-/Jahres-Abo pro Paket. Vorteil: marktübliche
 
 | Feature (Matrix) | Code-Entsprechung | Status |
 |---|---|---|
-| Feste Lerninhalte | Units/Vokabeln/Exercises, `convex/subscriptions.ts` `getAccessibleUnits`, `convex/units.ts` | Vorhanden (alle Branches) |
-| AI Buddy Chat (Basis) | `convex/chat.ts` `streamChatMessage`, `POST /chat/stream` | Vorhanden (feature + chat) |
-| Context-Linking | `convex/chat.ts` `buildUnitContextBlock`, `unitContext` auf Messages | Vorhanden (feature + chat) |
-| Dokumenten-Upload & Analyse | `client/.../ChatDocumentUpload.tsx`, `convex/documentsNode.ts`, `userDocuments`/`userDocumentChunks` | **Nur chat-Branch**; Ingestion teils unvollständig |
-| Knowledge Rack (PDF-Bibliothek) | `convex/knowledge.ts`, `convex/ai/ingestKnowledge.ts`, `client/.../KnowledgeAdmin.tsx` | **Nur chat-Branch** |
-| Foto-Scan | Bild-Upload + multimodal (Gemini Vision) im Chat | Vorhanden (feature + chat) |
-| Energy-Nachkauf möglich | – | **Neu zu bauen** (siehe `02_TOKEN_SYSTEM.md`) |
-| Community/Lerngruppen | – | **Neu zu bauen** (eigener Track, keine Vorlage in den Branches) |
-| Teaser 1–2/24h | – (Rate-Limits existieren, aber kein Teaser-Zähler dieser Art) | **Neu zu bauen** (kleiner Tageszähler) |
+| Feste Lerninhalte | Units/Vokabeln/Exercises, `convex/subscriptions.ts` `getAccessibleUnits`, `convex/units.ts` | Vorhanden |
+| AI Buddy Chat (Basis) | `convex/chat.ts` `streamChatMessage`, `POST /chat/stream` | Vorhanden |
+| Context-Linking | `convex/chat.ts` `buildUnitContextBlock`, `unitContext` auf Messages | Vorhanden |
+| Chat-Anhänge (Fotos & Dateien im Chat) | `convex/chat.ts` (Attachment-Upload), `convex/documents.ts` (`uploadSource: "chat_attachment"`), `chatMessages.attachmentStorageId` | Vorhanden; Gate: `features.chatAttachments` |
+| Wissensablage (Wissensbasis) | `convex/documents.ts` (`uploadSource: "knowledge_rack"`), `userDocuments`/`userDocumentChunks`, `client/.../KnowledgeBaseExplorer.tsx` | Vorhanden; Gate: `features.knowledgeRack` |
+| Speicher-Quota pro User | `convex/storageQuota.ts` (`resolveStorageQuotaBytes`) – course_ai: 100 MB (nur Chat-Anhänge), standalone: 500 MB, course_ai_pro: 1 GB, beta: 0 | Vorhanden |
+| Energy-Nachkauf möglich | `convex/subscriptions.ts` Top-up-Packs, Dodo-Produkte | Vorhanden |
+| Community/Lerngruppen | – | **Neu zu bauen** (eigener Track) |
+| Teaser 1–2/24h | `convex/chat.ts` Teaser-Logik für `course`-Tier | Vorhanden |
+
+> **Begriffs-Abgrenzung (Juni 2026):** „Foto-Scan" ist **kein separates Feature-Flag** mehr. Bilder und Dateien werden als **Chat-Anhang** hochgeladen; multimodale Verarbeitung (Gemini Vision) löst den Energy-Aufschlag „Vision" in der Verbrauchstabelle aus (siehe `02_TOKEN_SYSTEM.md` §2.1). Die **Wissensablage** (Tarif-Feature) entspricht der **Wissensbasis** in **Meine Bibliothek** – getrennt von einmaligen Chat-Anhängen.
 
 ## 4. Feature-Gating (Technik-Konzept)
 
@@ -96,22 +99,25 @@ featureTier: v.optional(v.union(
 Eine einzige Query (`getFeatureAccess`) liefert die abgeleiteten Flags – Single Source of Truth für Frontend (UI-Gating) und Backend (Durchsetzung):
 
 ```typescript
-// abgeleitet aus featureTier
+// abgeleitet aus featureTier (convex/featureAccess.ts → featuresForTier)
 {
   learning:       tier === "course"     || tier === "course_ai" || tier === "course_ai_pro",
   buddyChat:      tier === "standalone" || tier === "course_ai" || tier === "course_ai_pro",
   contextLinking: tier === "course_ai"  || tier === "course_ai_pro",                          // NICHT bei standalone
-  documents:      tier === "standalone" || tier === "course_ai_pro",                          // Upload + Knowledge Rack + Foto-Scan
+  chatAttachments: tier === "standalone" || tier === "course_ai" || tier === "course_ai_pro", // Fotos/Dateien im Chat (NICHT course)
+  knowledgeRack:  tier === "standalone" || tier === "course_ai_pro",                          // Wissensbasis in Meine Bibliothek (NICHT course_ai)
   community:      tier === "course_ai_pro",
-  energyTopUp:    tier === "standalone" || tier === "course_ai" || tier === "course_ai_pro",  // course_ai NEU: Top-up moeglich
-  // Admin/Superadmin und Beta-Tester: alles true (siehe Grandfathering)
+  energyTopUp:    tier === "standalone" || tier === "course_ai" || tier === "course_ai_pro",  // course: Teaser only
+  teaser:         tier === "course",
+  // Admin/Superadmin: alles true (siehe Grandfathering)
+  // Beta-Profil (course_ai lite): course_ai-Features, aber chatAttachments + knowledgeRack + energyTopUp = false
 }
 ```
 
 ### 4.3 Durchsetzung (Defense-in-Depth)
 
 - **Frontend:** Navigation, Routen und Buttons werden anhand der Flags ein-/ausgeblendet (z. B. kein Floating-Buddy-Button im Sprachkurs; kein „Units"-Tab im AI Chat Standalone).
-- **Backend:** Dieselben Flags werden in den Chat-Mutations/Actions (`convex/chat.ts`) und bei Upload/Knowledge-Funktionen geprüft, damit API-Aufrufe nicht das Client-Gating umgehen.
+- **Backend:** Dieselben Flags werden in Chat-Mutations/Actions (`convex/chat.ts`), Upload-Funktionen (`convex/documents.ts` mit `uploadSource`) und Speicher-Quotas (`convex/storageQuota.ts`) geprüft, damit API-Aufrufe nicht das Client-Gating umgehen.
 
 ### 4.4 Teaser-Logik (Sprachkurs)
 
@@ -130,7 +136,7 @@ flowchart LR
 ```
 
 - **Sprachkurs → Sprachkurs + AI:** natürlicher Upgrade, vom Teaser getrieben.
-- **Sprachkurs + AI → Sprachkurs + AI Pro:** für erweiterte Buddy-Funktionen (Dokumente, Knowledge Rack, Foto-Scan) + Community + größeres Energy-Kontingent.
+- **Sprachkurs + AI → Sprachkurs + AI Pro:** für **Wissensablage** (persistente Dokumenten-Bibliothek), Community + größeres Energy-Kontingent. Chat-Anhänge sind in Sprachkurs + AI bereits enthalten – der Pro-Upsell betrifft primär die Wissensablage, nicht erneut den Chat-Upload.
 - **AI Chat Standalone → Sprachkurs + AI Pro:** wenn zusätzlich Lerninhalte gewünscht sind.
 
 Upgrades innerhalb derselben Laufzeit: Preisdifferenz als Dodo-Top-up (analog zum bestehenden Laufzeit-Upgrade in `convex/subscriptions.ts`).

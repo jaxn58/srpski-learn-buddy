@@ -23,7 +23,7 @@ Die Matrix verlangt für **AI Chat Standalone** und **Sprachkurs + AI Pro** Funk
 - `convex/documentsNode.ts` (Node-seitige Dokumentenverarbeitung)
 - `convex/knowledge.ts` (Knowledge-Funktionen)
 
-In `feature/buddy-context-streaming` fehlen diese. Daher: **`chat` ist die funktionale Grundlage** für „Dokumenten-Upload", „Knowledge Rack" und „Foto-Scan".
+In `feature/buddy-context-streaming` fehlen diese. Daher: **`chat` ist die funktionale Grundlage** für Chat-Anhänge und Wissensablage (getrennte Gates seit Juni 2026, siehe `01_TARIFE_UND_FEATURES.md`).
 
 ### Konsequenz / Vorsicht
 

@@ -45,6 +45,7 @@ import {
   Loader2,
   MessageSquare,
   MoreHorizontal,
+  Paperclip,
   Pencil,
 } from "lucide-react";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
@@ -57,6 +58,7 @@ type SessionSummary = {
   title: string;
   folderId?: Id<"chatFolders">;
   messageCount: number;
+  attachmentCount: number;
 };
 
 type SessionListProps = {
@@ -217,7 +219,20 @@ export function SessionList({
                           autoFocus
                         />
                       ) : (
-                        <span className="truncate text-sm font-medium">{session.title}</span>
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <span className="truncate text-sm font-medium">{session.title}</span>
+                          {session.attachmentCount > 0 && (
+                            <span
+                              className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                              title={t("chatLibrary.sessions.attachmentCount", {
+                                count: session.attachmentCount,
+                              })}
+                            >
+                              <Paperclip className="h-3 w-3" />
+                              {session.attachmentCount}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                     <p className="sm:hidden text-[11px] text-muted-foreground mt-1 pl-6">

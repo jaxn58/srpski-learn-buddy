@@ -41,7 +41,8 @@
     "test:backup": "tsx scripts/test-backup.ts",
     "migrate:newsletter": "tsx scripts/migrate-newsletter-initial.ts",
     "backfill:newsletter-locale": "tsx scripts/backfill-newsletter-locale.ts",
-    "backfill:newsletter-users": "tsx scripts/backfill-newsletter-user-subscriptions.ts"
+    "backfill:newsletter-users": "tsx scripts/backfill-newsletter-user-subscriptions.ts",
+    "cleanup:orphan-storage": "tsx scripts/cleanup-orphan-storage.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.64",

@@ -2,9 +2,9 @@
  * Platform-wide configuration (singleton).
  *
  * Holds global switches that are not tied to a single user. Today this is the
- * master beta-phase switch that governs whether beta testers receive free full
- * access (see convex/featureAccess.ts). Read paths fall back to sane defaults
- * when no config row exists yet, so this is zero-migration.
+ * master beta-phase switch that governs whether beta testers receive course_ai-level
+ * access with limited energy (see convex/featureAccess.ts). Read paths fall back
+ * to sane defaults when no config row exists yet, so this is zero-migration.
  */
 import { v } from "convex/values";
 import { query, mutation, type QueryCtx, type MutationCtx } from "./_generated/server";
@@ -26,6 +26,7 @@ import {
   PRICING_SOURCE_URLS,
 } from "./ai/modelPricing";
 import { SUBSCRIPTION_PLANS, TOPUP_PACKS } from "./subscriptions";
+import { DEFAULT_STORAGE_QUOTA_BYTES } from "./storageQuota";
 
 // Default billing config values (Phase 4).
 export const DEFAULT_WELCOME_ENERGY_AMOUNT = 500;  // Energy granted on first Full-tier purchase
@@ -36,11 +37,9 @@ export const DEFAULT_BETA_TESTER_DISCOUNT_PERCENT = 50; // % off for beta tester
 // superadmin explicitly ends the beta phase.
 export const DEFAULT_BETA_PHASE_ACTIVE = true;
 
-// Beta boundaries the test "stakes out" for the whole app. These mirror the
-// previously hard-coded values (1 unit, 10 AI messages/day) so behavior is
-// unchanged until an admin tunes them.
-export const DEFAULT_BETA_MAX_UNITS = 1;
-export const DEFAULT_BETA_MAX_AI_PER_DAY = 10;
+// Beta boundaries: course_ai taste pack (Units 1–3, monthly Energy budget).
+export const DEFAULT_BETA_MAX_UNITS = 3;
+export const DEFAULT_BETA_ENERGY_QUOTA = 120;
 
 // Course-tier teaser: AI Buddy preview questions per day for teaser-only users.
 // Mirrors the previously hard-coded value in convex/chat.ts (TEASER_DAILY_LIMIT)
@@ -67,14 +66,11 @@ export async function loadBetaMaxUnits(ctx: QueryCtx | MutationCtx): Promise<num
   return config?.betaMaxUnits ?? DEFAULT_BETA_MAX_UNITS;
 }
 
-/**
- * Max number of AI queries (chat messages) per day for beta users. Single
- * source of truth for the chat rate limit (see convex/chat.ts).
- */
-export async function loadBetaMaxAiPerDay(ctx: QueryCtx | MutationCtx): Promise<number> {
+/** Monthly AI Energy quota for beta testers (admin-tunable). */
+export async function loadBetaEnergyQuota(ctx: QueryCtx | MutationCtx): Promise<number> {
   // @ts-ignore TS2589 – Convex schema depth limit (large schema)
   const config = await ctx.db.query("platformConfig").first();
-  return config?.betaMaxAiPerDay ?? DEFAULT_BETA_MAX_AI_PER_DAY;
+  return config?.betaEnergyQuotaMonthly ?? DEFAULT_BETA_ENERGY_QUOTA;
 }
 
 /**
@@ -111,7 +107,7 @@ export const getPlatformConfig = query({
   returns: v.object({
     betaPhaseActive: v.boolean(),
     betaMaxUnits: v.number(),
-    betaMaxAiPerDay: v.number(),
+    betaEnergyQuotaMonthly: v.number(),
     teaserDailyLimit: v.number(),
     // Energy config (always returned, with defaults applied)
     energyCostCompact: v.number(),
@@ -124,6 +120,9 @@ export const getPlatformConfig = query({
     energyQuotaBuddy: v.number(),
     energyQuotaBasic: v.number(),
     uploadMaxFileBytes: v.number(),
+    storageQuotaStandaloneBytes: v.number(),
+    storageQuotaCourseAiProBytes: v.number(),
+    storageQuotaBetaBytes: v.number(),
     // Billing config (Phase 4)
     welcomeEnergyAmount: v.number(),
     betaTesterDiscountPercent: v.number(),
@@ -143,7 +142,7 @@ export const getPlatformConfig = query({
     return {
       betaPhaseActive: config?.betaPhaseActive ?? DEFAULT_BETA_PHASE_ACTIVE,
       betaMaxUnits: config?.betaMaxUnits ?? DEFAULT_BETA_MAX_UNITS,
-      betaMaxAiPerDay: config?.betaMaxAiPerDay ?? DEFAULT_BETA_MAX_AI_PER_DAY,
+      betaEnergyQuotaMonthly: config?.betaEnergyQuotaMonthly ?? DEFAULT_BETA_ENERGY_QUOTA,
       teaserDailyLimit: config?.teaserDailyLimit ?? DEFAULT_TEASER_DAILY_LIMIT,
       energyCostCompact: config?.energyCostCompact ?? DEFAULT_ENERGY_COSTS.compact,
       energyCostDetailed: config?.energyCostDetailed ?? DEFAULT_ENERGY_COSTS.detailed,
@@ -155,6 +154,12 @@ export const getPlatformConfig = query({
       energyQuotaBuddy: config?.energyQuotaBuddy ?? DEFAULT_TIER_QUOTAS.buddy,
       energyQuotaBasic: config?.energyQuotaBasic ?? DEFAULT_TIER_QUOTAS.basic,
       uploadMaxFileBytes: config?.uploadMaxFileBytes ?? DEFAULT_UPLOAD_MAX_FILE_BYTES,
+      storageQuotaStandaloneBytes:
+        config?.storageQuotaStandaloneBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.standalone,
+      storageQuotaCourseAiProBytes:
+        config?.storageQuotaCourseAiProBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.course_ai_pro,
+      storageQuotaBetaBytes:
+        config?.storageQuotaBetaBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.beta,
       welcomeEnergyAmount: config?.welcomeEnergyAmount ?? DEFAULT_WELCOME_ENERGY_AMOUNT,
       betaTesterDiscountPercent: config?.betaTesterDiscountPercent ?? DEFAULT_BETA_TESTER_DISCOUNT_PERCENT,
       updatedAt: config?.updatedAt ?? null,
@@ -180,6 +185,12 @@ type EnergyPatchFields = {
   uploadMaxFileBytes?: number;
 };
 
+type StorageQuotaPatchFields = {
+  storageQuotaStandaloneBytes?: number;
+  storageQuotaCourseAiProBytes?: number;
+  storageQuotaBetaBytes?: number;
+};
+
 type BillingPatchFields = {
   welcomeEnergyAmount?: number;
   betaTesterDiscountPercent?: number;
@@ -192,9 +203,9 @@ async function upsertPlatformConfig(
   patch: {
     betaPhaseActive?: boolean;
     betaMaxUnits?: number;
-    betaMaxAiPerDay?: number;
+    betaEnergyQuotaMonthly?: number;
     teaserDailyLimit?: number;
-  } & EnergyPatchFields & BillingPatchFields
+  } & EnergyPatchFields & StorageQuotaPatchFields & BillingPatchFields
 ): Promise<void> {
   // @ts-ignore TS2589 – Convex schema depth limit (large schema)
   const existing = await ctx.db.query("platformConfig").first();
@@ -204,7 +215,7 @@ async function upsertPlatformConfig(
     await ctx.db.insert("platformConfig", {
       betaPhaseActive: patch.betaPhaseActive ?? DEFAULT_BETA_PHASE_ACTIVE,
       betaMaxUnits: patch.betaMaxUnits ?? DEFAULT_BETA_MAX_UNITS,
-      betaMaxAiPerDay: patch.betaMaxAiPerDay ?? DEFAULT_BETA_MAX_AI_PER_DAY,
+      betaEnergyQuotaMonthly: patch.betaEnergyQuotaMonthly ?? DEFAULT_BETA_ENERGY_QUOTA,
       teaserDailyLimit: patch.teaserDailyLimit,
       energyCostCompact: patch.energyCostCompact,
       energyCostDetailed: patch.energyCostDetailed,
@@ -216,6 +227,9 @@ async function upsertPlatformConfig(
       energyQuotaBuddy: patch.energyQuotaBuddy,
       energyQuotaBasic: patch.energyQuotaBasic,
       uploadMaxFileBytes: patch.uploadMaxFileBytes,
+      storageQuotaStandaloneBytes: patch.storageQuotaStandaloneBytes,
+      storageQuotaCourseAiProBytes: patch.storageQuotaCourseAiProBytes,
+      storageQuotaBetaBytes: patch.storageQuotaBetaBytes,
       updatedAt: Date.now(),
       updatedBy,
     });
@@ -251,12 +265,9 @@ export const setBetaPhaseActive = mutation({
   },
 });
 
-/**
- * Set the daily AI-query limit for beta users (superadmin only). Lives next to
- * the beta-phase master switch in the admin UI.
- */
-export const setBetaMaxAiPerDay = mutation({
-  args: { betaMaxAiPerDay: v.number() },
+/** Set monthly Energy quota for beta testers (superadmin only). */
+export const setBetaEnergyQuota = mutation({
+  args: { betaEnergyQuotaMonthly: v.number() },
   returns: v.null(),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -266,11 +277,13 @@ export const setBetaMaxAiPerDay = mutation({
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
     if (!user || user.role !== "superadmin") {
-      throw new Error("Only superadmin can change the beta AI limit");
+      throw new Error("Only superadmin can change the beta energy quota");
     }
 
-    assertValidLimit(args.betaMaxAiPerDay, "Beta AI queries/day", 10000);
-    await upsertPlatformConfig(ctx, user._id, { betaMaxAiPerDay: args.betaMaxAiPerDay });
+    assertValidLimit(args.betaEnergyQuotaMonthly, "Beta energy quota", 100000);
+    await upsertPlatformConfig(ctx, user._id, {
+      betaEnergyQuotaMonthly: args.betaEnergyQuotaMonthly,
+    });
     return null;
   },
 });
@@ -431,6 +444,60 @@ export const setEnergyConfig = mutation({
     }
     if (args.energyQuotaBasic !== undefined && args.energyQuotaBasic === 0) {
       throw new Error("Basic quota (Sprachkurs + AI) cannot be 0 — that disables the tier.");
+    }
+
+    await upsertPlatformConfig(ctx, user._id, args);
+    return null;
+  },
+});
+
+/** Max per-user storage quota admins may set (10 GB). */
+const MAX_STORAGE_QUOTA_BYTES = 10 * 1024 * 1024 * 1024;
+
+function assertValidStorageQuotaBytes(value: number, label: string): void {
+  if (!Number.isInteger(value) || value < 1 || value > MAX_STORAGE_QUOTA_BYTES) {
+    throw new Error(
+      `${label} must be an integer between 1 byte and ${MAX_STORAGE_QUOTA_BYTES} bytes (10 GB).`
+    );
+  }
+}
+
+/**
+ * Set per-tier file storage quotas (superadmin only).
+ * Values are stored in bytes; the admin UI typically edits MB.
+ */
+export const setStorageQuotaConfig = mutation({
+  args: {
+    storageQuotaStandaloneBytes: v.optional(v.number()),
+    storageQuotaCourseAiProBytes: v.optional(v.number()),
+    storageQuotaBetaBytes: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user || user.role !== "superadmin") {
+      throw new Error("Only superadmin can change storage quota configuration");
+    }
+
+    if (args.storageQuotaStandaloneBytes !== undefined) {
+      assertValidStorageQuotaBytes(
+        args.storageQuotaStandaloneBytes,
+        "Standalone storage quota"
+      );
+    }
+    if (args.storageQuotaCourseAiProBytes !== undefined) {
+      assertValidStorageQuotaBytes(
+        args.storageQuotaCourseAiProBytes,
+        "Pro storage quota"
+      );
+    }
+    if (args.storageQuotaBetaBytes !== undefined) {
+      assertValidStorageQuotaBytes(args.storageQuotaBetaBytes, "Beta storage quota");
     }
 
     await upsertPlatformConfig(ctx, user._id, args);

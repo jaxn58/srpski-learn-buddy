@@ -8,6 +8,11 @@ import { VOCABULARY } from "../shared/data/vocabulary/words";
 import { UNIT_EXERCISES } from "./unitExercises";
 import { upsertDailyActivityByUserId } from "./units";
 import { requireSuperadminAction, callAiText } from "./contentStudio/_shared";
+import {
+  deleteAllDocumentFoldersForUser,
+  deleteAllUserDocumentsForUser,
+  deleteMessageAttachmentBlobs,
+} from "./lib/storageHelpers";
 
 // Helper to get the current user and verify admin
 async function getAdminUser(ctx: QueryCtx | MutationCtx) {
@@ -24,6 +29,23 @@ async function getAdminUser(ctx: QueryCtx | MutationCtx) {
   }
 
   return user;
+}
+
+/** Remove lazy-created beta subscription rows so beta UI/access cannot linger. */
+async function deleteBetaSubscriptionsForUser(
+  ctx: MutationCtx,
+  userId: Id<"users">
+) {
+  const subscriptions = await ctx.db
+    .query("userSubscriptions")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+
+  for (const sub of subscriptions) {
+    if (sub.planType === "beta") {
+      await ctx.db.delete(sub._id);
+    }
+  }
 }
 
 export const getChatPrompt = query({
@@ -466,14 +488,47 @@ export const getUserById = query({
       }
     }
 
+    let resolvedSubscription: any = activeSubscription
+      ? { ...activeSubscription, planName: planNames[activeSubscription.planType] || activeSubscription.planType }
+      : null;
+
+    if (!resolvedSubscription && user.featureTierOverride) {
+      const tierToQuota: Record<string, string> = {
+        course_ai_pro: "full",
+        course_ai: "basic",
+        standalone: "buddy",
+        course: "course",
+        full: "full",
+        basic: "basic",
+        buddy: "buddy",
+      };
+      const quotaKey = tierToQuota[user.featureTierOverride] ?? "full";
+      // @ts-ignore TS2589 – Convex schema depth limit
+      const cfg = await ctx.db.query("platformConfig").first();
+      const quotaMap: Record<string, number> = {
+        full: cfg?.energyQuotaFull ?? 750,
+        basic: cfg?.energyQuotaBasic ?? 250,
+        buddy: cfg?.energyQuotaBuddy ?? 600,
+        course: 0,
+      };
+      resolvedSubscription = {
+        planType: user.featureTierOverride,
+        planName: `Override: ${user.featureTierOverride}`,
+        status: "active",
+        virtual: true,
+        energyQuotaMonthly: quotaMap[quotaKey] ?? 0,
+        energyUsedThisPeriod: 0,
+        energyTopUpBalance: 0,
+        energyPeriodResetAt: null,
+      };
+    }
+
     return {
       ...user,
       avatarUrl,
       newsletterStatus,
       progress: progress || null,
-      subscription: activeSubscription
-        ? { ...activeSubscription, planName: planNames[activeSubscription.planType] || activeSubscription.planType }
-        : null,
+      subscription: resolvedSubscription,
     };
   },
 });
@@ -667,6 +722,10 @@ export const toggleBetaTester = mutation({
     await ctx.db.patch(args.userId, {
       isBetaTester: args.isBetaTester,
     });
+
+    if (!args.isBetaTester) {
+      await deleteBetaSubscriptionsForUser(ctx, args.userId);
+    }
   },
 });
 
@@ -698,9 +757,22 @@ export const setFeatureTierOverride = mutation({
       throw new Error("Only superadmin can set a feature-tier override");
     }
 
-    await ctx.db.patch(args.userId, {
+    const userPatch: {
+      featureTierOverride?: "course" | "standalone" | "course_ai" | "course_ai_pro" | "buddy" | "basic" | "full";
+      isBetaTester?: boolean;
+    } = {
       featureTierOverride: args.featureTier ?? undefined,
-    });
+    };
+
+    if (args.featureTier !== null) {
+      userPatch.isBetaTester = false;
+    }
+
+    await ctx.db.patch(args.userId, userPatch);
+
+    if (args.featureTier !== null) {
+      await deleteBetaSubscriptionsForUser(ctx, args.userId);
+    }
   },
 });
 
@@ -943,17 +1015,28 @@ export const _deleteUserCascade = internalMutation({
       .collect();
 
     let chatMessagesCount = 0;
+    let chatStorageBlobsDeleted = 0;
     for (const session of chatSessions) {
       const messages = await ctx.db
         .query("chatMessages")
         .withIndex("by_session", (q) => q.eq("sessionId", session._id))
         .collect();
+      chatStorageBlobsDeleted += await deleteMessageAttachmentBlobs(ctx, messages);
       for (const m of messages) await ctx.db.delete(m._id);
       chatMessagesCount += messages.length;
       await ctx.db.delete(session._id);
     }
     bump("chatSessions", chatSessions.length);
     bump("chatMessages", chatMessagesCount);
+    bump("_storageChatAttachments", chatStorageBlobsDeleted);
+
+    const docCleanup = await deleteAllUserDocumentsForUser(ctx, args.userId);
+    bump("userDocuments", docCleanup.documents);
+    bump("userDocumentChunks", docCleanup.chunks);
+    bump("_storageUserDocuments", docCleanup.blobs);
+
+    const documentFoldersDeleted = await deleteAllDocumentFoldersForUser(ctx, args.userId);
+    bump("documentFolders", documentFoldersDeleted);
 
     // ---- AI Energy (top-up purchases + ledger) ----
     // @ts-ignore TS2589 – Convex schema depth limit (50 tables)

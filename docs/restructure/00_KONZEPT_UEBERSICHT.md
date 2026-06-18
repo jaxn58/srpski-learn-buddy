@@ -28,35 +28,37 @@ Die vier Pakete (Namen final):
 
 1. **Sprachkurs** (EN: „Course") – günstiger Einstieg, nur Lerninhalte, kein vollwertiger Buddy
 2. **AI Chat Standalone** – nur der Buddy mit allen erweiterten Fähigkeiten, ohne Lerninhalte
-3. **Sprachkurs + AI** (EN: „Course + AI") – Lerninhalte + Basis-Buddy (kontextverknüpft), ohne erweiterte Buddy-Funktionen
-4. **Sprachkurs + AI Pro** (EN: „Course + AI Pro") – alles, inkl. Community/Lerngruppen, größtes Token-Kontingent
+3. **Sprachkurs + AI** (EN: „Course + AI") – Lerninhalte + Basis-Buddy (kontextverknüpft) **+ Chat-Anhänge**, ohne Wissensablage
+4. **Sprachkurs + AI Pro** (EN: „Course + AI Pro") – alles inkl. Wissensablage, Community/Lerngruppen, größtes Energy-Kontingent
 
 ## 3. Aktualisierte Feature-Matrix (nach Entscheidungen)
 
-Quelle: `My First Board.csv`, mit zwei getroffenen Entscheidungen eingearbeitet (Context-Linking aus Standalone entfernt; günstigstes Paket = „Sprachkurs").
+Quelle: `My First Board.csv`, mit getroffenen Entscheidungen eingearbeitet (Context-Linking aus Standalone entfernt; günstigstes Paket = „Sprachkurs"; **Chat-Anhänge und Wissensablage getrennt**, Juni 2026).
 
 | Feature | Sprachkurs | AI Chat Standalone | Sprachkurs + AI | Sprachkurs + AI Pro |
 |---|:---:|:---:|:---:|:---:|
 | Feste Lerninhalte (strukturierte Kurse) | ✓ | ✗ | ✓ | ✓ |
 | AI Buddy Chat (Basis) | ✗ | ✓ | ✓ | ✓ |
 | Context-Linking (Buddy ↔ Lerninhalte) | ✗ | **✗** | ✓ | ✓ |
-| Dokumenten-Upload & Analyse | ✗ | ✓ | ✗ | ✓ |
-| Knowledge Rack (PDF-Bibliothek) | ✗ | ✓ | ✗ | ✓ |
-| Foto-Scan (Dokumente, Speisekarten …) | ✗ | ✓ | ✗ | ✓ |
+| Chat-Anhänge (Fotos & Dateien im Chat) | ✗ | ✓ | **✓** | ✓ |
+| Wissensablage (Wissensbasis in Meine Bibliothek) | ✗ | ✓ | ✗ | ✓ |
 | Energy-Nachkauf möglich | ✗ | ✓ | **✓** | ✓ |
 | Community/Lerngruppen | ✗ | ✗ | ✗ | ✓ |
 | Teaser: 1–2 AI-Fragen/24h | ✓ | ✗ | ✗ | ✗ |
 | Zielgruppe | Preisbewusste Lerner, Einsteiger | Expats, Einwanderer, Profis | Lerner mit AI-Support | Power-User, Experten |
 | Preis-Positionierung | Günstig (€) | Mittel (€€) + Energy-Pakete | Mittel (€€) + Energy-Pakete | Premium (€€€) + Energy-Pakete |
 
-**Fett markiert** = Änderung gegenüber der Original-CSV (Context-Linking aus Standalone entfernt; Energy-Nachkauf jetzt auch in „Sprachkurs + AI" möglich).
+**Fett markiert** = Änderung gegenüber der Original-CSV bzw. früheren Matrix-Version.
+
+> **Abgrenzung Chat-Anhänge vs. Wissensablage:** Chat-Anhänge sind Dateien/Fotos **in einer einzelnen Chat-Nachricht** (auch multimodal / „Foto-Scan" über Vision-Aufschlag). Die Wissensablage ist die **persistente Dokumenten-Bibliothek** in der **Wissensbasis** (Bereich **Meine Bibliothek**), durchsuchbar über Chats hinweg. Sprachkurs + AI hat Chat-Anhänge (100 MB Speicher), aber **keine** Wissensablage – der Upsell zu Pro betrifft primär die Wissensablage.
 
 ## 4. Getroffene Entscheidungen
 
 - **Abrechnungsmodell:** 2-Achsen-Modell (Paket × Laufzeit), Wiederverwendung des bestehenden Laufzeit-/Dodo-Systems. (Details: `01_TARIFE_UND_FEATURES.md`)
-- **Verbrauchseinheit:** **AI Energy** (nicht „Token = 1 Nachricht"). Verschiedene KI-Aktionen verbrauchen unterschiedlich viel Energy (kompakt/ausgewogen/ausführlich, RAG-Kontext, Foto-Scan, Datei-Upload). Intern werden echte LLM-Tokens + Aktionstyp gemessen und in einen gerundeten Energy-Betrag umgerechnet. (Details: `02_TOKEN_SYSTEM.md`)
+- **Verbrauchseinheit:** **AI Energy** (nicht „Token = 1 Nachricht"). Verschiedene KI-Aktionen verbrauchen unterschiedlich viel Energy (kompakt/ausgewogen/ausführlich, RAG-Kontext, Vision-Aufschlag bei Chat-Anhängen/Bildern, Dokumenten-Analyse in der Wissensablage). Intern werden echte LLM-Tokens + Aktionstyp gemessen und in einen gerundeten Energy-Betrag umgerechnet. (Details: `02_TOKEN_SYSTEM.md`)
 - **Energy-Verfügbarkeit:** Nur Buddy-haltige Pakete haben Energy-Guthaben. Nachkauf bei **AI Chat Standalone**, **Sprachkurs + AI** und **Sprachkurs + AI Pro**. **Sprachkurs + AI** hat 250 Energy/Monat (Mid-Tier-Komfort-Quote für aktive Lerner, ~3–4 Fragen/Tag); zusätzlicher Nachkauf ist möglich. Sprachkurs hat nur den Teaser.
 - **Context-Linking:** Nur in Sprachkurs + AI und Sprachkurs + AI Pro (aus Standalone entfernt).
+- **Chat-Anhänge vs. Wissensablage (Juni 2026):** Zwei getrennte Feature-Flags (`chatAttachments`, `knowledgeRack`). Chat-Anhänge ab Sprachkurs + AI (und Standalone/Pro); Wissensablage nur Standalone und Sprachkurs + AI Pro. „Foto-Scan" ist kein eigenes Flag – Bilder werden als Chat-Anhang verarbeitet (Vision-Aufschlag). **UI-Nomenklatur (DE):** Hub = **Meine Bibliothek**, Dokumentenbereich = **Wissensbasis**, Tarif-Feature = **Wissensablage**. Details: `01_TARIFE_UND_FEATURES.md` §2–4.
 - **Name günstigstes Paket:** „Sprachkurs" (EN „Course"). „Standalone-App" verworfen (Kollision mit „AI Chat Standalone").
 - **Teaser-Semantik:** Der Sprachkurs-Teaser (1–2 Fragen/24h) zeigt den **Buddy aus Sprachkurs + AI** (kontextverknüpfter Basis-Buddy) als Upsell-Vorschau.
 - **Branch-Basis (empfohlen):** `chat`-Branch als technische Grundlage für die Buddy-/RAG-Features. (Details: `04_BRANCH_KONSOLIDIERUNG_UND_ROADMAP.md`)

@@ -179,15 +179,14 @@ export const systemTables = {
   // testers receive free full access (see convex/featureAccess.ts).
   platformConfig: defineTable({
     // Master switch: is the closed beta currently running?
-    // true  → users flagged isBetaTester get full access (limited beta energy).
+    // true  → users flagged isBetaTester get course_ai-level access (limited energy).
     // false → beta no longer grants access; users need a package / override.
     betaPhaseActive: v.boolean(),
-    // Beta boundaries (admin-tunable). These define the scope the beta test
-    // "stakes out" for the whole app: how many learning units and how many AI
-    // queries per day a beta user may use. Read paths fall back to defaults in
-    // convex/platform.ts when unset (zero-migration).
+    // Beta boundaries (admin-tunable): learning units and monthly Energy budget.
+    // AI usage is cost-controlled via Energy, not a separate daily message cap.
     betaMaxUnits: v.optional(v.number()),
-    betaMaxAiPerDay: v.optional(v.number()),
+    /** Monthly AI Energy quota for beta testers (default 120). */
+    betaEnergyQuotaMonthly: v.optional(v.number()),
     // Course-tier teaser: number of AI Buddy preview questions per day for
     // teaser-only users. Falls back to DEFAULT_TEASER_DAILY_LIMIT in
     // convex/platform.ts when unset (zero-migration).
@@ -212,6 +211,10 @@ export const systemTables = {
     // Technical input limits for uploads (independent of energy balance, see
     // 02_TOKEN_SYSTEM.md 2.2). Hard caps to prevent runaway cost / abuse.
     uploadMaxFileBytes: v.optional(v.number()),      // default 10 MB
+    /** Per-tier storage quotas (bytes) for Knowledge Base + attachments. */
+    storageQuotaStandaloneBytes: v.optional(v.number()),   // default 500 MB
+    storageQuotaCourseAiProBytes: v.optional(v.number()),  // default 1 GB
+    storageQuotaBetaBytes: v.optional(v.number()),         // legacy; beta uses 0 (course_ai)
     /** Target USD cost per 1 Energy unit for measured token→Energy conversion. */
     energyUsdPerUnit: v.optional(v.number()),
 

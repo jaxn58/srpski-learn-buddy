@@ -20,6 +20,8 @@ import { streamingComponent } from "./streaming";
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
 import { resolveModelConfig, generateChatResponse, streamChatResponse, streamAgenticResponse, streamMultimodalResponse, type StreamChatResult } from "./ai/chatConfig";
 import { embedText } from "./ai/embeddings";
+import { deleteMessageAttachmentBlobs } from "./lib/storageHelpers";
+import { guessMimeFromFileName } from "./lib/attachmentMime";
 
 // Central default system prompts by language (Emergency Fallback)
 const EMERGENCY_FALLBACK_PROMPT = "You are a helpful Serbian language learning assistant. Please explain Serbian grammar and vocabulary clearly.";
@@ -57,8 +59,8 @@ const RATE_LIMITS = {
     messagesPerHour: 60,
     maxMessageLength: 1500,
     maxTokensOverride: 2048,
-    maxTokensDetailed: 4096,
-    maxTokensCompact: 400,
+    maxTokensDetailed: 2048,
+    maxTokensCompact: 1024,
   },
   paid: {
     messagesPerMinute: 20,
@@ -67,8 +69,65 @@ const RATE_LIMITS = {
   },
 };
 
+type ChatLimitProfile = "staff" | "paid" | "beta" | "restricted";
+
 /** Minimum output tokens for paid detailed answers (e.g. full grammar walkthroughs). */
 const PAID_DETAILED_MIN_TOKENS = 4096;
+
+/** Minimum output tokens for image/PDF multimodal answers (vision needs room to explain). */
+const MULTIMODAL_OUTPUT_TOKEN_FLOOR = 2048;
+
+async function resolveChatLimitProfile(
+  ctx: MutationCtx | QueryCtx,
+  user: Doc<"users">
+): Promise<ChatLimitProfile> {
+  if (user.role === "admin" || user.role === "superadmin") {
+    return "staff";
+  }
+
+  const access = await getFeatureAccessForUser(ctx, user._id);
+  if (access.source === "beta") {
+    return "beta";
+  }
+
+  const subscription = await ctx.db
+    .query("userSubscriptions")
+    .withIndex("by_user", (q) => q.eq("userId", user._id))
+    .filter((q) => q.eq(q.field("status"), "active"))
+    .first();
+
+  if (subscription && subscription.planType !== "beta") {
+    return "paid";
+  }
+
+  return "restricted";
+}
+
+function applyOutputTokenLimits(
+  config: { maxTokens: number },
+  opts: {
+    chatLimitProfile: ChatLimitProfile;
+    responseMode?: "compact" | "detailed";
+    hasMultimodalAttachment: boolean;
+  }
+): void {
+  const isDetailed = opts.responseMode === "detailed";
+  const isPaidLike = opts.chatLimitProfile === "staff" || opts.chatLimitProfile === "paid";
+
+  if (!isPaidLike) {
+    let modeTokenCap = isDetailed
+      ? RATE_LIMITS.beta.maxTokensDetailed
+      : RATE_LIMITS.beta.maxTokensCompact;
+    if (opts.hasMultimodalAttachment) {
+      modeTokenCap = Math.max(modeTokenCap, MULTIMODAL_OUTPUT_TOKEN_FLOOR);
+    }
+    config.maxTokens = Math.min(config.maxTokens, modeTokenCap);
+  } else if (isDetailed) {
+    config.maxTokens = Math.max(config.maxTokens, PAID_DETAILED_MIN_TOKENS);
+  } else if (opts.hasMultimodalAttachment) {
+    config.maxTokens = Math.max(config.maxTokens, MULTIMODAL_OUTPUT_TOKEN_FLOOR);
+  }
+}
 
 const DETAILED_RESPONSE_GUIDANCE =
   "\n\n[RESPONSE LENGTH GUIDANCE] This is a DETAILED answer request. Cover the topic thoroughly with examples, but if the subject is large (e.g. an entire unit's grammar), prioritize the most important concepts first and use clear sections. If you cannot cover everything in one answer, finish the current section cleanly, list what remains, and invite the user to ask for the next part. Never stop mid-sentence or mid-heading.";
@@ -100,41 +159,39 @@ function startOfDayUtc(nowMs: number): number {
 }
 
 // Check rate limits for chat messages
-async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: string, responseMode?: "compact" | "detailed"): Promise<{ allowed: boolean; reason?: string; isPaidUser?: boolean }> {
+async function checkRateLimit(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  message: string,
+  _responseMode?: "compact" | "detailed"
+): Promise<{ allowed: boolean; reason?: string; chatLimitProfile?: ChatLimitProfile }> {
   const now = Date.now();
   const oneMinuteAgo = now - 60 * 1000;
   const oneHourAgo = now - 60 * 60 * 1000;
 
-  // Get user and subscription to determine limits
   const user = await ctx.db.get(userId);
   if (!user) {
     return { allowed: false, reason: "User not found" };
   }
 
-  // Admins and superadmins have unrestricted access
-  if (user.role === "admin" || user.role === "superadmin") {
-    return { allowed: true, isPaidUser: true };
+  const chatLimitProfile = await resolveChatLimitProfile(ctx, user);
+  const limits =
+    chatLimitProfile === "staff" || chatLimitProfile === "paid"
+      ? RATE_LIMITS.paid
+      : RATE_LIMITS.beta;
+
+  if (chatLimitProfile === "staff") {
+    return { allowed: true, chatLimitProfile };
   }
 
-  const subscription = await ctx.db
-    .query("userSubscriptions")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .filter((q) => q.eq(q.field("status"), "active"))
-    .first();
-
-  // Determine if user is paid (has active non-beta subscription)
-  const isPaidUser = !!(subscription && subscription.planType !== "beta");
-  const limits = isPaidUser ? RATE_LIMITS.paid : RATE_LIMITS.beta;
-
-  // Check message length
   if (message.length > limits.maxMessageLength) {
     return {
       allowed: false,
       reason: `Message too long. Maximum ${limits.maxMessageLength} characters allowed.`,
+      chatLimitProfile,
     };
   }
 
-  // Count messages in the last minute
   const recentMessages = await ctx.db
     .query("chatMessages")
     .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -145,10 +202,10 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     return {
       allowed: false,
       reason: `Rate limit exceeded. Maximum ${limits.messagesPerMinute} messages per minute allowed. Please wait a moment.`,
+      chatLimitProfile,
     };
   }
 
-  // Count messages in the last hour
   const hourMessages = await ctx.db
     .query("chatMessages")
     .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -159,10 +216,10 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     return {
       allowed: false,
       reason: `Rate limit exceeded. Maximum ${limits.messagesPerHour} messages per hour allowed. Please try again later.`,
+      chatLimitProfile,
     };
   }
 
-  // Check for duplicate spam (same message 3+ times in 5 minutes)
   const fiveMinutesAgo = now - 5 * 60 * 1000;
   const recentDuplicates = recentMessages.filter(
     (m) => m.content === message && m._creationTime >= fiveMinutesAgo
@@ -172,10 +229,11 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
     return {
       allowed: false,
       reason: "Duplicate message detected. Please try a different message.",
+      chatLimitProfile,
     };
   }
 
-  return { allowed: true, isPaidUser };
+  return { allowed: true, chatLimitProfile };
 }
 
 
@@ -246,6 +304,54 @@ export const getMessages = query({
       .collect();
 
     return messages;
+  },
+});
+
+export const getMessageAttachmentUrl = query({
+  args: {
+    sessionId: v.id("chatSessions"),
+    messageId: v.id("chatMessages"),
+  },
+  returns: v.union(
+    v.object({
+      url: v.string(),
+      mimeType: v.string(),
+      fileName: v.string(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found");
+    }
+
+    const message = await ctx.db.get(args.messageId);
+    if (
+      !message ||
+      message.sessionId !== args.sessionId ||
+      message.userId !== user._id
+    ) {
+      throw new Error("Message not found");
+    }
+
+    if (!message.attachmentStorageId) {
+      return null;
+    }
+
+    const url = await ctx.storage.getUrl(message.attachmentStorageId);
+    if (!url) {
+      return null;
+    }
+
+    const fileName = message.attachmentFileName ?? "attachment";
+    const mimeType =
+      message.attachmentMimeType ?? guessMimeFromFileName(fileName);
+
+    return { url, mimeType, fileName };
   },
 });
 
@@ -350,6 +456,8 @@ export const deleteSession = mutation({
       await ctx.db.delete(message._id);
     }
 
+    await deleteMessageAttachmentBlobs(ctx, messages);
+
     // Delete session
     await ctx.db.delete(args.sessionId);
 
@@ -366,6 +474,8 @@ export const addMessage = mutation({
     responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
     attachmentStorageId: v.optional(v.id("_storage")),
     attachmentFileName: v.optional(v.string()),
+    attachmentMimeType: v.optional(v.string()),
+    attachmentSizeBytes: v.optional(v.number()),
   },
   returns: v.id("chatMessages"),
   handler: async (ctx, args) => {
@@ -386,6 +496,8 @@ export const addMessage = mutation({
       responseMode: args.responseMode,
       attachmentStorageId: args.attachmentStorageId,
       attachmentFileName: args.attachmentFileName,
+      attachmentMimeType: args.attachmentMimeType,
+      attachmentSizeBytes: args.attachmentSizeBytes,
     });
   },
 });
@@ -412,6 +524,8 @@ export const clearSession = mutation({
     for (const message of messages) {
       await ctx.db.delete(message._id);
     }
+
+    await deleteMessageAttachmentBlobs(ctx, messages);
   },
 });
 
@@ -763,7 +877,9 @@ export const checkMessageRateLimit = mutation({
 
     return {
       allowed: true,
-      isPaidUser: rateLimitResult.isPaidUser ?? false,
+      isPaidUser:
+        rateLimitResult.chatLimitProfile === "staff" ||
+        rateLimitResult.chatLimitProfile === "paid",
       energyEstimate: energyEstimateMid,
       energyEstimateMin,
       energyEstimateMax,
@@ -1248,15 +1364,7 @@ export const getStreamContext = internalQuery({
 
     const lastUserMessage = [...history].reverse().find((m) => m.role === "user");
 
-    let isPaidUser = user.role === "admin" || user.role === "superadmin";
-    if (!isPaidUser) {
-      const subscription = await ctx.db
-        .query("userSubscriptions")
-        .withIndex("by_user", (q) => q.eq("userId", args.userId))
-        .filter((q) => q.eq(q.field("status"), "active"))
-        .first();
-      isPaidUser = !!(subscription && subscription.planType !== "beta");
-    }
+    const chatLimitProfile = await resolveChatLimitProfile(ctx, user);
 
     return {
       languageName,
@@ -1265,7 +1373,7 @@ export const getStreamContext = internalQuery({
       lastUserMessage: lastUserMessage?.content ?? null,
       userId: args.userId,
       learningLanguage,
-      isPaidUser,
+      chatLimitProfile,
       userName: user.name || null,
     };
   },
@@ -1644,46 +1752,6 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     });
   }
 
-  if (!streamContext.isPaidUser) {
-    const isDetailed = body.responseMode === "detailed";
-    const modeTokenCap = isDetailed
-      ? RATE_LIMITS.beta.maxTokensDetailed
-      : RATE_LIMITS.beta.maxTokensCompact;
-    config.maxTokens = Math.min(config.maxTokens, modeTokenCap);
-  } else if (body.responseMode === "detailed") {
-    config.maxTokens = Math.max(config.maxTokens, PAID_DETAILED_MIN_TOKENS);
-  }
-
-  const userName = streamContext.userName || "";
-  let systemPrompt = basePrompt
-    .replace(/\[LANGUAGE\]/g, streamContext.languageName)
-    .replace(/\[USER_NAME\]/g, userName);
-
-  if (streamContext.unitContextBlock) {
-    systemPrompt += "\n\n" + streamContext.unitContextBlock;
-  }
-
-  // Semantic Search is enabled by default; admin can disable via chatAiConfig.enableSemanticSearch = false
-  const enableSemanticSearch = config.enableSemanticSearch !== false;
-  if (enableSemanticSearch && streamContext.lastUserMessage) {
-    try {
-      const semanticContext: string = await ctx.runAction(internal.chat.semanticSearch, {
-        query: streamContext.lastUserMessage,
-        language: streamContext.learningLanguage,
-        userId: streamContext.userId,
-      });
-      if (semanticContext) {
-        systemPrompt += "\n\n" + semanticContext;
-      }
-    } catch (e) {
-      console.warn("[streamChat] Semantic search failed, continuing without:", e);
-    }
-  }
-
-  if (body.responseMode === "detailed") {
-    systemPrompt += DETAILED_RESPONSE_GUIDANCE;
-  }
-
   // Hard character caps for text attachments — keeps token spend predictable.
   const TEXT_CHAR_CAP = 8_000;
   const PDF_CHAR_CAP = 15_000;
@@ -1729,6 +1797,43 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
     } catch (e) {
       console.warn("[streamChat] Failed to get attachment URL:", e);
     }
+  }
+
+  const hasMultimodalAttachment = !!(attachmentUrl && attachmentMimeType);
+  applyOutputTokenLimits(config, {
+    chatLimitProfile: streamContext.chatLimitProfile,
+    responseMode: body.responseMode,
+    hasMultimodalAttachment,
+  });
+
+  const userName = streamContext.userName || "";
+  let systemPrompt = basePrompt
+    .replace(/\[LANGUAGE\]/g, streamContext.languageName)
+    .replace(/\[USER_NAME\]/g, userName);
+
+  if (streamContext.unitContextBlock) {
+    systemPrompt += "\n\n" + streamContext.unitContextBlock;
+  }
+
+  // Semantic Search is enabled by default; admin can disable via chatAiConfig.enableSemanticSearch = false
+  const enableSemanticSearch = config.enableSemanticSearch !== false;
+  if (enableSemanticSearch && streamContext.lastUserMessage) {
+    try {
+      const semanticContext: string = await ctx.runAction(internal.chat.semanticSearch, {
+        query: streamContext.lastUserMessage,
+        language: streamContext.learningLanguage,
+        userId: streamContext.userId,
+      });
+      if (semanticContext) {
+        systemPrompt += "\n\n" + semanticContext;
+      }
+    } catch (e) {
+      console.warn("[streamChat] Semantic search failed, continuing without:", e);
+    }
+  }
+
+  if (body.responseMode === "detailed") {
+    systemPrompt += DETAILED_RESPONSE_GUIDANCE;
   }
 
   type AiContentPart =

@@ -3,8 +3,11 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { useTranslation } from "react-i18next";
+import { Link } from "wouter";
 import { toast } from "sonner";
 import { cn, formatDateEU } from "@/lib/utils";
+import { useFeatureAccess, canUseChatLibrary } from "@/hooks/useFeatureAccess";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 import {
   Sheet,
@@ -45,7 +48,16 @@ import {
   ChevronDown,
   ChevronRight,
   FileDown,
+  Library,
+  Folder,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 
 type ChatSession = Doc<"chatSessions">;
@@ -66,7 +78,10 @@ export function ChatMobileSheet({
   isCreatingSession,
 }: ChatMobileSheetProps) {
   const { t } = useTranslation();
+  const featureAccess = useFeatureAccess();
+  const canUseLibrary = canUseChatLibrary(featureAccess);
   const [open, setOpen] = useState(false);
+  const [folderFilter, setFolderFilter] = useState<string>("all");
   const [showArchived, setShowArchived] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -80,7 +95,14 @@ export function ChatMobileSheet({
     onConfirm: () => void;
   } | null>(null);
 
-  const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
+  const folders = useQuery(api.chatLibrary.listFolders, canUseLibrary ? {} : "skip");
+  const sessionsQueryArgs =
+    !canUseLibrary || folderFilter === "all"
+      ? {}
+      : folderFilter === "uncategorized"
+        ? { folderId: "uncategorized" as const }
+        : { folderId: folderFilter as Id<"chatFolders"> };
+  const sessions = useQuery(api.chat.getSessions, sessionsQueryArgs) as ChatSession[] | undefined;
   const archivedSessions = useQuery(api.chat.getArchivedSessions) as ChatSession[] | undefined;
 
   const archiveSessionMutation = useMutation(api.chat.archiveSession);
@@ -228,6 +250,34 @@ export function ChatMobileSheet({
               {t("chatSessions.button.newChat")}
             </Button>
           </SheetHeader>
+
+          {canUseLibrary && (
+            <div className="px-4 py-2 border-b space-y-2 shrink-0">
+              <Button variant="outline" className="w-full text-xs" size="sm" asChild>
+                <Link href="/library/chats" onClick={() => setOpen(false)}>
+                  <Library className="h-4 w-4 mr-2" />
+                  {t("sidebar.myLibrary")}
+                </Link>
+              </Button>
+              {folders && folders.length > 0 && (
+                <Select value={folderFilter} onValueChange={setFolderFilter}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <Folder className="h-3.5 w-3.5 mr-2 shrink-0" />
+                    <SelectValue placeholder={t("chatLibrary.sidebar.filterFolders")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("chatLibrary.sidebar.allFolders")}</SelectItem>
+                    <SelectItem value="uncategorized">{t("chatLibrary.uncategorized")}</SelectItem>
+                    {folders.map((folder) => (
+                      <SelectItem key={folder._id as string} value={folder._id as string}>
+                        {folder.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
 
           <ScrollArea className="flex-1 min-h-0">
             <div className="px-2 py-2 space-y-0.5">

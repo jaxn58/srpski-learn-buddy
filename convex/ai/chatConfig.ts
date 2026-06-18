@@ -116,6 +116,51 @@ export type StreamChatResult = {
 
 const FALLBACK_RESPONSE = "I'm sorry, I couldn't generate a response.";
 
+/** Gemini 2.5 Flash uses dynamic thinking by default; thinking tokens count against maxOutputTokens. */
+function isGemini25Flash(model: string): boolean {
+  const m = model.toLowerCase();
+  return m.includes("2.5") && m.includes("flash") && !m.includes("pro");
+}
+
+/** OpenAI-compat Gemini chat/completions: disable thinking for Flash (see contentStudio/_shared.ts). */
+function openAiCompatGeminiExtras(model: string): Record<string, unknown> {
+  if (isGemini25Flash(model)) {
+    return { reasoning_effort: "none" };
+  }
+  return {};
+}
+
+/** AI SDK Google provider: disable thinking budget for chat responses. */
+function aiSdkGoogleProviderOptions(model: string) {
+  if (!isGemini25Flash(model)) return undefined;
+  return {
+    google: {
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
+    },
+  };
+}
+
+/**
+ * finishReason "length" with only a few visible words is usually thinking-budget
+ * exhaustion or provider quirks — not a real mid-answer cut-off.
+ */
+export function isGenuineOutputTruncation(
+  finishReason: string | undefined | null,
+  text: string,
+  outputTokens: number | undefined,
+  maxTokens: number
+): boolean {
+  if (finishReason !== "length") return false;
+  const trimmed = text.trim();
+  if (trimmed.length < 120) return false;
+  if (outputTokens != null && outputTokens > 0 && outputTokens < Math.min(120, maxTokens * 0.25)) {
+    return false;
+  }
+  return true;
+}
+
 export async function generateChatResponse(
   config: ChatAiConfig,
   messages: AiMessage[]
@@ -177,6 +222,7 @@ async function doGenerate(
       messages: messages.map((m) => ({ role: m.role, content: toOpenAiContent(m.content) })),
       max_tokens: config.maxTokens,
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
+      ...openAiCompatGeminiExtras(params.model),
     }),
   });
 
@@ -240,6 +286,7 @@ async function doStream(
       stream: true,
       stream_options: { include_usage: true },
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
+      ...openAiCompatGeminiExtras(params.model),
     }),
   });
 
@@ -297,7 +344,12 @@ async function doStream(
 
   return {
     text: fullText || FALLBACK_RESPONSE,
-    truncated: finishReason === "length",
+    truncated: isGenuineOutputTruncation(
+      finishReason,
+      fullText,
+      usage?.outputTokens,
+      config.maxTokens
+    ),
     usage,
     model,
   };
@@ -320,6 +372,7 @@ type SdkTextStream = {
 async function collectSdkTextStream(
   result: SdkTextStream,
   model: string,
+  maxTokens: number,
   onChunk: (delta: string) => Promise<void>
 ): Promise<StreamChatResult> {
   let fullText = "";
@@ -339,7 +392,12 @@ async function collectSdkTextStream(
     : null;
   return {
     text: fullText || FALLBACK_RESPONSE,
-    truncated: finishReason === "length",
+    truncated: isGenuineOutputTruncation(
+      finishReason,
+      fullText,
+      usage?.outputTokens,
+      maxTokens
+    ),
     usage,
     model,
   };
@@ -388,9 +446,10 @@ export async function streamMultimodalResponse(
       messages: sdkMessages,
       maxOutputTokens: config.maxTokens,
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
+      providerOptions: aiSdkGoogleProviderOptions(config.primaryModel),
     });
 
-    return await collectSdkTextStream(result, config.primaryModel, onChunk);
+    return await collectSdkTextStream(result, config.primaryModel, config.maxTokens, onChunk);
   } catch (primaryError) {
     if (!config.fallbackProvider || !config.fallbackModel) throw primaryError;
 
@@ -402,9 +461,15 @@ export async function streamMultimodalResponse(
       messages: toAiSdkMessages(messages),
       maxOutputTokens: config.maxTokens,
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
+      providerOptions: aiSdkGoogleProviderOptions(config.fallbackModel ?? config.primaryModel),
     });
 
-    return await collectSdkTextStream(result, config.fallbackModel ?? config.primaryModel, onChunk);
+    return await collectSdkTextStream(
+      result,
+      config.fallbackModel ?? config.primaryModel,
+      config.maxTokens,
+      onChunk
+    );
   }
 }
 
@@ -442,6 +507,7 @@ export async function generateAgenticResponse(
       stopWhen: stepCountIs(5),
       maxOutputTokens: config.maxTokens,
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
+      providerOptions: aiSdkGoogleProviderOptions(config.primaryModel),
     });
 
     return result.text || "I'm sorry, I couldn't generate a response.";
@@ -461,6 +527,7 @@ export async function generateAgenticResponse(
       stopWhen: stepCountIs(5),
       maxOutputTokens: config.maxTokens,
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
+      providerOptions: aiSdkGoogleProviderOptions(config.fallbackModel ?? config.primaryModel),
     });
 
     return result.text || "I'm sorry, I couldn't generate a response.";
@@ -490,9 +557,10 @@ export async function streamAgenticResponse(
       stopWhen: stepCountIs(5),
       maxOutputTokens: config.maxTokens,
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
+      providerOptions: aiSdkGoogleProviderOptions(config.primaryModel),
     });
 
-    return await collectSdkTextStream(result, config.primaryModel, onChunk);
+    return await collectSdkTextStream(result, config.primaryModel, config.maxTokens, onChunk);
   } catch (primaryError) {
     if (!config.fallbackProvider || !config.fallbackModel) throw primaryError;
 
@@ -509,8 +577,14 @@ export async function streamAgenticResponse(
       stopWhen: stepCountIs(5),
       maxOutputTokens: config.maxTokens,
       ...(config.temperature != null ? { temperature: config.temperature } : {}),
+      providerOptions: aiSdkGoogleProviderOptions(config.fallbackModel ?? config.primaryModel),
     });
 
-    return await collectSdkTextStream(result, config.fallbackModel ?? config.primaryModel, onChunk);
+    return await collectSdkTextStream(
+      result,
+      config.fallbackModel ?? config.primaryModel,
+      config.maxTokens,
+      onChunk
+    );
   }
 }

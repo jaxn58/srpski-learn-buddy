@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useFeatureAccess, canUseLearning, canUseBuddy, canUseDocuments } from "@/hooks/useFeatureAccess";
+import { useFeatureAccess, canUseLearning, canUseBuddy, canUseKnowledgeRack, canUseChatLibrary } from "@/hooks/useFeatureAccess";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
@@ -150,7 +150,8 @@ export function TopNavigation() {
   const featureAccess = useFeatureAccess();
   const showLearning = canUseLearning(featureAccess);
   const showBuddy = canUseBuddy(featureAccess);
-  const showDocuments = canUseDocuments(featureAccess);
+  const showDocuments = canUseKnowledgeRack(featureAccess);
+  const showChatLibrary = canUseChatLibrary(featureAccess);
   // Standalone Buddy (buddy tier): no learning features → the learning
   // dashboard is irrelevant, the chat is their home.
   const isBuddyOnly =
@@ -202,7 +203,7 @@ export function TopNavigation() {
         icon: <Brain className="h-4 w-4" />,
       },
       {
-        label: t("sidebar.chatLibrary"),
+        label: t("sidebar.myLibrary"),
         href: "/library",
         icon: <Library className="h-4 w-4" />,
       },
@@ -392,10 +393,10 @@ export function TopNavigation() {
         if (item.href === "/dashboard") return !isBuddyOnly;
         if (item.href === "/units" || item.href === "/vocabulary") return showLearning;
         if (item.href === "/chat") return showBuddy;
-        if (item.href === "/library") return showDocuments;
+        if (item.href === "/library") return showChatLibrary;
         return true;
       }),
-    [mainItems, showLearning, showBuddy, showDocuments, isBuddyOnly]
+    [mainItems, showLearning, showBuddy, showChatLibrary, isBuddyOnly]
   );
 
   const visibleMoreItems = useMemo(

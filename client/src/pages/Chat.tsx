@@ -16,9 +16,9 @@ import {
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, Brain, Sparkles, Info, ArrowLeft, Square, ThumbsUp, ThumbsDown, Languages, Globe, LifeBuoy, Paperclip, X, FileText, Image as ImageIcon, Loader2, FileDown, Zap, Shield } from "lucide-react";
+import { Send, Brain, Sparkles, Info, ArrowLeft, Square, ThumbsUp, ThumbsDown, Languages, Globe, LifeBuoy, Paperclip, Loader2, FileDown, Zap, Shield, Library } from "lucide-react";
 import { useIsMobile } from "@/hooks/useMobile";
-import { useFeatureAccess, canUseDocuments } from "@/hooks/useFeatureAccess";
+import { useFeatureAccess, canUseChatAttachments, canUseChatLibrary } from "@/hooks/useFeatureAccess";
 import { ChatMobileSheet } from "@/components/ChatMobileSheet";
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -29,6 +29,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
+import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
 import { EnergyPill } from "@/components/chat/EnergyPill";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 
@@ -52,6 +53,7 @@ export default function Chat() {
     fileName: string;
     fileType: string;
     fileBytes: number;
+    previewUrl?: string;
   } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachHint, setShowAttachHint] = useState(false);
@@ -59,6 +61,7 @@ export default function Chat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachPreviewUrlRef = useRef<string | null>(null);
   const isMobile = useIsMobile();
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
   const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
@@ -109,10 +112,19 @@ export default function Chat() {
     beta: { perMinute: 10, perHour: 60, maxLength: 1500 },
     paid: { perMinute: 20, perHour: 200, maxLength: 3000 },
   } as const;
-  const canUploadDocuments = canUseDocuments(featureAccess);
+  const canUploadDocuments = canUseChatAttachments(featureAccess);
+  const canUseLibrary = canUseChatLibrary(featureAccess);
   const { exportSession, exportingSessionId } = useChatPdfExport();
 
   const { data: streamData, feedResponse, reset: resetStream } = useChatStream();
+
+  const clearAttachedFile = useCallback(() => {
+    if (attachPreviewUrlRef.current) {
+      URL.revokeObjectURL(attachPreviewUrlRef.current);
+      attachPreviewUrlRef.current = null;
+    }
+    setAttachedFile(null);
+  }, []);
 
   const createNewSession = async (options?: { showSuccessToast?: boolean }): Promise<string | null> => {
     if (isCreatingSession) return null;
@@ -363,6 +375,7 @@ export default function Chat() {
       const uploadUrl = await generateUploadUrl({
         fileBytes: intendedBytes,
         fileType: uploadType,
+        uploadSource: "chat_attachment",
       });
       const resp = await fetch(uploadUrl, {
         method: "POST",
@@ -371,11 +384,20 @@ export default function Chat() {
       });
       if (!resp.ok) throw new Error("Upload failed");
       const { storageId } = await resp.json();
+      let previewUrl: string | undefined;
+      if (isImage) {
+        if (attachPreviewUrlRef.current) {
+          URL.revokeObjectURL(attachPreviewUrlRef.current);
+        }
+        previewUrl = URL.createObjectURL(uploadBody);
+        attachPreviewUrlRef.current = previewUrl;
+      }
       setAttachedFile({
         storageId,
         fileName: file.name,
         fileType: uploadType,
         fileBytes: intendedBytes,
+        previewUrl,
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
@@ -391,7 +413,7 @@ export default function Chat() {
     const messageToSend = message;
     const currentAttachment = attachedFile;
     setMessage("");
-    setAttachedFile(null);
+    clearAttachedFile();
     setIsSending(true);
 
     try {
@@ -415,6 +437,8 @@ export default function Chat() {
         ...(currentAttachment ? {
           attachmentStorageId: currentAttachment.storageId,
           attachmentFileName: currentAttachment.fileName,
+          attachmentMimeType: currentAttachment.fileType,
+          attachmentSizeBytes: currentAttachment.fileBytes,
         } : {}),
       });
 
@@ -574,6 +598,18 @@ export default function Chat() {
               isCreatingSession={isCreatingSession}
             />
           </div>
+          {canUseLibrary && (
+            <Link href="/library/chats">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0 min-h-[44px] min-w-[44px]"
+                aria-label={t("sidebar.myLibrary")}
+              >
+                <Library className="h-5 w-5" />
+              </Button>
+            </Link>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -737,15 +773,20 @@ export default function Chat() {
                         )
                       ) : (
                         <>
-                          {msg.attachmentFileName && (
-                            <div className="flex items-center gap-1.5 mb-1.5 pb-1.5 border-b border-white/20">
-                              {msg.attachmentFileName.match(/\.(jpg|jpeg|png|webp)$/i)
-                                ? <ImageIcon className="h-3 w-3 shrink-0 opacity-80" />
-                                : <FileText className="h-3 w-3 shrink-0 opacity-80" />}
-                              <span className="text-[11px] opacity-90 truncate max-w-[200px]">{msg.attachmentFileName}</span>
+                          {msg.attachmentStorageId && currentSessionId && msg._id && (
+                            <div className="mb-2">
+                              <ChatAttachmentPreview
+                                sessionId={currentSessionId as Id<"chatSessions">}
+                                messageId={msg._id as Id<"chatMessages">}
+                                fileName={msg.attachmentFileName}
+                                mimeType={msg.attachmentMimeType}
+                                tone="userBubble"
+                              />
                             </div>
                           )}
-                          <p className="whitespace-pre-wrap text-xs sm:text-sm leading-[1.35] sm:leading-[1.43]">{displayContent}</p>
+                          {displayContent ? (
+                            <p className="whitespace-pre-wrap text-xs sm:text-sm leading-[1.35] sm:leading-[1.43]">{displayContent}</p>
+                          ) : null}
                         </>
                       )}
                     </div>
@@ -800,19 +841,12 @@ export default function Chat() {
           <div className="p-3 sm:p-4 bg-muted/20 rounded-none sm:rounded-b-xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             {attachedFile && (
               <div className="flex items-center gap-2 px-2 pb-2">
-                <div className="flex items-center gap-1.5 bg-primary/10 text-primary rounded-full px-3 py-1 text-xs">
-                  {attachedFile.fileType.startsWith("image/")
-                    ? <ImageIcon className="h-3 w-3 shrink-0" />
-                    : <FileText className="h-3 w-3 shrink-0" />}
-                  <span className="truncate max-w-[180px]">{attachedFile.fileName}</span>
-                  <button
-                    type="button"
-                    onClick={() => setAttachedFile(null)}
-                    className="ml-1 hover:text-destructive transition-colors"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
+                <ChatPendingAttachment
+                  fileName={attachedFile.fileName}
+                  fileType={attachedFile.fileType}
+                  previewUrl={attachedFile.previewUrl}
+                  onRemove={clearAttachedFile}
+                />
               </div>
             )}
             <input

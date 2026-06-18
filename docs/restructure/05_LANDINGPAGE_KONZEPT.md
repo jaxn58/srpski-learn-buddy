@@ -380,25 +380,25 @@ Die Landing Page folgt dieser Reihenfolge. Für jede Sektion: Zweck, Copy (EN), 
 **Course + AI** ← Sweetspot-Badge: „Most popular for learners"
 > „Structured lessons + your AI companion."
 > The Buddy knows your current unit. He walks alongside your progress.
-> Everything in Course + Buddy chat (context-aware) · 250 AI Energy/month · top-ups available
+> Everything in Course + Buddy chat (context-aware) · chat attachments · 250 AI Energy/month · top-ups available
 > From €55 for 3 months
 > `[ Get Course + AI ]`
 
 **Course + AI Pro** ← „Best Value"-Badge
 > „The complete Serbian experience."
 > Lessons, your AI Buddy, document analysis, knowledge library, and more.
-> Everything in Course + AI + documents · knowledge · photo scan · community
+> Everything in Course + AI + Knowledge Base · community · larger storage
 > 750 AI Energy/month · top-ups available
 > From €69 for 3 months
 > `[ Get Course + AI Pro ]`
 
 #### AI-Energy-Erklärung (unter den Karten, für Standalone + Full)
 
-> **What is AI Energy?** Energy powers everything your Buddy does — chatting, analysing documents, scanning photos. Different actions use different amounts (a quick reply uses a little; analysing a long PDF uses more), so you only spend what you actually use.
+> **What is AI Energy?** Energy powers everything your Buddy does — chatting, analysing chat attachments, searching your Knowledge Base. Different actions use different amounts (a quick reply uses a little; analysing a long PDF uses more), so you only spend what you actually use.
 >
 > - **AI Chat Standalone:** 600 Energy/month — roughly 200 conversations with context (no course included, so the AI chat does all the heavy lifting).
 > - **Course + AI:** 250 Energy/month — roughly 80–125 learning questions with context (≈ 3–4/day for active learners); top up anytime if you go heavy.
-> - **Course + AI Pro:** 750 Energy/month — plenty for chat, photo scans and document analysis combined.
+> - **Course + AI Pro:** 750 Energy/month — plenty for chat attachments, Knowledge Base search, and community use combined.
 >
 > Need more? Top up anytime (AI Chat Standalone, Course + AI, Course + AI Pro): Starter (500 Energy / €4.99), Plus (1,500 Energy incl. 500 bonus / €9.99), Pro (4,000 Energy incl. 1,500 bonus / €22.99). Top-up Energy never expires while your plan is active.
 

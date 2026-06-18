@@ -4,15 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Users, UserPlus, Activity, ArrowUpDown, Copy, ExternalLink, ChevronRight, FlaskConical } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatDateEU } from "@/lib/utils";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
@@ -21,13 +19,7 @@ export default function Admin() {
   const stats24h = useQuery(api.admin.get24hStats, { since: since24h });
   const platformConfig = useQuery(api.platform.getPlatformConfig);
   const setBetaPhaseActive = useMutation(api.platform.setBetaPhaseActive);
-  const setBetaMaxAiPerDay = useMutation(api.platform.setBetaMaxAiPerDay);
   const isSuperadmin = user?.role === 'superadmin';
-
-  const [aiPerDayInput, setAiPerDayInput] = useState<string>('');
-  useEffect(() => {
-    if (platformConfig) setAiPerDayInput(String(platformConfig.betaMaxAiPerDay));
-  }, [platformConfig?.betaMaxAiPerDay]);
 
   const handleToggleBetaPhase = async (active: boolean) => {
     try {
@@ -37,22 +29,6 @@ export default function Admin() {
       toast.error(e instanceof Error ? e.message : 'Failed to update beta phase');
     }
   };
-
-  const handleSaveAiPerDay = async () => {
-    const value = Number(aiPerDayInput);
-    if (!Number.isInteger(value) || value < 0) {
-      toast.error('Please enter a non-negative whole number');
-      return;
-    }
-    try {
-      await setBetaMaxAiPerDay({ betaMaxAiPerDay: value });
-      toast.success('Beta AI limit updated');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update AI limit');
-    }
-  };
-
-  const aiPerDayDirty = platformConfig !== undefined && aiPerDayInput !== String(platformConfig.betaMaxAiPerDay);
 
   const usersLoading = users === undefined;
   const statsLoading = stats24h === undefined;
@@ -137,9 +113,9 @@ export default function Admin() {
             Beta Phase
           </CardTitle>
           <CardDescription>
-            Global switch. While active, beta testers get full access (limited beta energy).
-            When ended, beta status no longer grants access &mdash; users need a package or an
-            admin tier override. Feature-tier overrides always apply regardless of this switch.
+            Global switch. While active, beta testers get course_ai-level access with a
+            monthly Energy budget. When ended, beta status no longer grants access &mdash;
+            users need a package or an admin tier override.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -165,39 +141,6 @@ export default function Admin() {
               disabled={!isSuperadmin || platformConfig === undefined}
               aria-label="Toggle beta phase"
             />
-          </div>
-
-          {/* Beta boundary: AI queries per day. The unit limit lives in the
-              content-creation area (Content Studio → Unit Manager). */}
-          <div className="mt-6 border-t pt-4">
-            <Label htmlFor="beta-ai-per-day" className="text-sm font-medium">
-              AI queries per day (beta)
-            </Label>
-            <p className="text-xs text-muted-foreground mt-1">
-              Daily limit of AI Buddy messages for beta users. Defines one of the
-              two beta boundaries (the other is the number of units).
-            </p>
-            <div className="mt-2 flex items-center gap-2">
-              <Input
-                id="beta-ai-per-day"
-                type="number"
-                min={0}
-                step={1}
-                value={aiPerDayInput}
-                onChange={(e) => setAiPerDayInput(e.target.value)}
-                disabled={!isSuperadmin || platformConfig === undefined}
-                className="w-32"
-              />
-              <Button
-                onClick={handleSaveAiPerDay}
-                disabled={!isSuperadmin || platformConfig === undefined || !aiPerDayDirty}
-              >
-                Save
-              </Button>
-            </div>
-            {!isSuperadmin && (
-              <p className="text-xs text-muted-foreground mt-1">Only a superadmin can change this.</p>
-            )}
           </div>
         </CardContent>
       </Card>

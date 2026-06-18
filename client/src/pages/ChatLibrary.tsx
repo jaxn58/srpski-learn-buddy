@@ -219,7 +219,7 @@ export default function ChatLibrary() {
       <AnimatedItem>
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">{t("chatLibrary.title")}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{t("myLibrary.chatArchive.title")}</h1>
             <p className="text-sm text-muted-foreground">{t("chatLibrary.subtitleShort")}</p>
           </div>
         </div>
@@ -263,20 +263,22 @@ export default function ChatLibrary() {
               <BreadcrumbList className="flex-nowrap overflow-hidden text-xs sm:text-sm">
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <button
-                      type="button"
-                      className="truncate max-w-[120px] sm:max-w-none"
-                      onClick={() => handleSelectFolder("uncategorized")}
-                    >
-                      {t("chatLibrary.title")}
-                    </button>
+                    <Link href="/library" className="truncate max-w-[120px] sm:max-w-none">
+                      {t("myLibrary.title")}
+                    </Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
-                {breadcrumbPath.map((seg, index) => (
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="truncate">{t("myLibrary.chatArchive.title")}</BreadcrumbPage>
+                </BreadcrumbItem>
+                {breadcrumbPath
+                  .filter((seg) => seg.id !== "uncategorized")
+                  .map((seg, index, arr) => (
                   <span key={seg.id as string} className="contents">
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>
-                      {index === breadcrumbPath.length - 1 ? (
+                      {index === arr.length - 1 ? (
                         <BreadcrumbPage className="truncate max-w-[140px] sm:max-w-[240px]">
                           {seg.name}
                         </BreadcrumbPage>

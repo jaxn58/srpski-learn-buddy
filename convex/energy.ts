@@ -16,7 +16,7 @@ import {
   getModelPricing,
   usdPerEnergy,
 } from "./ai/modelPricing";
-import { loadBetaPhaseActive } from "./platform";
+import { loadBetaPhaseActive, loadBetaEnergyQuota } from "./platform";
 
 // ============= Launch defaults (mirror 02_TOKEN_SYSTEM.md) =============
 
@@ -40,8 +40,8 @@ export const DEFAULT_TIER_QUOTAS = {
   course: 0,
 } as const;
 
-/** Beta testers get a limited quota to test the system at minimal cost. */
-export const DEFAULT_BETA_ENERGY_QUOTA = 100;
+/** Beta testers: course_ai taste pack – enough for meaningful testing at low cost. */
+export const DEFAULT_BETA_ENERGY_QUOTA = 120;
 
 /** Hard technical input cap for uploads (independent of energy balance). */
 export const DEFAULT_UPLOAD_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -315,7 +315,7 @@ export async function chargeEnergy(
     const user = await ctx.db.get(userId);
     const betaPhaseActive = await loadBetaPhaseActive(ctx);
     if (user && betaPhaseActive && user.isBetaTester === true) {
-      const quota = DEFAULT_BETA_ENERGY_QUOTA;
+      const quota = await loadBetaEnergyQuota(ctx);
       const now = Date.now();
       const subId = await ctx.db.insert("userSubscriptions", {
         userId,

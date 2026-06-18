@@ -182,6 +182,12 @@ export const getAccessibleUnits = query({
     const user = await getCurrentUser(ctx);
     if (!user) return { maxUnits: 0, isBeta: false };
 
+    // featureTierOverride grants full unit access (admin-assigned tier).
+    if (user.featureTierOverride) {
+      const totalUnits = await getTotalUnitsCount(ctx);
+      return { maxUnits: totalUnits, isBeta: false };
+    }
+
     // Admins/Superadmins always have full access (e.g., for QA and content verification).
     if (user.role === "admin" || user.role === "superadmin") {
       const totalUnits = await getTotalUnitsCount(ctx);
@@ -244,6 +250,28 @@ export const getCurrent = query({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
     if (!user) return null;
+
+    // featureTierOverride: return a virtual subscription that mirrors the
+    // overridden tier so the subscription UI shows the assigned tier (used for
+    // staff QA/simulation AND admin-assigned tiers for students via support/comps).
+    const overrideTier = user.featureTierOverride as string | undefined;
+
+    if (overrideTier) {
+      const plan = SUBSCRIPTION_PLANS.find(p => p.tier === overrideTier && p.durationMonths === 6);
+      const totalUnits = await getTotalUnitsCount(ctx);
+      return {
+        planType: plan?.id ?? overrideTier,
+        planName: plan?.name ?? overrideTier,
+        maxAccessibleUnits: totalUnits,
+        status: "active" as const,
+        expiresAt: null,
+        planDurationMonths: plan?.durationMonths ?? 0,
+        planPrice: plan?.price ?? 0,
+        autoRenew: false,
+        virtual: true,
+        featureTier: overrideTier,
+      };
+    }
 
     const subscription = await ctx.db
       .query("userSubscriptions")

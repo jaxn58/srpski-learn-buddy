@@ -29,6 +29,8 @@ const Units = lazy(() => import("./pages/Units"));
 const UnitView = lazy(() => import("./pages/UnitView"));
 const Chat = lazy(() => import("./pages/Chat"));
 const ChatLibrary = lazy(() => import("./pages/ChatLibrary"));
+const MyLibraryHub = lazy(() => import("./pages/MyLibraryHub"));
+const KnowledgeBaseExplorer = lazy(() => import("./pages/KnowledgeBaseExplorer"));
 const Vocabulary = lazy(() => import("./pages/Vocabulary"));
 const VocabularyQuizRedirect = lazy(() => import("./pages/VocabularyQuizRedirect"));
 const VocabularyList = lazy(() => import("./pages/VocabularyList"));
@@ -47,6 +49,7 @@ const AdminUserDetail = lazy(() => import("./pages/AdminUserDetail"));
 const PromptAdmin = lazy(() => import("./pages/PromptAdmin"));
 const ChatAdmin = lazy(() => import("./pages/ChatAdmin"));
 const AdminEnergyConfig = lazy(() => import("./pages/AdminEnergyConfig"));
+const AdminStorageOverview = lazy(() => import("./pages/AdminStorageOverview"));
 const ChangelogAdmin = lazy(() => import("./pages/ChangelogAdmin"));
 const OnboardingAdmin = lazy(() => import("./pages/OnboardingAdmin"));
 const DashboardAnnouncementsAdmin = lazy(() => import("./pages/DashboardAnnouncementsAdmin"));
@@ -172,8 +175,34 @@ function Router() {
             <ProtectedRoute>
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
-                  <FeatureGate allow={(a) => a.features.documents} redirectTo="/chat">
+                  <FeatureGate allow={(a) => a.features.chatLibrary} redirectTo="/chat">
+                    <MyLibraryHub />
+                  </FeatureGate>
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/library/chats">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <FeatureGate allow={(a) => a.features.chatLibrary} redirectTo="/chat">
                     <ChatLibrary />
+                  </FeatureGate>
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/library/documents">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <FeatureGate allow={(a) => a.features.knowledgeRack} redirectTo="/library">
+                    <KnowledgeBaseExplorer />
                   </FeatureGate>
                 </DashboardLayout>
               </Suspense>
@@ -341,6 +370,17 @@ function Router() {
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
                   <AdminEnergyConfig />
+                </DashboardLayout>
+              </Suspense>
+            </ProtectedRoute>
+          )}
+        </Route>
+        <Route path="/admin/storage">
+          {() => (
+            <ProtectedRoute>
+              <Suspense fallback={<DashboardLayoutSkeleton />}>
+                <DashboardLayout>
+                  <AdminStorageOverview />
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>

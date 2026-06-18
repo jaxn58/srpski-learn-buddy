@@ -32,7 +32,7 @@ Basiswert: **1 Energy = eine kurze (kompakte) Antwort ohne schweren Kontext.** A
 | Ausgewogene Antwort (`balanced`) | 2 | geplante mittlere Stufe (zwischen compact/detailed) |
 | Ausfuehrliche Antwort (`detailed`) | 3 | `maxTokensDetailed` ~800 Output |
 | Aufschlag: aktiver Kontext / RAG | +1 | Unit-Kontext + Knowledge-/Semantic-Search (grosser Input) |
-| Aufschlag: Foto-Scan (Vision) | +3 | multimodale Bildverarbeitung |
+| Aufschlag: Vision (Chat-Anhang mit Bild) | +3 | multimodale Bildverarbeitung im Chat (früher „Foto-Scan") |
 | Datei-Upload & Analyse (je Dokument) | ab ~5, **proportional** | skaliert linear mit Dokumentgroesse, **kein fixer Energy-Cap** – begrenzt nur durch verfuegbares Guthaben + technisches Input-Limit (siehe 2.2) |
 
 **Beispiele:**

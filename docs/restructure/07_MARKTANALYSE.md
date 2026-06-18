@@ -37,7 +37,7 @@ Verbrauchsbasierte „Credit"-/„Token"-/„Energy"-Modelle sind in **KI-SaaS a
 Einzeln ist nichts davon weltneu – die **Kombination** ist jedoch am Markt nicht etabliert:
 
 1. **Hybrid:** strukturierter Kurs **und** vollwertiger KI-Begleiter, kontextverknüpft (Buddy kennt die Lerninhalte) – statt entweder/oder.
-2. **Kultureller Begleiter:** auf Serbisch + Zielgruppe Expats/Einwanderer/Profis zugeschnitten (Dokumenten-Upload, Foto-Scan von Speisekarten/Formularen, Knowledge Rack) – nicht nur „Vokabeln üben".
+2. **Kultureller Begleiter:** auf Serbisch + Zielgruppe Expats/Einwanderer/Profis zugeschnitten (Chat-Anhänge für Speisekarten/Formulare, Wissensablage für permanente Dokumente) – nicht nur „Vokabeln üben".
 3. **Einmalzahlung statt Abo-Falle:** Laufzeit kaufen, kein automatisches Verlängern – im Markt ein klarer Gegenpol zum Abo-Standard.
 4. **Transparentes AI-Energy-Modell:** sichtbares Guthaben + Live-Kostenanzeige je Aktion + Nachkauf, statt undurchsichtiger Daily-Caps.
 

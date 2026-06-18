@@ -40,6 +40,8 @@ export const chatTables = {
     streamId: v.optional(v.string()),
     attachmentStorageId: v.optional(v.id("_storage")),
     attachmentFileName: v.optional(v.string()),
+    attachmentMimeType: v.optional(v.string()),
+    attachmentSizeBytes: v.optional(v.number()),
     responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
   })
     .index("by_session", ["sessionId"])
@@ -237,12 +239,29 @@ export const chatTables = {
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
 
+  // ============= DOCUMENT FOLDERS (Knowledge Base organization) =============
+  documentFolders: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    parentId: v.optional(v.id("documentFolders")),
+    createdAt: v.number(),
+    sortOrder: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_parent", ["userId", "parentId"]),
+
   // ============= USER DOCUMENTS (User Uploads) =============
   userDocuments: defineTable({
     userId: v.id("users"),
     fileName: v.string(),
     fileType: v.string(),
+    fileSizeBytes: v.optional(v.number()),
     storageId: v.id("_storage"),
+    folderId: v.optional(v.id("documentFolders")),
+    tags: v.optional(v.array(v.string())),
+    source: v.optional(
+      v.union(v.literal("knowledge_rack"), v.literal("chat_attachment"))
+    ),
     status: v.union(
       v.literal("uploaded"),
       v.literal("processing"),
@@ -258,7 +277,8 @@ export const chatTables = {
     ),
   })
     .index("by_user", ["userId"])
-    .index("by_user_status", ["userId", "status"]),
+    .index("by_user_status", ["userId", "status"])
+    .index("by_user_folder", ["userId", "folderId"]),
 
   // ============= USER DOCUMENT CHUNKS (Embedded User Upload Chunks) =============
   userDocumentChunks: defineTable({

@@ -10,9 +10,8 @@
  *  - Grandfathering (existing/legacy subscriptions without `featureTier`):
  *    resolved to FULL feature access so nobody loses functionality on deploy.
  *  - Energy is NEVER unlimited for learners. Only staff (admin/superadmin) are
- *    unlimited. Learners (incl. beta testers / legacy users) get a concrete,
- *    limited monthly quota (the tier default until per-subscription values or
- *    the admin energy config land in a later phase).
+ *    unlimited. Learners (incl. beta testers) get a concrete, limited monthly
+ *    quota (beta: admin-tunable; paid tiers: tier defaults or subscription fields).
  *
  * This file is purely additive and non-enforcing (Phase 1). No mutation in this
  * phase changes behavior for existing users beyond exposing derived flags.
@@ -21,16 +20,16 @@ import { v } from "convex/values";
 import { query, internalQuery, type QueryCtx, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { isStaffRole, isLearnerAccountSuspended } from "./authz";
-import { loadBetaPhaseActive } from "./platform";
-import { loadEnergyConfig, DEFAULT_BETA_ENERGY_QUOTA } from "./energy";
+import { loadBetaPhaseActive, loadBetaEnergyQuota } from "./platform";
+import { loadEnergyConfig } from "./energy";
 
 /**
  * Canonical feature tier identifiers (Phase 5, June 2026).
  *
  *   course         – Sprachkurs (learning content only, no AI)
  *   standalone     – AI Chat Standalone (AI Buddy + documents, no learning)
- *   course_ai      – Sprachkurs + AI (learning + AI Buddy with context linking)
- *   course_ai_pro  – Sprachkurs + AI Pro (everything: learning, AI, documents, community)
+ *   course_ai      – Sprachkurs + AI (learning + AI Buddy, context linking, chat attachments)
+ *   course_ai_pro  – Sprachkurs + AI Pro (+ knowledge rack, community, larger quotas)
  *
  * The legacy names (buddy | basic | full) are still accepted on input for
  * zero-migration of existing DB records – they are normalized to the canonical
@@ -89,7 +88,11 @@ type FeatureFlags = {
   learning: boolean;
   buddyChat: boolean;
   contextLinking: boolean;
-  documents: boolean;
+  /** Photos & files attached to a chat message (incl. vision analysis). */
+  chatAttachments: boolean;
+  /** Persistent document library (My Library → Knowledge Base). */
+  knowledgeRack: boolean;
+  chatLibrary: boolean;
   community: boolean;
   energyTopUp: boolean;
   teaser: boolean;
@@ -141,7 +144,9 @@ const featureAccessValidator = v.object({
     learning: v.boolean(),
     buddyChat: v.boolean(),
     contextLinking: v.boolean(),
-    documents: v.boolean(),
+    chatAttachments: v.boolean(),
+    knowledgeRack: v.boolean(),
+    chatLibrary: v.boolean(),
     community: v.boolean(),
     energyTopUp: v.boolean(),
     teaser: v.boolean(),
@@ -157,7 +162,22 @@ const featureAccessValidator = v.object({
   }),
 });
 
+function featuresForBeta(): FeatureFlags {
+  return {
+    ...featuresForTier("course_ai"),
+    chatAttachments: false,
+    knowledgeRack: false,
+    energyTopUp: false,
+  };
+}
+
 function featuresForTier(tier: FeatureTier): FeatureFlags {
+  const hasChatLibrary =
+    tier === "course" ||
+    tier === "course_ai" ||
+    tier === "standalone" ||
+    tier === "course_ai_pro";
+
   return {
     // Learning content is included in every paid tier EXCEPT the buddy-only "standalone" tier.
     learning: tier === "course" || tier === "course_ai" || tier === "course_ai_pro",
@@ -166,9 +186,11 @@ function featuresForTier(tier: FeatureTier): FeatureFlags {
     // Context linking (Buddy ties answers to current unit/vocab) requires both
     // learning content AND AI. NOT for "standalone" (no learning) and NOT for "course" (no AI).
     contextLinking: tier === "course_ai" || tier === "course_ai_pro",
-    // Documents: only the buddy-tiers that include the AI Buddy's full toolset.
-    // Excludes "course" (no AI) and "course_ai" (entry-level AI, no documents).
-    documents: tier === "standalone" || tier === "course_ai_pro",
+    chatAttachments:
+      tier === "standalone" || tier === "course_ai" || tier === "course_ai_pro",
+    knowledgeRack: tier === "standalone" || tier === "course_ai_pro",
+    // Chat library (folder organization): all paid tiers; not standalone-only restriction.
+    chatLibrary: hasChatLibrary,
     // Community (forum, group exercises) – Pro tier only.
     community: tier === "course_ai_pro",
     // Energy top-up: any tier that has AI Buddy access (excludes "course" – it has 0 energy).
@@ -182,7 +204,9 @@ const ALL_FEATURES_FALSE: FeatureFlags = {
   learning: false,
   buddyChat: false,
   contextLinking: false,
-  documents: false,
+  chatAttachments: false,
+  knowledgeRack: false,
+  chatLibrary: false,
   community: false,
   energyTopUp: false,
   teaser: false,
@@ -229,14 +253,14 @@ function resolveEnergy(
  * Once chargeEnergy lazy-creates the beta subscription, resolveEnergy takes
  * over and reads the persisted fields.
  */
-function resolveBetaEnergy(): EnergyState {
+function resolveBetaEnergy(betaEnergyQuota: number): EnergyState {
   return {
     unlimited: false,
-    quotaMonthly: DEFAULT_BETA_ENERGY_QUOTA,
+    quotaMonthly: betaEnergyQuota,
     usedThisPeriod: 0,
     topUpBalance: 0,
     debtBalance: 0,
-    available: DEFAULT_BETA_ENERGY_QUOTA,
+    available: betaEnergyQuota,
     periodResetAt: null,
   };
 }
@@ -251,24 +275,13 @@ export function resolveFeatureAccess(input: {
   pastDueSub: Doc<"userSubscriptions"> | null;
   betaPhaseActive: boolean;
   energyQuotas: TierQuotas;
+  betaEnergyQuota: number;
 }): FeatureAccess {
-  const { user, activeSub, pastDueSub, betaPhaseActive, energyQuotas } = input;
+  const { user, activeSub, pastDueSub, betaPhaseActive, energyQuotas, betaEnergyQuota } = input;
 
-  // Staff: full access + unlimited energy (QA, support, content verification).
-  if (isStaffRole(user.role)) {
-    return {
-      hasAccess: true,
-      tier: "course_ai_pro",
-      source: "staff",
-      isStaff: true,
-      features: featuresForTier("course_ai_pro"),
-      energy: { ...NO_ENERGY, unlimited: true },
-    };
-  }
-
-  // Superadmin-set override wins over subscription/beta resolution. Used for
-  // support, comps and (currently) QA of the 4-package gating. Energy follows
-  // the overridden tier's rules (still limited – never unlimited for learners).
+  // Superadmin-set override wins over staff, subscription and beta resolution.
+  // Used for support, comps and QA of the 4-package gating (including staff
+  // self-testing). Energy follows the overridden tier (limited – never unlimited).
   // Legacy override values (buddy/basic/full) are normalized to canonical IDs.
   const overrideRaw = user.featureTierOverride as RawFeatureTier | undefined;
   const override = normalizeFeatureTier(overrideRaw ?? null);
@@ -280,6 +293,18 @@ export function resolveFeatureAccess(input: {
       isStaff: false,
       features: featuresForTier(override),
       energy: resolveEnergy(override, activeSub, energyQuotas),
+    };
+  }
+
+  // Staff without override: full access + unlimited energy (QA, support, content verification).
+  if (isStaffRole(user.role)) {
+    return {
+      hasAccess: true,
+      tier: "course_ai_pro",
+      source: "staff",
+      isStaff: true,
+      features: featuresForTier("course_ai_pro"),
+      energy: { ...NO_ENERGY, unlimited: true },
     };
   }
 
@@ -306,21 +331,28 @@ export function resolveFeatureAccess(input: {
     };
   }
 
-  // Beta testers (virtual beta sub or flag): full features, but LIMITED energy.
-  // Only while the global beta phase is active. Once a superadmin ends the beta
-  // phase, beta status no longer grants access – users need a package/override.
-  // Beta quota is intentionally low (DEFAULT_BETA_ENERGY_QUOTA) to contain costs
-  // while giving testers a representative sample of the AI Buddy experience.
+  // Beta testers: course_ai taste pack (Units 1–3, limited energy, no Pro features).
+  // Only while the global beta phase is active.
   if (betaPhaseActive && (activeSub?.planType === "beta" || user.isBetaTester === true)) {
     const betaEnergy = activeSub
-      ? resolveEnergy("course_ai_pro", activeSub, energyQuotas)
-      : resolveBetaEnergy();
+      ? {
+          ...resolveEnergy("course_ai", activeSub, energyQuotas),
+          quotaMonthly: activeSub.energyQuotaMonthly ?? betaEnergyQuota,
+          available: Math.max(
+            0,
+            (activeSub.energyQuotaMonthly ?? betaEnergyQuota) -
+              (activeSub.energyUsedThisPeriod ?? 0) +
+              (activeSub.energyTopUpBalance ?? 0) -
+              (activeSub.energyDebtBalance ?? 0)
+          ),
+        }
+      : resolveBetaEnergy(betaEnergyQuota);
     return {
       hasAccess: true,
-      tier: "course_ai_pro",
+      tier: "course_ai",
       source: "beta",
       isStaff: false,
-      features: featuresForTier("course_ai_pro"),
+      features: featuresForBeta(),
       energy: betaEnergy,
     };
   }
@@ -366,6 +398,7 @@ export async function getFeatureAccessForUser(
 
   const { activeSub, pastDueSub } = await loadSubscriptions(ctx, userId);
   const betaPhaseActive = await loadBetaPhaseActive(ctx);
+  const betaEnergyQuota = await loadBetaEnergyQuota(ctx);
   const energyCfg = await loadEnergyConfig(ctx);
   return resolveFeatureAccess({
     user,
@@ -373,6 +406,7 @@ export async function getFeatureAccessForUser(
     pastDueSub,
     betaPhaseActive,
     energyQuotas: energyCfg.quotas,
+    betaEnergyQuota,
   });
 }
 
@@ -399,6 +433,7 @@ export const getFeatureAccess = query({
 
     const { activeSub, pastDueSub } = await loadSubscriptions(ctx, user._id);
     const betaPhaseActive = await loadBetaPhaseActive(ctx);
+    const betaEnergyQuota = await loadBetaEnergyQuota(ctx);
     const energyCfg = await loadEnergyConfig(ctx);
     return resolveFeatureAccess({
       user,
@@ -406,6 +441,7 @@ export const getFeatureAccess = query({
       pastDueSub,
       betaPhaseActive,
       energyQuotas: energyCfg.quotas,
+      betaEnergyQuota,
     });
   },
 });

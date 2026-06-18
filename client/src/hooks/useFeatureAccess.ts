@@ -38,7 +38,29 @@ export function canUseBuddy(access: FeatureAccess | undefined, loadingDefault = 
   return access.features.buddyChat || access.features.teaser;
 }
 
-export function canUseDocuments(access: FeatureAccess | undefined, loadingDefault = false): boolean {
+export function canUseChatAttachments(
+  access: FeatureAccess | undefined,
+  loadingDefault = false
+): boolean {
   if (access === undefined) return loadingDefault;
-  return access.features.documents;
+  return access.features.chatAttachments;
+}
+
+/** Persistent Knowledge Base (My Library → documents). */
+export function canUseKnowledgeRack(
+  access: FeatureAccess | undefined,
+  loadingDefault = false
+): boolean {
+  if (access === undefined) return loadingDefault;
+  return access.features.knowledgeRack;
+}
+
+/** @deprecated Use canUseKnowledgeRack */
+export function canUseDocuments(access: FeatureAccess | undefined, loadingDefault = false): boolean {
+  return canUseKnowledgeRack(access, loadingDefault);
+}
+
+export function canUseChatLibrary(access: FeatureAccess | undefined, loadingDefault = false): boolean {
+  if (access === undefined) return loadingDefault;
+  return access.features.chatLibrary;
 }

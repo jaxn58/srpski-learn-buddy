@@ -467,72 +467,80 @@ export default function AdminUserDetail({ userId }: Props) {
         </CardContent>
       </Card>
 
-      {/* Actions – Superadmin only, cannot act on self */}
-      {isSuperadmin && !isSelf && (
+      {/* Actions – Superadmin; tier override also on own account */}
+      {isSuperadmin && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Actions</CardTitle>
-            <CardDescription>Administrative actions for this user account</CardDescription>
+            <CardDescription>
+              {isSelf
+                ? "Set a feature tier override on your own account for testing"
+                : "Administrative actions for this user account"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Role */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Role</p>
-                <p className="text-xs text-muted-foreground">Change the user's access level</p>
-              </div>
-              <Select
-                value={userDetail.role}
-                onValueChange={(value) => requestRoleChange(value as any)}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="student">Student</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="superadmin">Superadmin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {!isSelf && (
+              <>
+                {/* Role */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Role</p>
+                    <p className="text-xs text-muted-foreground">Change the user's access level</p>
+                  </div>
+                  <Select
+                    value={userDetail.role}
+                    onValueChange={(value) => requestRoleChange(value as any)}
+                  >
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="superadmin">Superadmin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="border-t" />
+                <div className="border-t" />
 
-            {/* Status toggle */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Account Status</p>
-                <p className="text-xs text-muted-foreground">
-                  Currently: <span className={userDetail.isActive ? 'text-green-600' : 'text-red-600'}>
-                    {userDetail.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={requestToggleStatus} className="gap-2">
-                {userDetail.isActive ? (
-                  <><Ban className="h-4 w-4" /> Deactivate</>
-                ) : (
-                  <><CheckCircle className="h-4 w-4" /> Activate</>
-                )}
-              </Button>
-            </div>
+                {/* Status toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Account Status</p>
+                    <p className="text-xs text-muted-foreground">
+                      Currently: <span className={userDetail.isActive ? 'text-green-600' : 'text-red-600'}>
+                        {userDetail.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={requestToggleStatus} className="gap-2">
+                    {userDetail.isActive ? (
+                      <><Ban className="h-4 w-4" /> Deactivate</>
+                    ) : (
+                      <><CheckCircle className="h-4 w-4" /> Activate</>
+                    )}
+                  </Button>
+                </div>
 
-            <div className="border-t" />
+                <div className="border-t" />
 
-            {/* Beta tester toggle */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Beta Tester</p>
-                <p className="text-xs text-muted-foreground">
-                  Currently: {userDetail.isBetaTester ? 'Yes' : 'No'}
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={requestToggleBetaTester}>
-                {userDetail.isBetaTester ? 'Remove Beta Badge' : 'Add Beta Badge'}
-              </Button>
-            </div>
+                {/* Beta tester toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Beta Tester</p>
+                    <p className="text-xs text-muted-foreground">
+                      Currently: {userDetail.isBetaTester ? 'Yes' : 'No'}
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={requestToggleBetaTester}>
+                    {userDetail.isBetaTester ? 'Remove Beta Badge' : 'Add Beta Badge'}
+                  </Button>
+                </div>
 
-            <div className="border-t" />
+                <div className="border-t" />
+              </>
+            )}
 
             {/* Feature tier override */}
             <div className="flex items-center justify-between">
@@ -559,53 +567,57 @@ export default function AdminUserDetail({ userId }: Props) {
               </Select>
             </div>
 
-            <div className="border-t" />
-
-            {/* AI Energy state + grant (superadmin can grant) */}
-            <EnergyGrantPanel
-              userId={userId as Id<"users">}
-              subscription={userDetail.subscription as any}
-              isSuperadmin={isSuperadmin}
-            />
-
-            {/* Reset progress – students only */}
-            {userDetail.role === 'student' && (
+            {!isSelf && (
               <>
                 <div className="border-t" />
+
+                {/* AI Energy state + grant (superadmin can grant) */}
+                <EnergyGrantPanel
+                  userId={userId as Id<"users">}
+                  subscription={userDetail.subscription as any}
+                  isSuperadmin={isSuperadmin}
+                />
+
+                {/* Reset progress – students only */}
+                {userDetail.role === 'student' && (
+                  <>
+                    <div className="border-t" />
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Reset Progress</p>
+                        <p className="text-xs text-muted-foreground">Resets all learning progress to Unit 1</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={requestResetProgress} className="gap-2">
+                        <RotateCcw className="h-4 w-4" />
+                        Reset
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                <div className="border-t" />
+
+                {/* Delete */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">Reset Progress</p>
-                    <p className="text-xs text-muted-foreground">Resets all learning progress to Unit 1</p>
+                    <p className="text-sm font-medium text-destructive">Delete Account</p>
+                    <p className="text-xs text-muted-foreground">Permanently removes user and all their data</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={requestResetProgress} className="gap-2">
-                    <RotateCcw className="h-4 w-4" />
-                    Reset
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      setDeleteEmailInput("");
+                      setDeleteDialogOpen(true);
+                    }}
+                    className="gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
                   </Button>
                 </div>
               </>
             )}
-
-            <div className="border-t" />
-
-            {/* Delete */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-destructive">Delete Account</p>
-                <p className="text-xs text-muted-foreground">Permanently removes user and all their data</p>
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  setDeleteEmailInput("");
-                  setDeleteDialogOpen(true);
-                }}
-                className="gap-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
-            </div>
           </CardContent>
         </Card>
       )}

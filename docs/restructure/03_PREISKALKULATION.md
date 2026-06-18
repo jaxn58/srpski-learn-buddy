@@ -97,7 +97,7 @@ Prepaid-Gesamtpreise in EUR, je Laufzeit. **Sprachkurs + AI Pro = aktueller Prei
 
 Eigenschaften des Grids:
 - **Bestandsschutz:** Sprachkurs + AI Pro 12M = 119 € identisch zum heutigen Plan-Preis (Beta-/Bestandskunden bleiben konform).
-- **„Just-€20-more"-Logik:** Sprachkurs + AI 12M (99 €) → Sprachkurs + AI Pro 12M (119 €) = +20 € Aufpreis für Documents, Knowledge Rack, Photo-Scan, Community + 500 Energy mehr/Monat → starkes Upsell-Argument auf der Pricing-Page (Documents/Photo-Scan/Community sind die primären Upsell-Hebel, nicht die Energy-Differenz).
+- **„Just-€20-more"-Logik:** Sprachkurs + AI 12M (99 €) → Sprachkurs + AI Pro 12M (119 €) = +20 € Aufpreis für **Wissensablage**, Community + 500 Energy mehr/Monat → starkes Upsell-Argument auf der Pricing-Page (**Wissensablage** und Community sind die primären Upsell-Hebel; Chat-Anhänge sind in Sprachkurs + AI bereits enthalten).
 - **AI Chat Standalone** liegt unter Sprachkurs + AI (kein Kurs enthalten), kompensiert mit deutlich größerem Energy-Kontingent (600 vs. 250) + Top-up-Option. Juni 2026: Standalone-Quote von 450 → 600 angehoben (kein Kurs → AI-Chat ist einziges Produkt-Element); Sprachkurs-+-AI-Quote von 120 → 250 angehoben (UX-Korrektur: 120 wirkte als „Demo-Quota").
 - **Sprachkurs** als klarer Einstiegspreis (5,75 €/Monat bei 12M), prepaid **oder** Ratenzahlung.
 - **Marktpositionierung:** Alle Tarife liegen effektiv €/Monat unter dem Wettbewerber-Marktpreis (~$10–$16/Monat-Abos), Einmalzahlung zusätzlicher USP (siehe `07_MARKTANALYSE.md`).

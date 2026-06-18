@@ -23,10 +23,10 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
-async function requireDocumentsAccess(ctx: QueryCtx | MutationCtx, userId: Id<"users">) {
+async function requireChatLibraryAccess(ctx: QueryCtx | MutationCtx, userId: Id<"users">) {
   const access = await getFeatureAccessForUser(ctx, userId);
-  if (!access.features.documents) {
-    throw new Error("Chat library is not included in your current plan.");
+  if (!access.features.chatLibrary) {
+    throw new Error("My Library is not included in your current plan.");
   }
 }
 
@@ -74,6 +74,7 @@ const sessionSummaryValidator = v.object({
   title: v.string(),
   folderId: v.optional(v.id("chatFolders")),
   messageCount: v.number(),
+  attachmentCount: v.number(),
 });
 
 export const listFolders = query({
@@ -83,7 +84,7 @@ export const listFolders = query({
     const user = await getCurrentUser(ctx);
     if (!user) return [];
 
-    await requireDocumentsAccess(ctx, user._id);
+    await requireChatLibraryAccess(ctx, user._id);
 
     return await ctx.db
       .query("chatFolders")
@@ -101,7 +102,7 @@ export const createFolder = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
-    await requireDocumentsAccess(ctx, user._id);
+    await requireChatLibraryAccess(ctx, user._id);
 
     const trimmed = args.name.trim();
     if (!trimmed) throw new Error("Folder name is required");
@@ -141,7 +142,7 @@ export const renameFolder = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
-    await requireDocumentsAccess(ctx, user._id);
+    await requireChatLibraryAccess(ctx, user._id);
 
     const trimmed = args.name.trim();
     if (!trimmed) throw new Error("Folder name is required");
@@ -189,7 +190,7 @@ export const deleteFolder = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
-    await requireDocumentsAccess(ctx, user._id);
+    await requireChatLibraryAccess(ctx, user._id);
 
     await getOwnedFolder(ctx, user._id, args.folderId);
     await deleteFolderTree(ctx, user._id, args.folderId);
@@ -206,7 +207,7 @@ export const moveSessionToFolder = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
-    await requireDocumentsAccess(ctx, user._id);
+    await requireChatLibraryAccess(ctx, user._id);
 
     const session = await ctx.db.get(args.sessionId);
     if (!session || session.userId !== user._id) {
@@ -238,7 +239,7 @@ export const getSessionsByFolder = query({
       return { page: [], isDone: true, continueCursor: "" };
     }
 
-    await requireDocumentsAccess(ctx, user._id);
+    await requireChatLibraryAccess(ctx, user._id);
 
     if (args.folderId) {
       await getOwnedFolder(ctx, user._id, args.folderId);
@@ -275,12 +276,16 @@ export const getSessionsByFolder = query({
           .query("chatMessages")
           .withIndex("by_session", (q) => q.eq("sessionId", session._id))
           .collect();
+        const attachmentCount = messages.filter(
+          (m) => m.attachmentStorageId !== undefined
+        ).length;
         return {
           _id: session._id,
           _creationTime: session._creationTime,
           title: session.title,
           folderId: session.folderId,
           messageCount: messages.length,
+          attachmentCount,
         };
       })
     );
@@ -300,7 +305,7 @@ export const getFolderSessionCounts = query({
     const user = await getCurrentUser(ctx);
     if (!user) return {};
 
-    await requireDocumentsAccess(ctx, user._id);
+    await requireChatLibraryAccess(ctx, user._id);
 
     const sessions = await ctx.db
       .query("chatSessions")

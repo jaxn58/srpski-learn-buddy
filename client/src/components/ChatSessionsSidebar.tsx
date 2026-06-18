@@ -11,7 +11,7 @@ import { cn, formatDateEU } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
-import { useFeatureAccess, canUseDocuments } from "@/hooks/useFeatureAccess";
+import { useFeatureAccess, canUseChatLibrary } from "@/hooks/useFeatureAccess";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -50,7 +50,7 @@ type ChatSession = Doc<"chatSessions">;
 export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewChat }: ChatSessionsSidebarProps) {
   const { t } = useTranslation();
   const featureAccess = useFeatureAccess();
-  const canUseLibrary = canUseDocuments(featureAccess);
+  const canUseLibrary = canUseChatLibrary(featureAccess);
   const { exportSession, exportingSessionId } = useChatPdfExport();
   const [folderFilter, setFolderFilter] = useState<string>("all");
   const folders = useQuery(api.chatLibrary.listFolders, canUseLibrary ? {} : "skip");
@@ -261,9 +261,9 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
 
         {canUseLibrary && (
           <Button variant="outline" className="w-full text-xs" size="sm" asChild>
-            <Link href="/library">
+            <Link href="/library/chats">
               <Library className="h-4 w-4 mr-2" />
-              {t("sidebar.chatLibrary")}
+              {t("sidebar.myLibrary")}
             </Link>
           </Button>
         )}

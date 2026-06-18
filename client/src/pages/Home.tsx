@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2, Volume2, ListTodo, Minus, ChevronDown, Camera, Layers, GraduationCap, ArrowRight } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2, Volume2, ListTodo, Minus, ChevronDown, Camera, Layers, GraduationCap, ArrowRight, HardDrive } from "lucide-react";
 import { APP_LOGO } from "@/const";
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useState, lazy, Suspense, Fragment } from "react";
@@ -136,16 +136,16 @@ export default function Home() {
     | "courseContent"
     | "aiBuddy"
     | "contextLinking"
-    | "documents"
-    | "photoScan"
+    | "chatAttachments"
+    | "knowledgeRack"
     | "topups";
 
   const FEATURE_KEYS: readonly FeatureKey[] = [
     "courseContent",
     "aiBuddy",
     "contextLinking",
-    "documents",
-    "photoScan",
+    "chatAttachments",
+    "knowledgeRack",
     "topups",
   ] as const;
 
@@ -159,8 +159,8 @@ export default function Home() {
     courseContent:  { course: true,     standalone: false, course_ai: true,     course_ai_pro: true  },
     aiBuddy:        { course: "teaser", standalone: true,  course_ai: true,     course_ai_pro: true  },
     contextLinking: { course: "teaser", standalone: false, course_ai: true,     course_ai_pro: true  },
-    documents:      { course: false,    standalone: true,  course_ai: false,    course_ai_pro: true  },
-    photoScan:      { course: false,    standalone: true,  course_ai: false,    course_ai_pro: true  },
+    chatAttachments:{ course: false,    standalone: true,  course_ai: true,     course_ai_pro: true  },
+    knowledgeRack:  { course: false,    standalone: true,  course_ai: false,    course_ai_pro: true  },
     topups:         { course: false,    standalone: true,  course_ai: true,     course_ai_pro: true  },
   };
 
@@ -187,6 +187,25 @@ export default function Home() {
   const topupPacks = useQuery(api.subscriptions.getTopupPacks);
   // Public energy quotas + cost examples (per tier monthly quota, "typical chat" cost etc.)
   const energyInfo = useQuery(api.subscriptions.getPublicEnergyInfo);
+  // Public file storage quotas per tier (dynamic from platformConfig)
+  const storageInfo = useQuery(api.storageQuota.getPublicStorageInfo);
+
+  const formatLandingStorageBytes = (bytes: number): string => {
+    if (bytes >= 1024 * 1024 * 1024) {
+      const gb = bytes / (1024 * 1024 * 1024);
+      return Number.isInteger(gb) ? `${gb} GB` : `${gb.toFixed(1)} GB`;
+    }
+    const mb = bytes / (1024 * 1024);
+    return Number.isInteger(mb) ? `${mb} MB` : `${Math.round(mb)} MB`;
+  };
+
+  const renderStorageScopeLabel = (tier: TierId): string | null => {
+    if (tier === "course_ai") return t("home.pricing.compare.storage.chatAttachmentsOnly");
+    if (tier === "standalone" || tier === "course_ai_pro") {
+      return t("home.pricing.compare.storage.chatAndKnowledge");
+    }
+    return null;
+  };
 
   // Upgrade-policy examples: 3 concrete scenarios with the actual price delta
   // computed from current plan data (no hardcoded numbers, no fake "max €50" claims).
@@ -649,12 +668,12 @@ export default function Home() {
               </CardHeader>
             </Card>
 
-            {/* 3) Document Upload & Photo Scan */}
+            {/* 3) Chat attachments (Sprachkurs + AI and above) */}
             <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
               <CardHeader>
                 <Camera className="h-12 w-12 text-primary mb-2" />
-                <CardTitle>{t("home.features.documents.title")}</CardTitle>
-                <CardDescription>{t("home.features.documents.desc")}</CardDescription>
+                <CardTitle>{t("home.features.chatAttachments.title")}</CardTitle>
+                <CardDescription>{t("home.features.chatAttachments.desc")}</CardDescription>
               </CardHeader>
             </Card>
 
@@ -954,6 +973,47 @@ export default function Home() {
                   })}
                 </div>
 
+                {/* ===== File storage row (dynamic, from platformConfig/storageQuota) ===== */}
+                <div className="grid grid-cols-[minmax(220px,2fr)_repeat(4,1fr)] border-t-2 border-blue-200 bg-blue-50/40">
+                  <div className="p-4">
+                    <div className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                      <HardDrive className="h-4 w-4 text-blue-600" />
+                      {t("home.pricing.compare.storage.title")}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {t("home.pricing.compare.storage.desc")}
+                    </div>
+                  </div>
+                  {TIER_IDS.map((tier) => {
+                    const meta = TIER_META[tier];
+                    const quotaBytes = storageInfo?.quotasBytes[tier] ?? 0;
+                    const scopeLabel = renderStorageScopeLabel(tier);
+                    return (
+                      <div
+                        key={`compare-storage-${tier}`}
+                        className={`p-4 flex flex-col items-center justify-center text-center border-l border-gray-100 ${meta.highlight ? "bg-primary/5" : ""}`}
+                      >
+                        {quotaBytes <= 0 ? (
+                          <span className="text-[11px] font-medium text-gray-500">
+                            {t("home.pricing.compare.storage.notIncluded")}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-base font-bold text-gray-900">
+                              {formatLandingStorageBytes(quotaBytes)}
+                            </span>
+                            {scopeLabel && (
+                              <span className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                                {scopeLabel}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
                 {/* ===== Duration / price / CTA rows: one row per duration, one cell per tier ===== */}
                 <div className="grid grid-cols-[minmax(220px,2fr)_repeat(4,1fr)] border-t-2 border-gray-200 bg-gradient-to-br from-primary/5 to-white">
                   <div className="p-4 text-sm font-semibold text-gray-900 uppercase tracking-wide">
@@ -1149,6 +1209,34 @@ export default function Home() {
                           );
                         })()}
 
+                        {/* File storage banner (mobile) */}
+                        {(() => {
+                          const quotaBytes = storageInfo?.quotasBytes[tier] ?? 0;
+                          const scopeLabel = renderStorageScopeLabel(tier);
+                          return (
+                            <div className="mt-2 mb-1 p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-2.5">
+                              <HardDrive className="h-5 w-5 text-blue-600 shrink-0" />
+                              <div className="flex-1">
+                                <div className="text-xs font-semibold text-gray-900">
+                                  {t("home.pricing.compare.storage.title")}
+                                </div>
+                                {quotaBytes <= 0 ? (
+                                  <div className="text-xs text-gray-500 font-medium">
+                                    {t("home.pricing.compare.storage.notIncluded")}
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-gray-700">
+                                    <span className="font-bold">{formatLandingStorageBytes(quotaBytes)}</span>
+                                    {scopeLabel && (
+                                      <span className="text-muted-foreground ml-1">· {scopeLabel}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         <div className="text-xs font-semibold uppercase tracking-wide text-green-700 mt-3 mb-2">
                           {t("home.pricing.compare.mobile.included")}
                         </div>
@@ -1281,6 +1369,67 @@ export default function Home() {
             </div>
           </div>
 
+          {/* ===== File storage: what counts toward your quota ===== */}
+          <div className="mt-10 sm:mt-12 p-5 sm:p-6 rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white">
+            <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
+              <div className="flex-shrink-0 flex items-center gap-2">
+                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <HardDrive className="h-5 w-5 text-blue-600" />
+                </div>
+                <h4 className="sm:hidden text-lg font-bold text-gray-900">
+                  {t("home.pricing.storageExamples.title")}
+                </h4>
+              </div>
+              <div className="flex-1 space-y-3">
+                <h4 className="hidden sm:block text-lg sm:text-xl font-bold text-gray-900">
+                  {t("home.pricing.storageExamples.title")}
+                </h4>
+                <p className="text-sm text-gray-700">
+                  {t("home.pricing.storageExamples.subtitle")}
+                </p>
+                <div className="grid sm:grid-cols-2 gap-3 sm:gap-4 mt-3">
+                  <div className="bg-white p-4 rounded-lg border border-blue-100">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-green-700 mb-2">
+                      {t("home.pricing.storageExamples.counts.title")}
+                    </div>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li className="flex gap-2 items-start">
+                        <Check className="h-4 w-4 text-green-600 mt-0.5 shrink-0" strokeWidth={3} />
+                        <span>{t("home.pricing.storageExamples.counts.knowledgeBase")}</span>
+                      </li>
+                      <li className="flex gap-2 items-start">
+                        <Check className="h-4 w-4 text-green-600 mt-0.5 shrink-0" strokeWidth={3} />
+                        <span>{t("home.pricing.storageExamples.counts.chatAttachments")}</span>
+                      </li>
+                    </ul>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg border border-blue-100">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      {t("home.pricing.storageExamples.notCounts.title")}
+                    </div>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li className="flex gap-2 items-start">
+                        <Minus className="h-4 w-4 text-gray-300 mt-0.5 shrink-0" />
+                        <span>{t("home.pricing.storageExamples.notCounts.courseContent")}</span>
+                      </li>
+                      <li className="flex gap-2 items-start">
+                        <Minus className="h-4 w-4 text-gray-300 mt-0.5 shrink-0" />
+                        <span>{t("home.pricing.storageExamples.notCounts.profilePhoto")}</span>
+                      </li>
+                      <li className="flex gap-2 items-start">
+                        <Minus className="h-4 w-4 text-gray-300 mt-0.5 shrink-0" />
+                        <span>{t("home.pricing.storageExamples.notCounts.exports")}</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {t("home.pricing.storageExamples.footnote")}
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* ===== AI Energy: how it works + cost examples ===== */}
           <div className="mt-10 sm:mt-12 p-5 sm:p-6 rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-white">
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
@@ -1324,13 +1473,13 @@ export default function Home() {
                   </div>
                   <div className="bg-white p-3 rounded-lg border border-amber-100">
                     <div className="text-xs text-muted-foreground">
-                      {t("home.pricing.energyExamples.photoScan.label")}
+                      {t("home.pricing.energyExamples.chatAttachment.label")}
                     </div>
                     <div className="text-base font-bold text-gray-900">
                       {energyInfo?.costs.photoScan ?? 6} {t("home.pricing.energyExamples.energyUnit")}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
-                      {t("home.pricing.energyExamples.photoScan.desc")}
+                      {t("home.pricing.energyExamples.chatAttachment.desc")}
                     </div>
                   </div>
                 </div>

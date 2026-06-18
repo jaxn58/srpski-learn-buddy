@@ -791,77 +791,91 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   const daysElapsed = Math.min(planDurationDays, Math.max(0, planDurationDays - safeDaysRemaining));
   const progressPercentage = (daysElapsed / planDurationDays) * 100;
 
+  const isVirtualOverride = !!(subscription as any)?.virtual && normalizedPlan !== "beta";
+
   return (
     <div className={embedded ? "w-full" : "p-8 w-full overflow-y-auto"}>
       <div className={embedded ? "w-full" : "max-w-4xl mx-auto"}>
         {!embedded && <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>}
 
         {/* Current Plan Card */}
-        <Card className="mb-6">
+        <Card className={`mb-6 ${isVirtualOverride ? "border-2 border-blue-400" : ""}`}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-2xl">{(subscription as any)?.planName || normalizedPlan} {t('subscription.plan')}</CardTitle>
                 <CardDescription>
-                  {subscription.status === "active"
-                    ? t('subscription.active')
-                    : subscription.status === "past_due"
-                      ? t("subscription.pastDue")
-                      : t('subscription.cancelled')}
+                  {isVirtualOverride
+                    ? "Staff Override (Simulation)"
+                    : subscription.status === "active"
+                      ? t('subscription.active')
+                      : subscription.status === "past_due"
+                        ? t("subscription.pastDue")
+                        : t('subscription.cancelled')}
                 </CardDescription>
               </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-primary">
-                  {(() => {
-                    const cents =
-                      typeof (subscription as any)?.planPrice === "number"
-                        ? (subscription as any).planPrice
-                        : availablePlans?.find((p) => p.id === normalizedPlan)?.price ?? 0;
-                    return formatCurrency(cents);
-                  })()}
+              {!isVirtualOverride && (
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-primary">
+                    {(() => {
+                      const cents =
+                        typeof (subscription as any)?.planPrice === "number"
+                          ? (subscription as any).planPrice
+                          : availablePlans?.find((p) => p.id === normalizedPlan)?.price ?? 0;
+                      return formatCurrency(cents);
+                    })()}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {planDurationDays} {t('subscription.days')}
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {planDurationDays} {t('subscription.days')}
-                </div>
-              </div>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            {subscription.status === "past_due" ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
-                <strong>{t("subscription.pastDueTitle")}</strong> {t("subscription.pastDueDesc")}
+            {isVirtualOverride ? (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                Feature tier override active. Change it in Admin &gt; your user profile.
               </div>
-            ) : null}
-            {/* Time Remaining */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-primary" />
-                  <span className="font-semibold">{t('subscription.timeRemaining')}</span>
+            ) : (
+              <>
+                {subscription.status === "past_due" ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                    <strong>{t("subscription.pastDueTitle")}</strong> {t("subscription.pastDueDesc")}
+                  </div>
+                ) : null}
+                {/* Time Remaining */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-primary" />
+                      <span className="font-semibold">{t('subscription.timeRemaining')}</span>
+                    </div>
+                    <span className="text-2xl font-bold">
+                      {timeRemaining.days}d {timeRemaining.hours}h {timeRemaining.minutes}m
+                    </span>
+                  </div>
+                  <Progress value={progressPercentage} className="h-3" />
+                  <div className="flex justify-between text-sm text-muted-foreground mt-1">
+                    <span>{t('subscription.daysElapsed', { count: daysElapsed })}</span>
+                    <span>{t('subscription.daysRemaining', { count: safeDaysRemaining })}</span>
+                  </div>
                 </div>
-                <span className="text-2xl font-bold">
-                  {timeRemaining.days}d {timeRemaining.hours}h {timeRemaining.minutes}m
-                </span>
-              </div>
-              <Progress value={progressPercentage} className="h-3" />
-              <div className="flex justify-between text-sm text-muted-foreground mt-1">
-                <span>{t('subscription.daysElapsed', { count: daysElapsed })}</span>
-                <span>{t('subscription.daysRemaining', { count: safeDaysRemaining })}</span>
-              </div>
-            </div>
 
-            {/* Expiration Date */}
-            <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
-              <Calendar className="h-5 w-5 text-primary" />
-              <div>
-                <div className="font-semibold">{t('subscription.expiresOn')}</div>
-                <div className="text-sm text-muted-foreground">
-                  {subscriptionEndsAt
-                    ? formatDateEU(subscriptionEndsAt)
-                    : t('subscription.noSubscription')}
+                {/* Expiration Date */}
+                <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <div>
+                    <div className="font-semibold">{t('subscription.expiresOn')}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {subscriptionEndsAt
+                        ? formatDateEU(subscriptionEndsAt)
+                        : t('subscription.noSubscription')}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -869,7 +883,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
         <EnergyCard />
 
         {/* Upgrade Options */}
-        {subscription.status === "active" && availablePlans && (
+        {!isVirtualOverride && subscription.status === "active" && availablePlans && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
