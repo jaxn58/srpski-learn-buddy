@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string;
 
 export default function Chat() {
   const { user, loading: authLoading } = useAuth();
+  const { getToken } = useClerkAuth();
   const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -362,9 +364,17 @@ export default function Chat() {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
+      // Obtain a Convex-compatible JWT so the streaming httpAction can verify
+      // the caller's identity. Without this header the endpoint rejects the
+      // request with 401 and no LLM call is triggered.
+      const authToken = await getToken({ template: "convex" });
+
       fetch(`${CONVEX_SITE_URL}/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({
           streamId,
           sessionId: currentSessionId,
