@@ -91,7 +91,7 @@ async function uploadToConvex(
   contentType: string
 ): Promise<{ storageId: string }> {
   const convexUrl = process.env.VITE_CONVEX_URL;
-  
+
   if (!convexUrl) {
     throw new Error("VITE_CONVEX_URL is not configured");
   }
@@ -101,7 +101,7 @@ async function uploadToConvex(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       path: "vocabulary:generateUploadUrl",
-      args: {},
+      args: { secret: process.env.TTS_API_SECRET ?? "" },
     }),
   });
 
@@ -109,7 +109,12 @@ async function uploadToConvex(
     throw new Error(`Failed to generate upload URL: ${uploadUrlResponse.status}`);
   }
 
-  const { value: uploadUrl } = await uploadUrlResponse.json();
+  const uploadUrlJson = await uploadUrlResponse.json();
+  // Convex /api/mutation returns HTTP 200 even for mutation errors; detect them via the response body
+  if (uploadUrlJson?.status === "error") {
+    throw new Error(`generateUploadUrl failed: ${uploadUrlJson.errorMessage ?? "unknown Convex error"}`);
+  }
+  const { value: uploadUrl } = uploadUrlJson;
 
   // Upload the audio file to Convex storage
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });

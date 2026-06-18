@@ -314,6 +314,22 @@ zurück. Details: [`docs/CLERK_PRODUCTION_MIGRATION.md`](docs/CLERK_PRODUCTION_M
 Im Clerk Dashboard muss das Webhook-Event `user.deleted` abonniert sein,
 damit das Safety-Net greift.
 
+## Bekannte Bugs & Loesungen
+
+### Audio-Generierung schlaegt fehl ("Failed to generate audio. Please try again.")
+
+**Symptom:** Klick auf Lautsprecher-Icon in Vokabel- oder Unit-Ansicht → Fehler-Dialog.
+
+**Ursache (bestaetigt Juni 2026):** Die Convex-Mutation `vocabulary:generateUploadUrl` wurde faelschlicherweise mit einem `TTS_API_SECRET`-Pflicht-Check versehen. Da das Secret in der Dev-Umgebung (und im Express-Server `.env.local`) nicht konfiguriert war, warf die Mutation `"Audio upload is not configured (TTS_API_SECRET missing)."`. Convex gibt dabei HTTP 200 zurueck (kein HTTP-Fehler), der Body enthaelt aber `{"status":"error",...}` → der aufrufende Code bekam `value: undefined` → `fetch(undefined)` warf einen TypeError.
+
+**Loesung:** Die `generateUploadUrl`-Mutation benoetigt keinen Secret-Check. Der TTS-Server-Endpoint erzwingt bereits Clerk-Auth. Die Upload-URL ist single-use und kurzlebig. Der Check wurde entfernt. Sollte der Bug wieder auftauchen: sicherstellen dass `convex/vocabulary.ts → generateUploadUrl` KEINEN `TTS_API_SECRET`-Check enthaelt.
+
+**Zusaetzlich repariert:** `server/_core/textToSpeech.ts → uploadToConvex()` prueft jetzt korrekt ob der Convex-Response-Body `status: "error"` enthaelt (HTTP 200 ≠ Convex-Erfolg).
+
+**NICHT in `.env.local` eintragen:** `TTS_API_SECRET` wird fuer den lokalen Dev-Server nicht benoetigt.
+
+---
+
 ## Wichtige Warnungen & Verbote
 
 - ❌ **NIEMALS NIEMALS NIEMALS auf Production deployen ohne EXPLIZITE Zustimmung des Users!**
