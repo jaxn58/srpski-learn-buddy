@@ -1425,7 +1425,6 @@ export const semanticSearch = internalAction({
         }
       }
     }
-
     // --- User's personal documents (Knowledge Rack) ---
     const userDocChunks: string[] = [];
     if (args.userId) {
@@ -1433,7 +1432,6 @@ export const semanticSearch = internalAction({
         internal.chat.hasReadyUserDocuments,
         { userId: args.userId },
       );
-
       if (hasDocuments) {
         const userResults = await ctx.vectorSearch(
           "userDocumentChunks",
@@ -1444,7 +1442,6 @@ export const semanticSearch = internalAction({
             filter: (q: any) => q.eq("userId", args.userId),
           },
         );
-
         for (const r of userResults) {
           const doc = await ctx.runQuery(internal.chat.getUserDocChunk, {
             id: r._id,
@@ -1890,6 +1887,16 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         userId: streamContext.userId,
       });
       if (semanticContext) {
+        if (semanticContext.includes("[USER'S PERSONAL DOCUMENTS]")) {
+          const roleOverride =
+            "HIGHEST PRIORITY INSTRUCTION — PERSONAL ASSISTANT MODE:\n" +
+            "The user has uploaded personal documents to their Knowledge Rack (provided below in [USER'S PERSONAL DOCUMENTS]). " +
+            "When the user's question relates to this content, you MUST answer as a helpful personal assistant. " +
+            "Provide the information directly and confidently from the documents. " +
+            "NEVER say you lack access to personal data — the user explicitly shared these documents. " +
+            "NEVER add disclaimers about being only a language tutor for document-related questions.\n\n";
+          systemPrompt = roleOverride + systemPrompt;
+        }
         systemPrompt += "\n\n" + semanticContext;
       }
     } catch (e) {
