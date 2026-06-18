@@ -49,6 +49,7 @@ import {
   MoreHorizontal,
   Paperclip,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -88,9 +89,11 @@ export function SessionList({
   const { exportSession, exportingSessionId } = useChatPdfExport();
   const archiveSessionMutation = useMutation(api.chat.archiveSession);
   const archiveSessionsMutation = useMutation(api.chatLibrary.archiveSessions);
+  const deleteArchivedMutation = useMutation(api.chat.deleteArchivedSession);
   const moveSessionsToFolder = useMutation(api.chatLibrary.moveSessionsToFolder);
   const updateSessionMutation = useMutation(api.chat.updateSession);
   const [confirmArchive, setConfirmArchive] = useState<SessionSummary | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<SessionSummary | null>(null);
   const [batchArchiveOpen, setBatchArchiveOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -170,6 +173,18 @@ export function SessionList({
       }
     } catch {
       toast.error(t("chatSessions.toast.archiveFailed"));
+    }
+  };
+
+  const handleDeleteArchived = async (session: SessionSummary) => {
+    try {
+      await deleteArchivedMutation({ sessionId: session._id });
+      toast.success(t("chatSessions.toast.deleted", "Chat deleted"));
+      if (selectedSessionId === (session._id as string)) {
+        onSelectSession(null);
+      }
+    } catch {
+      toast.error(t("chatSessions.toast.deleteFailed", "Could not delete chat"));
     }
   };
 
@@ -410,7 +425,7 @@ export function SessionList({
                               </DropdownMenuItem>
                             )}
                             {folderOptions.map((folder) =>
-                              folder.id === session.folderId ? null : (
+                              !isArchiveView && folder.id === session.folderId ? null : (
                                 <DropdownMenuItem
                                   key={folder.id as string}
                                   onSelect={() => void onMoveSession(session._id, folder.id)}
@@ -423,13 +438,23 @@ export function SessionList({
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onSelect={() => setConfirmArchive(session)}
-                        >
-                          <Archive className="h-4 w-4 mr-2" />
-                          {t("chatSessions.action.archive", "Archive")}
-                        </DropdownMenuItem>
+                        {isArchiveView ? (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => setConfirmDelete(session)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {t("chatSessions.action.deletePermanently")}
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => setConfirmArchive(session)}
+                          >
+                            <Archive className="h-4 w-4 mr-2" />
+                            {t("chatSessions.action.archive", "Archive")}
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -463,6 +488,27 @@ export function SessionList({
               }}
             >
               {t("chatSessions.action.archive", "Archive")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("chatSessions.confirm.deleteArchived.title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("chatSessions.confirm.deleteArchived.desc")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (confirmDelete) void handleDeleteArchived(confirmDelete);
+                setConfirmDelete(null);
+              }}
+            >
+              {t("chatSessions.action.deletePermanently")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
