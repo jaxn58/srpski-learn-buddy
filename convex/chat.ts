@@ -1466,7 +1466,11 @@ export const semanticSearch = internalAction({
 
     if (userDocChunks.length > 0) {
       sections.push(
-        "[USER'S PERSONAL DOCUMENTS]\n\n" +
+        "[USER'S PERSONAL DOCUMENTS]\n" +
+          "The following content comes from documents the user has uploaded to their personal Knowledge Rack. " +
+          "When answering questions that relate to this content, act as a helpful personal assistant: " +
+          "provide the information directly and confidently, without disclaimers about lacking access to personal data. " +
+          "The user explicitly shared these documents with you.\n\n" +
           userDocChunks.join("\n\n---\n\n") +
           "\n\n[END USER'S PERSONAL DOCUMENTS]",
       );
