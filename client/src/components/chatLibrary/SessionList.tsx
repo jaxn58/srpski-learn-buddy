@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { usePaginatedQuery, useMutation } from "convex/react";
 import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { LibraryBulkBar } from "@/components/library/LibraryBulkBar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +38,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, formatDateEU } from "@/lib/utils";
-import { getFolderMoveOptions } from "@/lib/chatLibraryTree";
+import { getFolderMoveOptions } from "@/lib/libraryTree";
 import {
   Archive,
   FileDown,
@@ -62,7 +64,7 @@ type SessionSummary = {
 };
 
 type SessionListProps = {
-  folderId: Id<"chatFolders"> | "uncategorized";
+  folderId: Id<"chatFolders"> | "uncategorized" | "__archived__";
   folders: ChatFolder[];
   onMoveSession: (sessionId: Id<"chatSessions">, folderId?: Id<"chatFolders">) => Promise<void>;
   dragSessionId: string | null;
@@ -85,20 +87,56 @@ export function SessionList({
   const isMobile = useIsMobile();
   const { exportSession, exportingSessionId } = useChatPdfExport();
   const archiveSessionMutation = useMutation(api.chat.archiveSession);
+  const archiveSessionsMutation = useMutation(api.chatLibrary.archiveSessions);
+  const moveSessionsToFolder = useMutation(api.chatLibrary.moveSessionsToFolder);
   const updateSessionMutation = useMutation(api.chat.updateSession);
   const [confirmArchive, setConfirmArchive] = useState<SessionSummary | null>(null);
+  const [batchArchiveOpen, setBatchArchiveOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const queryFolderId = folderId === "uncategorized" ? undefined : folderId;
+  const queryFolderId = folderId === "uncategorized" || folderId === "__archived__"
+    ? undefined
+    : folderId;
+  const isArchiveView = folderId === "__archived__";
 
   const { results, status, loadMore } = usePaginatedQuery(
     api.chatLibrary.getSessionsByFolder,
-    { folderId: queryFolderId },
+    isArchiveView
+      ? { archivedOnly: true }
+      : { folderId: queryFolderId },
     { initialNumItems: 30 }
   );
 
   const folderOptions = useMemo(() => getFolderMoveOptions(folders), [folders]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [folderId]);
+
+  const visibleIds = useMemo(() => results.map((session) => session._id as string), [results]);
+  const allSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const indeterminate = selectedIds.size > 0 && !allSelected;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectedIds(new Set(visibleIds));
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const openSession = useCallback(
     (sessionId: string) => {
@@ -135,6 +173,43 @@ export function SessionList({
     }
   };
 
+  const handleBatchArchive = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkProcessing(true);
+    try {
+      const result = await archiveSessionsMutation({
+        sessionIds: Array.from(selectedIds) as Id<"chatSessions">[],
+      });
+      toast.success(t("chatLibrary.bulk.archiveSuccess", { count: result.archivedCount }));
+      if (selectedSessionId && selectedIds.has(selectedSessionId)) {
+        onSelectSession(null);
+      }
+      setSelectedIds(new Set());
+    } catch {
+      toast.error(t("chatLibrary.bulk.archiveFailed"));
+    } finally {
+      setBulkProcessing(false);
+      setBatchArchiveOpen(false);
+    }
+  };
+
+  const handleBatchMove = async (targetFolderId: string | undefined) => {
+    if (selectedIds.size === 0) return;
+    setBulkProcessing(true);
+    try {
+      const result = await moveSessionsToFolder({
+        sessionIds: Array.from(selectedIds) as Id<"chatSessions">[],
+        folderId: targetFolderId as Id<"chatFolders"> | undefined,
+      });
+      toast.success(t("myLibrary.bulk.moveSuccess", { count: result.movedCount }));
+      setSelectedIds(new Set());
+    } catch {
+      toast.error(t("myLibrary.bulk.moveFailed"));
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
   if (status === "LoadingFirstPage") {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground min-h-[240px]">
@@ -156,10 +231,36 @@ export function SessionList({
 
   return (
     <>
+      <LibraryBulkBar
+        selectedCount={selectedIds.size}
+        allSelected={allSelected}
+        indeterminate={indeterminate}
+        onToggleSelectAll={toggleSelectAll}
+        onClearSelection={() => setSelectedIds(new Set())}
+        folderOptions={folderOptions}
+        currentFolderId={folderId}
+        onMoveToFolder={handleBatchMove}
+        onDelete={() => setBatchArchiveOpen(true)}
+        deleteLabel={t("chatLibrary.bulk.archiveSelected", { count: selectedIds.size })}
+        deleteIcon="archive"
+        isProcessing={bulkProcessing}
+      />
+
       <ScrollArea className="flex-1 min-h-0">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-muted/30 backdrop-blur-sm">
             <TableRow className="hover:bg-transparent border-b border-border/80">
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={allSelected ? true : indeterminate ? "indeterminate" : false}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label={
+                    allSelected
+                      ? t("chatSessions.batch.deselectAll")
+                      : t("chatSessions.batch.selectAll")
+                  }
+                />
+              </TableHead>
               <TableHead className="w-[min(100%,420px)] text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("chatLibrary.list.columnName")}
               </TableHead>
@@ -179,6 +280,7 @@ export function SessionList({
               const isRenaming = renamingId === idStr;
               const isExporting = exportingSessionId === idStr;
               const isDragging = dragSessionId === idStr;
+              const isChecked = selectedIds.has(idStr);
 
               return (
                 <TableRow
@@ -187,21 +289,29 @@ export function SessionList({
                   data-state={isSelected ? "selected" : undefined}
                   className={cn(
                     "cursor-default select-none group",
-                    isSelected && "bg-primary/8 hover:bg-primary/10",
+                    isSelected && "library-accent-bg hover:library-accent-bg",
+                    isChecked && !isSelected && "bg-muted/30",
                     isDragging && "opacity-40",
-                    !isSelected && "hover:bg-muted/50"
+                    !isSelected && !isChecked && "hover:bg-muted/50"
                   )}
                   onClick={() => onSelectSession(idStr)}
                   onDoubleClick={() => openSession(idStr)}
                   onDragStart={() => onDragStartSession(idStr)}
                   onDragEnd={() => onDragStartSession(null)}
                 >
+                  <TableCell className="py-2 w-8" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={() => toggleSelect(idStr)}
+                      aria-label={t("chatLibrary.bulk.selectSession")}
+                    />
+                  </TableCell>
                   <TableCell className="py-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <MessageSquare
                         className={cn(
                           "h-4 w-4 shrink-0",
-                          isSelected ? "text-primary" : "text-muted-foreground"
+                          isSelected ? "text-serbian-blue" : "text-muted-foreground"
                         )}
                       />
                       {isRenaming ? (
@@ -352,6 +462,23 @@ export function SessionList({
                 setConfirmArchive(null);
               }}
             >
+              {t("chatSessions.action.archive", "Archive")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={batchArchiveOpen} onOpenChange={setBatchArchiveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("chatLibrary.bulk.archiveConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("chatLibrary.bulk.archiveConfirmBody", { count: selectedIds.size })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleBatchArchive()}>
               {t("chatSessions.action.archive", "Archive")}
             </AlertDialogAction>
           </AlertDialogFooter>

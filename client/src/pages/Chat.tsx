@@ -599,7 +599,7 @@ export default function Chat() {
             />
           </div>
           {canUseLibrary && (
-            <Link href="/library/chats">
+            <Link href="/library">
               <Button
                 variant="ghost"
                 size="icon"

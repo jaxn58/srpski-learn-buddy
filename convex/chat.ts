@@ -1397,6 +1397,7 @@ export const semanticSearch = internalAction({
       return "";
     }
 
+    // --- Admin/Unit knowledge base ---
     const kbResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
       vector: queryEmbedding,
       limit: 5,
@@ -1425,9 +1426,55 @@ export const semanticSearch = internalAction({
       }
     }
 
-    if (chunks.length === 0) return "";
+    // --- User's personal documents (Knowledge Rack) ---
+    const userDocChunks: string[] = [];
+    if (args.userId) {
+      const hasDocuments = await ctx.runQuery(
+        internal.chat.hasReadyUserDocuments,
+        { userId: args.userId },
+      );
 
-    return "[RELEVANT KNOWLEDGE]\n\n" + chunks.join("\n\n---\n\n") + "\n\n[END RELEVANT KNOWLEDGE]";
+      if (hasDocuments) {
+        const userResults = await ctx.vectorSearch(
+          "userDocumentChunks",
+          "by_user_embedding",
+          {
+            vector: queryEmbedding,
+            limit: 3,
+            filter: (q: any) => q.eq("userId", args.userId),
+          },
+        );
+
+        for (const r of userResults) {
+          const doc = await ctx.runQuery(internal.chat.getUserDocChunk, {
+            id: r._id,
+          });
+          if (doc) userDocChunks.push(doc.content);
+        }
+      }
+    }
+
+    const sections: string[] = [];
+
+    if (chunks.length > 0) {
+      sections.push(
+        "[RELEVANT KNOWLEDGE]\n\n" +
+          chunks.join("\n\n---\n\n") +
+          "\n\n[END RELEVANT KNOWLEDGE]",
+      );
+    }
+
+    if (userDocChunks.length > 0) {
+      sections.push(
+        "[USER'S PERSONAL DOCUMENTS]\n\n" +
+          userDocChunks.join("\n\n---\n\n") +
+          "\n\n[END USER'S PERSONAL DOCUMENTS]",
+      );
+    }
+
+    if (sections.length === 0) return "";
+
+    return sections.join("\n\n");
   },
 });
 
@@ -1448,6 +1495,20 @@ export const getUserDocChunk = internalQuery({
   args: { id: v.id("userDocumentChunks") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
+  },
+});
+
+// @ts-ignore TS2589
+export const hasReadyUserDocuments = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    const doc = await ctx.db
+      .query("userDocuments")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .filter((q) => q.eq(q.field("status"), "ready"))
+      .first();
+    return doc !== null;
   },
 });
 

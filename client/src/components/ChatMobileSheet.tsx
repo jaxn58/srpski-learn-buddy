@@ -254,7 +254,7 @@ export function ChatMobileSheet({
           {canUseLibrary && (
             <div className="px-4 py-2 border-b space-y-2 shrink-0">
               <Button variant="outline" className="w-full text-xs" size="sm" asChild>
-                <Link href="/library/chats" onClick={() => setOpen(false)}>
+                <Link href="/library" onClick={() => setOpen(false)}>
                   <Library className="h-4 w-4 mr-2" />
                   {t("sidebar.myLibrary")}
                 </Link>

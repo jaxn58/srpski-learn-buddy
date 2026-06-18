@@ -1,7 +1,7 @@
 # Wissensbasis – Content-Automatisierung (Hybrid)
 
 > Status: **Konzept / geplant.** Umsetzung erst **nach** Abschluss der aktuellen
-> Buddy+Rack-Konsolidierung (`integration/buddy-rack`). Dieses Dokument
+> Buddy+Wissensbasis-Konsolidierung (`integration/buddy-rack`). Dieses Dokument
 > beschreibt das Vorgehen, damit der Standalone-Buddy auch praktische
 > Themen (z. B. Ausländer-/Aufenthaltsrecht) beantworten kann – über die
 > Knowledge Base, nicht über hartcodierte Inhalte.
@@ -187,7 +187,7 @@ oder ein durchgängig breiter Assistent (siehe Abschnitt 9).
 
 ## 10. Phasen-Roadmap
 
-- **Phase 0 (jetzt):** Buddy+Rack-Merge stabilisieren (laufend).
+- **Phase 0 (jetzt):** Buddy+Wissensbasis-Merge stabilisieren (laufend).
 - **Phase 1 – Fundament:** Schema-Erweiterungen (`knowledgeSources`,
   Artikel-Felder), KnowledgeAdmin um Review-Filter ergänzen, Prompt-Rolle
   erweitern. Inhalte zunächst **manuell** zu einem Pilotthema (z. B.

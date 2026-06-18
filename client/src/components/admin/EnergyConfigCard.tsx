@@ -79,7 +79,7 @@ const ASSUMED_TOKENS_PER_ENERGY = {
 const COST_FIELDS: FieldDef[] = [
   { key: "energyCostCompact",     label: "Compact answer",  hint: "Energy per compact reply",         step: 1 },
   { key: "energyCostDetailed",    label: "Detailed answer", hint: "Energy per detailed reply",        step: 1 },
-  { key: "energyRagSurcharge",    label: "RAG surcharge",   hint: "Added when knowledge base is used", step: 1 },
+  { key: "energyRagSurcharge",    label: "RAG surcharge",   hint: "Added when RAG context retrieval is used (unit, knowledge base, documents)", step: 1 },
   { key: "energyVisionSurcharge", label: "Vision surcharge",hint: "Added for image analysis",         step: 1 },
   { key: "energyUploadBase",      label: "Upload base",     hint: "Flat fee per document upload",     step: 1 },
   { key: "energyUploadPerKb",     label: "Upload per KB",   hint: "Per-KB factor (decimals allowed, e.g. 0.02)", step: 0.01 },

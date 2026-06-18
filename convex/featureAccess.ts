@@ -29,7 +29,7 @@ import { loadEnergyConfig } from "./energy";
  *   course         – Sprachkurs (learning content only, no AI)
  *   standalone     – AI Chat Standalone (AI Buddy + documents, no learning)
  *   course_ai      – Sprachkurs + AI (learning + AI Buddy, context linking, chat attachments)
- *   course_ai_pro  – Sprachkurs + AI Pro (+ knowledge rack, community, larger quotas)
+ *   course_ai_pro  – Sprachkurs + AI Pro (+ Wissensablage, community, larger quotas)
  *
  * The legacy names (buddy | basic | full) are still accepted on input for
  * zero-migration of existing DB records – they are normalized to the canonical

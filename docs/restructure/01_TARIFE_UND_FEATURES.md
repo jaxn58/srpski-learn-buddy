@@ -50,7 +50,7 @@ Klassisches wiederkehrendes Monats-/Jahres-Abo pro Paket. Vorteil: marktübliche
 
 - **Enthält:** Alle Lerninhalte (wie Sprachkurs) **+ Basis-Buddy** (`AI Buddy Chat (Basis)`) **mit Context-Linking** (Buddy kennt die aktuelle Unit/den Lernkontext) **+ Chat-Anhänge** (Fotos & Dateien im Chat, inkl. Vision-Aufschlag in der Energy-Tabelle) **+ Energy-Nachkauf**.
 - **Enthält NICHT:** Wissensablage (Wissensbasis in Meine Bibliothek), Community.
-- **Speicher:** 100 MB nur für Chat-Anhänge (kein Knowledge-Rack-Speicher).
+- **Speicher:** 100 MB nur für Chat-Anhänge (kein Wissensablage-Speicher).
 - **Energy:** **250 Energy/Monat** (Juni 2026 von 120 angehoben – UX-Korrektur, 120 wirkte als Demo-Quota) **mit** Nachkauf-Option (Top-up). Reicht für aktive Lerner mit ~3–4 Lernfragen pro Tag. Top-ups erlauben Spitzennutzung ohne Sperrung.
 - **Zielgruppe:** Lerner mit AI-Support.
 

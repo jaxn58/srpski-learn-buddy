@@ -2,7 +2,7 @@
 
 ## Was ist unsere RAG-Lösung?
 
-RAG steht für **Retrieval Augmented Generation** — die KI erhält nicht nur den System-Prompt, sondern zusätzlich **kontextbezogene Daten aus unserer Datenbank**, die dynamisch zum Prompt hinzugefügt werden. Dadurch kann der Learn Buddy präzise, auf den Lernfortschritt des Users zugeschnittene Antworten geben.
+RAG steht für **Retrieval-Augmented Generation** — die KI erhält nicht nur den System-Prompt, sondern zusätzlich **kontextbezogene Daten aus unserer Datenbank**, die dynamisch zum Prompt hinzugefügt werden. Dadurch kann der Learn Buddy präzise, auf den Lernfortschritt des Users zugeschnittene Antworten geben.
 
 Unsere RAG-Implementierung ist **kein Vektor-/Embedding-basiertes System**, sondern ein **strukturierter Abruf per Unit-Nummer**: Die aktuelle Unit des Users wird ermittelt, die relevanten Daten aus der DB geladen, als Textblock formatiert und dem System-Prompt angehängt.
 

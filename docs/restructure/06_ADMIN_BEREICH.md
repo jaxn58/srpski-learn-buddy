@@ -71,7 +71,7 @@ Erweiterung der Subscription-Analytics (`convex/subscriptions.ts` + Analytics-Pa
 ### 3.5 Knowledge-/Dokumenten-Admin (Phase-0-Abhängigkeit)
 
 - `KnowledgeAdmin.tsx` und die Ingestion-Pipeline (`convex/ai/ingestKnowledge.ts`, `convex/knowledge.ts`, `convex/documentsNode.ts`) existieren **nur im `chat`-Branch**.
-- Sie sind Voraussetzung für die Verwaltung des „Knowledge Rack" (Standalone/Full) und müssen in der **Branch-Konsolidierung (Phase 0)** mit überführt werden.
+- Sie sind Voraussetzung für die Verwaltung der **Wissensablage** (Standalone/Full) und müssen in der **Branch-Konsolidierung (Phase 0)** mit überführt werden.
 
 ## 4. Auth, Rollen & Sicherheit
 

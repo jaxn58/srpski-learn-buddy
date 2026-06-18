@@ -154,7 +154,7 @@ export const renameFolder = mutation({
   },
 });
 
-async function clearSessionsInFolder(
+async function assertChatFolderDeletable(
   ctx: MutationCtx,
   userId: Id<"users">,
   folderId: Id<"chatFolders">
@@ -162,24 +162,18 @@ async function clearSessionsInFolder(
   const sessions = await ctx.db
     .query("chatSessions")
     .withIndex("by_user_and_folder", (q) => q.eq("userId", userId).eq("folderId", folderId))
-    .collect();
-  for (const session of sessions) {
-    await ctx.db.patch(session._id, { folderId: undefined });
+    .first();
+  if (sessions) {
+    throw new Error("FOLDER_NOT_EMPTY");
   }
-}
 
-async function deleteFolderTree(ctx: MutationCtx, userId: Id<"users">, folderId: Id<"chatFolders">) {
-  const childFolders = await ctx.db
+  const childFolder = await ctx.db
     .query("chatFolders")
     .withIndex("by_user_and_parent", (q) => q.eq("userId", userId).eq("parentId", folderId))
-    .collect();
-
-  for (const child of childFolders) {
-    await deleteFolderTree(ctx, userId, child._id);
+    .first();
+  if (childFolder) {
+    throw new Error("FOLDER_HAS_SUBFOLDERS");
   }
-
-  await clearSessionsInFolder(ctx, userId, folderId);
-  await ctx.db.delete(folderId);
 }
 
 export const deleteFolder = mutation({
@@ -193,7 +187,8 @@ export const deleteFolder = mutation({
     await requireChatLibraryAccess(ctx, user._id);
 
     await getOwnedFolder(ctx, user._id, args.folderId);
-    await deleteFolderTree(ctx, user._id, args.folderId);
+    await assertChatFolderDeletable(ctx, user._id, args.folderId);
+    await ctx.db.delete(args.folderId);
     return null;
   },
 });
@@ -223,9 +218,60 @@ export const moveSessionToFolder = mutation({
   },
 });
 
+export const moveSessionsToFolder = mutation({
+  args: {
+    sessionIds: v.array(v.id("chatSessions")),
+    folderId: v.optional(v.id("chatFolders")),
+  },
+  returns: v.object({ movedCount: v.number() }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+    await requireChatLibraryAccess(ctx, user._id);
+
+    if (args.folderId) {
+      await getOwnedFolder(ctx, user._id, args.folderId);
+    }
+
+    let movedCount = 0;
+    for (const sessionId of args.sessionIds) {
+      const session = await ctx.db.get(sessionId);
+      if (!session || session.userId !== user._id || session.archived) continue;
+      await ctx.db.patch(sessionId, { folderId: args.folderId });
+      movedCount += 1;
+    }
+
+    return { movedCount };
+  },
+});
+
+export const archiveSessions = mutation({
+  args: {
+    sessionIds: v.array(v.id("chatSessions")),
+  },
+  returns: v.object({ archivedCount: v.number() }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+    await requireChatLibraryAccess(ctx, user._id);
+
+    let archivedCount = 0;
+    const now = Date.now();
+    for (const sessionId of args.sessionIds) {
+      const session = await ctx.db.get(sessionId);
+      if (!session || session.userId !== user._id || session.archived) continue;
+      await ctx.db.patch(sessionId, { archived: true, archivedAt: now });
+      archivedCount += 1;
+    }
+
+    return { archivedCount };
+  },
+});
+
 export const getSessionsByFolder = query({
   args: {
     folderId: v.optional(v.id("chatFolders")),
+    archivedOnly: v.optional(v.boolean()),
     paginationOpts: paginationOptsValidator,
   },
   returns: v.object({
@@ -245,30 +291,39 @@ export const getSessionsByFolder = query({
       await getOwnedFolder(ctx, user._id, args.folderId);
     }
 
-    const baseQuery =
-      args.folderId !== undefined
-        ? ctx.db
-            .query("chatSessions")
-            .withIndex("by_user_and_folder", (q) =>
-              q.eq("userId", user._id).eq("folderId", args.folderId)
-            )
-        : ctx.db
-            .query("chatSessions")
-            .withIndex("by_user", (q) => q.eq("userId", user._id))
-            .filter((q) =>
-              q.and(
-                q.neq(q.field("archived"), true),
-                q.eq(q.field("folderId"), undefined)
-              )
-            );
+    let baseQuery;
+    if (args.archivedOnly) {
+      baseQuery = ctx.db
+        .query("chatSessions")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .filter((q) => q.eq(q.field("archived"), true));
+    } else if (args.folderId !== undefined) {
+      baseQuery = ctx.db
+        .query("chatSessions")
+        .withIndex("by_user_and_folder", (q) =>
+          q.eq("userId", user._id).eq("folderId", args.folderId)
+        );
+    } else {
+      baseQuery = ctx.db
+        .query("chatSessions")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .filter((q) =>
+          q.and(
+            q.neq(q.field("archived"), true),
+            q.eq(q.field("folderId"), undefined)
+          )
+        );
+    }
 
     const paginated =
-      args.folderId !== undefined
-        ? await baseQuery
-            .filter((q) => q.neq(q.field("archived"), true))
-            .order("desc")
-            .paginate(args.paginationOpts)
-        : await baseQuery.order("desc").paginate(args.paginationOpts);
+      args.archivedOnly
+        ? await baseQuery.order("desc").paginate(args.paginationOpts)
+        : args.folderId !== undefined
+          ? await baseQuery
+              .filter((q) => q.neq(q.field("archived"), true))
+              .order("desc")
+              .paginate(args.paginationOpts)
+          : await baseQuery.order("desc").paginate(args.paginationOpts);
 
     const page = await Promise.all(
       paginated.page.map(async (session) => {
@@ -310,12 +365,13 @@ export const getFolderSessionCounts = query({
     const sessions = await ctx.db
       .query("chatSessions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .filter((q) => q.neq(q.field("archived"), true))
       .collect();
 
-    const counts: Record<string, number> = { uncategorized: 0 };
+    const counts: Record<string, number> = { uncategorized: 0, __archived__: 0 };
     for (const session of sessions) {
-      if (session.folderId) {
+      if (session.archived === true) {
+        counts.__archived__ += 1;
+      } else if (session.folderId) {
         const key = session.folderId as string;
         counts[key] = (counts[key] ?? 0) + 1;
       } else {

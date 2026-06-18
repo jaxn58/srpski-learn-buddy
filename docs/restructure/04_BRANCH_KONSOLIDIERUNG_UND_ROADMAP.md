@@ -87,7 +87,7 @@ flowchart TD
 | Bestandskunden verlieren Zugriff | Sehr gering | Kritisch | `v.optional` + Default `"course_ai_pro"` + unbegrenzte Energy |
 | Viele Dodo-Produkte (bis 32 + Top-ups) | Mittel | Mittel | Ratenzahlung nur ab Sprachkurs + AI; Sprachkurs prepaid-only |
 | KI-Kostenüberlauf durch Heavy-User | Gering | Mittel | Energy-Kontingent + Verbrauchs-Cap (Upload) + globales Tagesbudget |
-| `userDocuments`-Ingestion unvollständig | Mittel | Mittel | In Phase 0/2 prüfen und vervollständigen (Knowledge Rack) |
+| `userDocuments`-Ingestion unvollständig | Mittel | Mittel | In Phase 0/2 prüfen und vervollständigen (Wissensablage) |
 | Neue Tabellen nicht in User-Löschung berücksichtigt | Gering | Mittel | `energyPurchases`/`energyLedger` in `_deleteUserCascade` aufnehmen (siehe `06`) |
 | Entscheidungs-Paralyse (4 Pakete) | Mittel | Mittel | Sprachkurs + AI Pro prominent; klare Vergleichstabelle; Anker-Preis |
 

@@ -28,7 +28,7 @@
 
 ## 1. What is RAG?
 
-**Retrieval Augmented Generation (RAG)** means the AI doesn't just rely on its training data and system prompt — it **retrieves relevant information from our own data** before generating a response.
+**Retrieval-Augmented Generation (RAG)** means the AI doesn't just rely on its training data and system prompt — it **retrieves relevant information from our own data** before generating a response.
 
 Think of it like this: instead of asking a friend who "sort of knows Serbian", you're asking a friend who **first opens the textbook to the right page**, then answers your question.
 

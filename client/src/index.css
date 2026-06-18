@@ -344,6 +344,18 @@
     color: var(--serbian-blue-from);
   }
 
+  .library-accent-bg {
+    background: color-mix(in oklch, var(--serbian-blue-from) 12%, transparent);
+  }
+
+  .library-accent-bar {
+    background: var(--serbian-blue-from);
+  }
+
+  .library-accent-ring {
+    --tw-ring-color: color-mix(in oklch, var(--serbian-blue-from) 40%, transparent);
+  }
+
   /**
    * TipTap Editor Styles
    */

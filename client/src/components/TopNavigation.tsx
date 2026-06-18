@@ -206,6 +206,7 @@ export function TopNavigation() {
         label: t("sidebar.myLibrary"),
         href: "/library",
         icon: <Library className="h-4 w-4" />,
+        isActive: (loc) => loc === "/library" || loc.startsWith("/library/"),
       },
     ],
     [t]

@@ -261,7 +261,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
 
         {canUseLibrary && (
           <Button variant="outline" className="w-full text-xs" size="sm" asChild>
-            <Link href="/library/chats">
+            <Link href="/library">
               <Library className="h-4 w-4 mr-2" />
               {t("sidebar.myLibrary")}
             </Link>

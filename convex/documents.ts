@@ -381,6 +381,7 @@ export const listUserDocuments = query({
     fileTypeFilter: v.optional(v.string()),
     statusFilter: v.optional(v.string()),
     folderId: v.optional(v.id("documentFolders")),
+    uncategorizedOnly: v.optional(v.boolean()),
     sortBy: v.optional(
       v.union(v.literal("date"), v.literal("name"), v.literal("size"))
     ),
@@ -408,7 +409,9 @@ export const listUserDocuments = query({
       .order("desc")
       .collect();
 
-    if (args.folderId !== undefined) {
+    if (args.uncategorizedOnly) {
+      docs = docs.filter((d) => d.folderId === undefined);
+    } else if (args.folderId !== undefined) {
       docs = docs.filter((d) => d.folderId === args.folderId);
     }
 
@@ -649,6 +652,38 @@ export const deleteDocuments = mutation({
   },
 });
 
+// @ts-ignore TS2589
+export const moveDocumentsToFolder = mutation({
+  args: {
+    documentIds: v.array(v.id("userDocuments")),
+    folderId: v.optional(v.id("documentFolders")),
+  },
+  returns: v.object({ movedCount: v.number() }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    if (args.folderId) {
+      const folder = await ctx.db.get(args.folderId);
+      if (!folder || folder.userId !== user._id) {
+        throw new Error("Folder not found");
+      }
+    }
+
+    let movedCount = 0;
+    for (const documentId of args.documentIds) {
+      const doc = await ctx.db.get(documentId);
+      if (!doc || doc.userId !== user._id) continue;
+      await ctx.db.patch(documentId, {
+        folderId: args.folderId,
+      });
+      movedCount += 1;
+    }
+
+    return { movedCount };
+  },
+});
+
 const MAX_DOC_FOLDERS = 50;
 
 // @ts-ignore TS2589
@@ -757,18 +792,57 @@ export const deleteDocumentFolder = mutation({
     const folder = await ctx.db.get(args.folderId);
     if (!folder || folder.userId !== user._id) throw new Error("Folder not found");
 
-    const docs = await ctx.db
+    const docInFolder = await ctx.db
       .query("userDocuments")
       .withIndex("by_user_folder", (q) =>
         q.eq("userId", user._id).eq("folderId", args.folderId)
       )
-      .collect();
-    for (const doc of docs) {
-      await ctx.db.patch(doc._id, { folderId: undefined });
+      .first();
+    if (docInFolder) {
+      throw new Error("FOLDER_NOT_EMPTY");
+    }
+
+    const childFolder = await ctx.db
+      .query("documentFolders")
+      .withIndex("by_user_and_parent", (q) =>
+        q.eq("userId", user._id).eq("parentId", args.folderId)
+      )
+      .first();
+    if (childFolder) {
+      throw new Error("FOLDER_HAS_SUBFOLDERS");
     }
 
     await ctx.db.delete(args.folderId);
     return null;
+  },
+});
+
+// @ts-ignore TS2589
+export const getDocumentFolderCounts = query({
+  args: {},
+  returns: v.record(v.string(), v.number()),
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return {};
+
+    const access = await getFeatureAccessForUser(ctx, user._id);
+    if (!access.features.knowledgeRack) return {};
+
+    const docs = await ctx.db
+      .query("userDocuments")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const counts: Record<string, number> = { uncategorized: 0 };
+    for (const doc of docs) {
+      if (doc.folderId) {
+        const key = doc.folderId as string;
+        counts[key] = (counts[key] ?? 0) + 1;
+      } else {
+        counts.uncategorized += 1;
+      }
+    }
+    return counts;
   },
 });
 

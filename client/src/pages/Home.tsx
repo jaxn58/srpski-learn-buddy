@@ -664,6 +664,9 @@ export default function Home() {
                   <Sparkles className="h-3 w-3" /> {t("home.features.aiBuddyContext.badge")}
                 </div>
                 <CardTitle>{t("home.features.aiBuddyContext.title")}</CardTitle>
+                <p className="text-xs text-muted-foreground font-medium">
+                  {t("home.features.aiBuddyContext.subtitle")}
+                </p>
                 <CardDescription>{t("home.features.aiBuddyContext.desc")}</CardDescription>
               </CardHeader>
             </Card>

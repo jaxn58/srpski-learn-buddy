@@ -3,6 +3,8 @@
 **Teil von:** Tarif- und Token-Umbau (siehe `00_KONZEPT_UEBERSICHT.md`)
 
 > **Begriffs-Update:** Die nutzersichtbare Verbrauchseinheit heisst **AI Energy** (kurz „Energy"), nicht mehr „Token = 1 Nachricht". Grund: Der AI-Buddy verbraucht je nach Aktion sehr unterschiedlich viel (RAG/Retrieval, Antwortlaenge, Foto-Scan, Dokumenten-Analyse). Ein starres „1 Nachricht = 1 Token" bildet die realen Kosten nicht ab und wuerde Heavy-Aktionen (z. B. grosse Datei-Uploads) systematisch unterbewerten. Der Dateiname und der Initiativtitel bleiben aus Verweis-Konsistenz erhalten.
+>
+> **RAG (Schreibweise):** **RAG** = **Retrieval-Augmented Generation** (mit Bindestrich). Nicht „Rack", nicht „Retrieval Augmented Generation", nicht „argumented". UI-Copy und Doku verwenden diese Schreibweise konsistent.
 
 ---
 

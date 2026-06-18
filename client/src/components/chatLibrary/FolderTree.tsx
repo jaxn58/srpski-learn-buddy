@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,9 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
+  FileDown,
+  Loader2,
+  Archive,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -25,32 +28,52 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   buildFolderTree,
-  type ChatFolder,
-  type FolderTreeNode,
+  canDeleteFolder,
   isRootFolder,
-} from "@/lib/chatLibraryTree";
+  nextDefaultFolderName,
+  type FolderTreeNode,
+  type LibraryFolder,
+} from "@/lib/libraryTree";
 
-export type { ChatFolder };
+export type { LibraryFolder as ChatFolder };
 
 type FolderTreeProps = {
-  folders: ChatFolder[];
-  selectedFolderId: Id<"chatFolders"> | "uncategorized";
-  sessionCounts: Record<string, number>;
-  onSelectFolder: (folderId: Id<"chatFolders"> | "uncategorized") => void;
-  onCreateFolder: (name: string, parentId?: Id<"chatFolders">) => Promise<Id<"chatFolders"> | null>;
-  onRenameFolder: (folderId: Id<"chatFolders">, name: string) => Promise<void>;
-  onDeleteFolder: (folderId: Id<"chatFolders">) => Promise<void>;
+  folders: LibraryFolder[];
+  selectedFolderId: string | "uncategorized";
+  itemCounts: Record<string, number>;
+  /** Direct item counts per folder (for delete eligibility). Falls back to itemCounts when omitted. */
+  directItemCounts?: Record<string, number>;
+  onSelectFolder: (folderId: string | "uncategorized") => void;
+  onCreateFolder: (name: string, parentId?: string) => Promise<string | null>;
+  onRenameFolder: (folderId: string, name: string) => Promise<void>;
+  onDeleteFolder: (folderId: string) => Promise<void>;
   dragOverFolderId: string | null;
   onDragOverFolder: (folderId: string | null) => void;
-  onDropOnFolder: (folderId: Id<"chatFolders"> | "uncategorized") => void;
+  onDropOnFolder: (folderId: string | "uncategorized") => void;
   compact?: boolean;
+  /** Hide the "Places" section header – used when nested under a drive in the library sidebar. */
+  embedded?: boolean;
+  /** When false, folder selection styling is hidden (inactive drive in library sidebar). */
+  sectionActive?: boolean;
+  /** Externally trigger inline-rename for a newly created folder (e.g. from drive context menu). */
+  forcedRenamingFolderId?: string | null;
+  /** Chat archive only: export all sessions in a folder as ZIP. */
+  onExportFolder?: (folderId: string | "uncategorized") => void;
+  /** Folder id currently being exported (shows spinner in context menu). */
+  exportingFolderId?: string | null;
+  /** Virtual "Archive" entry below the folder tree. */
+  archiveEntry?: {
+    label: string;
+    count: number;
+    id: string;
+  };
 };
 
 function FolderRow({
   node,
   depth,
   selectedFolderId,
-  sessionCounts,
+  itemCounts,
   onSelectFolder,
   onRenameFolder,
   onDeleteFolder,
@@ -61,27 +84,41 @@ function FolderRow({
   renamingFolderId,
   onSetRenamingFolderId,
   isMobile,
+  sectionActive,
+  folders,
+  directItemCounts,
+  onExportFolder,
+  exportingFolderId,
 }: {
   node: FolderTreeNode;
   depth: number;
-  selectedFolderId: Id<"chatFolders"> | "uncategorized";
-  sessionCounts: Record<string, number>;
-  onSelectFolder: (folderId: Id<"chatFolders"> | "uncategorized") => void;
-  onRenameFolder: (folderId: Id<"chatFolders">, name: string) => Promise<void>;
-  onDeleteFolder: (folderId: Id<"chatFolders">) => Promise<void>;
-  onCreateSubfolder: (parentId: Id<"chatFolders">) => void;
+  selectedFolderId: string | "uncategorized";
+  itemCounts: Record<string, number>;
+  onSelectFolder: (folderId: string | "uncategorized") => void;
+  onRenameFolder: (folderId: string, name: string) => Promise<void>;
+  onDeleteFolder: (folderId: string) => Promise<void>;
+  onCreateSubfolder: (parentId: string) => void;
   dragOverFolderId: string | null;
   onDragOverFolder: (folderId: string | null) => void;
-  onDropOnFolder: (folderId: Id<"chatFolders"> | "uncategorized") => void;
+  onDropOnFolder: (folderId: string | "uncategorized") => void;
   renamingFolderId: string | null;
   onSetRenamingFolderId: (id: string | null) => void;
   isMobile: boolean;
+  sectionActive: boolean;
+  folders: LibraryFolder[];
+  directItemCounts: Record<string, number>;
+  onExportFolder?: (folderId: string | "uncategorized") => void;
+  exportingFolderId?: string | null;
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
-  const idStr = node._id as string;
-  const isSelected = selectedFolderId === node._id;
-  const count = sessionCounts[idStr] ?? 0;
+  const idStr = node._id;
+  const isSelected = sectionActive && selectedFolderId === node._id;
+  const count = itemCounts[idStr] ?? 0;
+  const deletable = canDeleteFolder(idStr, folders, directItemCounts);
+  const directCount = directItemCounts[idStr] ?? 0;
+  const canExport = Boolean(onExportFolder) && directCount > 0;
+  const isExporting = exportingFolderId === idStr;
   const isDragOver = dragOverFolderId === idStr;
   const hasChildren = node.children.length > 0;
   const isMainFolder = isRootFolder(node);
@@ -111,12 +148,12 @@ function FolderRow({
     <div role="treeitem" aria-expanded={hasChildren ? expanded : undefined}>
       <div
         className={cn(
-          "group flex items-center gap-0.5 rounded-md pr-1 text-[13px] transition-colors cursor-default select-none",
+          "group flex items-center gap-0.5 rounded-md pr-1 text-[13px] transition-colors duration-200 ease-out cursor-default select-none",
           isMobile ? "py-1.5" : "py-1",
           isSelected
-            ? "bg-primary/12 text-primary font-medium"
+            ? "library-accent-bg text-serbian-blue font-medium"
             : "text-foreground/90 hover:bg-muted/70",
-          isDragOver && "ring-2 ring-primary/40 ring-inset bg-primary/5"
+          isDragOver && "ring-2 library-accent-ring ring-inset bg-[color-mix(in_oklch,var(--serbian-blue-from)_5%,transparent)]"
         )}
         style={{ paddingLeft: `${6 + depth * 16}px` }}
         onDragOver={(e) => {
@@ -143,7 +180,10 @@ function FolderRow({
           aria-label={expanded ? t("chatLibrary.tree.collapse") : t("chatLibrary.tree.expand")}
         >
           <ChevronRight
-            className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", expanded && "rotate-90")}
+            className={cn(
+              "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ease-out",
+              expanded && "rotate-90"
+            )}
           />
         </button>
 
@@ -155,7 +195,7 @@ function FolderRow({
           }}
         >
           {isSelected ? (
-            <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
+            <FolderOpen className="h-4 w-4 shrink-0 text-serbian-blue" />
           ) : isMainFolder ? (
             <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
           ) : (
@@ -214,9 +254,31 @@ function FolderRow({
                   <Pencil className="h-4 w-4 mr-2" />
                   {t("chatLibrary.folder.rename")}
                 </DropdownMenuItem>
+                {onExportFolder && (
+                  <DropdownMenuItem
+                    disabled={!canExport || isExporting}
+                    title={!canExport ? t("chatLibrary.export.folderEmpty") : undefined}
+                    onSelect={() => {
+                      if (canExport && !isExporting) onExportFolder(node._id);
+                    }}
+                  >
+                    {isExporting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileDown className="h-4 w-4 mr-2" />
+                    )}
+                    {isExporting
+                      ? t("chatLibrary.export.bulkProgress")
+                      : t("chatLibrary.export.folderZip")}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  onSelect={() => void onDeleteFolder(node._id)}
+                  disabled={!deletable}
+                  title={!deletable ? t("chatLibrary.folder.deleteBlocked") : undefined}
+                  onSelect={() => {
+                    if (deletable) void onDeleteFolder(node._id);
+                  }}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
                   {t("chatLibrary.folder.delete")}
@@ -227,26 +289,40 @@ function FolderRow({
         )}
       </div>
 
-      {expanded &&
-        node.children.map((child) => (
-          <FolderRow
-            key={child._id as string}
-            node={child}
-            depth={depth + 1}
-            selectedFolderId={selectedFolderId}
-            sessionCounts={sessionCounts}
-            onSelectFolder={onSelectFolder}
-            onRenameFolder={onRenameFolder}
-            onDeleteFolder={onDeleteFolder}
-            onCreateSubfolder={onCreateSubfolder}
-            dragOverFolderId={dragOverFolderId}
-            onDragOverFolder={onDragOverFolder}
-            onDropOnFolder={onDropOnFolder}
-            renamingFolderId={renamingFolderId}
-            onSetRenamingFolderId={onSetRenamingFolderId}
-            isMobile={isMobile}
-          />
-        ))}
+      <AnimatePresence initial={false}>
+        {expanded &&
+          node.children.map((child) => (
+            <motion.div
+              key={child._id}
+              initial={{ opacity: 0, x: -4 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -4 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+            >
+              <FolderRow
+                node={child}
+                depth={depth + 1}
+                selectedFolderId={selectedFolderId}
+                itemCounts={itemCounts}
+                onSelectFolder={onSelectFolder}
+                onRenameFolder={onRenameFolder}
+                onDeleteFolder={onDeleteFolder}
+                onCreateSubfolder={onCreateSubfolder}
+                dragOverFolderId={dragOverFolderId}
+                onDragOverFolder={onDragOverFolder}
+                onDropOnFolder={onDropOnFolder}
+                renamingFolderId={renamingFolderId}
+                onSetRenamingFolderId={onSetRenamingFolderId}
+                isMobile={isMobile}
+                sectionActive={sectionActive}
+                folders={folders}
+                directItemCounts={directItemCounts}
+                onExportFolder={onExportFolder}
+                exportingFolderId={exportingFolderId}
+              />
+            </motion.div>
+          ))}
+      </AnimatePresence>
     </div>
   );
 }
@@ -254,7 +330,7 @@ function FolderRow({
 export function FolderTree({
   folders,
   selectedFolderId,
-  sessionCounts,
+  itemCounts,
   onSelectFolder,
   onCreateFolder,
   onRenameFolder,
@@ -263,40 +339,47 @@ export function FolderTree({
   onDragOverFolder,
   onDropOnFolder,
   compact = false,
+  embedded = false,
+  sectionActive = true,
+  forcedRenamingFolderId = null,
+  directItemCounts: directItemCountsProp,
+  onExportFolder,
+  exportingFolderId = null,
+  archiveEntry,
 }: FolderTreeProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const tree = useMemo(() => buildFolderTree(folders), [folders]);
-  const uncategorizedCount = sessionCounts.uncategorized ?? 0;
-  const isUncategorizedSelected = selectedFolderId === "uncategorized";
+  const directItemCounts = directItemCountsProp ?? itemCounts;
+  const uncategorizedCount = itemCounts.uncategorized ?? 0;
+  const canExportUncategorized =
+    Boolean(onExportFolder) && (directItemCounts.uncategorized ?? 0) > 0;
+  const isExportingUncategorized = exportingFolderId === "uncategorized";
+  const isUncategorizedSelected = sectionActive && selectedFolderId === "uncategorized";
   const isUncategorizedDragOver = dragOverFolderId === "uncategorized";
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (forcedRenamingFolderId) {
+      setRenamingFolderId(forcedRenamingFolderId);
+    }
+  }, [forcedRenamingFolderId]);
+
   const nextDefaultName = useCallback(
-    (parentId?: Id<"chatFolders">) => {
-      const prefix = parentId
-        ? t("chatLibrary.folder.defaultSubfolderName")
-        : t("chatLibrary.folder.defaultFolderName");
-      const siblings = parentId
-        ? folders.filter((f) => f.parentId === parentId)
-        : folders.filter((f) => !f.parentId);
-      const existing = new Set(siblings.map((f) => f.name));
-      if (!existing.has(prefix)) return prefix;
-      for (let i = 2; i <= 100; i += 1) {
-        const candidate = `${prefix} ${i}`;
-        if (!existing.has(candidate)) return candidate;
-      }
-      return `${prefix} ${Date.now()}`;
-    },
+    (parentId?: string) =>
+      nextDefaultFolderName(folders, parentId, {
+        main: t("chatLibrary.folder.defaultFolderName"),
+        sub: t("chatLibrary.folder.defaultSubfolderName"),
+      }),
     [folders, t]
   );
 
   const handleInstantCreate = useCallback(
-    async (parentId?: Id<"chatFolders">) => {
+    async (parentId?: string) => {
       const name = nextDefaultName(parentId);
       const newId = await onCreateFolder(name, parentId);
       if (newId) {
-        setRenamingFolderId(newId as string);
+        setRenamingFolderId(newId);
       }
     },
     [nextDefaultName, onCreateFolder]
@@ -304,38 +387,42 @@ export function FolderTree({
 
   return (
     <div className={cn("flex flex-col min-h-0", compact ? "h-full" : "")}>
-      <div className="px-3 pt-3 pb-1">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("chatLibrary.tree.locations")}
-        </p>
-      </div>
+      {!embedded && (
+        <div className="px-3 pt-3 pb-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("chatLibrary.tree.locations")}
+          </p>
+        </div>
+      )}
 
-      <div className="px-2 pb-2 shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(
-            "w-full justify-start gap-2 text-xs text-muted-foreground hover:text-foreground",
-            isMobile ? "h-10" : "h-8"
-          )}
-          onClick={() => void handleInstantCreate(undefined)}
-        >
-          <FolderPlus className="h-3.5 w-3.5" />
-          {t("chatLibrary.folder.newMainFolder")}
-        </Button>
-      </div>
+      {!embedded && (
+        <div className={cn("px-2 pb-2 shrink-0", embedded && "pt-1")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "w-full justify-start gap-2 text-xs text-muted-foreground hover:text-foreground",
+              isMobile ? "h-10" : "h-8"
+            )}
+            onClick={() => void handleInstantCreate(undefined)}
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
+            {t("chatLibrary.folder.newMainFolder")}
+          </Button>
+        </div>
+      )}
 
-      <ScrollArea className={cn("flex-1 px-1", compact ? "max-h-none" : "max-h-[420px]")}>
+      <ScrollArea className={cn("flex-1 px-1", compact && !embedded ? "max-h-none" : embedded ? "max-h-none" : "max-h-[420px]")}>
         <div role="tree" aria-label={t("chatLibrary.foldersHeading")} className="space-y-0.5 pb-2">
           <div
             role="treeitem"
             className={cn(
-              "flex items-center gap-2 rounded-md px-2 text-[13px] cursor-default select-none transition-colors",
+              "group flex items-center gap-2 rounded-md px-2 text-[13px] cursor-default select-none transition-colors",
               isMobile ? "py-2.5" : "py-1.5",
               isUncategorizedSelected
-                ? "bg-primary/12 text-primary font-medium"
+                ? "library-accent-bg text-serbian-blue font-medium"
                 : "text-foreground/90 hover:bg-muted/70",
-              isUncategorizedDragOver && "ring-2 ring-primary/40 ring-inset"
+              isUncategorizedDragOver && "ring-2 library-accent-ring ring-inset"
             )}
             onClick={() => onSelectFolder("uncategorized")}
             onDragOver={(e) => {
@@ -353,6 +440,45 @@ export function FolderTree({
             <Inbox className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="flex-1 truncate">{t("chatLibrary.uncategorized")}</span>
             <span className="text-[11px] tabular-nums text-muted-foreground">{uncategorizedCount}</span>
+            {onExportFolder && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      "shrink-0 focus-visible:opacity-100",
+                      isMobile
+                        ? "h-8 w-8 opacity-60"
+                        : "h-6 w-6 opacity-0 group-hover:opacity-100"
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    disabled={!canExportUncategorized || isExportingUncategorized}
+                    title={!canExportUncategorized ? t("chatLibrary.export.folderEmpty") : undefined}
+                    onSelect={() => {
+                      if (canExportUncategorized && !isExportingUncategorized) {
+                        onExportFolder("uncategorized");
+                      }
+                    }}
+                  >
+                    {isExportingUncategorized ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileDown className="h-4 w-4 mr-2" />
+                    )}
+                    {isExportingUncategorized
+                      ? t("chatLibrary.export.bulkProgress")
+                      : t("chatLibrary.export.folderZip")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
 
           {tree.length > 0 && (
@@ -364,12 +490,17 @@ export function FolderTree({
           )}
 
           {tree.map((node) => (
-            <FolderRow
-              key={node._id as string}
+            <motion.div
+              key={node._id}
+              layout
+              initial={false}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+            >
+              <FolderRow
               node={node}
               depth={0}
               selectedFolderId={selectedFolderId}
-              sessionCounts={sessionCounts}
+              itemCounts={itemCounts}
               onSelectFolder={onSelectFolder}
               onRenameFolder={onRenameFolder}
               onDeleteFolder={onDeleteFolder}
@@ -380,8 +511,40 @@ export function FolderTree({
               renamingFolderId={renamingFolderId}
               onSetRenamingFolderId={setRenamingFolderId}
               isMobile={isMobile}
+              sectionActive={sectionActive}
+              folders={folders}
+              directItemCounts={directItemCounts}
+              onExportFolder={onExportFolder}
+              exportingFolderId={exportingFolderId}
             />
+            </motion.div>
           ))}
+
+          {archiveEntry && archiveEntry.count > 0 && (
+            <>
+              <div className="px-3 pt-2 pb-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t("chatLibrary.tree.archive")}
+                </p>
+              </div>
+              <div
+                role="treeitem"
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2 text-[13px] cursor-default select-none transition-colors",
+                  isMobile ? "py-2.5" : "py-1.5",
+                  sectionActive && selectedFolderId === archiveEntry.id
+                    ? "library-accent-bg text-serbian-blue font-medium"
+                    : "text-foreground/90 hover:bg-muted/70"
+                )}
+                onClick={() => onSelectFolder(archiveEntry.id)}
+              >
+                <span className="w-5 shrink-0" />
+                <Archive className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate">{archiveEntry.label}</span>
+                <span className="text-[11px] tabular-nums text-muted-foreground">{archiveEntry.count}</span>
+              </div>
+            </>
+          )}
         </div>
       </ScrollArea>
     </div>
