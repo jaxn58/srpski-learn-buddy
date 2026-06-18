@@ -626,9 +626,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section: 8 cards in 4x2 grid
-           Row 1: USPs unique to the new 4-tier architecture
-           Row 2: Standard learning features */}
+      {/* Features Section: 9 cards — Row 1: architecture USPs, Row 2: learning & pricing */}
       <section className="w-full bg-white/50">
         <div className="container py-16">
           <div className="text-center max-w-2xl mx-auto mb-10">
@@ -656,7 +654,7 @@ export default function Home() {
               </CardHeader>
             </Card>
 
-            {/* 2) AI Buddy with Context-Linking (THE differentiator) */}
+            {/* 2) AI Buddy – personal assistant across learning and daily life */}
             <Card className="border-2 border-primary/30 bg-primary/5 hover:border-primary hover:shadow-lg transition-all">
               <CardHeader>
                 <Brain className="h-12 w-12 text-primary mb-2" />
@@ -664,14 +662,20 @@ export default function Home() {
                   <Sparkles className="h-3 w-3" /> {t("home.features.aiBuddyContext.badge")}
                 </div>
                 <CardTitle>{t("home.features.aiBuddyContext.title")}</CardTitle>
-                <p className="text-xs text-muted-foreground font-medium">
-                  {t("home.features.aiBuddyContext.subtitle")}
-                </p>
                 <CardDescription>{t("home.features.aiBuddyContext.desc")}</CardDescription>
               </CardHeader>
             </Card>
 
-            {/* 3) Chat attachments (Sprachkurs + AI and above) */}
+            {/* 3) Knowledge Base – persistent personal documents */}
+            <Card className="border-2 border-primary/30 bg-primary/5 hover:border-primary hover:shadow-lg transition-all">
+              <CardHeader>
+                <HardDrive className="h-12 w-12 text-primary mb-2" />
+                <CardTitle>{t("home.features.knowledgeRack.title")}</CardTitle>
+                <CardDescription>{t("home.features.knowledgeRack.desc")}</CardDescription>
+              </CardHeader>
+            </Card>
+
+            {/* 4) Chat attachments (Sprachkurs + AI and above) */}
             <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
               <CardHeader>
                 <Camera className="h-12 w-12 text-primary mb-2" />
@@ -680,7 +684,9 @@ export default function Home() {
               </CardHeader>
             </Card>
 
-            {/* 4) Flexible Plans: 4 tiers × 3 durations */}
+            {/* === Row 2: Standard learning features === */}
+
+            {/* 5) Flexible Plans: 4 tiers × 3 durations */}
             <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
               <CardHeader>
                 <Layers className="h-12 w-12 text-primary mb-2" />
@@ -689,9 +695,7 @@ export default function Home() {
               </CardHeader>
             </Card>
 
-            {/* === Row 2: Standard learning features === */}
-
-            {/* 5) AI Energy: fair & flexible */}
+            {/* 6) AI Energy: fair & flexible */}
             <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
               <CardHeader>
                 <Zap className="h-12 w-12 text-amber-500 mb-2" />
@@ -700,7 +704,7 @@ export default function Home() {
               </CardHeader>
             </Card>
 
-            {/* 6) Vocabulary Trainer */}
+            {/* 7) Vocabulary Trainer */}
             <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
               <CardHeader>
                 <GraduationCap className="h-12 w-12 text-primary mb-2" />
@@ -713,7 +717,7 @@ export default function Home() {
               </CardHeader>
             </Card>
 
-            {/* 7) Audio Pronunciation */}
+            {/* 8) Audio Pronunciation */}
             <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
               <CardHeader>
                 <Volume2 className="h-12 w-12 text-primary mb-2" />
@@ -722,7 +726,7 @@ export default function Home() {
               </CardHeader>
             </Card>
 
-            {/* 8) Gamification & Progress (combined) */}
+            {/* 9) Gamification & Progress (combined) */}
             <Card className="border-2 hover:border-secondary hover:shadow-blue-200 transition-all hover:shadow-lg">
               <CardHeader>
                 <Trophy className="h-12 w-12 text-primary mb-2" />
