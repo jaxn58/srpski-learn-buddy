@@ -16,6 +16,7 @@ import {
   getModelPricing,
   usdPerEnergy,
 } from "./ai/modelPricing";
+import { loadBetaPhaseActive } from "./platform";
 
 // ============= Launch defaults (mirror 02_TOKEN_SYSTEM.md) =============
 
@@ -38,6 +39,9 @@ export const DEFAULT_TIER_QUOTAS = {
   basic: 250,
   course: 0,
 } as const;
+
+/** Beta testers get a limited quota to test the system at minimal cost. */
+export const DEFAULT_BETA_ENERGY_QUOTA = 100;
 
 /** Hard technical input cap for uploads (independent of energy balance). */
 export const DEFAULT_UPLOAD_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -130,11 +134,17 @@ export function previewEnergyBandForChat(
   const isDetailed = input.responseMode === "detailed";
   const withRag = input.ragUsed === true;
 
-  // Token heuristics: compact vs detailed output caps + RAG inflates input.
-  const inputMin = withRag ? 600 : 400;
-  const inputMax = withRag ? 3500 : 1200;
-  const outputMin = isDetailed ? 300 : 120;
-  const outputMax = isDetailed ? 4096 : 450;
+  // Token heuristics derived from measured production data (June 2026).
+  // Compact answers stay short; detailed answers with RAG consistently
+  // produce 1000-3000 output tokens with 3000-8000 input tokens.
+  const inputMin = isDetailed
+    ? (withRag ? 3000 : 800)
+    : (withRag ? 600 : 400);
+  const inputMax = isDetailed
+    ? (withRag ? 6000 : 2000)
+    : (withRag ? 3500 : 1200);
+  const outputMin = isDetailed ? (withRag ? 1100 : 800) : 120;
+  const outputMax = isDetailed ? 3000 : 450;
 
   const minEnergy = measuredTokensToEnergy(
     { inputTokens: inputMin, outputTokens: outputMin },
@@ -286,14 +296,44 @@ export async function chargeEnergy(
     actualEnergyCost?: number;
   }
 ): Promise<ChargeResult> {
-  if (amount <= 0) return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0, debtCreated: 0 };
+  if (amount <= 0) {
+    return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0, debtCreated: 0 };
+  }
 
   // @ts-ignore TS2589 – Convex schema depth limit (large schema)
-  const sub = await ctx.db
+  let sub = await ctx.db
     .query("userSubscriptions")
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .filter((q) => q.eq(q.field("status"), "active"))
     .first();
+
+  if (!sub) {
+    // Beta users may have energy access (via isBetaTester flag) without a
+    // subscription row. Lazy-create a beta subscription so energy tracking
+    // works correctly. Without this, chargeEnergy would silently charge 0.
+    // @ts-ignore TS2589 – Convex schema depth limit (large schema)
+    const user = await ctx.db.get(userId);
+    const betaPhaseActive = await loadBetaPhaseActive(ctx);
+    if (user && betaPhaseActive && user.isBetaTester === true) {
+      const quota = DEFAULT_BETA_ENERGY_QUOTA;
+      const now = Date.now();
+      const subId = await ctx.db.insert("userSubscriptions", {
+        userId,
+        planType: "beta",
+        planDurationMonths: 12,
+        planPrice: 0,
+        expiresAt: now + 365 * 24 * 60 * 60 * 1000,
+        status: "active",
+        autoRenew: false,
+        energyQuotaMonthly: quota,
+        energyUsedThisPeriod: 0,
+        energyTopUpBalance: 0,
+        energyDebtBalance: 0,
+        energyPeriodResetAt: nextMonthlyResetAt(now),
+      });
+      sub = await ctx.db.get(subId);
+    }
+  }
 
   if (!sub) {
     await ctx.db.insert("energyLedger", {

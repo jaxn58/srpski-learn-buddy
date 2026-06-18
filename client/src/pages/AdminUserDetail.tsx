@@ -364,21 +364,21 @@ export default function AdminUserDetail({ userId }: Props) {
               <p className="font-medium">{(userDetail as any).publicNickname || <span className="text-muted-foreground italic">Not set</span>}</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Public Profile</p>
+              <p className="text-muted-foreground text-xs mb-0.5">Leaderboard</p>
               <p className="font-medium">
-                {(userDetail as any).leaderboardPublicEnabled
+                {(userDetail as any).leaderboardPublicEnabled === true
                   ? <span className="text-green-600">Enabled</span>
                   : <span className="text-muted-foreground">Disabled</span>
                 }
               </p>
             </div>
             <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Community Emails</p>
+              <p className="text-muted-foreground text-xs mb-0.5">Email updates</p>
               <p className="font-medium">
                 {(userDetail as any).newsletterStatus?.subscribed
                   ? <span className="text-green-600">Subscribed</span>
                   : (userDetail as any).newsletterStatus?.pending
-                    ? <span className="text-yellow-600">Pending confirmation</span>
+                    ? <span className="text-yellow-600">Pending waitlist confirmation</span>
                     : <span className="text-muted-foreground">Not subscribed</span>
                 }
               </p>

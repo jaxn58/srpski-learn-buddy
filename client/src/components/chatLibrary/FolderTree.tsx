@@ -310,6 +310,21 @@ export function FolderTree({
         </p>
       </div>
 
+      <div className="px-2 pb-2 shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "w-full justify-start gap-2 text-xs text-muted-foreground hover:text-foreground",
+            isMobile ? "h-10" : "h-8"
+          )}
+          onClick={() => void handleInstantCreate(undefined)}
+        >
+          <FolderPlus className="h-3.5 w-3.5" />
+          {t("chatLibrary.folder.newMainFolder")}
+        </Button>
+      </div>
+
       <ScrollArea className={cn("flex-1 px-1", compact ? "max-h-none" : "max-h-[420px]")}>
         <div role="tree" aria-label={t("chatLibrary.foldersHeading")} className="space-y-0.5 pb-2">
           <div
@@ -369,18 +384,6 @@ export function FolderTree({
           ))}
         </div>
       </ScrollArea>
-
-      <div className="border-t border-border/60 p-2 shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 h-8 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => void handleInstantCreate(undefined)}
-        >
-          <FolderPlus className="h-3.5 w-3.5" />
-          {t("chatLibrary.folder.newMainFolder")}
-        </Button>
-      </div>
     </div>
   );
 }

@@ -489,6 +489,31 @@ export const requestCommunityUpdatesDoubleOptIn = mutation({
 });
 
 /**
+ * Subscribe current user to email updates (product news, community, learning tips).
+ * No double opt-in — direct subscribe; respects prior unsubscribe (unsubscribedAt).
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const subscribeMyCommunityUpdates = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || !user.email) {
+      throw new Error("Not authenticated");
+    }
+    assertLearnerAccountActive(user);
+
+    const contactId = await ctx.runMutation(internal.newsletter.syncUserToNewsletter, {
+      userId: user._id,
+      autoSubscribe: true,
+    });
+    if (!contactId) {
+      throw new Error("Could not update newsletter subscription");
+    }
+    return { success: true };
+  },
+});
+
+/**
  * Get current user's community updates subscription status (for Profile UI).
  * - subscribed=true: already confirmed
  * - pending=true: opt-in requested but not confirmed yet
@@ -520,7 +545,7 @@ export const getMyCommunityUpdatesStatus = query({
 
     const pending =
       contact.subscribed !== true &&
-      contact.optInPurpose === "community_updates" &&
+      contact.optInPurpose === "waitlist_updates" &&
       typeof contact.optInToken === "string" &&
       contact.optInToken.length > 0;
 
@@ -2272,5 +2297,101 @@ export const backfillSubscribeAll = mutation({
     }
 
     return { subscribed, created, skippedUnsub, alreadyOk, skippedNoEmail, totalUsers: users.length };
+  },
+});
+
+/**
+ * Backfill newsletter subscription for all registered users (with email).
+ * Respects prior unsubscribe (unsubscribedAt). Used by scripts/backfill-newsletter-user-subscriptions.ts
+ */
+// @ts-ignore TS2589 – Convex schema depth limit
+export const internalBackfillRegisteredUsersNewsletter = internalMutation({
+  args: { dryRun: v.boolean() },
+  handler: async (ctx, args) => {
+    const users = await ctx.db.query("users").collect();
+    let withEmail = 0;
+    let mutationCalls = 0;
+    let wouldCreateContact = 0;
+    let wouldSubscribe = 0;
+    let wouldBackfillConsent = 0;
+    let skippedNoEmail = 0;
+    let skippedPriorUnsubscribe = 0;
+    let noOpAlreadyComplete = 0;
+
+    for (const user of users) {
+      if (!user.email) {
+        skippedNoEmail++;
+        continue;
+      }
+      withEmail++;
+
+      const existing = await ctx.db
+        .query("newsletterContacts")
+        .withIndex("by_email", (q) => q.eq("email", user.email!))
+        .first();
+
+      if (existing?.unsubscribedAt !== undefined) {
+        skippedPriorUnsubscribe++;
+        continue;
+      }
+
+      if (existing?.subscribed === true) {
+        noOpAlreadyComplete++;
+        if (!args.dryRun) {
+          await ctx.runMutation(internal.newsletter.syncUserToNewsletter, {
+            userId: user._id,
+            autoSubscribe: false,
+          });
+          mutationCalls++;
+        }
+        continue;
+      }
+
+      if (!existing) {
+        wouldCreateContact++;
+      } else {
+        wouldSubscribe++;
+      }
+      wouldBackfillConsent++;
+
+      if (!args.dryRun) {
+        await ctx.runMutation(internal.newsletter.syncUserToNewsletter, {
+          userId: user._id,
+          autoSubscribe: true,
+        });
+        mutationCalls++;
+      }
+    }
+
+    return {
+      success: true,
+      totalUsers: users.length,
+      withEmail,
+      mutationCalls,
+      preview: args.dryRun
+        ? {
+            wouldCreateContact,
+            wouldSubscribe,
+            wouldBackfillConsent,
+            skippedNoEmail,
+            skippedPriorUnsubscribe,
+            noOpAlreadyComplete,
+          }
+        : undefined,
+    };
+  },
+});
+
+// @ts-ignore TS2589 – Convex schema depth limit
+export const adminBackfillRegisteredUsersNewsletter = action({
+  args: {
+    adminSecret: v.string(),
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    assertAdminSecret(args.adminSecret);
+    return await ctx.runMutation(internal.newsletter.internalBackfillRegisteredUsersNewsletter, {
+      dryRun: args.dryRun ?? false,
+    });
   },
 });

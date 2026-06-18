@@ -16,7 +16,7 @@ import {
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, Brain, Sparkles, Info, ArrowLeft, Square, ThumbsUp, ThumbsDown, Languages, Globe, LifeBuoy, Paperclip, X, FileText, Image as ImageIcon, Loader2, MessageCircle, FileDown } from "lucide-react";
+import { Send, Brain, Sparkles, Info, ArrowLeft, Square, ThumbsUp, ThumbsDown, Languages, Globe, LifeBuoy, Paperclip, X, FileText, Image as ImageIcon, Loader2, FileDown, Zap, Shield } from "lucide-react";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess, canUseDocuments } from "@/hooks/useFeatureAccess";
 import { ChatMobileSheet } from "@/components/ChatMobileSheet";
@@ -71,14 +71,6 @@ export default function Chat() {
   };
   const progress = useQuery(api.progress.getUserProgress);
 
-  // Beta daily usage tracking -- nowMs refreshes every minute to catch midnight reset
-  const [usageNowMs, setUsageNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    const interval = setInterval(() => setUsageNowMs(Date.now()), 60_000);
-    return () => clearInterval(interval);
-  }, []);
-  const chatUsage = useQuery(api.chat.getChatUsageToday, { nowMs: usageNowMs });
-  const isDailyLimitReached = chatUsage != null && chatUsage.remaining === 0;
 
   // Live energy preview for the next action (drives the pill overlay and the
   // send-button "not enough Energy" state). RAG is hinted true because the
@@ -110,6 +102,13 @@ export default function Chat() {
   const updateSessionMutation = useMutation(api.chat.updateSession);
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const featureAccess = useFeatureAccess();
+  const [usageOpen, setUsageOpen] = useState(false);
+
+  // Mirror of RATE_LIMITS in convex/chat.ts — kept in sync manually.
+  const CHAT_LIMITS = {
+    beta: { perMinute: 10, perHour: 60, maxLength: 1500 },
+    paid: { perMinute: 20, perHour: 200, maxLength: 3000 },
+  } as const;
   const canUploadDocuments = canUseDocuments(featureAccess);
   const { exportSession, exportingSessionId } = useChatPdfExport();
 
@@ -388,7 +387,6 @@ export default function Chat() {
 
   const handleSend = async () => {
     if ((!message.trim() && !attachedFile) || isSending || !currentSessionId) return;
-    if (isDailyLimitReached) return;
 
     const messageToSend = message;
     const currentAttachment = attachedFile;
@@ -576,6 +574,15 @@ export default function Chat() {
               isCreatingSession={isCreatingSession}
             />
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 min-h-[44px] min-w-[44px]"
+            aria-label={t('chat.usage.title')}
+            onClick={() => setUsageOpen(true)}
+          >
+            <Info className="h-5 w-5" />
+          </Button>
         </div>
       )}
 
@@ -607,85 +614,13 @@ export default function Chat() {
                 <span className="hidden sm:inline">{t("chatLibrary.export.action")}</span>
               </Button>
             )}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Info className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t('chat.usage.title')}</span>
-                  <span className="sm:hidden">{t("common.info")}</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Info className="h-5 w-5 text-primary" />
-                    {t('chat.usage.title')}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {t('chat.usage.intro')}
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-6 py-4">
-                  {/* Tips Section */}
-                  <div className="space-y-4">
-                    <div className="flex gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                        1
-                      </div>
-                      <div>
-                        <h4 className="font-semibold mb-1">{t('chat.usage.tip1.title')}</h4>
-                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip1.desc')}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                        2
-                      </div>
-                      <div>
-                        <h4 className="font-semibold mb-1">{t('chat.usage.tip2.title')}</h4>
-                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip2.desc')}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                        3
-                      </div>
-                      <div>
-                        <h4 className="font-semibold mb-1">{t('chat.usage.tip3.title')}</h4>
-                        <p className="text-sm text-muted-foreground">{t('chat.usage.tip3.desc')}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Fair Use Protection Section */}
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold mb-3 flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      {t('chat.usage.protection.title')}
-                    </h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>{t('chat.usage.protection.beta')}</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <span className="text-primary">•</span>
-                        <span>{t('chat.usage.protection.paid')}</span>
-                      </div>
-                      <p className="text-muted-foreground mt-3 italic">
-                        {t('chat.usage.protection.note')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => setUsageOpen(true)}>
+              <Info className="h-4 w-4" />
+              <span className="hidden sm:inline">{t('chat.usage.title')}</span>
+            </Button>
           </div>
           {/* Beta Banner */}
-          {betaBannerVisible && chatUsage != null && !chatUsage.isPaidUser && (
+          {betaBannerVisible && (
             <div className="mx-3 mt-2 sm:mx-4 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
               <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               <span className="flex-1 leading-relaxed">{t('chat.beta.banner')}</span>
@@ -895,37 +830,15 @@ export default function Chat() {
                 onKeyPress={handleKeyPress}
                 onFocus={handleInputFocus}
                 placeholder={
-                  isDailyLimitReached
-                    ? t('chat.beta.limitReached', { limit: chatUsage?.limit ?? 10 })
-                    : currentSessionId
-                      ? t('chat.placeholder')
-                      : t('chat.noSessionPlaceholder', 'Please start a new chat first')
+                  currentSessionId
+                    ? t('chat.placeholder')
+                    : t('chat.noSessionPlaceholder', 'Please start a new chat first')
                 }
                 className="flex-1 rounded-full"
-                disabled={isSending || !currentSessionId || isDailyLimitReached}
+                disabled={isSending || !currentSessionId}
               />
-              {/* Beta usage pill badge */}
-              {chatUsage != null && !chatUsage.isPaidUser && (
-                <span
-                  title={t('chat.beta.usageTooltip', { limit: chatUsage.limit })}
-                  className={cn(
-                    "shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold select-none cursor-default transition-colors",
-                    isDailyLimitReached
-                      ? "bg-destructive/10 text-destructive"
-                      : chatUsage.remaining <= 3
-                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                        : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  <MessageCircle className="h-3 w-3" />
-                  {t('chat.beta.usageCounter', { used: chatUsage.used, limit: chatUsage.limit })}
-                </span>
-              )}
               {/* AI Energy pill (always visible for metered users) */}
-              <EnergyPill
-                upcomingCostMin={upcomingEnergyEstimate?.costMin ?? null}
-                upcomingCostMax={upcomingEnergyEstimate?.costMax ?? null}
-              />
+              <EnergyPill />
               {canUploadDocuments && (
               <div
                 className="relative shrink-0"
@@ -948,7 +861,7 @@ export default function Chat() {
                 )}
                 <Button
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading || isSending || !currentSessionId || !!attachedFile || isDailyLimitReached}
+                  disabled={isUploading || isSending || !currentSessionId || !!attachedFile}
                   size="icon"
                   variant="ghost"
                   className="rounded-full h-10 w-10"
@@ -972,7 +885,7 @@ export default function Chat() {
               ) : (
                 <Button
                   onClick={handleSend}
-                  disabled={(!message.trim() && !attachedFile) || isSending || !currentSessionId || isDailyLimitReached || energyBlocksSend}
+                  disabled={(!message.trim() && !attachedFile) || isSending || !currentSessionId || energyBlocksSend}
                   size="icon"
                   className="rounded-full h-10 w-10"
                   title={energyBlocksSend
@@ -1005,6 +918,14 @@ export default function Chat() {
                     })}
               </p>
             )}
+            {!energyBlocksSend && upcomingEnergyEstimate && !upcomingEnergyEstimate.unlimited && upcomingEnergyEstimate.costMax > 0 && (
+              <p className="flex items-center justify-center gap-1 mt-1.5 text-[11px] text-muted-foreground">
+                <Zap className="h-3 w-3" />
+                {upcomingEnergyEstimate.costMin === upcomingEnergyEstimate.costMax
+                  ? t('energy.sendCostExact', { cost: upcomingEnergyEstimate.costMin })
+                  : t('energy.sendCostRange', { min: upcomingEnergyEstimate.costMin, max: upcomingEnergyEstimate.costMax })}
+              </p>
+            )}
             <p className="text-[10px] text-muted-foreground/50 text-center mt-2 px-4">
               {t('chat.aiDisclaimer', 'AI can make mistakes. Always verify important information.')}
             </p>
@@ -1013,6 +934,108 @@ export default function Chat() {
           </main>
         </div>
       </div>
+      {/* Chat Usage Guidelines Dialog — controlled, shared between Desktop and Mobile trigger */}
+      <Dialog open={usageOpen} onOpenChange={setUsageOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-primary" />
+              {t('chat.usage.title')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('chat.usage.intro')}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-2">
+            {/* Section 1: Tips as card grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { num: 1, title: t('chat.usage.tip1.title'), desc: t('chat.usage.tip1.desc') },
+                { num: 2, title: t('chat.usage.tip2.title'), desc: t('chat.usage.tip2.desc') },
+                { num: 3, title: t('chat.usage.tip3.title'), desc: t('chat.usage.tip3.desc') },
+              ].map(({ num, title, desc }) => (
+                <div key={num} className="rounded-lg border bg-card p-4 flex flex-col gap-2">
+                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-semibold shrink-0">
+                    {num}
+                  </div>
+                  <p className="font-semibold text-sm">{title}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Section 2: How Energy works */}
+            <div className="rounded-lg border bg-card p-4 space-y-2">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                {t('chat.usage.energy.title')}
+              </h3>
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span>{t('chat.usage.energy.cost')}</span>
+                </li>
+                {featureAccess?.source === "subscription" && (
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>{t('chat.usage.energy.quota')}</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+
+            {/* Section 3: Spam protection */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+              <h3 className="font-semibold text-sm flex items-center gap-2 text-primary">
+                <Shield className="h-4 w-4" />
+                {t('chat.usage.spam.title')}
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {t('chat.usage.spam.intro')}
+              </p>
+              <ul className="space-y-1.5 text-xs text-muted-foreground mt-1">
+                {featureAccess?.isStaff ? (
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>{t('chat.usage.spam.staffNote')}</span>
+                  </li>
+                ) : featureAccess?.source === "subscription" ? (
+                  <>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>{t('chat.usage.spam.limitsPaid', {
+                        perMinute: CHAT_LIMITS.paid.perMinute,
+                        perHour: CHAT_LIMITS.paid.perHour,
+                        maxLength: CHAT_LIMITS.paid.maxLength,
+                      })}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>{t('chat.usage.spam.duplicate')}</span>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>{t('chat.usage.spam.limitsBeta', {
+                        perMinute: CHAT_LIMITS.beta.perMinute,
+                        perHour: CHAT_LIMITS.beta.perHour,
+                        maxLength: CHAT_LIMITS.beta.maxLength,
+                      })}</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      <span>{t('chat.usage.spam.duplicate')}</span>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AnimatedPage>
   );
 }

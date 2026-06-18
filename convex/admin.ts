@@ -456,7 +456,7 @@ export const getUserById = query({
       if (contact) {
         const pending =
           contact.subscribed !== true &&
-          contact.optInPurpose === "community_updates" &&
+          contact.optInPurpose === "waitlist_updates" &&
           typeof contact.optInToken === "string" &&
           contact.optInToken.length > 0;
         newsletterStatus = {

@@ -189,9 +189,9 @@ async function migrateNewsletterInitial() {
     console.log("");
 
     // Step 2: User migration info
-    console.log("📋 User Migration:");
-    console.log("   ℹ️  User migration will happen automatically on next login");
-    console.log("   ℹ️  Users need to opt-in to newsletter manually");
+    console.log("📋 User registration:");
+    console.log("   ℹ️  New users are auto-subscribed to email updates on registration (syncUserToNewsletter).");
+    console.log("   ℹ️  For existing users, run: pnpm backfill:newsletter-users --dry-run");
     console.log("");
 
     // Step 3: Show newsletter stats

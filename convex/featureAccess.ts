@@ -22,7 +22,7 @@ import { query, internalQuery, type QueryCtx, type MutationCtx } from "./_genera
 import type { Doc, Id } from "./_generated/dataModel";
 import { isStaffRole, isLearnerAccountSuspended } from "./authz";
 import { loadBetaPhaseActive } from "./platform";
-import { loadEnergyConfig } from "./energy";
+import { loadEnergyConfig, DEFAULT_BETA_ENERGY_QUOTA } from "./energy";
 
 /**
  * Canonical feature tier identifiers (Phase 5, June 2026).
@@ -225,6 +225,23 @@ function resolveEnergy(
 }
 
 /**
+ * Beta testers without a subscription row yet: show the beta-specific quota.
+ * Once chargeEnergy lazy-creates the beta subscription, resolveEnergy takes
+ * over and reads the persisted fields.
+ */
+function resolveBetaEnergy(): EnergyState {
+  return {
+    unlimited: false,
+    quotaMonthly: DEFAULT_BETA_ENERGY_QUOTA,
+    usedThisPeriod: 0,
+    topUpBalance: 0,
+    debtBalance: 0,
+    available: DEFAULT_BETA_ENERGY_QUOTA,
+    periodResetAt: null,
+  };
+}
+
+/**
  * Pure resolution logic. Kept free of ctx so it stays unit-testable and is the
  * single definition of how entitlements are derived.
  */
@@ -292,14 +309,19 @@ export function resolveFeatureAccess(input: {
   // Beta testers (virtual beta sub or flag): full features, but LIMITED energy.
   // Only while the global beta phase is active. Once a superadmin ends the beta
   // phase, beta status no longer grants access – users need a package/override.
+  // Beta quota is intentionally low (DEFAULT_BETA_ENERGY_QUOTA) to contain costs
+  // while giving testers a representative sample of the AI Buddy experience.
   if (betaPhaseActive && (activeSub?.planType === "beta" || user.isBetaTester === true)) {
+    const betaEnergy = activeSub
+      ? resolveEnergy("course_ai_pro", activeSub, energyQuotas)
+      : resolveBetaEnergy();
     return {
       hasAccess: true,
       tier: "course_ai_pro",
       source: "beta",
       isStaff: false,
       features: featuresForTier("course_ai_pro"),
-      energy: resolveEnergy("course_ai_pro", activeSub ?? null, energyQuotas),
+      energy: betaEnergy,
     };
   }
 

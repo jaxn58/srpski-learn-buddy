@@ -22,7 +22,7 @@ export function getVariableDescription(variable: string): string {
     case "CLERK_ID":
       return "Clerk user id (internal identifier from authentication).";
     case "CONFIRM_LINK":
-      return "Double opt-in confirmation link (newsletter).";
+      return "Double opt-in confirmation link (waitlist / legacy newsletter opt-in).";
     case "CONFIRMATION_LINK":
       return "Confirmation link (waitlist confirmation).";
     case "BETA_LAUNCH_NOTE":

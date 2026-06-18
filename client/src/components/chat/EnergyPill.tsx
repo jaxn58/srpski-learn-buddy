@@ -10,28 +10,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { TopupDialog } from "@/components/energy/TopupDialog";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
 
 interface EnergyPillProps {
   className?: string;
-  /** Approximate cost band for the next action (preview only). */
-  upcomingCostMin?: number | null;
-  upcomingCostMax?: number | null;
-}
-
-function formatPreviewRange(min: number, max: number): string {
-  if (min === max) return `~${min}`;
-  return `~${min}–${max}`;
 }
 
 /**
- * Pill that shows the user's current AI Energy state.
+ * Pill that shows the user's current AI Energy balance.
+ * Pure status indicator -- cost previews belong on the action that triggers them.
  */
-export function EnergyPill({ className, upcomingCostMin, upcomingCostMax }: EnergyPillProps) {
+export function EnergyPill({ className }: EnergyPillProps) {
   const { t } = useTranslation();
   const access = useFeatureAccess();
-  const energyInfo = useQuery(api.subscriptions.getPublicEnergyInfo);
   if (!access) return null;
   if (access.energy.unlimited) return null;
   if (access.features.teaser && !access.features.buddyChat) return null;
@@ -43,15 +33,6 @@ export function EnergyPill({ className, upcomingCostMin, upcomingCostMax }: Ener
   const isCritical = hasDebt || available === 0 || ratio < 0.1;
   const isLow = !isCritical && ratio < 0.25;
   const showTopUpCta = isCritical || isLow;
-  const welcomeEnergyAmount = energyInfo?.welcomeEnergyAmount ?? 0;
-  const showWelcomeNote = access.tier === "course_ai_pro" && welcomeEnergyAmount > 0;
-
-  const previewLabel =
-    typeof upcomingCostMin === "number" &&
-    typeof upcomingCostMax === "number" &&
-    upcomingCostMax > 0
-      ? formatPreviewRange(upcomingCostMin, upcomingCostMax)
-      : null;
 
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)}>
@@ -71,35 +52,21 @@ export function EnergyPill({ className, upcomingCostMin, upcomingCostMax }: Ener
             >
               <Zap className="h-3 w-3" />
               <span className="tabular-nums">{available}</span>
-              {previewLabel && (
-                <span className="text-muted-foreground/80 tabular-nums">
-                  {" "}{previewLabel}
-                </span>
-              )}
             </span>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[260px]">
-            <div className="text-xs space-y-0.5">
-              <p className="font-medium">{t("energy.title")}</p>
-              <p>
-                {t("energy.monthlyQuota")}: <span className="tabular-nums">{Math.max(0, quotaMonthly - usedThisPeriod)}</span>
-                {" / "}
-                <span className="tabular-nums">{quotaMonthly}</span> {t("energy.remaining")}
+          <TooltipContent side="bottom" className="max-w-[220px] px-2.5 py-1.5">
+            <div className="text-[11px] leading-snug space-y-px">
+              <p className="font-semibold text-[11px]">{t("energy.title")}</p>
+              <p className="tabular-nums">
+                <span className="font-medium">{Math.max(0, quotaMonthly - usedThisPeriod)}</span>
+                <span className="opacity-60"> / {quotaMonthly}</span>
               </p>
-              <p>{t("energy.topUpBalance")}: <span className="tabular-nums">{topUpBalance}</span></p>
+              {topUpBalance > 0 && (
+                <p className="opacity-70">+{topUpBalance} {t("energy.topUpBalance")}</p>
+              )}
               {hasDebt && (
-                <p className="text-destructive">
+                <p className="text-destructive font-medium">
                   {t("energy.debtOutstanding", { amount: debtBalance })}
-                </p>
-              )}
-              {previewLabel && (
-                <p className="text-muted-foreground">
-                  {t("energy.previewHint", { range: previewLabel })}
-                </p>
-              )}
-              {showWelcomeNote && (
-                <p className="text-muted-foreground">
-                  {t("energy.welcomeBonusShort", { amount: welcomeEnergyAmount })}
                 </p>
               )}
             </div>

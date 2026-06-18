@@ -368,7 +368,9 @@ export default function Leaderboards() {
             nickname: string;
             avatarUrl: string;
             level?: number;
+            isYou?: boolean;
           }>;
+          const self = b.data?.self ?? null;
 
           const xpLabel = (xp: number) =>
             b.period === "all" ? `${Math.floor(xp)}` : `+${Math.floor(xp)}`;
@@ -392,7 +394,7 @@ export default function Leaderboards() {
                     <div className="h-10 rounded-lg bg-muted/30 animate-pulse" />
                     <div className="h-10 rounded-lg bg-muted/30 animate-pulse" />
                   </div>
-                ) : entries.length === 0 ? (
+                ) : entries.length === 0 && !self ? (
                   <div className="py-6 text-sm text-muted-foreground">{t("leaderboards.empty")}</div>
                 ) : (
                   <div className="space-y-2">
@@ -401,7 +403,11 @@ export default function Leaderboards() {
                         key={`${b.period}-${e.rank}-${e.nickname}`}
                         className={cn(
                           "flex items-center justify-between gap-3 rounded-xl p-2.5",
-                          e.rank === 1 ? "bg-[color:var(--accent)]/10" : "hover:bg-muted/30"
+                          e.isYou
+                            ? "bg-[color:var(--brand-blue-soft)] border border-[color:var(--brand-blue-soft-border)]"
+                            : e.rank === 1
+                              ? "bg-[color:var(--accent)]/10"
+                              : "hover:bg-muted/30"
                         )}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -413,10 +419,15 @@ export default function Leaderboards() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="text-sm font-medium truncate">{e.nickname}</span>
+                              {e.isYou ? (
+                                <Badge variant="secondary" className="h-5 px-2 text-[10px]">
+                                  {t("leaderboards.you")}
+                                </Badge>
+                              ) : null}
                               {(() => {
                                 const entryLevel =
-                                  typeof (e as any).level === "number" && Number.isFinite((e as any).level)
-                                    ? (e as any).level
+                                  typeof e.level === "number" && Number.isFinite(e.level)
+                                    ? e.level
                                     : null;
                                 if (entryLevel === null) return null;
                                 return (
@@ -436,6 +447,47 @@ export default function Leaderboards() {
                         </div>
                       </div>
                     ))}
+                    {self && user && !self.isInTopTen ? (
+                      <div
+                        className={cn(
+                          "flex items-center justify-between gap-3 rounded-xl p-2.5 mt-3 border",
+                          "bg-[color:var(--brand-blue-soft)] border-[color:var(--brand-blue-soft-border)]"
+                        )}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <RankBadge rank={self.rank} />
+                          <Avatar className="h-8 w-8 border flex-shrink-0">
+                            <AvatarImage
+                              src={self.avatarUrl ?? undefined}
+                              alt={self.nickname}
+                            />
+                            <AvatarFallback>{self.nickname.charAt(0).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-sm font-medium truncate">{self.nickname}</span>
+                              <Badge variant="secondary" className="h-5 px-2 text-[10px]">
+                                {t("leaderboards.you")}
+                              </Badge>
+                              {typeof self.level === "number" && Number.isFinite(self.level) ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="h-5 px-2 text-[10px] border-[color:var(--brand-blue-soft-border)] bg-[color:var(--brand-blue-soft)] text-[color:var(--brand-blue-strong-text)]"
+                                >
+                                  {t("progress.hero.levelBadge", { level: self.level })}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {t("leaderboards.yourRankLabel")}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-sm font-semibold tabular-nums text-[color:var(--brand-blue-strong-text)]">
+                          {xpLabel(self.xp)}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </CardContent>
@@ -447,7 +499,7 @@ export default function Leaderboards() {
       {user && !loading && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="text-xs text-muted-foreground">
-            {user.leaderboardPublicEnabled
+            {user.leaderboardPublicEnabled === true
               ? t("leaderboards.publicDisplay.enabled")
               : t("leaderboards.publicDisplay.disabled")}{" "}
           </div>

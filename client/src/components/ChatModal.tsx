@@ -11,11 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, User, Brain, Sparkles, MessageSquarePlus } from "lucide-react";
+import { Send, User, Brain, Sparkles, MessageSquarePlus, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -61,6 +60,14 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
     ragHinted: true,
   });
+  const compactEstimate = useQuery(api.chat.estimateEnergyForAction, {
+    responseMode: "compact" as const,
+    ragHinted: true,
+  });
+  const detailedEstimate = useQuery(api.chat.estimateEnergyForAction, {
+    responseMode: "detailed" as const,
+    ragHinted: true,
+  });
   const energyBlocksSend =
     upcomingEnergyEstimate != null &&
     !upcomingEnergyEstimate.unlimited &&
@@ -74,27 +81,12 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   };
   
   const progress = useQuery(api.progress.getUserProgress);
-  // Stable day-start timestamp: rounded to midnight UTC so it never changes within a day
-  const [todayMs] = useState(() => {
-    const now = Date.now();
-    const d = new Date(now);
-    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  });
-  const chatUsage = useQuery(api.chat.getChatUsageToday, { nowMs: todayMs });
   const createSessionMutation = useMutation(api.chat.createSession);
   const addMessageMutation = useMutation(api.chat.addMessage);
   const checkRateLimitMutation = useMutation(api.chat.checkMessageRateLimit);
   const createStreamMutation = useMutation(api.streaming.createStream);
   const addStreamingAssistantMsg = useMutation(api.chat.addStreamingAssistantMessage);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
-
-  const showUsage = chatUsage !== null && chatUsage !== undefined
-    && (!chatUsage.isPaidUser || chatUsage.isAdmin);
-
-  const detailedDisabled = showUsage
-    && !chatUsage!.isAdmin
-    && chatUsage!.detailedRemaining !== null
-    && chatUsage!.detailedRemaining === 0;
 
   const { data: streamData, feedResponse, reset: resetStream } = useChatStream();
 
@@ -417,8 +409,6 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
               <DialogDescription>{t('chat.modal.subtitle')}</DialogDescription>
             </div>
             <EnergyPill
-              upcomingCostMin={upcomingEnergyEstimate?.costMin ?? null}
-              upcomingCostMax={upcomingEnergyEstimate?.costMax ?? null}
               className="shrink-0 self-center"
             />
             <Button
@@ -456,34 +446,32 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                   >
                     <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.compact", "Compact")}</p>
                     <p className="text-xs text-muted-foreground">{t("buddy.modeSelect.compactDesc", "3-4 sentences, essentials only")}</p>
+                    {compactEstimate && !compactEstimate.unlimited && (
+                      <p className="flex items-center gap-1 mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        <Zap className="h-3 w-3" />
+                        ~{compactEstimate.costMin === compactEstimate.costMax
+                          ? compactEstimate.costMin
+                          : `${compactEstimate.costMin}–${compactEstimate.costMax}`} Energy
+                      </p>
+                    )}
                   </Card>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Card
-                          className={`p-4 transition-colors ${detailedDisabled ? "opacity-50 cursor-not-allowed" : "hover:bg-accent cursor-pointer"}`}
-                          onClick={() => !detailedDisabled && void handleModeSelect("detailed")}
-                        >
-                          <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.detailed", "Detailed")}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {detailedDisabled
-                              ? t("buddy.modeSelect.detailedLimitReached", "Daily limit reached")
-                              : t("buddy.modeSelect.detailedDesc", "Full explanation with examples")}
-                          </p>
-                          {!detailedDisabled && chatUsage?.detailedRemaining !== null && chatUsage?.detailedRemaining !== undefined && (
-                            <p className="text-xs text-primary/70 mt-1.5 border-t pt-1.5">
-                              {t("buddy.modeSelect.detailedQuota", "{{remaining}} of {{limit}} left today", { remaining: chatUsage.detailedRemaining, limit: chatUsage.detailedLimit })}
-                            </p>
-                          )}
-                        </Card>
-                      </TooltipTrigger>
-                      {detailedDisabled && (
-                        <TooltipContent>
-                          <p>{t("buddy.modeSelect.detailedLimitTooltip", "You have used all detailed answers for today. Come back tomorrow!")}</p>
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Card
+                    className="p-4 transition-colors hover:bg-accent cursor-pointer"
+                    onClick={() => void handleModeSelect("detailed")}
+                  >
+                    <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.detailed", "Detailed")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("buddy.modeSelect.detailedDesc", "Full explanation with examples")}
+                    </p>
+                    {detailedEstimate && !detailedEstimate.unlimited && (
+                      <p className="flex items-center gap-1 mt-2 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                        <Zap className="h-3 w-3" />
+                        ~{detailedEstimate.costMin === detailedEstimate.costMax
+                          ? detailedEstimate.costMin
+                          : `${detailedEstimate.costMin}–${detailedEstimate.costMax}`} Energy
+                      </p>
+                    )}
+                  </Card>
                 </div>
               </div>
             )}
@@ -584,31 +572,13 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
             )}
           </div>
 
-          {/* Unit session hint */}
-          {unitNumber != null && (
-            <div className="px-4 py-2 bg-primary/5 border-t text-xs text-muted-foreground text-center">
-              {t("buddy.sessionHint", { unit: unitNumber })}
-            </div>
-          )}
+          {/* Auto-save hint */}
+          <div className="px-4 py-2 bg-primary/5 border-t text-xs text-muted-foreground text-center">
+            {t("buddy.sessionHint")}
+          </div>
 
           {/* Input Area -- hidden while mode-selection (pendingPrefill) is active */}
           {!pendingPrefill && <div className="border-t p-4 bg-muted/30">
-            {showUsage && chatUsage && (
-              <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-                <span>{t("chat.usage.messagesLeft", "{{remaining}} of {{limit}} messages left", { remaining: chatUsage.remaining, limit: chatUsage.limit })}</span>
-                {chatUsage.detailedLimit !== null && chatUsage.detailedRemaining !== null && (
-                  <>
-                    <span className="text-muted-foreground/40">|</span>
-                    <span className={chatUsage.detailedRemaining === 0 ? "text-destructive/70" : ""}>
-                      {t("chat.usage.detailedLeft", "{{remaining}} of {{limit}} detailed left", { remaining: chatUsage.detailedRemaining, limit: chatUsage.detailedLimit })}
-                    </span>
-                  </>
-                )}
-                {chatUsage.isAdmin && (
-                  <span className="text-muted-foreground/40 italic">(admin)</span>
-                )}
-              </div>
-            )}
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
@@ -644,6 +614,14 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                       cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
                       available: upcomingEnergyEstimate?.available ?? 0,
                     })}
+              </p>
+            )}
+            {!energyBlocksSend && upcomingEnergyEstimate && !upcomingEnergyEstimate.unlimited && upcomingEnergyEstimate.costMax > 0 && (
+              <p className="flex items-center justify-center gap-1 mt-1.5 text-[11px] text-muted-foreground">
+                <Zap className="h-3 w-3" />
+                {upcomingEnergyEstimate.costMin === upcomingEnergyEstimate.costMax
+                  ? t('energy.sendCostExact', { cost: upcomingEnergyEstimate.costMin })
+                  : t('energy.sendCostRange', { min: upcomingEnergyEstimate.costMin, max: upcomingEnergyEstimate.costMax })}
               </p>
             )}
             {!currentSessionId && (

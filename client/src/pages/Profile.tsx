@@ -104,7 +104,7 @@ export default function Profile() {
   // like XP/level (gamification) or the public leaderboard opt-in.
   const showLearning = canUseLearning(featureAccess);
 
-  const requestCommunityOptIn = useMutation(api.newsletter.requestCommunityUpdatesDoubleOptIn);
+  const subscribeCommunity = useMutation(api.newsletter.subscribeMyCommunityUpdates);
   const unsubscribeCommunity = useMutation(api.newsletter.unsubscribeMyCommunityUpdates);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -116,7 +116,7 @@ export default function Profile() {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   // `avatarUrlInput` is a manual override (Advanced) that can be persisted
   const [avatarUrlInput, setAvatarUrlInput] = useState("");
-  const [publicEnabled, setPublicEnabled] = useState(false);
+  const [publicEnabled, setPublicEnabled] = useState(true);
   const [onboardingEnabled, setOnboardingEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [languageSaving, setLanguageSaving] = useState(false);
@@ -128,7 +128,7 @@ export default function Profile() {
     if (!user) return;
     setNickname(user.publicNickname ?? "");
     setAvatarUrlInput(user.publicAvatarUrl ?? "");
-    setPublicEnabled(user.leaderboardPublicEnabled ?? false);
+    setPublicEnabled(user.leaderboardPublicEnabled ?? true);
     setUiLanguage(user.learningLanguage === "de" ? "de" : "en");
 
     // Onboarding toggle is currently controlled via localStorage in Dashboard.tsx.
@@ -157,17 +157,8 @@ export default function Profile() {
 
   const communityChecked = useMemo(() => {
     if (!communityStatus) return false;
-    return communityStatus.subscribed === true || communityStatus.pending === true;
+    return communityStatus.subscribed === true;
   }, [communityStatus]);
-
-  // Keep state consistent: if user removes nickname/avatar, auto-disable public display.
-  useEffect(() => {
-    if (publicEnabled && !canEnablePublic) {
-      setPublicEnabled(false);
-      toast.info(t("profile.public.toastAutoDisabled"));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicEnabled, canEnablePublic]);
 
   const previewInitial = useMemo(() => {
     const n = (nickname || user?.name || user?.email || "?").trim();
@@ -514,8 +505,8 @@ export default function Profile() {
                     try {
                       setSaving(true);
                       if (checked) {
-                        await requestCommunityOptIn({ requested: true });
-                        toast.success(t("profile.emails.toastConfirm"));
+                        await subscribeCommunity({});
+                        toast.success(t("profile.emails.toastSubscribed"));
                       } else {
                         await unsubscribeCommunity({});
                         toast.success(t("profile.emails.toastUnsubscribed"));
@@ -533,7 +524,6 @@ export default function Profile() {
               </div>
               <p className="text-xs text-muted-foreground">
                 {t("profile.emails.hint")}
-                {communityStatus?.pending ? ` (${t("profile.emails.pending")})` : ""}
               </p>
             </div>
 
@@ -569,7 +559,7 @@ export default function Profile() {
                 onClick={() => {
                   setNickname(user.publicNickname ?? "");
                   setAvatarUrlInput(user.publicAvatarUrl ?? "");
-                  setPublicEnabled(user.leaderboardPublicEnabled ?? false);
+                  setPublicEnabled(user.leaderboardPublicEnabled ?? true);
                   const disabled = localStorage.getItem(`onboarding_disabled_${user._id}`) === "true";
                   setOnboardingEnabled(!disabled);
                 }}

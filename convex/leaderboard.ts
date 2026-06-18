@@ -5,6 +5,15 @@ import { assertLearnerAccountActive } from "./authz";
 
 type Period = "all" | "30d" | "7d";
 
+const selfEntryValidator = v.object({
+  rank: v.number(),
+  xp: v.number(),
+  nickname: v.string(),
+  avatarUrl: v.union(v.string(), v.null()),
+  level: v.union(v.number(), v.null()),
+  isInTopTen: v.boolean(),
+});
+
 function startOfTodayMs() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -18,11 +27,27 @@ function getPeriodStart(period: Period): number | null {
   return today - (days - 1) * 24 * 60 * 60 * 1000;
 }
 
+function isLeaderboardOptInWish(user: Doc<"users">): boolean {
+  return user.leaderboardPublicEnabled === true;
+}
+
+async function resolvePublicAvatarUrl(
+  ctx: QueryCtx,
+  user: Doc<"users">
+): Promise<string | null> {
+  if (user.publicAvatarStorageId) {
+    const url = await ctx.storage.getUrl(user.publicAvatarStorageId);
+    return url ?? null;
+  }
+  const manual = user.publicAvatarUrl?.trim();
+  return manual && manual.length > 0 ? manual : null;
+}
+
 function getDisplayForViewer(args: {
   viewerUserId: Id<"users"> | null;
   user: Doc<"users">;
 }) {
-  const enabled = args.user.leaderboardPublicEnabled ?? false;
+  const enabled = isLeaderboardOptInWish(args.user);
   const isYou = args.viewerUserId !== null && args.user._id === args.viewerUserId;
 
   // For privacy: only show nickname/avatar when the user opted in.
@@ -50,7 +75,6 @@ async function getPeriodUserXp(ctx: QueryCtx, period: Exclude<Period, "all">) {
   const start = getPeriodStart(period);
   if (start === null) return [];
 
-  // Uses `dailyActivity.by_date` to scan the period and aggregate by user.
   const activities = await ctx.db
     .query("dailyActivity")
     .withIndex("by_date", (q) => q.gte("activityDate", start))
@@ -73,14 +97,47 @@ function sortAndRank(items: Array<{ userId: Id<"users">; xp: number }>) {
   return sorted.map((item, idx) => ({ ...item, rank: idx + 1 }));
 }
 
+function selfNickname(user: Doc<"users">): string {
+  const nick = user.publicNickname?.trim();
+  if (nick && nick.length > 0) return nick;
+  const name = user.name?.trim();
+  if (name && name.length > 0) return name;
+  const email = user.email?.trim();
+  if (email && email.length > 0) return email.split("@")[0] ?? "You";
+  return "You";
+}
+
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getPublicLeaderboard = query({
   args: {
     period: v.union(v.literal("all"), v.literal("30d"), v.literal("7d")),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    period: v.union(v.literal("all"), v.literal("30d"), v.literal("7d")),
+    entries: v.array(
+      v.object({
+        rank: v.number(),
+        xp: v.number(),
+        nickname: v.string(),
+        avatarUrl: v.string(),
+        level: v.union(v.number(), v.null()),
+        isYou: v.optional(v.boolean()),
+      })
+    ),
+    self: v.union(selfEntryValidator, v.null()),
+  }),
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 10, 1), 50);
+
+    const identity = await ctx.auth.getUserIdentity();
+    let viewer: Doc<"users"> | null = null;
+    if (identity) {
+      viewer = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+        .first();
+    }
 
     const raw =
       args.period === "all"
@@ -89,19 +146,21 @@ export const getPublicLeaderboard = query({
 
     const ranked = sortAndRank(raw);
 
-    // Public list includes only opted-in users with nickname + avatar.
     const out: Array<{
       rank: number;
       xp: number;
       nickname: string;
       avatarUrl: string;
       level: number | null;
+      isYou?: boolean;
     }> = [];
+
+    const viewerInTopTenUserIds = new Set<Id<"users">>();
 
     for (const item of ranked) {
       const user = await ctx.db.get(item.userId);
       if (!user) continue;
-      const enabled = user.leaderboardPublicEnabled ?? false;
+      const enabled = isLeaderboardOptInWish(user);
       const nickname = user.publicNickname?.trim() ?? "";
       const avatarUrl =
         (user.publicAvatarStorageId
@@ -111,20 +170,52 @@ export const getPublicLeaderboard = query({
       if (nickname.length < 2) continue;
       if (avatarUrl.length === 0) continue;
 
+      const isYou = viewer !== null && user._id === viewer._id;
+      if (isYou) viewerInTopTenUserIds.add(user._id);
+
       out.push({
         rank: out.length + 1,
         xp: item.xp,
         nickname,
         avatarUrl,
         level: typeof user.level === "number" && Number.isFinite(user.level) ? user.level : null,
+        ...(isYou ? { isYou: true } : {}),
       });
 
       if (out.length >= limit) break;
     }
 
+    let self: {
+      rank: number;
+      xp: number;
+      nickname: string;
+      avatarUrl: string | null;
+      level: number | null;
+      isInTopTen: boolean;
+    } | null = null;
+
+    if (viewer) {
+      const myRanked = ranked.find((r) => r.userId === viewer!._id);
+      if (myRanked) {
+        const avatarUrl = await resolvePublicAvatarUrl(ctx, viewer);
+        self = {
+          rank: myRanked.rank,
+          xp: myRanked.xp,
+          nickname: selfNickname(viewer),
+          avatarUrl,
+          level:
+            typeof viewer.level === "number" && Number.isFinite(viewer.level)
+              ? viewer.level
+              : null,
+          isInTopTen: viewerInTopTenUserIds.has(viewer._id),
+        };
+      }
+    }
+
     return {
       period: args.period,
       entries: out,
+      self,
     };
   },
 });
@@ -198,7 +289,7 @@ export const getLeaderboard = query({
       entries,
       myRank: my?.rank ?? null,
       myXp: my?.xp ?? 0,
-      myPublicEnabled: viewer.leaderboardPublicEnabled ?? false,
+      myPublicEnabled: isLeaderboardOptInWish(viewer),
       myNickname: viewer.publicNickname ?? null,
       myAvatarUrl: viewer.publicAvatarUrl ?? null,
     };

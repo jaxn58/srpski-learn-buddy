@@ -5,7 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 import { getFeatureAccessForUser } from "./featureAccess";
-import { loadBetaMaxAiPerDay, loadTeaserDailyLimit } from "./platform";
+import { loadTeaserDailyLimit } from "./platform";
 import {
   chargeEnergy,
   estimateEnergyCost,
@@ -55,17 +55,14 @@ const RATE_LIMITS = {
   beta: {
     messagesPerMinute: 10,
     messagesPerHour: 60,
-    messagesPerDay: 10,
     maxMessageLength: 1500,
     maxTokensOverride: 2048,
-    detailedMessagesPerDay: 3,
     maxTokensDetailed: 4096,
     maxTokensCompact: 400,
   },
   paid: {
     messagesPerMinute: 20,
     messagesPerHour: 200,
-    messagesPerDay: 100,
     maxMessageLength: 3000,
   },
 };
@@ -107,7 +104,6 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
   const now = Date.now();
   const oneMinuteAgo = now - 60 * 1000;
   const oneHourAgo = now - 60 * 60 * 1000;
-  const todayStart = startOfDayUtc(now);
 
   // Get user and subscription to determine limits
   const user = await ctx.db.get(userId);
@@ -130,48 +126,12 @@ async function checkRateLimit(ctx: MutationCtx, userId: Id<"users">, message: st
   const isPaidUser = !!(subscription && subscription.planType !== "beta");
   const limits = isPaidUser ? RATE_LIMITS.paid : RATE_LIMITS.beta;
 
-  // Daily AI-query limit for beta users is admin-tunable (platformConfig).
-  const dailyMessageLimit = isPaidUser
-    ? RATE_LIMITS.paid.messagesPerDay
-    : await loadBetaMaxAiPerDay(ctx);
-
   // Check message length
   if (message.length > limits.maxMessageLength) {
     return {
       allowed: false,
       reason: `Message too long. Maximum ${limits.maxMessageLength} characters allowed.`,
     };
-  }
-
-  // Daily limit check
-  const todayUserMessages = await ctx.db
-    .query("chatMessages")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .filter((q) =>
-      q.and(
-        q.gte(q.field("_creationTime"), todayStart),
-        q.eq(q.field("role"), "user")
-      )
-    )
-    .collect();
-
-  if (todayUserMessages.length >= dailyMessageLimit) {
-    return {
-      allowed: false,
-      reason: `Daily limit reached. You have used all ${dailyMessageLimit} messages for today. Come back tomorrow!`,
-    };
-  }
-
-  // Detailed quota check for beta users
-  if (!isPaidUser && responseMode === "detailed" && "detailedMessagesPerDay" in limits) {
-    const betaLimits = limits as typeof RATE_LIMITS.beta;
-    const detailedToday = todayUserMessages.filter((m) => m.responseMode === "detailed").length;
-    if (detailedToday >= betaLimits.detailedMessagesPerDay) {
-      return {
-        allowed: false,
-        reason: `Daily detailed limit reached. You have used all ${betaLimits.detailedMessagesPerDay} detailed answers for today. Use compact answers or come back tomorrow!`,
-      };
-    }
   }
 
   // Count messages in the last minute
@@ -861,14 +821,22 @@ export const finalizeStreamedMessage = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.messageId, { content: args.content });
 
-    if (!args.content || args.content.trim().length === 0) return;
+    if (!args.content || args.content.trim().length === 0) {
+      return;
+    }
 
     const message = await ctx.db.get(args.messageId);
-    if (!message) return;
+    if (!message) {
+      return;
+    }
 
     const access = await getFeatureAccessForUser(ctx, message.userId);
-    if (access.energy.unlimited) return;
-    if (access.features.teaser && !access.features.buddyChat) return;
+    if (access.energy.unlimited) {
+      return;
+    }
+    if (access.features.teaser && !access.features.buddyChat) {
+      return;
+    }
 
     const cfg = await loadEnergyConfig(ctx);
     const aiConfig = await ctx.db.query("chatAiConfig").first();
@@ -914,7 +882,7 @@ export const finalizeStreamedMessage = internalMutation({
       modelName
     );
 
-    await chargeEnergy(ctx, message.userId, actualCost, {
+    const chargeResult = await chargeEnergy(ctx, message.userId, actualCost, {
       actionType: flatEstimate.actionType,
       ragUsed: flatEstimate.ragUsed,
       messageId: args.messageId,
@@ -1299,68 +1267,6 @@ export const getStreamContext = internalQuery({
       learningLanguage,
       isPaidUser,
       userName: user.name || null,
-    };
-  },
-});
-
-export const getChatUsageToday = query({
-  args: {
-    nowMs: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .first();
-    if (!user) return null;
-
-    const isAdmin = user.role === "admin" || user.role === "superadmin";
-
-    const subscription = await ctx.db
-      .query("userSubscriptions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .filter((q) => q.eq(q.field("status"), "active"))
-      .first();
-    const isPaidUser = !!(subscription && subscription.planType !== "beta");
-    const limit = isPaidUser
-      ? RATE_LIMITS.paid.messagesPerDay
-      : await loadBetaMaxAiPerDay(ctx);
-
-    const todayStart = startOfDayUtc(args.nowMs);
-
-    const todayUserMessages = await ctx.db
-      .query("chatMessages")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .filter((q) =>
-        q.and(
-          q.gte(q.field("_creationTime"), todayStart),
-          q.eq(q.field("role"), "user")
-        )
-      )
-      .collect();
-
-    const used = todayUserMessages.length;
-
-    // Admins always see the detailed quota (preview what beta users see)
-    const detailedLimit = (isPaidUser && !isAdmin) ? null : RATE_LIMITS.beta.detailedMessagesPerDay;
-    const detailedUsed = detailedLimit !== null
-      ? todayUserMessages.filter((m) => m.responseMode === "detailed").length
-      : null;
-
-    return {
-      used,
-      limit,
-      remaining: Math.max(0, limit - used),
-      isPaidUser,
-      isAdmin,
-      detailedUsed,
-      detailedLimit,
-      detailedRemaining: detailedLimit !== null && detailedUsed !== null
-        ? Math.max(0, detailedLimit - detailedUsed)
-        : null,
     };
   },
 });

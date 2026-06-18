@@ -35,7 +35,7 @@ export const coreTables = {
     publicAvatarUrl: v.optional(v.string()),
     // Convex Storage ID (preferred for uploads; URLs expire)
     publicAvatarStorageId: v.optional(v.string()),
-    // Privacy guardrail: default OFF (treat undefined as false)
+    // Leaderboard opt-in wish; new users get true on insert; undefined legacy = off
     leaderboardPublicEnabled: v.optional(v.boolean()),
 
     // ===== Billing =====

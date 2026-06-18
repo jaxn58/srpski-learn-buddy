@@ -174,6 +174,7 @@ export const syncUser = mutation({
         currentStreak: 0,
         longestStreak: 0,
         lastActiveDate: Date.now(),
+        leaderboardPublicEnabled: true,
       });
 
       // Create initial user progress
@@ -294,22 +295,28 @@ export const updatePublicProfile = mutation({
       }
     }
 
-    // Opt-in toggle (default OFF: treat undefined as false)
     if (args.leaderboardPublicEnabled !== undefined) {
       updates.leaderboardPublicEnabled = args.leaderboardPublicEnabled;
     }
 
-    // If enabling public display, require nickname + avatar
     const nextNickname = (updates.publicNickname as string | undefined) ?? user.publicNickname;
     const nextAvatarUrl =
       (updates.publicAvatarUrl as string | undefined) ?? user.publicAvatarUrl;
-    const nextAvatarStorageId = user.publicAvatarStorageId ?? null;
+    const nextAvatarStorageId =
+      (updates.publicAvatarStorageId as string | undefined) ?? user.publicAvatarStorageId ?? null;
+    const prevEnabled = user.leaderboardPublicEnabled === true;
     const nextEnabled =
       (updates.leaderboardPublicEnabled as boolean | undefined) ??
       user.leaderboardPublicEnabled ??
       false;
 
-    if (nextEnabled) {
+    // Manual opt-in (false → true): require nickname + avatar. Saving true without avatar is
+    // allowed when already opted in (e.g. default for new users).
+    if (
+      args.leaderboardPublicEnabled === true &&
+      !prevEnabled &&
+      nextEnabled
+    ) {
       if (!nextNickname || nextNickname.trim().length < 2) {
         throw new Error("Please set a nickname before enabling public Leaderboard display.");
       }

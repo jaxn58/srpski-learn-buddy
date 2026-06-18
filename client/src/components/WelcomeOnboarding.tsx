@@ -7,7 +7,7 @@ import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Info, Loader2 } from "lucide-react";
 import { AVAILABLE_ICONS } from "@/components/ui/icon-picker";
@@ -27,9 +27,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
   const { t } = useTranslation();
   const [step, setStep] = useState(initialStep);
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const [wantsCommunityUpdates, setWantsCommunityUpdates] = useState(false);
-  const requestCommunityOptIn = useMutation(api.newsletter.requestCommunityUpdatesDoubleOptIn);
-  
+
   // Load onboarding steps from database (V2: column-based multilanguage)
   const onboardingSteps = useQuery(api.onboarding.getActiveOnboardingStepsV2, { language });
   const isLoading = onboardingSteps === undefined;
@@ -47,21 +45,11 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
     if (step < totalSteps) {
       setStep(step + 1);
     } else {
-      if (wantsCommunityUpdates) {
-        requestCommunityOptIn({ requested: true }).catch(() => {
-          // Non-blocking: onboarding should still finish even if email fails
-        });
-      }
       onClose(dontShowAgain);
     }
   };
 
   const skipTutorial = () => {
-    if (wantsCommunityUpdates) {
-      requestCommunityOptIn({ requested: true }).catch(() => {
-        // Non-blocking
-      });
-    }
     onClose(dontShowAgain);
   };
 
@@ -157,25 +145,6 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
               className="onboarding-content"
               dangerouslySetInnerHTML={{ __html: currentStepData.content }}
             />
-          )}
-
-          {/* Marketing/community updates (double opt-in) */}
-          {step === 1 && (
-            <div className="flex items-start space-x-2 pt-2">
-              <Checkbox
-                id="communityUpdates"
-                checked={wantsCommunityUpdates}
-                onCheckedChange={(checked) => setWantsCommunityUpdates(checked === true)}
-              />
-              <div className="space-y-1">
-                <Label htmlFor="communityUpdates" className="text-sm cursor-pointer select-none leading-snug">
-                  {t("onboarding.communityUpdates")}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {t("onboarding.communityUpdatesHint")}
-                </p>
-              </div>
-            </div>
           )}
 
           {/* Navigation Buttons */}
