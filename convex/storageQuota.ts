@@ -15,7 +15,8 @@ export const DEFAULT_STORAGE_QUOTA_BYTES = {
   course_ai: 100 * 1024 * 1024,
   standalone: 500 * 1024 * 1024,
   course_ai_pro: 1024 * 1024 * 1024,
-  beta: 0,
+  /** Chat-attachment preview quota during active beta (admin-tunable). */
+  beta: 25 * 1024 * 1024,
 } as const;
 
 export const CHAT_ATTACHMENT_DAILY_LIMIT = 10;
@@ -54,7 +55,8 @@ export function resolveStorageQuotaBytes(
   if (access.isStaff || access.energy.unlimited) return null;
 
   if (access.source === "beta" && betaPhaseActive) {
-    return 0;
+    if (!access.features.chatAttachments) return 0;
+    return quotas.quotaBetaBytes;
   }
 
   const source =

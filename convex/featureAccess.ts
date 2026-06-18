@@ -165,7 +165,8 @@ const featureAccessValidator = v.object({
 function featuresForBeta(): FeatureFlags {
   return {
     ...featuresForTier("course_ai"),
-    chatAttachments: false,
+    // Preview during active beta phase only (see resolveFeatureAccess betaPhaseActive gate).
+    chatAttachments: true,
     knowledgeRack: false,
     energyTopUp: false,
   };
@@ -331,8 +332,9 @@ export function resolveFeatureAccess(input: {
     };
   }
 
-  // Beta testers: course_ai taste pack (Units 1–3, limited energy, no Pro features).
-  // Only while the global beta phase is active.
+  // Beta testers: course_ai taste pack (Units 1–3, limited energy, chat attachment
+  // preview, no Knowledge Base / top-up / Pro features). Only while the global
+  // beta phase is active — setBetaPhaseActive(false) revokes this immediately.
   if (betaPhaseActive && (activeSub?.planType === "beta" || user.isBetaTester === true)) {
     const betaEnergy = activeSub
       ? {

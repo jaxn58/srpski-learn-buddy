@@ -645,7 +645,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
 
   return (
     <div className="space-y-4">
-      {/* Beta unit limit (one of the two admin-tunable beta boundaries) */}
+      {/* Beta unit limit (admin-tunable via platformConfig.betaMaxUnits) */}
       <BetaUnitsLimitCard />
 
       {/* Vocabulary cleanup (collapsible panel for removing wrongly auto-inserted entries) */}

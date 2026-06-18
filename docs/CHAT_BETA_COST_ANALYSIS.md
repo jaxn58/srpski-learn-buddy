@@ -31,7 +31,7 @@ Jede gesendete Chat-Nachricht besteht aus mehreren Schichten, die zu einem einzi
 
 ---
 
-## Kosten pro Beta-User (alle 10 Nachrichten/Tag verbraucht)
+## Kosten pro Beta-User (Beispiel: ~10 kompakte Antworten/Tag)
 
 | Szenario | Input/Tag | Output/Tag | Kosten/User/Tag |
 |---|---|---|---|
@@ -39,18 +39,20 @@ Jede gesendete Chat-Nachricht besteht aus mehreren Schichten, die zu einem einzi
 | Typisch (RAG aktiv, mittlere Antworten) | 25.000 T | 8.000 T | **~$0.028** |
 | Maximum (voller Unit-Context + 2.048 T Output) | 50.000 T | 20.480 T | **~$0.066** |
 
+> Kostenkontrolle erfolgt über das **monatliche Energy-Budget** (`betaEnergyQuotaMonthly`, Default 120), nicht über ein separates Tages-Nachrichtenlimit.
+
 ---
 
-## Hochrechnung (alle User nutzen taglich ihr volles Limit)
+## Hochrechnung (alle User nutzen ihr volles Energy-Budget im Monat)
 
-| User | Typisch/Tag | Typisch/Monat | Worst-Case/Monat |
-|---|---|---|---|
-| 10 | $0.28 | $8 | $20 |
-| 25 | $0.70 | $21 | $50 |
-| 50 | $1.40 | $42 | $100 |
-| 100 | $2.80 | $84 | $200 |
+| User | Typisch/Monat | Worst-Case/Monat |
+|---|---|---|
+| 10 | $8 | $20 |
+| 25 | $21 | $50 |
+| 50 | $42 | $100 |
+| 100 | $84 | $200 |
 
-> **Hinweis:** In der Praxis nutzen nie alle User jeden Tag ihr volles Limit.
+> **Hinweis:** In der Praxis nutzen nie alle User ihr volles Monatsbudget.
 > Ein realistischer Daily-Active-Rate von 20–30 % reduziert die Kosten nochmal um Faktor 3–4.
 
 ---
@@ -59,32 +61,32 @@ Jede gesendete Chat-Nachricht besteht aus mehreren Schichten, die zu einem einzi
 
 | Parameter | Beta-User | Paid-User | Admin / Superadmin |
 |---|---|---|---|
-| Nachrichten / Tag | **10** | 100 | unbegrenzt |
+| AI Energy / Monat | **120** (admin-tunable via `betaEnergyQuotaMonthly`) | tier-abhängig (siehe `02_TOKEN_SYSTEM.md`) | unbegrenzt |
 | Nachrichten / Minute | 10 | 20 | unbegrenzt |
 | Nachrichten / Stunde | 60 | 200 | unbegrenzt |
 | Max. Nachrichtenlaenge | 1.500 Zeichen | 3.000 Zeichen | unbegrenzt |
-| Max. Output-Tokens | **2.048** | unbegrenzt (Modell-Config) | unbegrenzt |
-| Countdown-Badge im Chat | ja | nein | nein |
+| Max. Output-Tokens | **2.048** | Modell-Config (detailed höher) | unbegrenzt |
 | Beta-Banner im Chat | ja | nein | nein |
+
+Admin-Konfiguration:
+- **Units:** Content Studio → Units → „Beta unit limit“ (`betaMaxUnits`, Default 3)
+- **Energy:** Admin → Energy → „Beta monthly Energy quota“
+- **Phase An/Aus:** Admin → Beta Phase (`betaPhaseActive`)
 
 ---
 
 ## Automatischer "Schalter" -- wie die Beta-Phase endet
 
-Die Limits sind vollstaendig subscription-basiert. Es ist **kein manueller Eingriff oder Code-Deployment** noetig:
+Zugriff und Limits sind über `getFeatureAccess` (`convex/featureAccess.ts`) abgeleitet. Es ist **kein manueller Code-Deploy** für einzelne User nötig:
 
 ```
-Kein aktives Abo       →  Beta-Limits (10 Msg/Tag, 2.048 Token Output)
-planType = "beta"      →  Beta-Limits (identisch)
-planType = "intensive"
-         "balanced"    →  Paid-Limits (100 Msg/Tag, volle Token)
-         "standard"
-         "relaxed"
-role = "admin"         →  keine Limits
-role = "superadmin"    →  keine Limits
+betaPhaseActive = false     →  Beta gewährt keinen Zugang mehr
+isBetaTester + beta active  →  course_ai-Profil, betaMaxUnits, betaEnergyQuotaMonthly
+Aktives Paid-Abo            →  Tier-Features + tier-Energy-Quota
+role = admin/superadmin     →  unbegrenzt
 ```
 
-Sobald ein User ein Abo kauft, greift automatisch das Paid-Tier.
+Sobald ein User ein Abo kauft oder die Beta-Phase endet, greifen automatisch die jeweiligen Tier-Regeln.
 
 ---
 

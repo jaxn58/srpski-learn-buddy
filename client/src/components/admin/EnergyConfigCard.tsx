@@ -54,6 +54,7 @@ type EnergyFields = {
 type BillingFields = {
   welcomeEnergyAmount: number;
   betaTesterDiscountPercent: number;
+  betaEnergyQuotaMonthly: number;
   teaserDailyLimit: number;
 };
 
@@ -165,6 +166,7 @@ export function EnergyConfigCard() {
       setBillingDraft({
         welcomeEnergyAmount: config.welcomeEnergyAmount,
         betaTesterDiscountPercent: config.betaTesterDiscountPercent,
+        betaEnergyQuotaMonthly: config.betaEnergyQuotaMonthly,
         teaserDailyLimit: config.teaserDailyLimit,
       });
     }
@@ -187,6 +189,7 @@ export function EnergyConfigCard() {
   const billingDirty = billingDraft !== null && config !== undefined && (
     billingDraft.welcomeEnergyAmount !== config.welcomeEnergyAmount ||
     billingDraft.betaTesterDiscountPercent !== config.betaTesterDiscountPercent ||
+    billingDraft.betaEnergyQuotaMonthly !== config.betaEnergyQuotaMonthly ||
     billingDraft.teaserDailyLimit !== config.teaserDailyLimit
   );
 
@@ -688,6 +691,23 @@ export function EnergyConfigCard() {
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Discount percent for beta testers at checkout (0–100). Applied once per user after beta ends.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="bc-beta-energy" className="text-sm">Beta monthly Energy quota</Label>
+                <Input
+                  id="bc-beta-energy"
+                  type="number"
+                  min={0}
+                  step={10}
+                  value={billingDraft ? String(billingDraft.betaEnergyQuotaMonthly) : ""}
+                  onChange={(e) => handleBillingField("betaEnergyQuotaMonthly", e.target.value)}
+                  disabled={billingDraft === null}
+                  className="mt-1 w-full"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Monthly AI Energy for beta testers while the beta phase is active.
+                  Configured in platformConfig.betaEnergyQuotaMonthly (default 120).
                 </p>
               </div>
               <div>

@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { openDodoCheckout } from "@/lib/dodo";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 interface TopupOptionsProps {
   /** Compact layout for embedding inside dialogs / chat panels. */
@@ -15,17 +16,27 @@ interface TopupOptionsProps {
 
 export function TopupOptions({ compact = false }: TopupOptionsProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const topupPacks = useQuery(api.subscriptions.getTopupPacks);
   const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
+  const betaScope = useQuery(api.platform.getPublicBetaScope);
   const createTopupSession = useAction(api.subscriptions.createTopupCheckoutSession);
 
   const [buyingPack, setBuyingPack] = useState<string | null>(null);
 
   const dodoConfigured = billingConfig?.dodo?.configured === true;
+  const isPrivileged = user?.role === "admin" || user?.role === "superadmin";
+  const betaPhaseActive = betaScope?.betaPhaseActive ?? true;
+  const isPricingLockedForBeta = betaPhaseActive && !isPrivileged;
 
   const formatCurrency = (cents: number) => `€${(cents / 100).toFixed(2)}`;
 
   const handleBuy = async (packId: "starter" | "plus" | "pro") => {
+    if (isPricingLockedForBeta) {
+      toast.info(t("billing.paidPlansAfterBeta"));
+      return;
+    }
+
     if (!dodoConfigured) {
       toast.error("Payment provider not configured.");
       return;
@@ -72,9 +83,13 @@ export function TopupOptions({ compact = false }: TopupOptionsProps) {
                   <Button
                     size="sm"
                     onClick={() => handleBuy(pack.id)}
-                    disabled={buyingPack !== null || !dodoConfigured}
+                    disabled={buyingPack !== null || !dodoConfigured || isPricingLockedForBeta}
                   >
-                    {buyingPack === pack.id ? "..." : formatCurrency(pack.priceCents)}
+                    {buyingPack === pack.id
+                      ? "..."
+                      : isPricingLockedForBeta
+                        ? t("home.pricing.availableAfterLaunch")
+                        : formatCurrency(pack.priceCents)}
                   </Button>
                 </>
               ) : (
@@ -94,9 +109,13 @@ export function TopupOptions({ compact = false }: TopupOptionsProps) {
                   <Button
                     className="w-full mt-2"
                     onClick={() => handleBuy(pack.id)}
-                    disabled={buyingPack !== null || !dodoConfigured}
+                    disabled={buyingPack !== null || !dodoConfigured || isPricingLockedForBeta}
                   >
-                    {buyingPack === pack.id ? "..." : `${t("energy.buyPack")} – ${formatCurrency(pack.priceCents)}`}
+                    {buyingPack === pack.id
+                      ? "..."
+                      : isPricingLockedForBeta
+                        ? t("home.pricing.availableAfterLaunch")
+                        : `${t("energy.buyPack")} – ${formatCurrency(pack.priceCents)}`}
                   </Button>
                 </>
               )}

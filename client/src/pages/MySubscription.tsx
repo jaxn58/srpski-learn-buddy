@@ -8,14 +8,16 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Calendar, Check, Clock, CreditCard, TrendingUp, Zap } from "lucide-react";
+import { Calendar, Check, Clock, CreditCard, Sparkles, TrendingUp, Zap } from "lucide-react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { TopupOptions } from "@/components/energy/TopupOptions";
+import { BetaLockedPrice } from "@/components/BetaLockedPrice";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
 import { formatDateEU } from "@/lib/utils";
+import { Link } from "wouter";
 
 type SubscriptionPlan = {
   id: "beta" | "intensive" | "balanced" | "standard" | "relaxed";
@@ -108,18 +110,126 @@ function EnergyCard() {
   );
 }
 
+type BetaAccessCardProps = {
+  maxUnits: number;
+  energyQuota: number;
+  discountPercent: number;
+};
+
+const betaBenefitLinkClass =
+  "font-medium text-primary underline underline-offset-2 hover:text-primary/80";
+
+/** Active-beta card: copy and limits are driven by platform config (units, energy, discount). */
+function BetaAccessCard({ maxUnits, energyQuota, discountPercent }: BetaAccessCardProps) {
+  const { t } = useTranslation();
+
+  return (
+    <Card className="border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <Sparkles className="h-8 w-8 text-amber-500 shrink-0" />
+          <div>
+            <CardTitle className="text-2xl">{t("subscription.betaAccess")}</CardTitle>
+            <CardDescription className="text-base mt-1">
+              {t("subscription.betaAccess.desc")}
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-lg p-4 border">
+            <h3 className="font-semibold mb-2">{t("subscription.betaBenefits")}</h3>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                <span>
+                  {t("subscription.betaBenefits.access", { maxUnits })}{" "}
+                  <Link href="/units" className={betaBenefitLinkClass}>
+                    {t("subscription.betaBenefits.linkUnits")}
+                  </Link>
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                <span>
+                  {t("subscription.betaBenefits.aiBuddy", { energyQuota })}{" "}
+                  <Link href="/chat" className={betaBenefitLinkClass}>
+                    {t("subscription.betaBenefits.linkAiBuddy")}
+                  </Link>
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                <span>{t("subscription.betaBenefits.attachments")}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                <span>{t("subscription.betaBenefits.discount", { percent: discountPercent })}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                <span>
+                  {t("subscription.betaBenefits.feedback")}{" "}
+                  <Link href="/feedback" className={betaBenefitLinkClass}>
+                    {t("subscription.betaBenefits.linkFeedback")}
+                  </Link>
+                  {" · "}
+                  <Link href="/wishlist" className={betaBenefitLinkClass}>
+                    {t("subscription.betaBenefits.linkWishlist")}
+                  </Link>
+                </span>
+              </li>
+            </ul>
+          </div>
+          <div className="bg-white rounded-lg p-4 border">
+            <h3 className="font-semibold mb-2">{t("subscription.accessDetails")}</h3>
+            <div className="space-y-2 text-sm">
+              <p>
+                <strong>{t("subscription.plan")}:</strong>{" "}
+                {t("subscription.betaAccess.tierLabel")}
+              </p>
+              <p>
+                <strong>{t("subscription.units")}:</strong>{" "}
+                {t("subscription.unitsRange", { maxUnits })}
+              </p>
+              <p>
+                <strong>{t("subscription.aiEnergy")}:</strong>{" "}
+                {t("subscription.aiEnergyPerMonth", { energyQuota })}
+              </p>
+              <p>
+                <strong>{t("subscription.price")}:</strong> {t("subscription.free")}
+              </p>
+              <p>
+                <strong>{t("subscription.duration")}:</strong> {t("subscription.betaPhase")}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+          <p className="text-sm text-blue-900">
+            <strong>{t("subscription.whatsNext")}</strong>{" "}
+            {t("subscription.whatsNext.desc", { maxUnits })}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function MySubscriptionContent({ embedded = false }: { embedded?: boolean }) {
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0 });
 
   const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
+  const betaScope = useQuery(api.platform.getPublicBetaScope);
   const dodoConfigured = billingConfig?.dodo?.configured === true;
-  const isBetaActive = billingConfig?.dodo?.betaMode === true;
   const isTestMode = billingConfig?.dodo?.environment === "test_mode";
   const isPrivileged = user?.role === "admin" || user?.role === "superadmin";
   const ENABLE_PURCHASE_FOR_TESTING = import.meta.env.DEV || isTestMode;
-  const DISABLE_PURCHASE_DURING_BETA = isBetaActive && !isPrivileged && !ENABLE_PURCHASE_FOR_TESTING;
+  const betaPhaseActive = betaScope?.betaPhaseActive ?? true;
+  const isPricingLockedForBeta = betaPhaseActive && !isPrivileged;
 
   const [dodoReady, setDodoReady] = useState(false);
 
@@ -232,7 +342,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   ) => {
     if (!user) return;
 
-    if (DISABLE_PURCHASE_DURING_BETA) {
+    if (isPricingLockedForBeta) {
       toast.info(t("billing.paidPlansAfterBeta"));
       return;
     }
@@ -267,7 +377,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
   const handleUpgrade = async (newPlan: string) => {
     if (!subscription || !user) return;
 
-    if (DISABLE_PURCHASE_DURING_BETA) {
+    if (isPricingLockedForBeta) {
       toast.info(t("billing.paidPlansAfterBeta"));
       return;
     }
@@ -336,58 +446,11 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
         <div className={containerClass}>
           <div className={innerClass}>
             {!embedded && <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>}
-            <Card className="border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-4xl">✨</span>
-                  <div>
-                    <CardTitle className="text-2xl">{t('subscription.betaAccess')}</CardTitle>
-                    <CardDescription className="text-base mt-1">
-                      {t('subscription.betaAccess.desc')}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-lg p-4 border">
-                    <h3 className="font-semibold mb-2">🎁 {t('subscription.betaBenefits')}</h3>
-                    <ul className="space-y-2 text-sm">
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span>{t('subscription.betaBenefits.access')}</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span>{t('subscription.betaBenefits.discount')}</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span>{t('subscription.betaBenefits.earlyAccess')}</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-green-600 font-bold">✓</span>
-                        <span>{t('subscription.betaBenefits.feedback')}</span>
-                      </li>
-                    </ul>
-                  </div>
-                  <div className="bg-white rounded-lg p-4 border">
-                    <h3 className="font-semibold mb-2">📊 {t('subscription.accessDetails')}</h3>
-                    <div className="space-y-2 text-sm">
-                      <p><strong>{t('subscription.plan')}:</strong> {t('subscription.betaAccess')}</p>
-                      <p><strong>{t('subscription.units')}:</strong> 1-{(subscription as any).maxAccessibleUnits || 1}</p>
-                      <p><strong>{t('subscription.price')}:</strong> {t('subscription.free')}</p>
-                      <p><strong>{t('subscription.duration')}:</strong> {t('subscription.betaPhase')}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <p className="text-sm text-blue-900">
-                    <strong>{t('subscription.whatsNext')}</strong> {t('subscription.whatsNext.desc')}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <BetaAccessCard
+              maxUnits={betaScope?.betaMaxUnits ?? 3}
+              energyQuota={betaScope?.betaEnergyQuotaMonthly ?? 120}
+              discountPercent={betaScope?.betaTesterDiscountPercent ?? betaDiscountPercent}
+            />
           </div>
         </div>
       );
@@ -439,6 +502,13 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             <CardDescription>{plan.months} {t('subscription.months')}</CardDescription>
                           </CardHeader>
                             <CardContent className="space-y-4">
+                              {isPricingLockedForBeta ? (
+                                <BetaLockedPrice
+                                  label={t("home.pricing.priceHiddenDuringBeta")}
+                                  size="lg"
+                                  className="text-primary"
+                                />
+                              ) : (
                               <div className="text-3xl font-bold text-primary">
                                 {selectedPaymentMode === "installments"
                                   ? `${formatCurrency(installmentMonthly)}/mo`
@@ -447,10 +517,14 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                   <span className="text-sm text-muted-foreground"> (Beta {betaDiscountPercent}%)</span>
                                 ) : null}
                               </div>
+                              )}
                               <RadioGroup
                                 value={selectedPaymentMode}
-                                onValueChange={(v) => setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }))}
-                                className="gap-2"
+                                onValueChange={(v) => {
+                                  if (isPricingLockedForBeta) return;
+                                  setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }));
+                                }}
+                                className={isPricingLockedForBeta ? "gap-2 opacity-60 pointer-events-none" : "gap-2"}
                               >
                                 <div className="flex items-center gap-2">
                                   <RadioGroupItem id={`${plan.id}-pay-once-beta`} value="prepaid" />
@@ -477,7 +551,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                           isBetaPrice
                                         )
                                       }
-                                      disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
+                                      disabled={!checkoutReady || isPricingLockedForBeta}
                                       className="w-full"
                                     >
                                       <CreditCard className="h-4 w-4 mr-2" />
@@ -485,7 +559,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                     </Button>
                                   </span>
                                 </TooltipTrigger>
-                                {DISABLE_PURCHASE_DURING_BETA && (
+                                {isPricingLockedForBeta && (
                                   <TooltipContent>
                                     <p>{t("billing.paidPlansAfterBeta")}</p>
                                   </TooltipContent>
@@ -530,15 +604,26 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             <CardDescription>{plan.months} {t('subscription.months')}</CardDescription>
                           </CardHeader>
                             <CardContent className="space-y-4">
+                              {isPricingLockedForBeta ? (
+                                <BetaLockedPrice
+                                  label={t("home.pricing.priceHiddenDuringBeta")}
+                                  size="lg"
+                                  className="text-primary"
+                                />
+                              ) : (
                               <div className="text-3xl font-bold text-primary">
                                 {selectedPaymentMode === "installments"
                                 ? `${formatCurrency(installmentMonthly)}/mo`
                                 : formatCurrency(plan.price)}
                             </div>
+                              )}
                             <RadioGroup
                               value={selectedPaymentMode}
-                              onValueChange={(v) => setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }))}
-                              className="gap-2"
+                              onValueChange={(v) => {
+                                if (isPricingLockedForBeta) return;
+                                setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }));
+                              }}
+                              className={isPricingLockedForBeta ? "gap-2 opacity-60 pointer-events-none" : "gap-2"}
                             >
                               <div className="flex items-center gap-2">
                                 <RadioGroupItem id={`${plan.id}-pay-once`} value="prepaid" />
@@ -558,7 +643,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                 <span className="w-full">
                                   <Button
                                     onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, false)}
-                                    disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
+                                    disabled={!checkoutReady || isPricingLockedForBeta}
                                     className="w-full"
                                   >
                                     <CreditCard className="h-4 w-4 mr-2" />
@@ -566,7 +651,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                   </Button>
                                 </span>
                               </TooltipTrigger>
-                              {DISABLE_PURCHASE_DURING_BETA && (
+                              {isPricingLockedForBeta && (
                                 <TooltipContent>
                                   <p>{t("billing.paidPlansAfterBeta")}</p>
                                 </TooltipContent>
@@ -633,6 +718,13 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             <CardDescription>{plan.months} {t('subscription.months')}</CardDescription>
                           </CardHeader>
                             <CardContent className="space-y-4">
+                              {isPricingLockedForBeta ? (
+                                <BetaLockedPrice
+                                  label={t("home.pricing.priceHiddenDuringBeta")}
+                                  size="lg"
+                                  className="text-primary"
+                                />
+                              ) : (
                               <div className="text-3xl font-bold text-primary">
                                 {selectedPaymentMode === "installments"
                                   ? `${formatCurrency(installmentMonthly)}/mo`
@@ -641,10 +733,14 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                   <span className="text-sm text-muted-foreground"> (Beta {betaDiscountPercent}%)</span>
                                 ) : null}
                               </div>
+                              )}
                               <RadioGroup
                                 value={selectedPaymentMode}
-                                onValueChange={(v) => setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }))}
-                                className="gap-2"
+                                onValueChange={(v) => {
+                                  if (isPricingLockedForBeta) return;
+                                  setPaymentModeByPlan((prev) => ({ ...prev, [plan.id]: v as any }));
+                                }}
+                                className={isPricingLockedForBeta ? "gap-2 opacity-60 pointer-events-none" : "gap-2"}
                               >
                                 <div className="flex items-center gap-2">
                                   <RadioGroupItem id={`${plan.id}-pay-once-beta2`} value="prepaid" />
@@ -664,7 +760,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                   <span className="w-full">
                                     <Button
                                       onClick={() => handlePurchase(plan.id as any, selectedPaymentMode, isBetaPrice)}
-                                      disabled={!checkoutReady || DISABLE_PURCHASE_DURING_BETA}
+                                      disabled={!checkoutReady || isPricingLockedForBeta}
                                       className="w-full"
                                     >
                                       <CreditCard className="h-4 w-4 mr-2" />
@@ -672,7 +768,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                                     </Button>
                                   </span>
                                 </TooltipTrigger>
-                                {DISABLE_PURCHASE_DURING_BETA && (
+                                {isPricingLockedForBeta && (
                                   <TooltipContent>
                                     <p>{t("billing.paidPlansAfterBeta")}</p>
                                   </TooltipContent>
@@ -695,58 +791,15 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
       <div className={containerClass}>
         <div className={innerClass}>
           {!embedded && <h1 className="text-3xl font-bold mb-6">{t('subscription.title')}</h1>}
-          <Card className="border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-amber-50">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">✨</span>
-                <div>
-                  <CardTitle className="text-2xl">{t('subscription.betaAccess')}</CardTitle>
-                  <CardDescription className="text-base mt-1">
-                    {t('subscription.betaAccess.desc')}
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-lg p-4 border">
-                  <h3 className="font-semibold mb-2">🎁 {t('subscription.betaBenefits')}</h3>
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex items-start gap-2">
-                      <span className="text-green-600 font-bold">✓</span>
-                      <span>{t('subscription.betaBenefits.access')}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-green-600 font-bold">✓</span>
-                      <span>{t('subscription.betaBenefits.discount')}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-green-600 font-bold">✓</span>
-                      <span>{t('subscription.betaBenefits.earlyAccess')}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-green-600 font-bold">✓</span>
-                      <span>{t('subscription.betaBenefits.feedback')}</span>
-                    </li>
-                  </ul>
-                </div>
-                <div className="bg-white rounded-lg p-4 border">
-                  <h3 className="font-semibold mb-2">📊 {t('subscription.accessDetails')}</h3>
-                  <div className="space-y-2 text-sm">
-                    <p><strong>{t('subscription.plan')}:</strong> {t('subscription.betaAccess')}</p>
-                    <p><strong>{t('subscription.units')}:</strong> 1-{(subscription as any).maxAccessibleUnits || 1}</p>
-                    <p><strong>{t('subscription.price')}:</strong> {t('subscription.free')}</p>
-                    <p><strong>{t('subscription.duration')}:</strong> {t('subscription.betaPhase')}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <p className="text-sm text-blue-900">
-                  <strong>{t('subscription.whatsNext')}</strong> {t('subscription.whatsNext.desc')}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <BetaAccessCard
+            maxUnits={
+              (subscription as { maxAccessibleUnits?: number } | null)?.maxAccessibleUnits ??
+              betaScope?.betaMaxUnits ??
+              3
+            }
+            energyQuota={betaScope?.betaEnergyQuotaMonthly ?? 120}
+            discountPercent={betaScope?.betaTesterDiscountPercent ?? betaDiscountPercent}
+          />
         </div>
       </div>
     );
@@ -912,10 +965,20 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div>
-                          <div className="text-3xl font-bold text-primary">{formatCurrency(upgradeCostCents)}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {t("subscription.upgradePayDifferenceNote", { total: formatCurrency(plan.price) })}
-                          </div>
+                          {isPricingLockedForBeta ? (
+                            <BetaLockedPrice
+                              label={t("home.pricing.priceHiddenDuringBeta")}
+                              size="lg"
+                              className="text-primary"
+                            />
+                          ) : (
+                            <>
+                              <div className="text-3xl font-bold text-primary">{formatCurrency(upgradeCostCents)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {t("subscription.upgradePayDifferenceNote", { total: formatCurrency(plan.price) })}
+                              </div>
+                            </>
+                          )}
                         </div>
                         <ul className="space-y-2 text-sm">
                           <li className="flex items-center gap-2">
@@ -940,7 +1003,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                             <span className="w-full">
                               <Button
                                 onClick={() => handleUpgrade(plan.id)}
-                                disabled={isCalculating || !checkoutReady || DISABLE_PURCHASE_DURING_BETA}
+                                disabled={isCalculating || !checkoutReady || isPricingLockedForBeta}
                                 className="w-full"
                               >
                                 <CreditCard className="h-4 w-4 mr-2" />
@@ -948,7 +1011,7 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
                               </Button>
                             </span>
                           </TooltipTrigger>
-                          {DISABLE_PURCHASE_DURING_BETA && (
+                          {isPricingLockedForBeta && (
                             <TooltipContent>
                               <p>{t("billing.paidPlansAfterBeta")}</p>
                             </TooltipContent>

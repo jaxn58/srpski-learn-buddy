@@ -16,9 +16,9 @@ Die App vermarktet heute **rein laufzeitbasierte Tarife**. Es gibt kein Feature-
 - Pläne (hardcodiert in `convex/subscriptions.ts`, `SUBSCRIPTION_PLANS`):
   - `beta` (0 €), `intensive` (3 Monate, 69 €), `balanced` (6 Monate, 79 €), `standard` (9 Monate, 95 €), `relaxed` (12 Monate, 119 €)
   - Zahlung: Einmalzahlung (`prepaid`) oder Ratenzahlung (`installments`, +10 %, auf `*.99` gerundet)
-- Zugriff wird gesteuert über: aktives Abo mit `planType !== "beta"`, das Flag `isBetaTester` und Chat-Rate-Limits in `convex/chat.ts`. **Kein** deklaratives Entitlement-System.
+- Zugriff wird gesteuert über `getFeatureAccess` (`convex/featureAccess.ts`): Beta-Tester (`isBetaTester` + `betaPhaseActive`), Paid-Tiers (`featureTier` auf `userSubscriptions`) und Staff-Override.
 - Payment-Provider: **Dodo Payments** (Produkt-IDs als Env-Variablen, Checkout-Overlay, Webhooks in `convex/http.ts`).
-- **Kein** Token-/Credit-System. Der Chat kennt nur Rate-Limits (Beta: 10 Nachrichten/Tag, 3 davon „detailed").
+- **AI-Energy-System** ist implementiert: monatliches Energy-Budget pro Tier; Beta nutzt `betaEnergyQuotaMonthly` (Default 120). Zusätzlich Spam-Rate-Limits in `convex/chat.ts` (Nachrichten/Minute und /Stunde, keine Tages-Query-Caps mehr).
 
 ## 2. Zielbild (Soll-Zustand)
 

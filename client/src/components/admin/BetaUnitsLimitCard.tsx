@@ -9,10 +9,11 @@ import { toast } from "sonner";
 import { GraduationCap } from "lucide-react";
 
 /**
- * Staff control for the beta unit limit (one of the two beta boundaries).
+ * Staff control for how many learning units beta testers may access.
  * Self-contained: reads/writes the platform-config singleton directly, so it can
  * be dropped anywhere in the content-creation area without prop threading.
- * The other boundary — AI queries per day — lives in Admin → Beta Phase.
+ * Beta AI usage is limited via monthly Energy (Admin → Energy); beta phase
+ * on/off is Admin → Beta Phase.
  */
 export function BetaUnitsLimitCard() {
   const config = useQuery(api.platform.getPlatformConfig);
@@ -49,9 +50,9 @@ export function BetaUnitsLimitCard() {
       </CardHeader>
       <CardContent>
         <p className="text-xs text-muted-foreground">
-          How many learning units a beta user may access. This is one of the two
-          beta boundaries (the other &mdash; AI queries per day &mdash; lives in
-          Admin &rarr; Beta Phase).
+          How many learning units a beta user may access while the beta phase is
+          active. Monthly AI Energy for beta testers is configured in Admin
+          &rarr; Energy. The beta phase master switch is Admin &rarr; Beta Phase.
         </p>
         <div className="mt-3 flex items-center gap-2">
           <Label htmlFor="beta-max-units" className="sr-only">

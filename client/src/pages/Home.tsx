@@ -18,8 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2, Volume2, ListTodo, Minus, ChevronDown, Camera, Layers, GraduationCap, ArrowRight, HardDrive } from "lucide-react";
+import { BookOpen, Brain, Trophy, TrendingUp, Clock, Target, Sparkles, Check, HelpCircle, DollarSign, RefreshCw, Shield, Calendar, Zap, Loader2, Volume2, ListTodo, Minus, ChevronDown, Camera, Layers, GraduationCap, ArrowRight, HardDrive, Gift, Percent, Construction } from "lucide-react";
 import { APP_LOGO } from "@/const";
+import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useState, lazy, Suspense, Fragment } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,6 +30,7 @@ const WaitlistModal = lazy(() =>
   import("@/components/WaitlistModal").then((m) => ({ default: m.WaitlistModal }))
 );
 import { AppFooter } from "@/components/AppFooter";
+import { BetaLockedPrice } from "@/components/BetaLockedPrice";
 import { buildLandingModuleCards, computeLandingCounts } from "./home/landingData";
 import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
 // During beta phase, we do not offer paid plans/checkout.
@@ -57,14 +59,15 @@ export default function Home() {
   // Keep the old pricing JSX gated behind a constant false to avoid a large UI rewrite here.
   // (Plans go live after beta.)
   
-  // Dev-only: enable purchase buttons so we can test Dodo payments locally.
-  // Production builds remain disabled until the beta phase ends.
-  // We also enable it if we are explicitly in test_mode to allow testing on preview deployments.
   const billingConfig = useQuery(api.subscriptions.getBillingProviderConfig);
+  const betaScope = useQuery(api.platform.getPublicBetaScope);
   const isTestMode = billingConfig?.dodo?.environment === "test_mode";
-  const isBetaActive = billingConfig?.dodo?.betaMode === true;
+
+  // Beta-phase pricing lock: tied to platformConfig.betaPhaseActive (Admin switch).
+  // Superadmin/Admin bypass so checkout flows remain testable.
+  const betaPhaseActive = betaScope?.betaPhaseActive ?? true;
+  const isPricingLockedForBeta = betaPhaseActive && !isPrivileged;
   const ENABLE_PURCHASE_FOR_TESTING = import.meta.env.DEV || isTestMode;
-  const DISABLE_PURCHASE_DURING_BETA = isBetaActive && !isPrivileged && !ENABLE_PURCHASE_FOR_TESTING;
 
   type PaymentMode = "prepaid" | "installments";
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("prepaid");
@@ -363,12 +366,18 @@ export default function Home() {
     if (action === "current")    return t("home.pricing.cta.currentPlan");
     if (action === "downgrade")  return t("home.pricing.cta.downgradeNotAvailable");
     if (hasActiveSubscription && action === "upgrade") return t("home.pricing.cta.upgradePlan");
+    if (isPricingLockedForBeta) return t("home.pricing.availableAfterLaunch");
     return t("home.pricing.choosePlan");
   };
 
   const handleCellCTA = async (tier: TierId, months: DurationMonths) => {
     const action = getCellAction(tier, months);
     if (action === "current" || action === "downgrade") return;
+
+    if (isPricingLockedForBeta) {
+      toast.info(t("billing.paidPlansAfterBeta"));
+      return;
+    }
 
     // Logged-in users should manage upgrades from inside the app.
     if (hasActiveSubscription) {
@@ -387,7 +396,7 @@ export default function Home() {
   const startPurchase = async (planId: string, modeOverride?: PaymentMode) => {
     const effectiveMode = modeOverride || paymentMode;
 
-    if (DISABLE_PURCHASE_DURING_BETA) {
+    if (isPricingLockedForBeta) {
       toast.info(t("billing.paidPlansAfterBeta"));
       return;
     }
@@ -481,6 +490,16 @@ export default function Home() {
       vocab: courseVocabulary as any,
     });
   }, [dbModules, dbUnitsEn, courseVocabulary]);
+
+  const HOME_BETA_SCOPE = useMemo(
+    () => ({
+      betaMaxUnits: betaScope?.betaMaxUnits ?? 3,
+      betaEnergyQuota: betaScope?.betaEnergyQuotaMonthly ?? 120,
+      betaDiscount: betaScope?.betaTesterDiscountPercent ?? 50,
+      betaPhaseActive: betaScope?.betaPhaseActive ?? true,
+    }),
+    [betaScope],
+  );
 
   if (loading) {
     return (
@@ -667,11 +686,27 @@ export default function Home() {
             </Card>
 
             {/* 3) Knowledge Base – persistent personal documents */}
-            <Card className="border-2 border-primary/30 bg-primary/5 hover:border-primary hover:shadow-lg transition-all">
+            <Card
+              className={`relative overflow-hidden border-2 border-primary/30 bg-primary/5 hover:border-primary hover:shadow-lg transition-all ${
+                HOME_BETA_SCOPE.betaPhaseActive ? "ring-2 ring-amber-400/40 ring-offset-2" : ""
+              }`}
+            >
               <CardHeader>
                 <HardDrive className="h-12 w-12 text-primary mb-2" />
+                {HOME_BETA_SCOPE.betaPhaseActive && (
+                  <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-500 to-orange-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-md shadow-fuchsia-500/40 mb-1">
+                    <Sparkles className="h-3 w-3 shrink-0" />
+                    <Construction className="h-3 w-3 shrink-0" />
+                    {t("home.features.knowledgeRack.devBadge")}
+                  </div>
+                )}
                 <CardTitle>{t("home.features.knowledgeRack.title")}</CardTitle>
                 <CardDescription>{t("home.features.knowledgeRack.desc")}</CardDescription>
+                {HOME_BETA_SCOPE.betaPhaseActive && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    {t("home.features.knowledgeRack.betaHint")}
+                  </p>
+                )}
               </CardHeader>
             </Card>
 
@@ -801,7 +836,7 @@ export default function Home() {
               feature-comparison table below. Single source of truth for prices &
               purchase buttons = the compare-section's bottom rows. */}
           {/* Waitlist/launch hint (kept as global notice above the compare table) */}
-          {((showWaitlist && !ENABLE_PURCHASE_FOR_TESTING) || DISABLE_PURCHASE_DURING_BETA) && (
+          {isPricingLockedForBeta && (
             <p className="text-xs text-muted-foreground text-center -mb-4">
               {t("home.pricing.availableAfterLaunch")}
             </p>
@@ -833,11 +868,11 @@ export default function Home() {
                 type="single"
                 value={paymentMode}
                 onValueChange={(value) => {
-                  if (!value) return;
+                  if (!value || isPricingLockedForBeta) return;
                   setPaymentMode(value as PaymentMode);
                 }}
                 size="sm"
-                className="bg-muted p-1 rounded-lg"
+                className={cn("bg-muted p-1 rounded-lg", isPricingLockedForBeta && "opacity-60 pointer-events-none")}
               >
                 <ToggleGroupItem value="prepaid" className="px-3">
                   {t("home.pricing.paymentToggle.payOnce")}
@@ -1077,6 +1112,12 @@ export default function Home() {
                           <div className="text-center">
                             {plansLoading ? (
                               <span className="text-xl font-bold animate-pulse">…</span>
+                            ) : isPricingLockedForBeta ? (
+                              <BetaLockedPrice
+                                label={t("home.pricing.priceHiddenDuringBeta")}
+                                size="md"
+                                className={meta.highlight ? "[&>div]:text-primary" : undefined}
+                              />
                             ) : (
                               <>
                                 <div className={`text-xl font-bold ${meta.highlight ? "text-primary" : "text-gray-900"}`}>
@@ -1105,7 +1146,7 @@ export default function Home() {
                                   className="w-full text-xs"
                                   disabled={
                                     (!user?.clerkId && !learningLanguage) ||
-                                    DISABLE_PURCHASE_DURING_BETA ||
+                                    isPricingLockedForBeta ||
                                     (ENABLE_PURCHASE_FOR_TESTING &&
                                       !!user?.clerkId &&
                                       (action === "current" || action === "downgrade"))
@@ -1123,7 +1164,7 @@ export default function Home() {
                                 </Button>
                               </span>
                             </TooltipTrigger>
-                            {DISABLE_PURCHASE_DURING_BETA && (
+                            {isPricingLockedForBeta && (
                               <TooltipContent>
                                 <p>{t("billing.paidPlansAfterBeta")}</p>
                               </TooltipContent>
@@ -1325,6 +1366,12 @@ export default function Home() {
                                     </div>
                                     {plansLoading ? (
                                       <div className="text-base font-bold animate-pulse">…</div>
+                                    ) : isPricingLockedForBeta ? (
+                                      <BetaLockedPrice
+                                        label={t("home.pricing.priceHiddenDuringBeta")}
+                                        size="sm"
+                                        className={meta.highlight ? "[&>div]:text-primary" : undefined}
+                                      />
                                     ) : (
                                       <>
                                         <div className={`text-base font-bold ${meta.highlight ? "text-primary" : "text-gray-900"}`}>
@@ -1342,7 +1389,7 @@ export default function Home() {
                                     className="w-full text-sm min-h-11 px-2"
                                     disabled={
                                       (!user?.clerkId && !learningLanguage) ||
-                                      DISABLE_PURCHASE_DURING_BETA ||
+                                      isPricingLockedForBeta ||
                                       (ENABLE_PURCHASE_FOR_TESTING &&
                                         !!user?.clerkId &&
                                         (action === "current" || action === "downgrade"))
@@ -1528,9 +1575,17 @@ export default function Home() {
                         </div>
                       )}
                       <div className="flex items-baseline justify-center gap-1 mb-2">
-                        <span className="text-2xl font-bold text-primary">
-                          €{(pack.priceCents / 100).toFixed(2)}
-                        </span>
+                        {isPricingLockedForBeta ? (
+                          <BetaLockedPrice
+                            label={t("home.pricing.priceHiddenDuringBeta")}
+                            size="md"
+                            className="text-primary"
+                          />
+                        ) : (
+                          <span className="text-2xl font-bold text-primary">
+                            €{(pack.priceCents / 100).toFixed(2)}
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm font-semibold text-gray-900">
                         {pack.totalEnergy.toLocaleString()} {t("home.pricing.topups.energyUnit")}
@@ -1607,6 +1662,12 @@ export default function Home() {
                         <div className="text-lg font-bold text-green-700 leading-tight">
                           {plansLoading ? (
                             <span className="animate-pulse">€…</span>
+                          ) : isPricingLockedForBeta ? (
+                            <BetaLockedPrice
+                              label={t("home.pricing.priceHiddenDuringBeta")}
+                              size="sm"
+                              className="text-green-700"
+                            />
                           ) : (
                             <>€{(ex.deltaCents / 100).toFixed(2)}</>
                           )}
@@ -1870,14 +1931,14 @@ export default function Home() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-700">
-                  <p dangerouslySetInnerHTML={{ __html: t('home.faq.q9.answer') }} />
+                  <p dangerouslySetInnerHTML={{ __html: t('home.faq.q9.answer', HOME_BETA_SCOPE) }} />
                   <div className="bg-yellow-50 p-4 rounded-lg mt-3 border-2 border-yellow-200">
                     <p className="font-semibold text-gray-900 mb-2">{t('home.faq.q9.benefits')}</p>
                     <ul className="space-y-1 text-sm">
-                      <li>{t('home.faq.q9.benefit1')}</li>
-                      <li>{t('home.faq.q9.benefit2')}</li>
-                      <li>{t('home.faq.q9.benefit3')}</li>
-                      <li>{t('home.faq.q9.benefit4')}</li>
+                      <li>{t('home.faq.q9.benefit1', HOME_BETA_SCOPE)}</li>
+                      <li>{t('home.faq.q9.benefit2', HOME_BETA_SCOPE)}</li>
+                      <li>{t('home.faq.q9.benefit3', HOME_BETA_SCOPE)}</li>
+                      <li>{t('home.faq.q9.benefit4', HOME_BETA_SCOPE)}</li>
                     </ul>
                   </div>
                 </AccordionContent>
@@ -1911,37 +1972,56 @@ export default function Home() {
 
           {/* Beta Tester Banner */}
           {!showWaitlist && (
-            <Card className="mt-12 border-4 border-yellow-400 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 shadow-2xl">
-              <CardContent className="py-8">
+            <Card className="mt-12 rounded-2xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 via-background to-secondary/5 shadow-lg">
+              <CardContent className="py-8 px-4 sm:px-8">
                 <div className="text-center space-y-4">
-                  <div className="inline-block">
-                    <span className="text-5xl">🎁</span>
+                  <div className="inline-flex items-center justify-center rounded-full bg-primary/10 p-3">
+                    <Gift className="h-8 w-8 text-primary" />
                   </div>
-                  <h4 className="text-2xl sm:text-3xl font-bold text-yellow-900">{t('home.beta.banner.title')}</h4>
-                  <p 
-                    className="text-lg text-yellow-800 max-w-3xl mx-auto" 
-                    dangerouslySetInnerHTML={{ __html: t('home.beta.banner.subtitle') }}
+                  <h4 className="text-2xl sm:text-3xl font-bold text-foreground">
+                    {t('home.beta.banner.title', HOME_BETA_SCOPE)}
+                  </h4>
+                  <p
+                    className="text-base sm:text-lg text-muted-foreground max-w-3xl mx-auto"
+                    dangerouslySetInnerHTML={{ __html: t('home.beta.banner.subtitle', HOME_BETA_SCOPE) }}
                   />
-                  <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto mt-6">
-                    <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
-                      <div className="text-2xl mb-2">✓</div>
-                      <h5 className="font-semibold text-yellow-900 mb-1">{t('home.beta.banner.feature1.title')}</h5>
-                      <p className="text-sm text-yellow-800">{t('home.beta.banner.feature1.desc')}</p>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto mt-6 text-left">
+                    <div className="rounded-xl border-2 border-border bg-card/80 p-4 hover:border-primary/40 hover:shadow-md transition-all">
+                      <BookOpen className="h-7 w-7 text-primary mb-2" />
+                      <h5 className="font-semibold text-foreground mb-1">
+                        {t('home.beta.banner.feature1.title', HOME_BETA_SCOPE)}
+                      </h5>
+                      <p className="text-sm text-muted-foreground">
+                        {t('home.beta.banner.feature1.desc', HOME_BETA_SCOPE)}
+                      </p>
                     </div>
-                    <div className="bg-white/80 rounded-lg p-4 border-2 border-yellow-300">
-                      <div className="text-2xl mb-2">💰</div>
-                      <h5 className="font-semibold text-yellow-900 mb-1">{t('home.beta.banner.feature2.title')}</h5>
-                      <p className="text-sm text-yellow-800">{t('home.beta.banner.feature2.desc')}</p>
+                    <div className="rounded-xl border-2 border-border bg-card/80 p-4 hover:border-primary/40 hover:shadow-md transition-all">
+                      <Sparkles className="h-7 w-7 text-primary mb-2" />
+                      <h5 className="font-semibold text-foreground mb-1">
+                        {t('home.beta.banner.feature2.title', HOME_BETA_SCOPE)}
+                      </h5>
+                      <p className="text-sm text-muted-foreground">
+                        {t('home.beta.banner.feature2.desc', HOME_BETA_SCOPE)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border-2 border-border bg-card/80 p-4 hover:border-primary/40 hover:shadow-md transition-all sm:col-span-2 lg:col-span-1">
+                      <Percent className="h-7 w-7 text-primary mb-2" />
+                      <h5 className="font-semibold text-foreground mb-1">
+                        {t('home.beta.banner.feature3.title', HOME_BETA_SCOPE)}
+                      </h5>
+                      <p className="text-sm text-muted-foreground">
+                        {t('home.beta.banner.feature3.desc', HOME_BETA_SCOPE)}
+                      </p>
                     </div>
                   </div>
                   <div className="pt-4">
                     <a href="#beta-registration">
-                      <Button size="lg" className="bg-yellow-600 hover:bg-yellow-700 text-white text-lg px-8">
+                      <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-8">
                         {t('home.beta.banner.cta')}
                       </Button>
                     </a>
                   </div>
-                  <p className="text-xs text-yellow-700">{t('home.beta.banner.note')}</p>
+                  <p className="text-xs text-muted-foreground">{t('home.beta.banner.note')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -2020,13 +2100,13 @@ export default function Home() {
           <Card className="max-w-2xl mx-auto border-2 border-secondary shadow-2xl shadow-blue-200">
             <CardHeader className="text-center bg-gradient-to-r from-red-50 via-white to-blue-50">
               <div className="inline-block px-4 py-2 bg-accent/30 rounded-full text-primary font-bold mb-4 border-2 border-accent">
-                {t('home.beta.discount')}
+                {t('home.beta.discount', HOME_BETA_SCOPE)}
               </div>
               <CardTitle className="text-2xl sm:text-3xl">
                 {t('home.beta.title')}
               </CardTitle>
               <CardDescription className="text-base sm:text-lg">
-                {t('home.beta.subtitle')}
+                {t('home.beta.subtitle', HOME_BETA_SCOPE)}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
@@ -2088,7 +2168,7 @@ export default function Home() {
                     {t('home.beta.authenticated')}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {t('home.beta.authenticatedDesc')}
+                    {t('home.beta.authenticatedDesc', HOME_BETA_SCOPE)}
                   </p>
                   <Link href="/dashboard">
                     <Button className="bg-primary hover:bg-primary/90 text-lg">

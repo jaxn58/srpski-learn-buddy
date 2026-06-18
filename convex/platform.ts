@@ -99,6 +99,25 @@ export async function loadBetaTesterDiscountPercent(
   return config?.betaTesterDiscountPercent ?? DEFAULT_BETA_TESTER_DISCOUNT_PERCENT;
 }
 
+/** Public beta scope for landing page copy (no auth). */
+export const getPublicBetaScope = query({
+  args: {},
+  returns: v.object({
+    betaMaxUnits: v.number(),
+    betaEnergyQuotaMonthly: v.number(),
+    betaPhaseActive: v.boolean(),
+    betaTesterDiscountPercent: v.number(),
+  }),
+  handler: async (ctx) => {
+    return {
+      betaMaxUnits: await loadBetaMaxUnits(ctx),
+      betaEnergyQuotaMonthly: await loadBetaEnergyQuota(ctx),
+      betaPhaseActive: await loadBetaPhaseActive(ctx),
+      betaTesterDiscountPercent: await loadBetaTesterDiscountPercent(ctx),
+    };
+  },
+});
+
 /**
  * Public (staff-only) read of the platform config for the admin UI.
  */
@@ -314,12 +333,13 @@ export const setBetaMaxUnits = mutation({
 
 /**
  * Set billing-related platform config (superadmin only).
- * Currently: Welcome-Energy amount and Beta-Tester discount percent.
+ * Welcome-Energy, beta discount, beta monthly Energy quota, course teaser limit.
  */
 export const setBillingConfig = mutation({
   args: {
     welcomeEnergyAmount: v.optional(v.number()),
     betaTesterDiscountPercent: v.optional(v.number()),
+    betaEnergyQuotaMonthly: v.optional(v.number()),
     teaserDailyLimit: v.optional(v.number()),
   },
   returns: v.null(),
@@ -339,6 +359,9 @@ export const setBillingConfig = mutation({
     }
     if (args.betaTesterDiscountPercent !== undefined) {
       assertValidLimit(args.betaTesterDiscountPercent, "Beta tester discount percent", 100);
+    }
+    if (args.betaEnergyQuotaMonthly !== undefined) {
+      assertValidLimit(args.betaEnergyQuotaMonthly, "Beta energy quota", 100_000);
     }
     if (args.teaserDailyLimit !== undefined) {
       assertValidLimit(args.teaserDailyLimit, "Teaser daily limit", 1000);

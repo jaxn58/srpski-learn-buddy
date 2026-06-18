@@ -78,8 +78,12 @@ export default function Chat() {
   // Live energy preview for the next action (drives the pill overlay and the
   // send-button "not enough Energy" state). RAG is hinted true because the
   // chat surface ships unit context + semantic search by default.
+  const attachIsImage = attachedFile?.fileType.startsWith("image/") ?? false;
   const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
     ragHinted: true,
+    hasImageAttachment: attachIsImage,
+    hasFileAttachment: attachedFile != null && !attachIsImage,
+    attachmentBytes: attachedFile?.fileBytes,
   });
   const energyBlocksSend =
     upcomingEnergyEstimate != null &&
