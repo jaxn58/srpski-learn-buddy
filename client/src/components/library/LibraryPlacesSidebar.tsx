@@ -75,8 +75,11 @@ function DriveSection({
           className="shrink-0 flex h-5 w-5 ml-1 items-center justify-center rounded-sm hover:bg-muted/80"
           onClick={(e) => {
             e.stopPropagation();
-            if (!expanded) onActivate();
-            onToggleExpand();
+            if (expanded) {
+              onToggleExpand();
+            } else {
+              onActivate();
+            }
           }}
           aria-label={expanded ? collapseLabel : expandLabel}
         >
