@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, action, internalAction, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation, query, action, internalAction, internalMutation, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -668,17 +668,25 @@ export const getSessionById = query({
 
 // ============= STREAMING CHAT =============
 
-// Internal mutation: insert an assistant message placeholder with a streamId
+// Insert an assistant message placeholder with a streamId.
+// userId is derived from the auth context – callers cannot supply it.
 export const addStreamingAssistantMessage = mutation({
   args: {
     sessionId: v.id("chatSessions"),
-    userId: v.id("users"),
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found or access denied");
+    }
+
     return await ctx.db.insert("chatMessages", {
       sessionId: args.sessionId,
-      userId: args.userId,
+      userId: user._id,
       role: "assistant",
       content: "",
       streamId: args.streamId,
@@ -686,8 +694,9 @@ export const addStreamingAssistantMessage = mutation({
   },
 });
 
-// Internal mutation: update the assistant message content once the stream finishes
-export const finalizeStreamedMessage = mutation({
+// Update the assistant message content once the stream finishes.
+// Exposed only as an internal mutation – the public API cannot call this directly.
+export const finalizeStreamedMessage = internalMutation({
   args: {
     messageId: v.id("chatMessages"),
     content: v.string(),
@@ -1486,7 +1495,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         fullText = await streamChatResponse(config, aiMessages, append);
       }
 
-      await ctx.runMutation(api.chat.finalizeStreamedMessage, {
+      await ctx.runMutation(internal.chat.finalizeStreamedMessage, {
         messageId,
         content: fullText || "I'm sorry, I couldn't generate a response.",
       });
