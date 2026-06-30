@@ -14,6 +14,7 @@ import {
 import { FolderTree } from "@/components/chatLibrary/FolderTree";
 import { StoragePieInline } from "@/components/library/StoragePieIndicator";
 import { buildAggregatedItemCounts, nextDefaultFolderName, type LibraryFolder } from "@/lib/libraryTree";
+import { treeRowPaddingLeft } from "@/components/library/libraryTreeLayout";
 import { useIsMobile } from "@/hooks/useMobile";
 import type { LibrarySection } from "@/components/library/UnifiedLibraryExplorer";
 
@@ -65,14 +66,13 @@ function DriveSection({
         className={cn(
           "flex items-center gap-0.5 pr-1 text-[13px] transition-colors duration-200 select-none border-b border-border/40",
           isMobile ? "py-1.5" : "py-1",
-          isActive
-            ? "library-accent-bg"
-            : "hover:bg-muted/40"
+          isActive ? "library-accent-bg" : "hover:bg-muted/40"
         )}
+        style={{ paddingLeft: `${treeRowPaddingLeft(0)}px` }}
       >
         <button
           type="button"
-          className="shrink-0 flex h-5 w-5 ml-1 items-center justify-center rounded-sm hover:bg-muted/80"
+          className="shrink-0 flex h-5 w-5 items-center justify-center rounded-sm hover:bg-muted/80"
           onClick={(e) => {
             e.stopPropagation();
             if (expanded) {
@@ -318,7 +318,7 @@ export function LibraryPlacesSidebar({
 
   return (
     <div className="flex flex-col min-h-0 h-full">
-      <div className="px-3 pt-3 pb-2 shrink-0">
+      <div className="px-2 pt-3 pb-2 shrink-0">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t("chatLibrary.tree.locations")}
         </p>

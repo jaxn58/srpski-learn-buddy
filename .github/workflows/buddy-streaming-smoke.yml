@@ -11,6 +11,8 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      CONVEX_SITE_URL: ${{ secrets.CONVEX_SITE_URL }}
 
     steps:
       - name: Checkout
@@ -44,7 +46,5 @@ jobs:
 
       # Full CORS preflight — only runs when the secret is configured
       - name: Buddy smoke — CORS preflight
-        if: ${{ env.CONVEX_SITE_URL != '' }}
+        if: env.CONVEX_SITE_URL != ''
         run: pnpm test:buddy-smoke
-        env:
-          CONVEX_SITE_URL: ${{ secrets.CONVEX_SITE_URL }}
