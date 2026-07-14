@@ -731,6 +731,34 @@ export const internalSaveDeTranslation = internalMutation({
   },
 });
 
+type TranslateTemplateResult = {
+  subjectTranslation: string;
+  htmlContentTranslation: string;
+  descriptionTranslation?: string;
+  warnings: string[];
+  meta: {
+    provider: string;
+    model: string;
+    usage: {
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+      thinkingTokens?: number;
+    } | null;
+    estimatedCostUsd: number | null;
+  };
+};
+
+type EmailTemplateFields = {
+  subject: string;
+  subjectEn?: string;
+  htmlContent: string;
+  htmlContentEn?: string;
+  description?: string;
+  descriptionEn?: string;
+  variables: string[];
+};
+
 // Translate EN content of an existing template and save DE directly.
 // Designed for one-click "Update DE translation" from the admin overview.
 export const translateAndSaveTemplate = action({
@@ -739,29 +767,37 @@ export const translateAndSaveTemplate = action({
     targetLanguage: v.literal("de"),
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ warnings: string[]; meta: TranslateTemplateResult["meta"] }> => {
     const superadmin = await getSuperadminUser(ctx);
     if (!superadmin) throw new Error("Superadmin access required");
 
-    const template = await ctx.runQuery(api.emailTemplates.getById, { id: args.id });
+    // Explicit type avoids circular inference (TS7022) without pulling in Doc<>
+    // (Doc<> triggers TS2589 on the large Convex DataModel).
+    const template = (await ctx.runQuery(api.emailTemplates.getById, {
+      id: args.id,
+    })) as EmailTemplateFields | null;
     if (!template) throw new Error("Template not found");
 
-    const subjectEn = template.subjectEn ?? template.subject;
-    const htmlContentEn = template.htmlContentEn ?? template.htmlContent;
-    const descriptionEn = template.descriptionEn ?? template.description;
+    const subjectEn: string = template.subjectEn ?? template.subject;
+    const htmlContentEn: string = template.htmlContentEn ?? template.htmlContent;
+    const descriptionEn: string | undefined =
+      template.descriptionEn ?? template.description;
 
     if (!subjectEn || !htmlContentEn) {
       throw new Error("Template has no English content to translate.");
     }
 
-    const res = await ctx.runAction(api.emailTemplates.translateTemplate, {
+    const res = (await ctx.runAction(api.emailTemplates.translateTemplate, {
       subjectEn,
       htmlContentEn,
       descriptionEn: descriptionEn || undefined,
       variables: template.variables,
       targetLanguage: args.targetLanguage,
       preferredProvider: args.preferredProvider ?? "gemini",
-    });
+    })) as TranslateTemplateResult;
 
     await ctx.runMutation(internal.emailTemplates.internalSaveDeTranslation, {
       id: args.id,

@@ -69,14 +69,18 @@ async function extractTextWithVision(
 // @ts-ignore TS2589
 export const extractKnowledgeDocument = internalAction({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageId: v.id("_storage"),
     fileType: v.string(),
     fileName: v.string(),
     category: v.string(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     customCategory: v.optional(v.string()),
     language: v.string(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     adminUserId: v.id("users"),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     try {
       const fileUrl = await ctx.storage.getUrl(args.storageId);
@@ -151,11 +155,15 @@ export const extractKnowledgeDocument = internalAction({
 // @ts-ignore TS2589
 export const processDocument = internalAction({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     documentId: v.id("userDocuments"),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     userId: v.id("users"),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageId: v.id("_storage"),
     fileType: v.string(),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await ctx.runMutation(internal.ai.ingestKnowledge.updateDocumentStatus, {
       documentId: args.documentId,

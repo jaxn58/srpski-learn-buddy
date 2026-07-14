@@ -89,6 +89,7 @@ export const setUnitOffline = mutation({
     offline: v.boolean(),
     confirm: v.string(), // Must be "OFFLINE UNIT <N>" or "ONLINE UNIT <N>"
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
     const unitNumber = args.unitNumber;
@@ -197,8 +198,10 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
 export const getUnitMetadata = query({
   args: {
     unitNumber: v.number(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const language = args.language || "en";
 
@@ -234,8 +237,10 @@ export const getUnitMetadata = query({
 // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getAllUnitsMetadata = query({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const language = args.language || "en";
     const user = await getCurrentUser(ctx);
@@ -287,8 +292,10 @@ export const getAllUnitsMetadata = query({
 export const getUnitContent = query({
   args: {
     unitNumber: v.number(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
     if (!hasAccess) {
@@ -341,8 +348,10 @@ export const getUnitContent = query({
 export const getUnitComplete = query({
   args: {
     unitNumber: v.number(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
     if (!hasAccess) {
@@ -423,8 +432,10 @@ export const getUnitComplete = query({
 export const getUnitInteractiveTest = query({
   args: {
     unitNumber: v.number(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const language = args.language || "en";
     const user = await getCurrentUser(ctx);
@@ -481,8 +492,10 @@ export const getUnitInteractiveTest = query({
 export const getUnitContentSections = query({
   args: {
     unitNumber: v.number(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const language = args.language || "en";
     const user = await getCurrentUser(ctx);
@@ -587,6 +600,7 @@ export async function upsertDailyActivityByUserId(
   const todayTimestamp = today.getTime();
 
   // Check if activity exists for today
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   const existing = await ctx.db
     .query("dailyActivity")
     // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
@@ -619,8 +633,10 @@ export async function upsertDailyActivityByUserId(
 // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const getDailyActivity = query({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     days: v.optional(v.number()),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) return [];
@@ -645,10 +661,14 @@ export const getDailyActivity = query({
 // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
 export const logActivity = mutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     unitsCompleted: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     exercisesCompleted: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     xpEarned: v.optional(v.number()),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");

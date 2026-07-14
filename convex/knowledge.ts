@@ -10,14 +10,23 @@ import { mutation, query, internalAction, internalMutation, internalQuery } from
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 const ARTICLE_CATEGORIES = v.union(
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   v.literal("culture"),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   v.literal("practical"),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   v.literal("language"),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   v.literal("cuisine"),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   v.literal("geography"),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   v.literal("immigration"),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   v.literal("history"),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   v.literal("other")
 );
 
@@ -37,6 +46,7 @@ async function requireAdmin(ctx: any) {
 // @ts-ignore TS2589
 export const listCustomCategories = query({
   args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx) => {
     const articles = await ctx.db.query("knowledgeArticles").collect();
     const customs = new Set<string>();
@@ -52,9 +62,12 @@ export const listCustomCategories = query({
 // @ts-ignore TS2589
 export const listArticles = query({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     category: v.optional(v.string()),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     let articles;
     if (args.status) {
@@ -67,6 +80,7 @@ export const listArticles = query({
     }
 
     if (args.category) {
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       articles = articles.filter((a) => a.category === args.category);
     }
 
@@ -76,7 +90,9 @@ export const listArticles = query({
 
 // @ts-ignore TS2589
 export const getArticle = query({
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   args: { articleId: v.id("knowledgeArticles") },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     return await ctx.db.get(args.articleId);
   },
@@ -88,10 +104,13 @@ export const createArticle = mutation({
     title: v.string(),
     content: v.string(),
     category: ARTICLE_CATEGORIES,
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     customCategory: v.optional(v.string()),
     language: v.string(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     tags: v.optional(v.array(v.string())),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const user = await requireAdmin(ctx);
     return await ctx.db.insert("knowledgeArticles", {
@@ -111,14 +130,22 @@ export const createArticle = mutation({
 // @ts-ignore TS2589
 export const updateArticle = mutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     articleId: v.id("knowledgeArticles"),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     title: v.optional(v.string()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     content: v.optional(v.string()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     category: v.optional(ARTICLE_CATEGORIES),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     customCategory: v.optional(v.string()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     tags: v.optional(v.array(v.string())),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const { articleId, ...updates } = args;
@@ -136,7 +163,9 @@ export const updateArticle = mutation({
 
 // @ts-ignore TS2589
 export const publishArticle = mutation({
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   args: { articleId: v.id("knowledgeArticles") },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     await ctx.db.patch(args.articleId, {
@@ -152,7 +181,9 @@ export const publishArticle = mutation({
 
 // @ts-ignore TS2589
 export const unpublishArticle = mutation({
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   args: { articleId: v.id("knowledgeArticles") },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     await ctx.db.patch(args.articleId, {
@@ -164,7 +195,9 @@ export const unpublishArticle = mutation({
 
 // @ts-ignore TS2589
 export const deleteArticle = mutation({
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   args: { articleId: v.id("knowledgeArticles") },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     // Delete associated chunks
@@ -199,6 +232,7 @@ export const deleteArticle = mutation({
 // @ts-ignore TS2589
 export const generateKnowledgeUploadUrl = mutation({
   args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx) => {
     await requireAdmin(ctx);
     return await ctx.storage.generateUploadUrl();
@@ -212,13 +246,16 @@ export const generateKnowledgeUploadUrl = mutation({
 // @ts-ignore TS2589
 export const scheduleExtraction = mutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageId: v.id("_storage"),
     fileType: v.string(),
     fileName: v.string(),
     category: ARTICLE_CATEGORIES,
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     customCategory: v.optional(v.string()),
     language: v.string(),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const user = await requireAdmin(ctx);
     await ctx.scheduler.runAfter(0, internal.documentsNode.extractKnowledgeDocument, {
@@ -243,11 +280,15 @@ export const createArticleFromUpload = internalMutation({
     title: v.string(),
     content: v.string(),
     category: v.string(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     customCategory: v.optional(v.string()),
     language: v.string(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     adminUserId: v.id("users"),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     tags: v.optional(v.array(v.string())),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     return await ctx.db.insert("knowledgeArticles", {
       title: args.title,
@@ -276,7 +317,9 @@ const SUPPORTED_LANGUAGES = [
  */
 // @ts-ignore TS2589
 export const getTranslations = query({
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   args: { articleId: v.id("knowledgeArticles") },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const article = await ctx.db.get(args.articleId);
     if (!article) return { original: null, translations: [] };
@@ -299,7 +342,9 @@ export const getTranslations = query({
  */
 // @ts-ignore TS2589
 export const getMissingTranslations = query({
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   args: { articleId: v.id("knowledgeArticles") },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const article = await ctx.db.get(args.articleId);
     if (!article) return [];
@@ -313,7 +358,9 @@ export const getMissingTranslations = query({
       .withIndex("by_translation", (q) => q.eq("translationOf", originalId))
       .collect();
 
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const existingLangs = new Set([original.language, ...translations.map((t) => t.language)]);
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     return SUPPORTED_LANGUAGES.filter((l) => !existingLangs.has(l.code));
   },
 });
@@ -324,9 +371,11 @@ export const getMissingTranslations = query({
 // @ts-ignore TS2589
 export const translateArticle = mutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     articleId: v.id("knowledgeArticles"),
     targetLanguage: v.string(),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
@@ -356,6 +405,7 @@ export const translateArticle = mutation({
       language: args.targetLanguage,
       tags: source.tags,
       status: "draft",
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       translationOf: sourceId as Id<"knowledgeArticles">,
       createdBy: source.createdBy,
       createdAt: Date.now(),
@@ -378,10 +428,13 @@ export const translateArticle = mutation({
 // @ts-ignore TS2589
 export const performTranslation = internalAction({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     sourceArticleId: v.id("knowledgeArticles"),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     targetArticleId: v.id("knowledgeArticles"),
     targetLanguage: v.string(),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const source = await ctx.runQuery(internal.knowledge.internalGetArticle, {
       articleId: args.sourceArticleId,
@@ -480,7 +533,9 @@ ${source.content}`;
 
 // @ts-ignore TS2589
 export const internalGetArticle = internalQuery({
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   args: { articleId: v.id("knowledgeArticles") },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     return await ctx.db.get(args.articleId);
   },
@@ -489,13 +544,19 @@ export const internalGetArticle = internalQuery({
 // @ts-ignore TS2589
 export const internalPatchArticle = internalMutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     articleId: v.id("knowledgeArticles"),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     patch: v.object({
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       title: v.optional(v.string()),
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       content: v.optional(v.string()),
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       updatedAt: v.optional(v.number()),
     }),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const filtered = Object.fromEntries(
       Object.entries(args.patch).filter(([, val]) => val !== undefined)

@@ -28,9 +28,12 @@ import { getFeatureAccessForUser } from "./featureAccess";
 
 const RESET_BATCH_SIZE = 100;
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const processMonthlyEnergyResets = internalMutation({
   args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({ processed: v.number() }),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx) => {
     const now = Date.now();
     // @ts-ignore TS2589 – Convex schema depth limit (large schema)
@@ -108,15 +111,20 @@ async function getCurrentUser(ctx: MutationCtx) {
  * Idempotent: subs without debt or without an active row are skipped.
  * Writes an `admin_adjust` ledger entry per settled sub.
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const settleCarriedEnergyDebt = internalMutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     userId: v.optional(v.id("users")),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     limit: v.optional(v.number()),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
     processed: v.number(),
     totalSettled: v.number(),
   }),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const batchLimit = Math.max(1, Math.min(args.limit ?? 200, 500));
     // @ts-ignore TS2589 – Convex schema depth limit (large schema)
@@ -182,14 +190,19 @@ export const settleCarriedEnergyDebt = internalMutation({
   },
 });
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const adminGrantEnergy = mutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     userId: v.id("users"),
     amount: v.number(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     mode: v.union(v.literal("topUp"), v.literal("refund")),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     note: v.optional(v.string()),
   },
   returns: v.null(),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const admin = await getCurrentUser(ctx);
     if (admin.role !== "superadmin") {

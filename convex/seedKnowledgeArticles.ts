@@ -389,6 +389,7 @@ Slava embodies Serbian identity: hospitality, faith, family continuity, and comm
 // @ts-ignore TS2589
 export const seedAll = internalMutation({
   args: {},
+  // @ts-ignore TS2589
   handler: async (ctx) => {
     const existing = await ctx.db.query("knowledgeArticles").collect();
 

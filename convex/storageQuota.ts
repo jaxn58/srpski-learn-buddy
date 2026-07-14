@@ -190,9 +190,12 @@ export function formatBytes(bytes: number): string {
 }
 
 /** Public per-tier storage quotas for the landing page pricing table. */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getPublicStorageInfo = query({
   args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     quotasBytes: v.object({
       course: v.number(),
       standalone: v.number(),
@@ -200,6 +203,7 @@ export const getPublicStorageInfo = query({
       course_ai_pro: v.number(),
     }),
   }),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx) => {
     const quotas = await loadStorageQuotaConfig(ctx);
     return {

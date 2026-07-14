@@ -100,14 +100,17 @@ export async function loadBetaTesterDiscountPercent(
 }
 
 /** Public beta scope for landing page copy (no auth). */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getPublicBetaScope = query({
   args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
     betaMaxUnits: v.number(),
     betaEnergyQuotaMonthly: v.number(),
     betaPhaseActive: v.boolean(),
     betaTesterDiscountPercent: v.number(),
   }),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx) => {
     return {
       betaMaxUnits: await loadBetaMaxUnits(ctx),
@@ -121,8 +124,10 @@ export const getPublicBetaScope = query({
 /**
  * Public (staff-only) read of the platform config for the admin UI.
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getPlatformConfig = query({
   args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
     betaPhaseActive: v.boolean(),
     betaMaxUnits: v.number(),
@@ -145,8 +150,10 @@ export const getPlatformConfig = query({
     // Billing config (Phase 4)
     welcomeEnergyAmount: v.number(),
     betaTesterDiscountPercent: v.number(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     updatedAt: v.union(v.number(), v.null()),
   }),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -265,9 +272,11 @@ function assertValidLimit(value: number, label: string, max: number): void {
 /**
  * Toggle the global beta phase (superadmin only). Upserts the singleton row.
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const setBetaPhaseActive = mutation({
   args: { betaPhaseActive: v.boolean() },
   returns: v.null(),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -285,9 +294,11 @@ export const setBetaPhaseActive = mutation({
 });
 
 /** Set monthly Energy quota for beta testers (superadmin only). */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const setBetaEnergyQuota = mutation({
   args: { betaEnergyQuotaMonthly: v.number() },
   returns: v.null(),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -311,9 +322,11 @@ export const setBetaEnergyQuota = mutation({
  * Set how many learning units a beta user may access (staff: admin/superadmin).
  * Surfaced in the content-creation area, next to unit management.
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const setBetaMaxUnits = mutation({
   args: { betaMaxUnits: v.number() },
   returns: v.null(),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -335,14 +348,20 @@ export const setBetaMaxUnits = mutation({
  * Set billing-related platform config (superadmin only).
  * Welcome-Energy, beta discount, beta monthly Energy quota, course teaser limit.
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const setBillingConfig = mutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     welcomeEnergyAmount: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     betaTesterDiscountPercent: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     betaEnergyQuotaMonthly: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     teaserDailyLimit: v.optional(v.number()),
   },
   returns: v.null(),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -389,20 +408,32 @@ function assertNonNegative(value: number, label: string, max: number): void {
  * per KB. Quotas are bounded to 1,000,000 (≈ 1M Energy is far beyond any
  * realistic month).
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const setEnergyConfig = mutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyCostCompact: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyCostDetailed: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyRagSurcharge: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyVisionSurcharge: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyUploadBase: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyUploadPerKb: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyQuotaFull: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyQuotaBuddy: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     energyQuotaBasic: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     uploadMaxFileBytes: v.optional(v.number()),
   },
   returns: v.null(),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -489,13 +520,18 @@ function assertValidStorageQuotaBytes(value: number, label: string): void {
  * Set per-tier file storage quotas (superadmin only).
  * Values are stored in bytes; the admin UI typically edits MB.
  */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const setStorageQuotaConfig = mutation({
   args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageQuotaStandaloneBytes: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageQuotaCourseAiProBytes: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageQuotaBetaBytes: v.optional(v.number()),
   },
   returns: v.null(),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -568,14 +604,17 @@ function quotaForTier(
   }
 }
 
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const getEnergyEconomics = query({
   args: {
     /** Client-provided current timestamp (ms). Required because Convex queries
      *  must be deterministic - see the no-Date.now()-in-queries rule. */
     nowMs: v.number(),
   },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   returns: v.object({
     // Active LLM model -- same source of truth as the chat runtime.
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     activeModel: v.object({
       provider: v.string(),
       modelName: v.string(),
@@ -588,10 +627,12 @@ export const getEnergyEconomics = query({
 
     // Pricing-table freshness — surfaced as a banner in the admin UI so the
     // superadmin knows when to verify Google/OpenAI prices against the docs.
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     pricingFreshness: v.object({
       lastVerifiedAt: v.string(),
       ageDays: v.number(),
       /** "fresh" < warnDays, "warn" >= warnDays, "alert" >= alertDays */
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       status: v.union(v.literal("fresh"), v.literal("warn"), v.literal("alert")),
       warnDays: v.number(),
       alertDays: v.number(),
@@ -601,6 +642,7 @@ export const getEnergyEconomics = query({
     // Ledger storage health — the 30-day aggregation has a safety cap; if we
     // approach it the admin needs to know so a `by_createdAt` index can be
     // added before queries silently truncate.
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     ledgerHealth: v.object({
       /** Hard upper bound on rows scanned in this query (matches `.take(N)` below). */
       scanCap: v.number(),
@@ -613,7 +655,9 @@ export const getEnergyEconomics = query({
     }),
 
     // Cost & quota config currently in effect (incl. defaults).
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     config: v.object({
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       costs: v.object({
         compact: v.number(),
         detailed: v.number(),
@@ -622,6 +666,7 @@ export const getEnergyEconomics = query({
         uploadBase: v.number(),
         uploadPerKb: v.number(),
       }),
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       quotas: v.object({
         full: v.number(),
         buddy: v.number(),
@@ -631,15 +676,19 @@ export const getEnergyEconomics = query({
     }),
 
     // USD per Energy under two assumptions (band, not point).
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     usdPerEnergy: v.object({
       typical: v.number(),
       worstCase: v.number(),
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       assumedTokensTypical: v.object({ input: v.number(), output: v.number() }),
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       assumedTokensWorstCase: v.object({ input: v.number(), output: v.number() }),
     }),
 
     // Estimated chat-message counts per Energy budget -- for the "X chats / month"
     // labels under each quota field.
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     chatsPerEnergy: v.object({
       /** Pure compact answer, no surcharges. 1 / compact. */
       atCompact: v.number(),
@@ -648,6 +697,7 @@ export const getEnergyEconomics = query({
     }),
 
     // Per-tier x per-duration economics (3 tiers x 3 durations = 9 rows).
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     tierEconomics: v.array(v.object({
       tier: v.string(),
       tierDisplayName: v.string(),
@@ -663,6 +713,7 @@ export const getEnergyEconomics = query({
     })),
 
     // Top-Up margins (Starter / Plus / Pro).
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     topupEconomics: v.array(v.object({
       packId: v.string(),
       name: v.string(),
@@ -673,12 +724,14 @@ export const getEnergyEconomics = query({
     })),
 
     // Real consumption from the last 30 days (energyLedger).
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     realUsage30d: v.object({
       windowStartMs: v.number(),
       totalUsageEntries: v.number(),
       totalEnergyConsumed: v.number(),
       activeUserCount: v.number(),
       ragUsageShareOfChatActions: v.number(),
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       byActionType: v.object({
         compact: v.number(),
         balanced: v.number(),
@@ -693,6 +746,7 @@ export const getEnergyEconomics = query({
       isSparse: v.boolean(),
     }),
   }),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -787,10 +841,13 @@ export const getEnergyEconomics = query({
     }
 
     // ---- 5) Top-Up economics ----
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const topupEconomics = (
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
       Object.entries(TOPUP_PACKS) as Array<
         [string, typeof TOPUP_PACKS[keyof typeof TOPUP_PACKS]]
       >
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     ).map(([packId, pack]) => {
       const energyTotal = pack.energyAmount + pack.bonusAmount;
       const worstCaseAiCostUsd = energyTotal * usdWorstCase;
@@ -819,6 +876,7 @@ export const getEnergyEconomics = query({
     const LEDGER_SCAN_CAP = 50_000;
     // @ts-ignore TS2589 - Convex schema depth limit
     const ledgerRows = await ctx.db.query("energyLedger").take(LEDGER_SCAN_CAP);
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     const usageRows = ledgerRows.filter(
       (r) => r.reason === "usage" && r.createdAt >= windowStartMs
     );

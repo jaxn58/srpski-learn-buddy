@@ -3,6 +3,7 @@ import { internalMutation } from "./_generated/server";
 // @ts-ignore TS2589
 export const seed = internalMutation({
   args: {},
+  // @ts-ignore TS2589
   handler: async (ctx) => {
     const existing = await ctx.db.query("chatSuggestions").first();
     if (existing) {
