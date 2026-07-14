@@ -847,15 +847,19 @@ export const checkMessageRateLimit = mutation({
       throw new Error(rateLimitResult.reason || "Rate limit exceeded");
     }
 
-    // Energy pre-check: block only when the user already has outstanding debt
-    // from a prior overdraft action. Actual cost is billed after measured usage.
+    // Energy pre-check: block only when the effective spendable balance is
+    // exhausted. Prior debt is subtracted from `available` already
+    // (see `deriveEnergyBalance`) and is settled implicitly by the next
+    // successful charge, so a positive `available` means the user can proceed.
     let energyEstimateMin = 0;
     let energyEstimateMax = 0;
     let energyEstimateMid = 0;
     if (!isTeaserOnly && !access.energy.unlimited) {
-      if (access.energy.debtBalance > 0) {
+      if (access.energy.available <= 0) {
         throw new Error(
-          `Outstanding AI Energy debt of ${access.energy.debtBalance}. Top up to continue.`
+          access.energy.debtBalance > 0
+            ? `Outstanding AI Energy debt of ${access.energy.debtBalance}. Top up to continue.`
+            : "AI Energy exhausted. Top up or wait for the monthly reset."
         );
       }
 
@@ -1104,10 +1108,14 @@ export const estimateEnergyForAction = query({
     const access = await getFeatureAccessForUser(ctx, user._id);
     const teaserOnly = access.features.teaser && !access.features.buddyChat;
     const available = access.energy.unlimited ? null : access.energy.available;
+    // `enough` mirrors the pre-check gate in `chat.send*`: the send button is
+    // only blocked when the effective spendable balance is truly exhausted.
+    // Carried debt alone is not a blocker anymore – the next successful charge
+    // sweeps it together with the new action.
     const enough =
       access.energy.unlimited ||
       teaserOnly ||
-      access.energy.debtBalance === 0;
+      access.energy.available > 0;
 
     return {
       cost: band.costMid,

@@ -5,7 +5,10 @@
  *  - **Preview**: heuristic token band → approximate Energy range (`~min–max`).
  *  - **Actual charge**: measured LLM input/output tokens → Energy via USD formula.
  *  - **Overdraft**: one action may exceed available balance; deficit becomes
- *    `energyDebtBalance`. Further actions blocked until top-up clears debt.
+ *    `energyDebtBalance`. Subsequent charges automatically clear the debt from
+ *    the effective balance, so the user is only blocked when nothing spendable
+ *    is left (`available <= 0`). The monthly reset also settles any carried
+ *    debt against the new quota (see `processMonthlyEnergyResets`).
  *
  * Charging order: monthly inclusive quota first, then non-expiring top-up
  * balance (see 02_TOKEN_SYSTEM.md §5).
@@ -275,12 +278,28 @@ export function deriveEnergyBalance(
 // ============= Charging =============
 
 export type ChargeResult =
-  | { ok: true; charged: number; fromQuota: number; fromTopUp: number; debtCreated: number }
+  | {
+      ok: true;
+      charged: number;
+      fromQuota: number;
+      fromTopUp: number;
+      debtCreated: number;
+      /** Debt from a prior overdraft that was settled by this charge. */
+      debtCleared: number;
+    }
   | { ok: false; reason: "insufficient" | "debt"; available: number; required: number; debtBalance?: number };
 
 /**
  * Atomically charge `amount` energy from measured usage.
- * Allows a single overdraft when `energyDebtBalance === 0` and available < amount.
+ *
+ * Behaviour:
+ *  - If `available >= amount`, the charge succeeds. Any outstanding debt is
+ *    settled from the same quota/top-up buckets in the same operation so the
+ *    balance stays consistent with `deriveEnergyBalance` (which subtracts debt
+ *    from `available`).
+ *  - If `available < amount`, a single overdraft is allowed only when there is
+ *    no prior debt (`energyDebtBalance === 0`); the deficit becomes new debt.
+ *    Otherwise the charge is refused with `reason: "debt"`.
  */
 export async function chargeEnergy(
   ctx: MutationCtx,
@@ -297,7 +316,7 @@ export async function chargeEnergy(
   }
 ): Promise<ChargeResult> {
   if (amount <= 0) {
-    return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0, debtCreated: 0 };
+    return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0, debtCreated: 0, debtCleared: 0 };
   }
 
   // @ts-ignore TS2589 – Convex schema depth limit (large schema)
@@ -349,7 +368,7 @@ export async function chargeEnergy(
       actualEnergyCost: meta.actualEnergyCost,
       createdAt: Date.now(),
     });
-    return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0, debtCreated: 0 };
+    return { ok: true, charged: 0, fromQuota: 0, fromTopUp: 0, debtCreated: 0, debtCleared: 0 };
   }
 
   const quotaMonthly = sub.energyQuotaMonthly ?? 0;
@@ -357,34 +376,44 @@ export async function chargeEnergy(
   const topUpBalance = sub.energyTopUpBalance ?? 0;
   const debtBalance = sub.energyDebtBalance ?? 0;
   const quotaRemaining = Math.max(0, quotaMonthly - usedThisPeriod);
-  const available = quotaRemaining + topUpBalance;
-
-  if (debtBalance > 0) {
-    return {
-      ok: false,
-      reason: "debt",
-      available: 0,
-      required: amount,
-      debtBalance,
-    };
-  }
+  // `effectiveAvailable` mirrors `deriveEnergyBalance.available`: outstanding
+  // debt is deducted so the spendable balance is honest. When there is enough
+  // to cover both the current action and the carried debt, we settle the debt
+  // as part of this charge (no separate top-up required).
+  const effectiveAvailable = Math.max(0, quotaRemaining + topUpBalance - debtBalance);
 
   let fromQuota = 0;
   let fromTopUp = 0;
   let debtCreated = 0;
+  let debtCleared = 0;
 
-  if (available >= amount) {
-    fromQuota = Math.min(quotaRemaining, amount);
-    fromTopUp = amount - fromQuota;
+  if (effectiveAvailable >= amount) {
+    // Charge covers the action; sweep any remaining debt out of the same
+    // buckets so the ledger stays coherent.
+    const totalDraw = amount + debtBalance;
+    fromQuota = Math.min(quotaRemaining, totalDraw);
+    fromTopUp = totalDraw - fromQuota;
+    debtCleared = debtBalance;
     await ctx.db.patch(sub._id, {
       energyUsedThisPeriod: usedThisPeriod + fromQuota,
       energyTopUpBalance: topUpBalance - fromTopUp,
+      energyDebtBalance: 0,
     });
+  } else if (debtBalance > 0) {
+    // No headroom left and the user still carries debt from a previous
+    // overdraft: block until the debt is cleared via top-up or reset.
+    return {
+      ok: false,
+      reason: "debt",
+      available: effectiveAvailable,
+      required: amount,
+      debtBalance,
+    };
   } else {
     // Single overdraft: consume all available balance, remainder becomes debt.
     fromQuota = quotaRemaining;
     fromTopUp = topUpBalance;
-    debtCreated = amount - available;
+    debtCreated = amount - (quotaRemaining + topUpBalance);
     await ctx.db.patch(sub._id, {
       energyUsedThisPeriod: usedThisPeriod + fromQuota,
       energyTopUpBalance: topUpBalance - fromTopUp,
@@ -406,7 +435,7 @@ export async function chargeEnergy(
     createdAt: Date.now(),
   });
 
-  return { ok: true, charged: amount, fromQuota, fromTopUp, debtCreated };
+  return { ok: true, charged: amount, fromQuota, fromTopUp, debtCreated, debtCleared };
 }
 
 /** Apply a top-up: clear debt first, remainder goes to topUpBalance. */

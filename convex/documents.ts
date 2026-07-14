@@ -126,9 +126,14 @@ export const generateUploadUrl = mutation({
     }
 
     if (!access.energy.unlimited && typeof args.fileBytes === "number") {
-      if (access.energy.debtBalance > 0) {
+      // Block uploads only when the effective spendable balance is exhausted.
+      // Prior debt is subtracted from `available` already; the next successful
+      // charge sweeps it out, so carried debt alone is not a blocker.
+      if (access.energy.available <= 0) {
         throw new Error(
-          `Outstanding AI Energy debt of ${access.energy.debtBalance}. Top up to continue.`
+          access.energy.debtBalance > 0
+            ? `Outstanding AI Energy debt of ${access.energy.debtBalance}. Top up to continue.`
+            : "AI Energy exhausted. Top up or wait for the monthly reset."
         );
       }
 

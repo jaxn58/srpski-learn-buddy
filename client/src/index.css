@@ -567,3 +567,60 @@
     transform: translateX(300%);
   }
 }
+
+/* AI Energy status colors — shared by gauge, pill, and subscription progress */
+.energy-status-text-full {
+  color: rgb(52 211 153);
+}
+.energy-status-bg-full {
+  background-color: rgb(52 211 153);
+}
+.energy-status-pill-full {
+  background-color: color-mix(in oklch, rgb(52 211 153) 14%, transparent);
+  color: rgb(5 150 105);
+}
+.dark .energy-status-pill-full {
+  background-color: color-mix(in oklch, rgb(52 211 153) 22%, transparent);
+  color: rgb(52 211 153);
+}
+
+.energy-status-text-good {
+  color: rgb(5 150 105);
+}
+.energy-status-bg-good {
+  background-color: rgb(5 150 105);
+}
+.energy-status-pill-good {
+  background-color: color-mix(in oklch, rgb(5 150 105) 14%, transparent);
+  color: rgb(4 120 87);
+}
+.dark .energy-status-pill-good {
+  background-color: color-mix(in oklch, rgb(5 150 105) 24%, transparent);
+  color: rgb(16 185 129);
+}
+
+.energy-status-text-warn {
+  color: rgb(245 158 11);
+}
+.energy-status-bg-warn {
+  background-color: rgb(251 191 36);
+}
+.energy-status-pill-warn {
+  background-color: color-mix(in oklch, rgb(245 158 11) 16%, transparent);
+  color: rgb(180 83 9);
+}
+.dark .energy-status-pill-warn {
+  background-color: color-mix(in oklch, rgb(245 158 11) 24%, transparent);
+  color: rgb(251 191 36);
+}
+
+.energy-status-text-critical {
+  color: var(--destructive);
+}
+.energy-status-bg-critical {
+  background-color: var(--destructive);
+}
+.energy-status-pill-critical {
+  background-color: color-mix(in oklch, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+}

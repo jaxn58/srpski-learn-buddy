@@ -8,6 +8,11 @@
  * Monthly reset (cron `hourly-energy-monthly-reset`):
  *  - Resets `energyUsedThisPeriod = 0` and sets `energyPeriodResetAt` to the
  *    next month boundary (UTC). Adds a `monthly_reset` ledger entry per sub.
+ *  - Any outstanding `energyDebtBalance` from a prior overdraft is settled
+ *    against the fresh quota: `usedThisPeriod` is pre-set to the debt (capped
+ *    by the monthly quota) and `energyDebtBalance` is cleared by that amount.
+ *    Without this, users would carry the debt indefinitely and be blocked
+ *    even after the new period started.
  *  - Top-ups (`energyTopUpBalance`) are NEVER reset – they carry over.
  *  - Processes a small bounded batch per run; the cron picks up the rest.
  *
@@ -19,6 +24,7 @@ import { v } from "convex/values";
 import { mutation, internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { isResetDue, nextMonthlyResetAt } from "./energy";
+import { getFeatureAccessForUser } from "./featureAccess";
 
 const RESET_BATCH_SIZE = 100;
 
@@ -37,8 +43,17 @@ export const processMonthlyEnergyResets = internalMutation({
     for (const sub of candidates) {
       if (!isResetDue(sub, now)) continue;
 
+      const quotaMonthly = sub.energyQuotaMonthly ?? 0;
+      const carriedDebt = sub.energyDebtBalance ?? 0;
+      // Settle up to one full monthly quota worth of debt from the fresh
+      // period. If the debt exceeds the quota (edge case: quota was
+      // downgraded), the remainder stays as debt.
+      const debtSettled = Math.min(carriedDebt, Math.max(0, quotaMonthly));
+      const remainingDebt = carriedDebt - debtSettled;
+
       await ctx.db.patch(sub._id, {
-        energyUsedThisPeriod: 0,
+        energyUsedThisPeriod: debtSettled,
+        energyDebtBalance: remainingDebt,
         energyPeriodResetAt: nextMonthlyResetAt(now),
       });
 
@@ -46,6 +61,10 @@ export const processMonthlyEnergyResets = internalMutation({
         userId: sub.userId,
         delta: 0,
         reason: "monthly_reset",
+        note:
+          debtSettled > 0
+            ? `carried debt ${carriedDebt} settled from new quota (${debtSettled} applied, ${remainingDebt} remaining)`
+            : undefined,
         createdAt: now,
       });
 
@@ -76,6 +95,93 @@ async function getCurrentUser(ctx: MutationCtx) {
  * Both modes write an `adjustment` ledger entry with the admin's userId in
  * the note for auditability.
  */
+/**
+ * One-shot migration/cleanup for accounts stuck with `energyDebtBalance > 0`
+ * from the pre-fix era, where the monthly reset did NOT settle debt against
+ * the new quota. Applies the same logic that the reset now uses:
+ *  - Deducts as much debt as possible from the remaining quota room of the
+ *    current period (`energyUsedThisPeriod` is raised, capped at
+ *    `energyQuotaMonthly`).
+ *  - Then draws any leftover debt from `energyTopUpBalance`.
+ *  - Whatever cannot be settled from quota + top-up stays as debt.
+ *
+ * Idempotent: subs without debt or without an active row are skipped.
+ * Writes an `admin_adjust` ledger entry per settled sub.
+ */
+export const settleCarriedEnergyDebt = internalMutation({
+  args: {
+    userId: v.optional(v.id("users")),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    processed: v.number(),
+    totalSettled: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const batchLimit = Math.max(1, Math.min(args.limit ?? 200, 500));
+    // @ts-ignore TS2589 – Convex schema depth limit (large schema)
+    const candidates = args.userId
+      ? await ctx.db
+          .query("userSubscriptions")
+          .withIndex("by_user", (q) => q.eq("userId", args.userId!))
+          .filter((q) => q.eq(q.field("status"), "active"))
+          .collect()
+      : await ctx.db
+          .query("userSubscriptions")
+          .filter((q) => q.eq(q.field("status"), "active"))
+          .take(batchLimit);
+
+    const now = Date.now();
+    let processed = 0;
+    let totalSettled = 0;
+
+    for (const sub of candidates) {
+      const debt = sub.energyDebtBalance ?? 0;
+      if (debt <= 0) continue;
+
+      // Legacy subs may not have `energyQuotaMonthly` written directly; the
+      // effective monthly quota comes from the feature-access resolver
+      // (tier fallback + config). Use the same source so the cleanup mirrors
+      // what the user actually sees in the UI.
+      const access = await getFeatureAccessForUser(ctx, sub.userId);
+      const effectiveQuota = access.energy.unlimited
+        ? sub.energyQuotaMonthly ?? 0
+        : access.energy.quotaMonthly;
+
+      const used = sub.energyUsedThisPeriod ?? 0;
+      const topUp = sub.energyTopUpBalance ?? 0;
+      const quotaRoom = Math.max(0, effectiveQuota - used);
+
+      const fromQuota = Math.min(debt, quotaRoom);
+      const fromTopUp = Math.min(debt - fromQuota, topUp);
+      const settled = fromQuota + fromTopUp;
+      if (settled <= 0) continue;
+
+      await ctx.db.patch(sub._id, {
+        // Persist the resolved quota when it was previously missing so that
+        // future runs (and the monthly reset) can rely on the raw field.
+        energyQuotaMonthly: sub.energyQuotaMonthly ?? effectiveQuota,
+        energyUsedThisPeriod: used + fromQuota,
+        energyTopUpBalance: topUp - fromTopUp,
+        energyDebtBalance: debt - settled,
+      });
+
+      await ctx.db.insert("energyLedger", {
+        userId: sub.userId,
+        delta: 0,
+        reason: "admin_adjust",
+        note: `debt cleanup: settled ${settled} of ${debt} carried debt (from quota: ${fromQuota}, top-up: ${fromTopUp})`,
+        createdAt: now,
+      });
+
+      processed += 1;
+      totalSettled += settled;
+    }
+
+    return { processed, totalSettled };
+  },
+});
+
 export const adminGrantEnergy = mutation({
   args: {
     userId: v.id("users"),

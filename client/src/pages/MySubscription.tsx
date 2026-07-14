@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
 import { formatDateEU } from "@/lib/utils";
+import { getEnergyStatus } from "@/lib/energyStatus";
 import { Link } from "wouter";
 
 type SubscriptionPlan = {
@@ -44,9 +45,15 @@ function EnergyCard() {
   if (access.features.teaser && !access.features.buddyChat) return null;
   if (!access.features.buddyChat) return null;
 
-  const { quotaMonthly, usedThisPeriod, topUpBalance, available, periodResetAt } = access.energy;
+  const { quotaMonthly, usedThisPeriod, topUpBalance, available, periodResetAt, debtBalance } =
+    access.energy;
   const quotaRemaining = Math.max(0, quotaMonthly - usedThisPeriod);
   const quotaPercent = quotaMonthly > 0 ? (quotaRemaining / quotaMonthly) * 100 : 0;
+  const { classes: energyStatusClasses } = getEnergyStatus({
+    available,
+    quotaMonthly,
+    debtBalance,
+  });
   const welcomeEnergyAmount = energyInfo?.welcomeEnergyAmount ?? 0;
   const showWelcomeNote = access.tier === "course_ai_pro" && welcomeEnergyAmount > 0;
 
@@ -67,7 +74,11 @@ function EnergyCard() {
               {quotaRemaining} / {quotaMonthly} {t("energy.remaining")}
             </span>
           </div>
-          <Progress value={quotaPercent} className="h-2" />
+          <Progress
+            value={quotaPercent}
+            className="h-2"
+            indicatorClassName={energyStatusClasses.bg}
+          />
           <div className="text-xs text-muted-foreground mt-1">
             {t("energy.used")}: {usedThisPeriod}
             {periodResetAt && (
