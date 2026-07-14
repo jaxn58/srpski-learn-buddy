@@ -277,7 +277,7 @@ export function ChatSessionsSidebar({ currentSessionId, onSelectSession, onNewCh
             <SelectContent>
               <SelectItem value="all">{t("chatLibrary.sidebar.allFolders")}</SelectItem>
               <SelectItem value="uncategorized">{t("chatLibrary.uncategorized")}</SelectItem>
-              {folders.map((folder) => (
+              {(folders as Array<{ _id: string; name: string }>).map((folder: { _id: string; name: string }) => (
                 <SelectItem key={folder._id as string} value={folder._id as string}>
                   {folder.name}
                 </SelectItem>

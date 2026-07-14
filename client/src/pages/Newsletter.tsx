@@ -39,6 +39,7 @@ import {
 
 type CampaignDoc = Doc<"newsletterCampaigns">;
 type EmailTemplateDoc = Doc<"emailTemplates">;
+type ContactDoc = Doc<"newsletterContacts">;
 type ContentTab = "wysiwyg" | "code" | "emailPreview";
 
 const PRE_SEND = new Set(["draft", "review", "ready"]);
@@ -198,15 +199,19 @@ function CampaignsTab({ onEdit }: { onEdit: (c: CampaignDoc) => void }) {
   };
 
   const onTemplatePick = (name: string) => {
-    const tpl = emailTemplates?.find((x) => x.name === name);
+    const tpl = (emailTemplates as EmailTemplateDoc[] | undefined)?.find(
+      (x: EmailTemplateDoc) => x.name === name,
+    );
     const subj = tpl ? (tpl.subjectEn ?? tpl.subject ?? "").trim() : "";
     setNewCampaign((prev) => ({ ...prev, templateName: name, subject: subj || prev.subject }));
   };
 
-  const marketingTemplates = useMemo(() => {
+  const marketingTemplates = useMemo<EmailTemplateDoc[]>(() => {
     if (!emailTemplates) return [];
-    const list = emailTemplates.filter((tpl) => tpl.isActive && tpl.category === "marketing");
-    list.sort((a, b) => {
+    const list = (emailTemplates as EmailTemplateDoc[]).filter(
+      (tpl: EmailTemplateDoc) => tpl.isActive && tpl.category === "marketing",
+    );
+    list.sort((a: EmailTemplateDoc, b: EmailTemplateDoc) => {
       if (a.name === "newsletter-base") return -1;
       if (b.name === "newsletter-base") return 1;
       return a.name.localeCompare(b.name);
@@ -306,7 +311,7 @@ function CampaignsTab({ onEdit }: { onEdit: (c: CampaignDoc) => void }) {
             </CardContent>
           </Card>
         ) : (
-          campaigns.map((campaign) => (
+          (campaigns as CampaignDoc[]).map((campaign: CampaignDoc) => (
             <Card key={campaign._id}>
               <CardHeader>
                 <div className="flex justify-between items-start gap-4">
@@ -527,8 +532,8 @@ function CampaignEditorView({
     const token = `{{${variable}}}`;
     const el = subjectInputRef.current;
     if (!el) {
-      if (lang === "en") setSubjectEn((s) => s + token);
-      else setSubjectDe((s) => s + token);
+      if (lang === "en") setSubjectEn((s: string) => s + token);
+      else setSubjectDe((s: string) => s + token);
       return;
     }
     const { next, nextPos } = insertTextAtCursor(el as unknown as HTMLTextAreaElement, token);
@@ -1137,7 +1142,7 @@ function ContactsTab() {
 
   if (!allContacts || !stats) return <div className="p-8">Loading...</div>;
 
-  const filteredContacts = allContacts.filter((contact) => {
+  const filteredContacts = (allContacts as ContactDoc[]).filter((contact: ContactDoc) => {
     if (searchTerm && !contact.email.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     if (filterSubscribed === "subscribed" && !contact.subscribed) return false;
     if (filterSubscribed === "unsubscribed" && contact.subscribed) return false;
@@ -1221,7 +1226,7 @@ function ContactsTab() {
             {filteredContacts.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">No contacts found</p>
             ) : (
-              filteredContacts.map((contact) => (
+              filteredContacts.map((contact: ContactDoc) => (
                 <div key={contact._id}
                   className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
                   <div className="flex-1">
@@ -1235,7 +1240,7 @@ function ContactsTab() {
                     {contact.name && <p className="text-sm text-muted-foreground">{contact.name}</p>}
                     {contact.tags.length > 0 && (
                       <div className="flex gap-1 mt-2 flex-wrap">
-                        {contact.tags.map((tag) => (
+                        {contact.tags.map((tag: string) => (
                           <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
                         ))}
                       </div>

@@ -48,7 +48,7 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
   // emitUpdate=false prevents triggering onChange and an unnecessary re-render cycle.
   useEffect(() => {
     if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value || '', false)
+      editor.commands.setContent(value || '', { emitUpdate: false })
     }
   }, [value, editor])
 

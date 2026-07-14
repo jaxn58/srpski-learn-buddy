@@ -28,6 +28,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo, useState, useEffect, memo, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+// Local shapes for Convex query results whose generated types are degraded
+// via TS2589 @ts-ignore workarounds in convex/units.ts / convex/vocabulary.ts.
+type UnitMetadataRow = {
+  unitNumber: number;
+  language: string;
+  title?: string;
+  description?: string;
+  topics?: string[];
+};
+
+type AudioSample = {
+  id: string;
+  serbian: string;
+  translation?: string;
+  audioStorageId?: string | null;
+};
+
 export default function Dashboard() {
   const { user, loading: authLoading, logout, clerkUser } = useAuth();
   const { t, i18n } = useTranslation();
@@ -228,7 +245,9 @@ export default function Dashboard() {
     : [];
     
   // For non-admin users, show accessible units. For admins, show all units.
-  const displayUnits = isAdmin ? units?.map(u => u.unitNumber) : rawAccessible;
+  const displayUnits = isAdmin
+    ? (units as UnitMetadataRow[] | undefined)?.map((u: UnitMetadataRow) => u.unitNumber)
+    : rawAccessible;
   const visibleUnits = Array.from(
     new Set(
       [
@@ -245,13 +264,14 @@ export default function Dashboard() {
   const isBetaTester = !!user?.isBetaTester;
 
   const getUnitRow = useCallback(
-    (unitNumber: number) => {
+    (unitNumber: number): UnitMetadataRow | undefined => {
       if (!units) return undefined;
+      const list = units as UnitMetadataRow[];
       const preferredLang = i18n.language === "de" ? "de" : "en";
       return (
-        units.find((u) => u.unitNumber === unitNumber && u.language === preferredLang) ??
-        units.find((u) => u.unitNumber === unitNumber && u.language === "en") ??
-        units.find((u) => u.unitNumber === unitNumber)
+        list.find((u: UnitMetadataRow) => u.unitNumber === unitNumber && u.language === preferredLang) ??
+        list.find((u: UnitMetadataRow) => u.unitNumber === unitNumber && u.language === "en") ??
+        list.find((u: UnitMetadataRow) => u.unitNumber === unitNumber)
       );
     },
     [units, i18n.language]
@@ -444,7 +464,7 @@ export default function Dashboard() {
                     </CardTitle>
                     <CardDescription className="text-sm">
                       {(() => {
-                        const unit = units?.find(u => u.unitNumber === safeCurrentUnit);
+                        const unit = (units as UnitMetadataRow[] | undefined)?.find((u: UnitMetadataRow) => u.unitNumber === safeCurrentUnit);
                         return (
                           <>
                             <span className="font-medium">{t('dashboard.unit', { number: safeCurrentUnit })}</span>
@@ -611,7 +631,7 @@ export default function Dashboard() {
                             {t("dashboard.practicePreview.audio.empty")}
                           </div>
                         ) : (
-                          audioSamples.map((s) => {
+                          (audioSamples as AudioSample[]).map((s: AudioSample) => {
                             const isLoading = loadingAudioId === s.id;
                             const isPlaying = playingAudioId === s.id;
                             return (

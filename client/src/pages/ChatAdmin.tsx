@@ -454,8 +454,8 @@ export default function ChatAdmin() {
                   </CardHeader>
                   <CardContent className="p-4">
                     <div className="flex items-end gap-0.5 h-20">
-                      {usageStats.dailyTrend.map((day) => {
-                        const maxVal = Math.max(1, ...usageStats.dailyTrend.map((d) => d.requests));
+                      {(usageStats.dailyTrend as Array<{ dateMs: number; requests: number }>).map((day: { dateMs: number; requests: number }) => {
+                        const maxVal = Math.max(1, ...(usageStats.dailyTrend as Array<{ requests: number }>).map((d: { requests: number }) => d.requests));
                         const heightPct = (day.requests / maxVal) * 100;
                         const label = new Date(day.dateMs).toLocaleDateString("en-GB", { month: "short", day: "numeric" });
                         return (
@@ -501,7 +501,7 @@ export default function ChatAdmin() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {usageStats.topUsers.map((u) => (
+                          {(usageStats.topUsers as Array<{ userId: string; name: string; todayCount: number; totalCount: number; estimatedCostCents: number; lastActive: number }>).map((u: { userId: string; name: string; todayCount: number; totalCount: number; estimatedCostCents: number; lastActive: number }) => (
                             <TableRow key={u.userId}>
                               <TableCell className="text-xs font-medium truncate max-w-[140px]">{u.name}</TableCell>
                               <TableCell className="text-xs text-right">{u.todayCount}</TableCell>
@@ -658,7 +658,7 @@ export default function ChatAdmin() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {feedbackDetails.map((fb) => (
+                        {(feedbackDetails as Array<{ _id: string; rating: "up" | "down"; createdAt: number; userName: string; messageContent: string }>).map((fb: { _id: string; rating: "up" | "down"; createdAt: number; userName: string; messageContent: string }) => (
                           <TableRow key={fb._id}>
                             <TableCell>
                               {fb.rating === "up" ? (

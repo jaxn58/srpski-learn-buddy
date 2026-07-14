@@ -23,6 +23,25 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Loader2, Trash2, Volume2, MessageSquare, Music } from "lucide-react";
 
+// Local shapes for Convex query results (return types are lost through
+// TS2589 @ts-ignore workarounds in convex/audioAdmin.ts).
+type AudioUnit = {
+  unitNumber: number;
+  title: string;
+  vocabWithAudio: number;
+  vocabTotal: number;
+  contentAudioCount: number;
+};
+
+type AudioModule = {
+  moduleId: string;
+  moduleNumber: number;
+  titleEn: string;
+  totalVocabAudio: number;
+  totalContentAudio: number;
+  units: AudioUnit[];
+};
+
 export function AudioFilesTab() {
   const modulesData = useQuery(api.audioAdmin.listModulesWithAudioStats);
   const deleteVocabAudio = useMutation(api.audioAdmin.deleteSingleVocabularyAudio);
@@ -49,8 +68,8 @@ export function AudioFilesTab() {
     );
   }
 
-  const totalVocab = modulesData.reduce((s, m) => s + m.totalVocabAudio, 0);
-  const totalContent = modulesData.reduce((s, m) => s + m.totalContentAudio, 0);
+  const totalVocab = (modulesData as AudioModule[]).reduce((s: number, m: AudioModule) => s + m.totalVocabAudio, 0);
+  const totalContent = (modulesData as AudioModule[]).reduce((s: number, m: AudioModule) => s + m.totalContentAudio, 0);
 
   async function handleDeleteVocab(id: Id<"courseVocabulary">, serbian: string) {
     const key = `vocab-${id}`;
@@ -144,7 +163,7 @@ export function AudioFilesTab() {
 
       {/* Module -> Unit Accordion */}
       <Accordion type="multiple" className="space-y-2">
-        {modulesData.map((mod) => (
+        {(modulesData as AudioModule[]).map((mod: AudioModule) => (
           <AccordionItem key={mod.moduleId} value={mod.moduleId} className="border rounded-lg px-4">
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center gap-3 w-full">
@@ -168,7 +187,7 @@ export function AudioFilesTab() {
                 <p className="text-sm text-muted-foreground py-2">No units in this module.</p>
               ) : (
                 <Accordion type="single" collapsible className="space-y-1">
-                  {mod.units.map((unit) => {
+                  {mod.units.map((unit: AudioUnit) => {
                     const unitAudioTotal = unit.vocabWithAudio + unit.contentAudioCount;
                     return (
                       <AccordionItem

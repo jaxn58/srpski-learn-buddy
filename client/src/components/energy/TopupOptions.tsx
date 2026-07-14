@@ -59,7 +59,7 @@ export function TopupOptions({ compact = false }: TopupOptionsProps) {
 
   return (
     <div className={compact ? "grid gap-2" : "grid gap-3 sm:grid-cols-3"}>
-      {topupPacks.map((pack) => {
+      {(topupPacks as Array<{ id: "starter" | "plus" | "pro"; name: string; energyAmount: number; bonusAmount: number; priceCents: number }>).map((pack: { id: "starter" | "plus" | "pro"; name: string; energyAmount: number; bonusAmount: number; priceCents: number }) => {
         const total = pack.energyAmount + pack.bonusAmount;
         return (
           <Card

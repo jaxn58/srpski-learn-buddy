@@ -18,11 +18,49 @@ interface InteractiveTestProps {
   language: string;
 }
 
+// Local shape of the fields we actually read from the Convex query results.
+// Defined here because the generated Convex return types are lost through
+// // @ts-ignore TS2589 workarounds in convex/units.ts (large-schema depth limit).
+type UnitTestQuestion = {
+  questionId: string;
+  category: string;
+  question: string;
+  questionType: string;
+  correctAnswer: string;
+  order: number;
+  acceptableAlternatives?: string[];
+  options?: string[];
+  hint?: string;
+  categoryInstructions?: string;
+};
+
+type QuestionProgressEntry = {
+  questionId: string;
+  correctAttempts: number;
+  incorrectAttempts?: number;
+  isMastered: boolean;
+};
+
+type SubmitCategoryResult = {
+  earnedXP: number;
+  updatedProgress: QuestionProgressEntry[];
+};
+
+type UnitContentSections = {
+  testIntroduction?: string;
+};
+
 export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) {
   const { t } = useTranslation();
-  const questions = useQuery(api.units.getUnitInteractiveTest, { unitNumber, language });
-  const testIntro = useQuery(api.units.getUnitContentSections, { unitNumber, language });
-  const questionProgress = useQuery(api.progress.getQuestionProgress, { unitNumber });
+  const questions = useQuery(api.units.getUnitInteractiveTest, { unitNumber, language }) as
+    | UnitTestQuestion[]
+    | undefined;
+  const testIntro = useQuery(api.units.getUnitContentSections, { unitNumber, language }) as
+    | UnitContentSections
+    | undefined;
+  const questionProgress = useQuery(api.progress.getQuestionProgress, { unitNumber }) as
+    | QuestionProgressEntry[]
+    | undefined;
   const submitCategoryResultMutation = useMutation(api.progress.submitCategoryResult);
 
   // Some older units have the full exercise tables stored in `testIntroduction`.
@@ -167,11 +205,11 @@ export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) 
 
     // Submit to backend
     try {
-      const result = await submitCategoryResultMutation({
+      const result = (await submitCategoryResultMutation({
         unitNumber,
         category,
         questionResults,
-      });
+      })) as SubmitCategoryResult;
 
       // Update category results and XP
       setCategoryResults(prev => ({

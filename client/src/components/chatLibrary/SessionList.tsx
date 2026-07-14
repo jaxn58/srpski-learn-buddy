@@ -428,7 +428,7 @@ export function SessionList({
                               !isArchiveView && folder.id === session.folderId ? null : (
                                 <DropdownMenuItem
                                   key={folder.id as string}
-                                  onSelect={() => void onMoveSession(session._id, folder.id)}
+                                  onSelect={() => void onMoveSession(session._id, folder.id as Id<"chatFolders">)}
                                   className={folder.depth === 1 ? "pl-6" : undefined}
                                 >
                                   {folder.depth === 1 ? `— ${folder.name}` : folder.name}

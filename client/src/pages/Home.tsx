@@ -1558,7 +1558,7 @@ export default function Home() {
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              {(topupPacks ?? []).map((pack) => {
+              {((topupPacks ?? []) as Array<{ id: string; name: string; energyAmount: number; bonusAmount: number; totalEnergy: number; priceCents: number }>).map((pack: { id: string; name: string; energyAmount: number; bonusAmount: number; totalEnergy: number; priceCents: number }) => {
                 const isPlus = pack.id === "plus";
                 return (
                   <Card

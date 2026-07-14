@@ -104,7 +104,7 @@ export default function AdminStorageOverview() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {overview.topUsers.map((row) => (
+                {(overview.topUsers as Array<{ userId: string; name?: string; email?: string; usedFormatted?: string; documentCount?: number; attachmentCount?: number }>).map((row: { userId: string; name?: string; email?: string; usedFormatted?: string; documentCount?: number; attachmentCount?: number }) => (
                   <TableRow key={row.userId}>
                     <TableCell>
                       <div className="font-medium">{row.name ?? row.email ?? row.userId}</div>

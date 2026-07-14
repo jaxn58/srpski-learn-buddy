@@ -11,6 +11,40 @@ import { api } from "../../../convex/_generated/api";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useEffect, useState, useMemo } from "react";
 
+// Local shapes for Convex query results (return types are lost through
+// TS2589 @ts-ignore workarounds in convex/modules.ts / convex/units.ts).
+type DbModule = {
+  _id: string;
+  slug?: string;
+  moduleNumber?: number;
+  titleEn?: string;
+  titleDe?: string;
+  descriptionEn?: string;
+  descriptionDe?: string;
+};
+
+type DbUnit = {
+  unitNumber: number;
+  language: string;
+  title?: string;
+  titleEn?: string;
+  titleDe?: string;
+  moduleId?: string;
+  moduleMetadataId?: string;
+  topics?: string[];
+  topicsGerman?: string[];
+};
+
+type ModuleView = {
+  id: string;
+  number: number;
+  titleEnglish: string;
+  titleGerman: string;
+  description: string;
+  descriptionGerman: string;
+  moduleMetadataId: string;
+};
+
 export default function Units() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
@@ -48,7 +82,7 @@ export default function Units() {
       return [];
     }
     
-    return dbModules.map((dbModule) => ({
+    return (dbModules as DbModule[]).map((dbModule: DbModule) => ({
       id: dbModule.slug || "",
       number: dbModule.moduleNumber || 0,
       titleEnglish: dbModule.titleEn || "",
@@ -76,15 +110,15 @@ export default function Units() {
     }
 
     // Group units by moduleId (old structure) or moduleMetadataId (new structure)
-    dbUnitsEn.forEach((unitEn) => {
-      const unitDe = dbUnitsDe?.find(u => u.unitNumber === unitEn.unitNumber);
+    (dbUnitsEn as DbUnit[]).forEach((unitEn: DbUnit) => {
+      const unitDe = (dbUnitsDe as DbUnit[] | undefined)?.find((u: DbUnit) => u.unitNumber === unitEn.unitNumber);
       
       // Try to find the module slug for this unit
       // First check if we have a moduleMetadataId
       let moduleSlug: string | undefined;
       
       if (unitEn.moduleMetadataId && dbModules) {
-        const module = dbModules.find(m => m._id === unitEn.moduleMetadataId);
+        const module = (dbModules as DbModule[]).find((m: DbModule) => m._id === unitEn.moduleMetadataId);
         moduleSlug = module?.slug;
       } else if (unitEn.moduleId) {
         // Fallback to old moduleId structure
@@ -110,9 +144,9 @@ export default function Units() {
         if (!exists) {
           result[moduleSlug].push({
             number: unitEn.unitNumber,
-            title: unitEn.title,
-            titleEnglish: unitEn.title,
-            titleGerman: unitDe?.title || unitEn.title,
+            title: unitEn.title ?? "",
+            titleEnglish: unitEn.title ?? "",
+            titleGerman: unitDe?.title || unitEn.title || "",
             topics: unitEn.topics || [],
             topicsGerman: unitDe?.topics || unitEn.topics || [],
           });
@@ -165,7 +199,7 @@ export default function Units() {
     <AnimatedPage>
       <div className="space-y-8">
         <div className="space-y-6">
-          {modules.map((module) => {
+          {modules.map((module: ModuleView) => {
             // Load units from database only
             const moduleUnits = unitsByModule[module.id] || [];
             

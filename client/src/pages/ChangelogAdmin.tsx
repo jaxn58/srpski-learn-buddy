@@ -193,7 +193,7 @@ export default function ChangelogAdmin() {
       const result = await translateChangelogAction({ versionId: selectedVersionId });
       setTranslationPreview(result.entries);
       if (result.warnings.length > 0) {
-        result.warnings.forEach((w) => toast.warning(w));
+        (result.warnings as string[]).forEach((w: string) => toast.warning(w));
       }
     } catch (error: any) {
       toast.error(error.message || "Translation failed. Please try again.");
@@ -305,7 +305,7 @@ export default function ChangelogAdmin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {versions?.versions.map((version) => (
+              {(versions?.versions as Array<{ _id: Id<"appVersions">; version: string; environment: string; releaseDate: number; isCurrent?: boolean }> | undefined)?.map((version: { _id: Id<"appVersions">; version: string; environment: string; releaseDate: number; isCurrent?: boolean }) => (
                 <button
                   key={version._id}
                   onClick={() => setSelectedVersionId(version._id)}
@@ -459,7 +459,7 @@ export default function ChangelogAdmin() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {versionWithChangelog?.entries.map((entry) => (
+                  {(versionWithChangelog?.entries as Array<{ _id: Id<"changelogEntries">; category: string; language: string; title: string; description?: string; creatorName?: string }> | undefined)?.map((entry: { _id: Id<"changelogEntries">; category: string; language: string; title: string; description?: string; creatorName?: string }) => (
                     <TableRow key={entry._id}>
                       <TableCell>
                         <Badge className={categoryColors[entry.category as CategoryType]}>

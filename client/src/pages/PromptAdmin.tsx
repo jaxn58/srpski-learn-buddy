@@ -292,8 +292,8 @@ export default function PromptAdmin() {
                   {cat.category}
                 </Label>
                 <div className="space-y-0.5">
-                  {cat.items.map((opt) => {
-                    const exists = allPrompts?.some(p => p.name === opt.key);
+                  {cat.items.map((opt: PromptOption) => {
+                    const exists = (allPrompts as Array<{ name: string }> | undefined)?.some((p: { name: string }) => p.name === opt.key);
                     const isActive = selectedKey === opt.key;
 
                     return (

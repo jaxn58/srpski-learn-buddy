@@ -30,6 +30,11 @@ import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 
+// Use the generated Convex Doc type for onboarding steps. The map/callback
+// call sites can't infer this through TS2589 @ts-ignore workarounds in
+// convex/onboarding.ts, so we cast at those sites.
+type OnboardingStep = Doc<"onboardingSteps">;
+
 export default function OnboardingAdmin() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
@@ -76,7 +81,9 @@ export default function OnboardingAdmin() {
   const [editingStepId, setEditingStepId] = useState<Id<"onboardingSteps"> | null>(null);
 
   // Derive staleness for the step currently being edited
-  const editingStep = editingStepId ? allSteps?.find((s) => s._id === editingStepId) : null;
+  const editingStep = editingStepId
+    ? (allSteps as OnboardingStep[] | undefined)?.find((s: OnboardingStep) => s._id === editingStepId)
+    : null;
   const editingStepHasDe = !!(editingStep?.titleDe || editingStep?.contentDe);
   const editingStepIsDeOutdated =
     editingStepHasDe &&
@@ -395,7 +402,7 @@ export default function OnboardingAdmin() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {allSteps.map((step) => {
+                {(allSteps as OnboardingStep[]).map((step: OnboardingStep) => {
                   const hasDe = !!(step.titleDe || step.contentDe);
                   const isDeOutdated =
                     hasDe &&
@@ -446,7 +453,7 @@ export default function OnboardingAdmin() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <IconDisplay iconName={step.icon} className="h-4 w-4" />
+                          <IconDisplay iconName={step.icon ?? ""} className="h-4 w-4" />
                           <code className="text-xs bg-muted px-2 py-1 rounded">
                             {step.icon}
                           </code>

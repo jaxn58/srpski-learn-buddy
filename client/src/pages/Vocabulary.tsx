@@ -158,7 +158,7 @@ export default function Vocabulary() {
     
     // Filter units based on access
     if (accessInfo && accessInfo.maxUnits > 0) {
-      return availableUnitNumbers.filter(unit => unit <= accessInfo.maxUnits);
+      return (availableUnitNumbers as number[]).filter((unit: number) => unit <= accessInfo.maxUnits);
     }
     
     // Return all available units from database
@@ -339,16 +339,11 @@ export default function Vocabulary() {
     
     const unitToSave = selectedUnit === 'all' ? 0 : (selectedUnit as number);
     const scorePercentage = Math.round((score.correct / score.total) * 100);
-    
-    // Save quiz completion to database
-      await addExerciseCompletionMutation({
-      unitNumber: unitToSave,
-        exerciseId: `vocab_quiz_unit_${selectedUnit}`,
-        score: score.correct,
-        totalQuestions: score.total,
-        xpEarned: earnedXP,
-      });
-    
+
+    // Vocabulary XP is awarded server-side per answer via recordVocabularyAnswer.
+    // The legacy client-side "addExerciseCompletion" call was removed as part of
+    // the XP-injection security fix (see convex/exercises.ts addCompletion).
+
     // Reset currentIndex in DB to 0 so next quiz starts fresh
     await updateQuizProgressMutation({
       unitNumber: unitToSave,
@@ -1069,7 +1064,7 @@ export default function Vocabulary() {
                 >
                   {t('vocabulary.allUnits')}
                 </Button>
-                {availableUnits.map(unit => {
+                {(availableUnits as number[]).map((unit: number) => {
                   const mastered = isUnitMastered(unit);
                   const isSelected = selectedUnit === unit;
                   return (

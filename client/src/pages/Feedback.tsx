@@ -359,7 +359,7 @@ export default function Feedback() {
                                     {threadData && threadData.feedbackId === submission._id && (
                                       <>
                                         <div className="space-y-3 max-h-[min(420px,50vh)] overflow-y-auto pr-1">
-                                          {threadData.messages.map((m) => {
+                                          {(threadData.messages as Array<{ _id: string; authorKind: string; authorDisplayName?: string; isSynthetic?: boolean; body: string; createdAt: number }>).map((m: { _id: string; authorKind: string; authorDisplayName?: string; isSynthetic?: boolean; body: string; createdAt: number }) => {
                                             const alignRight = m.authorKind === "user";
                                             return (
                                               <div

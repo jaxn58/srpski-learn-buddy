@@ -86,8 +86,8 @@ export interface SettingsSheetProps {
   onDeactivateSkill: (id: string) => void | Promise<void>;
 
   refs: any[] | undefined;
-  newRefType: string;
-  setNewRefType: Dispatch<SetStateAction<string>>;
+  newRefType: "pdf" | "book" | "article" | "other";
+  setNewRefType: Dispatch<SetStateAction<"pdf" | "book" | "article" | "other">>;
   newRefTitle: string;
   setNewRefTitle: Dispatch<SetStateAction<string>>;
   newRefUrl: string;

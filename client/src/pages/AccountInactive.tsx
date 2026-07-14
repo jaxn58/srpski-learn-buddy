@@ -1,5 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useClerk } from "@clerk/clerk-react";
+import { useAuth as useClerkAuth, useClerk } from "@clerk/clerk-react";
 import { useEffect } from "react";
 import { Link, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,8 @@ function isStaffRole(role: string | undefined) {
 
 export default function AccountInactivePage() {
   const { user, loading } = useAuth();
-  const { signOut, isSignedIn, isLoaded: clerkLoaded } = useClerk();
+  const { signOut } = useClerk();
+  const { isSignedIn, isLoaded: clerkLoaded } = useClerkAuth();
   const { t } = useTranslation();
 
   useEffect(() => {

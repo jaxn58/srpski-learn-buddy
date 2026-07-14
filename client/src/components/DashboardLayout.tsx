@@ -149,7 +149,7 @@ function AdminSidebar() {
           "ml-auto inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-emerald-500 text-white text-[11px] font-semibold",
           "group-data-[collapsible=icon]:hidden"
         )}
-        aria-label={t("admin.pendingCountAria", { count: label })}
+        aria-label={t("admin.pendingCountAria", { count })}
         title={`${label}`}
       >
         {label}

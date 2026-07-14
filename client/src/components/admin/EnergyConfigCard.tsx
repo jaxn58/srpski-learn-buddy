@@ -18,6 +18,41 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+
+// Local shape of `getEnergyEconomics` rows (return type is degraded through
+// TS2589 @ts-ignore workarounds in convex/platform.ts).
+type TierEconomicsRow = {
+  planId: string;
+  tier: string;
+  tierDisplayName: string;
+  durationMonths: number;
+  quotaPerMonth: number;
+  monthlyPriceCents: number;
+  estChatsAtCompactPerMonth?: number;
+  estChatsAtTypicalPerMonth?: number;
+  worstCaseMonthlyAiCostUsd?: number;
+  marginPercent: number;
+};
+
+type TopupEconomicsRow = {
+  packId: string;
+  name: string;
+  energyTotal: number;
+  priceCents: number;
+  worstCaseAiCostUsd?: number;
+  marginPercent: number;
+};
+
+type LivePreviewTierRow = TierEconomicsRow & {
+  quotaPerMonth: number;
+  estChatsAtCompactPerMonth: number;
+  estChatsAtTypicalPerMonth: number;
+  worstCaseMonthlyAiCostUsd: number;
+};
+
+type LivePreviewTopupRow = TopupEconomicsRow & {
+  worstCaseAiCostUsd: number;
+};
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -208,7 +243,7 @@ export function EnergyConfigCard() {
 
     // Build per-tier (draft) economics from the server's plan list, recomputed
     // against the draft quotas.
-    const tierRows = economics.tierEconomics.map((row) => {
+    const tierRows = (economics.tierEconomics as TierEconomicsRow[]).map((row: TierEconomicsRow) => {
       const quotaPerMonth =
         row.tier === "course_ai_pro" ? draft.energyQuotaFull :
         row.tier === "standalone"   ? draft.energyQuotaBuddy :
@@ -231,7 +266,7 @@ export function EnergyConfigCard() {
     });
 
     // Top-up margins don't depend on quotas — only on cost-per-Energy.
-    const topupRows = economics.topupEconomics.map((row) => {
+    const topupRows = (economics.topupEconomics as TopupEconomicsRow[]).map((row: TopupEconomicsRow) => {
       const worstCaseAiCostUsd = row.energyTotal * usdWorstCase;
       const priceUsd = row.priceCents / 100;
       const marginPercent = priceUsd > 0
@@ -253,7 +288,7 @@ export function EnergyConfigCard() {
         "RAG surcharge dominates the base cost — RAG is meant as an extra, not the main cost driver."
       );
     }
-    tierRows.forEach((row) => {
+    tierRows.forEach((row: LivePreviewTierRow) => {
       if (row.marginPercent < 60) {
         warnings.push(
           `${row.tierDisplayName} (${row.durationMonths}M): margin only ${row.marginPercent}% — worst-case AI cost (${formatUsd(row.worstCaseMonthlyAiCostUsd)}) is large vs. monthly price (${formatEur(row.monthlyPriceCents)}).`
@@ -519,7 +554,7 @@ export function EnergyConfigCard() {
               <h4 className="text-sm font-medium mb-3">Live tier economics</h4>
               {livePreview && (
                 <div className="space-y-2">
-                  {livePreview.tierRows.map((row) => (
+                  {livePreview.tierRows.map((row: LivePreviewTierRow) => (
                     <div
                       key={row.planId}
                       className={cn(
@@ -553,7 +588,7 @@ export function EnergyConfigCard() {
             <div className="border-t pt-4">
               <h4 className="text-sm font-medium mb-3">Energy Top-up margins</h4>
               <div className="grid gap-3 sm:grid-cols-3">
-                {livePreview.topupRows.map((row) => (
+                {livePreview.topupRows.map((row: LivePreviewTopupRow) => (
                   <div
                     key={row.packId}
                     className={cn(
@@ -785,7 +820,7 @@ export function EnergyConfigCard() {
               <div>
                 <h4 className="font-medium mb-2">Resulting margins</h4>
                 <div className="rounded-md border divide-y text-xs">
-                  {livePreview.tierRows.map((row) => (
+                  {livePreview.tierRows.map((row: LivePreviewTierRow) => (
                     <div key={row.planId} className="flex items-center justify-between px-3 py-1.5">
                       <span className="text-muted-foreground">
                         {row.tierDisplayName} &middot; {row.durationMonths}M

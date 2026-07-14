@@ -37,6 +37,25 @@ const BASE_CATEGORIES = [
 
 type CategoryValue = typeof BASE_CATEGORIES[number]["value"] | "other";
 
+// Local shape of the article fields we read from the Convex query.
+// Defined here because the generated return type is degraded through
+// TS2589 workarounds in convex/knowledge.ts (large-schema depth limit).
+type KnowledgeArticle = {
+  _id: Id<"knowledgeArticles">;
+  title: string;
+  content: string;
+  category: CategoryValue;
+  customCategory?: string;
+  language: string;
+  tags?: string[];
+  status: "draft" | "published";
+  translationOf?: Id<"knowledgeArticles">;
+  createdBy?: Id<"users">;
+  createdAt: number;
+  updatedAt?: number;
+  chunkedAt?: number;
+};
+
 const LANG_LABELS: Record<string, string> = { en: "English", de: "Deutsch", sr: "Srpski" };
 
 export default function KnowledgeAdmin() {
@@ -68,12 +87,13 @@ export default function KnowledgeAdmin() {
     status: filterStatus === "all" ? undefined : filterStatus,
     category: filterCatParsed === "all" ? undefined : filterCatParsed,
   });
-  const customCategories = useQuery(api.knowledge.listCustomCategories) ?? [];
+  const customCategories = (useQuery(api.knowledge.listCustomCategories) ?? []) as string[];
 
-  const articles = useMemo(() => {
+  const articles = useMemo<KnowledgeArticle[] | undefined>(() => {
     if (!rawArticles) return undefined;
-    if (!filterCustomCat) return rawArticles;
-    return rawArticles.filter((a) => (a as any).customCategory === filterCustomCat);
+    const list = rawArticles as KnowledgeArticle[];
+    if (!filterCustomCat) return list;
+    return list.filter((a: KnowledgeArticle) => a.customCategory === filterCustomCat);
   }, [rawArticles, filterCustomCat]);
 
   const allCategoryOptions = useMemo(() => {
@@ -263,8 +283,8 @@ export default function KnowledgeAdmin() {
   const groupedArticles = (() => {
     if (!articles) return null;
 
-    const originals = articles.filter((a) => !a.translationOf);
-    const translationMap = new Map<string, typeof articles>();
+    const originals = articles.filter((a: KnowledgeArticle) => !a.translationOf);
+    const translationMap = new Map<string, KnowledgeArticle[]>();
 
     for (const a of articles) {
       if (a.translationOf) {
@@ -274,7 +294,7 @@ export default function KnowledgeAdmin() {
       }
     }
 
-    return originals.map((original) => ({
+    return originals.map((original: KnowledgeArticle) => ({
       original,
       translations: translationMap.get(original._id as string) ?? [],
     }));
@@ -388,7 +408,7 @@ export default function KnowledgeAdmin() {
               {customCategories.length > 0 && (
                 <>
                   <SelectItem value="other">Other (all)</SelectItem>
-                  {customCategories.map((cc) => (
+                  {customCategories.map((cc: string) => (
                     <SelectItem key={`cc-${cc}`} value={`other:${cc}`}>{cc}</SelectItem>
                   ))}
                 </>
@@ -480,13 +500,13 @@ export default function KnowledgeAdmin() {
               <p>No articles yet. Create one to get started.</p>
             </div>
           ) : (
-            groupedArticles.map(({ original, translations }) => (
+            groupedArticles.map(({ original, translations }: { original: KnowledgeArticle; translations: KnowledgeArticle[] }) => (
               <Card key={original._id} className="p-4 space-y-2">
                 {/* Original article row */}
                 <ArticleRow
                   article={original}
                   isTranslation={false}
-                  existingTranslationLangs={translations.map((t) => t.language)}
+                  existingTranslationLangs={translations.map((t: KnowledgeArticle) => t.language)}
                   translatingId={translatingId}
                   onPublish={handlePublish}
                   onUnpublish={(id) => unpublishArticle({ articleId: id })}
@@ -498,7 +518,7 @@ export default function KnowledgeAdmin() {
                 {/* Translation rows */}
                 {translations.length > 0 && (
                   <div className="ml-6 border-l-2 border-muted pl-4 space-y-2">
-                    {translations.map((t) => (
+                    {translations.map((t: KnowledgeArticle) => (
                       <ArticleRow
                         key={t._id}
                         article={t}

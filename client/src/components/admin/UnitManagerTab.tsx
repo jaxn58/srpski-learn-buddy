@@ -736,7 +736,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                           : <Badge variant="outline" className="text-muted-foreground text-[10px]">missing</Badge>
                         }
                         {u.deTranslationStale && (
-                          <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" title="DE translation outdated" />
+                          <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" aria-label="DE translation outdated" />
                         )}
                         {isRecent && (
                           <Badge variant="outline" className="text-[10px] px-1 py-0 border-green-500 text-green-600">NEW</Badge>

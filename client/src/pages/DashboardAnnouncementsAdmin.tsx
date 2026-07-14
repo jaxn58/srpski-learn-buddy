@@ -477,7 +477,7 @@ export default function DashboardAnnouncementsAdmin() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((doc) => (
+                {(rows as Array<Doc<"dashboardAnnouncements">>).map((doc: Doc<"dashboardAnnouncements">) => (
                   <TableRow key={doc._id}>
                     <TableCell className="font-mono text-sm">{doc.key}</TableCell>
                     <TableCell>{audienceLabel(doc.audience)}</TableCell>

@@ -123,7 +123,7 @@ export default function ChatDocumentUpload() {
 
           {documents && documents.length > 0 ? (
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {documents.map((doc) => (
+              {(documents as Array<{ _id: string; fileName: string; status: string; [k: string]: unknown }>).map((doc: { _id: string; fileName: string; status: string; [k: string]: unknown }) => (
                 <div
                   key={doc._id}
                   className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/50 text-sm"

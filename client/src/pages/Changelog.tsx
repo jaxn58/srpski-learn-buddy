@@ -9,6 +9,32 @@ import { BookOpen } from "lucide-react";
 
 type CategoryType = "added" | "changed" | "fixed" | "removed";
 
+// Local shapes for Convex query results (return types are lost through
+// TS2589 @ts-ignore workarounds in convex/versions.ts).
+type ChangelogEntry = {
+  _id: string;
+  title: string;
+  description?: string;
+};
+
+type ChangelogVersion = {
+  _id: string;
+  version: string;
+  environment: string;
+  releaseDate: number;
+  isCurrent?: boolean;
+};
+
+type ChangelogGroup = {
+  version: ChangelogVersion;
+  entries: {
+    added: ChangelogEntry[];
+    changed: ChangelogEntry[];
+    fixed: ChangelogEntry[];
+    removed: ChangelogEntry[];
+  };
+};
+
 const categoryColors: Record<CategoryType, string> = {
   added: "bg-green-100 text-green-800 border-green-300",
   changed: "bg-blue-100 text-blue-800 border-blue-300",
@@ -85,7 +111,7 @@ export default function Changelog() {
             </CardContent>
           </Card>
         ) : (
-          changelogHistory.map(({ version, entries }) => (
+          (changelogHistory as ChangelogGroup[]).map(({ version, entries }: ChangelogGroup) => (
             <Card key={version._id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -117,7 +143,7 @@ export default function Changelog() {
                       </Badge>
                     </div>
                     <ul className="space-y-2 ml-8">
-                      {entries.added.map((entry) => (
+                      {entries.added.map((entry: ChangelogEntry) => (
                         <li key={entry._id} className="list-disc">
                           <span className="font-medium">{entry.title}</span>
                           {entry.description && (
@@ -141,7 +167,7 @@ export default function Changelog() {
                       </Badge>
                     </div>
                     <ul className="space-y-2 ml-8">
-                      {entries.changed.map((entry) => (
+                      {entries.changed.map((entry: ChangelogEntry) => (
                         <li key={entry._id} className="list-disc">
                           <span className="font-medium">{entry.title}</span>
                           {entry.description && (
@@ -165,7 +191,7 @@ export default function Changelog() {
                       </Badge>
                     </div>
                     <ul className="space-y-2 ml-8">
-                      {entries.fixed.map((entry) => (
+                      {entries.fixed.map((entry: ChangelogEntry) => (
                         <li key={entry._id} className="list-disc">
                           <span className="font-medium">{entry.title}</span>
                           {entry.description && (
@@ -189,7 +215,7 @@ export default function Changelog() {
                       </Badge>
                     </div>
                     <ul className="space-y-2 ml-8">
-                      {entries.removed.map((entry) => (
+                      {entries.removed.map((entry: ChangelogEntry) => (
                         <li key={entry._id} className="list-disc">
                           <span className="font-medium">{entry.title}</span>
                           {entry.description && (

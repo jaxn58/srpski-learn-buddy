@@ -449,7 +449,7 @@ export default function FeedbackManagement() {
                                     )}
                                     {threadQuery && (
                                       <ol className="relative space-y-0 border-l-2 border-border pl-5">
-                                        {threadQuery.messages.map((m) => {
+                                        {(threadQuery.messages as Array<{ _id: string; authorKind: string; isInternal?: boolean; authorDisplayName?: string; isSynthetic?: boolean; body: string; createdAt: number }>).map((m: { _id: string; authorKind: string; isInternal?: boolean; authorDisplayName?: string; isSynthetic?: boolean; body: string; createdAt: number }) => {
                                           const isLearner = !m.isInternal && m.authorKind === "user";
                                           const isTeam   = !m.isInternal && m.authorKind === "admin";
                                           return (

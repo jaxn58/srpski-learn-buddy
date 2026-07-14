@@ -410,10 +410,18 @@ export function UnifiedLibraryExplorer({
         let isDone = false;
 
         while (!isDone) {
-          const page = await convex.query(api.chatLibrary.getSessionsByFolder, {
+          const page: {
+            page: Array<{ _id: Id<"chatSessions">; title: string }>;
+            isDone: boolean;
+            continueCursor: string | null;
+          } = await convex.query(api.chatLibrary.getSessionsByFolder, {
             folderId: queryFolderId,
             paginationOpts: { numItems: 100, cursor },
-          });
+          }) as {
+            page: Array<{ _id: Id<"chatSessions">; title: string }>;
+            isDone: boolean;
+            continueCursor: string | null;
+          };
           allSessions.push(...page.page);
           isDone = page.isDone;
           cursor = page.continueCursor;

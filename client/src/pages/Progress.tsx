@@ -873,7 +873,7 @@ export default function Progress() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {modulesList.map((module) => {
+                  {(modulesList as Array<{ id: string; number: number; units: number[]; titleGerman?: string; titleEnglish?: string }>).map((module: { id: string; number: number; units: number[]; titleGerman?: string; titleEnglish?: string }) => {
                     const completed = module.units.filter((unitNum: number) => completedUnits.includes(unitNum)).length;
                     const total = module.units.length;
                     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
