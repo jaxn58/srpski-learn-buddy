@@ -38,12 +38,22 @@ const chatMarkdownComponents = {
         {children}
       </li>
     ),
-  code: ({ node, inline, ...props }: any) =>
-    inline ? (
-      <code className="text-xs sm:text-sm bg-muted/70 px-1 py-0.5 rounded font-mono" {...props} />
-    ) : (
-      <code className="text-xs sm:text-sm block bg-muted/70 p-2 rounded font-mono overflow-x-auto mb-1.5 sm:mb-2" {...props} />
-    ),
+  // react-markdown v9+ no longer passes `inline`; detect via className (language-*) instead.
+  code: ({ node, className, children, ...props }: any) => {
+    const isInline = !className;
+    if (isInline) {
+      return (
+        <code className="text-xs sm:text-sm bg-muted/70 px-1 py-0.5 rounded font-mono" {...props}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code className={`text-xs sm:text-sm block bg-muted/70 p-2 rounded font-mono overflow-x-auto mb-1.5 sm:mb-2 ${className}`} {...props}>
+        {children}
+      </code>
+    );
+  },
   pre: ({ node, children, ...props }: any) => (
     <pre className="mb-1.5 sm:mb-2" {...props}>
       {children}
