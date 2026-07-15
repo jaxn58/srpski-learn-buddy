@@ -1834,7 +1834,31 @@ export default function ContentStudioAdmin() {
         toast.success(t("admin.contentStudio.toast.sectionUpdated", { section: sectionLabel }));
         setExpandInstruction(""); // Clear after success
         setProgressPercent(80);
-        setProgressMessage("Section updated.");
+        setProgressMessage("Section updated. Validating…");
+
+        // Validator runs as a separate action so the section revise call can return
+        // before the client WebSocket times out (see runSectionRevise).
+        setRunningSectionRevise(false);
+        setRunningValidator(true);
+        try {
+          toast.info(t("admin.contentStudio.toast.validating"));
+          const valRes = await runValidate({ draftId: selectedDraftId });
+          if (valRes?.ok) {
+            toast.success(t("admin.contentStudio.toast.validatorPassed"));
+            setProgressPercent(100);
+            setProgressMessage("Section updated and validated.");
+          } else {
+            toast.warning(t("admin.contentStudio.toast.validatorFailedSeeFindings"));
+            setProgressPercent(90);
+            setProgressMessage("Section updated; validation found issues.");
+          }
+        } catch (valErr: any) {
+          toast.error(valErr?.message || t("admin.contentStudio.toast.validatorFailed"));
+          setProgressPercent(85);
+          setProgressMessage("Section updated; validation failed to run.");
+        } finally {
+          setRunningValidator(false);
+        }
       } else {
         toast.error(t("admin.contentStudio.toast.changesFailed"));
         setProgressPercent(0);

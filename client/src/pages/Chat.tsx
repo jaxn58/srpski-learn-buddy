@@ -57,6 +57,7 @@ export default function Chat() {
   } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showAttachHint, setShowAttachHint] = useState(false);
+  const [attachQuotaNow, setAttachQuotaNow] = useState(() => Date.now());
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -118,6 +119,10 @@ export default function Chat() {
   } as const;
   const canUploadDocuments = canUseChatAttachments(featureAccess);
   const canUseLibrary = canUseChatLibrary(featureAccess);
+  const attachQuota = useQuery(
+    api.documents.getChatAttachmentQuota,
+    canUploadDocuments && user ? { now: attachQuotaNow } : "skip"
+  );
   const { exportSession, exportingSessionId } = useChatPdfExport();
 
   const { data: streamData, feedResponse, reset: resetStream } = useChatStream();
@@ -303,7 +308,7 @@ export default function Chat() {
     "image/jpeg", "image/png", "image/webp",
   ];
   const MAX_ATTACH_SIZE: Record<string, number> = {
-    "application/pdf":  200 * 1024,
+    "application/pdf": 3 * 1024 * 1024,
     "text/plain":        50 * 1024,
     "text/markdown":     50 * 1024,
     "image/jpeg":     3 * 1024 * 1024,
@@ -356,7 +361,7 @@ export default function Chat() {
       } else if (isText) {
         toast.error(t('chat.fileTooLarge.text', 'Text files: max. 50 KB'));
       } else {
-        toast.error(t('chat.fileTooLarge.pdf', 'PDF: max. 200 KB'));
+        toast.error(t('chat.fileTooLarge.pdf', 'PDF: max. 3 MB'));
       }
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
@@ -880,16 +885,55 @@ export default function Chat() {
               {canUploadDocuments && (
               <div
                 className="relative shrink-0"
-                onMouseEnter={() => setShowAttachHint(true)}
+                onMouseEnter={() => {
+                  setAttachQuotaNow(Date.now());
+                  setShowAttachHint(true);
+                }}
                 onMouseLeave={() => setShowAttachHint(false)}
               >
                 {showAttachHint && !isUploading && (
                   <div className="absolute bottom-full mb-2 right-0 z-50 pointer-events-none">
                     <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-md px-3 py-2 text-[11px] leading-relaxed whitespace-nowrap">
                       <p className="font-semibold mb-1">{t('chat.attachHint.title', 'Supported files')}</p>
-                      <p>🖼 JPG / PNG / WebP &mdash; max. 3 MB</p>
-                      <p>📄 PDF &mdash; max. 200 KB</p>
-                      <p>📝 TXT / MD &mdash; max. 50 KB</p>
+                      <p>{t('chat.attachHint.images', 'JPG / PNG / WebP — max. 3 MB')}</p>
+                      <p>{t('chat.attachHint.pdf', 'PDF — max. 3 MB')}</p>
+                      <p>{t('chat.attachHint.text', 'TXT / MD — max. 50 KB')}</p>
+                      <div className="border-t border-border my-1.5" />
+                      {attachQuota?.unlimited ? (
+                        <p>{t('chat.attachHint.storageUnlimited', 'Storage: unlimited')}</p>
+                      ) : attachQuota?.remainingFormatted != null && attachQuota.quotaFormatted != null ? (
+                        <p>
+                          {attachQuota.remainingBytes === 0
+                            ? t('chat.attachHint.storageExhausted', {
+                                used: attachQuota.usedFormatted,
+                                quota: attachQuota.quotaFormatted,
+                                defaultValue: 'Storage full ({{used}} of {{quota}})',
+                              })
+                            : t('chat.attachHint.storage', {
+                                remaining: attachQuota.remainingFormatted,
+                                quota: attachQuota.quotaFormatted,
+                                defaultValue: 'Storage: {{remaining}} of {{quota}} left',
+                              })}
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground">{t('chat.attachHint.storageLoading', 'Storage: …')}</p>
+                      )}
+                      {attachQuota ? (
+                        <p>
+                          {attachQuota.dailyRemaining === 0
+                            ? t('chat.attachHint.dailyExhausted', {
+                                limit: attachQuota.dailyLimit,
+                                defaultValue: 'Today: upload limit reached ({{limit}}/day)',
+                              })
+                            : t('chat.attachHint.daily', {
+                                remaining: attachQuota.dailyRemaining,
+                                limit: attachQuota.dailyLimit,
+                                defaultValue: 'Today: {{remaining}} of {{limit}} uploads left',
+                              })}
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground">{t('chat.attachHint.dailyLoading', 'Today: …')}</p>
+                      )}
                     </div>
                     {/* Arrow pointing down */}
                     <div className="absolute right-3 top-full w-2.5 h-2.5 overflow-hidden">

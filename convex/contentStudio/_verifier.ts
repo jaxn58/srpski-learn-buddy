@@ -20,6 +20,8 @@ export interface VerifierInputItem {
   kind: VerifierItemKind;
   /** Human-readable label, e.g. "vocabulary: 'sok od jabuke'" or "section: grammar". */
   label: string;
+  /** Interactive test questionType when kind === "test" (e.g. translation, matching, multipleChoice). */
+  questionType?: string;
   /** The Serbian original (word, phrase, or Serbian content extracted from markdown). */
   serbian: string;
   /** English bridge/reference text. */
@@ -209,6 +211,17 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
   return issues;
 }
 
+/** True when the prompt is a Serbian dialogue/fill-in stem that must stay EN=DE on the DE track. */
+function isSerbianDialogueOrStemPrompt(question: string): boolean {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (/^(?:A|B)\s*:/i.test(q)) return true;
+  if (/\b(?:Person\s+[AB]|Waiter|Guest)\b/i.test(q)) return true;
+  // Blank without an English learner gloss in parentheses → Serbian stem (not EN→DE prompt).
+  if (/_+/.test(q) && !/\([^)]*[a-zA-Z]{3,}[^)]*\)/.test(q)) return true;
+  return false;
+}
+
 /**
  * Deterministic check for translation/matching prompts that stayed English.
  * Example EN→DE failure: questionEn "Monday" / questionDe "Monday" (should be "Montag").
@@ -216,6 +229,7 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
  */
 export function runDeterministicTestPromptChecks(items: VerifierInputItem[]): VerifierIssue[] {
   const issues: VerifierIssue[] = [];
+  const PROMPT_CHECK_TYPES = new Set(["translation", "matching"]);
   const IDENTICAL_COGNATES = new Set([
     "august",
     "september",
@@ -257,11 +271,9 @@ export function runDeterministicTestPromptChecks(items: VerifierInputItem[]): Ve
     const deQ = extractQuestion(it.german, "DE");
     if (!enQ || !deQ) continue;
 
-    // Heuristic: translation/matching prompts are short (no Serbian sentence stem with blanks+gloss).
-    // Skip fill-in-blank style (has blanks AND parenthetical OR long Serbian text).
-    const looksLikeFillInBlank =
-      /_+/.test(enQ) && (/\([^)]+\)/.test(enQ) || /[čćšžđ]/i.test(enQ));
-    if (looksLikeFillInBlank) continue;
+    const qType = String(it.questionType ?? "").trim();
+    if (qType && !PROMPT_CHECK_TYPES.has(qType)) continue;
+    if (!qType && isSerbianDialogueOrStemPrompt(enQ)) continue;
 
     const hasBlank = /_+/.test(enQ);
     const enComp = comparable(enQ);

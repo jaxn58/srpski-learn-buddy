@@ -8,6 +8,7 @@ import { estimateEnergyCost, loadEnergyConfig } from "./energy";
 import {
   assertDailyUploadRateLimit,
   assertStorageQuotaAvailable,
+  CHAT_ATTACHMENT_DAILY_LIMIT,
   formatBytes,
   getUserStorageUsageBytes,
   loadStorageQuotaConfig,
@@ -289,6 +290,95 @@ export const getUserStorageUsage = query({
         quotaBytes !== null && quotaBytes > 0
           ? Math.min(100, Math.round((usedBytes / quotaBytes) * 100))
           : null,
+    };
+  },
+});
+
+/**
+ * Chat paperclip hint: remaining total storage + remaining daily attachment slots.
+ * `now` must come from the client (queries must not call Date.now()).
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const getChatAttachmentQuota = query({
+  args: { now: v.number() },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  returns: v.object({
+    usedBytes: v.number(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    quotaBytes: v.union(v.number(), v.null()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    remainingBytes: v.union(v.number(), v.null()),
+    usedFormatted: v.string(),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    quotaFormatted: v.union(v.string(), v.null()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    remainingFormatted: v.union(v.string(), v.null()),
+    dailyUsed: v.number(),
+    dailyLimit: v.number(),
+    dailyRemaining: v.number(),
+    unlimited: v.boolean(),
+  }),
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      return {
+        usedBytes: 0,
+        quotaBytes: 0,
+        remainingBytes: 0,
+        usedFormatted: "0 B",
+        quotaFormatted: "0 B",
+        remainingFormatted: "0 B",
+        dailyUsed: 0,
+        dailyLimit: CHAT_ATTACHMENT_DAILY_LIMIT,
+        dailyRemaining: CHAT_ATTACHMENT_DAILY_LIMIT,
+        unlimited: false,
+      };
+    }
+
+    const access = await getFeatureAccessForUser(ctx, user._id);
+    const unlimited = access.isStaff || access.energy.unlimited;
+    const quotas = await loadStorageQuotaConfig(ctx);
+    const betaPhaseActive = await loadBetaPhaseActive(ctx);
+    const quotaBytes = resolveStorageQuotaBytes(
+      access,
+      quotas,
+      betaPhaseActive,
+      "chat_attachment"
+    );
+    const usedBytes = await getUserStorageUsageBytes(ctx, user._id);
+
+    const remainingBytes =
+      unlimited || quotaBytes === null
+        ? null
+        : Math.max(0, quotaBytes - usedBytes);
+
+    const cutoff = args.now - 24 * 60 * 60 * 1000;
+    const messages = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+    const dailyUsed = messages.filter(
+      (m) => m.attachmentStorageId && m._creationTime >= cutoff
+    ).length;
+    const dailyLimit = CHAT_ATTACHMENT_DAILY_LIMIT;
+    const dailyRemaining = unlimited
+      ? dailyLimit
+      : Math.max(0, dailyLimit - dailyUsed);
+
+    return {
+      usedBytes,
+      quotaBytes: unlimited ? null : quotaBytes,
+      remainingBytes,
+      usedFormatted: formatBytes(usedBytes),
+      quotaFormatted:
+        unlimited || quotaBytes === null ? null : formatBytes(quotaBytes),
+      remainingFormatted:
+        remainingBytes === null ? null : formatBytes(remainingBytes),
+      dailyUsed,
+      dailyLimit,
+      dailyRemaining,
+      unlimited,
     };
   },
 });

@@ -1156,6 +1156,7 @@ export function buildVerifierItems(params: {
       key,
       kind: "test",
       label: `test ${qid}`,
+      questionType: String((src as any)?.questionType ?? ""),
       serbian: srAnchor,
       english: enSide,
       german: deSide,

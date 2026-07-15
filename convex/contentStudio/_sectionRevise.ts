@@ -222,20 +222,12 @@ export const runSectionRevise = action({
       status: "success",
     });
 
-    // 12. Auto-run validator (optional but recommended to update findings immediately)
-    // We do NOT block on validator result, just kick it off or let user do it.
-    // For now, let's just return success and let UI trigger validator if needed.
-    // Actually, the UI expects us to be done.
-    
-    // Auto-fix vocabulary if we added new words in phrases/exercises?
-    // The Validator handles this via `syncVocabularyCoverageFromExercises`.
-    // So running Validator is the right next step.
-    
-    // Let's run validator automatically to keep state clean.
-    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-    const validateRes = await ctx.runAction(api.contentStudio.runQcValidate, { draftId: args.draftId });
-    
-    return { ok: true, validate: validateRes };
+    // Do NOT nest runQcValidate here: the combined wall-clock of section AI +
+    // optional translation/founder-note + full QC often exceeds the client
+    // WebSocket lifetime ("Connection lost while action was in flight"), even
+    // when the snapshot was already saved. The UI runs Validator as a separate
+    // action after this returns.
+    return { ok: true, needsValidation: true as const };
   },
 });
 
@@ -330,10 +322,7 @@ Generate dialogue table:`;
       status: "success",
     });
 
-    // Auto-validate
-    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-    const validateRes = await ctx.runAction(api.contentStudio.runQcValidate, { draftId: args.draftId });
-
-    return { ok: true, validate: validateRes };
+    // Same as runSectionRevise: do not nest QC in this action (client disconnect risk).
+    return { ok: true, needsValidation: true as const };
   },
 });
