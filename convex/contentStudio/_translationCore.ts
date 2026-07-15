@@ -622,6 +622,70 @@ export async function translateVocabChunks(
 // Interactive tests translation (trilingual; SR answers stay untranslated)
 // ---------------------------------------------------------------------------
 
+/** Parenthetical learner glosses, e.g. "(It is one o'clock now.)" after a Serbian stem. */
+export function extractParentheticalGlosses(text: string): string[] {
+  const out: string[] = [];
+  for (const m of String(text || "").matchAll(/\(([^)]+)\)/g)) {
+    const g = String(m[1] ?? "").trim();
+    if (g) out.push(g);
+  }
+  return out;
+}
+
+function normalizeGlossCompare(s: string): string {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Detect lost or still-English parenthetical learner glosses in translated questions.
+ * These glosses are part of the EN question string (not the separate `hint` field).
+ */
+export function findLostOrUntranslatedGlossIssues(
+  pairs: Array<{ questionId: string; questionEn: string; questionDe: string }>
+): string[] {
+  const issues: string[] = [];
+  for (const p of pairs) {
+    const enGlosses = extractParentheticalGlosses(p.questionEn);
+    if (enGlosses.length === 0) continue;
+    const deGlosses = extractParentheticalGlosses(p.questionDe);
+    if (deGlosses.length < enGlosses.length) {
+      issues.push(
+        `questionId=${p.questionId}: English has ${enGlosses.length} parenthetical learner gloss(es) ` +
+          `(${enGlosses.map((g) => `(${g})`).join(" ")}), but German question keeps only ${deGlosses.length}. ` +
+          `Translate each gloss into German and KEEP it in parentheses after the Serbian stem/blank.`
+      );
+      continue;
+    }
+    for (let i = 0; i < enGlosses.length; i++) {
+      const enG = enGlosses[i]!;
+      const deG = deGlosses[i] ?? "";
+      if (deG && normalizeGlossCompare(deG) === normalizeGlossCompare(enG)) {
+        issues.push(
+          `questionId=${p.questionId}: parenthetical gloss is still English "(${enG})". ` +
+            `Translate it to idiomatic German inside the parentheses.`
+        );
+      }
+    }
+  }
+  return issues;
+}
+
+function buildGlossRetryFeedback(issues: string[]): string {
+  return [
+    "CRITICAL: Parenthetical learner glosses must be preserved and translated to German.",
+    "Pattern: keep the Serbian stem and _____ blanks; translate ONLY the trailing (...) gloss EN → DE.",
+    "Example EN: 'Sada je jedan _____. (It is one o'clock now.)'",
+    "Example DE: 'Sada je jedan _____. (Es ist jetzt ein Uhr.)'",
+    "Example EN: '_____ je utorak. (Today is Tuesday.)'",
+    "Example DE: '_____ je utorak. (Heute ist Dienstag.)'",
+    "Never drop parentheses. Never leave the gloss in English.",
+    ...issues,
+  ].join("\n");
+}
+
 function buildTestsSystemPrompt(retryFeedback?: string): string {
   return [
     "You translate interactive-test prompts (questions, hints, category instructions) into German (de-DE) for German-speaking learners of Serbian.",
@@ -629,7 +693,7 @@ function buildTestsSystemPrompt(retryFeedback?: string): string {
     "FIELD ROLES — this is important:",
     "- 'categoryInstructionsEn' is LEARNER-FACING UI GUIDANCE (e.g. 'Translate the following Serbian phrases into German'). Translate it EN → DE directly and idiomatically. It is NOT Serbian content the learner studies; the Serbian-anchor rule does NOT apply to it. Do NOT let specific Serbian answers in this batch narrow or alter the meaning of the instructions.",
     "- 'hintEn' is LEARNER-FACING HELP TEXT (UI). Translate it EN → DE directly and idiomatically. It is not part of the Serbian content being taught.",
-    "- 'questionEn' is the prompt the learner sees. The learner is expected to answer in Serbian (see 'correctAnswerSr' / 'optionsSr' / 'acceptableAlternativesSr'). The German question text MUST stay coherent with those Serbian answers: it is the ONE place where the Serbian-anchor rule applies in this prompt.",
+    "- 'questionEn' is the prompt the learner sees. The learner is expected to answer in Serbian (see 'correctAnswerSr' / 'optionsSr' / 'acceptableAlternativesSr'). The German question text MUST stay coherent with those Serbian answers: it is the ONE place where the Serbian-anchor rule applies in this prompt — EXCEPT for parenthetical learner glosses (see below).",
     "",
     "RULES FOR questionDe:",
     "- The PRIMARY semantic anchor is the Serbian answer content. The German question must make sense for those Serbian answers.",
@@ -637,19 +701,27 @@ function buildTestsSystemPrompt(retryFeedback?: string): string {
     "- Do NOT translate the Serbian answer strings, options, or alternatives. Do NOT change questionId, order, or questionType.",
     "- Preserve blanks EXACTLY as '_____' (five underscores) and keep the number of blanks identical to the English source.",
     "",
+    "PARENTHESES / LEARNER GLOSSES (CRITICAL — do not skip):",
+    "- Many questions (especially fill-in-the-blank) append an English meaning in parentheses after the Serbian stem, e.g. 'Sada je jedan _____. (It is one o'clock now.)'.",
+    "- These parentheticals are LEARNER-FACING HELP (same role as hintEn). They are NOT Serbian study content.",
+    "- You MUST keep the SAME number of (...) glosses in questionDe as in questionEn.",
+    "- You MUST translate each parenthetical gloss from English into idiomatic German. Never drop them. Never leave them in English.",
+    "- Keep the Serbian words/blanks; only the text inside parentheses changes language.",
+    "- Example: '_____ je utorak. (Today is Tuesday.)' → '_____ je utorak. (Heute ist Dienstag.)'",
+    "",
     "Return ONLY valid JSON with keys: categoryInstructionsDe, questions.",
     "questions must be an array of { questionId, questionDe, hintDe }.",
     ...(retryFeedback && retryFeedback.trim()
       ? [
           "",
-          "IMPORTANT: A previous attempt had issues flagged by the verifier. Address this feedback (it applies to questionDe, which is SR-anchored; categoryInstructions and hints remain straight EN→DE UI translations):",
+          "IMPORTANT: A previous attempt had issues flagged by the verifier or gloss guard. Address this feedback (it applies to questionDe; categoryInstructions and hints remain straight EN→DE UI translations):",
           retryFeedback.trim(),
         ]
       : []),
   ].join("\n");
 }
 
-export async function translateTestsForCategory(
+async function translateTestsForCategoryOnce(
   ctx: ActionCtx,
   args: {
     category: string;
@@ -658,9 +730,9 @@ export async function translateTestsForCategory(
     ai: AiCallOptions;
     stepLogs: StepLog[];
     retryFeedback?: string;
+    stepName: string;
   }
 ): Promise<any[]> {
-  const stepName = args.retryFeedback ? `tests:${args.category}:retry` : `tests:${args.category}`;
   const system = buildTestsSystemPrompt(args.retryFeedback);
   const user = JSON.stringify({
     category: args.category,
@@ -680,10 +752,10 @@ export async function translateTestsForCategory(
   const t0 = Date.now();
   const ai = await callJsonRobust(
     ctx,
-    { step: stepName, stage: "auditor", system, user, maxTokens: 3500 },
+    { step: args.stepName, stage: "auditor", system, user, maxTokens: 3500 },
     args.ai
   );
-  args.stepLogs.push(makeStepLog(stepName, ai, Date.now() - t0));
+  args.stepLogs.push(makeStepLog(args.stepName, ai, Date.now() - t0));
   let parsed: any;
   try {
     parsed = parseJsonOrThrow(ai.raw);
@@ -700,23 +772,31 @@ export async function translateTestsForCategory(
     outById.set(id, oq);
   }
 
+  const countBlanks = (s: string) => (String(s || "").match(/_+/g) || []).length;
+  /** Normalize any underscore-run blanks to the canonical five-underscore form. */
+  const normalizeBlankRuns = (s: string) => String(s || "").replace(/_+/g, "_____");
+
   const produced: any[] = [];
   for (const src of args.bucket.questions) {
     const qid = String(src.questionId);
     const oq = outById.get(qid);
-    const countBlanks = (s: string) => (String(s || "").match(/_+/g) || []).length;
     const srcQuestion = String(src.question ?? "");
     const srcBlanks = countBlanks(srcQuestion);
 
     let translatedQ = typeof oq?.questionDe === "string" ? String(oq.questionDe) : srcQuestion;
     const qType = String(src.questionType ?? "");
-    if (
-      (qType === "fillInBlank" || qType === "matching" || qType === "dialogue") &&
-      srcBlanks !== countBlanks(translatedQ)
-    ) {
-      translatedQ = srcQuestion;
+    if (qType === "fillInBlank" || qType === "matching" || qType === "dialogue") {
+      if (srcBlanks === countBlanks(translatedQ)) {
+        // Same blank count: normalize underscore runs to _____ without discarding DE text.
+        if (srcBlanks > 0) translatedQ = normalizeBlankRuns(translatedQ);
+      } else {
+        // Blank-count mismatch is unsafe for the exercise UI. Fall back to EN;
+        // the gloss guard below will detect leftover English parentheticals and retry.
+        translatedQ = srcQuestion;
+      }
     }
-    const translatedHint = typeof oq?.hintDe === "string" ? String(oq.hintDe) : (typeof src.hint === "string" ? src.hint : undefined);
+    const translatedHint =
+      typeof oq?.hintDe === "string" ? String(oq.hintDe) : typeof src.hint === "string" ? src.hint : undefined;
 
     produced.push(
       args.targetReleaseStatus === "preview"
@@ -724,7 +804,8 @@ export async function translateTestsForCategory(
             questionId: qid,
             category: String(src.category ?? ""),
             categoryInstructions:
-              categoryInstructionsDe || (typeof src.categoryInstructions === "string" ? src.categoryInstructions : undefined),
+              categoryInstructionsDe ||
+              (typeof src.categoryInstructions === "string" ? src.categoryInstructions : undefined),
             questionType: String(src.questionType ?? ""),
             question: translatedQ,
             correctAnswer: String(src.correctAnswer ?? ""),
@@ -738,7 +819,8 @@ export async function translateTestsForCategory(
             unitVersion: Number(src.unitVersion ?? 1) || 1,
             category: String(src.category ?? ""),
             categoryInstructions:
-              categoryInstructionsDe || (typeof src.categoryInstructions === "string" ? src.categoryInstructions : undefined),
+              categoryInstructionsDe ||
+              (typeof src.categoryInstructions === "string" ? src.categoryInstructions : undefined),
             questionType: String(src.questionType ?? ""),
             question: translatedQ,
             correctAnswer: String(src.correctAnswer ?? ""),
@@ -749,6 +831,61 @@ export async function translateTestsForCategory(
           }
     );
   }
+  return produced;
+}
+
+export async function translateTestsForCategory(
+  ctx: ActionCtx,
+  args: {
+    category: string;
+    bucket: { categoryInstructions: string; questions: any[] };
+    targetReleaseStatus: TargetReleaseStatus;
+    ai: AiCallOptions;
+    stepLogs: StepLog[];
+    retryFeedback?: string;
+  }
+): Promise<any[]> {
+  const baseStep = args.retryFeedback ? `tests:${args.category}:retry` : `tests:${args.category}`;
+
+  let produced = await translateTestsForCategoryOnce(ctx, {
+    ...args,
+    stepName: baseStep,
+  });
+
+  const glossPairs = () =>
+    args.bucket.questions.map((src) => {
+      const qid = String(src.questionId);
+      const de = produced.find((p) => String(p.questionId) === qid);
+      return {
+        questionId: qid,
+        questionEn: String(src.question ?? ""),
+        questionDe: String(de?.question ?? ""),
+      };
+    });
+
+  let glossIssues = findLostOrUntranslatedGlossIssues(glossPairs());
+
+  // One automatic gloss-guard retry when the first pass dropped/left English glosses.
+  // Skip if the caller already supplied retry feedback (verifier pass-2 path).
+  if (glossIssues.length > 0 && !args.retryFeedback) {
+    console.warn(
+      `[translateTests] category=${args.category}: ${glossIssues.length} parenthetical gloss issue(s); auto-retrying once.`
+    );
+    produced = await translateTestsForCategoryOnce(ctx, {
+      ...args,
+      retryFeedback: buildGlossRetryFeedback(glossIssues),
+      stepName: `tests:${args.category}:gloss-retry`,
+    });
+    glossIssues = findLostOrUntranslatedGlossIssues(glossPairs());
+  }
+
+  if (glossIssues.length > 0) {
+    throw new Error(
+      `Test translation dropped or left English parenthetical learner glosses ` +
+        `(category=${args.category}): ${glossIssues.slice(0, 4).join(" | ")}`
+    );
+  }
+
   return produced;
 }
 

@@ -132,6 +132,83 @@ export function runDeterministicVocabChecks(items: VerifierInputItem[]): Verifie
   return issues;
 }
 
+/**
+ * Deterministic check: fill-in-the-blank (and similar) questions often carry
+ * learner-facing English glosses in parentheses inside the question string,
+ * e.g. "Sada je jedan _____. (It is one o'clock now.)".
+ * The EN→DE translator must keep those parentheses and translate the gloss.
+ * Flag as critical when glosses are dropped or left in English.
+ */
+export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): VerifierIssue[] {
+  const issues: VerifierIssue[] = [];
+
+  const extractQuestion = (side: string, lang: "EN" | "DE"): string => {
+    const re = new RegExp(`Question \\(${lang}\\):\\s*([\\s\\S]*?)(?:\\nHint \\(${lang}\\):|$)`);
+    const m = String(side || "").match(re);
+    return (m?.[1] ?? "").trim();
+  };
+
+  const extractGlosses = (text: string): string[] => {
+    const out: string[] = [];
+    for (const m of String(text || "").matchAll(/\(([^)]+)\)/g)) {
+      const g = String(m[1] ?? "").trim();
+      if (g) out.push(g);
+    }
+    return out;
+  };
+
+  const norm = (s: string) =>
+    String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
+  for (const it of items) {
+    if (it.kind !== "test") continue;
+    const enQ = extractQuestion(it.english, "EN");
+    const deQ = extractQuestion(it.german, "DE");
+    if (!enQ || !deQ) continue;
+
+    const enGlosses = extractGlosses(enQ);
+    if (enGlosses.length === 0) continue;
+    const deGlosses = extractGlosses(deQ);
+
+    if (deGlosses.length < enGlosses.length) {
+      issues.push({
+        itemKey: it.key,
+        itemLabel: it.label,
+        itemKind: "test",
+        severity: "critical",
+        code: "test_missing_parenthetical_gloss",
+        issue:
+          `English question has ${enGlosses.length} parenthetical learner gloss(es) ` +
+          `(${enGlosses.map((g) => `(${g})`).join(" ")}), but German question keeps only ${deGlosses.length}. ` +
+          `Translate each gloss to German and keep it in parentheses.`,
+        suggestion: enGlosses.map((g) => `Keep parentheses; translate "(${g})" to German.`).join(" "),
+      });
+      continue;
+    }
+
+    for (let i = 0; i < enGlosses.length; i++) {
+      const enG = enGlosses[i]!;
+      const deG = deGlosses[i] ?? "";
+      if (deG && norm(deG) === norm(enG)) {
+        issues.push({
+          itemKey: it.key,
+          itemLabel: it.label,
+          itemKind: "test",
+          severity: "critical",
+          code: "test_untranslated_parenthetical_gloss",
+          issue: `Parenthetical learner gloss is still English: "(${enG})". Translate it to German.`,
+          suggestion: `Replace "(${enG})" with an idiomatic German gloss in parentheses.`,
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
 function truncate(s: string, max: number): string {
   const str = String(s ?? "");
   if (str.length <= max) return str;
@@ -209,6 +286,7 @@ const VERIFIER_SYSTEM = [
   "  • Therefore: do NOT emit 'missing_info' because 'options are not translated', 'German options are missing', 'correct answer is only in Serbian', etc. This is BY DESIGN and is NOT an issue. Any suggestion to translate options/correct-answer/alternatives into German is WRONG and must never be produced.",
   "  • Do NOT request symmetric German counterparts for Serbian answer content. The asymmetry is intentional.",
   "  • Your actual job for test items: verify that the German question (and hint, if present) is coherent with the learner-produced Serbian answers — i.e. the German prompt makes sense for those Serbian choices and the expected Serbian answer — and that it is a faithful rendering of the English question. Flag real mismatches of meaning, lost info in the question/hint, wrong register, or grammatical errors in the German prompt only.",
+  "  • PARENTHESES / LEARNER GLOSSES: If the English question contains a trailing parenthetical gloss like '(It is one o\\'clock now.)' or '(Today is Tuesday.)', the German question MUST keep an equivalent German gloss in parentheses. Dropping those parentheses or leaving the English gloss untranslated is a CRITICAL missing_info issue.",
   "- kind == 'metadata': this is learner-facing UI/INFORMATIONAL text (unit title, description, topic/grammar/vocabulary-theme lists). It is maintained in ENGLISH and translated to German purely for the interface — it is NOT Serbian the learner studies. Compare DE against the ENGLISH text. IGNORE any mismatch against the Serbian field: the Serbian field for a metadata item is either empty or only thematic context, NEVER a translation source. Do NOT emit 'semantic_mismatch' or 'missing_info' for metadata on the grounds that the Serbian side is shorter, is only a vocabulary list, or lacks a descriptive paragraph. Flag metadata ONLY for real EN↔DE issues: wrong translation of the English title/description, omitted or invented topics, lost grammar-focus entries, array-length changes, etc.",
   "",
   "HARD RULES — do NOT flag these (they are not issues):",
@@ -306,7 +384,10 @@ export async function verifySerbianGermanAlignment(
 
   // Run deterministic checks first — no AI call required, and the results
   // show up alongside AI-detected issues for the admin to select for retry.
-  const deterministicIssues = runDeterministicVocabChecks(usable);
+  const deterministicIssues = [
+    ...runDeterministicVocabChecks(usable),
+    ...runDeterministicTestGlossChecks(usable),
+  ];
 
   const allIssues: VerifierIssue[] = [...deterministicIssues];
   let sumInput = 0;
