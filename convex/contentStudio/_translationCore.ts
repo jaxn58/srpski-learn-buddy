@@ -686,35 +686,152 @@ function buildGlossRetryFeedback(issues: string[]): string {
   ].join("\n");
 }
 
+/**
+ * EN/DE identical (or near-identical) surface forms that may legitimately stay unchanged
+ * as translation/matching prompts. Keep this list conservative.
+ */
+const EN_DE_IDENTICAL_PROMPT_COGNATES = new Set([
+  "august",
+  "september",
+  "november",
+  "hotel",
+  "restaurant",
+  "taxi",
+  "bus",
+  "radio",
+  "video",
+  "internet",
+  "baby",
+  "mango",
+  "paprika",
+  "salon",
+  "bar",
+  "cafe",
+  "café",
+]);
+
+/** Strip blanks/equals scaffolding from matching/translation prompt text for comparison. */
+function extractComparablePromptText(question: string): string {
+  return String(question || "")
+    .replace(/_+/g, " ")
+    .replace(/^\s*=\s*/g, "")
+    .replace(/\s*=\s*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Translation / vocabularyMatching prompts are learner-facing SOURCE-LANGUAGE words/phrases.
+ * For the German track they MUST become German (Montag, heute, Hälfte, …), not stay English.
+ */
+export function findUntranslatedLearnerPromptIssues(
+  pairs: Array<{
+    questionId: string;
+    questionType: string;
+    questionEn: string;
+    questionDe: string;
+  }>
+): string[] {
+  const issues: string[] = [];
+  for (const p of pairs) {
+    const qType = String(p.questionType || "");
+    if (qType !== "translation" && qType !== "matching") continue;
+
+    const enPrompt = extractComparablePromptText(p.questionEn);
+    const dePrompt = extractComparablePromptText(p.questionDe);
+    if (!enPrompt || !dePrompt) continue;
+
+    const enNorm = normalizeGlossCompare(enPrompt);
+    const deNorm = normalizeGlossCompare(dePrompt);
+    if (enNorm !== deNorm) continue;
+    if (EN_DE_IDENTICAL_PROMPT_COGNATES.has(enNorm)) continue;
+
+    issues.push(
+      `questionId=${p.questionId} (${qType}): learner prompt is still English "${enPrompt}". ` +
+        `Translate it to the German equivalent the DE-track learner should see ` +
+        `(e.g. Monday→Montag, today→heute, half→halb/Hälfte). Keep blanks/format identical.`
+    );
+  }
+  return issues;
+}
+
+/** DE category instructions must not tell German learners to work "from English". */
+export function findEnglishFramingInstructionIssues(categoryInstructionsDe: string): string[] {
+  const text = String(categoryInstructionsDe || "").trim();
+  if (!text) return [];
+  if (/\b(english|englisch(?:en|e|er|es)?)\b/i.test(text)) {
+    return [
+      `categoryInstructionsDe still refers to English ("${text}"). ` +
+        `For the German learner track, reframe the instruction to German as the source language ` +
+        `(e.g. "Übersetzen Sie die folgenden Wörter aus dem Deutschen ins Serbische." / ` +
+        `"Ordne die deutsche Bedeutung dem richtigen serbischen Wort zu."). ` +
+        `Do NOT mention English.`,
+    ];
+  }
+  return [];
+}
+
+function buildPromptGuardRetryFeedback(issues: string[]): string {
+  return [
+    "CRITICAL: German-track interactive tests must not keep English as the learner's source language.",
+    "For questionType 'translation': translate each English prompt word/phrase to German (Monday→Montag, today→heute).",
+    "For questionType 'matching': translate the English meaning side to German (half→halb/Hälfte); keep _____ blanks.",
+    "For categoryInstructions: adapt EN framing that says 'from English' / 'English meaning' to German-source framing. Never leave 'Englisch/English' in the DE instructions.",
+    "Serbian answers/options stay Serbian and untranslated.",
+    ...issues,
+  ].join("\n");
+}
+
 function buildTestsSystemPrompt(retryFeedback?: string): string {
   return [
     "You translate interactive-test prompts (questions, hints, category instructions) into German (de-DE) for German-speaking learners of Serbian.",
     "",
     "FIELD ROLES — this is important:",
-    "- 'categoryInstructionsEn' is LEARNER-FACING UI GUIDANCE (e.g. 'Translate the following Serbian phrases into German'). Translate it EN → DE directly and idiomatically. It is NOT Serbian content the learner studies; the Serbian-anchor rule does NOT apply to it. Do NOT let specific Serbian answers in this batch narrow or alter the meaning of the instructions.",
-    "- 'hintEn' is LEARNER-FACING HELP TEXT (UI). Translate it EN → DE directly and idiomatically. It is not part of the Serbian content being taught.",
-    "- 'questionEn' is the prompt the learner sees. The learner is expected to answer in Serbian (see 'correctAnswerSr' / 'optionsSr' / 'acceptableAlternativesSr'). The German question text MUST stay coherent with those Serbian answers: it is the ONE place where the Serbian-anchor rule applies in this prompt — EXCEPT for parenthetical learner glosses (see below).",
+    "- 'categoryInstructionsEn' is LEARNER-FACING UI GUIDANCE. Adapt it for the German learner track (see CATEGORY INSTRUCTIONS below). It is NOT Serbian content the learner studies.",
+    "- 'hintEn' is LEARNER-FACING HELP TEXT (UI). Translate it EN → DE directly and idiomatically.",
+    "- 'questionEn' is the prompt the learner sees. How you treat it DEPENDS ON questionType (rules below).",
     "",
-    "RULES FOR questionDe:",
-    "- The PRIMARY semantic anchor is the Serbian answer content. The German question must make sense for those Serbian answers.",
-    "- English question text ('questionEn') is a BRIDGE/REFERENCE only and may be imprecise or lose nuance; if it disagrees with what the Serbian answers imply, follow the Serbian meaning.",
-    "- Do NOT translate the Serbian answer strings, options, or alternatives. Do NOT change questionId, order, or questionType.",
-    "- Preserve blanks EXACTLY as '_____' (five underscores) and keep the number of blanks identical to the English source.",
+    "RULES BY questionType:",
     "",
-    "PARENTHESES / LEARNER GLOSSES (CRITICAL — do not skip):",
-    "- Many questions (especially fill-in-the-blank) append an English meaning in parentheses after the Serbian stem, e.g. 'Sada je jedan _____. (It is one o'clock now.)'.",
-    "- These parentheticals are LEARNER-FACING HELP (same role as hintEn). They are NOT Serbian study content.",
-    "- You MUST keep the SAME number of (...) glosses in questionDe as in questionEn.",
-    "- You MUST translate each parenthetical gloss from English into idiomatic German. Never drop them. Never leave them in English.",
-    "- Keep the Serbian words/blanks; only the text inside parentheses changes language.",
-    "- Example: '_____ je utorak. (Today is Tuesday.)' → '_____ je utorak. (Heute ist Dienstag.)'",
+    "1) questionType == 'translation' (CRITICAL):",
+    "   - The EN question is a SOURCE-LANGUAGE prompt word/phrase (often a single English word like 'Monday' or 'today').",
+    "   - questionDe MUST be the German equivalent prompt (Montag, heute, …). The learner translates FROM German INTO Serbian.",
+    "   - Do NOT leave the English word unchanged (except true EN/DE cognates like 'August').",
+    "   - Single-word prompts are CORRECT and complete — do not expand them into full sentences or questions.",
+    "   - Example: 'Monday' → 'Montag'; 'today' → 'heute'; 'January' → 'Januar'.",
+    "",
+    "2) questionType == 'matching' (CRITICAL):",
+    "   - The EN question is typically '_____ = englishMeaning' (or similar). Translate the meaning side to German.",
+    "   - Example: '_____ = half' → '_____ = Hälfte' (or '_____ = halb' when time-context fits).",
+    "   - Keep blanks identical. Do not leave the English meaning.",
+    "",
+    "3) questionType == 'fillInBlank' | 'dialogue' | similar Serbian-stem prompts:",
+    "   - Keep the Serbian stem and blanks. Translate trailing parenthetical learner glosses EN → DE.",
+    "   - Example: 'Sada je jedan _____. (It is one o'clock now.)' → 'Sada je jedan _____. (Es ist jetzt ein Uhr.)'",
+    "",
+    "4) questionType == 'multipleChoice':",
+    "   - Translate the learner-facing question prompt EN → DE when it is English UI/prompt text.",
+    "   - Options/correctAnswer stay Serbian (untranslated).",
+    "",
+    "CATEGORY INSTRUCTIONS (CRITICAL for DE track):",
+    "- If the English instructions say 'from English to Serbian' / 'Translate the following words from English…', the German instructions MUST say the learner translates FROM GERMAN to Serbian (e.g. 'Übersetzen Sie die folgenden Wörter aus dem Deutschen ins Serbische.').",
+    "- If the English instructions say 'Match the English meaning…', the German instructions MUST say 'deutsche Bedeutung' (not 'englische').",
+    "- Never mention English/Englisch in categoryInstructionsDe for these adapted tracks.",
+    "",
+    "GLOBAL RULES:",
+    "- Serbian answers, options, and acceptableAlternatives stay UNTRANSLATED. Do NOT change questionId, order, or questionType.",
+    "- Preserve blanks EXACTLY as '_____' (five underscores) and keep the blank count identical to the English source.",
+    "- For Serbian-stem questions, the Serbian answer content is the semantic anchor; for translation/matching prompts, the EN→DE prompt translation is mandatory (see above).",
+    "",
+    "PARENTHESES / LEARNER GLOSSES (fill-in-blank etc.):",
+    "- Keep the SAME number of (...) glosses; translate each gloss to idiomatic German; never drop them; never leave them in English.",
     "",
     "Return ONLY valid JSON with keys: categoryInstructionsDe, questions.",
     "questions must be an array of { questionId, questionDe, hintDe }.",
     ...(retryFeedback && retryFeedback.trim()
       ? [
           "",
-          "IMPORTANT: A previous attempt had issues flagged by the verifier or gloss guard. Address this feedback (it applies to questionDe; categoryInstructions and hints remain straight EN→DE UI translations):",
+          "IMPORTANT: A previous attempt had issues flagged by the verifier or quality guard. Address this feedback:",
           retryFeedback.trim(),
         ]
       : []),
@@ -852,37 +969,54 @@ export async function translateTestsForCategory(
     stepName: baseStep,
   });
 
-  const glossPairs = () =>
+  const qualityPairs = () =>
     args.bucket.questions.map((src) => {
       const qid = String(src.questionId);
       const de = produced.find((p) => String(p.questionId) === qid);
       return {
         questionId: qid,
+        questionType: String(src.questionType ?? ""),
         questionEn: String(src.question ?? ""),
         questionDe: String(de?.question ?? ""),
       };
     });
 
-  let glossIssues = findLostOrUntranslatedGlossIssues(glossPairs());
+  const collectQualityIssues = () => {
+    const instructionsDe =
+      produced.length > 0 && typeof produced[0]?.categoryInstructions === "string"
+        ? String(produced[0].categoryInstructions)
+        : "";
+    return [
+      ...findLostOrUntranslatedGlossIssues(qualityPairs()),
+      ...findUntranslatedLearnerPromptIssues(qualityPairs()),
+      ...findEnglishFramingInstructionIssues(instructionsDe),
+    ];
+  };
 
-  // One automatic gloss-guard retry when the first pass dropped/left English glosses.
+  let qualityIssues = collectQualityIssues();
+
+  // One automatic quality-guard retry (glosses, untranslated EN prompts, EN framing in instructions).
   // Skip if the caller already supplied retry feedback (verifier pass-2 path).
-  if (glossIssues.length > 0 && !args.retryFeedback) {
+  if (qualityIssues.length > 0 && !args.retryFeedback) {
+    const glossOnly = qualityIssues.every((i) => i.includes("parenthetical"));
+    const feedback = glossOnly
+      ? buildGlossRetryFeedback(qualityIssues)
+      : buildPromptGuardRetryFeedback(qualityIssues);
     console.warn(
-      `[translateTests] category=${args.category}: ${glossIssues.length} parenthetical gloss issue(s); auto-retrying once.`
+      `[translateTests] category=${args.category}: ${qualityIssues.length} quality issue(s); auto-retrying once.`
     );
     produced = await translateTestsForCategoryOnce(ctx, {
       ...args,
-      retryFeedback: buildGlossRetryFeedback(glossIssues),
-      stepName: `tests:${args.category}:gloss-retry`,
+      retryFeedback: feedback,
+      stepName: `tests:${args.category}:quality-retry`,
     });
-    glossIssues = findLostOrUntranslatedGlossIssues(glossPairs());
+    qualityIssues = collectQualityIssues();
   }
 
-  if (glossIssues.length > 0) {
+  if (qualityIssues.length > 0) {
     throw new Error(
-      `Test translation dropped or left English parenthetical learner glosses ` +
-        `(category=${args.category}): ${glossIssues.slice(0, 4).join(" | ")}`
+      `Test translation quality guard failed (category=${args.category}): ` +
+        `${qualityIssues.slice(0, 5).join(" | ")}`
     );
   }
 

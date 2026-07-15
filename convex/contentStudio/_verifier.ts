@@ -209,6 +209,89 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
   return issues;
 }
 
+/**
+ * Deterministic check for translation/matching prompts that stayed English.
+ * Example EN→DE failure: questionEn "Monday" / questionDe "Monday" (should be "Montag").
+ * Cognates that are identical in EN and DE (e.g. August) are allowed.
+ */
+export function runDeterministicTestPromptChecks(items: VerifierInputItem[]): VerifierIssue[] {
+  const issues: VerifierIssue[] = [];
+  const IDENTICAL_COGNATES = new Set([
+    "august",
+    "september",
+    "november",
+    "hotel",
+    "restaurant",
+    "taxi",
+    "bus",
+    "radio",
+    "video",
+    "internet",
+    "baby",
+    "mango",
+    "paprika",
+    "salon",
+    "bar",
+    "cafe",
+    "café",
+  ]);
+
+  const extractQuestion = (side: string, lang: "EN" | "DE"): string => {
+    const re = new RegExp(`Question \\(${lang}\\):\\s*([\\s\\S]*?)(?:\\nHint \\(${lang}\\):|$)`);
+    const m = String(side || "").match(re);
+    return (m?.[1] ?? "").trim();
+  };
+
+  const comparable = (q: string) =>
+    String(q || "")
+      .replace(/_+/g, " ")
+      .replace(/^\s*=\s*/g, "")
+      .replace(/\s*=\s*$/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
+  for (const it of items) {
+    if (it.kind !== "test") continue;
+    const enQ = extractQuestion(it.english, "EN");
+    const deQ = extractQuestion(it.german, "DE");
+    if (!enQ || !deQ) continue;
+
+    // Heuristic: translation/matching prompts are short (no Serbian sentence stem with blanks+gloss).
+    // Skip fill-in-blank style (has blanks AND parenthetical OR long Serbian text).
+    const looksLikeFillInBlank =
+      /_+/.test(enQ) && (/\([^)]+\)/.test(enQ) || /[čćšžđ]/i.test(enQ));
+    if (looksLikeFillInBlank) continue;
+
+    const hasBlank = /_+/.test(enQ);
+    const enComp = comparable(enQ);
+    const deComp = comparable(deQ);
+    if (!enComp || !deComp) continue;
+    if (enComp !== deComp) continue;
+    if (IDENTICAL_COGNATES.has(enComp)) continue;
+
+    // Single-token or short matching prompt left identical → untranslated EN prompt.
+    const tokenCount = enComp.split(/\s+/).filter(Boolean).length;
+    if (!hasBlank && tokenCount > 4) continue; // longer English MC prompts handled by AI verifier
+    if (hasBlank && tokenCount > 6) continue;
+
+    issues.push({
+      itemKey: it.key,
+      itemLabel: it.label,
+      itemKind: "test",
+      severity: "critical",
+      code: "test_untranslated_learner_prompt",
+      issue:
+        `German question prompt is still English ("${extractQuestion(it.german, "DE")}"). ` +
+        `For translation/matching items on the DE track, translate the learner-facing prompt to German ` +
+        `(e.g. Monday→Montag, today→heute, half→Hälfte).`,
+      suggestion: `Translate the English prompt "${extractQuestion(it.english, "EN")}" into German; keep blanks/format.`,
+    });
+  }
+
+  return issues;
+}
+
 function truncate(s: string, max: number): string {
   const str = String(s ?? "");
   if (str.length <= max) return str;
@@ -287,6 +370,7 @@ const VERIFIER_SYSTEM = [
   "  • Do NOT request symmetric German counterparts for Serbian answer content. The asymmetry is intentional.",
   "  • Your actual job for test items: verify that the German question (and hint, if present) is coherent with the learner-produced Serbian answers — i.e. the German prompt makes sense for those Serbian choices and the expected Serbian answer — and that it is a faithful rendering of the English question. Flag real mismatches of meaning, lost info in the question/hint, wrong register, or grammatical errors in the German prompt only.",
   "  • PARENTHESES / LEARNER GLOSSES: If the English question contains a trailing parenthetical gloss like '(It is one o\\'clock now.)' or '(Today is Tuesday.)', the German question MUST keep an equivalent German gloss in parentheses. Dropping those parentheses or leaving the English gloss untranslated is a CRITICAL missing_info issue.",
+  "  • TRANSLATION / MATCHING PROMPTS: For EN source prompts that are single words or short phrases (e.g. 'Monday', 'today', '_____ = half'), the German question MUST be the German equivalent ('Montag', 'heute', '_____ = Hälfte'). Leaving the English word is CRITICAL. Conversely: a correct single German word/phrase IS a valid complete prompt — do NOT flag it as 'not a question' or demand a full interrogative sentence.",
   "- kind == 'metadata': this is learner-facing UI/INFORMATIONAL text (unit title, description, topic/grammar/vocabulary-theme lists). It is maintained in ENGLISH and translated to German purely for the interface — it is NOT Serbian the learner studies. Compare DE against the ENGLISH text. IGNORE any mismatch against the Serbian field: the Serbian field for a metadata item is either empty or only thematic context, NEVER a translation source. Do NOT emit 'semantic_mismatch' or 'missing_info' for metadata on the grounds that the Serbian side is shorter, is only a vocabulary list, or lacks a descriptive paragraph. Flag metadata ONLY for real EN↔DE issues: wrong translation of the English title/description, omitted or invented topics, lost grammar-focus entries, array-length changes, etc.",
   "",
   "HARD RULES — do NOT flag these (they are not issues):",
@@ -298,16 +382,17 @@ const VERIFIER_SYSTEM = [
   "   - Pasoš → 'Pass' OR 'Reisepass' (both fine).",
   "   - avion → 'Flugzeug' OR 'Flieger'.",
   "   - Only flag when the German word is a DIFFERENT concept, not a stylistic refinement.",
-  "3. Do NOT propose swaps between words that are both valid translations. Pick at most one and if both are acceptable, emit NO issue.",
+  "3. Do NOT propose swaps between words that are both valid translations. Pick at most one and if both are acceptable, emit NO issue. Synonym preferences (Besprechung vs Treffen, Hälfte vs halb) are NOT critical issues when both are valid.",
   "4. Register/formality differences that are idiomatic for a learning course (e.g., 'du' vs 'Sie' address in instructions) are NOT issues unless the Serbian explicitly uses a mismatching register.",
-  "5. SERBIAN-SPECIFIC GRAMMAR vs. GERMAN GRAMMAR — do NOT project Serbian grammatical form onto German. The German translation must be GRAMMATICALLY NATURAL GERMAN, even if that differs in form from the Serbian surface.",
+  "5. Single-word or short-phrase German prompts for translation/matching exercises (e.g. 'Mittwoch', 'Januar', 'heute') are VALID. Do NOT flag them as incomplete questions.",
+  "6. SERBIAN-SPECIFIC GRAMMAR vs. GERMAN GRAMMAR — do NOT project Serbian grammatical form onto German. The German translation must be GRAMMATICALLY NATURAL GERMAN, even if that differs in form from the Serbian surface.",
   "   - Serbian uses genitive (often singular) after cardinal numbers ≥ 5 and after quantity words like 'kilogram', 'litar', 'čaša', 'mnogo', 'malo'. Example: 'jedan kilogram krompira' (gen.sg), 'pet jabuka' (gen.pl).",
   "   - The natural German rendering is: 'ein Kilogramm Kartoffeln', 'fünf Äpfel' (German plural after quantity). The singular 'ein Kilogramm Kartoffel' is UNGRAMMATICAL/awkward in German and must NOT be suggested.",
   "   - RULE: If the German plural is the natural rendering of a Serbian quantity expression, it is CORRECT. Do NOT flag it as 'wrong number' based on the Serbian form. Do NOT suggest switching to German singular just because Serbian is morphologically singular.",
   "   - Same principle applies to any other case where SR morphology (aspect, gender, case, number) has no 1:1 mirror in DE grammar: follow idiomatic German, not a mechanical projection of SR morphology.",
   "",
   "CONSISTENCY — STRICT: Your rulings must be internally consistent. If text X is acceptable, the equivalent text X in the next pass must also be acceptable. Do NOT oscillate between opposite recommendations on the same surface form.",
-  "  - Oscillation example to AVOID: pass 1 flags 'Ein Kilogramm Kartoffeln' (plural) and suggests 'Kartoffel' (singular); pass 2 then flags 'Ein Kilogramm Kartoffel' (singular) as awkward and suggests 'Kartoffeln' (plural). This is a forbidden oscillation — the correct behavior is: do NOT flag German plural after a quantity word at all (see rule 5).",
+  "  - Oscillation example to AVOID: pass 1 flags 'Ein Kilogramm Kartoffeln' (plural) and suggests 'Kartoffel' (singular); pass 2 then flags 'Ein Kilogramm Kartoffel' (singular) as awkward and suggests 'Kartoffeln' (plural). This is a forbidden oscillation — the correct behavior is: do NOT flag German plural after a quantity word at all (see rule 6).",
   "  - If a previous pass's suggestion would merely swap a form to its opposite without a clear semantic gain, emit NO issue.",
   "",
   "Return ONLY valid JSON in this exact shape:",
@@ -387,6 +472,7 @@ export async function verifySerbianGermanAlignment(
   const deterministicIssues = [
     ...runDeterministicVocabChecks(usable),
     ...runDeterministicTestGlossChecks(usable),
+    ...runDeterministicTestPromptChecks(usable),
   ];
 
   const allIssues: VerifierIssue[] = [...deterministicIssues];
