@@ -766,8 +766,6 @@
   "energy.debtOutstanding": "Offene Schuld: {{amount}} Energy – bitte aufladen, um fortzufahren.",
   "energy.previewHint": "Nächste Aktion (Schätzung): {{range}} Energy. Abgerechnet wird der gemessene Betrag nach der Antwort.",
   "energy.previewHintShort": "Nächste: {{range}} Energy (ca.)",
-  "energy.sendCostExact": "Diese Nachricht kostet ~{{cost}} Energy",
-  "energy.sendCostRange": "Diese Nachricht kostet ~{{min}}–{{max}} Energy",
   "energy.bonus": "+{{amount}} Bonus",
   "energy.totalEnergy": "{{amount}} Energy",
   "energy.buyPack": "Kaufen",

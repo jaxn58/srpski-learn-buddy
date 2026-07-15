@@ -781,8 +781,6 @@
   "energy.debtOutstanding": "Outstanding debt: {{amount}} Energy – top up to continue.",
   "energy.previewHint": "Next action (estimate): {{range}} Energy. You are billed the measured amount after the reply.",
   "energy.previewHintShort": "Next: {{range}} Energy (est.)",
-  "energy.sendCostExact": "This message costs ~{{cost}} Energy",
-  "energy.sendCostRange": "This message costs ~{{min}}–{{max}} Energy",
   "energy.bonus": "+{{amount}} bonus",
   "energy.totalEnergy": "{{amount}} Energy",
   "energy.buyPack": "Buy",

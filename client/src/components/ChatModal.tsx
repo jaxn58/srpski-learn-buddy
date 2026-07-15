@@ -616,14 +616,6 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     })}
               </p>
             )}
-            {!energyBlocksSend && upcomingEnergyEstimate && !upcomingEnergyEstimate.unlimited && upcomingEnergyEstimate.costMax > 0 && (
-              <p className="flex items-center justify-center gap-1 mt-1.5 text-[11px] text-muted-foreground">
-                <Zap className="h-3 w-3" />
-                {upcomingEnergyEstimate.costMin === upcomingEnergyEstimate.costMax
-                  ? t('energy.sendCostExact', { cost: upcomingEnergyEstimate.costMin })
-                  : t('energy.sendCostRange', { min: upcomingEnergyEstimate.costMin, max: upcomingEnergyEstimate.costMax })}
-              </p>
-            )}
             {!currentSessionId && (
               <div className="text-center mt-2">
                 <Button variant="link" size="sm" onClick={handleNewChat} className="text-primary">
