@@ -2845,7 +2845,7 @@ export const stripDeExerciseGlossesForUnit = internalMutation({
   }),
   handler: async (ctx, args) => {
     const unitNumber = Number(args.unitNumber);
-    const expected = `STRIP DE GLOSSES UNIT ${unitNumber}`;
+    const expected = `STRIP_DE_GLOSSES_UNIT_${unitNumber}`;
     if (String(args.confirm) !== expected) {
       throw new Error(`Confirmation required: confirm must equal '${expected}'`);
     }
