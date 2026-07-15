@@ -639,49 +639,78 @@ function normalizeGlossCompare(s: string): string {
     .replace(/\s+/g, " ");
 }
 
+/** Exercise questionTypes whose prompts may include a Serbian stem (no translation help allowed). */
+export function isSerbianStemExerciseType(questionType: string): boolean {
+  const t = String(questionType || "");
+  return t === "fillInBlank" || t === "dialogue" || t === "multipleChoice";
+}
+
 /**
- * Detect lost or still-English parenthetical learner glosses in translated questions.
- * These glosses are part of the EN question string (not the separate `hint` field).
+ * Strip trailing learner-help parentheticals from exercise prompts.
+ * Exercise tests must not reveal meaning via "(German/English gloss)" after a Serbian stem.
  */
-export function findLostOrUntranslatedGlossIssues(
-  pairs: Array<{ questionId: string; questionEn: string; questionDe: string }>
+export function stripTrailingParentheticalGlosses(text: string): string {
+  let s = String(text || "").replace(/\r\n/g, "\n").trim();
+  for (let i = 0; i < 8; i++) {
+    const next = s.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
+
+/**
+ * Detect leftover parenthetical help on DE exercise prompts.
+ * Glosses are NOT wanted on the DE track for Serbian-stem exercises — strip, don't translate.
+ */
+export function findUnwantedExerciseGlossIssues(
+  pairs: Array<{ questionId: string; questionType: string; questionEn: string; questionDe: string }>
 ): string[] {
   const issues: string[] = [];
   for (const p of pairs) {
-    const enGlosses = extractParentheticalGlosses(p.questionEn);
-    if (enGlosses.length === 0) continue;
+    if (!isSerbianStemExerciseType(p.questionType)) continue;
     const deGlosses = extractParentheticalGlosses(p.questionDe);
-    if (deGlosses.length < enGlosses.length) {
-      issues.push(
-        `questionId=${p.questionId}: English has ${enGlosses.length} parenthetical learner gloss(es) ` +
-          `(${enGlosses.map((g) => `(${g})`).join(" ")}), but German question keeps only ${deGlosses.length}. ` +
-          `Translate each gloss into German and KEEP it in parentheses after the Serbian stem/blank.`
-      );
-      continue;
+    if (deGlosses.length === 0) continue;
+    // Only flag when EN also had gloss-help, or DE clearly still has stem+help shape.
+    const enHadGloss = extractParentheticalGlosses(p.questionEn).length > 0;
+    if (!enHadGloss && deGlosses.length === 0) continue;
+    if (!enHadGloss) {
+      // Defensive: still strip leftovers that look like translation help after a blank/stem.
+      if (!/_+/.test(p.questionDe) && !/[čćšžđČĆŠŽĐ]/.test(p.questionDe)) continue;
     }
-    for (let i = 0; i < enGlosses.length; i++) {
-      const enG = enGlosses[i]!;
-      const deG = deGlosses[i] ?? "";
-      if (deG && normalizeGlossCompare(deG) === normalizeGlossCompare(enG)) {
-        issues.push(
-          `questionId=${p.questionId}: parenthetical gloss is still English "(${enG})". ` +
-            `Translate it to idiomatic German inside the parentheses.`
-        );
-      }
-    }
+    issues.push(
+      `questionId=${p.questionId}: exercise prompt still has parenthetical help ` +
+        `(${deGlosses.map((g) => `(${g})`).join(" ")}). ` +
+        `Remove learner glosses from DE exercise tests — keep the Serbian stem/blank only, no translation help.`
+    );
   }
   return issues;
 }
 
+/** @deprecated Use findUnwantedExerciseGlossIssues — glosses must be stripped, not translated. */
+export function findLostOrUntranslatedGlossIssues(
+  pairs: Array<{ questionId: string; questionEn: string; questionDe: string }>
+): string[] {
+  return findUnwantedExerciseGlossIssues(
+    pairs.map((p) => ({
+      questionId: p.questionId,
+      questionType: "fillInBlank",
+      questionEn: p.questionEn,
+      questionDe: p.questionDe,
+    }))
+  );
+}
+
 function buildGlossRetryFeedback(issues: string[]): string {
   return [
-    "CRITICAL: Parenthetical learner glosses must be preserved and translated to German.",
-    "Pattern: keep the Serbian stem and _____ blanks; translate ONLY the trailing (...) gloss EN → DE.",
+    "CRITICAL: Exercise tests must NOT show parenthetical learner glosses / translation help.",
+    "For fillInBlank, dialogue, and multipleChoice with a Serbian stem: keep the Serbian text and blanks ONLY.",
+    "DELETE trailing (...) glosses — do not translate them to German.",
+    "Example EN: 'Ana je _____. Ona radi u bolnici. (Ana is a _____. She works in a hospital.)'",
+    "Example DE: 'Ana je _____. Ona radi u bolnici.'",
     "Example EN: 'Sada je jedan _____. (It is one o'clock now.)'",
-    "Example DE: 'Sada je jedan _____. (Es ist jetzt ein Uhr.)'",
-    "Example EN: '_____ je utorak. (Today is Tuesday.)'",
-    "Example DE: '_____ je utorak. (Heute ist Dienstag.)'",
-    "Never drop parentheses. Never leave the gloss in English.",
+    "Example DE: 'Sada je jedan _____.'",
+    "Never append German (or English) help in parentheses on exercise prompts.",
     ...issues,
   ].join("\n");
 }
@@ -805,11 +834,13 @@ function buildTestsSystemPrompt(retryFeedback?: string): string {
     "   - Example: '_____ = half' → '_____ = Hälfte' (or '_____ = halb' when time-context fits).",
     "   - Keep blanks identical. Do not leave the English meaning.",
     "",
-    "3) questionType == 'fillInBlank' | 'dialogue' | similar Serbian-stem prompts:",
-    "   - Keep the Serbian stem and blanks. Translate trailing parenthetical learner glosses EN → DE.",
-    "   - Example: 'Sada je jedan _____. (It is one o'clock now.)' → 'Sada je jedan _____. (Es ist jetzt ein Uhr.)'",
+    "3) questionType == 'fillInBlank' | 'dialogue' | Serbian-stem multipleChoice (CRITICAL):",
+    "   - Keep the Serbian stem and blanks EXACTLY.",
+    "   - REMOVE trailing parenthetical learner glosses / translation help — do NOT translate them to German.",
+    "   - Example EN: 'Sada je jedan _____. (It is one o'clock now.)' → DE: 'Sada je jedan _____.'",
+    "   - Example EN: 'Ana je _____. Ona radi u bolnici. (Ana is a _____. …)' → DE: 'Ana je _____. Ona radi u bolnici.'",
     "",
-    "4) questionType == 'multipleChoice':",
+    "4) questionType == 'multipleChoice' with English/German UI prompt (no Serbian stem):",
     "   - Translate the learner-facing question prompt EN → DE when it is English UI/prompt text.",
     "   - Options/correctAnswer stay Serbian (untranslated).",
     "",
@@ -823,8 +854,10 @@ function buildTestsSystemPrompt(retryFeedback?: string): string {
     "- Preserve blanks EXACTLY as '_____' (five underscores) and keep the blank count identical to the English source.",
     "- For Serbian-stem questions, the Serbian answer content is the semantic anchor; for translation/matching prompts, the EN→DE prompt translation is mandatory (see above).",
     "",
-    "PARENTHESES / LEARNER GLOSSES (fill-in-blank etc.):",
-    "- Keep the SAME number of (...) glosses; translate each gloss to idiomatic German; never drop them; never leave them in English.",
+    "PARENTHESES / LEARNER GLOSSES:",
+    "- Exercise tests must NOT show translation help in parentheses.",
+    "- For Serbian-stem exercises: strip all trailing (...) glosses from questionDe.",
+    "- Never append German (or English) parenthetical help to exercise prompts.",
     "",
     "Return ONLY valid JSON with keys: categoryInstructionsDe, questions.",
     "questions must be an array of { questionId, questionDe, hintDe }.",
@@ -907,10 +940,14 @@ async function translateTestsForCategoryOnce(
         // Same blank count: normalize underscore runs to _____ without discarding DE text.
         if (srcBlanks > 0) translatedQ = normalizeBlankRuns(translatedQ);
       } else {
-        // Blank-count mismatch is unsafe for the exercise UI. Fall back to EN;
-        // the gloss guard below will detect leftover English parentheticals and retry.
+        // Blank-count mismatch is unsafe for the exercise UI. Fall back to EN source,
+        // then strip learner glosses for Serbian-stem types below.
         translatedQ = srcQuestion;
       }
+    }
+    // Exercise tests: never show parenthetical translation help on Serbian-stem prompts.
+    if (isSerbianStemExerciseType(qType)) {
+      translatedQ = stripTrailingParentheticalGlosses(translatedQ);
     }
     const translatedHint =
       typeof oq?.hintDe === "string" ? String(oq.hintDe) : typeof src.hint === "string" ? src.hint : undefined;
@@ -987,7 +1024,7 @@ export async function translateTestsForCategory(
         ? String(produced[0].categoryInstructions)
         : "";
     return [
-      ...findLostOrUntranslatedGlossIssues(qualityPairs()),
+      ...findUnwantedExerciseGlossIssues(qualityPairs()),
       ...findUntranslatedLearnerPromptIssues(qualityPairs()),
       ...findEnglishFramingInstructionIssues(instructionsDe),
     ];
@@ -995,10 +1032,10 @@ export async function translateTestsForCategory(
 
   let qualityIssues = collectQualityIssues();
 
-  // One automatic quality-guard retry (glosses, untranslated EN prompts, EN framing in instructions).
+  // One automatic quality-guard retry (leftover gloss help, untranslated EN prompts, EN framing).
   // Skip if the caller already supplied retry feedback (verifier pass-2 path).
   if (qualityIssues.length > 0 && !args.retryFeedback) {
-    const glossOnly = qualityIssues.every((i) => i.includes("parenthetical"));
+    const glossOnly = qualityIssues.every((i) => i.includes("parenthetical help") || i.includes("parenthetical"));
     const feedback = glossOnly
       ? buildGlossRetryFeedback(qualityIssues)
       : buildPromptGuardRetryFeedback(qualityIssues);

@@ -8,6 +8,10 @@ import {
 } from "./prompts";
 import { findEarlierUnitVocabulary, toVocabularyKey } from "../vocabulary";
 import { makeValidatorMemoryFingerprint } from "./_validatorMemory";
+import {
+  isSerbianStemExerciseType,
+  stripTrailingParentheticalGlosses,
+} from "./_translationCore";
 
 export const createDraft = mutation({
   args: {
@@ -2813,5 +2817,73 @@ export const internalPublishUnitTests = mutation({
     }
 
     return { insertedCount };
+  },
+});
+
+/**
+ * Strip leftover parenthetical translation help from DE exercise prompts for one unit.
+ * Safe, deterministic content fix — no AI. Applies to preview + published active rows.
+ * Callable from CLI: npx convex run contentStudio/_mutations:stripDeExerciseGlossesForUnit ...
+ */
+export const stripDeExerciseGlossesForUnit = internalMutation({
+  args: {
+    unitNumber: v.number(),
+    confirm: v.string(),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    scanned: v.number(),
+    updated: v.number(),
+    dryRun: v.boolean(),
+    examples: v.array(
+      v.object({
+        questionId: v.string(),
+        before: v.string(),
+        after: v.string(),
+      })
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const unitNumber = Number(args.unitNumber);
+    const expected = `STRIP DE GLOSSES UNIT ${unitNumber}`;
+    if (String(args.confirm) !== expected) {
+      throw new Error(`Confirmation required: confirm must equal '${expected}'`);
+    }
+    const dryRun = args.dryRun === true;
+    const rows = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+      .collect();
+
+    let scanned = 0;
+    let updated = 0;
+    const examples: Array<{ questionId: string; before: string; after: string }> = [];
+
+    for (const row of rows) {
+      if (row.isActive === false) continue;
+      scanned += 1;
+      const qType = String(row.questionType ?? "");
+      const category = String(row.category ?? "");
+      const treatAsStem =
+        isSerbianStemExerciseType(qType) ||
+        category === "fillInBlank" ||
+        category === "multipleChoice" ||
+        category === "dialogueCompletion";
+      if (!treatAsStem) continue;
+
+      const before = String(row.question ?? "");
+      const after = stripTrailingParentheticalGlosses(before);
+      if (after === before) continue;
+
+      updated += 1;
+      if (examples.length < 12) {
+        examples.push({ questionId: String(row.questionId), before, after });
+      }
+      if (!dryRun) {
+        await ctx.db.patch(row._id, { question: after });
+      }
+    }
+
+    return { scanned, updated, dryRun, examples };
   },
 });

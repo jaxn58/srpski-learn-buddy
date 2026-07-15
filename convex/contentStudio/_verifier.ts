@@ -135,11 +135,8 @@ export function runDeterministicVocabChecks(items: VerifierInputItem[]): Verifie
 }
 
 /**
- * Deterministic check: fill-in-the-blank (and similar) questions often carry
- * learner-facing English glosses in parentheses inside the question string,
- * e.g. "Sada je jedan _____. (It is one o'clock now.)".
- * The EN→DE translator must keep those parentheses and translate the gloss.
- * Flag as critical when glosses are dropped or left in English.
+ * Deterministic check: exercise tests must NOT keep parenthetical learner glosses
+ * (translation help) on Serbian-stem prompts. Flag leftover "(…)" help as critical.
  */
 export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): VerifierIssue[] {
   const issues: VerifierIssue[] = [];
@@ -159,53 +156,45 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
     return out;
   };
 
-  const norm = (s: string) =>
-    String(s || "")
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, " ");
+  const looksLikeSerbianStem = (q: string) => {
+    const t = String(q || "").trim();
+    if (/^(?:A|B)\s*:/i.test(t)) return true;
+    if (/_+/.test(t)) return true;
+    if (/[čćšžđČĆŠŽĐ]/.test(t)) return true;
+    if (/\b(je|sam|si|su|ona|on|mi|vi|kako|odakle|zove|radi|predaje)\b/i.test(t)) return true;
+    return false;
+  };
 
   for (const it of items) {
     if (it.kind !== "test") continue;
-    const enQ = extractQuestion(it.english, "EN");
-    const deQ = extractQuestion(it.german, "DE");
-    if (!enQ || !deQ) continue;
-
-    const enGlosses = extractGlosses(enQ);
-    if (enGlosses.length === 0) continue;
-    const deGlosses = extractGlosses(deQ);
-
-    if (deGlosses.length < enGlosses.length) {
-      issues.push({
-        itemKey: it.key,
-        itemLabel: it.label,
-        itemKind: "test",
-        severity: "critical",
-        code: "test_missing_parenthetical_gloss",
-        issue:
-          `English question has ${enGlosses.length} parenthetical learner gloss(es) ` +
-          `(${enGlosses.map((g) => `(${g})`).join(" ")}), but German question keeps only ${deGlosses.length}. ` +
-          `Translate each gloss to German and keep it in parentheses.`,
-        suggestion: enGlosses.map((g) => `Keep parentheses; translate "(${g})" to German.`).join(" "),
-      });
+    const qType = String(it.questionType ?? "").trim();
+    if (qType && qType !== "fillInBlank" && qType !== "dialogue" && qType !== "multipleChoice") {
       continue;
     }
 
-    for (let i = 0; i < enGlosses.length; i++) {
-      const enG = enGlosses[i]!;
-      const deG = deGlosses[i] ?? "";
-      if (deG && norm(deG) === norm(enG)) {
-        issues.push({
-          itemKey: it.key,
-          itemLabel: it.label,
-          itemKind: "test",
-          severity: "critical",
-          code: "test_untranslated_parenthetical_gloss",
-          issue: `Parenthetical learner gloss is still English: "(${enG})". Translate it to German.`,
-          suggestion: `Replace "(${enG})" with an idiomatic German gloss in parentheses.`,
-        });
-      }
-    }
+    const enQ = extractQuestion(it.english, "EN");
+    const deQ = extractQuestion(it.german, "DE");
+    if (!deQ) continue;
+
+    const deGlosses = extractGlosses(deQ);
+    if (deGlosses.length === 0) continue;
+
+    const enGlosses = extractGlosses(enQ);
+    const stem = deQ.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
+    if (!looksLikeSerbianStem(stem) && enGlosses.length === 0) continue;
+
+    issues.push({
+      itemKey: it.key,
+      itemLabel: it.label,
+      itemKind: "test",
+      severity: "critical",
+      code: "test_unwanted_parenthetical_gloss",
+      issue:
+        `German exercise prompt still has parenthetical translation help ` +
+        `(${deGlosses.map((g) => `(${g})`).join(" ")}). ` +
+        `Exercise tests must not show learner glosses — keep the Serbian stem/blank only.`,
+      suggestion: `Remove the parenthetical help; keep only: "${stem || deQ}"`,
+    });
   }
 
   return issues;
@@ -381,7 +370,7 @@ const VERIFIER_SYSTEM = [
   "  • Therefore: do NOT emit 'missing_info' because 'options are not translated', 'German options are missing', 'correct answer is only in Serbian', etc. This is BY DESIGN and is NOT an issue. Any suggestion to translate options/correct-answer/alternatives into German is WRONG and must never be produced.",
   "  • Do NOT request symmetric German counterparts for Serbian answer content. The asymmetry is intentional.",
   "  • Your actual job for test items: verify that the German question (and hint, if present) is coherent with the learner-produced Serbian answers — i.e. the German prompt makes sense for those Serbian choices and the expected Serbian answer — and that it is a faithful rendering of the English question. Flag real mismatches of meaning, lost info in the question/hint, wrong register, or grammatical errors in the German prompt only.",
-  "  • PARENTHESES / LEARNER GLOSSES: If the English question contains a trailing parenthetical gloss like '(It is one o\\'clock now.)' or '(Today is Tuesday.)', the German question MUST keep an equivalent German gloss in parentheses. Dropping those parentheses or leaving the English gloss untranslated is a CRITICAL missing_info issue.",
+  "  • PARENTHESES / LEARNER GLOSSES: Exercise tests must NOT show translation help in parentheses after a Serbian stem. If the German question still has a trailing gloss like '(Ana ist eine ___.)' or '(Es ist jetzt ein Uhr.)', that is a CRITICAL issue — remove the parentheses entirely; keep only the Serbian stem/blank. Do NOT suggest adding German glosses.",
   "  • TRANSLATION / MATCHING PROMPTS: For EN source prompts that are single words or short phrases (e.g. 'Monday', 'today', '_____ = half'), the German question MUST be the German equivalent ('Montag', 'heute', '_____ = Hälfte'). Leaving the English word is CRITICAL. Conversely: a correct single German word/phrase IS a valid complete prompt — do NOT flag it as 'not a question' or demand a full interrogative sentence.",
   "- kind == 'metadata': this is learner-facing UI/INFORMATIONAL text (unit title, description, topic/grammar/vocabulary-theme lists). It is maintained in ENGLISH and translated to German purely for the interface — it is NOT Serbian the learner studies. Compare DE against the ENGLISH text. IGNORE any mismatch against the Serbian field: the Serbian field for a metadata item is either empty or only thematic context, NEVER a translation source. Do NOT emit 'semantic_mismatch' or 'missing_info' for metadata on the grounds that the Serbian side is shorter, is only a vocabulary list, or lacks a descriptive paragraph. Flag metadata ONLY for real EN↔DE issues: wrong translation of the English title/description, omitted or invented topics, lost grammar-focus entries, array-length changes, etc.",
   "",
