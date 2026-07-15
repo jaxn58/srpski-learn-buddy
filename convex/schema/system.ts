@@ -131,6 +131,8 @@ export const systemTables = {
     introDe: v.optional(v.string()),
     bodyDe: v.optional(v.string()),
     isActive: v.boolean(),
+    /** Bumped when isActive goes false→true so dismiss state resets for users. */
+    activationGeneration: v.optional(v.number()),
     audience: v.union(v.literal("all_authenticated"), v.literal("beta_testers_only")),
     createdAt: v.number(),
     updatedAt: v.number(),

@@ -79,6 +79,44 @@ function pickLocalized(
   return en;
 }
 
+function getActivationGeneration(doc: Doc<"dashboardAnnouncements">): number {
+  return doc.activationGeneration ?? 1;
+}
+
+function docMatchesAudience(
+  doc: Doc<"dashboardAnnouncements">,
+  user: Doc<"users">,
+): boolean {
+  if (doc.audience === "beta_testers_only" && !user.isBetaTester) {
+    return false;
+  }
+  return true;
+}
+
+function formatAnnouncementForUser(
+  doc: Doc<"dashboardAnnouncements">,
+  language: "en" | "de",
+) {
+  return {
+    key: doc.key,
+    activationGeneration: getActivationGeneration(doc),
+    title: pickLocalized(language, doc.titleEn, doc.titleDe),
+    intro: pickLocalized(language, doc.introEn, doc.introDe),
+    body: pickLocalized(language, doc.bodyEn, doc.bodyDe),
+  };
+}
+
+const activeAnnouncementReturnValidator = v.union(
+  v.object({
+    key: v.string(),
+    activationGeneration: v.number(),
+    title: v.string(),
+    intro: v.string(),
+    body: v.string(),
+  }),
+  v.null(),
+);
+
 // @ts-ignore TS2589 – Convex schema depth limit (51 tables)
 export const listDashboardAnnouncements = query({
   args: {},
@@ -122,17 +160,51 @@ export const getDashboardAnnouncementForUser = query({
     if (!doc || !doc.isActive) {
       return null;
     }
-    if (doc.audience === "beta_testers_only" && !user.isBetaTester) {
+    if (!docMatchesAudience(doc, user)) {
       return null;
     }
 
-    const lang = args.language;
-    return {
-      key: doc.key,
-      title: pickLocalized(lang, doc.titleEn, doc.titleDe),
-      intro: pickLocalized(lang, doc.introEn, doc.introDe),
-      body: pickLocalized(lang, doc.bodyEn, doc.bodyDe),
-    };
+    return formatAnnouncementForUser(doc, args.language);
+  },
+});
+
+// @ts-ignore TS2589 – Convex schema depth limit (51 tables)
+export const getActiveDashboardAnnouncementForUser = query({
+  args: {
+    language: v.union(v.literal("en"), v.literal("de")),
+  },
+  returns: activeAnnouncementReturnValidator,
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || typeof identity !== "object" || !("subject" in identity)) {
+      return null;
+    }
+    const subject = (identity as { subject: string }).subject;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
+      .first();
+    if (!user) {
+      return null;
+    }
+
+    if (isLearnerAccountSuspended(user)) {
+      return null;
+    }
+
+    const rows = await ctx.db.query("dashboardAnnouncements").collect();
+    const eligible = rows.filter(
+      (doc) => doc.isActive && docMatchesAudience(doc, user),
+    );
+    if (eligible.length === 0) {
+      return null;
+    }
+
+    const doc = eligible.reduce((best, row) =>
+      row.updatedAt > best.updatedAt ? row : best,
+    );
+
+    return formatAnnouncementForUser(doc, args.language);
   },
 });
 
@@ -179,6 +251,7 @@ export const createDashboardAnnouncement = mutation({
       introDe: args.introDe?.trim() || undefined,
       bodyDe: args.bodyDe?.trim() || undefined,
       isActive: args.isActive,
+      activationGeneration: 1,
       audience: args.audience,
       createdAt: now,
       updatedAt: now,
@@ -257,6 +330,9 @@ export const updateDashboardAnnouncement = mutation({
     }
     if (args.isActive !== undefined) {
       updates.isActive = args.isActive;
+      if (args.isActive && !doc.isActive) {
+        updates.activationGeneration = getActivationGeneration(doc) + 1;
+      }
     }
     if (args.audience !== undefined) {
       updates.audience = args.audience;

@@ -18,7 +18,10 @@ import { FeedbackForm } from "@/components/FeedbackForm";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { logger } from "@/lib/logger";
-import { DASHBOARD_BETA_BANNER_KEY } from "@/lib/dashboardAnnouncementKeys";
+import {
+  dashboardAnnouncementDismissKey,
+  legacyDashboardAnnouncementDismissKeys,
+} from "@/lib/dashboardAnnouncementKeys";
 import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
 import { MetricCard } from "@/components/MetricCard";
 import { EmptyState } from "@/components/EmptyState";
@@ -164,44 +167,62 @@ export default function Dashboard() {
   const [showPracticeAnswer, setShowPracticeAnswer] = useState(false);
   const { play, playingAudioId, loadingAudioId } = useVocabularyAudioPlayback();
   
-  // Beta / dashboard announcement banner dismiss state (per user + announcement key)
-  const [showBetaBanner, setShowBetaBanner] = useState(true);
+  // Dashboard announcement banner dismiss state (per user + key + activation generation)
+  const [showAnnouncementBanner, setShowAnnouncementBanner] = useState(true);
   
   // Units filter state
   const [unitFilter, setUnitFilter] = useState<'all' | 'in-progress' | 'completed' | 'locked'>('all');
   const [unitSearchQuery, setUnitSearchQuery] = useState('');
   
   // Banner copy follows the app UI language (language switcher / app-language), not learningLanguage.
-  const dbBetaBanner = useQuery(
-    api.dashboardAnnouncements.getDashboardAnnouncementForUser,
-    user ? { key: DASHBOARD_BETA_BANNER_KEY, language: uiLanguage } : "skip"
+  const activeAnnouncement = useQuery(
+    api.dashboardAnnouncements.getActiveDashboardAnnouncementForUser,
+    user ? { language: uiLanguage } : "skip"
   );
 
-  // Load banner dismiss preference (new key + legacy beta_banner_dismissed_*)
+  // Load banner dismiss preference (per key + activationGeneration; legacy keys for gen 1)
   useEffect(() => {
-    if (!user) return;
-    const modernKey = `dashboard_announcement_dismissed_${user._id}_${DASHBOARD_BETA_BANNER_KEY}`;
-    try {
-      const legacy = localStorage.getItem(`beta_banner_dismissed_${user._id}`);
-      if (legacy === "true") {
-        localStorage.setItem(modernKey, "true");
-      }
-      if (localStorage.getItem(modernKey) === "true") {
-        setShowBetaBanner(false);
-      }
-    } catch {
-      // ignore
+    if (!user || activeAnnouncement === undefined) return;
+    if (activeAnnouncement === null) {
+      setShowAnnouncementBanner(false);
+      return;
     }
-  }, [user]);
 
-  const handleDismissBetaBanner = () => {
-    if (!user) return;
+    const dismissKey = dashboardAnnouncementDismissKey(
+      user._id,
+      activeAnnouncement.key,
+      activeAnnouncement.activationGeneration,
+    );
+
+    try {
+      if (activeAnnouncement.activationGeneration === 1) {
+        for (const legacyKey of legacyDashboardAnnouncementDismissKeys(
+          user._id,
+          activeAnnouncement.key,
+        )) {
+          if (localStorage.getItem(legacyKey) === "true") {
+            localStorage.setItem(dismissKey, "true");
+          }
+        }
+      }
+      setShowAnnouncementBanner(localStorage.getItem(dismissKey) !== "true");
+    } catch {
+      setShowAnnouncementBanner(true);
+    }
+  }, [user, activeAnnouncement]);
+
+  const handleDismissAnnouncementBanner = () => {
+    if (!user || !activeAnnouncement) return;
     try {
       localStorage.setItem(
-        `dashboard_announcement_dismissed_${user._id}_${DASHBOARD_BETA_BANNER_KEY}`,
-        "true"
+        dashboardAnnouncementDismissKey(
+          user._id,
+          activeAnnouncement.key,
+          activeAnnouncement.activationGeneration,
+        ),
+        "true",
       );
-      setShowBetaBanner(false);
+      setShowAnnouncementBanner(false);
     } catch {
       // ignore
     }
@@ -386,8 +407,8 @@ export default function Dashboard() {
       
       <AnimatedPage>
         <div className="pb-24">
-        {/* Beta tester banner: copy from Convex when key dashboard_beta exists; else i18n fallback */}
-        {user.isBetaTester && showBetaBanner && dbBetaBanner !== undefined && (
+        {/* Admin-managed dashboard announcement (active banner from Convex only) */}
+        {showAnnouncementBanner && activeAnnouncement && (
           <div className="mb-4 border border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 rounded-lg p-3 md:p-4">
             <div className="flex items-start gap-2 md:gap-3">
               <div className="bg-yellow-400 rounded-full p-1.5 md:p-2 flex-shrink-0">
@@ -396,48 +417,22 @@ export default function Dashboard() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
                   <h3 className="font-bold text-base md:text-lg text-foreground">
-                    {dbBetaBanner ? dbBetaBanner.title : t("dashboard.betaBanner.title")}
+                    {activeAnnouncement.title}
                   </h3>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="flex-shrink-0"
-                    onClick={handleDismissBetaBanner}
+                    onClick={handleDismissAnnouncementBanner}
                     aria-label={t("dashboard.betaBanner.dismissAria")}
                   >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                {dbBetaBanner ? (
-                  <>
-                    <p className="text-xs md:text-sm text-foreground/80 mb-1 md:mb-2">{dbBetaBanner.intro}</p>
-                    <div className="bg-background/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
-                      <p className="text-xs md:text-sm text-muted-foreground whitespace-pre-wrap">{dbBetaBanner.body}</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-xs md:text-sm text-foreground/80 mb-1 md:mb-2">
-                      <strong>{t("dashboard.betaBanner.thankYou")}</strong> {t("dashboard.betaBanner.intro")}
-                    </p>
-                    <ul className="text-xs md:text-sm text-foreground/80 space-y-0.5 md:space-y-1 mb-1 md:mb-2">
-                      <li className="flex items-start">
-                        <span className="mr-1 md:mr-2">✓</span>
-                        <span>{t("dashboard.betaBanner.benefit1")}</span>
-                      </li>
-                      <li className="flex items-start">
-                        <span className="mr-1 md:mr-2">✓</span>
-                        <span>{t("dashboard.betaBanner.benefit2")}</span>
-                      </li>
-                    </ul>
-                    <div className="bg-background/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
-                      <p className="text-xs text-muted-foreground">
-                        <strong>{t("dashboard.betaBanner.afterLaunch")}</strong>{" "}
-                        {t("dashboard.betaBanner.afterLaunchDesc")}
-                      </p>
-                    </div>
-                  </>
-                )}
+                <p className="text-xs md:text-sm text-foreground/80 mb-1 md:mb-2">{activeAnnouncement.intro}</p>
+                <div className="bg-background/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
+                  <p className="text-xs md:text-sm text-muted-foreground whitespace-pre-wrap">{activeAnnouncement.body}</p>
+                </div>
               </div>
             </div>
           </div>

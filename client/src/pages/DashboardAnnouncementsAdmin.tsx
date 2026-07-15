@@ -21,7 +21,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Plus, Edit, Trash2, Gift, X } from "lucide-react";
+import { Plus, Edit, Trash2, Gift, X, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -250,6 +250,66 @@ export default function DashboardAnnouncementsAdmin() {
     }
   };
 
+  const handleToggleActive = async (doc: Doc<"dashboardAnnouncements">, isActive: boolean) => {
+    try {
+      await updateMutation({
+        announcementId: doc._id,
+        isActive,
+      });
+      toast.success(
+        isActive
+          ? t("admin.dashboardAnnouncements.toast.toggledOnline")
+          : t("admin.dashboardAnnouncements.toast.toggledOffline"),
+      );
+    } catch (e) {
+      console.error(e);
+      toast.error(t("admin.dashboardAnnouncements.toast.toggleFailed"));
+    }
+  };
+
+  const nextCopyKey = (sourceKey: string): string => {
+    const existing = new Set((rows ?? []).map((r) => r.key));
+    const base = `${sourceKey}_copy`;
+    if (!existing.has(base)) return base;
+    let n = 2;
+    while (existing.has(`${base}_${n}`)) n += 1;
+    return `${base}_${n}`;
+  };
+
+  const handleCopy = async (doc: Doc<"dashboardAnnouncements">) => {
+    try {
+      const newKey = nextCopyKey(doc.key);
+      const newId = await createMutation({
+        key: newKey,
+        titleEn: doc.titleEn,
+        introEn: doc.introEn,
+        bodyEn: doc.bodyEn,
+        titleDe: doc.titleDe,
+        introDe: doc.introDe,
+        bodyDe: doc.bodyDe,
+        isActive: false,
+        audience: doc.audience,
+      });
+      toast.success(t("admin.dashboardAnnouncements.toast.copied", { key: newKey }));
+      setEditingId(newId);
+      setForm({
+        key: newKey,
+        titleEn: doc.titleEn,
+        introEn: doc.introEn,
+        bodyEn: doc.bodyEn,
+        titleDe: doc.titleDe ?? "",
+        introDe: doc.introDe ?? "",
+        bodyDe: doc.bodyDe ?? "",
+        isActive: false,
+        audience: doc.audience,
+      });
+      setEditOpen(true);
+    } catch (e) {
+      console.error(e);
+      toast.error(t("admin.dashboardAnnouncements.toast.copyFailed"));
+    }
+  };
+
   const audienceLabel = (a: Audience) =>
     a === "beta_testers_only"
       ? t("admin.dashboardAnnouncements.audience.beta")
@@ -441,6 +501,9 @@ export default function DashboardAnnouncementsAdmin() {
         <div>
           <h1 className="text-3xl font-bold">{t("admin.dashboardAnnouncements.title")}</h1>
           <p className="text-muted-foreground mt-1">{t("admin.dashboardAnnouncements.subtitle")}</p>
+          <p className="text-muted-foreground mt-2 text-sm max-w-2xl">
+            {t("admin.dashboardAnnouncements.workflowHint")}
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           <Button
@@ -481,7 +544,17 @@ export default function DashboardAnnouncementsAdmin() {
                   <TableRow key={doc._id}>
                     <TableCell className="font-mono text-sm">{doc.key}</TableCell>
                     <TableCell>{audienceLabel(doc.audience)}</TableCell>
-                    <TableCell>{doc.isActive ? "Yes" : "No"}</TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={doc.isActive}
+                        onCheckedChange={(checked) => handleToggleActive(doc, checked)}
+                        aria-label={
+                          doc.isActive
+                            ? t("admin.dashboardAnnouncements.table.activeOnline")
+                            : t("admin.dashboardAnnouncements.table.activeOffline")
+                        }
+                      />
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(doc.updatedAt).toLocaleString()}
                     </TableCell>
@@ -489,6 +562,10 @@ export default function DashboardAnnouncementsAdmin() {
                       <Button variant="outline" size="sm" onClick={() => openEdit(doc)}>
                         <Edit className="h-4 w-4 mr-1" />
                         {t("admin.dashboardAnnouncements.edit")}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleCopy(doc)}>
+                        <Copy className="h-4 w-4 mr-1" />
+                        {t("admin.dashboardAnnouncements.copy")}
                       </Button>
                       <Button
                         variant="ghost"
