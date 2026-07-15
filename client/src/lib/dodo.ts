@@ -51,3 +51,9 @@ export async function openDodoCheckout(args: { checkoutUrl: string; mode?: DodoM
   DodoPayments.Checkout.open({ checkoutUrl });
 }
 
+/** True when Convex rejected paid checkout because the beta phase is still active. */
+export function isBetaCheckoutDisabledError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error ?? "");
+  return msg.includes("beta_checkout_disabled");
+}
+

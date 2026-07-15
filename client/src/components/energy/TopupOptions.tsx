@@ -6,7 +6,7 @@ import { Zap } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { openDodoCheckout } from "@/lib/dodo";
+import { openDodoCheckout, isBetaCheckoutDisabledError } from "@/lib/dodo";
 import { useAuth } from "@/_core/hooks/useAuth";
 
 interface TopupOptionsProps {
@@ -49,6 +49,10 @@ export function TopupOptions({ compact = false }: TopupOptionsProps) {
       });
       await openDodoCheckout({ checkoutUrl: result.checkoutUrl });
     } catch (error: any) {
+      if (isBetaCheckoutDisabledError(error)) {
+        toast.info(t("billing.paidPlansAfterBeta"));
+        return;
+      }
       toast.error(error?.message || String(error));
     } finally {
       setBuyingPack(null);

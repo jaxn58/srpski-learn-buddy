@@ -32,7 +32,7 @@ const WaitlistModal = lazy(() =>
 import { AppFooter } from "@/components/AppFooter";
 import { BetaLockedPrice } from "@/components/BetaLockedPrice";
 import { buildLandingModuleCards, computeLandingCounts } from "./home/landingData";
-import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
+import { initDodoPayments, openDodoCheckout, isBetaCheckoutDisabledError } from "@/lib/dodo";
 // During beta phase, we do not offer paid plans/checkout.
 
 export default function Home() {
@@ -440,6 +440,10 @@ export default function Home() {
       });
       await openDodoCheckout({ checkoutUrl: session.checkoutUrl, mode });
     } catch (error: any) {
+      if (isBetaCheckoutDisabledError(error)) {
+        toast.info(t("billing.paidPlansAfterBeta"));
+        return;
+      }
       toast.error(t("billing.purchaseError", { error: error?.message || String(error) }));
     }
   };

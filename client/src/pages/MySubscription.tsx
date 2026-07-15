@@ -15,7 +15,7 @@ import { BetaLockedPrice } from "@/components/BetaLockedPrice";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { initDodoPayments, openDodoCheckout } from "@/lib/dodo";
+import { initDodoPayments, openDodoCheckout, isBetaCheckoutDisabledError } from "@/lib/dodo";
 import { formatDateEU } from "@/lib/utils";
 import { getEnergyStatus } from "@/lib/energyStatus";
 import { Link } from "wouter";
@@ -379,6 +379,10 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
       await openDodoCheckout({ checkoutUrl: result.checkoutUrl });
     } catch (error: any) {
+      if (isBetaCheckoutDisabledError(error)) {
+        toast.info(t("billing.paidPlansAfterBeta"));
+        return;
+      }
       const msg = error?.message || String(error);
       toast.error(t("subscription.upgradeError", { error: msg }));
     }
@@ -431,6 +435,10 @@ export function MySubscriptionContent({ embedded = false }: { embedded?: boolean
 
       await openDodoCheckout({ checkoutUrl: session.checkoutUrl });
     } catch (error: any) {
+      if (isBetaCheckoutDisabledError(error)) {
+        toast.info(t("billing.paidPlansAfterBeta"));
+        return;
+      }
       toast.error(t("subscription.upgradeError", { error: error.message }));
     } finally {
       setIsCalculating(false);

@@ -3,9 +3,26 @@ import { v } from "convex/values";
 import { mutation, query, action, QueryCtx, MutationCtx, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { assertLearnerAccountActive } from "./authz";
+import { assertLearnerAccountActive, isStaffRole } from "./authz";
 import { loadBetaMaxUnits, loadBetaTesterDiscountPercent, DEFAULT_WELCOME_ENERGY_AMOUNT } from "./platform";
 import { applyTopUpToSubscriptionBalances, loadEnergyConfig } from "./energy";
+
+/** Stable error code: paid checkout/top-up blocked while beta phase is active (non-staff). */
+const BETA_CHECKOUT_DISABLED = "beta_checkout_disabled";
+
+/**
+ * Hard-block Dodo checkout during the beta phase for non-staff users.
+ * Staff retain access for QA. UI already locks pricing; this enforces server-side.
+ */
+async function assertPaidCheckoutAllowed(
+  ctx: { runQuery: (query: any, args?: any) => Promise<any> },
+  user: { role?: string },
+): Promise<void> {
+  const betaScope = await ctx.runQuery(api.platform.getPublicBetaScope, {});
+  if (betaScope?.betaPhaseActive === true && !isStaffRole(user.role)) {
+    throw new Error(BETA_CHECKOUT_DISABLED);
+  }
+}
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -942,6 +959,7 @@ export const createDodoCheckoutSession = action({
     const user = await ctx.runQuery(api.users.me);
     if (!user) throw new Error("User not found");
     assertLearnerAccountActive(user);
+    await assertPaidCheckoutAllowed(ctx, user);
 
     // Guardrail: Dodo checkout always creates a new subscription/payment session.
     // Avoid duplicate charges by blocking purchase for already active subscribers.
@@ -1227,6 +1245,7 @@ export const createTopupCheckoutSession = action({
     const user = await ctx.runQuery(api.users.me);
     if (!user) throw new Error("User not found");
     assertLearnerAccountActive(user);
+    await assertPaidCheckoutAllowed(ctx, user);
 
     const pack = TOPUP_PACKS[args.pack];
     const productId = getDodoTopupProductId(args.pack);
