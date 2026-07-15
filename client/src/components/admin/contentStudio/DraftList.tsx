@@ -21,13 +21,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { Search, Trash2 } from "lucide-react";
+import { FilePlus2, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
 export interface DraftListProps {
   drafts: any[] | undefined;
   filteredDrafts: any[];
   selectedDraftId: string | null;
   onSelectDraft: (id: any) => void;
+  /** Clears selection and opens the New Draft form. */
+  onNewDraft: () => void;
   draftsSearch: string;
   setDraftsSearch: (v: string) => void;
   draftsStatusFilter: string;
@@ -40,6 +42,7 @@ export function DraftList({
   filteredDrafts,
   selectedDraftId,
   onSelectDraft,
+  onNewDraft,
   draftsSearch,
   setDraftsSearch,
   draftsStatusFilter,
@@ -48,6 +51,7 @@ export function DraftList({
 }: DraftListProps) {
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const isCreateMode = selectedDraftId === null;
 
   const handleConfirmDelete = async () => {
     if (!draftToDelete) return;
@@ -68,6 +72,24 @@ export function DraftList({
             <CardTitle>Drafts</CardTitle>
             <Badge variant="secondary">{drafts?.length ?? 0}</Badge>
           </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onNewDraft}
+            aria-pressed={isCreateMode}
+            className={cn(
+              "h-9 w-full justify-start gap-2 border-dashed font-medium",
+              isCreateMode
+                ? "border-primary/50 bg-primary/8 text-foreground ring-1 ring-primary/20 hover:bg-primary/10"
+                : "text-muted-foreground hover:border-border hover:bg-muted/60 hover:text-foreground"
+            )}
+          >
+            <FilePlus2 className={cn("h-3.5 w-3.5 shrink-0", isCreateMode ? "text-primary" : "")} />
+            New Draft
+          </Button>
+
           <div className="grid gap-2">
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />

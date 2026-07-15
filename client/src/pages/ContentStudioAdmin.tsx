@@ -826,6 +826,13 @@ export default function ContentStudioAdmin() {
     void snap;
   };
 
+  const handleNewDraft = () => {
+    setPendingDraftCreate(null);
+    setSelectedDraftId(null);
+    setStudioView("draftManager");
+    setMobileSidebarOpen(false);
+  };
+
   const handleCreateDraft = async (params: {
     unitNumber: number;
     moduleNumber: number;
@@ -2209,6 +2216,7 @@ export default function ContentStudioAdmin() {
             filteredDrafts={filteredDrafts}
             selectedDraftId={selectedDraftId}
             onSelectDraft={(id) => { handleSelectDraft(id); setMobileSidebarOpen(false); }}
+            onNewDraft={handleNewDraft}
             draftsSearch={draftsSearch}
             setDraftsSearch={setDraftsSearch}
             draftsStatusFilter={draftsStatusFilter}
@@ -2300,6 +2308,7 @@ export default function ContentStudioAdmin() {
             filteredDrafts={filteredDrafts}
             selectedDraftId={selectedDraftId}
             onSelectDraft={(id) => { handleSelectDraft(id); setMobileSidebarOpen(false); }}
+            onNewDraft={handleNewDraft}
             draftsSearch={draftsSearch}
             setDraftsSearch={setDraftsSearch}
             draftsStatusFilter={draftsStatusFilter}
