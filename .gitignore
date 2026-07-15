@@ -120,6 +120,8 @@ temp/
 # Local debug dumps (e.g. Content Studio cross-unit duplicate dumps)
 _dump.json
 _dump*.json
+logs_prod_history.jsonl
+logs_*.jsonl
 .env*.local
 
 # Avast SSL certificate (local machine-specific, set via NODE_EXTRA_CA_CERTS)
