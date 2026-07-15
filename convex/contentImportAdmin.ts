@@ -224,28 +224,52 @@ export const previewReplaceUnit = query({
     const user = await getSuperadminUser(ctx);
     if (!user) throw new Error("Unauthorized - Superadmin required");
 
+    // Publish-Timeout-Fix (Baustein E): use the active-only compound indexes
+    // so we never scan the archived history. Previously this ran
+    // `by_unit_lang`/`by_unit` + collect(), which pulled every archived row
+    // ever written for the unit and got heavier every publish cycle.
+    //
+    // unitContent has no plain `by_unit_lang_active` — we iterate the six
+    // canonical content types (bounded) instead.
+    const UNIT_CONTENT_TYPES = [
+      "overview",
+      "vocabulary",
+      "grammar",
+      "phrases",
+      "dialogues",
+      "testIntroduction",
+    ] as const;
+
     let maxVersion = 1;
     let activeContent = 0;
     let activeTests = 0;
     let activeVocab = 0;
 
     for (const lang of args.languages) {
-      const contents = await ctx.db
-        .query("unitContent")
-        .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", lang))
-        .collect();
-      for (const c of contents as any[]) {
-        if (c.isActive === false) continue;
-        activeContent += 1;
-        maxVersion = Math.max(maxVersion, c.unitVersion ?? c.version ?? 1);
+      for (const contentType of UNIT_CONTENT_TYPES) {
+        const contents = await ctx.db
+          .query("unitContent")
+          .withIndex("by_unit_lang_type_active", (q) =>
+            q
+              .eq("unitNumber", args.unitNumber)
+              .eq("language", lang)
+              .eq("contentType", contentType)
+              .eq("isActive", true),
+          )
+          .collect();
+        for (const c of contents as any[]) {
+          activeContent += 1;
+          maxVersion = Math.max(maxVersion, c.unitVersion ?? c.version ?? 1);
+        }
       }
 
       const tests = await ctx.db
         .query("unitInteractiveTests")
-        .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber).eq("language", lang))
+        .withIndex("by_unit_lang_active", (q) =>
+          q.eq("unitNumber", args.unitNumber).eq("language", lang).eq("isActive", true),
+        )
         .collect();
       for (const t of tests as any[]) {
-        if (t.isActive === false) continue;
         activeTests += 1;
         maxVersion = Math.max(maxVersion, t.unitVersion ?? 1);
       }
@@ -253,10 +277,11 @@ export const previewReplaceUnit = query({
 
     const vocab = await ctx.db
       .query("courseVocabulary")
-      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .withIndex("by_unit_active", (q) =>
+        q.eq("unitNumber", args.unitNumber).eq("isActive", true),
+      )
       .collect();
     for (const vdoc of vocab as any[]) {
-      if (vdoc.isActive === false) continue;
       activeVocab += 1;
       maxVersion = Math.max(maxVersion, vdoc.unitVersion ?? 1);
     }

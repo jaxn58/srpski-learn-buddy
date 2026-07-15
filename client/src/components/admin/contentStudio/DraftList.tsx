@@ -27,8 +27,10 @@ export interface DraftListProps {
   drafts: any[] | undefined;
   filteredDrafts: any[];
   selectedDraftId: string | null;
+  /** True while the New Draft form is open in the workspace. */
+  isCreateMode: boolean;
   onSelectDraft: (id: any) => void;
-  /** Clears selection and opens the New Draft form. */
+  /** Opens the New Draft form (clears selection). */
   onNewDraft: () => void;
   draftsSearch: string;
   setDraftsSearch: (v: string) => void;
@@ -41,6 +43,7 @@ export function DraftList({
   drafts,
   filteredDrafts,
   selectedDraftId,
+  isCreateMode,
   onSelectDraft,
   onNewDraft,
   draftsSearch,
@@ -51,7 +54,6 @@ export function DraftList({
 }: DraftListProps) {
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const isCreateMode = selectedDraftId === null;
 
   const handleConfirmDelete = async () => {
     if (!draftToDelete) return;
@@ -75,18 +77,13 @@ export function DraftList({
 
           <Button
             type="button"
-            variant="outline"
+            variant={isCreateMode ? "default" : "secondary"}
             size="sm"
-            onClick={onNewDraft}
+            onClick={() => onNewDraft()}
             aria-pressed={isCreateMode}
-            className={cn(
-              "h-9 w-full justify-start gap-2 border-dashed font-medium",
-              isCreateMode
-                ? "border-primary/50 bg-primary/8 text-foreground ring-1 ring-primary/20 hover:bg-primary/10"
-                : "text-muted-foreground hover:border-border hover:bg-muted/60 hover:text-foreground"
-            )}
+            className="h-9 w-full justify-start gap-2 font-medium"
           >
-            <FilePlus2 className={cn("h-3.5 w-3.5 shrink-0", isCreateMode ? "text-primary" : "")} />
+            <FilePlus2 className="h-3.5 w-3.5 shrink-0" />
             New Draft
           </Button>
 
@@ -125,7 +122,7 @@ export function DraftList({
                 <div className="text-sm text-muted-foreground">No drafts found.</div>
               ) : (
                 filteredDrafts.map((d: any) => {
-                  const isSelected = selectedDraftId === d._id;
+                  const isSelected = !isCreateMode && selectedDraftId === d._id;
                   const status = String(d.status || "draft");
                   const statusDot =
                     status === "published" || status === "ready_to_publish" || status === "qc_passed"

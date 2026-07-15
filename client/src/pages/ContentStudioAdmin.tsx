@@ -201,6 +201,9 @@ export default function ContentStudioAdmin() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("ai");
   // Pre-fill state for DraftEditPanel create form (triggered e.g. via "Use Template" in Settings)
   const [pendingDraftCreate, setPendingDraftCreate] = useState<{ templateId?: string; creatorBrief?: string } | null>(null);
+  /** Explicit workspace mode: create form vs editing a selected draft. */
+  const [isDraftCreateMode, setIsDraftCreateMode] = useState(false);
+  const [draftCreateNonce, setDraftCreateNonce] = useState(0);
 
   // Draft list navigation (left pane)
   const [draftsSearch, setDraftsSearch] = useState("");
@@ -820,6 +823,7 @@ export default function ContentStudioAdmin() {
   }
 
   const handleSelectDraft = (id: Id<"contentDrafts">) => {
+    setIsDraftCreateMode(false);
     setSelectedDraftId(id);
     // hydrate editor with latest snapshot
     const snap = drafts?.find((d: any) => d._id === id);
@@ -828,7 +832,9 @@ export default function ContentStudioAdmin() {
 
   const handleNewDraft = () => {
     setPendingDraftCreate(null);
+    setIsDraftCreateMode(true);
     setSelectedDraftId(null);
+    setDraftCreateNonce((n) => n + 1);
     setStudioView("draftManager");
     setMobileSidebarOpen(false);
   };
@@ -859,45 +865,41 @@ export default function ContentStudioAdmin() {
       ? (draftTemplates || []).find((t: any) => String(t?._id) === String(tplId)) || null
       : null;
 
+    const trimmedTitle = title.trim() || `Unit ${unitNumber}`;
+    const trimmedBrief = (creatorBrief || "").trim();
+    const trimmedRefNotes = (refNotes || "").trim();
+    const trimmedChapter = (refChapter || "").trim();
+    const trimmedPages = (refPages || "").trim();
+
+    // Compose inspirationRef once (single source of truth for meta write)
+    const composedRef = refId
+      ? {
+          source: "reference-library" as const,
+          referenceId: refId as any,
+          chapter: trimmedChapter || undefined,
+          pages: trimmedPages || undefined,
+          notes: (trimmedRefNotes || trimmedBrief) || undefined,
+        }
+      : trimmedBrief
+        ? { source: "creator-brief" as const, notes: trimmedBrief }
+        : template?.inspirationRef
+          ? { ...template.inspirationRef, source: "template" as const }
+          : undefined;
+
     const id = template
       ? await createDraftFromTemplate({
           templateId: template._id,
           unitNumber,
           moduleNumber,
-          title,
+          title: trimmedTitle,
           description,
-          inspirationRef: template.inspirationRef
-            ? {
-                ...template.inspirationRef,
-                source: "template",
-                notes: creatorBrief || template.inspirationRef?.notes || undefined,
-              }
-            : creatorBrief
-              ? { source: "template", notes: creatorBrief }
-              : undefined,
+          inspirationRef: composedRef as any,
         } as any)
-      : await createDraft({ unitNumber, moduleNumber, title, description });
+      : await createDraft({ unitNumber, moduleNumber, title: trimmedTitle, description });
 
-    // Persist creator brief (non-template path)
-    if (!template && creatorBrief) {
-      await updateDraftMeta({
-        draftId: id,
-        inspirationRef: { source: "creator-brief", notes: creatorBrief },
-      });
-    }
-
-    // Persist reference if selected (takes precedence over template for non-template path)
-    if (!template && refId) {
-      await updateDraftMeta({
-        draftId: id,
-        inspirationRef: {
-          source: "reference-library",
-          referenceId: refId as any,
-          chapter: refChapter || undefined,
-          pages: refPages || undefined,
-          notes: refNotes || undefined,
-        },
-      });
+    // Persist meta (non-template path)
+    if (!template && composedRef) {
+      await updateDraftMeta({ draftId: id, inspirationRef: composedRef });
     }
 
     // Persist skills
@@ -908,6 +910,20 @@ export default function ContentStudioAdmin() {
       await setDraftAuditorSkills({ draftId: id, skillIds: newAuditorIds as any });
     }
 
+    // Seed parent edit state BEFORE leaving create mode so the EditForm shows
+    // exactly what the user entered while the getDraft query re-fetches.
+    setDraftEditTitle(trimmedTitle);
+    setDraftEditDescription(typeof description === "string" ? description : "");
+    setDraftRefId(refId || "");
+    setDraftRefChapter(trimmedChapter);
+    setDraftRefPages(trimmedPages);
+    setDraftRefNotes(trimmedRefNotes || trimmedBrief);
+    setDraftSpecialistSkillIds(newSpecialistIds ? newSpecialistIds.map(String) : []);
+    setDraftAuditorSkillIds(newAuditorIds ? newAuditorIds.map(String) : []);
+    setDraftAuthorNoteName("Jacksenn");
+    setDraftAuthorNoteQuote("");
+
+    setIsDraftCreateMode(false);
     setSelectedDraftId(id);
     toast.success(t("admin.contentStudio.toast.draftCreated"));
   };
@@ -1065,7 +1081,9 @@ export default function ContentStudioAdmin() {
   const handleUseTemplate = (tpl: any) => {
     const brief = String(tpl?.inspirationRef?.notes || "").trim();
     setPendingDraftCreate({ templateId: String(tpl?._id || ""), creatorBrief: brief || undefined });
+    setIsDraftCreateMode(true);
     setSelectedDraftId(null);
+    setDraftCreateNonce((n) => n + 1);
     setStudioView("draftManager");
     setSettingsOpen(false);
   };
@@ -1396,6 +1414,7 @@ export default function ContentStudioAdmin() {
     setShowDeleteDraftDialog(false);
     try {
       await deleteDraft({ draftId: selectedDraftId });
+      setIsDraftCreateMode(false);
       setSelectedDraftId(null);
       toast.success(t("admin.contentStudio.toast.draftDeleted"));
     } catch (e: any) {
@@ -1450,9 +1469,6 @@ export default function ContentStudioAdmin() {
     setRunningPublish(true);
 
     const unitNumber = Number((selected as any)?.draft?.unitNumber);
-    const previewWin = Number.isFinite(unitNumber) && unitNumber > 0
-      ? window.open("about:blank", "_blank")
-      : null;
 
     try {
       const md = markdownText.trim();
@@ -1468,7 +1484,6 @@ export default function ContentStudioAdmin() {
       const valRes = await runValidate({ draftId: selectedDraftId });
       setRunningValidator(false);
       if (!valRes.ok) {
-        if (previewWin && !previewWin.closed) previewWin.close();
         toast.error("Validation failed — fix the errors in the findings before publishing.");
         return;
       }
@@ -1484,12 +1499,11 @@ export default function ContentStudioAdmin() {
       await setDraftStatus({ draftId: selectedDraftId as any, status: "ready_to_publish" });
       toast.success(t("admin.contentStudio.toast.previewLive"));
 
-      // Step 5: Navigate pre-opened window to unit page
-      if (previewWin && !previewWin.closed) {
-        previewWin.location.href = `/unit/${unitNumber}`;
+      // Step 5: Open unit page only after successful publish (no blank tab during the run)
+      if (Number.isFinite(unitNumber) && unitNumber > 0) {
+        window.open(`/unit/${unitNumber}`, "_blank");
       }
     } catch (e: any) {
-      if (previewWin && !previewWin.closed) previewWin.close();
       toast.error(e?.message || "Save & Preview failed.");
     } finally {
       setRunningPublish(false);
@@ -1996,9 +2010,6 @@ export default function ContentStudioAdmin() {
     setRunningPublish(true);
 
     const unitNumber = Number((selected as any)?.draft?.unitNumber);
-    const previewWin = Number.isFinite(unitNumber) && unitNumber > 0
-      ? window.open("about:blank", "_blank")
-      : null;
 
     try {
       toast.info(t("admin.contentStudio.toast.publishingToPreview"));
@@ -2010,11 +2021,11 @@ export default function ContentStudioAdmin() {
       await setDraftStatus({ draftId: selectedDraftId as any, status: "ready_to_publish" });
 
       toast.success(t("admin.contentStudio.toast.previewLive"));
-      if (previewWin && !previewWin.closed) {
-        previewWin.location.href = `/unit/${unitNumber}`;
+      // Open unit page only after success — progress stays visible in the Inspector banner
+      if (Number.isFinite(unitNumber) && unitNumber > 0) {
+        window.open(`/unit/${unitNumber}`, "_blank");
       }
     } catch (e: any) {
-      if (previewWin && !previewWin.closed) previewWin.close();
       toast.error(e?.message || t("admin.contentStudio.toast.previewPublishFailed"));
     } finally {
       setRunningPublish(false);
@@ -2215,6 +2226,7 @@ export default function ContentStudioAdmin() {
             drafts={drafts}
             filteredDrafts={filteredDrafts}
             selectedDraftId={selectedDraftId}
+            isCreateMode={isDraftCreateMode}
             onSelectDraft={(id) => { handleSelectDraft(id); setMobileSidebarOpen(false); }}
             onNewDraft={handleNewDraft}
             draftsSearch={draftsSearch}
@@ -2223,7 +2235,7 @@ export default function ContentStudioAdmin() {
             setDraftsStatusFilter={setDraftsStatusFilter}
             onDeleteDraft={async (draftId) => {
               await deleteDraft({ draftId: draftId as any });
-              if (selectedDraftId === draftId) setSelectedDraftId(null);
+              if (selectedDraftId === draftId) { setIsDraftCreateMode(false); setSelectedDraftId(null); }
               toast.success(t("admin.contentStudio.toast.draftDeleted"));
             }}
           />
@@ -2232,6 +2244,8 @@ export default function ContentStudioAdmin() {
         const editPanelContent = (
           <DraftEditPanel
             selectedDraftId={selectedDraftId ? String(selectedDraftId) : null}
+            isCreateMode={isDraftCreateMode}
+            createFormKey={draftCreateNonce}
             onOpenInGenerator={() => setStudioView("drafts")}
             draftTemplates={draftTemplates}
             initialCreate={pendingDraftCreate ?? undefined}
@@ -2307,6 +2321,7 @@ export default function ContentStudioAdmin() {
             drafts={drafts}
             filteredDrafts={filteredDrafts}
             selectedDraftId={selectedDraftId}
+            isCreateMode={isDraftCreateMode}
             onSelectDraft={(id) => { handleSelectDraft(id); setMobileSidebarOpen(false); }}
             onNewDraft={handleNewDraft}
             draftsSearch={draftsSearch}
@@ -2315,7 +2330,7 @@ export default function ContentStudioAdmin() {
             setDraftsStatusFilter={setDraftsStatusFilter}
             onDeleteDraft={async (draftId) => {
               await deleteDraft({ draftId: draftId as any });
-              if (selectedDraftId === draftId) setSelectedDraftId(null);
+              if (selectedDraftId === draftId) { setIsDraftCreateMode(false); setSelectedDraftId(null); }
               toast.success(t("admin.contentStudio.toast.draftDeleted"));
             }}
           />

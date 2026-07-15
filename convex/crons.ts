@@ -34,4 +34,28 @@ crons.hourly(
   internal.energyAdmin.processMonthlyEnergyResets
 );
 
+/**
+ * Content Studio: weekly cleanup of archived preview rows.
+ *
+ * Deletes rows in `courseVocabulary`, `unitContent`, and
+ * `unitInteractiveTests` that meet ALL of:
+ *   - isActive === false
+ *   - releaseStatus !== "published"
+ *   - archivedAt is older than 30 days
+ *
+ * Published rows are NEVER touched. Retention window and batch behaviour
+ * are configured in `convex/contentStudio/_cleanup.ts`. Sunday 03:00 UTC
+ * is chosen because it is a low-traffic slot for learners.
+ *
+ * Motivation: the publish-preview pipeline archives rows by patching
+ * `isActive: false`. Over time these accumulate and push the publish
+ * mutation over the Convex system-op ceiling. See
+ * `docs/CONTENT_STUDIO_PUBLISH_TIMEOUT_FIX.md`.
+ */
+crons.weekly(
+  "weekly-content-studio-archived-cleanup",
+  { dayOfWeek: "sunday", hourUTC: 3, minuteUTC: 0 },
+  internal.contentStudio._cleanup.internalCleanupArchivedContent,
+);
+
 export default crons;

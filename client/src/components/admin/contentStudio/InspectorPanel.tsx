@@ -35,6 +35,10 @@ import { Loader2, CheckCircle, XCircle, Sparkles, Upload, RotateCcw, X } from "l
 import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
 import { DraftStatusBadge } from "./StatusBadge";
+import {
+  PublishStatusBanner,
+  type PublishStateShape,
+} from "./PublishStatusBanner";
 
 export type InspectorStep = "generate" | "review" | "publish";
 
@@ -95,7 +99,8 @@ export interface InspectorPanelProps {
 }
 
 export function InspectorPanel(props: InspectorPanelProps) {
-  const { activeStep, selected } = props;
+  const { activeStep, selected, selectedDraftId } = props;
+  const publishState = selected?.draft?.publishState as PublishStateShape | undefined;
 
   return (
     <div className="flex flex-col h-full">
@@ -105,6 +110,9 @@ export function InspectorPanel(props: InspectorPanelProps) {
         </span>
         <DraftStatusBadge status={selected?.draft?.status} />
       </div>
+      {publishState && selectedDraftId && (
+        <PublishStatusBanner draftId={selectedDraftId} publishState={publishState} />
+      )}
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-4">
           {activeStep === "generate" && <GenerateContent {...props} />}

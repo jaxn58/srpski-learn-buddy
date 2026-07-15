@@ -956,8 +956,15 @@ export async function findEarlierUnitVocabulary(
   unitNumber: number,
 ): Promise<Doc<"courseVocabulary"> | null> {
   if (!serbianNormalized) return null;
+  return await findEarlierUnitVocabularyInternal(ctx, serbianNormalized, unitNumber);
+}
 
-  const key = toVocabularyKey(serbianNormalized);
+async function findEarlierUnitVocabularyInternal(
+  ctx: QueryCtx | MutationCtx,
+  rawKey: string,
+  unitNumber: number,
+): Promise<Doc<"courseVocabulary"> | null> {
+  const key = toVocabularyKey(rawKey);
 
   const considerHit = (
     current: Doc<"courseVocabulary"> | null,
@@ -1007,6 +1014,57 @@ export async function findEarlierUnitVocabulary(
 
   return earliest;
 }
+
+/**
+ * Batched cross-unit-duplicate lookup for a whole list of serbian keys.
+ *
+ * Publish-Timeout-Fix: `internalPublishUnitPackageToPreview` used to call
+ * `findEarlierUnitVocabulary` inside a mutation loop, causing up to 6 index
+ * reads per vocab item on top of every insert — pushing large units past the
+ * Convex system-op limit. This query moves the whole lookup out of the
+ * mutation into a single query (higher read budget, no index-write side
+ * effects) and returns a compact hit list the mutation can consume via a
+ * simple Map.
+ *
+ * Same semantics as `findEarlierUnitVocabulary` (primary index +
+ * legacy case/NFD fallback on `by_serbian`).
+ */
+export const getVocabularyCrossUnitDuplicates = query({
+  args: {
+    serbianKeys: v.array(v.string()),
+    excludeUnitNumber: v.number(),
+  },
+  returns: v.array(
+    v.object({
+      serbianKey: v.string(),
+      foundInUnit: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    if (!Number.isFinite(args.excludeUnitNumber)) return [];
+    const uniqueRawKeys = Array.from(
+      new Set(
+        (args.serbianKeys ?? [])
+          .filter((k): k is string => typeof k === "string" && k.length > 0),
+      ),
+    );
+    const hits: Array<{ serbianKey: string; foundInUnit: number }> = [];
+    for (const rawKey of uniqueRawKeys) {
+      const earlier = await findEarlierUnitVocabularyInternal(
+        ctx,
+        rawKey,
+        args.excludeUnitNumber,
+      );
+      if (earlier) {
+        hits.push({
+          serbianKey: toVocabularyKey(rawKey),
+          foundInUnit: earlier.unitNumber,
+        });
+      }
+    }
+    return hits;
+  },
+});
 
 /**
  * @deprecated Superseded by the auth-gated, merge-aware, confirm-protected

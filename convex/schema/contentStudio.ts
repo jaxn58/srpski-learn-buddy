@@ -191,6 +191,34 @@ export const contentStudioTables = {
     // Public unit author note (optional; intended to be inserted into Markdown)
     authorNoteName: v.optional(v.string()),
     authorNoteQuote: v.optional(v.string()),
+
+    // Publish-Timeout-Fix: explicit state of the last publish-to-preview run so
+    // admins can see progress and failures in the Content Studio UI without
+    // digging through logs. Written by the split publish mutations
+    // (internalPublishUnit*) via internalUpdateDraftPublishState.
+    // Optional/backwards compatible: absent on drafts that never ran publish.
+    publishState: v.optional(
+      v.object({
+        status: v.union(
+          v.literal("running"),
+          v.literal("success"),
+          v.literal("failed"),
+        ),
+        stage: v.union(
+          v.literal("metadata"),
+          v.literal("content"),
+          v.literal("vocabulary"),
+          v.literal("tests"),
+          v.literal("complete"),
+        ),
+        batchIndex: v.optional(v.number()),
+        totalBatches: v.optional(v.number()),
+        startedAt: v.number(),
+        updatedAt: v.number(),
+        completedAt: v.optional(v.number()),
+        error: v.optional(v.string()),
+      }),
+    ),
   })
     .index("by_unit", ["unitNumber"])
     .index("by_status", ["status"])

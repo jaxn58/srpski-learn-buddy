@@ -35,6 +35,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  PublishStatusBanner,
+  type PublishStateShape,
+} from "@/components/admin/contentStudio/PublishStatusBanner";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -162,6 +166,12 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
 
   const [unitOfflineConfirm, setUnitOfflineConfirm] = useState("");
   const [unitDeleteConfirm, setUnitDeleteConfirm] = useState("");
+
+  // Latest push-to-preview status for the expanded unit (from contentDrafts.publishState)
+  const unitPublishInfo = useQuery(
+    api.contentStudio.getLatestPublishStateForUnit,
+    selectedUnit != null ? { unitNumber: selectedUnit } : "skip",
+  );
 
   // Translation workflow state
   const [translateOpen, setTranslateOpen] = useState(false);
@@ -786,6 +796,14 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                           onOpenDiff={() => setDiffOpen(true)}
                           onOpenTranslate={(source) => { setTranslateSource(source); setTranslateConfirm(""); setTranslateOpen(true); }}
                           recentTranslationInfo={recentTranslationInfo(selectedOverview.unitNumber)}
+                          publishInfo={
+                            unitPublishInfo
+                              ? {
+                                  draftId: String(unitPublishInfo.draftId),
+                                  publishState: unitPublishInfo.publishState as PublishStateShape,
+                                }
+                              : null
+                          }
                         />
                       </td>
                     </tr>
@@ -1194,6 +1212,7 @@ interface InlineDetailCardProps {
   onOpenDiff: () => void;
   onOpenTranslate: (source: "published" | "preview") => void;
   recentTranslationInfo: string | null;
+  publishInfo: { draftId: string; publishState: PublishStateShape } | null;
 }
 
 function InlineDetailCard({
@@ -1222,6 +1241,7 @@ function InlineDetailCard({
   onOpenDiff,
   onOpenTranslate,
   recentTranslationInfo,
+  publishInfo,
 }: InlineDetailCardProps) {
 
   return (
@@ -1268,6 +1288,16 @@ function InlineDetailCard({
           </div>
         </div>
       </CardHeader>
+
+      {publishInfo && (
+        <div className="mx-6 mb-3">
+          <PublishStatusBanner
+            draftId={publishInfo.draftId}
+            publishState={publishInfo.publishState}
+            className="rounded-md border border-b"
+          />
+        </div>
+      )}
 
       {selectedOverview.deTranslationStale && (
         <div className="mx-6 mb-2 flex items-center justify-between gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">

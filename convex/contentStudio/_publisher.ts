@@ -25,6 +25,15 @@ import {
   type VocabTranslationResult,
 } from "./_translationCore";
 
+// Publish-Timeout-Fix: split publish chain, orchestrated here.
+// The old monolith `internalPublishUnitPackageToPreview` remained as a
+// deprecated rollback safety net — do not call it from the action.
+// See `docs/CONTENT_STUDIO_PUBLISH_TIMEOUT_FIX.md`.
+const PUBLISH_VOCAB_BATCH_SIZE = 100;
+const PUBLISH_TESTS_BATCH_SIZE = 100;
+
+type PublishStage = "metadata" | "content" | "vocabulary" | "tests" | "complete";
+
 // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
 export const publishDraftToPreview = action({
   args: {
@@ -45,23 +54,216 @@ export const publishDraftToPreview = action({
     }
 
     const { fixed } = autofixUnitPackage(base.data);
+    const unitPackage: any = fixed as any;
+    const unitNumber = Number(unitPackage?.unitNumber);
+    const languages: string[] = Array.isArray(unitPackage?.languages) && unitPackage.languages.length > 0
+      ? unitPackage.languages
+      : ["en"];
+    const startedAt = Date.now();
 
-    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-    const ver = await ctx.runQuery(api.contentImportAdmin.previewReplaceUnit, {
-      unitNumber: fixed.unitNumber,
-      languages: fixed.languages,
-    });
-    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-    const targetUnitVersion = Number((ver as any)?.nextUnitVersion ?? 2);
+    // Track current stage so the catch handler can report where it failed.
+    let currentStage: PublishStage = "metadata";
+    let currentBatchIndex: number | undefined = undefined;
+    let currentTotalBatches: number | undefined = undefined;
 
-    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-    const result = await ctx.runMutation(api.contentStudio.internalPublishUnitPackageToPreview, {
-      unitPackage: fixed as any,
-      unitVersion: targetUnitVersion,
-      moduleId: args.moduleId,
-    });
+    const updateState = async (patch: {
+      status?: "running" | "success" | "failed";
+      stage?: PublishStage;
+      batchIndex?: number;
+      totalBatches?: number;
+      completedAt?: number;
+      error?: string;
+      reset?: boolean;
+    }) => {
+      if (patch.stage) currentStage = patch.stage;
+      if (patch.batchIndex !== undefined) currentBatchIndex = patch.batchIndex;
+      if (patch.totalBatches !== undefined) currentTotalBatches = patch.totalBatches;
+      // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+      await ctx.runMutation(api.contentStudio.internalUpdateDraftPublishState, {
+        draftId: args.draftId,
+        ...patch,
+        startedAt: patch.reset ? startedAt : undefined,
+      });
+    };
 
-    return { ok: true, ...result };
+    // Initialize state so the UI banner shows the run immediately.
+    await updateState({ reset: true, status: "running", stage: "metadata" });
+
+    try {
+      // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+      const ver = await ctx.runQuery(api.contentImportAdmin.previewReplaceUnit, {
+        unitNumber,
+        languages,
+      });
+      // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+      const targetUnitVersion = Number((ver as any)?.nextUnitVersion ?? 2);
+
+      // ── Stage 1: metadata ─────────────────────────────────────────────────
+      await updateState({ stage: "metadata", batchIndex: undefined, totalBatches: undefined });
+      // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+      await ctx.runMutation(api.contentStudio.internalPublishUnitMetadata, {
+        unitPackage,
+        moduleId: args.moduleId,
+      });
+
+      // ── Stage 2: content — one mutation per language ──────────────────────
+      await updateState({ stage: "content", batchIndex: 0, totalBatches: languages.length });
+      for (let i = 0; i < languages.length; i++) {
+        await updateState({ batchIndex: i, totalBatches: languages.length });
+        // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+        await ctx.runMutation(api.contentStudio.internalPublishUnitContent, {
+          unitPackage,
+          unitVersion: targetUnitVersion,
+          language: languages[i],
+        });
+      }
+
+      // ── Stage 3: vocabulary — archive + cross-unit dedup + batched inserts ──
+      const vocabItems: any[] = Array.isArray(unitPackage?.vocabulary?.en) ? unitPackage.vocabulary.en : [];
+      const totalVocabBatches = vocabItems.length > 0
+        ? Math.max(1, Math.ceil(vocabItems.length / PUBLISH_VOCAB_BATCH_SIZE))
+        : 0;
+      await updateState({ stage: "vocabulary", batchIndex: 0, totalBatches: totalVocabBatches });
+
+      // 3a) Archive active preview vocab rows once and capture DE preservation map.
+      // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+      const archiveVocab = await ctx.runMutation(api.contentStudio.internalArchivePreviewVocabulary, {
+        unitNumber,
+      });
+      const preservedDe = ((archiveVocab as any)?.preservedDe ?? []) as Array<{
+        serbianKey: string;
+        de?: string;
+        noteDe?: string;
+      }>;
+
+      // 3b) Cross-unit dedup lookup — batched query, no mutation-side ops.
+      const serbianKeys = vocabItems
+        .map((v: any) => (typeof v?.serbian === "string" ? v.serbian : ""))
+        .filter((s: string) => s.length > 0);
+      let dedupHits: Array<{ serbianKey: string; foundInUnit: number }> = [];
+      if (serbianKeys.length > 0) {
+        // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+        dedupHits = (await ctx.runQuery(api.vocabulary.getVocabularyCrossUnitDuplicates, {
+          serbianKeys,
+          excludeUnitNumber: unitNumber,
+        })) as Array<{ serbianKey: string; foundInUnit: number }>;
+      }
+
+      // 3c) Batched inserts.
+      let vocabInserted = 0;
+      let vocabSkipped = 0;
+      const vocabSkippedDuplicates: string[] = [];
+      for (let start = 0, batchIndex = 0; start < vocabItems.length; start += PUBLISH_VOCAB_BATCH_SIZE, batchIndex++) {
+        await updateState({ batchIndex, totalBatches: totalVocabBatches });
+        const batch = vocabItems.slice(start, start + PUBLISH_VOCAB_BATCH_SIZE);
+        // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+        const res = (await ctx.runMutation(api.contentStudio.internalPublishUnitVocabulary, {
+          unitNumber,
+          unitVersion: targetUnitVersion,
+          batch,
+          preservedDe,
+          dedupHits,
+        })) as { insertedCount: number; skippedCount: number; skippedDuplicates: string[] };
+        vocabInserted += res.insertedCount;
+        vocabSkipped += res.skippedCount;
+        vocabSkippedDuplicates.push(...res.skippedDuplicates);
+      }
+
+      if (vocabSkippedDuplicates.length > 0) {
+        console.warn(
+          `[PublishPreview] Skipped ${vocabSkippedDuplicates.length} cross-unit duplicate(s) for Unit ${unitNumber}: ` +
+            vocabSkippedDuplicates.join(", "),
+        );
+      }
+
+      // ── Stage 4: interactive tests — archive + batched inserts ────────────
+      // English only for now (matches original monolith behaviour).
+      const testsLanguage = "en";
+      const exercisesEn: any[] = Array.isArray(unitPackage?.exercises?.en) ? unitPackage.exercises.en : [];
+      const flatTests: Array<{ category: string; categoryInstructions?: string; question: any }> = [];
+      for (const cat of exercisesEn) {
+        const category = String(cat?.category ?? "");
+        const categoryInstructions =
+          typeof cat?.categoryInstructions === "string" ? String(cat.categoryInstructions) : undefined;
+        for (const q of (cat?.questions ?? []) as any[]) {
+          flatTests.push({ category, categoryInstructions, question: q });
+        }
+      }
+      const totalTestBatches = flatTests.length > 0
+        ? Math.max(1, Math.ceil(flatTests.length / PUBLISH_TESTS_BATCH_SIZE))
+        : 0;
+      await updateState({ stage: "tests", batchIndex: 0, totalBatches: totalTestBatches });
+
+      // 4a) Archive active preview test rows once.
+      // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+      await ctx.runMutation(api.contentStudio.internalArchivePreviewTests, {
+        unitNumber,
+        language: testsLanguage,
+      });
+
+      // 4b) Batched inserts.
+      let testsInserted = 0;
+      for (let start = 0, batchIndex = 0; start < flatTests.length; start += PUBLISH_TESTS_BATCH_SIZE, batchIndex++) {
+        await updateState({ batchIndex, totalBatches: totalTestBatches });
+        const batch = flatTests.slice(start, start + PUBLISH_TESTS_BATCH_SIZE);
+        // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+        const res = (await ctx.runMutation(api.contentStudio.internalPublishUnitTests, {
+          unitNumber,
+          language: testsLanguage,
+          unitVersion: targetUnitVersion,
+          batch,
+        })) as { insertedCount: number };
+        testsInserted += res.insertedCount;
+      }
+
+      // ── Complete ──────────────────────────────────────────────────────────
+      const completedAt = Date.now();
+      await updateState({
+        status: "success",
+        stage: "complete",
+        completedAt,
+        batchIndex: undefined,
+        totalBatches: undefined,
+      });
+
+      return {
+        ok: true,
+        unitNumber,
+        version: targetUnitVersion,
+        status: "preview" as const,
+        stats: {
+          languages,
+          vocabInserted,
+          vocabSkipped,
+          testsInserted,
+          durationMs: completedAt - startedAt,
+        },
+      };
+    } catch (err: any) {
+      // Publish-Timeout-Fix: surface the failure into publishState so the
+      // Draft UI banner can show exactly which stage / batch broke, and let
+      // the admin retry from the same button.
+      const rawMessage = err instanceof Error ? err.message : String(err ?? "Unknown publish error");
+      const contextParts: string[] = [`stage=${currentStage}`];
+      if (currentBatchIndex !== undefined) contextParts.push(`batchIndex=${currentBatchIndex}`);
+      if (currentTotalBatches !== undefined) contextParts.push(`totalBatches=${currentTotalBatches}`);
+      const contextTag = contextParts.join(" ");
+      const fullError = `[${contextTag}] ${rawMessage}`.slice(0, 1900);
+
+      try {
+        await updateState({
+          status: "failed",
+          stage: currentStage,
+          error: fullError,
+          completedAt: Date.now(),
+        });
+      } catch (stateErr) {
+        console.warn(`[PublishPreview] Failed to persist publishState after error:`, stateErr);
+      }
+
+      console.error(`[PublishPreview] Unit ${unitNumber} failed at ${contextTag}: ${rawMessage}`);
+      throw new Error(fullError);
+    }
   },
 });
 

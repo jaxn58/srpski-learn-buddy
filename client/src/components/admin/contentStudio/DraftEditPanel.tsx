@@ -22,6 +22,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Loader2, ArrowRight, FilePlus2 } from "lucide-react";
 import { DraftStatusBadge } from "./StatusBadge";
+import {
+  PublishStatusBanner,
+  type PublishStateShape,
+} from "./PublishStatusBanner";
 
 export interface DraftEditPanelCreateParams {
   unitNumber: number;
@@ -40,6 +44,10 @@ export interface DraftEditPanelCreateParams {
 
 export interface DraftEditPanelProps {
   selectedDraftId: string | null;
+  /** Explicit create-mode flag from the parent workspace. */
+  isCreateMode: boolean;
+  /** Bumps when opening New Draft so the create form remounts cleanly. */
+  createFormKey?: string | number;
   onOpenInGenerator: () => void;
 
   // Templates (for create mode)
@@ -86,6 +94,8 @@ export interface DraftEditPanelProps {
 export function DraftEditPanel(props: DraftEditPanelProps) {
   const {
     selectedDraftId,
+    isCreateMode,
+    createFormKey,
     onOpenInGenerator,
     draftTemplates,
     onCreateDraft,
@@ -94,19 +104,21 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
     isBusy,
   } = props;
 
-  const isCreateMode = !selectedDraftId;
+  const showCreate = isCreateMode;
+  const hasDraft = !!selectedDraftId && !!selected?.draft;
+  const publishState: PublishStateShape | undefined = selected?.draft?.publishState;
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          {isCreateMode ? (
+          {showCreate ? (
             <div className="flex items-center gap-2">
               <FilePlus2 className="h-4 w-4 text-muted-foreground shrink-0" />
               <span className="text-sm font-semibold">New Draft</span>
             </div>
-          ) : (
+          ) : hasDraft ? (
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm font-semibold truncate">
                 U{selected?.draft?.unitNumber} · M{selected?.draft?.moduleNumber}
@@ -117,9 +129,11 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
                 <Badge variant="secondary" className="text-[10px] shrink-0">Unsaved</Badge>
               )}
             </div>
+          ) : (
+            <span className="text-sm text-muted-foreground">Select a draft or create a new one.</span>
           )}
         </div>
-        {!isCreateMode && (
+        {!showCreate && hasDraft && (
           <Button
             size="sm"
             onClick={onOpenInGenerator}
@@ -132,12 +146,21 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
         )}
       </div>
 
+      {/* Publish Status Banner — sticky between header and scroll area.
+          Visible only in edit mode when a publishState is present. */}
+      {!showCreate && hasDraft && publishState && selectedDraftId && (
+        <PublishStatusBanner
+          draftId={selectedDraftId}
+          publishState={publishState}
+        />
+      )}
+
       {/* Body */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-4 max-w-3xl mx-auto">
-          {isCreateMode ? (
+          {showCreate ? (
             <CreateForm
-              key={initialCreate ? JSON.stringify(initialCreate) : "default"}
+              key={String(createFormKey ?? "create") + (initialCreate ? JSON.stringify(initialCreate) : "")}
               draftTemplates={draftTemplates}
               onCreateDraft={onCreateDraft}
               initialTemplateId={initialCreate?.templateId}
@@ -146,9 +169,9 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
               specialistSkills={props.specialistSkills}
               auditorSkills={props.auditorSkills}
             />
-          ) : (
+          ) : hasDraft ? (
             <EditForm {...props} />
-          )}
+          ) : null}
         </div>
       </ScrollArea>
     </div>
@@ -421,7 +444,10 @@ function CreateForm({
 
 // ─── Edit Form ────────────────────────────────────────────────────────────────
 
-type EditFormProps = Omit<DraftEditPanelProps, "onOpenInGenerator" | "draftTemplates" | "onCreateDraft">;
+type EditFormProps = Omit<
+  DraftEditPanelProps,
+  "onOpenInGenerator" | "draftTemplates" | "onCreateDraft" | "isCreateMode" | "createFormKey" | "initialCreate"
+>;
 
 function EditForm(props: EditFormProps) {
   const {
@@ -499,16 +525,23 @@ function EditForm(props: EditFormProps) {
                 onChange={(e) => setDraftRefPages(e.target.value)}
               />
             </div>
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs">Notes</Label>
-              <Textarea
-                value={draftRefNotes}
-                onChange={(e) => setDraftRefNotes(e.target.value)}
-                rows={2}
-              />
-            </div>
           </div>
         )}
+        <div className="space-y-1">
+          <Label className="text-xs">
+            {draftRefId ? "Reference notes" : "Creator brief / notes"}
+          </Label>
+          <Textarea
+            value={draftRefNotes}
+            onChange={(e) => setDraftRefNotes(e.target.value)}
+            rows={draftRefId ? 2 : 6}
+            placeholder={
+              draftRefId
+                ? "Additional notes about how to use this reference..."
+                : "Main prompt for the unit (scenes, didactic progression)."
+            }
+          />
+        </div>
       </div>
 
       <Separator />

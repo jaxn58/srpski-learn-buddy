@@ -297,6 +297,72 @@ export const getDraft = query({
   },
 });
 
+const publishStateValidator = v.object({
+  status: v.union(
+    v.literal("running"),
+    v.literal("success"),
+    v.literal("failed"),
+  ),
+  stage: v.union(
+    v.literal("metadata"),
+    v.literal("content"),
+    v.literal("vocabulary"),
+    v.literal("tests"),
+    v.literal("complete"),
+  ),
+  batchIndex: v.optional(v.number()),
+  totalBatches: v.optional(v.number()),
+  startedAt: v.number(),
+  updatedAt: v.number(),
+  completedAt: v.optional(v.number()),
+  error: v.optional(v.string()),
+});
+
+/**
+ * Latest publish-to-preview state for a unit (from any draft of that unitNumber).
+ * Used by Unit Manager so admins see push progress/failures without opening the Generator.
+ */
+export const getLatestPublishStateForUnit = query({
+  args: { unitNumber: v.number() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      draftId: v.id("contentDrafts"),
+      draftTitle: v.optional(v.string()),
+      publishState: publishStateValidator,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    if (!Number.isFinite(args.unitNumber) || args.unitNumber <= 0) return null;
+
+    const drafts = await ctx.db
+      .query("contentDrafts")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+
+    let best: {
+      draftId: Id<"contentDrafts">;
+      draftTitle?: string;
+      publishState: NonNullable<Doc<"contentDrafts">["publishState"]>;
+    } | null = null;
+
+    for (const d of drafts) {
+      const ps = d.publishState;
+      if (!ps) continue;
+      if (!best || ps.updatedAt > best.publishState.updatedAt) {
+        best = {
+          draftId: d._id,
+          draftTitle: d.title,
+          publishState: ps,
+        };
+      }
+    }
+
+    return best;
+  },
+});
+
 export const listDraftSnapshots = query({
   args: {
     draftId: v.id("contentDrafts"),

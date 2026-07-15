@@ -1109,7 +1109,118 @@ export const setDraftStatus = mutation({
   },
 });
 
+/**
+ * Publish-Timeout-Fix (F2): tiny mutation for updating `contentDrafts.publishState`.
+ *
+ * Called by `publishDraftToPreview` at the start of every publish stage
+ * (metadata / content / vocabulary / tests / complete) and on failure. Kept
+ * intentionally minimal so it never contributes to the Convex system-op
+ * limit, no matter how the surrounding publish batches evolve.
+ *
+ * The mutation always sets `updatedAt = Date.now()`. Callers control which
+ * of the other fields to update via optional args; unset args are left
+ * untouched (patch, not replace). This lets the same mutation drive
+ * "started running", "moved to next stage", "batch progress",
+ * "finished successfully", and "failed with error".
+ */
+export const internalUpdateDraftPublishState = mutation({
+  args: {
+    draftId: v.id("contentDrafts"),
+    status: v.optional(
+      v.union(v.literal("running"), v.literal("success"), v.literal("failed")),
+    ),
+    stage: v.optional(
+      v.union(
+        v.literal("metadata"),
+        v.literal("content"),
+        v.literal("vocabulary"),
+        v.literal("tests"),
+        v.literal("complete"),
+      ),
+    ),
+    batchIndex: v.optional(v.number()),
+    totalBatches: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    // Reset the publishState entirely (used at the beginning of a fresh run).
+    reset: v.optional(v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const now = Date.now();
+
+    if (args.reset) {
+      const started = args.startedAt ?? now;
+      await ctx.db.patch(args.draftId, {
+        publishState: {
+          status: args.status ?? "running",
+          stage: args.stage ?? "metadata",
+          batchIndex: args.batchIndex,
+          totalBatches: args.totalBatches,
+          startedAt: started,
+          updatedAt: now,
+          completedAt: args.completedAt,
+          error: args.error,
+        },
+      });
+      return null;
+    }
+
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft) throw new Error("Draft not found");
+
+    const prev = (draft as any).publishState;
+    if (!prev) {
+      // No previous state; initialize with the incoming fields (defensive).
+      await ctx.db.patch(args.draftId, {
+        publishState: {
+          status: args.status ?? "running",
+          stage: args.stage ?? "metadata",
+          batchIndex: args.batchIndex,
+          totalBatches: args.totalBatches,
+          startedAt: args.startedAt ?? now,
+          updatedAt: now,
+          completedAt: args.completedAt,
+          error: args.error,
+        },
+      });
+      return null;
+    }
+
+    await ctx.db.patch(args.draftId, {
+      publishState: {
+        status: args.status ?? prev.status,
+        stage: args.stage ?? prev.stage,
+        batchIndex: args.batchIndex ?? prev.batchIndex,
+        totalBatches: args.totalBatches ?? prev.totalBatches,
+        startedAt: args.startedAt ?? prev.startedAt,
+        updatedAt: now,
+        completedAt: args.completedAt ?? prev.completedAt,
+        error: args.error ?? prev.error,
+      },
+    });
+    return null;
+  },
+});
+
 // Internal mutations for publishing (bypassing some checks for speed/atomicity)
+/**
+ * @deprecated Superseded by the split publish chain
+ * (`internalPublishUnitMetadata`, `internalPublishUnitContent`,
+ * `internalArchivePreviewVocabulary` + `internalPublishUnitVocabulary`,
+ * `internalArchivePreviewTests` + `internalPublishUnitTests`) orchestrated
+ * by the `publishDraftToPreview` action.
+ *
+ * Do NOT call this from new code. The publish-timeout fix moves all
+ * publish work through the split chain so a single mutation never exceeds
+ * the Convex system-op limit. This monolith is retained ONLY as a
+ * rollback safety net: if the new chain breaks in prod, swap the action
+ * back to invoking this wrapper directly (single-line change).
+ *
+ * Any external callers should migrate to the new chain.
+ */
 export const internalPublishUnitPackageToPreview = mutation({
   args: {
     unitPackage: v.any(),
@@ -2330,5 +2441,377 @@ export const repairPublishedUnitVocabulary = internalMutation({
       previousActiveCount: activeCount,
       created,
     };
+  },
+});
+
+// ═════════════════════════════════════════════════════════════════════════
+// PUBLISH-TIMEOUT FIX — split publish chain
+// ─────────────────────────────────────────────────────────────────────────
+// The monolith `internalPublishUnitPackageToPreview` above did everything in
+// one mutation and started hitting Convex's system-op ceiling in prod once
+// units had enough publish history. These smaller building blocks are called
+// in sequence by the `publishDraftToPreview` action; each one is bounded and
+// idempotent (archive+insert can be re-run without producing duplicates).
+// See `docs/CONTENT_STUDIO_PUBLISH_TIMEOUT_FIX.md`.
+// ═════════════════════════════════════════════════════════════════════════
+
+/**
+ * Step 1: unit metadata for all requested languages. Small, single call.
+ */
+export const internalPublishUnitMetadata = mutation({
+  args: {
+    unitPackage: v.any(),
+    moduleId: v.optional(v.id("moduleMetadata")),
+  },
+  returns: v.object({
+    unitNumber: v.number(),
+    languages: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const pkg: any = args.unitPackage;
+    const unitNumber = Number(pkg?.unitNumber);
+    const languages: string[] = Array.isArray(pkg?.languages) && pkg.languages.length > 0 ? pkg.languages : ["en"];
+
+    let module: any | null = null;
+    if (args.moduleId) {
+      module = await ctx.db.get(args.moduleId);
+    } else if (typeof pkg?.module?.moduleNumber === "number") {
+      module = await ctx.db
+        .query("moduleMetadata")
+        .filter((q) => q.eq(q.field("moduleNumber"), pkg.module.moduleNumber))
+        .first();
+    }
+
+    for (const lang of languages) {
+      const existing = await ctx.db
+        .query("unitMetadata")
+        .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", lang))
+        .first();
+
+      const payload: any = {
+        unitNumber,
+        language: lang,
+        title: String(pkg?.title ?? ""),
+        ...(typeof pkg?.description === "string" && String(pkg.description).trim()
+          ? { description: String(pkg.description).trim() }
+          : {}),
+        topics: [],
+        grammarFocus: [],
+        vocabularyThemes: [],
+        releaseStatus: "preview",
+      };
+      if (module?._id) {
+        payload.moduleMetadataId = module._id;
+      }
+
+      if (existing) {
+        await ctx.db.patch(existing._id, payload);
+      } else {
+        await ctx.db.insert("unitMetadata", payload);
+      }
+    }
+
+    return { unitNumber, languages };
+  },
+});
+
+/**
+ * Step 2: unit content for ONE language (all 6 content types).
+ * Uses the release+active index so archiving reads bounded rows — never
+ * scans the full history for that language.
+ */
+export const internalPublishUnitContent = mutation({
+  args: {
+    unitPackage: v.any(),
+    unitVersion: v.number(),
+    language: v.string(),
+  },
+  returns: v.object({
+    unitNumber: v.number(),
+    language: v.string(),
+    archivedCount: v.number(),
+    insertedCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const pkg: any = args.unitPackage;
+    const unitNumber = Number(pkg?.unitNumber);
+    const now = Date.now();
+
+    type UnitContentType = "overview" | "vocabulary" | "grammar" | "phrases" | "dialogues" | "testIntroduction";
+    const contentTypeMap: Array<{ key: string; type: UnitContentType }> = [
+      { key: "overviewMd", type: "overview" },
+      { key: "vocabularyMd", type: "vocabulary" },
+      { key: "grammarMd", type: "grammar" },
+      { key: "phrasesMd", type: "phrases" },
+      { key: "dialoguesMd", type: "dialogues" },
+      { key: "testIntroductionMd", type: "testIntroduction" },
+    ];
+
+    const contentForLang: any = pkg?.content?.[args.language] ?? {};
+    let archivedCount = 0;
+    let insertedCount = 0;
+
+    for (const m of contentTypeMap) {
+      const contentValue = String(contentForLang?.[m.key] ?? "");
+
+      // Only active preview rows — bounded, index-narrowed.
+      const activePreview = await ctx.db
+        .query("unitContent")
+        .withIndex("by_unit_lang_type_release_active_version", (q) =>
+          q
+            .eq("unitNumber", unitNumber)
+            .eq("language", args.language)
+            .eq("contentType", m.type)
+            .eq("releaseStatus", "preview")
+            .eq("isActive", true),
+        )
+        .collect();
+
+      for (const c of activePreview) {
+        await ctx.db.patch(c._id, { isActive: false, archivedAt: now, updatedAt: now });
+        archivedCount += 1;
+      }
+
+      await ctx.db.insert("unitContent", {
+        unitNumber,
+        language: args.language,
+        contentType: m.type,
+        content: contentValue,
+        createdAt: now,
+        updatedAt: now,
+        isActive: true,
+        archivedAt: undefined,
+        unitVersion: args.unitVersion,
+        version: args.unitVersion,
+        releaseStatus: "preview",
+      });
+      insertedCount += 1;
+    }
+
+    return { unitNumber, language: args.language, archivedCount, insertedCount };
+  },
+});
+
+/**
+ * Step 3a: archive active preview vocabulary rows for a unit AND capture
+ * their DE translations so the action can pass them into the next insert
+ * batches. One call before the insert batches begin.
+ */
+export const internalArchivePreviewVocabulary = mutation({
+  args: {
+    unitNumber: v.number(),
+  },
+  returns: v.object({
+    archivedCount: v.number(),
+    preservedDe: v.array(
+      v.object({
+        serbianKey: v.string(),
+        de: v.optional(v.string()),
+        noteDe: v.optional(v.string()),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const now = Date.now();
+
+    // Narrowed by release+active: only current preview rows.
+    const active = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit_release_active_version", (q) =>
+        q
+          .eq("unitNumber", args.unitNumber)
+          .eq("releaseStatus", "preview")
+          .eq("isActive", true),
+      )
+      .collect();
+
+    const preservedDe: Array<{ serbianKey: string; de?: string; noteDe?: string }> = [];
+    for (const row of active as any[]) {
+      const key = toVocabularyKey(row.serbian);
+      if (key && (row.de || row.noteDe)) {
+        preservedDe.push({
+          serbianKey: key,
+          ...(row.de ? { de: row.de as string } : {}),
+          ...(row.noteDe ? { noteDe: row.noteDe as string } : {}),
+        });
+      }
+      await ctx.db.patch(row._id, { isActive: false, archivedAt: now });
+    }
+
+    return { archivedCount: active.length, preservedDe };
+  },
+});
+
+/**
+ * Step 3b: insert one batch of vocabulary rows. Batch size 100 (Faktor 16
+ * puffer zum Convex-Limit). `preservedDe` and `dedupHits` are provided by
+ * the action (both come from queries run outside the mutation loop).
+ */
+export const internalPublishUnitVocabulary = mutation({
+  args: {
+    unitNumber: v.number(),
+    unitVersion: v.number(),
+    batch: v.array(v.any()), // slice of pkg.vocabulary.en
+    preservedDe: v.array(
+      v.object({
+        serbianKey: v.string(),
+        de: v.optional(v.string()),
+        noteDe: v.optional(v.string()),
+      }),
+    ),
+    dedupHits: v.array(
+      v.object({
+        serbianKey: v.string(),
+        foundInUnit: v.number(),
+      }),
+    ),
+  },
+  returns: v.object({
+    insertedCount: v.number(),
+    skippedCount: v.number(),
+    skippedDuplicates: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+
+    const preservedMap = new Map<string, { de?: string; noteDe?: string }>();
+    for (const p of args.preservedDe) {
+      preservedMap.set(p.serbianKey, { de: p.de, noteDe: p.noteDe });
+    }
+    const dedupMap = new Map<string, number>();
+    for (const h of args.dedupHits) {
+      dedupMap.set(h.serbianKey, h.foundInUnit);
+    }
+
+    let insertedCount = 0;
+    let skippedCount = 0;
+    const skippedDuplicates: string[] = [];
+
+    for (const entry of args.batch as any[]) {
+      const serbKey = toVocabularyKey(entry?.serbian);
+      if (!serbKey) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const dupUnit = dedupMap.get(serbKey);
+      if (typeof dupUnit === "number") {
+        skippedDuplicates.push(`"${entry.serbian}" (already in Unit ${dupUnit})`);
+        skippedCount += 1;
+        continue;
+      }
+
+      const prevDe = preservedMap.get(serbKey);
+      await ctx.db.insert("courseVocabulary", {
+        unitNumber: args.unitNumber,
+        serbian: entry.serbian,
+        serbianNormalized: serbKey,
+        en: entry.en,
+        translations: [{ language: "en", translation: entry.en }],
+        gender: entry.gender || undefined,
+        noteEn: entry.noteEn || undefined,
+        ...(prevDe?.de ? { de: prevDe.de } : {}),
+        ...(prevDe?.noteDe ? { noteDe: prevDe.noteDe } : {}),
+        isActive: true,
+        archivedAt: undefined,
+        unitVersion: args.unitVersion,
+        releaseStatus: "preview",
+      });
+      insertedCount += 1;
+    }
+
+    return { insertedCount, skippedCount, skippedDuplicates };
+  },
+});
+
+/**
+ * Step 4a: archive active preview interactive-test rows for one language.
+ * Single call before the insert batches begin.
+ */
+export const internalArchivePreviewTests = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+  },
+  returns: v.object({
+    archivedCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const now = Date.now();
+
+    const active = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang_release_active_version", (q) =>
+        q
+          .eq("unitNumber", args.unitNumber)
+          .eq("language", args.language)
+          .eq("releaseStatus", "preview")
+          .eq("isActive", true),
+      )
+      .collect();
+
+    for (const t of active) {
+      await ctx.db.patch(t._id, { isActive: false, archivedAt: now });
+    }
+
+    return { archivedCount: active.length };
+  },
+});
+
+/**
+ * Step 4b: insert one batch of interactive-test rows. Batch size 100.
+ * Each item is an already-flattened question record (category + question
+ * merged by the action) so the mutation can insert without further
+ * restructuring.
+ */
+export const internalPublishUnitTests = mutation({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+    unitVersion: v.number(),
+    batch: v.array(
+      v.object({
+        category: v.string(),
+        categoryInstructions: v.optional(v.string()),
+        question: v.any(), // canonical question payload from pkg.exercises.en[i].questions[j]
+      }),
+    ),
+  },
+  returns: v.object({
+    insertedCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+
+    let insertedCount = 0;
+    for (const item of args.batch) {
+      const q: any = item.question;
+      const questionIdToWrite = `${q.questionId}_preview_v${args.unitVersion}`;
+      await ctx.db.insert("unitInteractiveTests", {
+        unitNumber: args.unitNumber,
+        language: args.language,
+        category: item.category,
+        categoryInstructions: item.categoryInstructions,
+        questionId: questionIdToWrite,
+        questionType: q.questionType,
+        question: q.question,
+        correctAnswer: q.correctAnswer,
+        acceptableAlternatives: q.acceptableAlternatives,
+        options: q.options,
+        hint: q.hint,
+        order: q.order,
+        isActive: true,
+        archivedAt: undefined,
+        unitVersion: args.unitVersion,
+        releaseStatus: "preview",
+      });
+      insertedCount += 1;
+    }
+
+    return { insertedCount };
   },
 });

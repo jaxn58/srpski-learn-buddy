@@ -24,6 +24,7 @@ import type * as chatLibrary from "../chatLibrary.js";
 import type * as contentImportAdmin from "../contentImportAdmin.js";
 import type * as contentStudio from "../contentStudio.js";
 import type * as contentStudio__auditor from "../contentStudio/_auditor.js";
+import type * as contentStudio__cleanup from "../contentStudio/_cleanup.js";
 import type * as contentStudio__creator from "../contentStudio/_creator.js";
 import type * as contentStudio__mutations from "../contentStudio/_mutations.js";
 import type * as contentStudio__publisher from "../contentStudio/_publisher.js";
@@ -107,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   contentImportAdmin: typeof contentImportAdmin;
   contentStudio: typeof contentStudio;
   "contentStudio/_auditor": typeof contentStudio__auditor;
+  "contentStudio/_cleanup": typeof contentStudio__cleanup;
   "contentStudio/_creator": typeof contentStudio__creator;
   "contentStudio/_mutations": typeof contentStudio__mutations;
   "contentStudio/_publisher": typeof contentStudio__publisher;
