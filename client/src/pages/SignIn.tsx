@@ -1,9 +1,9 @@
-import { SignIn } from "@clerk/clerk-react";
+import { SignIn, useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { BookOpen } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { AppFooter } from "@/components/AppFooter";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -12,18 +12,33 @@ import {
   setSessionPreference,
 } from "@/lib/sessionPreference";
 
+const DEFAULT_REDIRECT = "/";
+
 export default function SignInPage() {
   const { t } = useTranslation();
   const [preference, setPreference] = useState<SessionPreference>(getSessionPreference);
+  const [, setLocation] = useLocation();
+  const { isLoaded, isSignedIn } = useClerkAuth();
+
   const redirectUrl = (() => {
     const params = new URLSearchParams(window.location.search);
     const candidate = (params.get("redirect_url") || "").trim();
-    if (!candidate) return "/dashboard";
-    if (!candidate.startsWith("/")) return "/dashboard";
-    if (candidate.startsWith("//")) return "/dashboard";
-    if (candidate.includes("://")) return "/dashboard";
+    if (!candidate) return DEFAULT_REDIRECT;
+    if (!candidate.startsWith("/")) return DEFAULT_REDIRECT;
+    if (candidate.startsWith("//")) return DEFAULT_REDIRECT;
+    if (candidate.includes("://")) return DEFAULT_REDIRECT;
     return candidate;
   })();
+
+  // Defensive SPA-Redirect: sobald Clerk den User als angemeldet meldet,
+  // navigieren wir selbst via wouter zur Ziel-URL. Das ist unabhaengig davon,
+  // ob Clerks internes Post-Sign-In-Redirect (fallbackRedirectUrl) zieht,
+  // vermeidet den beforeunload-Dialog eines Full-Page-Reloads und laesst
+  // die Landingpage im SPA-Zustand weiterlaufen.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    setLocation(redirectUrl);
+  }, [isLoaded, isSignedIn, redirectUrl, setLocation]);
 
   const handlePreferenceChange = (value: string) => {
     const pref = value as SessionPreference;
@@ -52,7 +67,7 @@ export default function SignInPage() {
         <div className="w-full max-w-md space-y-4">
           <SignIn
             routing="virtual"
-            afterSignInUrl={redirectUrl}
+            fallbackRedirectUrl={redirectUrl}
             signUpUrl={`/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`}
             appearance={{
               elements: {
