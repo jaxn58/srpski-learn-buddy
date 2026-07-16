@@ -1,38 +1,48 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-
 import { Badge } from "@/components/ui/badge";
-import { Progress as ProgressBar } from "@/components/ui/progress";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, Brain, Home, Lock, Star, TrendingUp, Volume2, Loader2, X, Gift, Search } from "lucide-react";
+import {
+  BookOpen,
+  Brain,
+  ChevronRight,
+  HardDrive,
+  Lock,
+  Paperclip,
+  Star,
+  Volume2,
+  Loader2,
+  X,
+  Gift,
+  Folder,
+  MessageSquare,
+  FileText,
+} from "lucide-react";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { WelcomeOnboarding } from "@/components/WelcomeOnboarding";
-import { FeedbackForm } from "@/components/FeedbackForm";
-// Sidebar import removed
-import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
-import { logger } from "@/lib/logger";
+import { AnimatedPage, AnimatedItem, AnimatedStagger } from "@/components/AnimatedPage";
 import {
   dashboardAnnouncementDismissKey,
   legacyDashboardAnnouncementDismissKeys,
 } from "@/lib/dashboardAnnouncementKeys";
 import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
-import { MetricCard } from "@/components/MetricCard";
 import { EmptyState } from "@/components/EmptyState";
-import { FlipCard } from "@/components/FlipCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  useFeatureAccess,
+  canUseChatAttachments,
+  canUseChatLibrary,
+  canUseKnowledgeRack,
+} from "@/hooks/useFeatureAccess";
 
-import { useMemo, useState, useEffect, memo, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-// Local shapes for Convex query results whose generated types are degraded
-// via TS2589 @ts-ignore workarounds in convex/units.ts / convex/vocabulary.ts.
 type UnitMetadataRow = {
   unitNumber: number;
   language: string;
@@ -49,17 +59,19 @@ type AudioSample = {
 };
 
 export default function Dashboard() {
-  const { user, loading: authLoading, logout, clerkUser } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { t, i18n } = useTranslation();
   const { language: uiLanguage } = useLanguage();
-  // Fix: Scroll to top on mount to prevent auto-scroll to units
+  const featureAccess = useFeatureAccess();
+  const hasChatAttachments = canUseChatAttachments(featureAccess);
+  const hasChatLibrary = canUseChatLibrary(featureAccess);
+  const hasKnowledgeRack = canUseKnowledgeRack(featureAccess);
+  const hasLibraryAccess = hasChatLibrary || hasKnowledgeRack;
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Checkout return handling:
-  // Dodo redirects to `return_url` even when the payment is NOT successful (declines, user closes checkout).
-  // We therefore treat URL params as "return", never as "success". Confirmation happens via Convex state (webhook).
   const [checkoutReturn, setCheckoutReturn] = useState<null | { kind: "purchase" | "upgrade"; startedAt: number }>(
     null
   );
@@ -83,17 +95,15 @@ export default function Dashboard() {
     const kind = purchase ? ("purchase" as const) : upgrade ? ("upgrade" as const) : null;
     const value = purchase ?? upgrade;
 
-    // Backwards compatibility: older URLs used "...=success" even though it isn't reliable.
     if (!kind || (value !== "return" && value !== "success")) return;
 
     setCheckoutReturn({ kind, startedAt: Date.now() });
     toast.info(t("billing.checkout.closedVerifying"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
-  // Use user's learning language or fallback to UI language or 'en'
-  const displayLanguage = user?.learningLanguage || (i18n.language === 'de' ? 'de' : 'en');
-  
+
+  const displayLanguage = user?.learningLanguage || (i18n.language === "de" ? "de" : "en");
+
   const progress = useQuery(api.progress.getUserProgress);
   const progressLoading = progress === undefined;
   const accessibleUnits = useQuery(api.subscriptions.getAccessibleUnits);
@@ -107,12 +117,18 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!checkoutReturn) return;
-    const sub: any = currentSubscription;
-    if (sub === undefined) return; // still loading
+    const sub: { status?: string; planType?: string; plan?: string } | null | undefined = currentSubscription;
+    if (sub === undefined) return;
 
     const status = String(sub?.status || "");
-    const planType = String(sub?.planType ?? sub?.plan ?? "").trim().toLowerCase();
-    const isPaidPlan = planType === "intensive" || planType === "balanced" || planType === "standard" || planType === "relaxed";
+    const planType = String(sub?.planType ?? sub?.plan ?? "")
+      .trim()
+      .toLowerCase();
+    const isPaidPlan =
+      planType === "intensive" ||
+      planType === "balanced" ||
+      planType === "standard" ||
+      planType === "relaxed";
 
     if (status === "active" && isPaidPlan) {
       toast.success(t("billing.checkout.paymentConfirmed"));
@@ -126,7 +142,7 @@ export default function Dashboard() {
       clearCheckoutReturnParams();
       setCheckoutReturn(null);
     }
-  }, [checkoutReturn, currentSubscription]);
+  }, [checkoutReturn, currentSubscription, t]);
 
   useEffect(() => {
     if (!checkoutReturn) return;
@@ -138,49 +154,37 @@ export default function Dashboard() {
     }, 30_000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [checkoutReturn]);
-  
-  // Check if user has started the current unit (for Current vs Next Unit label)
-  const currentUnitActivity = useQuery(
-    api.progress.hasUnitActivity,
-    progressLoading ? "skip" : { unitNumber: safeCurrentUnit }
-  );
-  
-  // Load dynamic data from DB instead of static files
+  }, [checkoutReturn, t]);
+
+
   const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
-  const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
+  const todayStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
   const dashboardStats = useQuery(api.progress.getDashboardStats, { todayStart });
   const seedDay = new Date().toISOString().slice(0, 10);
   const practicePreview = useQuery(
     api.vocabulary.getPracticePreview,
     progressLoading ? "skip" : { unitNumber: safeCurrentUnit, seedDay, audioCount: 5, language: displayLanguage }
   );
-  
-  const updateProgressMutation = useMutation(api.progress.updateProgress);
-  const completedBadgeClass = "bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm";
-  const masteredBadgeClass = "bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 shadow-sm";
-  
-  // Onboarding tutorial state
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const libraryHubStats = useQuery(
+    api.documents.getLibraryHubStats,
+    user && hasLibraryAccess ? {} : "skip"
+  );
+  const libraryFolders = useQuery(api.chatLibrary.listFolders, hasChatLibrary ? {} : "skip");
 
-  // Practice preview state
-  const [showPracticeAnswer, setShowPracticeAnswer] = useState(false);
+
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { play, playingAudioId, loadingAudioId } = useVocabularyAudioPlayback();
-  
-  // Dashboard announcement banner dismiss state (per user + key + activation generation)
   const [showAnnouncementBanner, setShowAnnouncementBanner] = useState(true);
-  
-  // Units filter state
-  const [unitFilter, setUnitFilter] = useState<'all' | 'in-progress' | 'completed' | 'locked'>('all');
-  const [unitSearchQuery, setUnitSearchQuery] = useState('');
-  
-  // Banner copy follows the app UI language (language switcher / app-language), not learningLanguage.
+
   const activeAnnouncement = useQuery(
     api.dashboardAnnouncements.getActiveDashboardAnnouncementForUser,
     user ? { language: uiLanguage } : "skip"
   );
 
-  // Load banner dismiss preference (per key + activationGeneration; legacy keys for gen 1)
   useEffect(() => {
     if (!user || activeAnnouncement === undefined) return;
     if (activeAnnouncement === null) {
@@ -191,15 +195,12 @@ export default function Dashboard() {
     const dismissKey = dashboardAnnouncementDismissKey(
       user._id,
       activeAnnouncement.key,
-      activeAnnouncement.activationGeneration,
+      activeAnnouncement.activationGeneration
     );
 
     try {
       if (activeAnnouncement.activationGeneration === 1) {
-        for (const legacyKey of legacyDashboardAnnouncementDismissKeys(
-          user._id,
-          activeAnnouncement.key,
-        )) {
+        for (const legacyKey of legacyDashboardAnnouncementDismissKeys(user._id, activeAnnouncement.key)) {
           if (localStorage.getItem(legacyKey) === "true") {
             localStorage.setItem(dismissKey, "true");
           }
@@ -215,72 +216,54 @@ export default function Dashboard() {
     if (!user || !activeAnnouncement) return;
     try {
       localStorage.setItem(
-        dashboardAnnouncementDismissKey(
-          user._id,
-          activeAnnouncement.key,
-          activeAnnouncement.activationGeneration,
-        ),
-        "true",
+        dashboardAnnouncementDismissKey(user._id, activeAnnouncement.key, activeAnnouncement.activationGeneration),
+        "true"
       );
       setShowAnnouncementBanner(false);
     } catch {
       // ignore
     }
   };
-  
-  // Show onboarding automatically unless user has explicitly disabled it
+
   useEffect(() => {
     if (user) {
       const isDisabled = localStorage.getItem(`onboarding_disabled_${user._id}`);
-      
       if (!isDisabled) {
         setShowOnboarding(true);
       }
     }
   }, [user]);
-  
+
   const handleCloseOnboarding = (disableAutoShow: boolean = false) => {
     if (user && disableAutoShow) {
-      localStorage.setItem(`onboarding_disabled_${user._id}`, 'true');
+      localStorage.setItem(`onboarding_disabled_${user._id}`, "true");
     }
     setShowOnboarding(false);
   };
 
-  
   const completedUnits = progress?.completedUnits || [];
-  
-  // Determine if user is beta tester
   const isBeta = user?.isBetaTester || accessibleUnits?.isBeta || false;
-  const totalUnits = isBeta ? 1 : (units?.length || 0);
-  const progressPercentage = (completedUnits.length / totalUnits) * 100;
-  const learningDuration = progress?.learningDuration || 12;
-  
-  // Admin bypass: Show all units for admins
-  const isAdmin = user?.role === 'superadmin' || user?.role === 'admin';
+  const totalUnits = isBeta ? 1 : units?.length || 0;
+  const isAdmin = user?.role === "superadmin" || user?.role === "admin";
   const rawAccessible = Array.isArray(accessibleUnits)
     ? accessibleUnits
-    : Array.isArray((accessibleUnits as any)?.units)
-    ? (accessibleUnits as any).units
-    : Array.isArray((accessibleUnits as any)?.accessibleUnits)
-    ? (accessibleUnits as any).accessibleUnits
-    : [];
-    
-  // For non-admin users, show accessible units. For admins, show all units.
+    : Array.isArray((accessibleUnits as { units?: number[] })?.units)
+      ? (accessibleUnits as { units: number[] }).units
+      : Array.isArray((accessibleUnits as { accessibleUnits?: number[] })?.accessibleUnits)
+        ? (accessibleUnits as { accessibleUnits: number[] }).accessibleUnits
+        : [];
+
   const displayUnits = isAdmin
     ? (units as UnitMetadataRow[] | undefined)?.map((u: UnitMetadataRow) => u.unitNumber)
     : rawAccessible;
+
   const visibleUnits = Array.from(
     new Set(
-      [
-        ...(displayUnits || []),
-        ...(rawAccessible || []),
-        progress?.currentUnit,
-        ...completedUnits,
-      ].filter(Boolean) as number[]
+      [...(displayUnits || []), ...(rawAccessible || []), progress?.currentUnit, ...completedUnits].filter(
+        Boolean
+      ) as number[]
     )
   );
-
-  const accessibleCount = Array.isArray(rawAccessible) ? rawAccessible.length : 0;
 
   const isBetaTester = !!user?.isBetaTester;
 
@@ -298,51 +281,17 @@ export default function Dashboard() {
     [units, i18n.language]
   );
 
-  // Filter and search units
-  const filteredUnits = useMemo(() => {
-    if (!visibleUnits || !units) return [];
-    
-    let filtered = visibleUnits.filter((unitNum) => {
-      const unit = getUnitRow(unitNum);
-      const isCompleted = completedUnits.includes(unitNum);
-      const isCurrent = unitNum === progress?.currentUnit;
-      const isLocked = isBetaTester && unitNum > (accessibleUnits?.maxUnits ?? 1);
-      
-      // Apply filter
-      if (unitFilter === 'completed' && !isCompleted) return false;
-      if (unitFilter === 'in-progress' && (isCompleted || !isCurrent)) return false;
-      if (unitFilter === 'locked' && !isLocked) return false;
-      
-      // Apply search
-      if (unitSearchQuery) {
-        const query = unitSearchQuery.toLowerCase();
-        const title = unit?.title || "";
-        const unitNumber = unitNum.toString();
-        if (!title.toLowerCase().includes(query) && !unitNumber.includes(query)) {
-          return false;
-        }
-      }
-      
-      return true;
-    });
-    
-    return filtered;
-  }, [visibleUnits, units, completedUnits, progress?.currentUnit, unitFilter, unitSearchQuery, isBetaTester, getUnitRow]);
+  const sortedUnits = useMemo(
+    () => [...visibleUnits].sort((a, b) => a - b),
+    [visibleUnits]
+  );
+
+  const completedBadgeClass =
+    "bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm";
+  const masteredBadgeClass = "bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 shadow-sm";
 
   const weeklyXp = dashboardStats?.weeklyProgress?.xpSum ?? 0;
   const weeklyXpTarget = dashboardStats?.weeklyGoal?.xpTarget ?? 150;
-  const weeklyActiveDays = dashboardStats?.weeklyProgress?.activeDays ?? 0;
-  const weeklyActiveDaysTarget = dashboardStats?.weeklyGoal?.activeDaysTarget ?? 3;
-
-  const wordsMastered = dashboardStats?.accuracyStats?.masteredVocab ?? 0;
-  const masteryEfficiency = dashboardStats?.masteryQuality?.masteredEfficiency;
-
-  const startedDaysAgo = useMemo(() => {
-    const ts = dashboardStats?.creationTime;
-    if (!ts) return null;
-    const days = Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
-    return Number.isFinite(days) && days >= 0 ? days : null;
-  }, [dashboardStats?.creationTime]);
 
   const courseMasteryPercent = useMemo(() => {
     const total = totalUnits || 0;
@@ -353,616 +302,489 @@ export default function Dashboard() {
 
   const practicePreviewWord = practicePreview?.word ?? null;
   const audioSamples = practicePreview?.audioSamples ?? [];
-  const practicePreviewUnit = practicePreview?.resolvedUnit ?? safeCurrentUnit;
+  const currentUnitMeta = getUnitRow(safeCurrentUnit);
 
-  useEffect(() => {
-    // When the daily pick changes, default back to hiding the answer
-    setShowPracticeAnswer(false);
-  }, [practicePreviewWord?.id]);
+  const previewWords = useMemo(() => {
+    type PreviewWord = AudioSample & { featured?: boolean };
+    const items: PreviewWord[] = [];
+    if (practicePreviewWord) {
+      items.push({
+        id: practicePreviewWord.id,
+        serbian: practicePreviewWord.serbian,
+        translation: practicePreviewWord.translation,
+        audioStorageId: null,
+        featured: true,
+      });
+    }
+    for (const sample of audioSamples as AudioSample[]) {
+      if (items.some((w) => w.id === sample.id)) continue;
+      items.push(sample);
+    }
+    return items.slice(0, 6);
+  }, [practicePreviewWord, audioSamples]);
 
+  const topLevelLibraryFolders = useMemo(() => {
+    if (!libraryFolders) return [];
+    return libraryFolders.filter((f) => !f.parentId).slice(0, 4);
+  }, [libraryFolders]);
 
-  useEffect(() => {
-    // Removed debug instrumentation
-  }, [
-    authLoading,
-    progressLoading,
-    user?._id,
-    progress?.currentUnit,
-    completedUnits.length,
-    visibleUnits?.length,
-    totalUnits,
-    isBeta,
-    accessibleCount,
-    learningDuration,
-  ]);
-
-  // Show loading while auth or progress is loading
-  // Also show loading while user is being synced to Convex
   if (authLoading || progressLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-7xl space-y-6">
           <Skeleton className="h-8 w-64" />
-          <div className="grid md:grid-cols-2 gap-6">
-            <Skeleton className="h-48 w-full" />
-            <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
           </div>
-          <Skeleton className="h-96 w-full" />
         </div>
       </div>
     );
   }
 
-  // All users now have immediate access - no pending approval needed
-
   return (
     <>
       {showOnboarding && user && (
-        <WelcomeOnboarding 
-          userName={user.name || user.email || t("common.there")} 
+        <WelcomeOnboarding
+          userName={user.name || user.email || t("common.there")}
           onClose={handleCloseOnboarding}
           language={displayLanguage}
         />
       )}
-      
-      <AnimatedPage>
-        <div className="pb-24">
-        {/* Admin-managed dashboard announcement (active banner from Convex only) */}
-        {showAnnouncementBanner && activeAnnouncement && (
-          <div className="mb-4 border border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 rounded-lg p-3 md:p-4">
-            <div className="flex items-start gap-2 md:gap-3">
-              <div className="bg-yellow-400 rounded-full p-1.5 md:p-2 flex-shrink-0">
-                <Gift className="h-4 w-4 md:h-5 md:w-5 text-yellow-900" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
-                  <h3 className="font-bold text-base md:text-lg text-foreground">
-                    {activeAnnouncement.title}
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="flex-shrink-0"
-                    onClick={handleDismissAnnouncementBanner}
-                    aria-label={t("dashboard.betaBanner.dismissAria")}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+
+      <AnimatedPage className="pb-24">
+          {showAnnouncementBanner && activeAnnouncement && (
+            <AnimatedItem className="mb-4">
+            <div className="border border-yellow-400 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 rounded-lg p-3 md:p-4">
+              <div className="flex items-start gap-2 md:gap-3">
+                <div className="bg-yellow-400 rounded-full p-1.5 md:p-2 flex-shrink-0">
+                  <Gift className="h-4 w-4 md:h-5 md:w-5 text-yellow-900" />
                 </div>
-                <p className="text-xs md:text-sm text-foreground/80 mb-1 md:mb-2">{activeAnnouncement.intro}</p>
-                <div className="bg-background/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
-                  <p className="text-xs md:text-sm text-muted-foreground whitespace-pre-wrap">{activeAnnouncement.body}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
+                    <h3 className="font-bold text-base md:text-lg text-foreground">{activeAnnouncement.title}</h3>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="flex-shrink-0"
+                      onClick={handleDismissAnnouncementBanner}
+                      aria-label={t("dashboard.betaBanner.dismissAria")}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs md:text-sm text-foreground/80 mb-1 md:mb-2">{activeAnnouncement.intro}</p>
+                  <div className="bg-background/80 rounded-md p-1.5 md:p-2 border border-yellow-300">
+                    <p className="text-xs md:text-sm text-muted-foreground whitespace-pre-wrap">
+                      {activeAnnouncement.body}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+            </AnimatedItem>
+          )}
 
-        <div className="mb-4 md:mb-6">
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground">
-            {t('dashboard.welcome', { name: user.name?.split(' ')[0] || t("dashboard.welcomeFallbackName") })}
-          </h1>
-        </div>
-
-        {/* Primary Actions - Balanced Design */}
-        <div className="grid md:grid-cols-2 gap-4 mb-8">
-          <AnimatedItem>
-            <Card className="hover:shadow-md transition-all h-full flex flex-col border border-border">
-              <CardHeader className="pb-4">
-                <div className="flex items-start gap-4">
-                  <div className="bg-primary/10 rounded-lg p-2.5 flex-shrink-0">
-                    <BookOpen className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg font-semibold mb-1">
-                      {currentUnitActivity?.hasActivity ? t('dashboard.continueLesson') : t('dashboard.startNextLesson')}
-                    </CardTitle>
-                    <CardDescription className="text-sm">
-                      {(() => {
-                        const unit = (units as UnitMetadataRow[] | undefined)?.find((u: UnitMetadataRow) => u.unitNumber === safeCurrentUnit);
-                        return (
-                          <>
-                            <span className="font-medium">{t('dashboard.unit', { number: safeCurrentUnit })}</span>
-                            {unit?.title && <span> - {unit.title}</span>}
-                          </>
-                        );
-                      })()}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <Link href={`/unit/${safeCurrentUnit}`}>
-                  <Button className="w-full" size="default">
-                    {currentUnitActivity?.hasActivity ? t('dashboard.goToLesson') : t('dashboard.startLesson')}
+          <AnimatedItem className="mb-5 md:mb-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <h1 className="text-xl md:text-2xl font-semibold text-foreground tracking-tight">
+                {t("dashboard.welcome", { name: user.name?.split(" ")[0] || t("dashboard.welcomeFallbackName") })}
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground tabular-nums">
+                  {weeklyXp}/{weeklyXpTarget} XP
+                </span>
+                <span aria-hidden="true">·</span>
+                <span className="tabular-nums">
+                  {courseMasteryPercent === null ? "—" : `${courseMasteryPercent}%`}{" "}
+                  {t("progress.cards.summary.courseMastery").toLowerCase()}
+                </span>
+                <Link href="/progress">
+                  <Button variant="link" size="sm" className="h-auto p-0 text-primary">
+                    {t("dashboard.openProgress")}
                   </Button>
                 </Link>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </AnimatedItem>
 
-          <AnimatedItem>
-            <Card className="hover:shadow-md transition-all h-full flex flex-col border border-border">
-              <CardHeader className="pb-4">
-                <div className="flex items-start gap-4">
-                  <div className="bg-yellow-500/10 rounded-lg p-2.5 flex-shrink-0">
-                    <Brain className="h-6 w-6 text-yellow-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg font-semibold mb-1">{t('dashboard.chatWithProfessor')}</CardTitle>
-                    <CardDescription className="text-sm">
-                      {t('dashboard.chatDesc')}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <Link href="/chat">
-                  <Button className="w-full" variant="outline">{t('dashboard.openChat')}</Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </AnimatedItem>
-        </div>
-
-        {/* Dashboard Snippets (informative) */}
-        <AnimatedItem className="mb-6 md:mb-10">
-          <div className="grid gap-4 md:gap-6 lg:grid-cols-3 items-stretch">
-            {/* Practice Preview (wide) */}
-            <Card className="lg:col-span-2 hover:shadow-md transition-shadow border border-border">
-              <CardHeader className="pb-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg font-semibold mb-1">{t("dashboard.practicePreview.title")}</CardTitle>
-                    <CardDescription className="text-sm">
-                      {t("dashboard.practicePreview.subtitle")}
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
-                    <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
-                      <Button size="sm" variant="default" className="gap-2 w-full sm:w-auto">
-                        <BookOpen className="h-4 w-4" />
-                        {t("dashboard.practicePreview.learnCta")}
-                      </Button>
-                    </Link>
-                    <Link href={`/vocabulary?mode=quiz&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2 w-full sm:w-auto"
-                      >
-                        <Star className="h-4 w-4" />
-                        {t("dashboard.practicePreview.quizCta")}
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {practicePreview === undefined ? (
-                  <div className="space-y-4 py-6">
-                    <Skeleton className="h-32 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ) : !practicePreviewWord ? (
-                  <div className="text-sm text-muted-foreground py-10 text-center">
-                    {t("dashboard.practicePreview.empty")}
-                  </div>
-                ) : (
-                  <div className="grid gap-4 items-stretch">
-                    <FlipCard
-                      flipped={showPracticeAnswer}
-                      onFlip={() => setShowPracticeAnswer((s) => !s)}
-                      className="h-full min-h-[200px]"
-                      front={
-                        <div className="rounded-xl border bg-muted/10 p-6 flex flex-col justify-center text-center h-full">
-                          <div className="inline-flex items-center justify-center gap-2 mb-2">
-                            <Badge variant="outline">{t("dashboard.unit", { number: practicePreviewUnit })}</Badge>
-                            {practicePreviewWord.mastered && (
-                              <Badge className="bg-amber-500 text-white border-amber-500">
-                                {t("common.mastered")}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-2xl md:text-4xl font-bold tracking-tight mb-3 md:mb-4">
-                            {practicePreviewWord.serbian}
-                          </div>
-                          <div className="text-xs md:text-sm text-muted-foreground">
-                            {t("dashboard.practicePreview.clickToReveal")}
-                          </div>
-                        </div>
-                      }
-                      back={
-                        <div className="rounded-xl border bg-primary/5 p-6 flex flex-col justify-center text-center h-full">
-                          <div className="inline-flex items-center justify-center gap-2 mb-2">
-                            <Badge variant="outline">{t("dashboard.unit", { number: practicePreviewUnit })}</Badge>
-                            {practicePreviewWord.mastered && (
-                              <Badge className="bg-amber-500 text-white border-amber-500">
-                                {t("common.mastered")}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-2xl md:text-4xl font-bold tracking-tight mb-2">
-                            {practicePreviewWord.serbian}
-                          </div>
-                          <div className="text-lg md:text-xl text-muted-foreground">
-                            {practicePreviewWord.translation}
-                          </div>
-                        </div>
-                      }
-                    />
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowPracticeAnswer((s) => !s)}
-                        className="w-full sm:w-auto"
-                      >
-                        {showPracticeAnswer ? t("dashboard.practicePreview.showWord") : t("dashboard.practicePreview.showTranslation")}
-                      </Button>
-                      <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`} className="w-full sm:w-auto">
-                        <Button className="w-full sm:w-auto">{t("dashboard.practicePreview.openTrainer")}</Button>
-                      </Link>
+          {/* Featured: AI Learn Buddy */}
+          <AnimatedItem interactive className="mb-4">
+            <Card className="overflow-hidden border-2 border-serbian-red/25 bg-gradient-to-br from-serbian-red/[0.07] via-background to-background shadow-sm hover:shadow-md transition-shadow">
+              <CardContent className="p-5 md:p-6">
+                <div className="flex flex-col md:flex-row md:items-center gap-5">
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className="rounded-xl bg-serbian-red p-3 shrink-0 shadow-sm">
+                      <Brain className="h-7 w-7 text-white" />
                     </div>
-
-                    {/* Audio sampler */}
-                    <div className="rounded-xl border bg-muted/10 p-5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="font-semibold">{t("dashboard.practicePreview.audio.title")}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {t("dashboard.practicePreview.audio.subtitle")}
-                          </div>
-                        </div>
-                        <Link href="/vocabulary-list">
-                          <Button variant="outline" size="sm">
-                            {t("dashboard.practicePreview.audio.viewAllWords")}
-                          </Button>
-                        </Link>
-                      </div>
-
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                        {audioSamples.length === 0 ? (
-                          <div className="text-sm text-muted-foreground py-6">
-                            {t("dashboard.practicePreview.audio.empty")}
-                          </div>
-                        ) : (
-                          (audioSamples as AudioSample[]).map((s: AudioSample) => {
-                            const isLoading = loadingAudioId === s.id;
-                            const isPlaying = playingAudioId === s.id;
-                            return (
-                              <button
-                                key={s.id}
-                                className="group w-full text-left rounded-lg border bg-background hover:bg-accent/40 transition-colors p-3 flex items-center gap-3"
-                                onClick={() =>
-                                  play({
-                                    vocabularyId: s.id,
-                                    serbianWord: s.serbian,
-                                    unitNumber: safeCurrentUnit,
-                                    audioStorageId: s.audioStorageId,
-                                  })
-                                }
-                                disabled={Boolean(loadingAudioId) && loadingAudioId !== s.id}
-                              >
-                                <span className="h-9 w-9 rounded-md bg-serbian-red/10 text-serbian-red flex items-center justify-center shrink-0">
-                                  {isLoading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Volume2 className="h-4 w-4" />
-                                  )}
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                  <span className="block font-semibold truncate">
-                                    {s.serbian}
-                                  </span>
-                                  <span className="block text-xs text-muted-foreground truncate">
-                                    {s.translation}
-                                  </span>
-                                </span>
-                                {isPlaying && (
-                                  <span className="text-xs font-semibold text-serbian-red">
-                                    {t("common.playing")}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })
+                    <div className="min-w-0">
+                      <CardTitle className="text-lg md:text-xl font-semibold mb-1">
+                        {t("dashboard.tools.buddy.title")}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {t("dashboard.tools.buddy.featuredDesc")}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          {t("dashboard.tools.buddy.chip.explanations")}
+                        </Badge>
+                        {hasChatAttachments && (
+                          <Badge variant="secondary" className="text-xs font-normal gap-1">
+                            <Paperclip className="h-3 w-3" />
+                            {t("dashboard.tools.buddy.chip.upload")}
+                          </Badge>
                         )}
                       </div>
                     </div>
                   </div>
-                )}
+                  <Link href="/chat" className="shrink-0 w-full md:w-auto">
+                    <Button size="lg" className="w-full md:w-auto bg-serbian-red hover:bg-serbian-red/90 gap-2">
+                      {t("dashboard.tools.buddy.cta")}
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
               </CardContent>
             </Card>
+          </AnimatedItem>
 
-            {/* Weekly goal / XP (compact, like screenshot) */}
-            <div className="grid gap-6">
-              <Card className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base">{t("progress.cards.weeklyGoal.title")}</CardTitle>
-                      <CardDescription>{t("dashboard.weeklyGoal.subtitle")}</CardDescription>
+          {/* Quick actions: Quiz + Current unit */}
+          <AnimatedItem className="mb-4">
+            <AnimatedStagger className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <AnimatedItem interactive>
+                <Link href={`/vocabulary?mode=quiz&unit=${safeCurrentUnit}`}>
+                  <Card className="h-full border-2 border-[color:var(--accent)]/30 bg-[color:var(--accent)]/5 hover:border-[color:var(--accent)]/60 hover:shadow-md transition-all cursor-pointer group">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <div className="rounded-lg bg-[color:var(--accent)]/15 p-2.5 shrink-0 group-hover:scale-105 transition-transform">
+                        <Star className="h-5 w-5 text-[color:var(--accent)]" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm">{t("dashboard.tools.quiz.title")}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t("dashboard.tools.quiz.desc", { number: safeCurrentUnit })}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </CardContent>
+                  </Card>
+                </Link>
+              </AnimatedItem>
+
+              <AnimatedItem interactive>
+                <Link href={`/unit/${safeCurrentUnit}`}>
+                  <Card className="h-full border-2 border-primary/30 bg-primary/5 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <div className="rounded-lg bg-primary/15 p-2.5 shrink-0 group-hover:scale-105 transition-transform">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm">
+                          {t("dashboard.unit", { number: safeCurrentUnit })}
+                        </p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {currentUnitMeta?.title ?? t("dashboard.tools.continue.descFallback", { number: safeCurrentUnit })}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </CardContent>
+                  </Card>
+                </Link>
+              </AnimatedItem>
+            </AnimatedStagger>
+          </AnimatedItem>
+
+          {/* Practice vocabulary + Library preview */}
+          <AnimatedItem className="mb-6">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card className="border border-border">
+                <CardHeader className="py-3 px-4 pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-sm font-semibold">{t("dashboard.tools.vocabulary.title")}</CardTitle>
+                    <div className="flex gap-1.5 shrink-0">
+                      <Link href={`/vocabulary?mode=learn&unit=${safeCurrentUnit}`}>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1">
+                          <BookOpen className="h-3 w-3" />
+                          {t("dashboard.tools.vocabulary.learnCta")}
+                        </Button>
+                      </Link>
+                      <Link href={`/vocabulary?mode=quiz&unit=${safeCurrentUnit}`}>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1">
+                          <Star className="h-3 w-3" />
+                          {t("dashboard.tools.vocabulary.quizCta")}
+                        </Button>
+                      </Link>
                     </div>
-                    <TrendingUp className="h-5 w-5 text-primary" />
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-2xl font-bold">
-                    {weeklyXp} / {weeklyXpTarget} XP
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{t("progress.cards.weeklyGoal.xpThisWeek")}</span>
-                      <span className="font-medium">{weeklyXp}</span>
+                <CardContent className="px-4 pb-4 pt-0">
+                  {practicePreview === undefined ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <Skeleton key={i} className="h-14 w-full" />
+                      ))}
                     </div>
-                    <ProgressBar value={Math.min(100, (weeklyXp / Math.max(1, weeklyXpTarget)) * 100)} />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{t("progress.cards.weeklyGoal.activeDays")}</span>
-                      <span className="font-medium">
-                        {weeklyActiveDays} / {weeklyActiveDaysTarget}
-                      </span>
+                  ) : previewWords.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-3 text-center">
+                      {t("dashboard.practicePreview.empty")}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {previewWords.map((w) => {
+                        const isLoading = loadingAudioId === w.id;
+                        const isPlaying = playingAudioId === w.id;
+                        return (
+                          <button
+                            key={w.id}
+                            type="button"
+                            onClick={() =>
+                              play({
+                                vocabularyId: w.id,
+                                serbianWord: w.serbian,
+                                unitNumber: safeCurrentUnit,
+                                audioStorageId: w.audioStorageId,
+                              })
+                            }
+                            disabled={Boolean(loadingAudioId) && loadingAudioId !== w.id}
+                            className={`text-left rounded-lg border p-2 min-w-0 transition-colors hover:bg-accent/40 ${
+                              w.featured ? "border-primary/40 bg-primary/5" : "bg-background"
+                            }`}
+                          >
+                            <div className="flex items-start gap-1.5">
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold truncate">{w.serbian}</span>
+                                {w.translation && (
+                                  <span className="block text-[11px] text-muted-foreground truncate">
+                                    {w.translation}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-serbian-red mt-0.5">
+                                {isLoading ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Volume2 className="h-3 w-3" />
+                                )}
+                              </span>
+                            </div>
+                            {isPlaying && (
+                              <span className="text-[10px] font-medium text-serbian-red mt-0.5 block">
+                                {t("common.playing")}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <ProgressBar value={Math.min(100, (weeklyActiveDays / Math.max(1, weeklyActiveDaysTarget)) * 100)} />
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Course progress compact */}
-              <Card className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <CardTitle className="text-base">{t("dashboard.courseProgress.title")}</CardTitle>
-                  <CardDescription>{t("dashboard.courseProgress.subtitle")}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{t("progress.cards.summary.courseMastery")}</span>
-                    <span className="font-semibold">
-                      {courseMasteryPercent === null ? "—" : `${courseMasteryPercent}%`}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{t("progress.cards.summary.unitsCompleted")}</span>
-                    <span className="font-semibold">
-                      {(dashboardStats?.completedUnits?.length ?? completedUnits.length) || 0} / {totalUnits}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{t("progress.cards.summary.wordsMastered")}</span>
-                    <span className="font-semibold">{wordsMastered}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{t("progress.cards.summary.masteryEfficiency")}</span>
-                    <span className="font-semibold">
-                      {typeof masteryEfficiency === "number"
-                        ? `${Math.round(masteryEfficiency * 100)}%`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{t("progress.cards.summary.started")}</span>
-                    <span className="font-semibold">
-                      {startedDaysAgo === null ? "—" : t("progress.cards.summary.startedAgo", { days: startedDaysAgo })}
-                    </span>
-                  </div>
-                  <div className="pt-2">
-                    <Link href="/progress">
-                      <Button variant="outline" className="w-full">
-                        {t("dashboard.openProgress")}
+              {hasLibraryAccess ? (
+                <Link href="/library">
+                  <Card className="border border-border h-full hover:border-primary/40 hover:shadow-md transition-all cursor-pointer group">
+                    <CardHeader className="py-3 px-4 pb-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                          <HardDrive className="h-4 w-4 text-primary" />
+                          {t("dashboard.tools.library.title")}
+                        </CardTitle>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                      {libraryHubStats && (
+                        <CardDescription className="text-xs mt-1">
+                          {t("dashboard.libraryPreview.stats", {
+                            chats: libraryHubStats.chatSessionCount,
+                            docs: libraryHubStats.documentCount,
+                          })}
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 pt-0">
+                      <div className="rounded-lg border bg-muted/20 p-2 space-y-1 min-h-[7.5rem]">
+                        {libraryHubStats === undefined ? (
+                          <Skeleton className="h-20 w-full" />
+                        ) : topLevelLibraryFolders.length > 0 ? (
+                          topLevelLibraryFolders.map((folder) => (
+                            <div
+                              key={folder._id}
+                              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs bg-background/80"
+                            >
+                              <Folder className="h-3.5 w-3.5 text-primary shrink-0" />
+                              <span className="truncate font-medium">{folder.name}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-4 text-center text-xs text-muted-foreground">
+                            <MessageSquare className="h-5 w-5 mb-1.5 opacity-50" />
+                            <p>{t("dashboard.libraryPreview.emptyFolders")}</p>
+                          </div>
+                        )}
+                        {hasKnowledgeRack && libraryHubStats && libraryHubStats.documentCount > 0 && (
+                          <div className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs bg-background/80 border-t border-border/50 mt-1 pt-2">
+                            <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="truncate">
+                              {t("dashboard.libraryPreview.documents", { count: libraryHubStats.documentCount })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ) : (
+                <Card className="border border-dashed border-muted-foreground/30 bg-muted/10 h-full">
+                  <CardHeader className="py-3 px-4 pb-2">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-sm font-semibold">{t("dashboard.tools.library.title")}</CardTitle>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {t("dashboard.tools.library.comingSoon")}
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-xs mt-1">
+                      {t("dashboard.tools.library.benefit")}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 pt-0">
+                    <div className="rounded-lg border border-dashed bg-muted/30 p-2 space-y-1 opacity-70">
+                      {(["demo1", "demo2", "demo3"] as const).map((key) => (
+                        <div key={key} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs">
+                          <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate text-muted-foreground">
+                            {t(`dashboard.libraryPreview.${key}`)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </AnimatedItem>
+
+          {/* Full units overview */}
+          <AnimatedItem>
+            {completedUnits.length === 0 && sortedUnits.length === 0 ? (
+              <EmptyState
+                icon={BookOpen}
+                title={t("dashboard.emptyLearning.title")}
+                description={t("dashboard.emptyLearning.desc")}
+                action={{
+                  label: t("dashboard.emptyLearning.actionStartFirstUnit"),
+                  href: "/unit/1",
+                }}
+              />
+            ) : (
+              <Card className="border border-border">
+                <CardHeader className="pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg font-semibold">{t("dashboard.allUnits")}</CardTitle>
+                      <CardDescription className="text-sm">{t("dashboard.allUnitsDesc")}</CardDescription>
+                    </div>
+                    <Link href="/units">
+                      <Button variant="outline" size="sm">
+                        {t("dashboard.upNext.viewAll")}
                       </Button>
                     </Link>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </AnimatedItem>
+                </CardHeader>
+                <CardContent>
+                  <AnimatedStagger className="grid gap-3 sm:grid-cols-2">
+                    {sortedUnits.map((unitNum) => {
+                      const unit = getUnitRow(unitNum);
+                      const isCompleted = completedUnits.includes(unitNum);
+                      const isCurrent = unitNum === progress?.currentUnit;
+                      const isMastered = masteredUnits?.includes(unitNum);
+                      const isLocked = isBetaTester && unitNum > (accessibleUnits?.maxUnits ?? 1);
+                      const notStarted = !isCompleted && !isCurrent && !isLocked;
 
-        {/* Modules List Card */}
-        <AnimatedItem>
-          {completedUnits.length === 0 && visibleUnits && visibleUnits.length === 0 ? (
-            <EmptyState
-              icon={BookOpen}
-              title={t("dashboard.emptyLearning.title")}
-              description={t("dashboard.emptyLearning.desc")}
-              action={{
-                label: t("dashboard.emptyLearning.actionStartFirstUnit"),
-                href: `/unit/1`,
-              }}
-            />
-          ) : (
-            <Card className="shadow-sm hover:shadow-md transition-shadow border border-border">
-              <CardHeader className="pb-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg font-semibold mb-1">
-                      {t('dashboard.allUnits', 'All Units')}
-                    </CardTitle>
-                    <CardDescription className="text-sm">
-                      {t('dashboard.allUnitsDesc', 'Continue your learning journey')}
-                    </CardDescription>
-                  </div>
-                  {isAdmin && (
-                    <Badge variant="outline" className="flex-shrink-0">
-                      {t("dashboard.adminAccessBadge")}
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {/* Filter and Search */}
-                <div className="mb-4 md:mb-6 space-y-3 md:space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant={unitFilter === 'all' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setUnitFilter('all')}
-                    >
-                      {t("dashboard.units.filter.all")}
-                    </Button>
-                    <Button
-                      variant={unitFilter === 'in-progress' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setUnitFilter('in-progress')}
-                    >
-                      {t("dashboard.units.filter.inProgress")}
-                    </Button>
-                    <Button
-                      variant={unitFilter === 'completed' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setUnitFilter('completed')}
-                    >
-                      {t("dashboard.units.filter.completed")}
-                    </Button>
-                    {user.isBetaTester && (
-                      <Button
-                        variant={unitFilter === 'locked' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setUnitFilter('locked')}
-                      >
-                        {t("dashboard.units.filter.locked")}
-                      </Button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                    <Input
-                      type="text"
-                      placeholder={t("dashboard.units.searchPlaceholder")}
-                      value={unitSearchQuery}
-                      onChange={(e) => setUnitSearchQuery(e.target.value)}
-                      className="pl-9"
-                      aria-label={t("dashboard.units.searchAria")}
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-5">
-                      {filteredUnits.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          {t("dashboard.units.emptyNoMatch")}
-                        </div>
-                      ) : (
-                        filteredUnits.map(unitNum => {
-                    const unit = getUnitRow(unitNum);
-                    const isCompleted = completedUnits.includes(unitNum);
-                    const isCurrent = unitNum === progress?.currentUnit;
-                    const isMastered = masteredUnits?.includes(unitNum);
-                    const isLocked = isBetaTester && unitNum > (accessibleUnits?.maxUnits ?? 1);
-
-                    if (isLocked) {
-                      return (
-                        <Card key={unitNum} className="transition-all opacity-60 bg-gray-50 border-gray-300">
-                          <CardContent className="p-4 md:p-5">
-                            <div className="flex flex-col sm:flex-row items-start justify-between gap-3 md:gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Badge variant="outline" className="bg-gray-100">
-                                    {t('dashboard.unit', { number: unitNum })}
-                                  </Badge>
-                                  <Lock className="h-4 w-4 text-gray-500" />
-                                  <span className="text-gray-500 text-sm font-medium">{t('dashboard.locked')}</span>
-                                </div>
-                                <div className="font-semibold text-lg mb-1 text-muted-foreground">
-                                  {unit?.title}
-                                </div>
-                                <div className="text-sm text-muted-foreground mb-3">
-                                  {unit?.description}
-                                </div>
-                                <div className="text-xs text-foreground/70 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded p-2 mt-2">
-                                  <strong>{t('dashboard.betaTester.note')}</strong> {t('dashboard.betaTester.unlockNote')}
-                                </div>
+                      if (isLocked) {
+                        return (
+                          <AnimatedItem key={unitNum}>
+                            <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4 opacity-70 h-full">
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                <Badge variant="outline">{t("dashboard.unit", { number: unitNum })}</Badge>
+                                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground font-medium">
+                                  {t("dashboard.locked")}
+                                </span>
                               </div>
-                              <div className="text-right">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  className="whitespace-nowrap"
-                                  disabled
-                                >
-                                  <Lock className="mr-1 h-3 w-3" />
-                                  {t('dashboard.lockedButton')}
-                                </Button>
-                              </div>
+                              <p className="font-medium text-muted-foreground">{unit?.title}</p>
                             </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    }
+                          </AnimatedItem>
+                        );
+                      }
 
-                    return (
-                      <Link key={unitNum} href={`/unit/${unitNum}`}>
-                        <Card className={`transition-all hover:shadow-lg hover:scale-[1.01] ${
-                          isCurrent ? 'border-primary ring-2 ring-primary/20 shadow-md' : 
-                          isMastered ? 'border-amber-400 bg-amber-50/60' :
-                          isCompleted ? 'border-[color:var(--brand-blue-soft-border)] bg-[color:var(--brand-blue-soft)]' : 
-                          'hover:border-primary/50'
-                        }`}>
-                          <CardContent className="p-4 md:p-6">
-                            <div className="flex flex-col sm:flex-row items-start justify-between gap-4 md:gap-6">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2 md:mb-3 flex-wrap">
-                                  <Badge variant={isCurrent ? 'default' : 'outline'} className="text-sm">
-                                    {t('dashboard.unit', { number: unitNum })}
-                                  </Badge>
-                                  {isCompleted && (
-                                    <Badge className={completedBadgeClass}>
-                                      {t('dashboard.completedBadge')}
+                      return (
+                        <AnimatedItem key={unitNum} interactive>
+                          <Link href={`/unit/${unitNum}`}>
+                            <div
+                              className={`rounded-lg border p-4 h-full transition-all hover:shadow-md ${
+                                isCurrent
+                                  ? "border-primary ring-2 ring-primary/20 bg-primary/5"
+                                  : isMastered
+                                    ? "border-amber-400 bg-amber-50/40"
+                                    : isCompleted
+                                      ? "border-[color:var(--brand-blue-soft-border)] bg-[color:var(--brand-blue-soft)]"
+                                      : "hover:border-primary/40"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                    <Badge variant={isCurrent ? "default" : "outline"} className="text-xs">
+                                      {t("dashboard.unit", { number: unitNum })}
                                     </Badge>
-                                  )}
-                                  {isMastered && (
-                                    <Badge className={masteredBadgeClass}>
-                                      <Star className="mr-1 h-3 w-3 text-white" fill="currentColor" strokeWidth={0} />
-                                      {t("common.mastered")}
-                                    </Badge>
-                                  )}
-                                  {isCurrent && !isCompleted && (
-                                    <span className="text-primary text-sm font-medium">{t('dashboard.currentLessonBadge')}</span>
-                                  )}
-                                </div>
-                                <div className="font-semibold text-lg md:text-xl mb-1 md:mb-2 leading-tight">
-                                  {unit?.title}
-                                </div>
-                                <div className="text-xs md:text-sm text-muted-foreground mb-3 md:mb-4 leading-relaxed">
-                                  {unit?.description}
-                                </div>
-                                {unit?.topics && unit.topics.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mt-4">
-                                    {unit.topics.slice(0, 3).map((topic: string, idx: number) => (
-                                      <Badge key={idx} variant="outline" className="text-xs">
-                                        {topic}
+                                    {isMastered && (
+                                      <Badge className={masteredBadgeClass}>
+                                        <Star className="mr-1 h-3 w-3 text-white" fill="currentColor" strokeWidth={0} />
+                                        {t("common.mastered")}
                                       </Badge>
-                                    ))}
-                                    {unit.topics.length > 3 && (
-                                      <Badge variant="outline" className="text-xs">
-                                        {t('dashboard.moreTopics', { count: unit.topics.length - 3 })}
+                                    )}
+                                    {isCompleted && !isMastered && (
+                                      <Badge className={completedBadgeClass}>{t("dashboard.completedBadge")}</Badge>
+                                    )}
+                                    {isCurrent && !isCompleted && (
+                                      <span className="text-primary text-xs font-medium">
+                                        {t("dashboard.currentLessonBadge")}
+                                      </span>
+                                    )}
+                                    {notStarted && (
+                                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                                        {t("dashboard.unitStatus.notStarted")}
                                       </Badge>
                                     )}
                                   </div>
-                                )}
-                              </div>
-                              <div className="flex-shrink-0 w-full sm:w-auto">
-                                <Button 
-                                  variant={isCurrent ? 'default' : 'outline'} 
+                                  <p className="font-semibold leading-snug">{unit?.title}</p>
+                                  {unit?.description && (
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                      {unit.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant={isCurrent ? "default" : "outline"}
                                   size="sm"
-                                  className="whitespace-nowrap w-full sm:w-auto"
+                                  className="shrink-0 pointer-events-none"
                                 >
-                                  {isCompleted ? t('dashboard.review') : isCurrent ? t('dashboard.continue') : t('dashboard.start')}
+                                  {isCompleted
+                                    ? t("dashboard.review")
+                                    : isCurrent
+                                      ? t("dashboard.continue")
+                                      : t("dashboard.start")}
                                 </Button>
                               </div>
                             </div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    );
-                  })
-                )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </AnimatedItem>
-        </div>
+                          </Link>
+                        </AnimatedItem>
+                      );
+                    })}
+                  </AnimatedStagger>
+                </CardContent>
+              </Card>
+            )}
+          </AnimatedItem>
       </AnimatedPage>
     </>
   );

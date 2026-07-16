@@ -7,6 +7,11 @@ interface AnimatedPageProps {
   className?: string;
 }
 
+interface AnimatedItemProps extends AnimatedPageProps {
+  /** Subtle lift on hover for interactive cards and sections. */
+  interactive?: boolean;
+}
+
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
@@ -40,9 +45,27 @@ export function AnimatedPage({ children, className = "" }: AnimatedPageProps) {
   );
 }
 
-export function AnimatedItem({ children, className = "" }: AnimatedPageProps) {
+/** Nested stagger group – use inside AnimatedPage for grids/lists of AnimatedItem children. */
+export function AnimatedStagger({ children, className = "" }: AnimatedPageProps) {
   return (
-    <motion.div variants={itemVariants} className={className}>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export function AnimatedItem({ children, className = "", interactive = false }: AnimatedItemProps) {
+  return (
+    <motion.div
+      variants={itemVariants}
+      className={className}
+      whileHover={interactive ? { y: -3, transition: { duration: 0.2, ease: "easeOut" } } : undefined}
+    >
       {children}
     </motion.div>
   );
