@@ -461,15 +461,83 @@
   /* Lists inside onboarding HTML (dangerouslySetInnerHTML): not under .ProseMirror, so editor
    * list styles do not apply. Tailwind preflight sets list-style: none on ul/ol — restore markers. */
   .onboarding-content ul {
-    @apply list-disc list-outside mb-4 space-y-2 pl-6;
+    @apply list-disc list-outside mb-3 space-y-1 pl-5;
   }
 
   .onboarding-content ol {
-    @apply list-decimal list-outside mb-4 space-y-2 pl-6;
+    @apply list-decimal list-outside mb-3 space-y-1 pl-5;
   }
 
   .onboarding-content li {
-    @apply leading-7 text-foreground;
+    @apply leading-6 text-foreground text-sm;
+  }
+
+  .onboarding-content li p {
+    @apply mb-0;
+  }
+
+  /* Onboarding typography scope: inline HTML from the TipTap editor uses h1..h4
+   * tags. Without a scope, the global document-level heading sizes (36/30/24/20 px)
+   * apply and dominate the modal, competing with the CardTitle. Modal-scoped sizes
+   * establish a proper hierarchy where the CardTitle (text-2xl / 24 px) remains
+   * the dominant heading and inline content headings are visibly secondary. */
+  .onboarding-content h1 {
+    font-size: 1.125rem;    /* 18 px */
+    font-weight: 600;
+    line-height: 1.4;
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .onboarding-content h2 {
+    font-size: 1rem;        /* 16 px */
+    font-weight: 600;
+    line-height: 1.4;
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .onboarding-content h3 {
+    font-size: 0.9375rem;   /* 15 px */
+    font-weight: 600;
+    line-height: 1.4;
+    margin-top: 0.5rem;
+    margin-bottom: 0.375rem;
+  }
+
+  .onboarding-content h4,
+  .onboarding-content h5,
+  .onboarding-content h6 {
+    font-size: 0.875rem;    /* 14 px */
+    font-weight: 600;
+    line-height: 1.4;
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .onboarding-content p {
+    font-size: 0.875rem;    /* 14 px */
+    line-height: 1.55;
+    margin-bottom: 0.75rem;
+  }
+
+  .onboarding-content > *:first-child,
+  .onboarding-content > div:first-child > *:first-child {
+    margin-top: 0;
+  }
+
+  .onboarding-content > *:last-child,
+  .onboarding-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Callout boxes: reduce internal spacing to match the smaller typography. */
+  .onboarding-content div[class*="p-4"] {
+    padding: 0.875rem !important;   /* 14 px */
+  }
+
+  .onboarding-content div[class*="p-3"] {
+    padding: 0.75rem !important;    /* 12 px */
   }
   
   /* Chat markdown: override global heading sizes inside .markdown-content chat bubbles.

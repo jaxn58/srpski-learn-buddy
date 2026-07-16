@@ -123,22 +123,22 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
   return (
     <Dialog open onOpenChange={(open) => { if (!open) skipTutorial(); }}>
       <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="max-w-xl max-h-[85vh] overflow-y-auto p-5 sm:p-6"
         style={currentStepData?.backgroundColor ? { backgroundColor: currentStepData.backgroundColor } : undefined}
       >
-        <CardHeader className="p-0 pb-4">
-          <div className="flex items-center gap-3">
-            <IconComponent className="h-6 w-6 shrink-0" />
-            <CardTitle className="text-2xl">
+        <CardHeader className="p-0 pb-3">
+          <div className="flex items-center gap-2.5">
+            <IconComponent className="h-5 w-5 shrink-0" />
+            <CardTitle className="text-lg sm:text-xl leading-tight">
               {renderTitle()}
             </CardTitle>
           </div>
-          <CardDescription>
+          <CardDescription className="text-xs">
             {currentStepData?.description || `Step ${step} of ${totalSteps}`}
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-4 p-0">
+        <CardContent className="space-y-3 p-0">
           {/* Render HTML content from database */}
           {currentStepData && (
             <div 
@@ -148,7 +148,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
           )}
 
           {/* Navigation Buttons */}
-          <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row justify-between gap-2 pt-3">
             <Button variant="outline" onClick={skipTutorial} className="w-full sm:w-auto">
               {t("onboarding.skip")}
             </Button>
@@ -165,7 +165,7 @@ export function WelcomeOnboarding({ userName, onClose, language = "en", initialS
           </div>
 
           {/* Don't show again - BELOW buttons with separator */}
-          <div className="flex items-center space-x-2 pt-3 border-t">
+          <div className="flex items-center space-x-2 pt-2 border-t">
             <Checkbox 
               id="dontShowAgain" 
               checked={dontShowAgain}
