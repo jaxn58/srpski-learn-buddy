@@ -1,9 +1,15 @@
 import type { ActionCtx } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { callAiJson, callAiText, parseJsonOrThrow, type Provider } from "./_shared";
 import {
   extractSerbianFromMarkdown,
   type VerifierInputItem,
 } from "./_verifier";
+import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
+import {
+  CODE_DEFAULT_PROMPT_COGNATES,
+  loadMergedPromptCognates,
+} from "./_translatorCognates";
 
 /**
  * Shared translation primitives used by both:
@@ -317,6 +323,80 @@ export function buildSerbianContextBlock(source: TranslationSourceEn): string {
 }
 
 // ---------------------------------------------------------------------------
+// Translator admin context (Skills stage=translator + Memory applyInTranslator)
+// ---------------------------------------------------------------------------
+
+export type TranslatorAdminContext = {
+  skillBlock: string;
+  memoryBlock: string;
+};
+
+/**
+ * Load admin-managed translator rules (active skills + memory).
+ * Empty blocks when none configured — translator then behaves like the base prompt only.
+ */
+export async function loadTranslatorAdminContext(
+  ctx: ActionCtx
+): Promise<TranslatorAdminContext> {
+  const [skills, memoryEntries] = await Promise.all([
+    ctx.runQuery(internal.contentStudio.listActiveSkillsByStageInternal, {
+      stage: "translator",
+    }),
+    ctx.runQuery(internal.contentStudio.getActiveValidatorMemoryForScope, {
+      scope: "translator",
+      limit: 60,
+    }),
+  ]);
+
+  const skillLines: string[] = [];
+  for (const sk of skills as Array<{ name: string; prompt: string }>) {
+    const name = String(sk?.name ?? "").trim();
+    const prompt = String(sk?.prompt ?? "").trim();
+    if (!prompt) continue;
+    skillLines.push(`--- SKILL: ${name || "unnamed"} ---`);
+    skillLines.push(prompt);
+    skillLines.push("");
+  }
+  const skillBlock =
+    skillLines.length > 0
+      ? ["TRANSLATOR SKILLS (admin-managed — apply during EN→DE translation):", ...skillLines]
+          .join("\n")
+          .trim()
+      : "";
+
+  const memoryBlock = buildValidatorMemoryBlockFromEntries(memoryEntries as any, {
+    limit: 40,
+    requireScope: "none",
+    heading:
+      "TRANSLATOR MEMORY (admin-managed rules — apply during EN→DE translation):",
+  });
+
+  return { skillBlock, memoryBlock };
+}
+
+/**
+ * Final system prompt order: base → admin skills → admin memory → retry feedback.
+ */
+export function composeTranslatorSystemPrompt(
+  basePrompt: string,
+  admin: TranslatorAdminContext,
+  retryFeedback?: string
+): string {
+  const parts = [String(basePrompt || "").trim()];
+  if (admin.skillBlock.trim()) parts.push(admin.skillBlock.trim());
+  if (admin.memoryBlock.trim()) parts.push(admin.memoryBlock.trim());
+  if (retryFeedback && retryFeedback.trim()) {
+    parts.push(
+      [
+        "IMPORTANT: A previous attempt had issues flagged by the verifier or quality guard. Address this feedback:",
+        retryFeedback.trim(),
+      ].join("\n")
+    );
+  }
+  return parts.filter(Boolean).join("\n\n");
+}
+
+// ---------------------------------------------------------------------------
 // Metadata translation (trilingual prompt)
 // ---------------------------------------------------------------------------
 
@@ -368,11 +448,14 @@ export async function runMetadataTranslation(
     ai: AiCallOptions;
     stepLogs: StepLog[];
     retryFeedback?: string;
+    adminContext?: TranslatorAdminContext;
   }
 ): Promise<{ raw: string; provider: string; model: string }> {
-  const system = args.retryFeedback
-    ? `${META_SYSTEM_BASE}\n\nIMPORTANT: A previous attempt had EN→DE translation issues flagged by the verifier. Fix these in your output while keeping the English meaning intact:\n${args.retryFeedback}`
-    : META_SYSTEM_BASE;
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const retry = args.retryFeedback
+    ? `EN→DE translation issues flagged by the verifier. Fix these while keeping the English meaning intact:\n${args.retryFeedback}`
+    : undefined;
+  const system = composeTranslatorSystemPrompt(META_SYSTEM_BASE, admin, retry);
   const step = args.retryFeedback ? "metadata:retry" : "metadata";
   const t0 = Date.now();
   const ai = await callJsonRobust(
@@ -415,7 +498,7 @@ export function buildMetadataDeFromAi(aiRaw: string, source: TranslationSourceEn
 // Section (markdown) translation (trilingual prompt)
 // ---------------------------------------------------------------------------
 
-function buildSectionSystemPrompt(retryFeedback?: string): string {
+function buildSectionSystemPrompt(): string {
   return [
     "You are translating ONE Serbian-course unit markdown section into German (de-DE) for German-speaking learners of Serbian.",
     "",
@@ -438,13 +521,6 @@ function buildSectionSystemPrompt(retryFeedback?: string): string {
     "- Do NOT change any Serbian phrases inside examples, answers, or dialogue lines.",
     "- Only translate English explanatory/instructional text into German.",
     "",
-    ...(retryFeedback && retryFeedback.trim()
-      ? [
-          "IMPORTANT: A previous translation attempt had semantic issues vs. the Serbian content. Address this feedback:",
-          retryFeedback.trim(),
-          "",
-        ]
-      : []),
     "Return ONLY the final Markdown content (no commentary, no code fences).",
   ].join("\n");
 }
@@ -457,6 +533,7 @@ export async function translateMarkdownSection(
     unitNumber: number;
     ai: AiCallOptions;
     retryFeedback?: string;
+    adminContext?: TranslatorAdminContext;
   }
 ): Promise<{ mdDe: string; log: StepLog }> {
   const input = String(args.markdownEn ?? "").replace(/\r\n/g, "\n").trim();
@@ -475,7 +552,12 @@ export async function translateMarkdownSection(
   };
   if (!input) return { mdDe: "", log: emptyLog };
 
-  const system = buildSectionSystemPrompt(args.retryFeedback);
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const system = composeTranslatorSystemPrompt(
+    buildSectionSystemPrompt(),
+    admin,
+    args.retryFeedback
+  );
   const user = [
     `Unit: ${args.unitNumber}`,
     `Section: ${args.contentType}`,
@@ -639,20 +721,55 @@ function normalizeGlossCompare(s: string): string {
     .replace(/\s+/g, " ");
 }
 
-/** Exercise questionTypes whose prompts may include a Serbian stem (no translation help allowed). */
+/** Exercise questionTypes whose prompts may include a Serbian stem. */
 export function isSerbianStemExerciseType(questionType: string): boolean {
   const t = String(questionType || "");
   return t === "fillInBlank" || t === "dialogue" || t === "multipleChoice";
 }
 
 /**
- * Strip trailing learner-help parentheticals from exercise prompts.
- * Exercise tests must not reveal meaning via "(German/English gloss)" after a Serbian stem.
+ * Short source-language cue for fill-in-the-blank: tells the learner WHICH word
+ * to put into the blank (EN→DE). Example: "(milk)" → "(Milch)".
+ * NOT a full-sentence translation of the Serbian stem.
+ */
+export function isFillInSourceCue(gloss: string): boolean {
+  const g = String(gloss || "").trim();
+  if (!g) return false;
+  if (/_+/.test(g)) return false;
+  // Full sentences / explanations are help glosses, not fill-in cues.
+  if (/[.!?…]/.test(g)) return false;
+  const words = g.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 4) return false;
+  // Clause-like starters with enough words → help, not a cue noun/phrase.
+  if (
+    words.length >= 3 &&
+    /^(it|this|that|there|here|she|he|they|we|you|i|ana|marko|marija)\b/i.test(g)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Full-sentence / blank-containing parenthetical that explains the Serbian (must be stripped). */
+export function isHelpTranslationGloss(gloss: string): boolean {
+  const g = String(gloss || "").trim();
+  if (!g) return false;
+  if (isFillInSourceCue(g)) return false;
+  return true;
+}
+
+/**
+ * Strip trailing HELP parentheticals only (sentence-level translation of the Serbian).
+ * Keeps fill-in source cues like "(milk)" / "(Milch)".
  */
 export function stripTrailingParentheticalGlosses(text: string): string {
   let s = String(text || "").replace(/\r\n/g, "\n").trim();
   for (let i = 0; i < 8; i++) {
-    const next = s.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
+    const m = s.match(/^(.*?)(?:\s*\(([^)]*)\))\s*([.!?…])?$/u);
+    if (!m) break;
+    const gloss = String(m[2] ?? "").trim();
+    if (!gloss || !isHelpTranslationGloss(gloss)) break;
+    const next = String(m[1] ?? "").trim();
     if (next === s) break;
     s = next;
   }
@@ -660,8 +777,8 @@ export function stripTrailingParentheticalGlosses(text: string): string {
 }
 
 /**
- * Detect leftover parenthetical help on DE exercise prompts.
- * Glosses are NOT wanted on the DE track for Serbian-stem exercises — strip, don't translate.
+ * Detect leftover HELP parentheticals (not fill-in cues) on DE exercise prompts.
+ * Dialogue / MC: strip help. Fill-in cues are handled separately (must be kept + translated).
  */
 export function findUnwantedExerciseGlossIssues(
   pairs: Array<{ questionId: string; questionType: string; questionEn: string; questionDe: string }>
@@ -669,29 +786,68 @@ export function findUnwantedExerciseGlossIssues(
   const issues: string[] = [];
   for (const p of pairs) {
     if (!isSerbianStemExerciseType(p.questionType)) continue;
-    const deGlosses = extractParentheticalGlosses(p.questionDe);
-    if (deGlosses.length === 0) continue;
-    // Only flag when EN also had gloss-help, or DE clearly still has stem+help shape.
-    const enHadGloss = extractParentheticalGlosses(p.questionEn).length > 0;
-    if (!enHadGloss && deGlosses.length === 0) continue;
-    if (!enHadGloss) {
-      // Defensive: still strip leftovers that look like translation help after a blank/stem.
-      if (!/_+/.test(p.questionDe) && !/[čćšžđČĆŠŽĐ]/.test(p.questionDe)) continue;
-    }
+    const deHelp = extractParentheticalGlosses(p.questionDe).filter(isHelpTranslationGloss);
+    if (deHelp.length === 0) continue;
     issues.push(
       `questionId=${p.questionId}: exercise prompt still has parenthetical help ` +
-        `(${deGlosses.map((g) => `(${g})`).join(" ")}). ` +
-        `Remove learner glosses from DE exercise tests — keep the Serbian stem/blank only, no translation help.`
+        `(${deHelp.map((g) => `(${g})`).join(" ")}). ` +
+        `Remove sentence-level translation help — keep the Serbian stem/blank only` +
+        (p.questionType === "fillInBlank"
+          ? ` (short fill-in cues like "(Milch)" must stay).`
+          : `.`)
     );
   }
   return issues;
 }
 
-/** @deprecated Use findUnwantedExerciseGlossIssues — glosses must be stripped, not translated. */
+/**
+ * fillInBlank: EN has short source cues "(milk)" → DE must keep them as German "(Milch)".
+ */
+export function findMissingOrUntranslatedFillInCueIssues(
+  pairs: Array<{
+    questionId: string;
+    questionType: string;
+    questionEn: string;
+    questionDe: string;
+  }>,
+  cognates: Set<string> = new Set(CODE_DEFAULT_PROMPT_COGNATES)
+): string[] {
+  const issues: string[] = [];
+  for (const p of pairs) {
+    if (String(p.questionType || "") !== "fillInBlank") continue;
+    const enCues = extractParentheticalGlosses(p.questionEn).filter(isFillInSourceCue);
+    if (enCues.length === 0) continue;
+    const deCues = extractParentheticalGlosses(p.questionDe).filter(isFillInSourceCue);
+    if (deCues.length < enCues.length) {
+      issues.push(
+        `questionId=${p.questionId}: fill-in source cue missing on DE ` +
+          `(EN has ${enCues.map((g) => `(${g})`).join(" ")}). ` +
+          `Keep the Serbian stem/blank and translate the cue to German ` +
+          `(e.g. "(milk)" → "(Milch)") so the learner knows what to fill in.`
+      );
+      continue;
+    }
+    for (let i = 0; i < enCues.length; i++) {
+      const enG = enCues[i]!;
+      const deG = deCues[i] ?? "";
+      const enNorm = normalizeGlossCompare(enG);
+      const deNorm = normalizeGlossCompare(deG);
+      if (deNorm && enNorm === deNorm && !cognates.has(enNorm)) {
+        issues.push(
+          `questionId=${p.questionId}: fill-in source cue is still English "(${enG})". ` +
+            `Translate it to German inside the parentheses (e.g. milk→Milch, apples→Äpfel).`
+        );
+      }
+    }
+  }
+  return issues;
+}
+
+/** @deprecated Prefer findUnwantedExerciseGlossIssues / findMissingOrUntranslatedFillInCueIssues. */
 export function findLostOrUntranslatedGlossIssues(
   pairs: Array<{ questionId: string; questionEn: string; questionDe: string }>
 ): string[] {
-  return findUnwantedExerciseGlossIssues(
+  return findMissingOrUntranslatedFillInCueIssues(
     pairs.map((p) => ({
       questionId: p.questionId,
       questionType: "fillInBlank",
@@ -701,43 +857,91 @@ export function findLostOrUntranslatedGlossIssues(
   );
 }
 
-function buildGlossRetryFeedback(issues: string[]): string {
-  return [
-    "CRITICAL: Exercise tests must NOT show parenthetical learner glosses / translation help.",
-    "For fillInBlank, dialogue, and multipleChoice with a Serbian stem: keep the Serbian text and blanks ONLY.",
-    "DELETE trailing (...) glosses — do not translate them to German.",
-    "Example EN: 'Ana je _____. Ona radi u bolnici. (Ana is a _____. She works in a hospital.)'",
-    "Example DE: 'Ana je _____. Ona radi u bolnici.'",
-    "Example EN: 'Sada je jedan _____. (It is one o'clock now.)'",
-    "Example DE: 'Sada je jedan _____.'",
-    "Never append German (or English) help in parentheses on exercise prompts.",
-    ...issues,
-  ].join("\n");
+function looksEnglishParenthetical(text: string): boolean {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (/[äöüßÄÖÜ]/.test(t)) return false;
+  if (/[čćšžđČĆŠŽĐ]/.test(t)) return false;
+  if (
+    /\b(the|and|you|are|is|from|excuse|me|what|where|how|please|thank|hello|good|morning|name|who|why|this|that|with|your)\b/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  // Latin-only multi-word snippet without German/Serbian markers → likely English reference.
+  const words = t.split(/\s+/).filter(Boolean);
+  return words.length >= 2 && /^[a-zA-Z0-9\s:',.!?\-_/]+$/.test(t);
 }
 
 /**
- * EN/DE identical (or near-identical) surface forms that may legitimately stay unchanged
- * as translation/matching prompts. Keep this list conservative.
+ * Detect EN reference parentheticals appended on DE that were not present (or fewer) in EN.
+ * Targets dialogueCompletion / A:/B: dialogue stems.
  */
-const EN_DE_IDENTICAL_PROMPT_COGNATES = new Set([
-  "august",
-  "september",
-  "november",
-  "hotel",
-  "restaurant",
-  "taxi",
-  "bus",
-  "radio",
-  "video",
-  "internet",
-  "baby",
-  "mango",
-  "paprika",
-  "salon",
-  "bar",
-  "cafe",
-  "café",
-]);
+export function findAppendedForeignParentheticalIssues(
+  pairs: Array<{
+    questionId: string;
+    questionType: string;
+    category: string;
+    questionEn: string;
+    questionDe: string;
+  }>
+): string[] {
+  const issues: string[] = [];
+  for (const p of pairs) {
+    const cat = String(p.category || "");
+    const enQ = String(p.questionEn || "");
+    const deQ = String(p.questionDe || "");
+    const looksLikeDialogueStem =
+      cat === "dialogueCompletion" ||
+      String(p.questionType || "") === "dialogue" ||
+      /^(?:A|B)\s*:/i.test(enQ.trim());
+    if (!looksLikeDialogueStem) continue;
+
+    const enGlosses = extractParentheticalGlosses(enQ);
+    const deGlosses = extractParentheticalGlosses(deQ);
+    if (deGlosses.length <= enGlosses.length) continue;
+
+    const extras = deGlosses.slice(enGlosses.length);
+    const enNorm = normalizeGlossCompare(enQ);
+    const foreignExtras = extras.filter((g) => {
+      const gn = normalizeGlossCompare(g);
+      if (looksEnglishParenthetical(g)) return true;
+      // Extra DE paren that reproduces a large chunk of the EN prompt.
+      if (gn.length >= 10 && enNorm.includes(gn)) return true;
+      return false;
+    });
+    if (foreignExtras.length === 0) continue;
+
+    issues.push(
+      `questionId=${p.questionId}: additionally appended English parenthetical ` +
+        `(${foreignExtras.map((g) => `(${g})`).join(" ")}). ` +
+        `Remove it. Dialogue stays Serbian; do not append an EN reference translation.`
+    );
+  }
+  return issues;
+}
+
+function buildGlossRetryFeedback(issues: string[]): string {
+  return [
+    "CRITICAL: Distinguish FILL-IN SOURCE CUES from HELP GLOSSES.",
+    "",
+    "fillInBlank SOURCE CUES (KEEP + TRANSLATE EN→DE):",
+    "- Short parentheses after the blank tell the learner WHICH word to fill in.",
+    "- Example EN: 'Molim vas, jedan litar ___. (milk)' → DE: 'Molim vas, jedan litar ___. (Milch)'",
+    "- Example EN: 'Želim da kupim kilo ___. (apples)' → DE: 'Želim da kupim kilo ___. (Äpfel)'",
+    "- Never drop these cues on the German track.",
+    "",
+    "HELP GLOSSES (DELETE — do not translate to German):",
+    "- Full-sentence translation of the Serbian stem, or parentheses that contain blanks.",
+    "- Example EN: 'Sada je jedan _____. (It is one o'clock now.)' → DE: 'Sada je jedan _____.'",
+    "- Example EN: 'Ana je _____. Ona radi u bolnici. (Ana is a _____. She works in a hospital.)' → DE: 'Ana je _____. Ona radi u bolnici.'",
+    "",
+    "dialogue / dialogueCompletion: do NOT append an English reference translation in parentheses.",
+    "Example EN dialogue: 'A: Odakle ste Vi? B: _____' → DE: same Serbian, no English paren.",
+    ...issues,
+  ].join("\n");
+}
 
 /** Strip blanks/equals scaffolding from matching/translation prompt text for comparison. */
 function extractComparablePromptText(question: string): string {
@@ -752,6 +956,7 @@ function extractComparablePromptText(question: string): string {
 /**
  * Translation / vocabularyMatching prompts are learner-facing SOURCE-LANGUAGE words/phrases.
  * For the German track they MUST become German (Montag, heute, Hälfte, …), not stay English.
+ * Cognates (code defaults + admin DB) may stay identical.
  */
 export function findUntranslatedLearnerPromptIssues(
   pairs: Array<{
@@ -759,7 +964,8 @@ export function findUntranslatedLearnerPromptIssues(
     questionType: string;
     questionEn: string;
     questionDe: string;
-  }>
+  }>,
+  cognates: Set<string> = new Set(CODE_DEFAULT_PROMPT_COGNATES)
 ): string[] {
   const issues: string[] = [];
   for (const p of pairs) {
@@ -773,7 +979,7 @@ export function findUntranslatedLearnerPromptIssues(
     const enNorm = normalizeGlossCompare(enPrompt);
     const deNorm = normalizeGlossCompare(dePrompt);
     if (enNorm !== deNorm) continue;
-    if (EN_DE_IDENTICAL_PROMPT_COGNATES.has(enNorm)) continue;
+    if (cognates.has(enNorm)) continue;
 
     issues.push(
       `questionId=${p.questionId} (${qType}): learner prompt is still English "${enPrompt}". ` +
@@ -811,7 +1017,7 @@ function buildPromptGuardRetryFeedback(issues: string[]): string {
   ].join("\n");
 }
 
-function buildTestsSystemPrompt(retryFeedback?: string): string {
+function buildTestsSystemPrompt(): string {
   return [
     "You translate interactive-test prompts (questions, hints, category instructions) into German (de-DE) for German-speaking learners of Serbian.",
     "",
@@ -834,13 +1040,20 @@ function buildTestsSystemPrompt(retryFeedback?: string): string {
     "   - Example: '_____ = half' → '_____ = Hälfte' (or '_____ = halb' when time-context fits).",
     "   - Keep blanks identical. Do not leave the English meaning.",
     "",
-    "3) questionType == 'fillInBlank' | 'dialogue' | Serbian-stem multipleChoice (CRITICAL):",
+    "3) questionType == 'fillInBlank' (CRITICAL):",
+    "   - Keep the Serbian stem and blanks EXACTLY.",
+    "   - FILL-IN SOURCE CUE: short parentheses after the blank (e.g. '(milk)', '(apples)') MUST stay.",
+    "     Translate the cue EN→DE: '(milk)' → '(Milch)', '(apples)' → '(Äpfel)', '(cheese)' → '(Käse)'.",
+    "     The cue tells the learner which word to put into the blank — without it the exercise is unusable.",
+    "   - HELP GLOSS: full-sentence parentheses that translate the whole Serbian line MUST be removed.",
+    "     Example EN: 'Sada je jedan _____. (It is one o'clock now.)' → DE: 'Sada je jedan _____.'",
+    "",
+    "4) questionType == 'dialogue' | Serbian-stem multipleChoice (CRITICAL):",
     "   - Keep the Serbian stem and blanks EXACTLY.",
     "   - REMOVE trailing parenthetical learner glosses / translation help — do NOT translate them to German.",
-    "   - Example EN: 'Sada je jedan _____. (It is one o'clock now.)' → DE: 'Sada je jedan _____.'",
     "   - Example EN: 'Ana je _____. Ona radi u bolnici. (Ana is a _____. …)' → DE: 'Ana je _____. Ona radi u bolnici.'",
     "",
-    "4) questionType == 'multipleChoice' with English/German UI prompt (no Serbian stem):",
+    "5) questionType == 'multipleChoice' with English/German UI prompt (no Serbian stem):",
     "   - Translate the learner-facing question prompt EN → DE when it is English UI/prompt text.",
     "   - Options/correctAnswer stay Serbian (untranslated).",
     "",
@@ -854,20 +1067,13 @@ function buildTestsSystemPrompt(retryFeedback?: string): string {
     "- Preserve blanks EXACTLY as '_____' (five underscores) and keep the blank count identical to the English source.",
     "- For Serbian-stem questions, the Serbian answer content is the semantic anchor; for translation/matching prompts, the EN→DE prompt translation is mandatory (see above).",
     "",
-    "PARENTHESES / LEARNER GLOSSES:",
-    "- Exercise tests must NOT show translation help in parentheses.",
-    "- For Serbian-stem exercises: strip all trailing (...) glosses from questionDe.",
-    "- Never append German (or English) parenthetical help to exercise prompts.",
+    "PARENTHESES — TWO KINDS:",
+    "- fillInBlank source cues (short word/phrase after the blank): KEEP and translate to German.",
+    "- Help glosses (full-sentence meaning of the Serbian stem, or parentheses containing blanks): STRIP from questionDe.",
+    "- dialogueCompletion / A:/B: stems: never append an English reference translation in parentheses.",
     "",
     "Return ONLY valid JSON with keys: categoryInstructionsDe, questions.",
     "questions must be an array of { questionId, questionDe, hintDe }.",
-    ...(retryFeedback && retryFeedback.trim()
-      ? [
-          "",
-          "IMPORTANT: A previous attempt had issues flagged by the verifier or quality guard. Address this feedback:",
-          retryFeedback.trim(),
-        ]
-      : []),
   ].join("\n");
 }
 
@@ -881,9 +1087,15 @@ async function translateTestsForCategoryOnce(
     stepLogs: StepLog[];
     retryFeedback?: string;
     stepName: string;
+    adminContext?: TranslatorAdminContext;
   }
 ): Promise<any[]> {
-  const system = buildTestsSystemPrompt(args.retryFeedback);
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const system = composeTranslatorSystemPrompt(
+    buildTestsSystemPrompt(),
+    admin,
+    args.retryFeedback
+  );
   const user = JSON.stringify({
     category: args.category,
     categoryInstructionsEn: args.bucket.categoryInstructions || "",
@@ -997,12 +1209,16 @@ export async function translateTestsForCategory(
     ai: AiCallOptions;
     stepLogs: StepLog[];
     retryFeedback?: string;
+    adminContext?: TranslatorAdminContext;
   }
 ): Promise<any[]> {
   const baseStep = args.retryFeedback ? `tests:${args.category}:retry` : `tests:${args.category}`;
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const cognates = await loadMergedPromptCognates(ctx);
 
   let produced = await translateTestsForCategoryOnce(ctx, {
     ...args,
+    adminContext: admin,
     stepName: baseStep,
   });
 
@@ -1013,6 +1229,7 @@ export async function translateTestsForCategory(
       return {
         questionId: qid,
         questionType: String(src.questionType ?? ""),
+        category: args.category,
         questionEn: String(src.question ?? ""),
         questionDe: String(de?.question ?? ""),
       };
@@ -1025,17 +1242,25 @@ export async function translateTestsForCategory(
         : "";
     return [
       ...findUnwantedExerciseGlossIssues(qualityPairs()),
-      ...findUntranslatedLearnerPromptIssues(qualityPairs()),
+      ...findMissingOrUntranslatedFillInCueIssues(qualityPairs(), cognates),
+      ...findAppendedForeignParentheticalIssues(qualityPairs()),
+      ...findUntranslatedLearnerPromptIssues(qualityPairs(), cognates),
       ...findEnglishFramingInstructionIssues(instructionsDe),
     ];
   };
 
   let qualityIssues = collectQualityIssues();
 
-  // One automatic quality-guard retry (leftover gloss help, untranslated EN prompts, EN framing).
+  // One automatic quality-guard retry (leftover gloss help, missing fill-in cues, untranslated EN prompts, EN framing).
   // Skip if the caller already supplied retry feedback (verifier pass-2 path).
   if (qualityIssues.length > 0 && !args.retryFeedback) {
-    const glossOnly = qualityIssues.every((i) => i.includes("parenthetical help") || i.includes("parenthetical"));
+    const glossOnly = qualityIssues.every(
+      (i) =>
+        i.includes("parenthetical help") ||
+        i.includes("parenthetical") ||
+        i.includes("fill-in source cue") ||
+        i.includes("appended English parenthetical")
+    );
     const feedback = glossOnly
       ? buildGlossRetryFeedback(qualityIssues)
       : buildPromptGuardRetryFeedback(qualityIssues);
@@ -1044,6 +1269,7 @@ export async function translateTestsForCategory(
     );
     produced = await translateTestsForCategoryOnce(ctx, {
       ...args,
+      adminContext: admin,
       retryFeedback: feedback,
       stepName: `tests:${args.category}:quality-retry`,
     });
@@ -1051,6 +1277,30 @@ export async function translateTestsForCategory(
   }
 
   if (qualityIssues.length > 0) {
+    // Soft-fail for EN=DE cognate candidates only: keep the translated category,
+    // surface issues on the translation report so the admin can accept them as
+    // cognates (or selectively retry). Hard-fail everything else (glosses, framing).
+    const onlyUntranslatedPrompts = qualityIssues.every((i) =>
+      i.includes("learner prompt is still English")
+    );
+    if (onlyUntranslatedPrompts) {
+      console.warn(
+        `[translateTests] category=${args.category}: ${qualityIssues.length} cognate-candidate issue(s); continuing (soft).`
+      );
+      args.stepLogs.push({
+        step: `tests:${args.category}:cognate-candidates`,
+        provider: "",
+        model: "",
+        durationMs: 0,
+        inputTokens: null,
+        outputTokens: null,
+        thinkingTokens: null,
+        totalTokens: null,
+        estimatedCostUsd: null,
+        qualityIssues,
+      });
+      return produced;
+    }
     throw new Error(
       `Test translation quality guard failed (category=${args.category}): ` +
         `${qualityIssues.slice(0, 5).join(" | ")}`

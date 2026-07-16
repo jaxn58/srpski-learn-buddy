@@ -888,7 +888,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                   <div className="space-y-2 rounded border p-3">
                     <div className="font-medium">AI Skills Library (by role)</div>
                     <div className="text-xs text-muted-foreground">
-                      These skills influence a specific AI role globally (Creator / Lector).
+                      These skills influence a specific AI role globally (Creator / Lector / EN→DE Translator).
                     </div>
                     <Label>Role</Label>
                     <Select value={skillsStage} onValueChange={(v) => setSkillsStage(v as any)}>
@@ -898,6 +898,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                       <SelectContent>
                         <SelectItem value="specialist">Creator</SelectItem>
                         <SelectItem value="auditor">Lector</SelectItem>
+                        <SelectItem value="translator">EN → DE Translator</SelectItem>
                       </SelectContent>
                     </Select>
                     <Label>Name</Label>

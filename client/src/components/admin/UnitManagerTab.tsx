@@ -24,8 +24,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-// AlertDialog imports removed — actions use inline confirm inputs
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import {
+  isTranslatorQualityGuardError,
+  isUntranslatedLearnerPromptIssue,
+  parseUntranslatedPromptGuardFailures,
+} from "@/components/admin/contentStudio/utils/parseTranslatorGuardError";
 import { VocabularyCleanupPanel } from "@/components/admin/VocabularyCleanupPanel";
 import { BetaUnitsLimitCard } from "@/components/admin/BetaUnitsLimitCard";
 import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle, Languages, ChevronDown, ChevronRight } from "lucide-react";
@@ -150,6 +164,44 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   const deleteUnitFull = useMutation(api.contentStudio.deleteUnitFull);
   const doTranslate = useAction(api.contentStudio.translatePublishedUnitEnToDe);
   const doRetryDe = useAction(api.contentStudio.retryDeTranslationForSelectedIssues);
+  const addTranslatorCognates = useMutation(api.contentStudio.addTranslatorCognates);
+
+  type CognateAcceptPrompt = {
+    terms: string[];
+    errorMessage: string;
+  };
+  const [cognateAcceptPrompt, setCognateAcceptPrompt] = useState<CognateAcceptPrompt | null>(null);
+  const [cognateAcceptBusy, setCognateAcceptBusy] = useState(false);
+  const [savedCognateTerms, setSavedCognateTerms] = useState<Set<string>>(new Set());
+
+  const acceptCognateTerms = async (terms: string[]) => {
+    const unique = [...new Set(terms.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+    if (unique.length === 0) {
+      toast.error("Kein Cognate-Wort erkannt.");
+      return;
+    }
+    setCognateAcceptBusy(true);
+    try {
+      const res = await addTranslatorCognates({
+        terms: unique,
+        note: "Akzeptiert im Translation Report",
+      });
+      setSavedCognateTerms((prev) => {
+        const next = new Set(prev);
+        for (const t of [...res.added, ...res.alreadyPresent]) next.add(t);
+        return next;
+      });
+      if (res.added.length > 0) {
+        toast.success(`Cognate gespeichert: ${res.added.join(", ")}`);
+      } else {
+        toast.info(`Bereits bekannt: ${res.alreadyPresent.join(", ")}`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Cognate speichern fehlgeschlagen.");
+    } finally {
+      setCognateAcceptBusy(false);
+    }
+  };
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de" | "de_outdated">("all");
@@ -622,9 +674,27 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       setTranslateConfirm("");
       onTranslationComplete?.(selectedUnit);
     } catch (e: any) {
-      toast.error(e?.message ?? "Translation failed.");
+      const message = String(e?.message ?? e ?? "");
+      const terms = parseUntranslatedPromptGuardFailures(message);
+      if (isTranslatorQualityGuardError(message) && terms.length > 0) {
+        setCognateAcceptPrompt({ terms, errorMessage: message });
+      } else {
+        toast.error(message || "Translation failed.");
+      }
     } finally {
       setTranslateRunning(false);
+    }
+  };
+
+  const handleAcceptCognatesAndRetryTranslate = async () => {
+    if (!cognateAcceptPrompt || selectedUnit == null) return;
+    try {
+      await acceptCognateTerms(cognateAcceptPrompt.terms);
+      setCognateAcceptPrompt(null);
+      toast.info("Starte Übersetzung erneut…");
+      await handleTranslate();
+    } catch (e: any) {
+      toast.error(e?.message || "Cognates speichern / Retry fehlgeschlagen.");
     }
   };
 
@@ -1090,31 +1160,57 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                     retryRunning={retryRunning}
                     onRunRetry={handleRunRetry}
                     retryHistory={retryHistory}
+                    onAcceptCognate={(terms) => void acceptCognateTerms(terms)}
+                    cognateAcceptBusy={cognateAcceptBusy}
+                    savedCognateTerms={savedCognateTerms}
                   />
                 )}
 
-                {/* Quality issues detail */}
+                {/* Quality issues detail (incl. cognate candidates — click to save) */}
                 {translateReport.qualityIssueCount > 0 && (
                   <div className="space-y-1.5">
+                    <div className="text-xs font-semibold text-foreground">
+                      Quality issues — Cognates hier direkt speichern
+                    </div>
                     {translateReport.steps
                       .filter((s) => s.qualityIssues.length > 0)
                       .map((s, i) => (
                         <div
                           key={i}
-                          className="text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-2 space-y-0.5"
+                          className="text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-2 space-y-1"
                         >
                           <div className="font-medium text-amber-800 dark:text-amber-300 font-mono">
                             {s.step}
                           </div>
-                          {s.qualityIssues.map((issue, j) => (
-                            <div
-                              key={j}
-                              className="text-amber-700 dark:text-amber-400 flex items-start gap-1"
-                            >
-                              <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
-                              {issue}
-                            </div>
-                          ))}
+                          {s.qualityIssues.map((issue, j) => {
+                            const terms = parseUntranslatedPromptGuardFailures(issue);
+                            const already =
+                              terms.length > 0 && terms.every((t) => savedCognateTerms.has(t));
+                            return (
+                              <div
+                                key={j}
+                                className="text-amber-700 dark:text-amber-400 flex items-start gap-2"
+                              >
+                                <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0 space-y-1">
+                                  <div>{issue}</div>
+                                  {terms.length > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      className="h-7 text-[11px]"
+                                      disabled={cognateAcceptBusy || already}
+                                      onClick={() => void acceptCognateTerms(terms)}
+                                    >
+                                      {already
+                                        ? `Gespeichert: ${terms.join(", ")}`
+                                        : `Als Cognate speichern: ${terms.join(", ")}`}
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       ))}
                   </div>
@@ -1178,6 +1274,44 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
           <DiffView detailEn={detailEn} detailDe={detailDe} />
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={cognateAcceptPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open && !cognateAcceptBusy) setCognateAcceptPrompt(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Quality Guard: EN = DE Cognate?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Der Guard markiert diese Prompt(s) als unübersetzt. Wenn sie im Deutschen
+                  korrekt identisch bleiben, akzeptieren und erneut übersetzen.
+                </p>
+                <ul className="list-disc pl-5 font-mono text-foreground">
+                  {(cognateAcceptPrompt?.terms ?? []).map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cognateAcceptBusy}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cognateAcceptBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleAcceptCognatesAndRetryTranslate();
+              }}
+            >
+              {cognateAcceptBusy ? "Speichert…" : "Passt so — speichern & erneut übersetzen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1900,6 +2034,9 @@ function VerifierReportPanel({
   retryRunning,
   onRunRetry,
   retryHistory,
+  onAcceptCognate,
+  cognateAcceptBusy,
+  savedCognateTerms,
 }: {
   verifier: {
     pass1: VerifierReportClient;
@@ -1918,6 +2055,9 @@ function VerifierReportPanel({
   retryRunning: boolean;
   onRunRetry: () => void;
   retryHistory: Array<{ retriedKeys: string[]; timestamp: number }>;
+  onAcceptCognate: (terms: string[]) => void;
+  cognateAcceptBusy: boolean;
+  savedCognateTerms: Set<string>;
 }) {
   const { pass1, pass2, retryAttempted, finalCriticalCount, finalWarningCount } = verifier;
 
@@ -2018,6 +2158,9 @@ function VerifierReportPanel({
           tone="critical"
           selectedKeys={selectedKeys}
           onToggleKey={onToggleKey}
+          onAcceptCognate={onAcceptCognate}
+          cognateAcceptBusy={cognateAcceptBusy}
+          savedCognateTerms={savedCognateTerms}
         />
       )}
       {allWarnings.length > 0 && (
@@ -2027,6 +2170,9 @@ function VerifierReportPanel({
           tone="warning"
           selectedKeys={selectedKeys}
           onToggleKey={onToggleKey}
+          onAcceptCognate={onAcceptCognate}
+          cognateAcceptBusy={cognateAcceptBusy}
+          savedCognateTerms={savedCognateTerms}
         />
       )}
       {allInfos.length > 0 && (
@@ -2038,6 +2184,9 @@ function VerifierReportPanel({
           selectable={false}
           selectedKeys={selectedKeys}
           onToggleKey={onToggleKey}
+          onAcceptCognate={onAcceptCognate}
+          cognateAcceptBusy={cognateAcceptBusy}
+          savedCognateTerms={savedCognateTerms}
         />
       )}
 
@@ -2132,6 +2281,9 @@ function VerifierIssueList({
   selectable = true,
   selectedKeys,
   onToggleKey,
+  onAcceptCognate,
+  cognateAcceptBusy,
+  savedCognateTerms,
 }: {
   title: string;
   issues: VerifierIssueClient[];
@@ -2140,6 +2292,9 @@ function VerifierIssueList({
   selectable?: boolean;
   selectedKeys: Set<string>;
   onToggleKey: (key: string) => void;
+  onAcceptCognate: (terms: string[]) => void;
+  cognateAcceptBusy: boolean;
+  savedCognateTerms: Set<string>;
 }) {
   const borderCls =
     tone === "critical"
@@ -2201,6 +2356,33 @@ function VerifierIssueList({
                     Suggested: {iss.suggestion}
                   </div>
                 )}
+                {isUntranslatedLearnerPromptIssue(iss.code) && (() => {
+                  const terms = parseUntranslatedPromptGuardFailures(
+                    `${iss.issue} ${iss.suggestion || ""}`
+                  );
+                  if (terms.length === 0) return null;
+                  const already = terms.every((t) => savedCognateTerms.has(t));
+                  return (
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-[11px]"
+                        disabled={cognateAcceptBusy || already}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onAcceptCognate(terms);
+                        }}
+                      >
+                        {already
+                          ? `Cognate gespeichert: ${terms.join(", ")}`
+                          : `Als Cognate speichern: ${terms.join(", ")}`}
+                      </Button>
+                    </div>
+                  );
+                })()}
               </label>
             </div>
           );

@@ -16,11 +16,12 @@ import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { Send, User, Brain, Sparkles, MessageSquarePlus, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
 import { EnergyPill } from "@/components/chat/EnergyPill";
+import { ChatMessageFeedback, getChatFeedbackPrompt } from "@/components/chat/ChatMessageFeedback";
 
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
@@ -136,6 +137,16 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   );
 
   const messages = (sessionMessages ?? []) as ChatMessageDisplay[];
+
+  const sessionFeedback = useQuery(
+    api.chat.getSessionFeedback,
+    currentSessionId ? { sessionId: currentSessionId as Id<"chatSessions"> } : "skip"
+  );
+  const feedbackByMessage = new Map(
+    (sessionFeedback ?? []).map((f: { messageId: Id<"chatMessages">; rating: string }) => [f.messageId, f.rating])
+  );
+  const submitFeedback = useMutation(api.chat.submitMessageFeedback);
+  const feedbackPrompt = useMemo(() => getChatFeedbackPrompt(t, user), [t, user]);
 
   const sendStreaming = useCallback(async (text: string, sessionId: string, responseMode?: "compact" | "detailed") => {
     setIsSending(true);
@@ -546,9 +557,31 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                         <p className="whitespace-pre-wrap text-xs sm:text-sm leading-[1.35] sm:leading-[1.43]">{msg.content}</p>
                       )}
                     </div>
-                    <span className="text-xs text-muted-foreground mt-1 px-2">
-                      {formatMessageTime(msg._creationTime || msg.createdAt || Date.now())}
-                    </span>
+                    {msg.role === "assistant" && msg._id && !isStreamingMsg && currentSessionId ? (
+                      <ChatMessageFeedback
+                        formattedTime={formatMessageTime(msg._creationTime || msg.createdAt || Date.now())}
+                        prompt={feedbackPrompt}
+                        rating={feedbackByMessage.get(msg._id as Id<"chatMessages">)}
+                        onRateUp={() =>
+                          submitFeedback({
+                            messageId: msg._id as Id<"chatMessages">,
+                            sessionId: currentSessionId as Id<"chatSessions">,
+                            rating: "up",
+                          })
+                        }
+                        onRateDown={() =>
+                          submitFeedback({
+                            messageId: msg._id as Id<"chatMessages">,
+                            sessionId: currentSessionId as Id<"chatSessions">,
+                            rating: "down",
+                          })
+                        }
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground mt-1 px-2">
+                        {formatMessageTime(msg._creationTime || msg.createdAt || Date.now())}
+                      </span>
+                    )}
                   </div>
                 </div>
               );

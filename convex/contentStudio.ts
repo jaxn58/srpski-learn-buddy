@@ -11,3 +11,4 @@ export * from "./contentStudio/_sectionRevise";
 export * from "./contentStudio/_publisher";
 export * from "./contentStudio/_vocabularyCleanup";
 export * from "./contentStudio/_validatorMemory";
+export * from "./contentStudio/_translatorCognates";

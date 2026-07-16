@@ -1,7 +1,7 @@
 # Content Studio — Translator Hardening & Admin-Verwaltbarkeit
 
-**Status:** Vorschlag, wartet auf Freigabe
-**Kontext:** Beobachtetes Problem in Unit 3 DE (Prod), Exercise 5 „Dialogvervollständigung": mehrere Fragen haben einen zusätzlich angehängten englischen Referenztext in Klammern. Root Cause liegt im EN→DE-Übersetzer des Content Studio, der aktuell komplett hardcoded ist und keine Admin-Regeln kennt.
+**Status:** Umgesetzt (Dev) — Schema `translator` / `applyInTranslator`, Loader, Guard, Admin-UI, Seed-Skill
+**Kontext:** Beobachtetes Problem in Unit 3 DE (Prod), Exercise 5 „Dialogvervollständigung": mehrere Fragen haben einen zusätzlich angehängten englischen Referenztext in Klammern. Root Cause lag im EN→DE-Übersetzer des Content Studio, der komplett hardcoded war und keine Admin-Regeln kannte.
 
 ---
 

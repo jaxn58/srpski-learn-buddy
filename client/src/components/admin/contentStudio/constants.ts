@@ -100,6 +100,8 @@ export const STAGE_HELP: Record<StageKey, string> = {
     "Creator: generates the full unit as Markdown (Manus-compatible) which is then parsed into unitPackage.v1.",
   auditor:
     "Lector: reviews consistency/risk/obvious issues and can block publishing (structured findings).",
+  translator:
+    "EN → DE Translator: admin skills injected into metadata, section, and interactive-test translation prompts.",
 };
 
 export const CONTENT_STUDIO_DIALOG_WIDTH = "w-[98vw] max-w-[98vw] sm:w-[90vw] sm:max-w-[90vw] md:w-[80vw] md:max-w-[80vw]";

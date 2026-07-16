@@ -16,12 +16,12 @@ import {
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, Brain, Sparkles, Info, ArrowLeft, Square, ThumbsUp, ThumbsDown, Languages, Globe, LifeBuoy, Paperclip, Loader2, FileDown, Zap, Shield, Library } from "lucide-react";
+import { Send, Brain, Sparkles, Info, ArrowLeft, Square, Languages, Globe, LifeBuoy, Paperclip, Loader2, FileDown, Zap, Shield, Library } from "lucide-react";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess, canUseChatAttachments, canUseChatLibrary } from "@/hooks/useFeatureAccess";
 import { ChatMobileSheet } from "@/components/ChatMobileSheet";
 import { toast } from "sonner";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { ChatSessionsSidebar } from "@/components/ChatSessionsSidebar";
@@ -31,6 +31,7 @@ import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
 import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
 import { EnergyPill } from "@/components/chat/EnergyPill";
+import { ChatMessageFeedback, getChatFeedbackPrompt } from "@/components/chat/ChatMessageFeedback";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 
 type ChatMessageDoc = Doc<"chatMessages">;
@@ -254,6 +255,7 @@ export default function Chat() {
     (sessionFeedback ?? []).map((f: { messageId: Id<"chatMessages">; rating: string }) => [f.messageId, f.rating])
   );
   const submitFeedback = useMutation(api.chat.submitMessageFeedback);
+  const feedbackPrompt = useMemo(() => getChatFeedbackPrompt(t, user), [t, user]);
 
   const scrollRafRef = useRef(0);
   useEffect(() => {
@@ -799,47 +801,31 @@ export default function Chat() {
                         </>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 mt-1 px-2">
-                      <span className="text-xs text-muted-foreground">
+                    {msg.role === "assistant" && msg._id && !isStreamingMsg && currentSessionId ? (
+                      <ChatMessageFeedback
+                        formattedTime={formatMessageTime(msg._creationTime || msg.createdAt || Date.now())}
+                        prompt={feedbackPrompt}
+                        rating={feedbackByMessage.get(msg._id as Id<"chatMessages">)}
+                        onRateUp={() =>
+                          submitFeedback({
+                            messageId: msg._id as Id<"chatMessages">,
+                            sessionId: currentSessionId as Id<"chatSessions">,
+                            rating: "up",
+                          })
+                        }
+                        onRateDown={() =>
+                          submitFeedback({
+                            messageId: msg._id as Id<"chatMessages">,
+                            sessionId: currentSessionId as Id<"chatSessions">,
+                            rating: "down",
+                          })
+                        }
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground mt-1 px-2">
                         {formatMessageTime(msg._creationTime || msg.createdAt || Date.now())}
                       </span>
-                      {msg.role === "assistant" && msg._id && !isStreamingMsg && (
-                        <div className="flex items-center gap-0.5 ml-1">
-                          <button
-                            onClick={() => submitFeedback({
-                              messageId: msg._id as Id<"chatMessages">,
-                              sessionId: currentSessionId as Id<"chatSessions">,
-                              rating: "up",
-                            })}
-                            className={cn(
-                              "p-2.5 rounded-md transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center",
-                              feedbackByMessage.get(msg._id as Id<"chatMessages">) === "up"
-                                ? "text-green-600 bg-green-100"
-                                : "text-muted-foreground/40 hover:text-green-600 hover:bg-green-50"
-                            )}
-                            aria-label={t("chat.feedback.helpful")}
-                          >
-                            <ThumbsUp className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => submitFeedback({
-                              messageId: msg._id as Id<"chatMessages">,
-                              sessionId: currentSessionId as Id<"chatSessions">,
-                              rating: "down",
-                            })}
-                            className={cn(
-                              "p-2.5 rounded-md transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center",
-                              feedbackByMessage.get(msg._id as Id<"chatMessages">) === "down"
-                                ? "text-red-500 bg-red-100"
-                                : "text-muted-foreground/40 hover:text-red-500 hover:bg-red-50"
-                            )}
-                            aria-label={t("chat.feedback.notHelpful")}
-                          >
-                            <ThumbsDown className="h-4 w-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
               );

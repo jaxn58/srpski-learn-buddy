@@ -1,6 +1,6 @@
 export type Mode = "update" | "replace";
 export type Provider = "gemini" | "openai";
-export type StageKey = "specialist" | "auditor";
+export type StageKey = "specialist" | "auditor" | "translator";
 export type ModelTier = "ultra-budget" | "budget" | "balanced" | "premium" | "flagship";
 export type NextStepKey = "creator" | "validator" | "lector" | "publish";
 export type StepId = "generate" | "qa" | "publish";

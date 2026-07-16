@@ -36,7 +36,9 @@ export const contentStudioTables = {
     stage: v.optional(v.union(
       v.literal("specialist"),
       v.literal("qc_fix_only"),
-      v.literal("auditor")
+      v.literal("auditor"),
+      // EN→DE translator stage (admin-managed skills injected into translation prompts)
+      v.literal("translator")
     )),
     section: v.optional(v.union(
       v.literal("overview"),
@@ -312,11 +314,13 @@ export const contentStudioTables = {
     // Optional regex for the validator regression check (applied to relevant fields)
     pattern: v.optional(v.string()),
     patternFlags: v.optional(v.string()),
-    // Where the entry is applied. Default on auto-capture: creator=true, fix=true, validator=false.
+    // Where the entry is applied. Default on auto-capture: creator=true, fix=true, validator=false, translator=false.
+    // applyInTranslator is optional for backward compatibility (missing ⇒ false).
     scope: v.object({
       applyInCreator: v.boolean(),
       applyInFix: v.boolean(),
       applyInValidator: v.boolean(),
+      applyInTranslator: v.optional(v.boolean()),
     }),
     // Lifecycle: candidate (auto-captured, not yet curated), active (in use), archived (hidden).
     status: v.union(
@@ -361,4 +365,13 @@ export const contentStudioTables = {
     .index("by_created_by", ["createdBy"])
     .index("by_type", ["type"])
     .index("by_status", ["status"]),
+
+  // Admin-managed EN/DE identical prompt cognates for translator quality guard + verifier.
+  // Complements code defaults in _translatorCognates.ts (e.g. "orange", "mango").
+  contentStudioTranslatorCognates: defineTable({
+    term: v.string(), // lowercased
+    note: v.optional(v.string()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_term", ["term"]),
 };

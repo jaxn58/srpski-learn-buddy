@@ -500,7 +500,11 @@ export const upsertModelConfig = mutation({
 export const upsertStageSkill = mutation({
   args: {
     skillId: v.optional(v.id("contentStudioSkills")),
-    stage: v.union(v.literal("specialist"), v.literal("auditor")),
+    stage: v.union(
+      v.literal("specialist"),
+      v.literal("auditor"),
+      v.literal("translator")
+    ),
     name: v.string(),
     description: v.optional(v.string()),
     prompt: v.string(),
@@ -1003,6 +1007,7 @@ export const saveUnitPackageSnapshot = mutation({
                   applyInCreator: true,
                   applyInFix: true,
                   applyInValidator: false,
+                  applyInTranslator: false,
                 },
                 status: "candidate",
                 sourceDraftId: args.draftId,
@@ -2821,7 +2826,8 @@ export const internalPublishUnitTests = mutation({
 });
 
 /**
- * Strip leftover parenthetical translation help from DE exercise prompts for one unit.
+ * Strip leftover HELP parentheticals (full-sentence translation of the Serbian stem)
+ * from DE exercise prompts for one unit. Keeps fill-in source cues like "(Milch)".
  * Safe, deterministic content fix — no AI. Applies to preview + published active rows.
  * Callable from CLI: npx convex run contentStudio/_mutations:stripDeExerciseGlossesForUnit ...
  */
@@ -2885,5 +2891,100 @@ export const stripDeExerciseGlossesForUnit = internalMutation({
     }
 
     return { scanned, updated, dryRun, examples };
+  },
+});
+
+const TRANSLATOR_DIALOGUE_SKILL_NAME =
+  "Dialogue-Completion: kein Referenztext anhängen";
+
+const TRANSLATOR_DIALOGUE_SKILL_PROMPT = [
+  `For questions with category=="dialogueCompletion":`,
+  `- The prompt is a Serbian dialogue snippet with speaker markers (A: / B:).`,
+  `- Keep the Serbian text EXACTLY as-is. Do NOT translate it into German.`,
+  `- Do NOT append a parenthetical reference translation.`,
+  `- Do NOT paraphrase, restructure, or extend the dialogue.`,
+  `- Options and correctAnswer stay Serbian and unchanged.`,
+].join("\n");
+
+/**
+ * Idempotent seed for the initial translator skill (dialogueCompletion rule).
+ * CLI: npx convex run contentStudio/_mutations:seedTranslatorDialogueCompletionSkill '{"confirm":"SEED_TRANSLATOR_DIALOGUE_SKILL"}'
+ * Safe to re-run: updates prompt if the skill already exists by name.
+ */
+export const seedTranslatorDialogueCompletionSkill = internalMutation({
+  args: { confirm: v.string() },
+  returns: v.object({
+    ok: v.boolean(),
+    skillId: v.id("contentStudioSkills"),
+    created: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    if (args.confirm !== "SEED_TRANSLATOR_DIALOGUE_SKILL") {
+      throw new Error(
+        "Confirmation required: confirm must equal 'SEED_TRANSLATOR_DIALOGUE_SKILL'"
+      );
+    }
+    const now = Date.now();
+    // Prefer an admin/staff user as createdBy; fall back to any user.
+    const users = await ctx.db.query("users").take(50);
+    const owner =
+      users.find((u) => u.role === "superadmin" || u.role === "admin") ?? users[0];
+    if (!owner) {
+      throw new Error("Cannot seed translator skill: no users in database");
+    }
+
+    const existing = await ctx.db
+      .query("contentStudioSkills")
+      .withIndex("by_stage_active", (q) => q.eq("stage", "translator").eq("isActive", true))
+      .collect();
+    const found = existing.find((s) => s.name === TRANSLATOR_DIALOGUE_SKILL_NAME);
+    if (found) {
+      await ctx.db.patch(found._id, {
+        prompt: TRANSLATOR_DIALOGUE_SKILL_PROMPT,
+        description:
+          "Hardening rule: dialogueCompletion stems stay Serbian; no EN reference in parentheses.",
+        updatedAt: now,
+      });
+      return { ok: true, skillId: found._id, created: false };
+    }
+    const skillId = await ctx.db.insert("contentStudioSkills", {
+      scope: "stage",
+      stage: "translator",
+      section: undefined,
+      name: TRANSLATOR_DIALOGUE_SKILL_NAME,
+      description:
+        "Hardening rule: dialogueCompletion stems stay Serbian; no EN reference in parentheses.",
+      prompt: TRANSLATOR_DIALOGUE_SKILL_PROMPT,
+      isActive: true,
+      createdBy: owner._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { ok: true, skillId, created: true };
+  },
+});
+
+/**
+ * One-time backfill: set scope.applyInTranslator=false where the field is missing.
+ */
+export const backfillValidatorMemoryApplyInTranslator = internalMutation({
+  args: {},
+  returns: v.object({ scanned: v.number(), patched: v.number() }),
+  handler: async (ctx) => {
+    const all = await ctx.db.query("contentStudioValidatorMemory").collect();
+    let patched = 0;
+    for (const e of all) {
+      if (e.scope?.applyInTranslator !== undefined) continue;
+      await ctx.db.patch(e._id, {
+        scope: {
+          applyInCreator: e.scope.applyInCreator,
+          applyInFix: e.scope.applyInFix,
+          applyInValidator: e.scope.applyInValidator,
+          applyInTranslator: false,
+        },
+      });
+      patched += 1;
+    }
+    return { scanned: all.length, patched };
   },
 });

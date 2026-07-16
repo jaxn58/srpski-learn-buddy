@@ -32,6 +32,7 @@ import type * as contentStudio__queries from "../contentStudio/_queries.js";
 import type * as contentStudio__sectionRevise from "../contentStudio/_sectionRevise.js";
 import type * as contentStudio__shared from "../contentStudio/_shared.js";
 import type * as contentStudio__translationCore from "../contentStudio/_translationCore.js";
+import type * as contentStudio__translatorCognates from "../contentStudio/_translatorCognates.js";
 import type * as contentStudio__validator from "../contentStudio/_validator.js";
 import type * as contentStudio__validatorHelpers from "../contentStudio/_validatorHelpers.js";
 import type * as contentStudio__validatorMemory from "../contentStudio/_validatorMemory.js";
@@ -116,6 +117,7 @@ declare const fullApi: ApiFromModules<{
   "contentStudio/_sectionRevise": typeof contentStudio__sectionRevise;
   "contentStudio/_shared": typeof contentStudio__shared;
   "contentStudio/_translationCore": typeof contentStudio__translationCore;
+  "contentStudio/_translatorCognates": typeof contentStudio__translatorCognates;
   "contentStudio/_validator": typeof contentStudio__validator;
   "contentStudio/_validatorHelpers": typeof contentStudio__validatorHelpers;
   "contentStudio/_validatorMemory": typeof contentStudio__validatorMemory;

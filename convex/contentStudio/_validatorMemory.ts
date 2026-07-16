@@ -6,6 +6,7 @@
  *   - Creator (prevention, scope.applyInCreator)
  *   - Fix-Findings AI (reparation, scope.applyInFix)
  *   - Validator (regression check, scope.applyInValidator)
+ *   - Translator EN→DE (scope.applyInTranslator)
  *
  * Auto-capture happens inside saveUnitPackageSnapshot when a previously-seen
  * finding disappears after a Fix-Findings cycle. Entries start as status
@@ -41,6 +42,8 @@ const SCOPE_VALIDATOR = v.object({
   applyInCreator: v.boolean(),
   applyInFix: v.boolean(),
   applyInValidator: v.boolean(),
+  // Optional for backward compatibility with pre-hardening rows (missing ⇒ false).
+  applyInTranslator: v.optional(v.boolean()),
 });
 
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
@@ -103,7 +106,12 @@ export const listValidatorMemory = query({
 export const getActiveValidatorMemoryForScope = internalQuery({
   args: {
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-    scope: v.union(v.literal("creator"), v.literal("fix"), v.literal("validator")),
+    scope: v.union(
+      v.literal("creator"),
+      v.literal("fix"),
+      v.literal("validator"),
+      v.literal("translator")
+    ),
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     limit: v.optional(v.number()),
   },
@@ -116,6 +124,7 @@ export const getActiveValidatorMemoryForScope = internalQuery({
     const filtered = all.filter((e) => {
       if (args.scope === "creator") return e.scope.applyInCreator === true;
       if (args.scope === "fix") return e.scope.applyInFix === true;
+      if (args.scope === "translator") return e.scope.applyInTranslator === true;
       return e.scope.applyInValidator === true;
     });
     filtered.sort((a, b) => {
@@ -338,6 +347,7 @@ export const internalUpsertValidatorMemoryCandidate = internalMutation({
         applyInCreator: true,
         applyInFix: true,
         applyInValidator: false,
+        applyInTranslator: false,
       },
       status: "candidate",
       sourceDraftId: args.sourceDraftId,
@@ -374,23 +384,42 @@ export type ValidatorMemoryEntryLite = {
     applyInCreator: boolean;
     applyInFix: boolean;
     applyInValidator: boolean;
+    applyInTranslator?: boolean;
   };
   status: "candidate" | "active" | "archived";
   occurrenceCount?: number;
   lastSeenAt?: number;
 };
 
+export type MemoryScopeFilter =
+  | "applyInCreator"
+  | "applyInFix"
+  | "applyInValidator"
+  | "applyInTranslator"
+  | "none";
+
 /**
  * Build a "KNOWN PITFALLS TO AVOID" Markdown block for injection into the
- * Specialist / Section-Revise system prompt.
+ * Specialist / Section-Revise / Translator system prompt.
  */
 export function buildValidatorMemoryBlockFromEntries(
   entries: ValidatorMemoryEntryLite[],
-  opts: { limit?: number } = {}
+  opts: {
+    limit?: number;
+    /** Default applyInCreator (legacy Creator path). Use "none" when entries are already scoped. */
+    requireScope?: MemoryScopeFilter;
+    heading?: string;
+  } = {}
 ): string {
   const limit = Math.max(1, Math.min(60, Math.floor(opts.limit ?? 40)));
+  const requireScope: MemoryScopeFilter = opts.requireScope ?? "applyInCreator";
   const usable = entries
-    .filter((e) => e.status === "active" && e.scope?.applyInCreator)
+    .filter((e) => e.status === "active")
+    .filter((e) => {
+      if (requireScope === "none") return true;
+      if (requireScope === "applyInTranslator") return e.scope?.applyInTranslator === true;
+      return e.scope?.[requireScope] === true;
+    })
     .filter((e) => (e.guidance || "").trim().length > 0 || (e.title || "").trim().length > 0)
     .slice(0, limit);
   if (usable.length === 0) return "";
@@ -404,7 +433,8 @@ export function buildValidatorMemoryBlockFromEntries(
   });
 
   return [
-    "KNOWN PITFALLS TO AVOID (learned from previous fixes - do NOT repeat these mistakes):",
+    opts.heading ??
+      "KNOWN PITFALLS TO AVOID (learned from previous fixes - do NOT repeat these mistakes):",
     ...bullets,
   ].join("\n");
 }

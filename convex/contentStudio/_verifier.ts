@@ -1,5 +1,36 @@
 import type { ActionCtx } from "../_generated/server";
 import { callAiJson, parseJsonOrThrow, type Provider } from "./_shared";
+import {
+  CODE_DEFAULT_PROMPT_COGNATES,
+  loadMergedPromptCognates,
+} from "./_translatorCognates";
+
+/**
+ * Keep in sync with `isFillInSourceCue` / `isHelpTranslationGloss` in `_translationCore.ts`.
+ * Duplicated here to avoid a circular import (translationCore → verifier).
+ */
+function isFillInSourceCue(gloss: string): boolean {
+  const g = String(gloss || "").trim();
+  if (!g) return false;
+  if (/_+/.test(g)) return false;
+  if (/[.!?…]/.test(g)) return false;
+  const words = g.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 4) return false;
+  if (
+    words.length >= 3 &&
+    /^(it|this|that|there|here|she|he|they|we|you|i|ana|marko|marija)\b/i.test(g)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isHelpTranslationGloss(gloss: string): boolean {
+  const g = String(gloss || "").trim();
+  if (!g) return false;
+  if (isFillInSourceCue(g)) return false;
+  return true;
+}
 
 /**
  * Serbian <-> German translation verifier.
@@ -135,8 +166,9 @@ export function runDeterministicVocabChecks(items: VerifierInputItem[]): Verifie
 }
 
 /**
- * Deterministic check: exercise tests must NOT keep parenthetical learner glosses
- * (translation help) on Serbian-stem prompts. Flag leftover "(…)" help as critical.
+ * Deterministic check for parentheses on Serbian-stem exercise prompts:
+ * - HELP glosses (full-sentence translation of the Serbian) → critical unwanted
+ * - fillInBlank SOURCE CUES (short word after blank, e.g. "(milk)") → must stay as German
  */
 export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): VerifierIssue[] {
   const issues: VerifierIssue[] = [];
@@ -165,6 +197,12 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
     return false;
   };
 
+  const norm = (s: string) =>
+    String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
   for (const it of items) {
     if (it.kind !== "test") continue;
     const qType = String(it.questionType ?? "").trim();
@@ -176,12 +214,55 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
     const deQ = extractQuestion(it.german, "DE");
     if (!deQ) continue;
 
-    const deGlosses = extractGlosses(deQ);
-    if (deGlosses.length === 0) continue;
-
     const enGlosses = extractGlosses(enQ);
+    const deGlosses = extractGlosses(deQ);
+    const enCues = enGlosses.filter(isFillInSourceCue);
+    const deCues = deGlosses.filter(isFillInSourceCue);
+    const deHelp = deGlosses.filter(isHelpTranslationGloss);
     const stem = deQ.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
-    if (!looksLikeSerbianStem(stem) && enGlosses.length === 0) continue;
+    const stemForStemCheck = deCues.length > 0 ? stem : deQ.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
+
+    // fillInBlank: EN source cues must appear as German cues on DE.
+    if ((!qType || qType === "fillInBlank") && enCues.length > 0) {
+      if (deCues.length < enCues.length) {
+        const stemWithBlank = stem || deQ;
+        issues.push({
+          itemKey: it.key,
+          itemLabel: it.label,
+          itemKind: "test",
+          severity: "critical",
+          code: "test_missing_fill_in_cue",
+          issue:
+            `The German question omits the fill-in source cue ` +
+            `${enCues.map((g) => `(${g})`).join(" ")} which is present in the English source. ` +
+            `Without this cue, the learner does not know which word to fill in.`,
+          suggestion: `${stemWithBlank} (German for: ${enCues.join(", ")})`,
+        });
+      } else {
+        for (let i = 0; i < enCues.length; i++) {
+          const enG = enCues[i]!;
+          const deG = deCues[i] ?? "";
+          if (norm(enG) === norm(deG) && !CODE_DEFAULT_PROMPT_COGNATES.includes(norm(enG))) {
+            issues.push({
+              itemKey: it.key,
+              itemLabel: it.label,
+              itemKind: "test",
+              severity: "critical",
+              code: "test_untranslated_fill_in_cue",
+              issue:
+                `Fill-in source cue is still English "(${enG})". ` +
+                `Translate it to German inside the parentheses (e.g. milk→Milch).`,
+              suggestion: `${stem || deQ} (German for "${enG}")`,
+            });
+          }
+        }
+      }
+    }
+
+    if (deHelp.length === 0) continue;
+    if (!looksLikeSerbianStem(stemForStemCheck) && enGlosses.filter(isHelpTranslationGloss).length === 0) {
+      continue;
+    }
 
     issues.push({
       itemKey: it.key,
@@ -191,8 +272,9 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
       code: "test_unwanted_parenthetical_gloss",
       issue:
         `German exercise prompt still has parenthetical translation help ` +
-        `(${deGlosses.map((g) => `(${g})`).join(" ")}). ` +
-        `Exercise tests must not show learner glosses — keep the Serbian stem/blank only.`,
+        `(${deHelp.map((g) => `(${g})`).join(" ")}). ` +
+        `Remove sentence-level learner glosses — keep the Serbian stem/blank` +
+        (enCues.length > 0 ? ` plus the short German fill-in cue.` : ` only.`),
       suggestion: `Remove the parenthetical help; keep only: "${stem || deQ}"`,
     });
   }
@@ -214,30 +296,14 @@ function isSerbianDialogueOrStemPrompt(question: string): boolean {
 /**
  * Deterministic check for translation/matching prompts that stayed English.
  * Example EN→DE failure: questionEn "Monday" / questionDe "Monday" (should be "Montag").
- * Cognates that are identical in EN and DE (e.g. August) are allowed.
+ * Cognates that are identical in EN and DE (e.g. August, orange) are allowed.
  */
-export function runDeterministicTestPromptChecks(items: VerifierInputItem[]): VerifierIssue[] {
+export function runDeterministicTestPromptChecks(
+  items: VerifierInputItem[],
+  cognates: Set<string> = new Set(CODE_DEFAULT_PROMPT_COGNATES)
+): VerifierIssue[] {
   const issues: VerifierIssue[] = [];
   const PROMPT_CHECK_TYPES = new Set(["translation", "matching"]);
-  const IDENTICAL_COGNATES = new Set([
-    "august",
-    "september",
-    "november",
-    "hotel",
-    "restaurant",
-    "taxi",
-    "bus",
-    "radio",
-    "video",
-    "internet",
-    "baby",
-    "mango",
-    "paprika",
-    "salon",
-    "bar",
-    "cafe",
-    "café",
-  ]);
 
   const extractQuestion = (side: string, lang: "EN" | "DE"): string => {
     const re = new RegExp(`Question \\(${lang}\\):\\s*([\\s\\S]*?)(?:\\nHint \\(${lang}\\):|$)`);
@@ -269,7 +335,7 @@ export function runDeterministicTestPromptChecks(items: VerifierInputItem[]): Ve
     const deComp = comparable(deQ);
     if (!enComp || !deComp) continue;
     if (enComp !== deComp) continue;
-    if (IDENTICAL_COGNATES.has(enComp)) continue;
+    if (cognates.has(enComp)) continue;
 
     // Single-token or short matching prompt left identical → untranslated EN prompt.
     const tokenCount = enComp.split(/\s+/).filter(Boolean).length;
@@ -370,7 +436,9 @@ const VERIFIER_SYSTEM = [
   "  • Therefore: do NOT emit 'missing_info' because 'options are not translated', 'German options are missing', 'correct answer is only in Serbian', etc. This is BY DESIGN and is NOT an issue. Any suggestion to translate options/correct-answer/alternatives into German is WRONG and must never be produced.",
   "  • Do NOT request symmetric German counterparts for Serbian answer content. The asymmetry is intentional.",
   "  • Your actual job for test items: verify that the German question (and hint, if present) is coherent with the learner-produced Serbian answers — i.e. the German prompt makes sense for those Serbian choices and the expected Serbian answer — and that it is a faithful rendering of the English question. Flag real mismatches of meaning, lost info in the question/hint, wrong register, or grammatical errors in the German prompt only.",
-  "  • PARENTHESES / LEARNER GLOSSES: Exercise tests must NOT show translation help in parentheses after a Serbian stem. If the German question still has a trailing gloss like '(Ana ist eine ___.)' or '(Es ist jetzt ein Uhr.)', that is a CRITICAL issue — remove the parentheses entirely; keep only the Serbian stem/blank. Do NOT suggest adding German glosses.",
+  "  • PARENTHESES — TWO KINDS:",
+  "    (a) fillInBlank SOURCE CUES: short parentheses after the blank that tell the learner WHICH word to fill in (EN '(milk)', '(apples)'). On DE these MUST remain as German cues ('(Milch)', '(Äpfel)'). Omitting them is CRITICAL missing_info. Do NOT suggest removing them.",
+  "    (b) HELP GLOSSES: full-sentence translation of the Serbian stem in parentheses (e.g. '(Ana ist eine ___.)', '(Es ist jetzt ein Uhr.)'). That is CRITICAL — remove the help parentheses; keep only the Serbian stem/blank (plus any short fill-in cue from (a)).",
   "  • TRANSLATION / MATCHING PROMPTS: For EN source prompts that are single words or short phrases (e.g. 'Monday', 'today', '_____ = half'), the German question MUST be the German equivalent ('Montag', 'heute', '_____ = Hälfte'). Leaving the English word is CRITICAL. Conversely: a correct single German word/phrase IS a valid complete prompt — do NOT flag it as 'not a question' or demand a full interrogative sentence.",
   "- kind == 'metadata': this is learner-facing UI/INFORMATIONAL text (unit title, description, topic/grammar/vocabulary-theme lists). It is maintained in ENGLISH and translated to German purely for the interface — it is NOT Serbian the learner studies. Compare DE against the ENGLISH text. IGNORE any mismatch against the Serbian field: the Serbian field for a metadata item is either empty or only thematic context, NEVER a translation source. Do NOT emit 'semantic_mismatch' or 'missing_info' for metadata on the grounds that the Serbian side is shorter, is only a vocabulary list, or lacks a descriptive paragraph. Flag metadata ONLY for real EN↔DE issues: wrong translation of the English title/description, omitted or invented topics, lost grammar-focus entries, array-length changes, etc.",
   "",
@@ -470,10 +538,11 @@ export async function verifySerbianGermanAlignment(
 
   // Run deterministic checks first — no AI call required, and the results
   // show up alongside AI-detected issues for the admin to select for retry.
+  const cognates = await loadMergedPromptCognates(ctx);
   const deterministicIssues = [
     ...runDeterministicVocabChecks(usable),
     ...runDeterministicTestGlossChecks(usable),
-    ...runDeterministicTestPromptChecks(usable),
+    ...runDeterministicTestPromptChecks(usable, cognates),
   ];
 
   const allIssues: VerifierIssue[] = [...deterministicIssues];

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query } from "../_generated/server";
+import { query, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { requireSuperadmin } from "./_shared";
 import { isPublishedStatus, isPreviewStatus } from "./_shared";
@@ -425,13 +425,51 @@ export const getModelConfig = query({
 
 // ===== Skills library (stage-based; primarily Specialist) =====
 export const listStageSkills = query({
-  args: { stage: v.union(v.literal("specialist"), v.literal("auditor")) },
+  args: {
+    stage: v.union(
+      v.literal("specialist"),
+      v.literal("auditor"),
+      v.literal("translator")
+    ),
+  },
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
     return await ctx.db
       .query("contentStudioSkills")
       .withIndex("by_stage_active", (q) => q.eq("stage", args.stage).eq("isActive", true))
       .collect();
+  },
+});
+
+/** Active skills for a stage — used by translator (and other action pipelines). */
+export const listActiveSkillsByStageInternal = internalQuery({
+  args: {
+    stage: v.union(
+      v.literal("specialist"),
+      v.literal("auditor"),
+      v.literal("translator"),
+      v.literal("qc_fix_only")
+    ),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("contentStudioSkills"),
+      name: v.string(),
+      prompt: v.string(),
+      description: v.optional(v.string()),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("contentStudioSkills")
+      .withIndex("by_stage_active", (q) => q.eq("stage", args.stage).eq("isActive", true))
+      .collect();
+    return rows.map((s) => ({
+      _id: s._id,
+      name: String(s.name ?? ""),
+      prompt: String(s.prompt ?? ""),
+      description: typeof s.description === "string" ? s.description : undefined,
+    }));
   },
 });
 

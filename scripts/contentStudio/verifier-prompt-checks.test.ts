@@ -52,6 +52,17 @@ describe("runDeterministicTestPromptChecks", () => {
     expect(issues[0]?.code).toBe("test_untranslated_learner_prompt");
   });
 
+  it("does not flag orange cognate", () => {
+    const items = [
+      testItem({
+        questionType: "matching",
+        enQ: "_____ = orange",
+        deQ: "_____ = orange",
+      }),
+    ];
+    expect(runDeterministicTestPromptChecks(items)).toHaveLength(0);
+  });
+
   it("flags untranslated matching prompts", () => {
     const items = [
       testItem({

@@ -40,6 +40,20 @@ import { DraftStatusBadge } from "@/components/admin/contentStudio/StatusBadge";
 import type { Mode, Provider, StageKey, SectionId, NextStepKey, StepId, SettingsTab, StudioView } from "@/components/admin/contentStudio/types";
 import { SECTION_OPTIONS, isKnownModel, stageOrderedModels } from "@/components/admin/contentStudio/constants";
 import { buildSideBySideDiffRows } from "@/components/admin/contentStudio/utils/diffAlgorithm";
+import {
+  isTranslatorQualityGuardError,
+  parseUntranslatedPromptGuardFailures,
+} from "@/components/admin/contentStudio/utils/parseTranslatorGuardError";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ContentStudioAdmin() {
   const { user, loading: authLoading } = useAuth();
@@ -77,7 +91,7 @@ export default function ContentStudioAdmin() {
   const createDraftTemplateFromDraft = useMutation(api.contentStudio.createDraftTemplateFromDraft);
   const deactivateDraftTemplate = useMutation(api.contentStudio.deactivateDraftTemplate);
 
-  const [skillsStage, setSkillsStage] = useState<"specialist" | "auditor">("specialist");
+  const [skillsStage, setSkillsStage] = useState<"specialist" | "auditor" | "translator">("specialist");
   const stageSkills = useQuery(api.contentStudio.listStageSkills, { stage: skillsStage });
   const upsertStageSkill = useMutation(api.contentStudio.upsertStageSkill);
   const deactivateSkill = useMutation(api.contentStudio.deactivateSkill);
@@ -107,7 +121,46 @@ export default function ContentStudioAdmin() {
   const publishDraftToPreview = useAction(api.contentStudio.publishDraftToPreview);
   const takeUnitPreviewOfflineByUnitNumber = useAction(api.contentStudio.takeUnitPreviewOfflineByUnitNumber);
   const translatePublishedUnitEnToDe = useAction(api.contentStudio.translatePublishedUnitEnToDe);
+  const addTranslatorCognates = useMutation(api.contentStudio.addTranslatorCognates);
   const deleteUnitFull = useMutation(api.contentStudio.deleteUnitFull);
+
+  type CognateAcceptPrompt = {
+    terms: string[];
+    errorMessage: string;
+    retry: () => Promise<void>;
+  };
+  const [cognateAcceptPrompt, setCognateAcceptPrompt] = useState<CognateAcceptPrompt | null>(null);
+  const [cognateAcceptBusy, setCognateAcceptBusy] = useState(false);
+
+  const offerCognateAcceptOrToast = (err: any, retry: () => Promise<void>) => {
+    const message = String(err?.message || err || "");
+    const terms = parseUntranslatedPromptGuardFailures(message);
+    if (isTranslatorQualityGuardError(message) && terms.length > 0) {
+      setCognateAcceptPrompt({ terms, errorMessage: message, retry });
+      return;
+    }
+    toast.error(message || "Translation failed.");
+  };
+
+  const handleAcceptCognatesAndRetry = async () => {
+    if (!cognateAcceptPrompt) return;
+    setCognateAcceptBusy(true);
+    try {
+      const res = await addTranslatorCognates({
+        terms: cognateAcceptPrompt.terms,
+        note: "Akzeptiert nach Quality-Guard-Fail (EN=DE Cognate)",
+      });
+      const label = [...res.added, ...res.alreadyPresent].join(", ");
+      toast.success(`Cognate(s) akzeptiert: ${label}. Starte Übersetzung erneut…`);
+      const retry = cognateAcceptPrompt.retry;
+      setCognateAcceptPrompt(null);
+      await retry();
+    } catch (e: any) {
+      toast.error(e?.message || "Cognates speichern / Retry fehlgeschlagen.");
+    } finally {
+      setCognateAcceptBusy(false);
+    }
+  };
 
   // Surface SR<->DE verifier summary as a toast; detailed issue list lives in UnitManagerTab.
   const showVerifierToast = (res: any) => {
@@ -1928,7 +1981,7 @@ export default function ContentStudioAdmin() {
       setTranslateDeOpen(false);
       setRecentlyTranslatedUnits((prev) => new Map<number, number>(prev).set(unitNum, Date.now()));
     } catch (e: any) {
-      toast.error(e?.message || `Failed to translate Unit ${unitNum} to German.`);
+      offerCognateAcceptOrToast(e, () => handleTranslatePublishedToGerman());
     } finally {
       setRunningTranslateDe(false);
     }
@@ -1979,7 +2032,7 @@ export default function ContentStudioAdmin() {
       setTranslateAnyOpen(false);
       setRecentlyTranslatedUnits((prev) => new Map<number, number>(prev).set(unitNum, Date.now()));
     } catch (e: any) {
-      toast.error(e?.message || `Failed to translate Unit ${unitNum} to German.`);
+      offerCognateAcceptOrToast(e, () => handleTranslateAnyUnitToGerman());
     } finally {
       setRunningTranslateDe(false);
     }
@@ -2005,7 +2058,7 @@ export default function ContentStudioAdmin() {
       showVerifierToast(publishRes);
       setTranslateDeResult(null);
     } catch (e: any) {
-      toast.error(e?.message || `Failed to publish DE translation for Unit ${unitNum}.`);
+      offerCognateAcceptOrToast(e, () => handlePublishDeTranslationLive());
     } finally {
       setRunningTranslateDe(false);
     }
@@ -2592,6 +2645,50 @@ export default function ContentStudioAdmin() {
         </div>
         );
       })()}
+
+      <AlertDialog
+        open={cognateAcceptPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open && !cognateAcceptBusy) setCognateAcceptPrompt(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Quality Guard: EN = DE Cognate?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Der Übersetzer-Guard hat folgende Prompt(s) als „noch Englisch“ markiert.
+                  Wenn das im Deutschen korrekt identisch bleibt (z.B. orange, hotel), kannst du
+                  sie als Cognate akzeptieren und die Übersetzung erneut starten.
+                </p>
+                <ul className="list-disc pl-5 font-mono text-foreground">
+                  {(cognateAcceptPrompt?.terms ?? []).map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+                <p className="text-xs break-words">
+                  {cognateAcceptPrompt?.errorMessage
+                    ? cognateAcceptPrompt.errorMessage.slice(0, 420)
+                    : null}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cognateAcceptBusy}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cognateAcceptBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleAcceptCognatesAndRetry();
+              }}
+            >
+              {cognateAcceptBusy ? "Speichert…" : "Passt so — speichern & erneut übersetzen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

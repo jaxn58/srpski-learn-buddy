@@ -71,6 +71,7 @@ type ValidatorMemoryEntry = {
     applyInCreator: boolean;
     applyInFix: boolean;
     applyInValidator: boolean;
+    applyInTranslator?: boolean;
   };
   status: "candidate" | "active" | "archived";
   sourceDraftId?: Id<"contentDrafts">;
@@ -99,6 +100,7 @@ type EditorState = {
     applyInCreator: boolean;
     applyInFix: boolean;
     applyInValidator: boolean;
+    applyInTranslator: boolean;
   };
 };
 
@@ -117,6 +119,7 @@ const EMPTY_EDITOR: EditorState = {
     applyInCreator: true,
     applyInFix: true,
     applyInValidator: false,
+    applyInTranslator: false,
   },
 };
 
@@ -131,6 +134,7 @@ function formatTimestamp(ts: number | undefined): string {
 }
 
 function ScopeBadges({ scope }: { scope: ValidatorMemoryEntry["scope"] }) {
+  const inTranslator = scope.applyInTranslator === true;
   return (
     <div className="flex flex-wrap gap-1">
       {scope.applyInCreator && (
@@ -148,7 +152,12 @@ function ScopeBadges({ scope }: { scope: ValidatorMemoryEntry["scope"] }) {
           Validator
         </Badge>
       )}
-      {!scope.applyInCreator && !scope.applyInFix && !scope.applyInValidator && (
+      {inTranslator && (
+        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+          Translator
+        </Badge>
+      )}
+      {!scope.applyInCreator && !scope.applyInFix && !scope.applyInValidator && !inTranslator && (
         <Badge variant="secondary" className="text-[10px]">
           kein Scope
         </Badge>
@@ -228,7 +237,12 @@ export function ValidatorMemoryPanel() {
       stage: entry.stage,
       code: entry.code,
       path: entry.path ?? "",
-      scope: { ...entry.scope },
+      scope: {
+        applyInCreator: entry.scope.applyInCreator,
+        applyInFix: entry.scope.applyInFix,
+        applyInValidator: entry.scope.applyInValidator,
+        applyInTranslator: entry.scope.applyInTranslator === true,
+      },
     });
   };
 
@@ -748,6 +762,20 @@ export function ValidatorMemoryPanel() {
                       setEditor({
                         ...editor,
                         scope: { ...editor.scope, applyInValidator: v },
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs">
+                    In Translator anwenden (EN → DE Übersetzung)
+                  </div>
+                  <Switch
+                    checked={editor.scope.applyInTranslator}
+                    onCheckedChange={(v) =>
+                      setEditor({
+                        ...editor,
+                        scope: { ...editor.scope, applyInTranslator: v },
                       })
                     }
                   />
