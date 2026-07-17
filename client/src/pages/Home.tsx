@@ -1512,7 +1512,7 @@ export default function Home() {
                       {t("home.pricing.energyExamples.typicalChat.label")}
                     </div>
                     <div className="text-base font-bold text-gray-900">
-                      {energyInfo?.costs.typicalChat ?? 2} {t("home.pricing.energyExamples.energyUnit")}
+                      {energyInfo?.costs.typicalChat ?? 1} {t("home.pricing.energyExamples.energyUnit")}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
                       {t("home.pricing.energyExamples.typicalChat.desc")}
@@ -1523,7 +1523,7 @@ export default function Home() {
                       {t("home.pricing.energyExamples.detailed.label")}
                     </div>
                     <div className="text-base font-bold text-gray-900">
-                      {energyInfo?.costs.detailedAnswer ?? 4} {t("home.pricing.energyExamples.energyUnit")}
+                      {energyInfo?.costs.detailedAnswer ?? 3} {t("home.pricing.energyExamples.energyUnit")}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
                       {t("home.pricing.energyExamples.detailed.desc")}

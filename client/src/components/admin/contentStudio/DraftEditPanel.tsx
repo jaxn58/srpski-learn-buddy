@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +42,8 @@ export interface DraftEditPanelCreateParams {
   refNotes?: string;
   specialistSkillIds?: string[];
   auditorSkillIds?: string[];
+  authorNoteName?: string;
+  authorNoteQuote?: string;
 }
 
 export interface DraftEditPanelProps {
@@ -65,6 +69,10 @@ export interface DraftEditPanelProps {
   setDraftEditTitle: (v: string) => void;
   draftEditDescription: string;
   setDraftEditDescription: (v: string) => void;
+  draftEditModuleNumber: string;
+  setDraftEditModuleNumber: (v: string) => void;
+  draftEditUnitNumber: string;
+  setDraftEditUnitNumber: (v: string) => void;
   draftAuthorNoteName: string;
   setDraftAuthorNoteName: (v: string) => void;
   draftAuthorNoteQuote: string;
@@ -207,6 +215,8 @@ function CreateForm({
   const [refNotes, setRefNotes] = useState("");
   const [specialistSkillIds, setSpecialistSkillIds] = useState<string[]>([]);
   const [auditorSkillIds, setAuditorSkillIds] = useState<string[]>([]);
+  const [authorNoteName, setAuthorNoteName] = useState<string>("Jacksenn");
+  const [authorNoteQuote, setAuthorNoteQuote] = useState<string>("");
   const [creating, setCreating] = useState(false);
 
   const handleTemplateChange = (v: string) => {
@@ -227,16 +237,36 @@ function CreateForm({
     if (Array.isArray(tpl?.auditorSkillIds)) setAuditorSkillIds(tpl.auditorSkillIds.map(String));
   };
 
+  const parsedUnit = Number(unitNumber);
+  const parsedModule = Number(moduleNumber);
+  const numbersValid =
+    Number.isInteger(parsedUnit) &&
+    parsedUnit > 0 &&
+    Number.isInteger(parsedModule) &&
+    parsedModule > 0;
+
+  // Live duplicate check against other drafts only. A live-published unit is
+  // NOT a collision - a fresh draft for an existing live unit is the intended
+  // update workflow. Skip while numbers are still invalid (e.g. mid-typing).
+  const collisionCheck = useQuery(
+    api.contentStudio.checkUnitModuleCollision,
+    numbersValid
+      ? { moduleNumber: parsedModule, unitNumber: parsedUnit }
+      : "skip"
+  );
+  const collides = collisionCheck?.collides === true;
+  const collisionMessage = collides
+    ? `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
+    : null;
+
   const handleCreate = async () => {
-    const u = Number(unitNumber);
-    const m = Number(moduleNumber);
-    if (!Number.isFinite(u) || u <= 0 || !Number.isFinite(m) || m <= 0) return;
+    if (!numbersValid || collides) return;
     setCreating(true);
     try {
       await onCreateDraft({
-        unitNumber: u,
-        moduleNumber: m,
-        title: title.trim() || `Unit ${u}`,
+        unitNumber: parsedUnit,
+        moduleNumber: parsedModule,
+        title: title.trim() || `Unit ${parsedUnit}`,
         description: description.trim() || undefined,
         templateId: templateId || undefined,
         creatorBrief: creatorBrief.trim() || undefined,
@@ -246,6 +276,8 @@ function CreateForm({
         refNotes: refNotes.trim() || undefined,
         specialistSkillIds: specialistSkillIds.length ? specialistSkillIds : undefined,
         auditorSkillIds: auditorSkillIds.length ? auditorSkillIds : undefined,
+        authorNoteName: authorNoteName.trim() || undefined,
+        authorNoteQuote: authorNoteQuote.trim() || undefined,
       });
     } finally {
       setCreating(false);
@@ -282,13 +314,28 @@ function CreateForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Module Number</Label>
-          <Input value={moduleNumber} onChange={(e) => setModuleNumber(e.target.value)} />
+          <Input
+            value={moduleNumber}
+            onChange={(e) => setModuleNumber(e.target.value)}
+            aria-invalid={collides || undefined}
+            className={cn(collides && "border-destructive focus-visible:ring-destructive")}
+          />
         </div>
         <div className="space-y-2">
           <Label>Unit Number</Label>
-          <Input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} />
+          <Input
+            value={unitNumber}
+            onChange={(e) => setUnitNumber(e.target.value)}
+            aria-invalid={collides || undefined}
+            className={cn(collides && "border-destructive focus-visible:ring-destructive")}
+          />
         </div>
       </div>
+      {collisionMessage && (
+        <p className="text-sm text-destructive" role="alert">
+          {collisionMessage}
+        </p>
+      )}
 
       <div className="space-y-2">
         <Label>Title</Label>
@@ -432,8 +479,41 @@ function CreateForm({
         </div>
       </div>
 
+      <Separator />
+
+      {/* Author Note */}
+      <div className="space-y-3">
+        <Label className="font-semibold">Author Note (optional)</Label>
+        <p className="text-xs text-muted-foreground">
+          Displayed as the founder voice at the top of the unit. Leave the quote empty to add it later in the draft settings.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Name</Label>
+            <Input
+              value={authorNoteName}
+              onChange={(e) => setAuthorNoteName(e.target.value)}
+              placeholder="e.g. Jacksenn"
+            />
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label className="text-xs">Quote</Label>
+            <Textarea
+              value={authorNoteQuote}
+              onChange={(e) => setAuthorNoteQuote(e.target.value)}
+              rows={3}
+              placeholder="A brief motivational quote..."
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="pt-2">
-        <Button className="w-full" onClick={() => void handleCreate()} disabled={creating}>
+        <Button
+          className="w-full"
+          onClick={() => void handleCreate()}
+          disabled={creating || !numbersValid || collides}
+        >
           {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Create Draft
         </Button>
@@ -451,9 +531,12 @@ type EditFormProps = Omit<
 
 function EditForm(props: EditFormProps) {
   const {
+    selectedDraftId,
     selected, isBusy,
     draftEditTitle, setDraftEditTitle,
     draftEditDescription, setDraftEditDescription,
+    draftEditModuleNumber, setDraftEditModuleNumber,
+    draftEditUnitNumber, setDraftEditUnitNumber,
     draftAuthorNoteName, setDraftAuthorNoteName,
     draftAuthorNoteQuote, setDraftAuthorNoteQuote, onFounderQuoteBlur,
     draftRefId, setDraftRefId,
@@ -467,8 +550,69 @@ function EditForm(props: EditFormProps) {
     hasUnsavedChanges, metaAutosaveStatus, metaAutosavedAt,
   } = props;
 
+  const parsedUnit = Number(draftEditUnitNumber);
+  const parsedModule = Number(draftEditModuleNumber);
+  const numbersValid =
+    Number.isInteger(parsedUnit) &&
+    parsedUnit > 0 &&
+    Number.isInteger(parsedModule) &&
+    parsedModule > 0;
+
+  // Live duplicate check against other drafts only. Excludes the current
+  // draft so re-saving without changes does not falsely flag the row against
+  // itself. Live-published units are intentionally NOT considered a collision
+  // because a fresh draft is the update path.
+  const collisionCheck = useQuery(
+    api.contentStudio.checkUnitModuleCollision,
+    numbersValid && selectedDraftId
+      ? {
+          moduleNumber: parsedModule,
+          unitNumber: parsedUnit,
+          excludeDraftId: selectedDraftId as any,
+        }
+      : "skip"
+  );
+  const collides = collisionCheck?.collides === true;
+  const collisionMessage = collides
+    ? `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
+    : null;
+
   return (
     <div className="space-y-6">
+      {/* Numbers */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Module Number</Label>
+            <Input
+              value={draftEditModuleNumber}
+              onChange={(e) => setDraftEditModuleNumber(e.target.value)}
+              aria-invalid={collides || undefined}
+              className={cn(collides && "border-destructive focus-visible:ring-destructive")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Unit Number</Label>
+            <Input
+              value={draftEditUnitNumber}
+              onChange={(e) => setDraftEditUnitNumber(e.target.value)}
+              aria-invalid={collides || undefined}
+              className={cn(collides && "border-destructive focus-visible:ring-destructive")}
+            />
+          </div>
+        </div>
+        {collisionMessage && (
+          <p className="text-sm text-destructive" role="alert">
+            {collisionMessage}
+          </p>
+        )}
+        {!numbersValid && (draftEditUnitNumber !== "" || draftEditModuleNumber !== "") && (
+          <p className="text-xs text-muted-foreground">
+            Module and Unit must both be positive integers.
+          </p>
+        )}
+      </div>
+
       {/* Title + Description */}
       <div className="space-y-4">
         <div className="space-y-2">
@@ -641,7 +785,7 @@ function EditForm(props: EditFormProps) {
         <Button
           className="w-full"
           onClick={onSaveDraftSkillsAndReference}
-          disabled={!props.selectedDraftId || isBusy}
+          disabled={!props.selectedDraftId || isBusy || !numbersValid || collides}
         >
           Save Draft Settings
         </Button>

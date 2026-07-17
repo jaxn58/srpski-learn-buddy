@@ -12,6 +12,30 @@ import {
   isSerbianStemExerciseType,
   stripTrailingParentheticalGlosses,
 } from "./_translationCore";
+import { findUnitModuleCollision } from "./_queries";
+import type { Id } from "../_generated/dataModel";
+
+/**
+ * Server-side hard guard: throws when another Content Studio draft already
+ * exists for the same (moduleNumber, unitNumber) slot. Live units are NOT
+ * blocked - a new draft for an existing live unit is the intended update path.
+ * Used by createDraft, createDraftFromTemplate, and updateDraftMeta so no code
+ * path can bypass it.
+ */
+async function assertNoUnitModuleCollision(
+  ctx: { db: any },
+  args: {
+    moduleNumber: number;
+    unitNumber: number;
+    excludeDraftId?: Id<"contentDrafts"> | null;
+  }
+): Promise<void> {
+  const result = await findUnitModuleCollision(ctx, args);
+  if (!result.collides) return;
+  throw new Error(
+    `Another draft already exists for Unit ${args.unitNumber} in Module ${args.moduleNumber}.`
+  );
+}
 
 export const createDraft = mutation({
   args: {
@@ -19,10 +43,20 @@ export const createDraft = mutation({
     moduleNumber: v.number(),
     title: v.string(),
     description: v.optional(v.string()),
+    authorNoteName: v.optional(v.string()),
+    authorNoteQuote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireSuperadmin(ctx);
+    await assertNoUnitModuleCollision(ctx, {
+      moduleNumber: args.moduleNumber,
+      unitNumber: args.unitNumber,
+    });
     const now = Date.now();
+    const trimmedName =
+      typeof args.authorNoteName === "string" ? args.authorNoteName.trim() : "";
+    const trimmedQuote =
+      typeof args.authorNoteQuote === "string" ? args.authorNoteQuote.trim() : "";
     const id = await ctx.db.insert("contentDrafts", {
       unitNumber: args.unitNumber,
       moduleNumber: args.moduleNumber,
@@ -34,9 +68,10 @@ export const createDraft = mutation({
       updatedAt: now,
       lastSnapshotId: undefined,
       inspirationRef: undefined,
-      // Founder note defaults (content is still authored by the admin, but shown as founder voice in the unit UI)
-      authorNoteName: "Jacksenn",
-      authorNoteQuote: undefined,
+      // Founder note: name defaults to "Jacksenn" unless explicitly overridden;
+      // quote is optional and only stored if the admin provided one at create time.
+      authorNoteName: trimmedName || "Jacksenn",
+      authorNoteQuote: trimmedQuote || undefined,
     });
     return id;
   },
@@ -143,16 +178,27 @@ export const createDraftFromTemplate = mutation({
     ),
     specialistSkillIds: v.optional(v.array(v.id("contentStudioSkills"))),
     auditorSkillIds: v.optional(v.array(v.id("contentStudioSkills"))),
+    authorNoteName: v.optional(v.string()),
+    authorNoteQuote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireSuperadmin(ctx);
     const tpl: any = await ctx.db.get(args.templateId);
     if (!tpl || tpl.isActive === false) throw new Error("Template not found");
 
+    await assertNoUnitModuleCollision(ctx, {
+      moduleNumber: args.moduleNumber,
+      unitNumber: args.unitNumber,
+    });
+
     const now = Date.now();
     const inspirationRef = args.inspirationRef ?? tpl.inspirationRef;
     const specialistSkillIds = args.specialistSkillIds ?? tpl.specialistSkillIds ?? [];
     const auditorSkillIds = args.auditorSkillIds ?? tpl.auditorSkillIds ?? [];
+    const trimmedName =
+      typeof args.authorNoteName === "string" ? args.authorNoteName.trim() : "";
+    const trimmedQuote =
+      typeof args.authorNoteQuote === "string" ? args.authorNoteQuote.trim() : "";
 
     const id = await ctx.db.insert("contentDrafts", {
       unitNumber: args.unitNumber,
@@ -167,9 +213,10 @@ export const createDraftFromTemplate = mutation({
       inspirationRef: inspirationRef ? { ...inspirationRef, source: inspirationRef.source ?? "template" } : undefined,
       specialistSkillIds: Array.isArray(specialistSkillIds) ? specialistSkillIds : [],
       auditorSkillIds: Array.isArray(auditorSkillIds) ? auditorSkillIds : [],
-      // Founder note defaults
-      authorNoteName: "Jacksenn",
-      authorNoteQuote: undefined,
+      // Founder note: name defaults to "Jacksenn" unless explicitly overridden;
+      // quote is optional and only stored if the admin provided one at create time.
+      authorNoteName: trimmedName || "Jacksenn",
+      authorNoteQuote: trimmedQuote || undefined,
     });
     return id;
   },
@@ -180,6 +227,8 @@ export const updateDraftMeta = mutation({
     draftId: v.id("contentDrafts"),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
+    unitNumber: v.optional(v.number()),
+    moduleNumber: v.optional(v.number()),
     authorNoteName: v.optional(v.string()),
     authorNoteQuote: v.optional(v.string()),
     inspirationRef: v.optional(
@@ -196,9 +245,41 @@ export const updateDraftMeta = mutation({
     await requireSuperadmin(ctx);
     const draft = await ctx.db.get(args.draftId);
     if (!draft) throw new Error("Draft not found");
+
+    // If unit/module numbers are being changed, validate and run the collision
+    // guard against other drafts and against already-published live units.
+    // Skip the guard when nothing effectively changes (idempotent saves).
+    const nextUnit =
+      typeof args.unitNumber === "number" ? args.unitNumber : (draft as any).unitNumber;
+    const nextModule =
+      typeof args.moduleNumber === "number"
+        ? args.moduleNumber
+        : (draft as any).moduleNumber;
+
+    if (typeof args.unitNumber === "number" || typeof args.moduleNumber === "number") {
+      if (!Number.isInteger(nextUnit) || nextUnit <= 0) {
+        throw new Error("Unit number must be a positive integer.");
+      }
+      if (!Number.isInteger(nextModule) || nextModule <= 0) {
+        throw new Error("Module number must be a positive integer.");
+      }
+      const changed =
+        nextUnit !== (draft as any).unitNumber ||
+        nextModule !== (draft as any).moduleNumber;
+      if (changed) {
+        await assertNoUnitModuleCollision(ctx, {
+          moduleNumber: nextModule,
+          unitNumber: nextUnit,
+          excludeDraftId: args.draftId,
+        });
+      }
+    }
+
     await ctx.db.patch(args.draftId, {
       ...(typeof args.title === "string" ? { title: args.title } : {}),
       ...(typeof args.description === "string" ? { description: args.description } : {}),
+      ...(typeof args.unitNumber === "number" ? { unitNumber: args.unitNumber } : {}),
+      ...(typeof args.moduleNumber === "number" ? { moduleNumber: args.moduleNumber } : {}),
       ...(typeof args.authorNoteName === "string" ? { authorNoteName: args.authorNoteName } : {}),
       ...(typeof args.authorNoteQuote === "string" ? { authorNoteQuote: args.authorNoteQuote } : {}),
       ...(args.inspirationRef ? { inspirationRef: args.inspirationRef } : {}),

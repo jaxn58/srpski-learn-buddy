@@ -292,9 +292,11 @@ export default function ContentStudioAdmin() {
   const [draftRefChapter, setDraftRefChapter] = useState<string>("");
   const [draftRefPages, setDraftRefPages] = useState<string>("");
 
-  // Draft meta editing (title/description)
+  // Draft meta editing (title/description/numbers)
   const [draftEditTitle, setDraftEditTitle] = useState<string>("");
   const [draftEditDescription, setDraftEditDescription] = useState<string>("");
+  const [draftEditModuleNumber, setDraftEditModuleNumber] = useState<string>("");
+  const [draftEditUnitNumber, setDraftEditUnitNumber] = useState<string>("");
   const [draftAuthorNoteName, setDraftAuthorNoteName] = useState<string>("");
   const [draftAuthorNoteQuote, setDraftAuthorNoteQuote] = useState<string>("");
 
@@ -584,6 +586,8 @@ export default function ContentStudioAdmin() {
     return JSON.stringify({
       title: String(draftEditTitle || "").trim(),
       description: String(draftEditDescription || ""),
+      moduleNumber: String(draftEditModuleNumber || "").trim(),
+      unitNumber: String(draftEditUnitNumber || "").trim(),
       authorNoteName: String(draftAuthorNoteName || ""),
       authorNoteQuote: String(draftAuthorNoteQuote || ""),
       refId: String(draftRefId || ""),
@@ -597,6 +601,8 @@ export default function ContentStudioAdmin() {
     selectedDraftId,
     draftEditTitle,
     draftEditDescription,
+    draftEditModuleNumber,
+    draftEditUnitNumber,
     draftAuthorNoteName,
     draftAuthorNoteQuote,
     draftRefId,
@@ -680,10 +686,19 @@ export default function ContentStudioAdmin() {
             skillIds: draftAuditorSkillIds.map((id) => id as any),
           });
 
+          const parsedModuleNumber = Number(draftEditModuleNumber);
+          const parsedUnitNumber = Number(draftEditUnitNumber);
+          const moduleNumberValid =
+            Number.isInteger(parsedModuleNumber) && parsedModuleNumber > 0;
+          const unitNumberValid =
+            Number.isInteger(parsedUnitNumber) && parsedUnitNumber > 0;
+
           await updateDraftMeta({
             draftId: draftIdAtSchedule,
             title: draftEditTitle.trim() ? draftEditTitle.trim() : undefined,
             description: typeof draftEditDescription === "string" ? draftEditDescription : "",
+            ...(moduleNumberValid ? { moduleNumber: parsedModuleNumber } : {}),
+            ...(unitNumberValid ? { unitNumber: parsedUnitNumber } : {}),
             authorNoteName: typeof draftAuthorNoteName === "string" ? draftAuthorNoteName : "",
             authorNoteQuote: typeof draftAuthorNoteQuote === "string" ? draftAuthorNoteQuote : "",
             inspirationRef: {
@@ -715,6 +730,8 @@ export default function ContentStudioAdmin() {
     draftAuditorSkillIds,
     draftEditTitle,
     draftEditDescription,
+    draftEditModuleNumber,
+    draftEditUnitNumber,
     draftAuthorNoteName,
     draftAuthorNoteQuote,
     draftRefId,
@@ -812,6 +829,12 @@ export default function ContentStudioAdmin() {
 
     setDraftEditTitle(typeof d.title === "string" ? d.title : "");
     setDraftEditDescription(typeof d.description === "string" ? d.description : "");
+    setDraftEditModuleNumber(
+      typeof d.moduleNumber === "number" ? String(d.moduleNumber) : ""
+    );
+    setDraftEditUnitNumber(
+      typeof d.unitNumber === "number" ? String(d.unitNumber) : ""
+    );
     setDraftAuthorNoteName(typeof d.authorNoteName === "string" ? d.authorNoteName : "");
     setDraftAuthorNoteQuote(typeof d.authorNoteQuote === "string" ? d.authorNoteQuote : "");
   }, [selected]);
@@ -905,6 +928,8 @@ export default function ContentStudioAdmin() {
     refNotes?: string;
     specialistSkillIds?: string[];
     auditorSkillIds?: string[];
+    authorNoteName?: string;
+    authorNoteQuote?: string;
   }) => {
     const {
       unitNumber, moduleNumber, title, description,
@@ -912,7 +937,13 @@ export default function ContentStudioAdmin() {
       refId, refChapter, refPages, refNotes,
       specialistSkillIds: newSpecialistIds,
       auditorSkillIds: newAuditorIds,
+      authorNoteName: newAuthorNoteName,
+      authorNoteQuote: newAuthorNoteQuote,
     } = params;
+
+    const trimmedAuthorNoteName = (newAuthorNoteName || "").trim();
+    const trimmedAuthorNoteQuote = (newAuthorNoteQuote || "").trim();
+    const effectiveAuthorNoteName = trimmedAuthorNoteName || "Jacksenn";
 
     const template = tplId
       ? (draftTemplates || []).find((t: any) => String(t?._id) === String(tplId)) || null
@@ -947,8 +978,17 @@ export default function ContentStudioAdmin() {
           title: trimmedTitle,
           description,
           inspirationRef: composedRef as any,
+          authorNoteName: trimmedAuthorNoteName || undefined,
+          authorNoteQuote: trimmedAuthorNoteQuote || undefined,
         } as any)
-      : await createDraft({ unitNumber, moduleNumber, title: trimmedTitle, description });
+      : await createDraft({
+          unitNumber,
+          moduleNumber,
+          title: trimmedTitle,
+          description,
+          authorNoteName: trimmedAuthorNoteName || undefined,
+          authorNoteQuote: trimmedAuthorNoteQuote || undefined,
+        });
 
     // Persist meta (non-template path)
     if (!template && composedRef) {
@@ -967,14 +1007,16 @@ export default function ContentStudioAdmin() {
     // exactly what the user entered while the getDraft query re-fetches.
     setDraftEditTitle(trimmedTitle);
     setDraftEditDescription(typeof description === "string" ? description : "");
+    setDraftEditModuleNumber(String(moduleNumber));
+    setDraftEditUnitNumber(String(unitNumber));
     setDraftRefId(refId || "");
     setDraftRefChapter(trimmedChapter);
     setDraftRefPages(trimmedPages);
     setDraftRefNotes(trimmedRefNotes || trimmedBrief);
     setDraftSpecialistSkillIds(newSpecialistIds ? newSpecialistIds.map(String) : []);
     setDraftAuditorSkillIds(newAuditorIds ? newAuditorIds.map(String) : []);
-    setDraftAuthorNoteName("Jacksenn");
-    setDraftAuthorNoteQuote("");
+    setDraftAuthorNoteName(effectiveAuthorNoteName);
+    setDraftAuthorNoteQuote(trimmedAuthorNoteQuote);
 
     setIsDraftCreateMode(false);
     setSelectedDraftId(id);
@@ -1367,11 +1409,20 @@ export default function ContentStudioAdmin() {
         skillIds: draftAuditorSkillIds.map((id) => id as any),
       });
 
+      const parsedModuleNumber = Number(draftEditModuleNumber);
+      const parsedUnitNumber = Number(draftEditUnitNumber);
+      const moduleNumberValid =
+        Number.isInteger(parsedModuleNumber) && parsedModuleNumber > 0;
+      const unitNumberValid =
+        Number.isInteger(parsedUnitNumber) && parsedUnitNumber > 0;
+
       await updateDraftMeta({
         draftId: selectedDraftId,
         title: draftEditTitle.trim() || (selected as any)?.draft?.title || `Unit ${(selected as any)?.draft?.unitNumber ?? ""}`,
         // Allow clearing description explicitly by saving an empty string.
         description: typeof draftEditDescription === "string" ? draftEditDescription : "",
+        ...(moduleNumberValid ? { moduleNumber: parsedModuleNumber } : {}),
+        ...(unitNumberValid ? { unitNumber: parsedUnitNumber } : {}),
         authorNoteName: typeof draftAuthorNoteName === "string" ? draftAuthorNoteName : "",
         authorNoteQuote: typeof draftAuthorNoteQuote === "string" ? draftAuthorNoteQuote : "",
         inspirationRef: {
@@ -2340,6 +2391,10 @@ export default function ContentStudioAdmin() {
             setDraftEditTitle={setDraftEditTitle}
             draftEditDescription={draftEditDescription}
             setDraftEditDescription={setDraftEditDescription}
+            draftEditModuleNumber={draftEditModuleNumber}
+            setDraftEditModuleNumber={setDraftEditModuleNumber}
+            draftEditUnitNumber={draftEditUnitNumber}
+            setDraftEditUnitNumber={setDraftEditUnitNumber}
             draftAuthorNoteName={draftAuthorNoteName}
             setDraftAuthorNoteName={setDraftAuthorNoteName}
             draftAuthorNoteQuote={draftAuthorNoteQuote}

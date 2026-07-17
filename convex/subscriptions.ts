@@ -1360,11 +1360,16 @@ export const getPublicEnergyInfo = query({
         course_ai_pro: cfg.quotas.full,
       },
       costs: {
-        // A "typical" chat question: compact answer + context-link surcharge
-        typicalChat: cfg.costs.compact + cfg.costs.ragSurcharge,
-        // A detailed answer with course context
-        detailedAnswer: cfg.costs.detailed + cfg.costs.ragSurcharge,
-        // A photo-scan (vision) + detailed answer
+        // Compact answer (raw admin value, no hidden surcharges).
+        // RAG surcharge is an optional add-on when course context is used
+        // and is not folded in here so the landing page mirrors the admin
+        // config 1:1 ("Compact answer = X Energy" means exactly X Energy).
+        typicalChat: cfg.costs.compact,
+        // Detailed answer (raw admin value, no hidden surcharges).
+        detailedAnswer: cfg.costs.detailed,
+        // Photo scan = detailed answer + vision surcharge. Vision is
+        // technically required for image analysis, so this is a real
+        // minimum price, not an optional add-on.
         photoScan: cfg.costs.detailed + cfg.costs.visionSurcharge,
       },
       monthlyReset: true,

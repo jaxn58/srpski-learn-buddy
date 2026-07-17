@@ -1303,7 +1303,7 @@ export default function Vocabulary() {
                       {mode === 'quiz' && (
                         <div className="flex items-center justify-between gap-2 pt-4 border-t">
                           <p className="text-xs text-muted-foreground">
-                            Automatic switch to the next word after two seconds. Turn on and off.
+                            {t('vocabulary.autoAdvance.description')}
                           </p>
                           <Switch
                             id="auto-advance"
@@ -1470,7 +1470,7 @@ export default function Vocabulary() {
                             className="flex items-center justify-between gap-2 pt-4 border-t"
                           >
                             <p className="text-xs text-muted-foreground">
-                              Automatic switch to the next word after two seconds. Turn on and off.
+                              {t('vocabulary.autoAdvance.description')}
                             </p>
                             <Switch
                               id="auto-advance"

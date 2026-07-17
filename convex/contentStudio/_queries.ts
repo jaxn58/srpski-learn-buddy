@@ -1543,3 +1543,67 @@ export const getPromptPreview = query({
     };
   },
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRAFT DUPLICATE CHECK for (moduleNumber, unitNumber)
+//
+// Prevents accidentally creating two Content-Studio drafts for the same unit
+// slot. Already-published live units are NOT considered collisions - creating
+// a new draft for an existing live unit is the intended update workflow.
+//
+// Also usable as a pure helper by mutations for the hard server-side guard.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type UnitModuleCollisionResult = {
+  collides: boolean;
+  conflictingDraftId: Id<"contentDrafts"> | null;
+};
+
+export async function findUnitModuleCollision(
+  ctx: { db: any },
+  args: {
+    moduleNumber: number;
+    unitNumber: number;
+    excludeDraftId?: Id<"contentDrafts"> | null;
+  }
+): Promise<UnitModuleCollisionResult> {
+  const empty: UnitModuleCollisionResult = {
+    collides: false,
+    conflictingDraftId: null,
+  };
+
+  if (!Number.isFinite(args.moduleNumber) || args.moduleNumber <= 0) return empty;
+  if (!Number.isFinite(args.unitNumber) || args.unitNumber <= 0) return empty;
+
+  const excludeId = args.excludeDraftId ?? null;
+
+  // Draft duplicate (any status, same (moduleNumber, unitNumber), excluding self on update).
+  const draftsWithUnit = await ctx.db
+    .query("contentDrafts")
+    .withIndex("by_unit", (q: any) => q.eq("unitNumber", args.unitNumber))
+    .collect();
+  const conflictingDraft = (draftsWithUnit as Array<Doc<"contentDrafts">>).find(
+    (d) => d.moduleNumber === args.moduleNumber && String(d._id) !== String(excludeId)
+  );
+
+  return {
+    collides: !!conflictingDraft,
+    conflictingDraftId: conflictingDraft?._id ?? null,
+  };
+}
+
+export const checkUnitModuleCollision = query({
+  args: {
+    moduleNumber: v.number(),
+    unitNumber: v.number(),
+    excludeDraftId: v.optional(v.id("contentDrafts")),
+  },
+  handler: async (ctx, args): Promise<UnitModuleCollisionResult> => {
+    await requireSuperadmin(ctx);
+    return await findUnitModuleCollision(ctx, {
+      moduleNumber: args.moduleNumber,
+      unitNumber: args.unitNumber,
+      excludeDraftId: args.excludeDraftId ?? null,
+    });
+  },
+});
