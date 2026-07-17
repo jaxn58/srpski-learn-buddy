@@ -12,6 +12,7 @@
 
 import { v } from "convex/values";
 import { internalMutation } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
 import {
   findLatestPublishedVocabForKey,
   mergeOrRepointVocabularyProgress,
@@ -19,7 +20,7 @@ import {
   vocabularySerbianKey,
 } from "../contentStudio/_vocabularyProgressRemap";
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 25;
 
 export const run = internalMutation({
   args: {
@@ -47,6 +48,9 @@ export const run = internalMutation({
     let quizProgressUpdated = 0;
     let processed = 0;
 
+    const targetCache = new Map<string, Id<"courseVocabulary"> | null>();
+    const quizRemapDone = new Set<string>();
+
     const page = await ctx.db
       .query("vocabularyProgress")
       .paginate({ numItems: BATCH_SIZE, cursor: args.cursor ?? null });
@@ -70,11 +74,16 @@ export const run = internalMutation({
       }
 
       const serbianKey = vocabularySerbianKey(vocab);
-      const targetId = await findLatestPublishedVocabForKey(
-        ctx,
-        vocab.unitNumber,
-        serbianKey,
-      );
+      const cacheKey = `${vocab.unitNumber}:${serbianKey}`;
+      let targetId = targetCache.get(cacheKey);
+      if (targetId === undefined) {
+        targetId = await findLatestPublishedVocabForKey(
+          ctx,
+          vocab.unitNumber,
+          serbianKey,
+        );
+        targetCache.set(cacheKey, targetId);
+      }
 
       if (!targetId || targetId === prog.courseVocabularyId) {
         notFound += 1;
@@ -82,7 +91,6 @@ export const run = internalMutation({
       }
 
       if (dryRun) {
-        // Count what would happen without writing.
         const existing = await ctx.db
           .query("vocabularyProgress")
           .withIndex("by_user_course_vocab", (q) =>
@@ -105,13 +113,16 @@ export const run = internalMutation({
       repointed += result.repointed;
       merged += result.merged;
 
-      const quizUpdated = await replaceVocabIdInQuizProgressForUnit(
-        ctx,
-        vocab.unitNumber,
-        prog.courseVocabularyId,
-        targetId,
-      );
-      quizProgressUpdated += quizUpdated;
+      const quizKey = `${vocab.unitNumber}:${prog.courseVocabularyId}:${targetId}`;
+      if (!quizRemapDone.has(quizKey)) {
+        quizRemapDone.add(quizKey);
+        quizProgressUpdated += await replaceVocabIdInQuizProgressForUnit(
+          ctx,
+          vocab.unitNumber,
+          prog.courseVocabularyId,
+          targetId,
+        );
+      }
     }
 
     return {
@@ -129,12 +140,14 @@ export const run = internalMutation({
 });
 
 /**
- * Convenience wrapper: runs all batches until done.
- * Invoke via CLI with dryRun:false after verifying a single batch.
+ * Convenience wrapper: runs ONE batch only. Re-invoke with continueCursor until isDone.
+ * Example loop (PowerShell):
+ *   $cursor = $null; do { ... } while (-not $result.isDone)
  */
 export const runAll = internalMutation({
   args: {
     dryRun: v.optional(v.boolean()),
+    cursor: v.optional(v.string()),
   },
   returns: v.object({
     dryRun: v.boolean(),
@@ -143,94 +156,108 @@ export const runAll = internalMutation({
     skipped: v.number(),
     notFound: v.number(),
     quizProgressUpdated: v.number(),
-    totalProcessed: v.number(),
-    batches: v.number(),
+    processed: v.number(),
+    isDone: v.boolean(),
+    continueCursor: v.union(v.string(), v.null()),
   }),
   handler: async (ctx, args) => {
+    // Delegate to single-batch run (same args/returns).
     const dryRun = args.dryRun !== false;
-    let cursor: string | null = null;
-    let batches = 0;
-    const totals = {
-      repointed: 0,
-      merged: 0,
-      skipped: 0,
-      notFound: 0,
-      quizProgressUpdated: 0,
-      totalProcessed: 0,
-    };
 
-    // Safety cap: 10 000 batches x 100 rows = 1 M rows max.
-    for (let i = 0; i < 10_000; i++) {
-      const page = await ctx.db
-        .query("vocabularyProgress")
-        .paginate({ numItems: BATCH_SIZE, cursor });
+    let repointed = 0;
+    let merged = 0;
+    let skipped = 0;
+    let notFound = 0;
+    let quizProgressUpdated = 0;
+    let processed = 0;
 
-      for (const prog of page.page) {
-        totals.totalProcessed += 1;
-        const vocab = await ctx.db.get("courseVocabulary", prog.courseVocabularyId);
-        if (!vocab) {
-          totals.notFound += 1;
-          continue;
-        }
+    const targetCache = new Map<string, Id<"courseVocabulary"> | null>();
+    const quizRemapDone = new Set<string>();
 
-        const isActivePublished =
-          vocab.isActive !== false &&
-          vocab.releaseStatus !== "preview" &&
-          vocab.releaseStatus !== "offline";
+    const page = await ctx.db
+      .query("vocabularyProgress")
+      .paginate({ numItems: BATCH_SIZE, cursor: args.cursor ?? null });
 
-        if (isActivePublished) {
-          totals.skipped += 1;
-          continue;
-        }
+    for (const prog of page.page) {
+      processed += 1;
+      const vocab = await ctx.db.get("courseVocabulary", prog.courseVocabularyId);
+      if (!vocab) {
+        notFound += 1;
+        continue;
+      }
 
-        const serbianKey = vocabularySerbianKey(vocab);
-        const targetId = await findLatestPublishedVocabForKey(
+      const isActivePublished =
+        vocab.isActive !== false &&
+        vocab.releaseStatus !== "preview" &&
+        vocab.releaseStatus !== "offline";
+
+      if (isActivePublished) {
+        skipped += 1;
+        continue;
+      }
+
+      const serbianKey = vocabularySerbianKey(vocab);
+      const cacheKey = `${vocab.unitNumber}:${serbianKey}`;
+      let targetId = targetCache.get(cacheKey);
+      if (targetId === undefined) {
+        targetId = await findLatestPublishedVocabForKey(
           ctx,
           vocab.unitNumber,
           serbianKey,
         );
+        targetCache.set(cacheKey, targetId);
+      }
 
-        if (!targetId || targetId === prog.courseVocabularyId) {
-          totals.notFound += 1;
-          continue;
+      if (!targetId || targetId === prog.courseVocabularyId) {
+        notFound += 1;
+        continue;
+      }
+
+      if (dryRun) {
+        const existing = await ctx.db
+          .query("vocabularyProgress")
+          .withIndex("by_user_course_vocab", (q) =>
+            q.eq("userId", prog.userId).eq("courseVocabularyId", targetId),
+          )
+          .first();
+        if (existing && existing._id !== prog._id) {
+          merged += 1;
+        } else {
+          repointed += 1;
         }
+        continue;
+      }
 
-        if (dryRun) {
-          const existing = await ctx.db
-            .query("vocabularyProgress")
-            .withIndex("by_user_course_vocab", (q) =>
-              q.eq("userId", prog.userId).eq("courseVocabularyId", targetId),
-            )
-            .first();
-          if (existing && existing._id !== prog._id) {
-            totals.merged += 1;
-          } else {
-            totals.repointed += 1;
-          }
-          continue;
-        }
+      const result = await mergeOrRepointVocabularyProgress(
+        ctx,
+        prog.courseVocabularyId,
+        targetId,
+      );
+      repointed += result.repointed;
+      merged += result.merged;
 
-        const result = await mergeOrRepointVocabularyProgress(
-          ctx,
-          prog.courseVocabularyId,
-          targetId,
-        );
-        totals.repointed += result.repointed;
-        totals.merged += result.merged;
-
-        totals.quizProgressUpdated += await replaceVocabIdInQuizProgressForUnit(
+      const quizKey = `${vocab.unitNumber}:${prog.courseVocabularyId}:${targetId}`;
+      if (!quizRemapDone.has(quizKey)) {
+        quizRemapDone.add(quizKey);
+        quizProgressUpdated += await replaceVocabIdInQuizProgressForUnit(
           ctx,
           vocab.unitNumber,
           prog.courseVocabularyId,
           targetId,
         );
       }
-
-      batches += 1;
-      if (page.isDone) break;
-      cursor = page.continueCursor;
     }
 
-    return { dryRun, ...totals, batches };
+    return {
+      dryRun,
+      repointed,
+      merged,
+      skipped,
+      notFound,
+      quizProgressUpdated,
+      processed,
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
   },
 });

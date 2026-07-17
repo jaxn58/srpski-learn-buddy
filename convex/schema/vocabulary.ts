@@ -116,5 +116,6 @@ export const vocabularyTables = {
     incorrectVocabularyIds: v.optional(v.array(v.id("courseVocabulary"))), // courseVocabularyId[]
 
     lastAttemptAt: v.optional(v.number()), // timestamp
-  }).index("by_user_unit", ["userId", "unitNumber"]),
+  }).index("by_user_unit", ["userId", "unitNumber"])
+    .index("by_unit", ["unitNumber"]),
 };

@@ -85,7 +85,7 @@ export async function replaceVocabIdInQuizProgressForUnit(
   let updated = 0;
   const qzRows = await ctx.db
     .query("quizProgress")
-    .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
+    .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
     .collect();
 
   for (const row of qzRows) {
