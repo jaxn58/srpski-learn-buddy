@@ -380,10 +380,7 @@ function PublishContent(props: InspectorPanelProps) {
 
       <Separator />
 
-      {/* Publish saved snapshot (previously "Push to Preview" - renamed to
-          make it explicit that this uses the saved snapshot, not the editor.
-          If the editor content differs, ContentStudioAdmin opens a safety
-          prompt before publishing. */}
+      {/* Push to Preview */}
       <div className="space-y-2">
         <Button
           size="sm"
@@ -392,11 +389,11 @@ function PublishContent(props: InspectorPanelProps) {
           disabled={isBusy}
         >
           {runningPublish ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
-          Publish saved snapshot
+          Push to Preview
         </Button>
 
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Publishes the <strong>last saved snapshot</strong> as a preview. To publish unsaved editor changes, use <strong>“Save &amp; Preview”</strong> in the Markdown tab instead. Manage/take offline via the <strong>Unit Manager</strong>.
+          Pushes this draft as a preview to the database. Use the <strong>Unit Manager</strong> to review, publish, or take it offline.
         </p>
       </div>
 
