@@ -351,17 +351,6 @@ export function collectSerbianCandidatesFromExercises(pkg: any): string[] {
   return Array.from(new Set(out.map((s) => String(s || "").trim()).filter(Boolean)));
 }
 
-const COMMON_SERBIAN_FUNCTION_WORDS = new Set([
-  "je", "su", "sam", "si", "smo", "ste",
-  "i", "a", "ali", "ili", "ni", "niti",
-  "u", "na", "sa", "za", "od", "do", "iz", "po", "o", "ka", "kod", "bez", "kroz", "između",
-  "da", "ne", "li", "se", "bi", "ce", "cu",
-  "ja", "ti", "on", "ona", "ono", "mi", "vi", "oni", "one",
-  "taj", "ta", "to", "ova", "ovo", "ovaj",
-  "što", "šta", "ko", "gde", "kad", "kako", "zašto",
-  "još", "već", "sad", "tu", "ovde", "onde",
-  "vrlo", "baš", "samo", "još",
-]);
 
 /**
  * Extract Serbian word candidates from dialogue and phrase tables in the content markdown.
@@ -425,7 +414,7 @@ function tokenizeSerbianText(text: string): string[] {
     .replace(/[.?!,:;()\[\]"'…–—\/\\]/g, " ")
     .split(/\s+/)
     .map(w => w.trim().toLowerCase())
-    .filter(w => w.length >= 2 && !COMMON_SERBIAN_FUNCTION_WORDS.has(w));
+    .filter(w => w.length >= 2);
 }
 
 /**
@@ -484,22 +473,19 @@ export function collectOriginalSerbianTextSamples(pkg: any): string[] {
  * Heuristic: Checks whether a candidate lemma is most likely a personal/proper noun
  * based on its case pattern in the original text samples.
  *
- * Logic:
- *  - We look at every occurrence of the word (case-insensitive) in the original samples.
- *  - If the word appears CAPITALIZED mid-sentence (i.e. not as the first token of a
- *    sentence / sample and not after ".", "!", "?"), it is almost certainly a proper noun.
- *  - If the word appears ONLY capitalized (even when counting sentence-initial
+ * Returns:
+ *  - "strong": The word appears CAPITALIZED mid-sentence (i.e. not as the first token
+ *    of a sentence / sample and not after ".", "!", "?") — almost certainly a proper noun.
+ *  - "weak": The word appears ONLY capitalized (even when counting sentence-initial
  *    positions — where capitalization is ambiguous because every sentence-initial word
- *    is capitalized in Serbian too), and never lowercase, we treat it as a
- *    "suspected proper noun" and return true as well. This catches single-word
- *    answers like "Elena" where the word is always at position 0.
- *  - Otherwise (mixed case, or only-lowercase) we return false and let downstream
- *    logic (dictionary lookup + AI classifier) decide.
+ *    is capitalized in Serbian too), and never lowercase. This is NOT reliable for
+ *    vocabulary in a language course where common words frequently appear sentence-initially.
+ *  - false: Mixed case or only-lowercase — not a proper noun by case pattern.
  *
- * This runs BEFORE the AI classifier, so it saves an API call for obvious cases
- * and protects against the classifier mis-labeling a name as a regular Serbian word.
+ * Callers should treat "strong" as definitive and "weak" as requiring further
+ * verification (e.g. AI classifier) before skipping a word.
  */
-export function looksLikePersonalNameByContext(lemma: string, samples: string[]): boolean {
+export function looksLikePersonalNameByContext(lemma: string, samples: string[]): "strong" | "weak" | false {
   const target = String(lemma || "").trim().toLowerCase();
   if (!target || target.length < 2) return false;
 
@@ -556,13 +542,13 @@ export function looksLikePersonalNameByContext(lemma: string, samples: string[])
   if (!sawAnyOccurrence) return false;
 
   // Strong signal: capitalized mid-sentence at least once.
-  if (sawCapitalMidSentence) return true;
+  if (sawCapitalMidSentence) return "strong";
 
-  // Weaker signal: never seen lowercase anywhere. In Serbian, regular vocabulary
-  // appears lowercase somewhere (in tables, hints, options). A word that is
-  // ALWAYS capitalized is most likely a proper noun — but only treat as such if
-  // there is no lowercase evidence at all.
-  if (!sawLowercase) return true;
+  // Weak signal: never seen lowercase anywhere. In a language course, many
+  // common words (verbs, adjectives, greetings) appear only at sentence start
+  // (e.g. "Zovem se...", "Dobar dan!") and thus never in lowercase. This is
+  // NOT sufficient to classify them as names — the AI classifier must confirm.
+  if (!sawLowercase) return "weak";
 
   return false;
 }
@@ -710,6 +696,21 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     console.warn("Proper-noun allowlist fetch failed, continuing without:", err);
   }
 
+  // Load the admin-maintained name blacklist. Tokens on this list have been
+  // explicitly confirmed as personal names and must never be auto-added again.
+  let blacklistSet = new Set<string>();
+  try {
+    const blacklistKeys = await ctx.runQuery(
+      internal.contentStudio.getBlacklistKeysInternal,
+      {}
+    );
+    if (Array.isArray(blacklistKeys)) {
+      blacklistSet = new Set<string>(blacklistKeys);
+    }
+  } catch (err) {
+    console.warn("Name blacklist fetch failed, continuing without:", err);
+  }
+
   const isLikelyInflectedFormOfUnitVocab = (candidate: string): string | null => {
     const key = normalizeSerbianKey(candidate);
     if (!key || key.length < 3) return null;
@@ -762,21 +763,30 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     // Ignore very short tokens. (We allow 2-letter words like "od/sa".)
     if (key.length < 2) continue;
 
-    // Case heuristic: if the word appears capitalized mid-sentence (or is ALWAYS
-    // capitalized and never lowercase) in the original text, it is almost
-    // certainly a personal name. Skip it so we don't pollute vocabulary.
-    // Runs before the AI classifier to save tokens and avoid mis-classification.
+    // Admin-confirmed name blacklist: if this token was previously deleted as
+    // a personal name, never re-add it regardless of any other signal.
+    if (blacklistSet.has(key)) continue;
+
+    // Case heuristic: if the word appears capitalized mid-sentence, it is almost
+    // certainly a personal name. Skip it immediately so we don't pollute vocabulary.
+    //
+    // For the weaker signal (word never seen lowercase but only sentence-initial),
+    // we do NOT skip here — instead we let it proceed to the AI classifier phase
+    // where it gets a proper linguistic evaluation. This prevents false positives
+    // for common Serbian words that happen to appear only at sentence starts
+    // (e.g. "Zovem se...", "Dobar dan!", "Zove se...").
     //
     // Exception: admin-confirmed allowlist entries override the heuristic so
     // the same false positives don't reappear after a cleanup review.
-    if (
-      !allowlistSet.has(key) &&
-      looksLikePersonalNameByContext(key, originalTextSamples)
-    ) {
-      if (!skippedProperNouns.some((p) => normalizeSerbianKey(p.serbian) === key)) {
-        skippedProperNouns.push({ serbian: key, reason: "case_heuristic" });
+    if (!allowlistSet.has(key)) {
+      const caseSignal = looksLikePersonalNameByContext(key, originalTextSamples);
+      if (caseSignal === "strong") {
+        if (!skippedProperNouns.some((p) => normalizeSerbianKey(p.serbian) === key)) {
+          skippedProperNouns.push({ serbian: key, reason: "case_heuristic" });
+        }
+        continue;
       }
-      continue;
+      // "weak" signal: don't skip — let AI classifier decide below.
     }
 
     // If it's likely an inflected form of an existing unit vocab word, don't block or auto-add.
@@ -880,12 +890,13 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
       continue;
     }
 
-    const noteBits: string[] = ["AutoAdded: new vocabulary used in exercises"];
-
+    // `autoAdded` is internal bookkeeping only (flags this row for the superadmin
+    // cleanup panel) and must NEVER be written into noteEn/noteDe — those fields
+    // are learner-facing and must only ever contain actual linguistic notes.
     vocabEn.push({
       serbian: candidate.lemma,
       en,
-      noteEn: noteBits.join("\n"),
+      autoAdded: true,
     });
     existing.add(candidate.lemma);
     added.push({ serbian: candidate.lemma, en, fromUnit: undefined });

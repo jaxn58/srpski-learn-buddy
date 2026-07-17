@@ -20,7 +20,7 @@ export interface ArtifactsPanelProps {
   selected: any;
   selectedDraftId: string | null;
   isBusy: boolean;
-  runningPublish: boolean;
+  creatingPreview: boolean;
   markdownText: string;
   setMarkdownText: (v: string) => void;
   markdownDirty: boolean;
@@ -55,7 +55,7 @@ export function ArtifactsPanel({
   selected,
   selectedDraftId,
   isBusy,
-  runningPublish,
+  creatingPreview,
   markdownText,
   setMarkdownText,
   markdownDirty,
@@ -125,7 +125,7 @@ export function ArtifactsPanel({
                 disabled={isBusy || !selectedDraftId || !markdownText.trim()}
               >
                 <Eye className="h-3.5 w-3.5 mr-1.5" />
-                {runningPublish ? "Creating preview…" : "Save & Create Preview"}
+                {creatingPreview ? "Creating preview…" : "Save & Create Preview"}
               </Button>
               <Button size="sm" variant="secondary" onClick={onCopyMarkdown} disabled={!markdownText.trim()}>
                 Copy

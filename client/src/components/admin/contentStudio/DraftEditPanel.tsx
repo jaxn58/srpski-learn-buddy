@@ -25,9 +25,9 @@ import { cn } from "@/lib/utils";
 import { Loader2, ArrowRight, FilePlus2 } from "lucide-react";
 import { DraftStatusBadge } from "./StatusBadge";
 import {
-  PublishStatusBanner,
-  type PublishStateShape,
-} from "./PublishStatusBanner";
+  PreviewStatusBanner,
+  type PreviewCreationStateShape,
+} from "./PreviewStatusBanner";
 
 export interface DraftEditPanelCreateParams {
   unitNumber: number;
@@ -114,7 +114,7 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
 
   const showCreate = isCreateMode;
   const hasDraft = !!selectedDraftId && !!selected?.draft;
-  const publishState: PublishStateShape | undefined = selected?.draft?.publishState;
+  const previewState: PreviewCreationStateShape | undefined = selected?.draft?.publishState;
 
   return (
     <div className="flex flex-col h-full">
@@ -154,12 +154,12 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
         )}
       </div>
 
-      {/* Publish Status Banner — sticky between header and scroll area.
-          Visible only in edit mode when a publishState is present. */}
-      {!showCreate && hasDraft && publishState && selectedDraftId && (
-        <PublishStatusBanner
+      {/* Preview Status Banner — sticky between header and scroll area.
+          Visible only in edit mode when a previewState is present. */}
+      {!showCreate && hasDraft && previewState && selectedDraftId && (
+        <PreviewStatusBanner
           draftId={selectedDraftId}
-          publishState={publishState}
+          previewState={previewState}
         />
       )}
 

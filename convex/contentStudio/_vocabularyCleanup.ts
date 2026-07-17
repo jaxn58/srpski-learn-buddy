@@ -8,8 +8,8 @@
  *
  * Provides:
  *   - `scanProperNounCandidates`   (query, superadmin-only) — reports two
- *     sections: (A) entries with the "AutoAdded: ..." note, (B) entries that
- *     match the name heuristic even though they don't carry that note.
+ *     sections: (A) entries flagged via the internal `autoAdded` field, (B)
+ *     entries that match the name heuristic even though they aren't flagged.
  *   - `bulkDeleteVocabularyByIds`  (mutation, superadmin-only) — hard-deletes
  *     a list of courseVocabulary entries plus their vocabularyProgress rows.
  *     Requires a typed confirmation string to prevent accidents.
@@ -55,8 +55,6 @@ async function requireSuperadminOrCli(
   return { viaCli: false, user };
 }
 
-const AUTO_ADDED_MARKER = "AutoAdded: new vocabulary used in exercises";
-
 type CandidateEntry = {
   _id: Id<"courseVocabulary">;
   serbian: string;
@@ -65,7 +63,7 @@ type CandidateEntry = {
   de?: string;
   noteEn?: string;
   noteDe?: string;
-  matchesHeuristic: boolean;
+  matchesHeuristic: "strong" | "weak" | false;
 };
 
 type ScanReport = {
@@ -182,8 +180,8 @@ async function collectOriginalSerbianTextSamplesFromDb(
 /**
  * Scans active course vocabulary and reports two categories of likely
  * wrongly-inserted entries:
- *   - autoAddedCandidates: carry the "AutoAdded" marker in noteEn.
- *   - heuristicOnlyCandidates: no marker, but the name heuristic considers
+ *   - autoAddedCandidates: flagged via the internal `autoAdded` field.
+ *   - heuristicOnlyCandidates: not flagged, but the name heuristic considers
  *     them a personal name based on the context samples in their unit.
  *
  * This is a read-only query — nothing is mutated.
@@ -241,8 +239,7 @@ export const scanProperNounCandidates = query({
       const normalized = normalizeSerbianKey(serbian);
       if (allowlist.has(normalized)) continue;
 
-      const noteEn = String(entry.noteEn || "");
-      const isAutoAdded = noteEn.includes(AUTO_ADDED_MARKER);
+      const isAutoAdded = entry.autoAdded === true;
 
       const samples = await getSamples(entry.unitNumber);
       const matchesHeuristic = looksLikePersonalNameByContext(serbian, samples);
@@ -267,7 +264,7 @@ export const scanProperNounCandidates = query({
           de: entry.de,
           noteEn: entry.noteEn,
           noteDe: entry.noteDe,
-          matchesHeuristic: true,
+          matchesHeuristic,
         });
       }
     }
@@ -303,10 +300,13 @@ export const bulkDeleteVocabularyByIds = mutation({
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     ids: v.array(v.id("courseVocabulary")),
     confirm: v.string(),
+    // IDs of entries that were reviewed but NOT selected for deletion.
+    // These get auto-allowlisted so they never appear in cleanup again.
+    reviewedKeepIds: v.optional(v.array(v.id("courseVocabulary"))),
   },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
-    await requireSuperadmin(ctx);
+    const user = await requireSuperadmin(ctx);
 
     const expected = `DELETE ${args.ids.length} VOCABULARY`;
     if (args.confirm !== expected) {
@@ -320,6 +320,7 @@ export const bulkDeleteVocabularyByIds = mutation({
 
     let deletedVocabulary = 0;
     let deletedProgress = 0;
+    let blacklisted = 0;
     const deletedIds: Id<"courseVocabulary">[] = [];
     const missingIds: Id<"courseVocabulary">[] = [];
 
@@ -332,13 +333,98 @@ export const bulkDeleteVocabularyByIds = mutation({
         continue;
       }
 
-      // Cascade: delete all vocabularyProgress rows linked to this vocabulary.
+      // Add to name blacklist so it never gets re-inserted by the validator.
+      // BUT: only blacklist if there's no surviving sibling (i.e., this is NOT
+      // just a duplicate being cleaned up — it's an actual name/function word).
+      const serbianOriginal = String(doc.serbian || "").trim();
+      const serbianNormalized = toVocabularyKey(serbianOriginal);
+
+      // Find a surviving sibling: same word (serbianNormalized), same unit, still active.
+      // Used for: (a) skipping blacklist for duplicates, (b) remapping progress.
+      let survivingSiblingId: Id<"courseVocabulary"> | null = null;
+      if (serbianNormalized) {
+        const siblings = await ctx.db
+          .query("courseVocabulary")
+          .withIndex("by_unit", (q: any) => q.eq("unitNumber", doc.unitNumber))
+          .collect();
+        for (const sib of siblings as any[]) {
+          if (sib._id === id) continue;
+          if (sib.isActive === false) continue;
+          if (toVocabularyKey(sib.serbian) === serbianNormalized) {
+            survivingSiblingId = sib._id;
+            break;
+          }
+        }
+      }
+
+      if (serbianNormalized && !survivingSiblingId) {
+        // @ts-ignore TS2589 – Convex schema depth limit
+        const existing = await ctx.db
+          .query("vocabularyNameBlacklist")
+          .withIndex("by_serbian_normalized", (q: any) => q.eq("serbianNormalized", serbianNormalized))
+          .first();
+        if (!existing) {
+          // @ts-ignore TS2589 – Convex schema depth limit
+          await ctx.db.insert("vocabularyNameBlacklist", {
+            serbianNormalized,
+            serbianOriginal,
+            confirmedBy: user._id,
+            confirmedAt: Date.now(),
+            source: "cleanup_panel",
+          });
+          blacklisted += 1;
+        }
+      }
+
+      // Cascade: handle vocabularyProgress rows linked to this vocabulary.
+      // If another active entry for the same word exists (duplicate scenario),
+      // remap progress to that entry instead of deleting it. This preserves
+      // correctAnswerCount, incorrectAnswerCount, mastery, and reviewCount.
       const progressRows = await ctx.db
         .query("vocabularyProgress")
         .withIndex("by_course_vocab", (q) => q.eq("courseVocabularyId", id))
         .collect();
+
       for (const p of progressRows) {
-        await ctx.db.delete(p._id);
+        if (survivingSiblingId) {
+          // Duplicate case: remap progress to surviving entry
+          const existingTarget = await ctx.db
+            .query("vocabularyProgress")
+            .withIndex("by_user_course_vocab", (q) =>
+              q.eq("userId", p.userId).eq("courseVocabularyId", survivingSiblingId!),
+            )
+            .first();
+
+          if (existingTarget) {
+            // Merge: take the max of correct counts, sum the rest
+            const mergedCorrect = Math.max(
+              existingTarget.correctAnswerCount ?? 0,
+              p.correctAnswerCount ?? 0,
+            );
+            const mergedIncorrect =
+              (existingTarget.incorrectAnswerCount ?? 0) +
+              (p.incorrectAnswerCount ?? 0);
+            const mergedReviews =
+              ((existingTarget as any).reviewCount ?? 0) +
+              ((p as any).reviewCount ?? 0);
+            await ctx.db.patch(existingTarget._id, {
+              correctAnswerCount: mergedCorrect,
+              incorrectAnswerCount: mergedIncorrect,
+              mastered: mergedCorrect >= 3,
+              reviewCount: mergedReviews,
+            } as any);
+            await ctx.db.delete(p._id);
+          } else {
+            // No conflict: repoint to surviving sibling
+            await ctx.db.patch(p._id, {
+              courseVocabularyId: survivingSiblingId,
+            });
+          }
+        } else {
+          // No sibling: this is a true deletion (name/function word).
+          // XP remains on user.totalXP — only the granular progress is lost.
+          await ctx.db.delete(p._id);
+        }
         deletedProgress += 1;
       }
 
@@ -349,9 +435,40 @@ export const bulkDeleteVocabularyByIds = mutation({
       deletedIds.push(id);
     }
 
+    // Auto-allowlist: entries that the admin reviewed but kept (unticked).
+    let allowlisted = 0;
+    if (args.reviewedKeepIds && args.reviewedKeepIds.length > 0) {
+      for (const keepId of args.reviewedKeepIds) {
+        // @ts-ignore TS2345 TS2589 – Convex schema depth limit (50 tables)
+        const doc = await ctx.db.get(keepId);
+        if (!doc) continue;
+        const serbNorm = toVocabularyKey(String(doc.serbian || ""));
+        if (!serbNorm) continue;
+
+        // @ts-ignore TS2589 – Convex schema depth limit
+        const existing = await ctx.db
+          .query("vocabularyProperNounAllowlist")
+          .withIndex("by_serbian_normalized", (q: any) => q.eq("serbianNormalized", serbNorm))
+          .first();
+        if (!existing) {
+          // @ts-ignore TS2589 – Convex schema depth limit
+          await ctx.db.insert("vocabularyProperNounAllowlist", {
+            serbianNormalized: serbNorm,
+            serbianOriginal: String(doc.serbian || "").trim(),
+            confirmedBy: user._id,
+            confirmedAt: Date.now(),
+            source: "cleanup_auto_keep",
+          });
+          allowlisted += 1;
+        }
+      }
+    }
+
     return {
       deletedVocabulary,
       deletedProgress,
+      blacklisted,
+      allowlisted,
       deletedIds,
       missingIds,
       requestedCount: args.ids.length,
@@ -526,6 +643,80 @@ export const removeFromProperNounAllowlist = mutation({
       removed,
       missing,
     };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Name blacklist (admin-confirmed "IS a name" list)
+// ---------------------------------------------------------------------------
+
+/**
+ * Internal query used by `syncVocabularyCoverageFromExercises` to fetch the
+ * set of normalized blacklist keys. Prevents re-insertion of tokens that an
+ * admin has previously confirmed to be personal names.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const getBlacklistKeysInternal = internalQuery({
+  args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx) => {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    const rows = await ctx.db
+      .query("vocabularyNameBlacklist")
+      .collect();
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    return rows.map((r: any) => r.serbianNormalized as string);
+  },
+});
+
+/**
+ * Lists the full name blacklist for the admin UI.
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const getNameBlacklist = query({
+  args: {},
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx) => {
+    await requireSuperadmin(ctx);
+    const rows = await ctx.db
+      .query("vocabularyNameBlacklist")
+      .collect();
+    rows.sort((a: any, b: any) => b.confirmedAt - a.confirmedAt);
+    return rows.map((r: any) => ({
+      _id: r._id,
+      serbianNormalized: r.serbianNormalized as string,
+      serbianOriginal: r.serbianOriginal as string,
+      confirmedAt: r.confirmedAt as number,
+      confirmedBy: r.confirmedBy,
+      source: r.source as string,
+      note: r.note as string | undefined,
+    }));
+  },
+});
+
+/**
+ * Remove entries from the name blacklist (undo a "this is a name" decision).
+ */
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const removeFromNameBlacklist = mutation({
+  args: {
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    ids: v.array(v.id("vocabularyNameBlacklist")),
+  },
+  // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    let removed = 0;
+    let missing = 0;
+    for (const id of Array.from(new Set(args.ids))) {
+      // @ts-ignore TS2345 TS2589 – Convex schema depth limit (50 tables)
+      const existing = await ctx.db.get(id);
+      if (!existing) { missing += 1; continue; }
+      // @ts-ignore TS2345 TS2589 – Convex schema depth limit (50 tables)
+      await ctx.db.delete(id);
+      removed += 1;
+    }
+    return { requestedCount: args.ids.length, removed, missing };
   },
 });
 

@@ -167,8 +167,9 @@ export function runDeterministicVocabChecks(items: VerifierInputItem[]): Verifie
 
 /**
  * Deterministic check for parentheses on Serbian-stem exercise prompts:
- * - HELP glosses (full-sentence translation of the Serbian) → critical unwanted
+ * - fillInBlank CONTEXT glosses (full-sentence translation of the Serbian) → must stay as German
  * - fillInBlank SOURCE CUES (short word after blank, e.g. "(milk)") → must stay as German
+ * - HELP glosses on dialogue / multipleChoice → critical unwanted
  */
 export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): VerifierIssue[] {
   const issues: VerifierIssue[] = [];
@@ -218,6 +219,8 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
     const deGlosses = extractGlosses(deQ);
     const enCues = enGlosses.filter(isFillInSourceCue);
     const deCues = deGlosses.filter(isFillInSourceCue);
+    const enContext = enGlosses.filter(isHelpTranslationGloss);
+    const deContext = deGlosses.filter(isHelpTranslationGloss);
     const deHelp = deGlosses.filter(isHelpTranslationGloss);
     const stem = deQ.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
     const stemForStemCheck = deCues.length > 0 ? stem : deQ.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
@@ -259,6 +262,45 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
       }
     }
 
+    // fillInBlank: EN context glosses (full-sentence) must appear as German on DE.
+    if ((!qType || qType === "fillInBlank") && enContext.length > 0) {
+      if (deContext.length < enContext.length) {
+        const stemWithBlank = stem || deQ;
+        issues.push({
+          itemKey: it.key,
+          itemLabel: it.label,
+          itemKind: "test",
+          severity: "critical",
+          code: "test_missing_context_gloss",
+          issue:
+            `The German question omits the fill-in context gloss ` +
+            `${enContext.map((g) => `(${g})`).join(" ")} which is present in the English source. ` +
+            `Without this context, the learner cannot understand the exercise.`,
+          suggestion: `${stemWithBlank} (German for: ${enContext.join("; ")})`,
+        });
+      } else {
+        for (let i = 0; i < enContext.length; i++) {
+          const enG = enContext[i]!;
+          const deG = deContext[i] ?? "";
+          if (norm(enG) === norm(deG) && !CODE_DEFAULT_PROMPT_COGNATES.includes(norm(enG))) {
+            issues.push({
+              itemKey: it.key,
+              itemLabel: it.label,
+              itemKind: "test",
+              severity: "critical",
+              code: "test_untranslated_context_gloss",
+              issue:
+                `Fill-in context gloss is still English "(${enG})". ` +
+                `Translate it to German inside the parentheses (e.g. "I am Ana." → "Ich bin Ana.").`,
+              suggestion: `${stem || deQ} (German for "${enG}")`,
+            });
+          }
+        }
+      }
+    }
+
+    // Help glosses on dialogue/MC must be stripped — not on fillInBlank.
+    if (qType === "fillInBlank") continue;
     if (deHelp.length === 0) continue;
     if (!looksLikeSerbianStem(stemForStemCheck) && enGlosses.filter(isHelpTranslationGloss).length === 0) {
       continue;
@@ -438,7 +480,8 @@ const VERIFIER_SYSTEM = [
   "  • Your actual job for test items: verify that the German question (and hint, if present) is coherent with the learner-produced Serbian answers — i.e. the German prompt makes sense for those Serbian choices and the expected Serbian answer — and that it is a faithful rendering of the English question. Flag real mismatches of meaning, lost info in the question/hint, wrong register, or grammatical errors in the German prompt only.",
   "  • PARENTHESES — TWO KINDS:",
   "    (a) fillInBlank SOURCE CUES: short parentheses after the blank that tell the learner WHICH word to fill in (EN '(milk)', '(apples)'). On DE these MUST remain as German cues ('(Milch)', '(Äpfel)'). Omitting them is CRITICAL missing_info. Do NOT suggest removing them.",
-  "    (b) HELP GLOSSES: full-sentence translation of the Serbian stem in parentheses (e.g. '(Ana ist eine ___.)', '(Es ist jetzt ein Uhr.)'). That is CRITICAL — remove the help parentheses; keep only the Serbian stem/blank (plus any short fill-in cue from (a)).",
+  "    (b) fillInBlank CONTEXT GLOSSES: full-sentence parentheses that translate the whole Serbian stem (EN '(I am Ana.)', '(You are from Serbia.)'). On DE these MUST remain as German context ('(Ich bin Ana.)', '(Du bist aus Serbien.)'). Omitting them is CRITICAL missing_info. Do NOT suggest removing them.",
+  "    (c) HELP GLOSSES on dialogue / multipleChoice: full-sentence translation of the Serbian stem in parentheses (e.g. '(Ana ist eine ___.)', '(Es ist jetzt ein Uhr.)'). That is CRITICAL — remove the help parentheses; keep only the Serbian stem/blank (plus any short fill-in cue from (a)).",
   "  • TRANSLATION / MATCHING PROMPTS: For EN source prompts that are single words or short phrases (e.g. 'Monday', 'today', '_____ = half'), the German question MUST be the German equivalent ('Montag', 'heute', '_____ = Hälfte'). Leaving the English word is CRITICAL. Conversely: a correct single German word/phrase IS a valid complete prompt — do NOT flag it as 'not a question' or demand a full interrogative sentence.",
   "- kind == 'metadata': this is learner-facing UI/INFORMATIONAL text (unit title, description, topic/grammar/vocabulary-theme lists). It is maintained in ENGLISH and translated to German purely for the interface — it is NOT Serbian the learner studies. Compare DE against the ENGLISH text. IGNORE any mismatch against the Serbian field: the Serbian field for a metadata item is either empty or only thematic context, NEVER a translation source. Do NOT emit 'semantic_mismatch' or 'missing_info' for metadata on the grounds that the Serbian side is shorter, is only a vocabulary list, or lacks a descriptive paragraph. Flag metadata ONLY for real EN↔DE issues: wrong translation of the English title/description, omitted or invented topics, lost grammar-focus entries, array-length changes, etc.",
   "",

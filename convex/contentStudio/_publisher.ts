@@ -25,17 +25,17 @@ import {
   type VocabTranslationResult,
 } from "./_translationCore";
 
-// Publish-Timeout-Fix: split publish chain, orchestrated here.
+// Publish-Timeout-Fix: split preview-creation chain, orchestrated here.
 // The old monolith `internalPublishUnitPackageToPreview` remained as a
 // deprecated rollback safety net — do not call it from the action.
 // See `docs/CONTENT_STUDIO_PUBLISH_TIMEOUT_FIX.md`.
-const PUBLISH_VOCAB_BATCH_SIZE = 100;
-const PUBLISH_TESTS_BATCH_SIZE = 100;
+const PREVIEW_VOCAB_BATCH_SIZE = 100;
+const PREVIEW_TESTS_BATCH_SIZE = 100;
 
-type PublishStage = "metadata" | "content" | "vocabulary" | "tests" | "complete";
+type PreviewCreationStage = "metadata" | "content" | "vocabulary" | "tests" | "complete";
 
 // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-export const publishDraftToPreview = action({
+export const createDraftPreview = action({
   args: {
     draftId: v.id("contentDrafts"),
     moduleId: v.optional(v.id("moduleMetadata")),
@@ -50,7 +50,7 @@ export const publishDraftToPreview = action({
     const parsed = parseJsonOrThrow(current.snapshot.unitPackageJson);
     const base = UnitPackageSchema.safeParse(parsed);
     if (!base.success) {
-      throw new Error("Preview publish requires a schema-valid unitPackage snapshot. Run Creator + Validator first.");
+      throw new Error("Preview creation requires a schema-valid unitPackage snapshot. Run Creator + Validator first.");
     }
 
     const { fixed } = autofixUnitPackage(base.data);
@@ -62,13 +62,13 @@ export const publishDraftToPreview = action({
     const startedAt = Date.now();
 
     // Track current stage so the catch handler can report where it failed.
-    let currentStage: PublishStage = "metadata";
+    let currentStage: PreviewCreationStage = "metadata";
     let currentBatchIndex: number | undefined = undefined;
     let currentTotalBatches: number | undefined = undefined;
 
     const updateState = async (patch: {
       status?: "running" | "success" | "failed";
-      stage?: PublishStage;
+      stage?: PreviewCreationStage;
       batchIndex?: number;
       totalBatches?: number;
       completedAt?: number;
@@ -79,7 +79,7 @@ export const publishDraftToPreview = action({
       if (patch.batchIndex !== undefined) currentBatchIndex = patch.batchIndex;
       if (patch.totalBatches !== undefined) currentTotalBatches = patch.totalBatches;
       // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-      await ctx.runMutation(api.contentStudio.internalUpdateDraftPublishState, {
+      await ctx.runMutation(api.contentStudio.internalUpdateDraftPreviewCreationState, {
         draftId: args.draftId,
         ...patch,
         startedAt: patch.reset ? startedAt : undefined,
@@ -101,7 +101,7 @@ export const publishDraftToPreview = action({
       // ── Stage 1: metadata ─────────────────────────────────────────────────
       await updateState({ stage: "metadata", batchIndex: undefined, totalBatches: undefined });
       // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-      await ctx.runMutation(api.contentStudio.internalPublishUnitMetadata, {
+      await ctx.runMutation(api.contentStudio.internalCreatePreviewUnitMetadata, {
         unitPackage,
         moduleId: args.moduleId,
       });
@@ -111,7 +111,7 @@ export const publishDraftToPreview = action({
       for (let i = 0; i < languages.length; i++) {
         await updateState({ batchIndex: i, totalBatches: languages.length });
         // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-        await ctx.runMutation(api.contentStudio.internalPublishUnitContent, {
+        await ctx.runMutation(api.contentStudio.internalCreatePreviewUnitContent, {
           unitPackage,
           unitVersion: targetUnitVersion,
           language: languages[i],
@@ -121,7 +121,7 @@ export const publishDraftToPreview = action({
       // ── Stage 3: vocabulary — archive + cross-unit dedup + batched inserts ──
       const vocabItems: any[] = Array.isArray(unitPackage?.vocabulary?.en) ? unitPackage.vocabulary.en : [];
       const totalVocabBatches = vocabItems.length > 0
-        ? Math.max(1, Math.ceil(vocabItems.length / PUBLISH_VOCAB_BATCH_SIZE))
+        ? Math.max(1, Math.ceil(vocabItems.length / PREVIEW_VOCAB_BATCH_SIZE))
         : 0;
       await updateState({ stage: "vocabulary", batchIndex: 0, totalBatches: totalVocabBatches });
 
@@ -153,11 +153,11 @@ export const publishDraftToPreview = action({
       let vocabInserted = 0;
       let vocabSkipped = 0;
       const vocabSkippedDuplicates: string[] = [];
-      for (let start = 0, batchIndex = 0; start < vocabItems.length; start += PUBLISH_VOCAB_BATCH_SIZE, batchIndex++) {
+      for (let start = 0, batchIndex = 0; start < vocabItems.length; start += PREVIEW_VOCAB_BATCH_SIZE, batchIndex++) {
         await updateState({ batchIndex, totalBatches: totalVocabBatches });
-        const batch = vocabItems.slice(start, start + PUBLISH_VOCAB_BATCH_SIZE);
+        const batch = vocabItems.slice(start, start + PREVIEW_VOCAB_BATCH_SIZE);
         // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-        const res = (await ctx.runMutation(api.contentStudio.internalPublishUnitVocabulary, {
+        const res = (await ctx.runMutation(api.contentStudio.internalCreatePreviewUnitVocabulary, {
           unitNumber,
           unitVersion: targetUnitVersion,
           batch,
@@ -171,8 +171,24 @@ export const publishDraftToPreview = action({
 
       if (vocabSkippedDuplicates.length > 0) {
         console.warn(
-          `[PublishPreview] Skipped ${vocabSkippedDuplicates.length} cross-unit duplicate(s) for Unit ${unitNumber}: ` +
+          `[CreatePreview] Skipped ${vocabSkippedDuplicates.length} cross-unit duplicate(s) for Unit ${unitNumber}: ` +
             vocabSkippedDuplicates.join(", "),
+        );
+      }
+
+      // 3d) Single within-unit dedup pass AFTER all batches have been inserted.
+      // Runs once per publish (not per batch) to keep the insert mutation small
+      // and OCC-friendly. Idempotent: safe to re-run.
+      // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+      const dedupResult = (await ctx.runMutation(
+        api.contentStudio.internalDeduplicateUnitVocabulary,
+        { unitNumber },
+      )) as { deduplicatedCount: number; progressRemapped: number };
+      const vocabDeduplicated = dedupResult.deduplicatedCount;
+      if (vocabDeduplicated > 0) {
+        console.log(
+          `[CreatePreview] Unit ${unitNumber}: post-insert dedup archived ${vocabDeduplicated} duplicate(s), ` +
+            `remapped ${dedupResult.progressRemapped} progress row(s).`,
         );
       }
 
@@ -190,7 +206,7 @@ export const publishDraftToPreview = action({
         }
       }
       const totalTestBatches = flatTests.length > 0
-        ? Math.max(1, Math.ceil(flatTests.length / PUBLISH_TESTS_BATCH_SIZE))
+        ? Math.max(1, Math.ceil(flatTests.length / PREVIEW_TESTS_BATCH_SIZE))
         : 0;
       await updateState({ stage: "tests", batchIndex: 0, totalBatches: totalTestBatches });
 
@@ -203,11 +219,11 @@ export const publishDraftToPreview = action({
 
       // 4b) Batched inserts.
       let testsInserted = 0;
-      for (let start = 0, batchIndex = 0; start < flatTests.length; start += PUBLISH_TESTS_BATCH_SIZE, batchIndex++) {
+      for (let start = 0, batchIndex = 0; start < flatTests.length; start += PREVIEW_TESTS_BATCH_SIZE, batchIndex++) {
         await updateState({ batchIndex, totalBatches: totalTestBatches });
-        const batch = flatTests.slice(start, start + PUBLISH_TESTS_BATCH_SIZE);
+        const batch = flatTests.slice(start, start + PREVIEW_TESTS_BATCH_SIZE);
         // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
-        const res = (await ctx.runMutation(api.contentStudio.internalPublishUnitTests, {
+        const res = (await ctx.runMutation(api.contentStudio.internalCreatePreviewUnitTests, {
           unitNumber,
           language: testsLanguage,
           unitVersion: targetUnitVersion,
@@ -235,15 +251,17 @@ export const publishDraftToPreview = action({
           languages,
           vocabInserted,
           vocabSkipped,
+          vocabDeduplicated,
           testsInserted,
           durationMs: completedAt - startedAt,
         },
       };
     } catch (err: any) {
-      // Publish-Timeout-Fix: surface the failure into publishState so the
-      // Draft UI banner can show exactly which stage / batch broke, and let
-      // the admin retry from the same button.
-      const rawMessage = err instanceof Error ? err.message : String(err ?? "Unknown publish error");
+      // Publish-Timeout-Fix: surface the failure into publishState (the
+      // draft's preview-creation state) so the Draft UI banner can show
+      // exactly which stage / batch broke, and let the admin retry from the
+      // same button.
+      const rawMessage = err instanceof Error ? err.message : String(err ?? "Unknown preview creation error");
       const contextParts: string[] = [`stage=${currentStage}`];
       if (currentBatchIndex !== undefined) contextParts.push(`batchIndex=${currentBatchIndex}`);
       if (currentTotalBatches !== undefined) contextParts.push(`totalBatches=${currentTotalBatches}`);
@@ -258,10 +276,10 @@ export const publishDraftToPreview = action({
           completedAt: Date.now(),
         });
       } catch (stateErr) {
-        console.warn(`[PublishPreview] Failed to persist publishState after error:`, stateErr);
+        console.warn(`[CreatePreview] Failed to persist preview creation state after error:`, stateErr);
       }
 
-      console.error(`[PublishPreview] Unit ${unitNumber} failed at ${contextTag}: ${rawMessage}`);
+      console.error(`[CreatePreview] Unit ${unitNumber} failed at ${contextTag}: ${rawMessage}`);
       throw new Error(fullError);
     }
   },

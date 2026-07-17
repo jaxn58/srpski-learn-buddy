@@ -3,6 +3,7 @@ import {
   stripTrailingParentheticalGlosses,
   findUnwantedExerciseGlossIssues,
   findMissingOrUntranslatedFillInCueIssues,
+  findMissingFillInContextGlossIssues,
   isSerbianStemExerciseType,
   isFillInSourceCue,
   isHelpTranslationGloss,
@@ -84,6 +85,18 @@ describe("findUnwantedExerciseGlossIssues", () => {
     expect(issues).toHaveLength(0);
   });
 
+  it("does not flag German fill-in context glosses", () => {
+    const issues = findUnwantedExerciseGlossIssues([
+      {
+        questionId: "u1_ex2_q01",
+        questionType: "fillInBlank",
+        questionEn: "Ja ____ Ana. (I am Ana.)",
+        questionDe: "Ja ____ Ana. (Ich bin Ana.)",
+      },
+    ]);
+    expect(issues).toHaveLength(0);
+  });
+
   it("passes when help glosses are stripped", () => {
     const issues = findUnwantedExerciseGlossIssues([
       {
@@ -131,6 +144,46 @@ describe("findMissingOrUntranslatedFillInCueIssues", () => {
         questionType: "fillInBlank",
         questionEn: "Molim vas, jedan litar ___. (milk)",
         questionDe: "Molim vas, jedan litar ___. (Milch)",
+      },
+    ]);
+    expect(issues).toHaveLength(0);
+  });
+});
+
+describe("findMissingFillInContextGlossIssues", () => {
+  it("flags missing German context gloss", () => {
+    const issues = findMissingFillInContextGlossIssues([
+      {
+        questionId: "u1_ex2_q01",
+        questionType: "fillInBlank",
+        questionEn: "Ja ____ Ana. (I am Ana.)",
+        questionDe: "Ja ____ Ana.",
+      },
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain("fill-in context gloss missing");
+  });
+
+  it("flags English context gloss left untranslated", () => {
+    const issues = findMissingFillInContextGlossIssues([
+      {
+        questionId: "u1_ex2_q01",
+        questionType: "fillInBlank",
+        questionEn: "Ja ____ Ana. (I am Ana.)",
+        questionDe: "Ja ____ Ana. (I am Ana.)",
+      },
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain("still English");
+  });
+
+  it("passes when context gloss is German", () => {
+    const issues = findMissingFillInContextGlossIssues([
+      {
+        questionId: "u1_ex2_q01",
+        questionType: "fillInBlank",
+        questionEn: "Ja ____ Ana. (I am Ana.)",
+        questionDe: "Ja ____ Ana. (Ich bin Ana.)",
       },
     ]);
     expect(issues).toHaveLength(0);
@@ -198,6 +251,38 @@ describe("runDeterministicTestGlossChecks", () => {
         serbian: "Expected Serbian answer: mleka",
         english: "Question (EN): Molim vas, jedan litar ___. (milk)",
         german: "Question (DE): Molim vas, jedan litar ___. (Milch)",
+      },
+    ];
+    expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);
+  });
+
+  it("flags missing fill-in context gloss on DE", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u1_ex2_q01",
+        kind: "test",
+        label: "test u1_ex2_q01",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: sam",
+        english: "Question (EN): Ja ____ Ana. (I am Ana.)",
+        german: "Question (DE): Ja ____ Ana.",
+      },
+    ];
+    const issues = runDeterministicTestGlossChecks(items);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.code).toBe("test_missing_context_gloss");
+  });
+
+  it("does not flag German fill-in context gloss", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u1_ex2_q01b",
+        kind: "test",
+        label: "test u1_ex2_q01b",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: sam",
+        english: "Question (EN): Ja ____ Ana. (I am Ana.)",
+        german: "Question (DE): Ja ____ Ana. (Ich bin Ana.)",
       },
     ];
     expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);

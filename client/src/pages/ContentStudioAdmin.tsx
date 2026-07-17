@@ -118,7 +118,7 @@ export default function ContentStudioAdmin() {
   const addDialogue = useAction(api.contentStudio.addDialogue);
   const saveMarkdownSnapshot = useAction(api.contentStudio.saveMarkdownSnapshot);
   const translateToEnglish = useAction(api.contentStudio._creator.translateToEnglish);
-  const publishDraftToPreview = useAction(api.contentStudio.publishDraftToPreview);
+  const createDraftPreview = useAction(api.contentStudio.createDraftPreview);
   const takeUnitPreviewOfflineByUnitNumber = useAction(api.contentStudio.takeUnitPreviewOfflineByUnitNumber);
   const translatePublishedUnitEnToDe = useAction(api.contentStudio.translatePublishedUnitEnToDe);
   const addTranslatorCognates = useMutation(api.contentStudio.addTranslatorCognates);
@@ -186,7 +186,7 @@ export default function ContentStudioAdmin() {
   const [restoreMarkdownUpdatedAt, setRestoreMarkdownUpdatedAt] = useState<number | null>(null);
   const [showMarkdownRendered, setShowMarkdownRendered] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [publishModuleId, setPublishModuleId] = useState<string>("__auto__");
+  const [previewModuleId, setPreviewModuleId] = useState<string>("__auto__");
 
   const metaAutosaveInFlight = useRef(false);
   const [metaAutosaveStatus, setMetaAutosaveStatus] = useState<"idle" | "saving" | "error">("idle");
@@ -214,7 +214,7 @@ export default function ContentStudioAdmin() {
   const [runningCreator, setRunningCreator] = useState(false);
   const [runningValidator, setRunningValidator] = useState(false);
   const [runningLector, setRunningLector] = useState(false);
-  const [runningPublish, setRunningPublish] = useState(false);
+  const [creatingPreview, setCreatingPreview] = useState(false);
   const [runningRevise, setRunningRevise] = useState(false);
   const [runningCreateValidate, setRunningCreateValidate] = useState(false);
   const [runningSectionRevise, setRunningSectionRevise] = useState(false);
@@ -384,7 +384,7 @@ export default function ContentStudioAdmin() {
     runningCreator ||
     runningValidator ||
     runningLector ||
-    runningPublish ||
+    creatingPreview ||
     runningRevise ||
     runningCreateValidate ||
     runningSectionRevise ||
@@ -397,10 +397,10 @@ export default function ContentStudioAdmin() {
     if (runningRevise) return "Applying revisions...";
     if (runningCreateValidate) return "Running Creator + Validator...";
     if (runningSectionRevise) return "Applying changes...";
-    if (runningPublish) return "Creating preview...";
+    if (creatingPreview) return "Creating preview...";
     if (runningTranslateDe) return "Translating to German...";
     return "";
-  }, [runningCreator, runningValidator, runningLector, runningCreateValidate, runningSectionRevise, runningPublish, runningTranslateDe]);
+  }, [runningCreator, runningValidator, runningLector, runningCreateValidate, runningSectionRevise, creatingPreview, runningTranslateDe]);
 
 
   const nextStepKey: NextStepKey = useMemo(() => {
@@ -412,7 +412,7 @@ export default function ContentStudioAdmin() {
     if (hasErrors) return "validator";
     if (status === "qc_passed") return "lector";
     if (status === "audit_failed") return "lector";
-    if (status === "ready_to_publish") return "publish";
+    if (status === "ready_to_publish") return "createPreview";
     if (status === "published") return "creator";
     return "validator";
   }, [selected, errorFindings.length]);
@@ -425,8 +425,8 @@ export default function ContentStudioAdmin() {
         return "Run Validator";
       case "lector":
         return "Run Lector";
-      case "publish":
-        return "Push to Preview";
+      case "createPreview":
+        return "Create Preview";
       default:
         return "Next step";
     }
@@ -487,12 +487,12 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId || !selected?.draft) return "generate";
     if (nextStepKey === "creator") return "generate";
     if (nextStepKey === "validator" || nextStepKey === "lector") return "qa";
-    if (nextStepKey === "publish") return "publish";
+    if (nextStepKey === "createPreview") return "createPreview";
     return "generate";
   }, [selectedDraftId, selected?.draft, nextStepKey]);
 
   const activeStepIndex = useMemo(() => {
-    const map: Record<StepId, number> = { generate: 0, qa: 1, publish: 2 };
+    const map: Record<StepId, number> = { generate: 0, qa: 1, createPreview: 2 };
     return map[activeStep];
   }, [activeStep]);
 
@@ -503,7 +503,7 @@ export default function ContentStudioAdmin() {
       if (!selectedDraftId || !selected?.draft) return "generate";
       if (nextStepKey === "creator") return "generate";
       if (nextStepKey === "validator" || nextStepKey === "lector") return "review";
-      if (nextStepKey === "publish") return "publish";
+      if (nextStepKey === "createPreview") return "createPreview";
       return "generate";
     })();
     setActiveInspectorStep(computed);
@@ -1570,7 +1570,7 @@ export default function ContentStudioAdmin() {
 
   const handleCreatePreview = async () => {
     if (!selectedDraftId) return;
-    setRunningPublish(true);
+    setCreatingPreview(true);
 
     const unitNumber = Number((selected as any)?.draft?.unitNumber);
 
@@ -1592,16 +1592,21 @@ export default function ContentStudioAdmin() {
         return;
       }
 
-      // Step 3: Push to Preview (not live publish — that happens in Unit Manager)
-      toast.info(t("admin.contentStudio.toast.publishingToPreview"));
-      await publishDraftToPreview({
+      // Step 3: Create Preview (not live publish — that happens in Unit Manager)
+      toast.info(t("admin.contentStudio.toast.creatingPreview"));
+      const previewResult = await createDraftPreview({
         draftId: selectedDraftId,
-        moduleId: publishModuleId && publishModuleId !== "__auto__" ? (publishModuleId as any) : undefined,
+        moduleId: previewModuleId && previewModuleId !== "__auto__" ? (previewModuleId as any) : undefined,
       });
 
       // Step 4: Mark draft as ready for Unit Manager promote
       await setDraftStatus({ draftId: selectedDraftId as any, status: "ready_to_publish" });
-      toast.success(t("admin.contentStudio.toast.previewLive"));
+      let previewMsg = t("admin.contentStudio.toast.previewLive");
+      const dedupCount = (previewResult as any)?.stats?.vocabDeduplicated ?? 0;
+      if (dedupCount > 0) {
+        previewMsg += ` | ${dedupCount} duplicate(s) auto-removed.`;
+      }
+      toast.success(previewMsg);
 
       // Step 5: Open unit page only after successful preview push
       if (Number.isFinite(unitNumber) && unitNumber > 0) {
@@ -1610,7 +1615,7 @@ export default function ContentStudioAdmin() {
     } catch (e: any) {
       toast.error(e?.message || "Save & Create Preview failed.");
     } finally {
-      setRunningPublish(false);
+      setCreatingPreview(false);
       setRunningValidator(false);
     }
   };
@@ -1822,7 +1827,7 @@ export default function ContentStudioAdmin() {
           }
 
           if (action === "preview") {
-            await publishDraftToPreview({ draftId } as any);
+            await createDraftPreview({ draftId } as any);
             await setDraftStatus({ draftId, status: "ready_to_publish" });
             pushResult({ draftId: String(draftId), action, status: "success" });
             continue;
@@ -2121,7 +2126,7 @@ export default function ContentStudioAdmin() {
       toast.error("Please select a valid unit.");
       return;
     }
-    setRunningPublish(true);
+    setCreatingPreview(true);
     try {
       toast.info(`Taking preview offline for Unit ${unitNum}…`);
       await takeUnitPreviewOfflineByUnitNumber({ unitNumber: unitNum } as any);
@@ -2129,7 +2134,7 @@ export default function ContentStudioAdmin() {
     } catch (e: any) {
       toast.error(e?.message || `Failed to take preview offline for Unit ${unitNum}.`);
     } finally {
-      setRunningPublish(false);
+      setCreatingPreview(false);
     }
   };
 
@@ -2475,8 +2480,8 @@ export default function ContentStudioAdmin() {
             onRunAuditor={handleRunAuditor}
             onSectionRevise={handleSectionRevise}
             onDismissFinding={(p) => dismissFinding({ findingId: p.findingId, dismissed: p.dismissed })}
-            publishModuleId={publishModuleId}
-            setPublishModuleId={setPublishModuleId}
+            previewModuleId={previewModuleId}
+            setPreviewModuleId={setPreviewModuleId}
             modules={modules}
             deleteUnitOpen={deleteUnitOpen}
             setDeleteUnitOpen={setDeleteUnitOpen}
@@ -2577,12 +2582,12 @@ export default function ContentStudioAdmin() {
 
                 {/* 3-Step Stepper */}
                 <div className="px-3 lg:px-4 py-2 border-b flex items-center gap-1 shrink-0 overflow-x-auto">
-                  {(["generate", "review", "publish"] as InspectorStep[]).map((step, idx) => {
+                  {(["generate", "review", "createPreview"] as InspectorStep[]).map((step, idx) => {
                     const isActive = step === activeInspectorStep;
                     const stepLabels: Record<InspectorStep, string> = {
                       generate: "1. Generate",
                       review: "2. Review",
-                      publish: "3. Preview",
+                      createPreview: "3. Preview",
                     };
                     return (
                       <Fragment key={step}>
@@ -2630,7 +2635,7 @@ export default function ContentStudioAdmin() {
                     selected={selected}
                     selectedDraftId={selectedDraftId}
                     isBusy={isBusy}
-                    runningPublish={runningPublish}
+                    creatingPreview={creatingPreview}
                     markdownText={markdownText}
                     setMarkdownText={setMarkdownText}
                     markdownDirty={markdownDirty}

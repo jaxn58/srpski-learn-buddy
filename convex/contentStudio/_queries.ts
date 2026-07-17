@@ -297,7 +297,7 @@ export const getDraft = query({
   },
 });
 
-const publishStateValidator = v.object({
+const previewCreationStateValidator = v.object({
   status: v.union(
     v.literal("running"),
     v.literal("success"),
@@ -319,17 +319,19 @@ const publishStateValidator = v.object({
 });
 
 /**
- * Latest publish-to-preview state for a unit (from any draft of that unitNumber).
- * Used by Unit Manager so admins see push progress/failures without opening the Generator.
+ * Latest preview-creation state for a unit (from any draft of that unitNumber).
+ * Used by Unit Manager so admins see preview-creation progress/failures without
+ * opening the Generator. Reads `contentDrafts.publishState` (DB field name kept
+ * for backward compatibility) and exposes it as `previewState`.
  */
-export const getLatestPublishStateForUnit = query({
+export const getLatestPreviewCreationStateForUnit = query({
   args: { unitNumber: v.number() },
   returns: v.union(
     v.null(),
     v.object({
       draftId: v.id("contentDrafts"),
       draftTitle: v.optional(v.string()),
-      publishState: publishStateValidator,
+      previewState: previewCreationStateValidator,
     }),
   ),
   handler: async (ctx, args) => {
@@ -344,17 +346,17 @@ export const getLatestPublishStateForUnit = query({
     let best: {
       draftId: Id<"contentDrafts">;
       draftTitle?: string;
-      publishState: NonNullable<Doc<"contentDrafts">["publishState"]>;
+      previewState: NonNullable<Doc<"contentDrafts">["publishState"]>;
     } | null = null;
 
     for (const d of drafts) {
       const ps = d.publishState;
       if (!ps) continue;
-      if (!best || ps.updatedAt > best.publishState.updatedAt) {
+      if (!best || ps.updatedAt > best.previewState.updatedAt) {
         best = {
           draftId: d._id,
           draftTitle: d.title,
-          publishState: ps,
+          previewState: ps,
         };
       }
     }

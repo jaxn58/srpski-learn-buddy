@@ -36,11 +36,11 @@ import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
 import { DraftStatusBadge } from "./StatusBadge";
 import {
-  PublishStatusBanner,
-  type PublishStateShape,
-} from "./PublishStatusBanner";
+  PreviewStatusBanner,
+  type PreviewCreationStateShape,
+} from "./PreviewStatusBanner";
 
-export type InspectorStep = "generate" | "review" | "publish";
+export type InspectorStep = "generate" | "review" | "createPreview";
 
 export interface InspectorPanelProps {
   activeStep: InspectorStep;
@@ -81,8 +81,8 @@ export interface InspectorPanelProps {
   onDismissFinding: (params: { findingId: any; dismissed: boolean }) => void;
 
   // Preview step (module selection; preview creation happens in Artifacts panel)
-  publishModuleId: string;
-  setPublishModuleId: (v: string) => void;
+  previewModuleId: string;
+  setPreviewModuleId: (v: string) => void;
   modules: any[] | undefined;
   deleteUnitOpen: boolean;
   setDeleteUnitOpen: (v: boolean) => void;
@@ -98,7 +98,7 @@ export interface InspectorPanelProps {
 
 export function InspectorPanel(props: InspectorPanelProps) {
   const { activeStep, selected, selectedDraftId } = props;
-  const publishState = selected?.draft?.publishState as PublishStateShape | undefined;
+  const previewState = selected?.draft?.publishState as PreviewCreationStateShape | undefined;
 
   return (
     <div className="flex flex-col h-full">
@@ -108,14 +108,14 @@ export function InspectorPanel(props: InspectorPanelProps) {
         </span>
         <DraftStatusBadge status={selected?.draft?.status} />
       </div>
-      {publishState && selectedDraftId && (
-        <PublishStatusBanner draftId={selectedDraftId} publishState={publishState} />
+      {previewState && selectedDraftId && (
+        <PreviewStatusBanner draftId={selectedDraftId} previewState={previewState} />
       )}
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-4">
           {activeStep === "generate" && <GenerateContent {...props} />}
           {activeStep === "review" && <ReviewContent {...props} />}
-          {activeStep === "publish" && <PublishContent {...props} />}
+          {activeStep === "createPreview" && <CreatePreviewContent {...props} />}
         </div>
       </ScrollArea>
     </div>
@@ -213,28 +213,33 @@ function ReviewContent(props: InspectorPanelProps) {
         })()}
       </div>
 
-      {/* Fix Findings */}
-      {(errorFindings.length > 0 || warningFindings.length > 0) && (
-        <div className="space-y-2">
-          <Label className="text-xs">Human notes for revision AI</Label>
-          <Textarea
-            value={fixHumanNotes}
-            onChange={(e) => setFixHumanNotes(e.target.value)}
-            rows={2}
-            placeholder="Optional: additional instructions for fix..."
-            className="text-sm"
-          />
-          <Button
-            size="sm"
-            className="w-full"
-            onClick={onRunRevise}
-            disabled={isBusy}
-          >
-            {runningRevise ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RotateCcw className="mr-2 h-3 w-3" />}
-            Fix Findings
-          </Button>
-        </div>
-      )}
+      {/* Fix Findings — button always visible for consistency with QAFindingsPanel.
+          Disabled unless there are error/warning findings OR the admin has typed
+          human notes (info-only findings alone are not enough to auto-fix). */}
+      <div className="space-y-2">
+        <Label className="text-xs">Human notes for revision AI</Label>
+        <Textarea
+          value={fixHumanNotes}
+          onChange={(e) => setFixHumanNotes(e.target.value)}
+          rows={2}
+          placeholder="Optional: additional instructions for fix..."
+          className="text-sm"
+        />
+        <Button
+          size="sm"
+          className="w-full"
+          onClick={onRunRevise}
+          disabled={
+            isBusy ||
+            (errorFindings.length === 0 &&
+              warningFindings.length === 0 &&
+              !fixHumanNotes.trim())
+          }
+        >
+          {runningRevise ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RotateCcw className="mr-2 h-3 w-3" />}
+          Fix Findings
+        </Button>
+      </div>
 
       <Separator />
 
@@ -345,10 +350,10 @@ function ReviewContent(props: InspectorPanelProps) {
   );
 }
 
-function PublishContent(props: InspectorPanelProps) {
+function CreatePreviewContent(props: InspectorPanelProps) {
   const {
-    selected, publishModuleId,
-    setPublishModuleId, modules,
+    selected, previewModuleId,
+    setPreviewModuleId, modules,
     deleteUnitOpen, setDeleteUnitOpen, deleteConfirmation, setDeleteConfirmation,
     onDeleteUnit, onDeleteSelectedDraft, showDeleteDraftDialog,
     setShowDeleteDraftDialog, onConfirmDeleteDraft,
@@ -360,7 +365,7 @@ function PublishContent(props: InspectorPanelProps) {
       <div className="space-y-2">
         <div>
           <Label className="text-xs">Module</Label>
-          <Select value={publishModuleId} onValueChange={setPublishModuleId}>
+          <Select value={previewModuleId} onValueChange={setPreviewModuleId}>
             <SelectTrigger className="h-8 text-sm mt-1">
               <SelectValue placeholder="Auto-detect" />
             </SelectTrigger>

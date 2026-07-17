@@ -5,8 +5,8 @@ export { QAFindingsPanel } from "./QAFindingsPanel";
 export { SettingsSheet } from "./SettingsSheet";
 export { ModelTierBadge } from "./ModelTierBadge";
 export { DraftStatusBadge, renderDraftStatusPill } from "./StatusBadge";
-export { PublishStatusBanner } from "./PublishStatusBanner";
-export type { PublishStateShape, PublishStateStage, PublishStateStatus } from "./PublishStatusBanner";
+export { PreviewStatusBanner } from "./PreviewStatusBanner";
+export type { PreviewCreationStateShape, PreviewCreationStage, PreviewCreationStatus } from "./PreviewStatusBanner";
 export { buildSideBySideDiffRows } from "./utils/diffAlgorithm";
 
 export * from "./types";

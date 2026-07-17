@@ -179,6 +179,23 @@ export const contentStudioTables = {
     qcFixOnlySkillIds: v.optional(v.array(v.id("contentStudioSkills"))),
     auditorSkillIds: v.optional(v.array(v.id("contentStudioSkills"))),
 
+    // Validator Memory auto-capture: snapshot of the findings that were open
+    // right before a Fix-Findings run cleared them (status="draft"). The
+    // subsequent Validator/Auditor re-run reads this to do the before/after
+    // comparison, since the live findings table is already empty by then.
+    // Consumed (reset to undefined) once the comparison has run.
+    preFindingFingerprints: v.optional(
+      v.array(
+        v.object({
+          fingerprint: v.string(),
+          stage: v.union(v.literal("validator"), v.literal("auditor")),
+          code: v.string(),
+          path: v.optional(v.string()),
+          message: v.string(),
+        })
+      )
+    ),
+
     // Bookkeeping
     createdBy: v.id("users"),
     createdAt: v.number(),
@@ -194,11 +211,14 @@ export const contentStudioTables = {
     authorNoteName: v.optional(v.string()),
     authorNoteQuote: v.optional(v.string()),
 
-    // Publish-Timeout-Fix: explicit state of the last publish-to-preview run so
+    // Publish-Timeout-Fix: explicit state of the last preview-creation run so
     // admins can see progress and failures in the Content Studio UI without
-    // digging through logs. Written by the split publish mutations
-    // (internalPublishUnit*) via internalUpdateDraftPublishState.
-    // Optional/backwards compatible: absent on drafts that never ran publish.
+    // digging through logs. Written by the split preview-creation mutations
+    // (internalCreatePreviewUnit*) via internalUpdateDraftPreviewCreationState.
+    // Field name kept as `publishState` for backward compatibility (no schema
+    // migration); conceptually this is the draft's "preview creation" state,
+    // NOT a production publish. Optional/backwards compatible: absent on
+    // drafts that never ran preview creation.
     publishState: v.optional(
       v.object({
         status: v.union(

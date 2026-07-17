@@ -786,6 +786,8 @@ export function findUnwantedExerciseGlossIssues(
   const issues: string[] = [];
   for (const p of pairs) {
     if (!isSerbianStemExerciseType(p.questionType)) continue;
+    // fillInBlank keeps full-sentence context glosses on the DE track.
+    if (p.questionType === "fillInBlank") continue;
     const deHelp = extractParentheticalGlosses(p.questionDe).filter(isHelpTranslationGloss);
     if (deHelp.length === 0) continue;
     issues.push(
@@ -836,6 +838,49 @@ export function findMissingOrUntranslatedFillInCueIssues(
         issues.push(
           `questionId=${p.questionId}: fill-in source cue is still English "(${enG})". ` +
             `Translate it to German inside the parentheses (e.g. milk→Milch, apples→Äpfel).`
+        );
+      }
+    }
+  }
+  return issues;
+}
+
+/**
+ * fillInBlank: EN has full-sentence context glosses "(I am Ana.)" → DE must keep them as German "(Ich bin Ana.)".
+ */
+export function findMissingFillInContextGlossIssues(
+  pairs: Array<{
+    questionId: string;
+    questionType: string;
+    questionEn: string;
+    questionDe: string;
+  }>,
+  cognates: Set<string> = new Set(CODE_DEFAULT_PROMPT_COGNATES)
+): string[] {
+  const issues: string[] = [];
+  for (const p of pairs) {
+    if (String(p.questionType || "") !== "fillInBlank") continue;
+    const enContext = extractParentheticalGlosses(p.questionEn).filter(isHelpTranslationGloss);
+    if (enContext.length === 0) continue;
+    const deContext = extractParentheticalGlosses(p.questionDe).filter(isHelpTranslationGloss);
+    if (deContext.length < enContext.length) {
+      issues.push(
+        `questionId=${p.questionId}: fill-in context gloss missing on DE ` +
+          `(EN has ${enContext.map((g) => `(${g})`).join(" ")}). ` +
+          `Keep the Serbian stem/blank and translate the full-sentence context to German ` +
+          `(e.g. "(I am Ana.)" → "(Ich bin Ana.)") so the learner understands the exercise.`
+      );
+      continue;
+    }
+    for (let i = 0; i < enContext.length; i++) {
+      const enG = enContext[i]!;
+      const deG = deContext[i] ?? "";
+      const enNorm = normalizeGlossCompare(enG);
+      const deNorm = normalizeGlossCompare(deG);
+      if (deNorm && enNorm === deNorm && !cognates.has(enNorm)) {
+        issues.push(
+          `questionId=${p.questionId}: fill-in context gloss is still English "(${enG})". ` +
+            `Translate it to German inside the parentheses (e.g. "I am Ana." → "Ich bin Ana.").`
         );
       }
     }
@@ -924,7 +969,7 @@ export function findAppendedForeignParentheticalIssues(
 
 function buildGlossRetryFeedback(issues: string[]): string {
   return [
-    "CRITICAL: Distinguish FILL-IN SOURCE CUES from HELP GLOSSES.",
+    "CRITICAL: Distinguish FILL-IN SOURCE CUES, FILL-IN CONTEXT GLOSSES, and HELP GLOSSES.",
     "",
     "fillInBlank SOURCE CUES (KEEP + TRANSLATE EN→DE):",
     "- Short parentheses after the blank tell the learner WHICH word to fill in.",
@@ -932,9 +977,14 @@ function buildGlossRetryFeedback(issues: string[]): string {
     "- Example EN: 'Želim da kupim kilo ___. (apples)' → DE: 'Želim da kupim kilo ___. (Äpfel)'",
     "- Never drop these cues on the German track.",
     "",
-    "HELP GLOSSES (DELETE — do not translate to German):",
+    "fillInBlank CONTEXT GLOSSES (KEEP + TRANSLATE EN→DE):",
+    "- Full-sentence parentheses that translate the whole Serbian line MUST stay on fillInBlank.",
+    "- Example EN: 'Ja ____ Ana. (I am Ana.)' → DE: 'Ja ____ Ana. (Ich bin Ana.)'",
+    "- Example EN: 'Ti ____ iz Srbije. (You are from Serbia.)' → DE: 'Ti ____ iz Srbije. (Du bist aus Serbien.)'",
+    "- Without this context, beginner learners cannot understand the exercise.",
+    "",
+    "HELP GLOSSES on dialogue / multipleChoice (DELETE — do not translate to German):",
     "- Full-sentence translation of the Serbian stem, or parentheses that contain blanks.",
-    "- Example EN: 'Sada je jedan _____. (It is one o'clock now.)' → DE: 'Sada je jedan _____.'",
     "- Example EN: 'Ana je _____. Ona radi u bolnici. (Ana is a _____. She works in a hospital.)' → DE: 'Ana je _____. Ona radi u bolnici.'",
     "",
     "dialogue / dialogueCompletion: do NOT append an English reference translation in parentheses.",
@@ -1045,8 +1095,10 @@ function buildTestsSystemPrompt(): string {
     "   - FILL-IN SOURCE CUE: short parentheses after the blank (e.g. '(milk)', '(apples)') MUST stay.",
     "     Translate the cue EN→DE: '(milk)' → '(Milch)', '(apples)' → '(Äpfel)', '(cheese)' → '(Käse)'.",
     "     The cue tells the learner which word to put into the blank — without it the exercise is unusable.",
-    "   - HELP GLOSS: full-sentence parentheses that translate the whole Serbian line MUST be removed.",
-    "     Example EN: 'Sada je jedan _____. (It is one o'clock now.)' → DE: 'Sada je jedan _____.'",
+    "   - CONTEXT GLOSS: full-sentence parentheses that translate the whole Serbian line MUST stay.",
+    "     Translate the context EN→DE: '(I am Ana.)' → '(Ich bin Ana.)', '(You are from Serbia.)' → '(Du bist aus Serbien.)'.",
+    "     Example EN: 'Ja ____ Ana. (I am Ana.)' → DE: 'Ja ____ Ana. (Ich bin Ana.)'",
+    "     Without this context, beginner learners cannot understand the exercise.",
     "",
     "4) questionType == 'dialogue' | Serbian-stem multipleChoice (CRITICAL):",
     "   - Keep the Serbian stem and blanks EXACTLY.",
@@ -1067,9 +1119,10 @@ function buildTestsSystemPrompt(): string {
     "- Preserve blanks EXACTLY as '_____' (five underscores) and keep the blank count identical to the English source.",
     "- For Serbian-stem questions, the Serbian answer content is the semantic anchor; for translation/matching prompts, the EN→DE prompt translation is mandatory (see above).",
     "",
-    "PARENTHESES — TWO KINDS:",
+    "PARENTHESES — THREE KINDS:",
     "- fillInBlank source cues (short word/phrase after the blank): KEEP and translate to German.",
-    "- Help glosses (full-sentence meaning of the Serbian stem, or parentheses containing blanks): STRIP from questionDe.",
+    "- fillInBlank context glosses (full-sentence meaning of the Serbian stem): KEEP and translate to German.",
+    "- Help glosses on dialogue / multipleChoice (full-sentence meaning, or parentheses containing blanks): STRIP from questionDe.",
     "- dialogueCompletion / A:/B: stems: never append an English reference translation in parentheses.",
     "",
     "Return ONLY valid JSON with keys: categoryInstructionsDe, questions.",
@@ -1157,8 +1210,8 @@ async function translateTestsForCategoryOnce(
         translatedQ = srcQuestion;
       }
     }
-    // Exercise tests: never show parenthetical translation help on Serbian-stem prompts.
-    if (isSerbianStemExerciseType(qType)) {
+    // Exercise tests: strip help glosses on dialogue/MC — fillInBlank keeps context glosses.
+    if (isSerbianStemExerciseType(qType) && qType !== "fillInBlank") {
       translatedQ = stripTrailingParentheticalGlosses(translatedQ);
     }
     const translatedHint =
@@ -1243,6 +1296,7 @@ export async function translateTestsForCategory(
     return [
       ...findUnwantedExerciseGlossIssues(qualityPairs()),
       ...findMissingOrUntranslatedFillInCueIssues(qualityPairs(), cognates),
+      ...findMissingFillInContextGlossIssues(qualityPairs(), cognates),
       ...findAppendedForeignParentheticalIssues(qualityPairs()),
       ...findUntranslatedLearnerPromptIssues(qualityPairs(), cognates),
       ...findEnglishFramingInstructionIssues(instructionsDe),
@@ -1259,6 +1313,7 @@ export async function translateTestsForCategory(
         i.includes("parenthetical help") ||
         i.includes("parenthetical") ||
         i.includes("fill-in source cue") ||
+        i.includes("fill-in context gloss") ||
         i.includes("appended English parenthetical")
     );
     const feedback = glossOnly

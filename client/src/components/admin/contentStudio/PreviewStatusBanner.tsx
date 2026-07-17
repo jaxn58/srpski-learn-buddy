@@ -13,20 +13,22 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-// Sticky / inline banner for the last `publishDraftToPreview` run.
-// Backed by `contentDrafts.publishState` (see CONTENT_STUDIO_PUBLISH_TIMEOUT_FIX.md §10).
+// Sticky / inline banner for the last `createDraftPreview` run.
+// Backed by `contentDrafts.publishState` (DB field name kept for backward
+// compatibility; conceptually this is the draft's "preview creation" state —
+// see CONTENT_STUDIO_PUBLISH_TIMEOUT_FIX.md §10).
 
-export type PublishStateStage =
+export type PreviewCreationStage =
   | "metadata"
   | "content"
   | "vocabulary"
   | "tests"
   | "complete";
-export type PublishStateStatus = "running" | "success" | "failed";
+export type PreviewCreationStatus = "running" | "success" | "failed";
 
-export interface PublishStateShape {
-  status: PublishStateStatus;
-  stage: PublishStateStage;
+export interface PreviewCreationStateShape {
+  status: PreviewCreationStatus;
+  stage: PreviewCreationStage;
   batchIndex?: number;
   totalBatches?: number;
   startedAt: number;
@@ -35,7 +37,7 @@ export interface PublishStateShape {
   error?: string;
 }
 
-const STAGE_LABEL: Record<PublishStateStage, string> = {
+const STAGE_LABEL: Record<PreviewCreationStage, string> = {
   metadata: "Metadata",
   content: "Content",
   vocabulary: "Vocabulary",
@@ -59,31 +61,31 @@ function formatDuration(startMs: number, endMs: number): string {
   return `${m}m ${r}s`;
 }
 
-export function PublishStatusBanner({
+export function PreviewStatusBanner({
   draftId,
-  publishState,
+  previewState,
   className,
 }: {
   draftId: string;
-  publishState: PublishStateShape;
+  previewState: PreviewCreationStateShape;
   /** Optional layout tweak (e.g. rounded inset in Unit Manager). */
   className?: string;
 }) {
-  const publishAction = useAction(api.contentStudio.publishDraftToPreview);
+  const createPreviewAction = useAction(api.contentStudio.createDraftPreview);
   const [showDetails, setShowDetails] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  const stageLabel = STAGE_LABEL[publishState.stage] ?? publishState.stage;
+  const stageLabel = STAGE_LABEL[previewState.stage] ?? previewState.stage;
   const hasProgress =
-    typeof publishState.batchIndex === "number" &&
-    typeof publishState.totalBatches === "number" &&
-    publishState.totalBatches > 0;
+    typeof previewState.batchIndex === "number" &&
+    typeof previewState.totalBatches === "number" &&
+    previewState.totalBatches > 0;
 
   const handleRetry = async () => {
     if (retrying) return;
     setRetrying(true);
     try {
-      await publishAction({ draftId: draftId as Id<"contentDrafts"> });
+      await createPreviewAction({ draftId: draftId as Id<"contentDrafts"> });
     } catch {
       // Action already patches publishState; banner re-renders via useQuery.
     } finally {
@@ -91,7 +93,7 @@ export function PublishStatusBanner({
     }
   };
 
-  if (publishState.status === "running") {
+  if (previewState.status === "running") {
     return (
       <div
         className={cn(
@@ -103,16 +105,16 @@ export function PublishStatusBanner({
           <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="font-medium text-blue-900 dark:text-blue-100">
-              Publishing to preview — {stageLabel}
+              Creating preview — {stageLabel}
               {hasProgress && (
                 <span className="text-blue-700 dark:text-blue-300 font-normal">
                   {" "}
-                  (batch {(publishState.batchIndex ?? 0) + 1} / {publishState.totalBatches})
+                  (batch {(previewState.batchIndex ?? 0) + 1} / {previewState.totalBatches})
                 </span>
               )}
             </div>
             <div className="text-xs text-blue-700/80 dark:text-blue-300/80">
-              started at {formatTime(publishState.startedAt)}
+              started at {formatTime(previewState.startedAt)}
             </div>
           </div>
         </div>
@@ -120,8 +122,8 @@ export function PublishStatusBanner({
     );
   }
 
-  if (publishState.status === "success") {
-    const finishedAt = publishState.completedAt ?? publishState.updatedAt;
+  if (previewState.status === "success") {
+    const finishedAt = previewState.completedAt ?? previewState.updatedAt;
     return (
       <div
         className={cn(
@@ -133,12 +135,12 @@ export function PublishStatusBanner({
           <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="font-medium text-emerald-900 dark:text-emerald-100">
-              Published to preview successfully
+              Preview created successfully
             </div>
             <div className="text-xs text-emerald-700/80 dark:text-emerald-300/80">
-              {formatTime(publishState.startedAt)} → {formatTime(finishedAt)}
+              {formatTime(previewState.startedAt)} → {formatTime(finishedAt)}
               {" · "}
-              {formatDuration(publishState.startedAt, finishedAt)}
+              {formatDuration(previewState.startedAt, finishedAt)}
             </div>
           </div>
         </div>
@@ -146,7 +148,7 @@ export function PublishStatusBanner({
     );
   }
 
-  const errText = publishState.error ?? "Unknown publish error.";
+  const errText = previewState.error ?? "Unknown preview creation error.";
   return (
     <div
       className={cn(
@@ -158,11 +160,11 @@ export function PublishStatusBanner({
         <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-red-900 dark:text-red-100">
-            Publish failed at stage &quot;{stageLabel}&quot;
+            Preview creation failed at stage &quot;{stageLabel}&quot;
             {hasProgress && (
               <span className="text-red-700 dark:text-red-300 font-normal">
                 {" "}
-                (batch {(publishState.batchIndex ?? 0) + 1} / {publishState.totalBatches})
+                (batch {(previewState.batchIndex ?? 0) + 1} / {previewState.totalBatches})
               </span>
             )}
           </div>
