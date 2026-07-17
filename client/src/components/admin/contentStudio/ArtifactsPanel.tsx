@@ -42,7 +42,7 @@ export interface ArtifactsPanelProps {
     right: { op: "equal" | "add"; line: string } | null;
   }>;
   onSaveMarkdown: () => void;
-  onSaveAndPublishToPreview: () => void;
+  onCreatePreview: () => void;
   onCopyMarkdown: () => void;
   onDownloadMarkdown: () => void;
   onLoadMarkdownFromSnapshot: () => void;
@@ -74,7 +74,7 @@ export function ArtifactsPanel({
   setDiffRightSnapshotId,
   diffRows,
   onSaveMarkdown,
-  onSaveAndPublishToPreview,
+  onCreatePreview,
   onCopyMarkdown,
   onDownloadMarkdown,
   onLoadMarkdownFromSnapshot,
@@ -107,7 +107,7 @@ export function ArtifactsPanel({
           <TabsContent value="markdown" className="mt-4 space-y-3">
             {markdownDirty && selectedDraftId && (
               <div className="rounded border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                Unsaved changes — click <strong>Save Markdown</strong> before publishing, otherwise Preview will use the old database version.
+                Unsaved changes — click <strong>Save Markdown</strong> or use <strong>Save &amp; Create Preview</strong> to include your edits in the preview.
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
@@ -121,11 +121,11 @@ export function ArtifactsPanel({
               </Button>
               <Button
                 size="sm"
-                onClick={onSaveAndPublishToPreview}
+                onClick={onCreatePreview}
                 disabled={isBusy || !selectedDraftId || !markdownText.trim()}
               >
                 <Eye className="h-3.5 w-3.5 mr-1.5" />
-                Save & Preview
+                {runningPublish ? "Creating preview…" : "Save & Create Preview"}
               </Button>
               <Button size="sm" variant="secondary" onClick={onCopyMarkdown} disabled={!markdownText.trim()}>
                 Copy
@@ -142,6 +142,9 @@ export function ArtifactsPanel({
                 Load from snapshot
               </Button>
             </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Preview only — publishing (Update / Replace) happens in the <strong>Unit Manager</strong>.
+            </p>
 
             {restoreMarkdownText.trim() ? (
               <div className="rounded border bg-muted/30 p-2 flex flex-wrap items-center justify-between gap-2">
@@ -196,22 +199,12 @@ export function ArtifactsPanel({
           <TabsContent value="rendered" className="mt-4 space-y-3">
             {markdownText.trim() ? (
               <>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-xs text-muted-foreground">
-                    {markdownDirty ? (
-                      <span className="text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
-                    ) : (
-                      <span>Markdown is saved.</span>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={onSaveAndPublishToPreview}
-                    disabled={isBusy || !selectedDraftId}
-                  >
-                    <Eye className="h-3.5 w-3.5 mr-1.5" />
-                    {runningPublish ? "Publishing…" : "Save & Preview"}
-                  </Button>
+                <div className="text-xs text-muted-foreground">
+                  {markdownDirty ? (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
+                  ) : (
+                    <span>Markdown is saved.</span>
+                  )}
                 </div>
                 <div className="rounded-lg border bg-card p-4">
                   <MarkdownContent content={markdownText} />

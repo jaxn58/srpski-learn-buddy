@@ -14,6 +14,10 @@ import {
 } from "./_translationCore";
 import { findUnitModuleCollision } from "./_queries";
 import type { Id } from "../_generated/dataModel";
+import {
+  remapVocabularyProgressForPromotedEntry,
+  vocabularySerbianKey,
+} from "./_vocabularyProgressRemap";
 
 /**
  * Server-side hard guard: throws when another Content Studio draft already
@@ -2128,15 +2132,42 @@ export const promoteLanguagePreviewToPublished = mutation({
 
       if (language === "en") {
         // EN promote: preview vocabulary rows become the new published rows.
-        // In replace mode, archive existing published rows first.
         if (mode === "replace") {
+          // Replace: archive existing published rows first, then promote previews.
           for (const pub of publishedVocab) {
             await ctx.db.patch(pub._id, { isActive: false, archivedAt: now, releaseStatus: "published" });
           }
-        }
-        for (const prev of previewVocab) {
-          await ctx.db.patch(prev._id, { releaseStatus: "published", isActive: true });
-          vocabMerged += 1;
+          for (const prev of previewVocab) {
+            await ctx.db.patch(prev._id, { releaseStatus: "published", isActive: true });
+            vocabMerged += 1;
+          }
+        } else {
+          // Update: promote preview rows AND remap vocabularyProgress from older
+          // published rows (same serbian key) onto the new _id so user mastery
+          // is preserved. Then archive the superseded published rows.
+          for (const prev of previewVocab) {
+            await ctx.db.patch(prev._id, { releaseStatus: "published", isActive: true });
+            vocabMerged += 1;
+
+            const prevKey = vocabularySerbianKey(prev);
+            if (!prevKey) continue;
+
+            for (const pub of publishedVocab) {
+              if (pub._id === prev._id) continue;
+              if (vocabularySerbianKey(pub) !== prevKey) continue;
+
+              await remapVocabularyProgressForPromotedEntry(ctx, {
+                unitNumber,
+                fromVocabId: pub._id,
+                toVocabId: prev._id,
+              });
+              await ctx.db.patch(pub._id, {
+                isActive: false,
+                archivedAt: now,
+                releaseStatus: "published",
+              });
+            }
+          }
         }
       } else if (language === "de") {
         // DE promote: merge DE fields from preview rows into published rows, then archive previews.

@@ -397,7 +397,7 @@ export default function ContentStudioAdmin() {
     if (runningRevise) return "Applying revisions...";
     if (runningCreateValidate) return "Running Creator + Validator...";
     if (runningSectionRevise) return "Applying changes...";
-    if (runningPublish) return "Pushing to preview...";
+    if (runningPublish) return "Creating preview...";
     if (runningTranslateDe) return "Translating to German...";
     return "";
   }, [runningCreator, runningValidator, runningLector, runningCreateValidate, runningSectionRevise, runningPublish, runningTranslateDe]);
@@ -1568,7 +1568,7 @@ export default function ContentStudioAdmin() {
     }
   };
 
-  const handleSaveAndPublishToPreview = async () => {
+  const handleCreatePreview = async () => {
     if (!selectedDraftId) return;
     setRunningPublish(true);
 
@@ -1588,27 +1588,27 @@ export default function ContentStudioAdmin() {
       const valRes = await runValidate({ draftId: selectedDraftId });
       setRunningValidator(false);
       if (!valRes.ok) {
-        toast.error("Validation failed — fix the errors in the findings before publishing.");
+        toast.error("Validation failed — fix the errors in the findings before creating a preview.");
         return;
       }
 
-      // Step 3: Push to Preview
+      // Step 3: Push to Preview (not live publish — that happens in Unit Manager)
       toast.info(t("admin.contentStudio.toast.publishingToPreview"));
       await publishDraftToPreview({
         draftId: selectedDraftId,
         moduleId: publishModuleId && publishModuleId !== "__auto__" ? (publishModuleId as any) : undefined,
       });
 
-      // Step 4: Mark draft as ready_to_publish
+      // Step 4: Mark draft as ready for Unit Manager promote
       await setDraftStatus({ draftId: selectedDraftId as any, status: "ready_to_publish" });
       toast.success(t("admin.contentStudio.toast.previewLive"));
 
-      // Step 5: Open unit page only after successful publish (no blank tab during the run)
+      // Step 5: Open unit page only after successful preview push
       if (Number.isFinite(unitNumber) && unitNumber > 0) {
         window.open(`/unit/${unitNumber}`, "_blank");
       }
     } catch (e: any) {
-      toast.error(e?.message || "Save & Preview failed.");
+      toast.error(e?.message || "Save & Create Preview failed.");
     } finally {
       setRunningPublish(false);
       setRunningValidator(false);
@@ -2133,33 +2133,6 @@ export default function ContentStudioAdmin() {
     }
   };
 
-  const handlePushToPreview = async () => {
-    if (!selectedDraftId) return;
-    setRunningPublish(true);
-
-    const unitNumber = Number((selected as any)?.draft?.unitNumber);
-
-    try {
-      toast.info(t("admin.contentStudio.toast.publishingToPreview"));
-      await publishDraftToPreview({
-        draftId: selectedDraftId,
-        moduleId: publishModuleId && publishModuleId !== "__auto__" ? (publishModuleId as any) : undefined,
-      });
-
-      await setDraftStatus({ draftId: selectedDraftId as any, status: "ready_to_publish" });
-
-      toast.success(t("admin.contentStudio.toast.previewLive"));
-      // Open unit page only after success — progress stays visible in the Inspector banner
-      if (Number.isFinite(unitNumber) && unitNumber > 0) {
-        window.open(`/unit/${unitNumber}`, "_blank");
-      }
-    } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.previewPublishFailed"));
-    } finally {
-      setRunningPublish(false);
-    }
-  };
-
 
   return (
     <div className="space-y-6">
@@ -2502,11 +2475,9 @@ export default function ContentStudioAdmin() {
             onRunAuditor={handleRunAuditor}
             onSectionRevise={handleSectionRevise}
             onDismissFinding={(p) => dismissFinding({ findingId: p.findingId, dismissed: p.dismissed })}
-            runningPublish={runningPublish}
             publishModuleId={publishModuleId}
             setPublishModuleId={setPublishModuleId}
             modules={modules}
-            onPushToPreview={handlePushToPreview}
             deleteUnitOpen={deleteUnitOpen}
             setDeleteUnitOpen={setDeleteUnitOpen}
             deleteConfirmation={deleteConfirmation}
@@ -2611,7 +2582,7 @@ export default function ContentStudioAdmin() {
                     const stepLabels: Record<InspectorStep, string> = {
                       generate: "1. Generate",
                       review: "2. Review",
-                      publish: "3. Publish",
+                      publish: "3. Preview",
                     };
                     return (
                       <Fragment key={step}>
@@ -2678,7 +2649,7 @@ export default function ContentStudioAdmin() {
                     setDiffRightSnapshotId={setDiffRightSnapshotId}
                     diffRows={diffRows}
                     onSaveMarkdown={handleSaveMarkdown}
-                    onSaveAndPublishToPreview={handleSaveAndPublishToPreview}
+                    onCreatePreview={handleCreatePreview}
                     onCopyMarkdown={handleCopyMarkdown}
                     onDownloadMarkdown={handleDownloadMarkdown}
                     onLoadMarkdownFromSnapshot={handleLoadMarkdownFromSnapshot}

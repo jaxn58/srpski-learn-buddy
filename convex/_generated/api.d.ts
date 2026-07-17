@@ -38,6 +38,7 @@ import type * as contentStudio__validatorHelpers from "../contentStudio/_validat
 import type * as contentStudio__validatorMemory from "../contentStudio/_validatorMemory.js";
 import type * as contentStudio__verifier from "../contentStudio/_verifier.js";
 import type * as contentStudio__vocabularyCleanup from "../contentStudio/_vocabularyCleanup.js";
+import type * as contentStudio__vocabularyProgressRemap from "../contentStudio/_vocabularyProgressRemap.js";
 import type * as contentStudio_prompts from "../contentStudio/prompts.js";
 import type * as crons from "../crons.js";
 import type * as dashboardAnnouncements from "../dashboardAnnouncements.js";
@@ -56,6 +57,7 @@ import type * as knowledge from "../knowledge.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as lib_attachmentMime from "../lib/attachmentMime.js";
 import type * as lib_storageHelpers from "../lib/storageHelpers.js";
+import type * as migrations_backfillOrphanVocabProgress from "../migrations/backfillOrphanVocabProgress.js";
 import type * as modules from "../modules.js";
 import type * as newsletter from "../newsletter.js";
 import type * as onboarding from "../onboarding.js";
@@ -123,6 +125,7 @@ declare const fullApi: ApiFromModules<{
   "contentStudio/_validatorMemory": typeof contentStudio__validatorMemory;
   "contentStudio/_verifier": typeof contentStudio__verifier;
   "contentStudio/_vocabularyCleanup": typeof contentStudio__vocabularyCleanup;
+  "contentStudio/_vocabularyProgressRemap": typeof contentStudio__vocabularyProgressRemap;
   "contentStudio/prompts": typeof contentStudio_prompts;
   crons: typeof crons;
   dashboardAnnouncements: typeof dashboardAnnouncements;
@@ -141,6 +144,7 @@ declare const fullApi: ApiFromModules<{
   leaderboard: typeof leaderboard;
   "lib/attachmentMime": typeof lib_attachmentMime;
   "lib/storageHelpers": typeof lib_storageHelpers;
+  "migrations/backfillOrphanVocabProgress": typeof migrations_backfillOrphanVocabProgress;
   modules: typeof modules;
   newsletter: typeof newsletter;
   onboarding: typeof onboarding;

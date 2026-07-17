@@ -1704,11 +1704,19 @@ function InlineDetailCard({
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="update">Update (merge) — keeps user progress</SelectItem>
-                                    <SelectItem value="replace">Replace (full) — resets user progress</SelectItem>
+                                    <SelectItem value="update">Update — keeps user progress (recommended)</SelectItem>
+                                    <SelectItem value="replace">Replace — resets user progress for this unit</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
+
+                              {publishMode === "update" && (
+                                <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded p-2">
+                                  <span>
+                                    Update promotes the preview to published and <strong>preserves vocabulary mastery</strong> by remapping progress to the new content. Exercise progress (by question ID) is also preserved.
+                                  </span>
+                                </div>
+                              )}
 
                               {publishMode === "replace" && (
                                 <div className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded p-2">

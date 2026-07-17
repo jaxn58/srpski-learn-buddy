@@ -31,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { Loader2, CheckCircle, XCircle, Sparkles, Upload, RotateCcw, X } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Sparkles, RotateCcw, X } from "lucide-react";
 import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
 import { DraftStatusBadge } from "./StatusBadge";
@@ -80,12 +80,10 @@ export interface InspectorPanelProps {
   onSectionRevise: () => void;
   onDismissFinding: (params: { findingId: any; dismissed: boolean }) => void;
 
-  // Publish (push to preview only; lifecycle managed in Unit Manager)
-  runningPublish: boolean;
+  // Preview step (module selection; preview creation happens in Artifacts panel)
   publishModuleId: string;
   setPublishModuleId: (v: string) => void;
   modules: any[] | undefined;
-  onPushToPreview: () => void;
   deleteUnitOpen: boolean;
   setDeleteUnitOpen: (v: boolean) => void;
   deleteConfirmation: string;
@@ -106,7 +104,7 @@ export function InspectorPanel(props: InspectorPanelProps) {
     <div className="flex flex-col h-full">
       <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {activeStep === "generate" ? "Generate" : activeStep === "review" ? "Review" : "Publish"}
+          {activeStep === "generate" ? "Generate" : activeStep === "review" ? "Review" : "Preview"}
         </span>
         <DraftStatusBadge status={selected?.draft?.status} />
       </div>
@@ -349,8 +347,8 @@ function ReviewContent(props: InspectorPanelProps) {
 
 function PublishContent(props: InspectorPanelProps) {
   const {
-    selected, isBusy, runningPublish, publishModuleId,
-    setPublishModuleId, modules, onPushToPreview,
+    selected, publishModuleId,
+    setPublishModuleId, modules,
     deleteUnitOpen, setDeleteUnitOpen, deleteConfirmation, setDeleteConfirmation,
     onDeleteUnit, onDeleteSelectedDraft, showDeleteDraftDialog,
     setShowDeleteDraftDialog, onConfirmDeleteDraft,
@@ -376,24 +374,9 @@ function PublishContent(props: InspectorPanelProps) {
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <Separator />
-
-      {/* Push to Preview */}
-      <div className="space-y-2">
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={onPushToPreview}
-          disabled={isBusy}
-        >
-          {runningPublish ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Upload className="mr-2 h-3 w-3" />}
-          Push to Preview
-        </Button>
-
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Pushes this draft as a preview to the database. Use the <strong>Unit Manager</strong> to review, publish, or take it offline.
+          Use <strong>Save &amp; Create Preview</strong> in the Markdown tab to push a preview to the database.
+          Publishing (Update / Replace) happens only in the <strong>Unit Manager</strong>.
         </p>
       </div>
 
