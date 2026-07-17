@@ -1931,7 +1931,7 @@
   "admin.contentStudio.toast.confirmationTextMismatch": "Confirmation text does not match",
   "admin.contentStudio.toast.unitDeleted": "Unit {{unit}} deleted successfully",
   "admin.contentStudio.toast.unitDeleteFailed": "Failed to delete unit",
-  "admin.contentStudio.toast.publishingToPreview": "Publishing to preview…",
+  "admin.contentStudio.toast.creatingPreview": "Creating preview…",
   "admin.contentStudio.toast.previewLive": "Preview is live for Superadmin",
   "admin.contentStudio.toast.previewPublishFailed": "Preview publish failed",
   "admin.contentStudio.toast.takingPreviewOffline": "Taking preview offline…",

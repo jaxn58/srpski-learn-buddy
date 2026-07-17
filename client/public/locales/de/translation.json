@@ -1872,7 +1872,7 @@
   "admin.contentStudio.toast.confirmationTextMismatch": "Bestätigungstext stimmt nicht überein",
   "admin.contentStudio.toast.unitDeleted": "Unit {{unit}} erfolgreich gelöscht",
   "admin.contentStudio.toast.unitDeleteFailed": "Unit konnte nicht gelöscht werden",
-  "admin.contentStudio.toast.publishingToPreview": "Wird in Preview veröffentlicht…",
+  "admin.contentStudio.toast.creatingPreview": "Preview wird erstellt…",
   "admin.contentStudio.toast.previewLive": "Preview ist für Superadmin live",
   "admin.contentStudio.toast.previewPublishFailed": "Preview-Veröffentlichung fehlgeschlagen",
   "admin.contentStudio.toast.takingPreviewOffline": "Preview wird offline genommen…",
