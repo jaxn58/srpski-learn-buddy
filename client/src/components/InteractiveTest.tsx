@@ -16,6 +16,11 @@ import { useTranslation } from "react-i18next";
 interface InteractiveTestProps {
   unitNumber: number;
   language: string;
+  // Superadmin escape hatch propagated from `UnitView` — when true the
+  // component queries the published (live) release instead of the preview.
+  // Non-superadmins always see published regardless of this flag (enforced
+  // server-side by the underlying Convex queries).
+  preferPublished?: boolean;
 }
 
 // Local shape of the fields we actually read from the Convex query results.
@@ -50,12 +55,20 @@ type UnitContentSections = {
   testIntroduction?: string;
 };
 
-export function InteractiveTest({ unitNumber, language }: InteractiveTestProps) {
+export function InteractiveTest({ unitNumber, language, preferPublished }: InteractiveTestProps) {
   const { t } = useTranslation();
-  const questions = useQuery(api.units.getUnitInteractiveTest, { unitNumber, language }) as
+  const questions = useQuery(api.units.getUnitInteractiveTest, {
+    unitNumber,
+    language,
+    preferPublished,
+  }) as
     | UnitTestQuestion[]
     | undefined;
-  const testIntro = useQuery(api.units.getUnitContentSections, { unitNumber, language }) as
+  const testIntro = useQuery(api.units.getUnitContentSections, {
+    unitNumber,
+    language,
+    preferPublished,
+  }) as
     | UnitContentSections
     | undefined;
   const questionProgress = useQuery(api.progress.getQuestionProgress, { unitNumber }) as

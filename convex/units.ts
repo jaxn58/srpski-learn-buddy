@@ -200,13 +200,17 @@ export const getUnitMetadata = query({
     unitNumber: v.number(),
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
+    // Superadmin escape hatch: force the published view even when a preview
+    // release exists for this unit (used by the Preview banner "show live" toggle).
+    preferPublished: v.optional(v.boolean()),
   },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const language = args.language || "en";
 
     const user = await getCurrentUser(ctx);
-    const allowPreview = user?.role === "superadmin";
+    const allowPreview =
+      user?.role === "superadmin" && args.preferPublished !== true;
     const allowOffline = user?.role === "admin" || user?.role === "superadmin";
 
     const allForLang = await ctx.db
@@ -434,12 +438,16 @@ export const getUnitInteractiveTest = query({
     unitNumber: v.number(),
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
+    // Superadmin escape hatch: force the published view even when a preview
+    // release exists for this unit (used by the Preview banner "show live" toggle).
+    preferPublished: v.optional(v.boolean()),
   },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const language = args.language || "en";
     const user = await getCurrentUser(ctx);
-    const allowPreview = user?.role === "superadmin";
+    const allowPreview =
+      user?.role === "superadmin" && args.preferPublished !== true;
     const allowOffline = user?.role === "admin" || user?.role === "superadmin";
 
     // Hide offline units for students without throwing (keeps UI resilient).
@@ -486,6 +494,134 @@ export const getUnitInteractiveTest = query({
   },
 });
 
+// Content-Studio Preview banner: reports whether an active preview release
+// exists for a unit alongside the published release. Superadmin-only —
+// non-superadmins never see a preview overlay in the first place, so the
+// query intentionally returns `hasActivePreview: false` for them.
+//
+// Backs the sticky Preview banner in `UnitView` (frontend). The banner shows
+// vocab counts + version numbers for both preview and published pools and
+// offers a "show live" toggle that flips `preferPublished=true` on the other
+// unit queries.
+// @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+export const getUnitPreviewOverlayInfo = query({
+  args: {
+    unitNumber: v.number(),
+  },
+  returns: v.object({
+    isSuperadmin: v.boolean(),
+    hasActivePreview: v.boolean(),
+    previewUnitVersion: v.optional(v.number()),
+    publishedUnitVersion: v.optional(v.number()),
+    vocabPreviewCount: v.number(),
+    vocabPublishedCount: v.number(),
+    contentPreviewCount: v.number(),
+    contentPublishedCount: v.number(),
+    testsPreviewCount: v.number(),
+    testsPublishedCount: v.number(),
+  }),
+  // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    const isSuperadmin = user?.role === "superadmin";
+
+    const empty = {
+      isSuperadmin,
+      hasActivePreview: false,
+      previewUnitVersion: undefined as number | undefined,
+      publishedUnitVersion: undefined as number | undefined,
+      vocabPreviewCount: 0,
+      vocabPublishedCount: 0,
+      contentPreviewCount: 0,
+      contentPublishedCount: 0,
+      testsPreviewCount: 0,
+      testsPublishedCount: 0,
+    };
+
+    if (!isSuperadmin) return empty;
+
+    // Vocabulary (release-independent language: courseVocabulary rows are
+    // not language-scoped; the UI queries them by unit).
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    const vocabRows = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+
+    let vocabPreviewCount = 0;
+    let vocabPublishedCount = 0;
+    let previewUnitVersion: number | undefined = undefined;
+    let publishedUnitVersion: number | undefined = undefined;
+
+    for (const row of vocabRows as any[]) {
+      if (row.isActive === false) continue;
+      const s = row.releaseStatus;
+      if (isPreviewStatus(s)) {
+        vocabPreviewCount += 1;
+        const v = Number(row.unitVersion ?? 1);
+        if (Number.isFinite(v) && (previewUnitVersion === undefined || v > previewUnitVersion)) {
+          previewUnitVersion = v;
+        }
+      } else if (isPublishedStatus(s)) {
+        vocabPublishedCount += 1;
+        const v = Number(row.unitVersion ?? 1);
+        if (Number.isFinite(v) && (publishedUnitVersion === undefined || v > publishedUnitVersion)) {
+          publishedUnitVersion = v;
+        }
+      }
+    }
+
+    // Content rows (across all languages / contentTypes) — count active rows
+    // per release status. Used by the banner "content sections" summary.
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    const contentRows = await ctx.db
+      .query("unitContent")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+
+    let contentPreviewCount = 0;
+    let contentPublishedCount = 0;
+    for (const row of contentRows as any[]) {
+      if (row.isActive === false) continue;
+      const s = row.releaseStatus;
+      if (isPreviewStatus(s)) contentPreviewCount += 1;
+      else if (isPublishedStatus(s)) contentPublishedCount += 1;
+    }
+
+    // Interactive tests (across all languages) — count active rows per release status.
+    // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
+    const testRows = await ctx.db
+      .query("unitInteractiveTests")
+      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+
+    let testsPreviewCount = 0;
+    let testsPublishedCount = 0;
+    for (const row of testRows as any[]) {
+      if (row.isActive === false) continue;
+      const s = row.releaseStatus;
+      if (isPreviewStatus(s)) testsPreviewCount += 1;
+      else if (isPublishedStatus(s)) testsPublishedCount += 1;
+    }
+
+    const hasActivePreview =
+      vocabPreviewCount > 0 || contentPreviewCount > 0 || testsPreviewCount > 0;
+
+    return {
+      isSuperadmin,
+      hasActivePreview,
+      previewUnitVersion,
+      publishedUnitVersion,
+      vocabPreviewCount,
+      vocabPublishedCount,
+      contentPreviewCount,
+      contentPublishedCount,
+      testsPreviewCount,
+      testsPublishedCount,
+    };
+  },
+});
+
 // Get unit content sections (Overview, Grammar, Phrases, Dialogues)
 // Relational: Uses FK relationship to unitMetadata for referential integrity
 // @ts-ignore TS2589 – Convex schema depth limit (50 tables)
@@ -494,12 +630,16 @@ export const getUnitContentSections = query({
     unitNumber: v.number(),
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     language: v.optional(v.string()), // Default: "en"
+    // Superadmin escape hatch: force the published view even when a preview
+    // release exists for this unit (used by the Preview banner "show live" toggle).
+    preferPublished: v.optional(v.boolean()),
   },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
     const language = args.language || "en";
     const user = await getCurrentUser(ctx);
-    const allowPreview = user?.role === "superadmin";
+    const allowPreview =
+      user?.role === "superadmin" && args.preferPublished !== true;
     const allowOffline = user?.role === "admin" || user?.role === "superadmin";
 
     // Hide offline units for students without throwing (keeps UI resilient).

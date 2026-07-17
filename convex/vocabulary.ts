@@ -224,10 +224,14 @@ export const getCourseVocabularyByUnit = query({
 export const getVocabularyWithProgress = query({
   args: {
     unitNumber: v.optional(v.number()),
+    // Superadmin escape hatch: force the published view even when a preview
+    // release exists for this unit (used by the Preview banner "show live" toggle).
+    preferPublished: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
-    const allowPreview = user?.role === "superadmin";
+    const allowPreview =
+      user?.role === "superadmin" && args.preferPublished !== true;
     
     // Get all course vocabulary (or filtered by unit)
     const rawCourseVocab =

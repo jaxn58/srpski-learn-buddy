@@ -19,6 +19,122 @@ import {
   vocabularySerbianKey,
 } from "./_vocabularyProgressRemap";
 
+import type { MutationCtx } from "../_generated/server";
+
+/**
+ * Auto-deduplicate active vocabulary within a unit after publish/promote.
+ * Keeps the OLDEST entry (lowest _creationTime) and archives newer duplicates.
+ * Progress from archived duplicates is remapped onto the keeper.
+ * Returns the number of duplicates archived.
+ */
+async function deduplicateUnitVocabulary(
+  ctx: MutationCtx,
+  unitNumber: number,
+): Promise<{ deduplicatedCount: number; progressRemapped: number }> {
+  const allRows = await ctx.db
+    .query("courseVocabulary")
+    .withIndex("by_unit", (q: any) => q.eq("unitNumber", unitNumber))
+    .collect();
+
+  const active = (allRows as any[]).filter(
+    (v) => v.isActive !== false && v.releaseStatus !== "offline",
+  );
+
+  // Group by (releaseStatus, serbianNormalized). Published and preview are
+  // separate lifecycles and MUST NOT be merged into the same dedup group —
+  // otherwise a freshly inserted preview row for a word that already exists
+  // as published would be archived immediately after insert (the published
+  // row is older by _creationTime and would win the "keep oldest" pass).
+  // This bug swallowed 40 of 45 preview rows for Unit 3 after re-publishing.
+  const groups: Record<string, any[]> = Object.create(null);
+  for (const row of active) {
+    const key = toVocabularyKey(row.serbian);
+    if (!key) continue;
+    const status = String((row as any).releaseStatus ?? "published");
+    const groupKey = `${status}::${key}`;
+    if (!groups[groupKey]) groups[groupKey] = [];
+    groups[groupKey].push(row);
+  }
+
+  let deduplicatedCount = 0;
+  let progressRemapped = 0;
+
+  for (const key of Object.keys(groups)) {
+    const entries = groups[key];
+    if (entries.length <= 1) continue;
+
+    // Sort: oldest first (by _creationTime). Keep the oldest.
+    entries.sort((a: any, b: any) => {
+      const tA = a._creationTime ?? 0;
+      const tB = b._creationTime ?? 0;
+      return tA - tB;
+    });
+
+    const keeper = entries[0];
+    const toArchive = entries.slice(1);
+
+    for (const dup of toArchive) {
+      // Remap progress from duplicate to keeper
+      const progressRows = await ctx.db
+        .query("vocabularyProgress")
+        .withIndex("by_course_vocab", (q: any) =>
+          q.eq("courseVocabularyId", dup._id),
+        )
+        .collect();
+
+      for (const prog of progressRows) {
+        const existingForKeeper = await ctx.db
+          .query("vocabularyProgress")
+          .withIndex("by_user_course_vocab", (q: any) =>
+            q.eq("userId", prog.userId).eq("courseVocabularyId", keeper._id),
+          )
+          .first();
+
+        if (existingForKeeper) {
+          // Merge: max correctAnswerCount, sum the rest
+          const mergedCorrect = Math.max(
+            existingForKeeper.correctAnswerCount ?? 0,
+            prog.correctAnswerCount ?? 0,
+          );
+          const mergedIncorrect =
+            (existingForKeeper.incorrectAnswerCount ?? 0) +
+            (prog.incorrectAnswerCount ?? 0);
+          const mergedReviews =
+            (existingForKeeper.reviewCount ?? 0) + (prog.reviewCount ?? 0);
+          await ctx.db.patch(existingForKeeper._id, {
+            correctAnswerCount: mergedCorrect,
+            incorrectAnswerCount: mergedIncorrect,
+            mastered: mergedCorrect >= 3,
+            reviewCount: mergedReviews,
+          } as any);
+          await ctx.db.delete(prog._id);
+        } else {
+          // Repoint to keeper
+          await ctx.db.patch(prog._id, {
+            courseVocabularyId: keeper._id,
+          } as any);
+        }
+        progressRemapped += 1;
+      }
+
+      // Archive the duplicate
+      await ctx.db.patch(dup._id, {
+        isActive: false,
+        archivedAt: Date.now(),
+      } as any);
+      deduplicatedCount += 1;
+    }
+  }
+
+  if (deduplicatedCount > 0) {
+    console.log(
+      `[Dedup] Unit ${unitNumber}: archived ${deduplicatedCount} duplicate(s), remapped ${progressRemapped} progress row(s).`,
+    );
+  }
+
+  return { deduplicatedCount, progressRemapped };
+}
+
 /**
  * Server-side hard guard: throws when another Content Studio draft already
  * exists for the same (moduleNumber, unitNumber) slot. Live units are NOT
@@ -970,6 +1086,19 @@ export const saveUnitPackageSnapshot = mutation({
       createdAt: now,
     });
 
+    // Validator Memory auto-capture bookkeeping (set inside the replaceFindings
+    // block below, consumed by the final draft patch at the end of this handler).
+    let preFixSnapshotToStore:
+      | Array<{
+          fingerprint: string;
+          stage: "validator" | "auditor";
+          code: string;
+          path?: string;
+          message: string;
+        }>
+      | undefined;
+    let shouldClearPreFixSnapshot = false;
+
     // Replace findings if requested (keep simple: delete all findings for draft)
     if (args.replaceFindings) {
       const existing = await ctx.db
@@ -1017,11 +1146,23 @@ export const saveUnitPackageSnapshot = mutation({
       // and flip status -> "active" so the entry starts influencing future
       // Creator / Fix / Validator runs.
       //
+      // Timing problem this section solves: the Fix-Findings save arrives here
+      // with status = "draft" and replaceFindings = true, which deletes the
+      // very findings we'd need for the before/after comparison. By the time
+      // the Validator re-runs (status = qc_passed / qc_failed / audit_failed),
+      // `existing` is already empty. So we snapshot the open findings onto the
+      // draft doc (`preFindingFingerprints`) right before the Fix save deletes
+      // them, and the subsequent Validator save reads that snapshot instead of
+      // `existing` to do the comparison. The snapshot is consumed (cleared)
+      // once used; a direct Validator re-run without an intervening Fix step
+      // still falls back to comparing against `existing` as before.
+      //
       // Guardrails:
       //   - Only run on Validator/Auditor saves (status = qc_passed / qc_failed /
       //     audit_failed). Fix clears findings with status = "draft" - we must
-      //     not treat that as "resolved".
-      //   - Only consider non-dismissed findings from the previous state.
+      //     not treat that as "resolved" (it only stores the pre-Fix snapshot).
+      //   - Only consider non-dismissed, non-info findings from the previous
+      //     state (both for the stored snapshot and the `existing` fallback).
       //   - Keep the example message for context (first-fill only; we never
       //     overwrite a curated exampleBefore later).
       // ---------------------------------------------------------------------
@@ -1029,7 +1170,51 @@ export const saveUnitPackageSnapshot = mutation({
         args.status === "qc_passed" ||
         args.status === "qc_failed" ||
         args.status === "audit_failed";
-      if (isValidatorSave && existing.length > 0) {
+      const isFixSave = args.status === "draft";
+
+      if (isFixSave && existing.length > 0) {
+        const snapshotEntries = existing
+          .filter((f) => f.dismissed !== true && f.severity !== "info")
+          .map((f) => ({
+            fingerprint: makeValidatorMemoryFingerprint(f.stage, f.code, f.path),
+            stage: f.stage,
+            code: f.code,
+            path: f.path,
+            message: String(f.message || ""),
+          }));
+        if (snapshotEntries.length > 0) {
+          preFixSnapshotToStore = snapshotEntries;
+        }
+      }
+
+      if (isValidatorSave) {
+        const draftDoc = await ctx.db.get(args.draftId);
+        const storedPreFix = draftDoc?.preFindingFingerprints;
+        const hasStoredPreFix = Array.isArray(storedPreFix) && storedPreFix.length > 0;
+
+        // Comparison base: prefer the pre-Fix snapshot stored on the draft
+        // (Fix -> Validator re-run, where `existing` is already empty). Fall
+        // back to `existing` for a direct Validator re-run without a Fix step.
+        const comparisonBase: Array<{
+          stage: "validator" | "auditor";
+          code: string;
+          path?: string;
+          message: string;
+        }> = hasStoredPreFix
+          ? (storedPreFix as NonNullable<typeof storedPreFix>)
+          : existing
+              .filter((f) => f.dismissed !== true && f.severity !== "info")
+              .map((f) => ({
+                stage: f.stage,
+                code: f.code,
+                path: f.path,
+                message: String(f.message || ""),
+              }));
+
+        if (hasStoredPreFix) {
+          shouldClearPreFixSnapshot = true;
+        }
+
         const newFingerprints = new Set<string>(
           (args.findings || []).map((f) =>
             makeValidatorMemoryFingerprint(f.stage, f.code, f.path)
@@ -1040,9 +1225,7 @@ export const saveUnitPackageSnapshot = mutation({
           string,
           { stage: "validator" | "auditor"; code: string; path?: string; message: string }
         >();
-        for (const f of existing) {
-          if (f.dismissed === true) continue;
-          if (f.severity === "info") continue;
+        for (const f of comparisonBase) {
           const fp = makeValidatorMemoryFingerprint(f.stage, f.code, f.path);
           if (newFingerprints.has(fp)) continue;
           if (!resolvedByFingerprint.has(fp)) {
@@ -1050,13 +1233,12 @@ export const saveUnitPackageSnapshot = mutation({
               stage: f.stage,
               code: f.code,
               path: f.path,
-              message: String(f.message || ""),
+              message: f.message,
             });
           }
         }
 
         if (resolvedByFingerprint.size > 0) {
-          const draftDoc = await ctx.db.get(args.draftId);
           const sourceUnitNumber =
             typeof draftDoc?.unitNumber === "number" ? draftDoc.unitNumber : undefined;
 
@@ -1144,6 +1326,14 @@ export const saveUnitPackageSnapshot = mutation({
       updatedAt: now,
     };
     if (args.status) patch.status = args.status as DraftStatus;
+    // Validator Memory auto-capture bookkeeping: store the pre-Fix snapshot
+    // (Fix save) or clear it once consumed by the comparison (Validator save).
+    if (preFixSnapshotToStore) {
+      patch.preFindingFingerprints = preFixSnapshotToStore;
+    }
+    if (shouldClearPreFixSnapshot) {
+      patch.preFindingFingerprints = undefined;
+    }
     await ctx.db.patch(args.draftId, patch);
     return snapId;
   },
@@ -1204,12 +1394,13 @@ export const setDraftStatus = mutation({
 });
 
 /**
- * Publish-Timeout-Fix (F2): tiny mutation for updating `contentDrafts.publishState`.
+ * Publish-Timeout-Fix (F2): tiny mutation for updating `contentDrafts.publishState`
+ * (the draft's preview-creation state; DB field name kept for backward compatibility).
  *
- * Called by `publishDraftToPreview` at the start of every publish stage
+ * Called by `createDraftPreview` at the start of every preview-creation stage
  * (metadata / content / vocabulary / tests / complete) and on failure. Kept
  * intentionally minimal so it never contributes to the Convex system-op
- * limit, no matter how the surrounding publish batches evolve.
+ * limit, no matter how the surrounding batches evolve.
  *
  * The mutation always sets `updatedAt = Date.now()`. Callers control which
  * of the other fields to update via optional args; unset args are left
@@ -1217,7 +1408,7 @@ export const setDraftStatus = mutation({
  * "started running", "moved to next stage", "batch progress",
  * "finished successfully", and "failed with error".
  */
-export const internalUpdateDraftPublishState = mutation({
+export const internalUpdateDraftPreviewCreationState = mutation({
   args: {
     draftId: v.id("contentDrafts"),
     status: v.optional(
@@ -1299,17 +1490,17 @@ export const internalUpdateDraftPublishState = mutation({
   },
 });
 
-// Internal mutations for publishing (bypassing some checks for speed/atomicity)
+// Internal mutations for preview creation (bypassing some checks for speed/atomicity)
 /**
- * @deprecated Superseded by the split publish chain
- * (`internalPublishUnitMetadata`, `internalPublishUnitContent`,
- * `internalArchivePreviewVocabulary` + `internalPublishUnitVocabulary`,
- * `internalArchivePreviewTests` + `internalPublishUnitTests`) orchestrated
- * by the `publishDraftToPreview` action.
+ * @deprecated Superseded by the split preview-creation chain
+ * (`internalCreatePreviewUnitMetadata`, `internalCreatePreviewUnitContent`,
+ * `internalArchivePreviewVocabulary` + `internalCreatePreviewUnitVocabulary`,
+ * `internalArchivePreviewTests` + `internalCreatePreviewUnitTests`) orchestrated
+ * by the `createDraftPreview` action.
  *
  * Do NOT call this from new code. The publish-timeout fix moves all
- * publish work through the split chain so a single mutation never exceeds
- * the Convex system-op limit. This monolith is retained ONLY as a
+ * preview-creation work through the split chain so a single mutation never
+ * exceeds the Convex system-op limit. This monolith is retained ONLY as a
  * rollback safety net: if the new chain breaks in prod, swap the action
  * back to invoking this wrapper directly (single-line change).
  *
@@ -1443,6 +1634,15 @@ export const internalPublishUnitPackageToPreview = mutation({
       }
 
       const skippedDuplicates: string[] = [];
+
+      // Within-unit dedup: track active keys so repeated publishes don't create duplicates
+      const activeKeysInUnit = new Set<string>();
+      for (const vdoc of existing as any[]) {
+        if (vdoc.isActive === false) continue;
+        const k = toVocabularyKey(vdoc.serbian);
+        if (k) activeKeysInUnit.add(k);
+      }
+
       for (const entry of vocabEn) {
         const serbKey = toVocabularyKey(entry.serbian);
 
@@ -1450,6 +1650,12 @@ export const internalPublishUnitPackageToPreview = mutation({
         const earlier = await findEarlierUnitVocabulary(ctx, serbKey, unitNumber);
         if (earlier) {
           skippedDuplicates.push(`"${entry.serbian}" (already in Unit ${earlier.unitNumber})`);
+          continue;
+        }
+
+        // Within-unit dedup guard: skip if word already active in this unit
+        if (activeKeysInUnit.has(serbKey)) {
+          skippedDuplicates.push(`"${entry.serbian}" (already active in this unit)`);
           continue;
         }
 
@@ -1462,6 +1668,7 @@ export const internalPublishUnitPackageToPreview = mutation({
           translations: [{ language: "en", translation: entry.en }],
           gender: entry.gender || undefined,
           noteEn: entry.noteEn || undefined,
+          autoAdded: entry.autoAdded === true ? true : undefined,
           ...(prevDe?.de ? { de: prevDe.de } : {}),
           ...(prevDe?.noteDe ? { noteDe: prevDe.noteDe } : {}),
           isActive: true,
@@ -1469,6 +1676,7 @@ export const internalPublishUnitPackageToPreview = mutation({
           unitVersion: args.unitVersion,
           releaseStatus: "preview",
         });
+        activeKeysInUnit.add(serbKey);
       }
       if (skippedDuplicates.length > 0) {
         console.warn(
@@ -1476,6 +1684,9 @@ export const internalPublishUnitPackageToPreview = mutation({
             skippedDuplicates.join(", "),
         );
       }
+
+      // Auto-deduplicate after insert (catches legacy duplicates)
+      await deduplicateUnitVocabulary(ctx, unitNumber);
     }
 
     // 4) Exercises (unitInteractiveTests) — English only for now. Insert new preview version, archive previous preview rows.
@@ -1999,6 +2210,7 @@ export const upsertUnitGermanTranslationToPreview = mutation({
           audioUrl: typeof src.audioUrl === "string" ? src.audioUrl : undefined,
           audioStorageId: typeof src.audioStorageId === "string" ? src.audioStorageId : undefined,
           noteEn: typeof src.noteEn === "string" ? src.noteEn : undefined,
+          autoAdded: src.autoAdded === true ? true : undefined,
           ...dePatch,
           isActive: true,
           archivedAt: undefined,
@@ -2195,6 +2407,10 @@ export const promoteLanguagePreviewToPublished = mutation({
       }
     }
 
+    // Auto-deduplicate: remove any duplicate vocabulary entries that slipped
+    // through earlier publishes. Keeps oldest, remaps progress.
+    const dedupResult = await deduplicateUnitVocabulary(ctx, unitNumber);
+
     // Sync draft status: if a matching draft exists at ready_to_publish, mark it published.
     if (language === "en") {
       const drafts = await ctx.db
@@ -2287,6 +2503,7 @@ export const promoteLanguagePreviewToPublished = mutation({
       language,
       mode,
       promoted: { metaPromoted, contentPromoted, testsPromoted, vocabMerged },
+      deduplicated: dedupResult.deduplicatedCount > 0 ? dedupResult : undefined,
       ...(progressReset ? { progressReset } : {}),
     };
   },
@@ -2538,8 +2755,11 @@ export const repairPublishedUnitVocabulary = internalMutation({
     }
 
     let created = 0;
+    const seenKeys = new Set<string>();
     for (const entry of vocabEn) {
       const serbKey = toVocabularyKey(entry.serbian);
+      if (!serbKey || seenKeys.has(serbKey)) continue;
+      seenKeys.add(serbKey);
       await ctx.db.insert("courseVocabulary", {
         unitNumber,
         serbian: entry.serbian,
@@ -2548,6 +2768,7 @@ export const repairPublishedUnitVocabulary = internalMutation({
         translations: [{ language: "en", translation: entry.en }],
         gender: entry.gender || undefined,
         noteEn: entry.noteEn || undefined,
+        autoAdded: entry.autoAdded === true ? true : undefined,
         isActive: true,
         archivedAt: undefined,
         unitVersion: 1,
@@ -2566,20 +2787,21 @@ export const repairPublishedUnitVocabulary = internalMutation({
 });
 
 // ═════════════════════════════════════════════════════════════════════════
-// PUBLISH-TIMEOUT FIX — split publish chain
+// PUBLISH-TIMEOUT FIX — split preview-creation chain
 // ─────────────────────────────────────────────────────────────────────────
 // The monolith `internalPublishUnitPackageToPreview` above did everything in
 // one mutation and started hitting Convex's system-op ceiling in prod once
-// units had enough publish history. These smaller building blocks are called
-// in sequence by the `publishDraftToPreview` action; each one is bounded and
-// idempotent (archive+insert can be re-run without producing duplicates).
+// units had enough preview-creation history. These smaller building blocks
+// are called in sequence by the `createDraftPreview` action; each one is
+// bounded and idempotent (archive+insert can be re-run without producing
+// duplicates).
 // See `docs/CONTENT_STUDIO_PUBLISH_TIMEOUT_FIX.md`.
 // ═════════════════════════════════════════════════════════════════════════
 
 /**
  * Step 1: unit metadata for all requested languages. Small, single call.
  */
-export const internalPublishUnitMetadata = mutation({
+export const internalCreatePreviewUnitMetadata = mutation({
   args: {
     unitPackage: v.any(),
     moduleId: v.optional(v.id("moduleMetadata")),
@@ -2642,7 +2864,7 @@ export const internalPublishUnitMetadata = mutation({
  * Uses the release+active index so archiving reads bounded rows — never
  * scans the full history for that language.
  */
-export const internalPublishUnitContent = mutation({
+export const internalCreatePreviewUnitContent = mutation({
   args: {
     unitPackage: v.any(),
     unitVersion: v.number(),
@@ -2771,7 +2993,7 @@ export const internalArchivePreviewVocabulary = mutation({
  * puffer zum Convex-Limit). `preservedDe` and `dedupHits` are provided by
  * the action (both come from queries run outside the mutation loop).
  */
-export const internalPublishUnitVocabulary = mutation({
+export const internalCreatePreviewUnitVocabulary = mutation({
   args: {
     unitNumber: v.number(),
     unitVersion: v.number(),
@@ -2811,6 +3033,30 @@ export const internalPublishUnitVocabulary = mutation({
     let skippedCount = 0;
     const skippedDuplicates: string[] = [];
 
+    // Within-unit dedup: collect serbianNormalized keys of OTHER active
+    // *preview* rows in this unit so we never insert a duplicate for the same
+    // word inside the same preview generation pass.
+    //
+    // IMPORTANT: Published rows must NOT count as duplicates here. The whole
+    // purpose of this preview insert is to build a new preview set that will
+    // eventually replace the published rows during the publish step. Treating
+    // published rows as duplicates would silently drop every re-authored word
+    // whose Serbian form already exists in the currently-live published
+    // version of the same unit (regression fix for the "5 out of 40 vocab"
+    // bug where re-generating a preview for an already-published unit ended
+    // up with only the newly auto-added words).
+    const existingActive = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+    const activeKeysInUnit = new Set<string>();
+    for (const row of existingActive) {
+      if (row.isActive === false) continue;
+      if ((row as any).releaseStatus !== "preview") continue;
+      const k = toVocabularyKey(row.serbian);
+      if (k) activeKeysInUnit.add(k);
+    }
+
     for (const entry of args.batch as any[]) {
       const serbKey = toVocabularyKey(entry?.serbian);
       if (!serbKey) {
@@ -2825,6 +3071,15 @@ export const internalPublishUnitVocabulary = mutation({
         continue;
       }
 
+      // Skip if this word already exists as another active *preview* entry in
+      // the same unit (see comment above `activeKeysInUnit` — published rows
+      // are intentionally NOT considered duplicates here).
+      if (activeKeysInUnit.has(serbKey)) {
+        skippedDuplicates.push(`"${entry.serbian}" (already active preview in this unit)`);
+        skippedCount += 1;
+        continue;
+      }
+
       const prevDe = preservedMap.get(serbKey);
       await ctx.db.insert("courseVocabulary", {
         unitNumber: args.unitNumber,
@@ -2834,6 +3089,7 @@ export const internalPublishUnitVocabulary = mutation({
         translations: [{ language: "en", translation: entry.en }],
         gender: entry.gender || undefined,
         noteEn: entry.noteEn || undefined,
+        autoAdded: entry.autoAdded === true ? true : undefined,
         ...(prevDe?.de ? { de: prevDe.de } : {}),
         ...(prevDe?.noteDe ? { noteDe: prevDe.noteDe } : {}),
         isActive: true,
@@ -2841,10 +3097,41 @@ export const internalPublishUnitVocabulary = mutation({
         unitVersion: args.unitVersion,
         releaseStatus: "preview",
       });
+      activeKeysInUnit.add(serbKey);
       insertedCount += 1;
     }
 
-    return { insertedCount, skippedCount, skippedDuplicates };
+    return {
+      insertedCount,
+      skippedCount,
+      skippedDuplicates,
+    };
+  },
+});
+
+/**
+ * Step 3c: run within-unit deduplication ONCE per publish, after all vocab
+ * batches have been inserted. Kept separate from the batch-insert mutation so
+ * the batch stays small and OCC-friendly; running the full-unit dedup inside
+ * every batch was O(batches * unit_rows) and could hit `deduplicated`-shape
+ * race conditions during `npx convex dev` reloads. Callable only from within
+ * the publisher action (superadmin-guarded).
+ */
+export const internalDeduplicateUnitVocabulary = mutation({
+  args: {
+    unitNumber: v.number(),
+  },
+  returns: v.object({
+    deduplicatedCount: v.number(),
+    progressRemapped: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const result = await deduplicateUnitVocabulary(ctx, args.unitNumber);
+    return {
+      deduplicatedCount: result.deduplicatedCount,
+      progressRemapped: result.progressRemapped,
+    };
   },
 });
 
@@ -2889,7 +3176,7 @@ export const internalArchivePreviewTests = mutation({
  * merged by the action) so the mutation can insert without further
  * restructuring.
  */
-export const internalPublishUnitTests = mutation({
+export const internalCreatePreviewUnitTests = mutation({
   args: {
     unitNumber: v.number(),
     language: v.string(),
@@ -2940,6 +3227,7 @@ export const internalPublishUnitTests = mutation({
 /**
  * Strip leftover HELP parentheticals (full-sentence translation of the Serbian stem)
  * from DE exercise prompts for one unit. Keeps fill-in source cues like "(Milch)".
+ * Skips fillInBlank rows — those keep full-sentence context glosses on the DE track.
  * Safe, deterministic content fix — no AI. Applies to preview + published active rows.
  * Callable from CLI: npx convex run contentStudio/_mutations:stripDeExerciseGlossesForUnit ...
  */
@@ -2988,6 +3276,8 @@ export const stripDeExerciseGlossesForUnit = internalMutation({
         category === "multipleChoice" ||
         category === "dialogueCompletion";
       if (!treatAsStem) continue;
+      // fillInBlank keeps full-sentence context glosses on the DE track.
+      if (qType === "fillInBlank" || category === "fillInBlank") continue;
 
       const before = String(row.question ?? "");
       const after = stripTrailingParentheticalGlosses(before);

@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronRight } from "lucide-react";
+import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { UnitContentAudioMarkdown } from "@/components/UnitContentAudioMarkdown";
@@ -210,10 +210,61 @@ export default function UnitView() {
   }, []);
   const displayLanguage = forcedLanguage || user?.learningLanguage || (i18n.language === "de" ? "de" : "en");
 
+  // ContentStudio Preview toggle:
+  //   /unit/3?view=published  -> superadmin sees the LIVE (published) content
+  //   default (no param)      -> superadmin sees preview when an active preview exists
+  //
+  // Non-superadmins ignore this flag — they always get the published release
+  // (the backend enforces that; the flag is purely a UI-level override for
+  // authoring in Content Studio).
+  //
+  // Kept as `useState` so the "Show live" / "Back to preview" toggle can
+  // update the URL and re-render without a full page reload.
+  const [preferPublished, setPreferPublished] = React.useState<boolean>(() => {
+    try {
+      if (typeof window === "undefined") return false;
+      const p = new URLSearchParams(window.location.search);
+      return String(p.get("view") || "").trim().toLowerCase() === "published";
+    } catch {
+      return false;
+    }
+  });
+
+  const setPreviewView = React.useCallback((mode: "preview" | "published") => {
+    try {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      if (mode === "published") {
+        url.searchParams.set("view", "published");
+      } else {
+        url.searchParams.delete("view");
+      }
+      window.history.replaceState(null, "", url.toString());
+    } catch {
+      // no-op — URL update is a nicety, not required for the query switch.
+    }
+    setPreferPublished(mode === "published");
+  }, []);
+
   // Load Unit Metadata & Content from DB
-  const unitMetadata = useQuery(api.units.getUnitMetadata, { unitNumber, language: displayLanguage });
-  const content = useQuery(api.units.getUnitContentSections, { unitNumber, language: displayLanguage });
-  const vocabularyWithProgress = useQuery(api.vocabulary.getVocabularyWithProgress, { unitNumber });
+  const unitMetadata = useQuery(api.units.getUnitMetadata, {
+    unitNumber,
+    language: displayLanguage,
+    preferPublished,
+  });
+  const content = useQuery(api.units.getUnitContentSections, {
+    unitNumber,
+    language: displayLanguage,
+    preferPublished,
+  });
+  const vocabularyWithProgress = useQuery(api.vocabulary.getVocabularyWithProgress, {
+    unitNumber,
+    preferPublished,
+  });
+  const previewOverlay = useQuery(
+    api.units.getUnitPreviewOverlayInfo,
+    user?.role === "superadmin" ? { unitNumber } : "skip",
+  );
 
   const { play, playingAudioId, loadingAudioId } = useVocabularyAudioPlayback();
 
@@ -523,6 +574,73 @@ export default function UnitView() {
         </div>
       </header>
 
+      {/* Content-Studio Preview banner (superadmin only, shown whenever a
+          preview release exists for this unit — regardless of which view is
+          currently active, so the superadmin always sees both counts). */}
+      {previewOverlay?.isSuperadmin && previewOverlay.hasActivePreview && (
+        <AnimatedItem>
+          <div
+            className={`mb-6 rounded-xl border px-4 py-3 shadow-sm ${
+              preferPublished
+                ? "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100"
+                : "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                {preferPublished ? (
+                  <EyeOff className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                ) : (
+                  <Eye className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                )}
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">
+                    {preferPublished
+                      ? "Live view (published release)"
+                      : "Preview mode (draft release)"}
+                  </div>
+                  <div className="mt-0.5 text-xs opacity-90">
+                    Only superadmins see this banner. Regular learners always
+                    get the published release.
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <span>
+                      <span className="font-medium">Preview:</span>{" "}
+                      v{previewOverlay.previewUnitVersion ?? "?"} — vocab {previewOverlay.vocabPreviewCount}, content {previewOverlay.contentPreviewCount}, tests {previewOverlay.testsPreviewCount}
+                    </span>
+                    <span>
+                      <span className="font-medium">Published:</span>{" "}
+                      v{previewOverlay.publishedUnitVersion ?? "?"} — vocab {previewOverlay.vocabPublishedCount}, content {previewOverlay.contentPublishedCount}, tests {previewOverlay.testsPublishedCount}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {preferPublished ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPreviewView("preview")}
+                  >
+                    Back to preview
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPreviewView("published")}
+                  >
+                    Show live
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </AnimatedItem>
+      )}
+
       {/* Header Card */}
       <AnimatedItem>
         <Card className="mb-6">
@@ -755,7 +873,11 @@ export default function UnitView() {
                   <CardDescription>{t("unit.section.exercises.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <InteractiveTest unitNumber={unitNumber} language={displayLanguage} />
+                  <InteractiveTest
+                    unitNumber={unitNumber}
+                    language={displayLanguage}
+                    preferPublished={preferPublished}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>

@@ -58,6 +58,8 @@ import type * as leaderboard from "../leaderboard.js";
 import type * as lib_attachmentMime from "../lib/attachmentMime.js";
 import type * as lib_storageHelpers from "../lib/storageHelpers.js";
 import type * as migrations_backfillOrphanVocabProgress from "../migrations/backfillOrphanVocabProgress.js";
+import type * as migrations_clearAutoAddedNoteMarker from "../migrations/clearAutoAddedNoteMarker.js";
+import type * as migrations_deduplicateVocabulary from "../migrations/deduplicateVocabulary.js";
 import type * as modules from "../modules.js";
 import type * as newsletter from "../newsletter.js";
 import type * as onboarding from "../onboarding.js";
@@ -145,6 +147,8 @@ declare const fullApi: ApiFromModules<{
   "lib/attachmentMime": typeof lib_attachmentMime;
   "lib/storageHelpers": typeof lib_storageHelpers;
   "migrations/backfillOrphanVocabProgress": typeof migrations_backfillOrphanVocabProgress;
+  "migrations/clearAutoAddedNoteMarker": typeof migrations_clearAutoAddedNoteMarker;
+  "migrations/deduplicateVocabulary": typeof migrations_deduplicateVocabulary;
   modules: typeof modules;
   newsletter: typeof newsletter;
   onboarding: typeof onboarding;
