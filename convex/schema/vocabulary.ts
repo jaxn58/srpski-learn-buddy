@@ -72,6 +72,14 @@ export const vocabularyTables = {
 
     // Release gating (optional; undefined => published)
     releaseStatus: v.optional(v.union(v.literal("published"), v.literal("preview"), v.literal("offline"))),
+
+    // Internal bookkeeping only — NEVER shown to learners. True when this row was
+    // inserted automatically by the exercise-scan (a word used in an exercise but
+    // missing from the unit's vocabulary list), as opposed to being authored as
+    // part of the unit's curated vocabulary. Used by the superadmin cleanup panel
+    // to flag likely-wrong auto-insertions (e.g. personal names) for review.
+    // Must never be encoded into noteEn/noteDe — those are learner-facing.
+    autoAdded: v.optional(v.boolean()),
   })
     .index("by_unit", ["unitNumber"])
     .index("by_serbian", ["serbian"])
@@ -98,6 +106,24 @@ export const vocabularyTables = {
     confirmedBy: v.id("users"),
     confirmedAt: v.number(),
     source: v.string(), // e.g. "cleanup_panel"
+    note: v.optional(v.string()),
+  }).index("by_serbian_normalized", ["serbianNormalized"]),
+
+  // ============= NAME BLACKLIST =============
+  // Admin-maintained list of Serbian tokens that are confirmed to be
+  // PERSONAL NAMES (not regular vocabulary). Populated automatically when
+  // the admin removes entries via the Vocabulary Cleanup panel. The validator
+  // checks this list BEFORE auto-adding vocabulary — any match is silently
+  // skipped, preventing the same name from being re-inserted on future runs.
+  //
+  // Reversible: removing an entry from this list allows the system to
+  // consider the token as potential vocabulary again.
+  vocabularyNameBlacklist: defineTable({
+    serbianNormalized: v.string(),
+    serbianOriginal: v.string(),
+    confirmedBy: v.id("users"),
+    confirmedAt: v.number(),
+    source: v.string(),
     note: v.optional(v.string()),
   }).index("by_serbian_normalized", ["serbianNormalized"]),
 

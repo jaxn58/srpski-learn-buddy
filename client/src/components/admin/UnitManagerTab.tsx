@@ -50,9 +50,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  PublishStatusBanner,
-  type PublishStateShape,
-} from "@/components/admin/contentStudio/PublishStatusBanner";
+  PreviewStatusBanner,
+  type PreviewCreationStateShape,
+} from "@/components/admin/contentStudio/PreviewStatusBanner";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -219,9 +219,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   const [unitOfflineConfirm, setUnitOfflineConfirm] = useState("");
   const [unitDeleteConfirm, setUnitDeleteConfirm] = useState("");
 
-  // Latest push-to-preview status for the expanded unit (from contentDrafts.publishState)
-  const unitPublishInfo = useQuery(
-    api.contentStudio.getLatestPublishStateForUnit,
+  // Latest preview-creation status for the expanded unit (from contentDrafts.publishState)
+  const unitPreviewInfo = useQuery(
+    api.contentStudio.getLatestPreviewCreationStateForUnit,
     selectedUnit != null ? { unitNumber: selectedUnit } : "skip",
   );
 
@@ -376,9 +376,14 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     }
     setRunning(true);
     try {
-      await promotePreview({ unitNumber, language, confirm: confirmStr, mode });
+      const result = await promotePreview({ unitNumber, language, confirm: confirmStr, mode });
       const modeLabel = mode === "replace" ? "replaced (full)" : "promoted (update)";
-      toast.success(`${langFlag(language)} version of Unit ${unitNumber} ${modeLabel} to published.`);
+      let msg = `${langFlag(language)} version of Unit ${unitNumber} ${modeLabel} to published.`;
+      if ((result as any)?.deduplicated?.deduplicatedCount > 0) {
+        const d = (result as any).deduplicated;
+        msg += ` | Dedup: ${d.deduplicatedCount} duplicate(s) removed, ${d.progressRemapped} progress row(s) remapped.`;
+      }
+      toast.success(msg);
       setPromoteConfirm("");
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to promote preview.");
@@ -866,11 +871,11 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                           onOpenDiff={() => setDiffOpen(true)}
                           onOpenTranslate={(source) => { setTranslateSource(source); setTranslateConfirm(""); setTranslateOpen(true); }}
                           recentTranslationInfo={recentTranslationInfo(selectedOverview.unitNumber)}
-                          publishInfo={
-                            unitPublishInfo
+                          previewInfo={
+                            unitPreviewInfo
                               ? {
-                                  draftId: String(unitPublishInfo.draftId),
-                                  publishState: unitPublishInfo.publishState as PublishStateShape,
+                                  draftId: String(unitPreviewInfo.draftId),
+                                  previewState: unitPreviewInfo.previewState as PreviewCreationStateShape,
                                 }
                               : null
                           }
@@ -1346,7 +1351,7 @@ interface InlineDetailCardProps {
   onOpenDiff: () => void;
   onOpenTranslate: (source: "published" | "preview") => void;
   recentTranslationInfo: string | null;
-  publishInfo: { draftId: string; publishState: PublishStateShape } | null;
+  previewInfo: { draftId: string; previewState: PreviewCreationStateShape } | null;
 }
 
 function InlineDetailCard({
@@ -1375,7 +1380,7 @@ function InlineDetailCard({
   onOpenDiff,
   onOpenTranslate,
   recentTranslationInfo,
-  publishInfo,
+  previewInfo,
 }: InlineDetailCardProps) {
 
   return (
@@ -1423,11 +1428,11 @@ function InlineDetailCard({
         </div>
       </CardHeader>
 
-      {publishInfo && (
+      {previewInfo && (
         <div className="mx-6 mb-3">
-          <PublishStatusBanner
-            draftId={publishInfo.draftId}
-            publishState={publishInfo.publishState}
+          <PreviewStatusBanner
+            draftId={previewInfo.draftId}
+            previewState={previewInfo.previewState}
             className="rounded-md border border-b"
           />
         </div>
