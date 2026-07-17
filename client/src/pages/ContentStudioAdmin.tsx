@@ -215,6 +215,15 @@ export default function ContentStudioAdmin() {
   const [runningValidator, setRunningValidator] = useState(false);
   const [runningLector, setRunningLector] = useState(false);
   const [runningPublish, setRunningPublish] = useState(false);
+  // Prompt shown when "Publish saved snapshot" is clicked but the editor
+  // contains different (typically newer) content than the saved snapshot.
+  // Prevents silently publishing stale snapshots — the main cause of the
+  // "Preview does not match the current Markdown" bug.
+  const [publishMismatchPrompt, setPublishMismatchPrompt] = useState<{
+    editorLen: number;
+    snapshotLen: number;
+    dirty: boolean;
+  } | null>(null);
   const [runningRevise, setRunningRevise] = useState(false);
   const [runningCreateValidate, setRunningCreateValidate] = useState(false);
   const [runningSectionRevise, setRunningSectionRevise] = useState(false);
@@ -2133,7 +2142,37 @@ export default function ContentStudioAdmin() {
     }
   };
 
+  // Guard entry point: bound to the "Publish saved snapshot" button in the
+  // Inspector. If the editor content differs from the saved snapshot (either
+  // dirty, or a different snapshot version was loaded), we open the
+  // publishMismatchPrompt so the admin decides which version to publish
+  // instead of silently publishing the stale saved snapshot.
   const handlePushToPreview = async () => {
+    if (!selectedDraftId) return;
+
+    const editor = String(markdownText || "");
+    const saved = snapshotMarkdown;
+    const editorTrimmed = editor.trim();
+    const savedTrimmed = saved.trim();
+
+    // Only guard when there IS an editor text to compare against; empty editor
+    // (e.g. draft never generated) falls through to the normal publish path
+    // which will surface the "Draft has no snapshot" server error.
+    if (editorTrimmed && editorTrimmed !== savedTrimmed) {
+      setPublishMismatchPrompt({
+        editorLen: editor.length,
+        snapshotLen: saved.length,
+        dirty: markdownDirty,
+      });
+      return;
+    }
+
+    await runPublishSavedSnapshot();
+  };
+
+  // Actual publish action (used by both direct publish path and the
+  // "Publish saved snapshot anyway" branch of the mismatch prompt).
+  const runPublishSavedSnapshot = async () => {
     if (!selectedDraftId) return;
     setRunningPublish(true);
 
@@ -2700,6 +2739,70 @@ export default function ContentStudioAdmin() {
         </div>
         );
       })()}
+
+      {/* Push-to-Preview safety prompt: editor content differs from saved snapshot */}
+      <AlertDialog
+        open={publishMismatchPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open && !runningPublish) setPublishMismatchPrompt(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Editor content differs from saved snapshot</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  The Markdown editor contains different content than the last saved snapshot.
+                  If you publish the saved snapshot now, the current editor changes will
+                  <strong> not </strong>appear in the preview.
+                </p>
+                <ul className="list-disc pl-5 text-xs">
+                  <li>
+                    Editor:{" "}
+                    <span className="font-mono">
+                      {publishMismatchPrompt?.editorLen ?? 0} chars
+                    </span>{" "}
+                    {publishMismatchPrompt?.dirty ? "(unsaved changes)" : "(loaded from an older snapshot)"}
+                  </li>
+                  <li>
+                    Saved snapshot:{" "}
+                    <span className="font-mono">
+                      {publishMismatchPrompt?.snapshotLen ?? 0} chars
+                    </span>
+                  </li>
+                </ul>
+                <p className="text-xs">
+                  Choose which version should be published to preview.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row sm:justify-end gap-2">
+            <AlertDialogCancel disabled={runningPublish}>Cancel</AlertDialogCancel>
+            <Button
+              variant="outline"
+              disabled={runningPublish}
+              onClick={() => {
+                setPublishMismatchPrompt(null);
+                void runPublishSavedSnapshot();
+              }}
+            >
+              Publish saved snapshot anyway
+            </Button>
+            <AlertDialogAction
+              disabled={runningPublish}
+              onClick={(e) => {
+                e.preventDefault();
+                setPublishMismatchPrompt(null);
+                void handleSaveAndPublishToPreview();
+              }}
+            >
+              Save editor content & publish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={cognateAcceptPrompt !== null}
