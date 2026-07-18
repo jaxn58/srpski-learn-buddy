@@ -18,8 +18,10 @@ import {
 import { syncVocabularyCoverageFromExercises } from "./_validatorHelpers";
 import {
   getSpecialistUserPromptBase,
+  buildCuratedSectionsBlock,
   CS_PROMPT_KEYS,
 } from "./prompts";
+import type { SectionId } from "../../scripts/markdownParser/sectionUtils";
 import type { Id } from "../_generated/dataModel";
 import {
   buildValidatorMemoryBlockFromEntries,
@@ -313,11 +315,32 @@ export const runAiSpecialistGenerate = action({
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
     maxTokens: v.optional(v.number()),
     maxAttempts: v.optional(v.number()),
+    // Guardrail: a full Creator run regenerates the whole unit from the brief and
+    // discards the curated snapshot (manual Markdown edits, section revisions).
+    // Callers must pass confirmOverwrite=true to proceed once a snapshot exists.
+    confirmOverwrite: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
+  // Explicit return type breaks TS inference circularity (Convex schema depth).
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ ok: boolean; needsConfirm?: boolean; reason?: string }> => {
     await requireSuperadminAction(ctx);
     const current = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
     const d = current.draft;
+
+    // Guardrail against accidental loss of curation: if the draft already has a
+    // snapshot, a full rebuild would overwrite it. Require explicit confirmation
+    // (the UI shows a warning dialog and re-calls with confirmOverwrite=true).
+    if ((d as any).lastSnapshotId && args.confirmOverwrite !== true) {
+      const isApprovedOrPublished =
+        !!(d as any).approvedSnapshotId || d.status === "published";
+      return {
+        ok: false as const,
+        needsConfirm: true as const,
+        reason: isApprovedOrPublished ? "approved_or_published" : "existing_snapshot",
+      };
+    }
 
     // Load previous vocabulary to prevent duplicates
     const allCourseVocab = await ctx.runQuery(api.vocabulary.getAllCourseVocabulary, {});
@@ -375,6 +398,13 @@ export const runAiSpecialistGenerate = action({
       ].join("\n");
     })();
 
+    // Ping-Pong: Brief <-> Markdown — human-adopted sections from the active
+    // Brief Version build upon themselves instead of being discarded by a
+    // full regeneration (see convex/contentStudio/_briefVersions.ts).
+    const curatedSectionsBlock = buildCuratedSectionsBlock(
+      (d as any).curatedSections as Array<{ section: SectionId; markdown: string }> | undefined
+    );
+
     // ═══════════════════════════════════════════════════════════════════════════
     // SPECIALIST SYSTEM PROMPT - loaded from DB (chatPrompts table)
     // ═══════════════════════════════════════════════════════════════════════════
@@ -410,7 +440,8 @@ export const runAiSpecialistGenerate = action({
       unitTitleOneLine,
       unitDescriptionOneLine,
       creatorBriefBlock,
-      previousVocabKeys
+      previousVocabKeys,
+      curatedSectionsBlock
     );
 
     const startedAt = Date.now();

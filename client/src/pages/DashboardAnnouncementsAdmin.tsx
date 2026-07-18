@@ -268,7 +268,7 @@ export default function DashboardAnnouncementsAdmin() {
   };
 
   const nextCopyKey = (sourceKey: string): string => {
-    const existing = new Set((rows ?? []).map((r) => r.key));
+    const existing = new Set((rows ?? []).map((r: { key: string }) => r.key));
     const base = `${sourceKey}_copy`;
     if (!existing.has(base)) return base;
     let n = 2;

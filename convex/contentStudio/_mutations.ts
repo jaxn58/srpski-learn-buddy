@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, internalMutation } from "../_generated/server";
+import { mutation, internalMutation, query } from "../_generated/server";
 import { requireSuperadmin } from "./_shared";
 import type { DraftStatus } from "./_shared";
 import {
@@ -17,6 +17,7 @@ import type { Id } from "../_generated/dataModel";
 import {
   remapVocabularyProgressForPromotedEntry,
   vocabularySerbianKey,
+  purgeProgressForRemovedVocab,
 } from "./_vocabularyProgressRemap";
 
 import type { MutationCtx } from "../_generated/server";
@@ -1051,6 +1052,11 @@ export const saveUnitPackageSnapshot = mutation({
     unitPackageJson: v.string(),
     markdownSource: v.optional(v.string()),
     validationReportJson: v.string(),
+    // Explicit override for which Brief Version this snapshot was generated
+    // from. If omitted, defaults to the draft's current activeBriefVersionId
+    // (the status-quo pointer) so every call site gets input->output
+    // traceability "for free" without having to look it up itself.
+    briefVersionId: v.optional(v.id("contentDraftBriefVersions")),
     status: v.optional(
       v.union(
         v.literal("draft"),
@@ -1078,11 +1084,17 @@ export const saveUnitPackageSnapshot = mutation({
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
     const now = Date.now();
+    const draftForBriefLink = await ctx.db.get(args.draftId);
+    const briefVersionId =
+      args.briefVersionId ??
+      (draftForBriefLink as unknown as { activeBriefVersionId?: Id<"contentDraftBriefVersions"> })
+        ?.activeBriefVersionId;
     const snapId = await ctx.db.insert("contentDraftSnapshots", {
       draftId: args.draftId,
       unitPackageJson: args.unitPackageJson,
       markdownSource: args.markdownSource,
       validationReportJson: args.validationReportJson,
+      briefVersionId,
       createdAt: now,
     });
 
@@ -2245,12 +2257,17 @@ export const promoteLanguagePreviewToPublished = mutation({
     language: v.string(),
     confirm: v.string(), // "PUBLISH <LANG> UNIT <N>" or "REPLACE <LANG> UNIT <N>"
     mode: v.optional(v.union(v.literal("update"), v.literal("replace"))),
+    // When true (default) an EN update-publish also removes words that are no
+    // longer part of the promoted preview set (reconcile). Set false to keep the
+    // legacy "only add / never remove" behaviour.
+    reconcileRemovals: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
     const unitNumber = Number(args.unitNumber);
     const language = String(args.language).toLowerCase();
     const mode = args.mode ?? "update";
+    const reconcileRemovals = args.reconcileRemovals !== false;
     const expected = mode === "replace"
       ? `REPLACE ${language.toUpperCase()} UNIT ${unitNumber}`
       : `PUBLISH ${language.toUpperCase()} UNIT ${unitNumber}`;
@@ -2263,6 +2280,7 @@ export const promoteLanguagePreviewToPublished = mutation({
     let contentPromoted = 0;
     let testsPromoted = 0;
     let vocabMerged = 0;
+    let vocabRemoved = 0;
 
     // 1) unitMetadata: promote preview -> published for this language.
     const metaRows = await ctx.db
@@ -2378,6 +2396,32 @@ export const promoteLanguagePreviewToPublished = mutation({
                 archivedAt: now,
                 releaseStatus: "published",
               });
+            }
+          }
+
+          // Reconcile removals: any still-active published row whose Serbian key
+          // is NOT part of the promoted preview set is a word that was dropped
+          // from the unit's source. Archive it and purge its per-vocabulary
+          // progress. Same-key superseded rows were already archived above and
+          // are skipped here. Total XP stays untouched (see
+          // purgeProgressForRemovedVocab).
+          if (reconcileRemovals) {
+            const promotedKeys = new Set(
+              previewVocab
+                .map((p) => vocabularySerbianKey(p))
+                .filter((k) => k.length > 0),
+            );
+            for (const pub of publishedVocab) {
+              const key = vocabularySerbianKey(pub);
+              if (!key) continue;
+              if (promotedKeys.has(key)) continue;
+              await purgeProgressForRemovedVocab(ctx, unitNumber, pub._id);
+              await ctx.db.patch(pub._id, {
+                isActive: false,
+                archivedAt: now,
+                releaseStatus: "offline",
+              });
+              vocabRemoved += 1;
             }
           }
         }
@@ -2503,8 +2547,97 @@ export const promoteLanguagePreviewToPublished = mutation({
       language,
       mode,
       promoted: { metaPromoted, contentPromoted, testsPromoted, vocabMerged },
+      removed: vocabRemoved > 0 ? { vocabulary: vocabRemoved } : undefined,
       deduplicated: dedupResult.deduplicatedCount > 0 ? dedupResult : undefined,
       ...(progressReset ? { progressReset } : {}),
+    };
+  },
+});
+
+// ===== Unit Manager: Dry-run preview of update-publish removals =====
+// Read-only. Reports which currently-published EN vocabulary rows would be
+// removed by an update-publish (reconcile), i.e. words present in the live unit
+// but no longer part of the pending preview. Lets the publish dialog show a
+// "will be removed" diff before the admin confirms. DE never drives removals.
+export const previewPublishRemovals = query({
+  args: {
+    unitNumber: v.number(),
+    language: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const unitNumber = Number(args.unitNumber);
+    const language = String(args.language).toLowerCase();
+
+    if (language !== "en") {
+      return {
+        unitNumber,
+        language,
+        hasPreview: false,
+        removals: [] as Array<{
+          _id: Id<"courseVocabulary">;
+          serbian: string;
+          en?: string;
+          progressRows: number;
+        }>,
+        affectedProgressRows: 0,
+      };
+    }
+
+    const vocabRows = await ctx.db
+      .query("courseVocabulary")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+      .collect();
+
+    const previewVocab = (vocabRows as any[]).filter(
+      (v) => v.releaseStatus === "preview" && v.isActive !== false,
+    );
+    const publishedVocab = (vocabRows as any[]).filter(
+      (v) =>
+        (v.releaseStatus === undefined || v.releaseStatus === "published") &&
+        v.isActive !== false,
+    );
+
+    const promotedKeys = new Set(
+      previewVocab
+        .map((p) => vocabularySerbianKey(p))
+        .filter((k) => k.length > 0),
+    );
+
+    const removals: Array<{
+      _id: Id<"courseVocabulary">;
+      serbian: string;
+      en?: string;
+      progressRows: number;
+    }> = [];
+    let affectedProgressRows = 0;
+    for (const pub of publishedVocab) {
+      const key = vocabularySerbianKey(pub);
+      if (!key) continue;
+      if (promotedKeys.has(key)) continue;
+      const progressRows = await ctx.db
+        .query("vocabularyProgress")
+        .withIndex("by_course_vocab", (q) => q.eq("courseVocabularyId", pub._id))
+        .collect();
+      affectedProgressRows += progressRows.length;
+      removals.push({
+        _id: pub._id,
+        serbian: String(pub.serbian ?? ""),
+        en: typeof pub.en === "string" ? pub.en : undefined,
+        progressRows: progressRows.length,
+      });
+    }
+
+    removals.sort((a, b) =>
+      a.serbian.localeCompare(b.serbian, undefined, { sensitivity: "base" }),
+    );
+
+    return {
+      unitNumber,
+      language,
+      hasPreview: previewVocab.length > 0,
+      removals,
+      affectedProgressRows,
     };
   },
 });

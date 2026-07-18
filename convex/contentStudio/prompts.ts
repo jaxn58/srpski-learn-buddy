@@ -1,4 +1,4 @@
-import { SectionId } from "../../scripts/markdownParser/sectionUtils";
+import { SECTION_LABELS, SectionId } from "../../scripts/markdownParser/sectionUtils";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROMPT KEY REGISTRY -- Central mapping of DB keys used in chatPrompts table.
@@ -37,12 +37,42 @@ export const ALL_SECTION_IDS: SectionId[] = [
 // This template defines the Markdown structure that the parser expects.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Ping-Pong: Brief <-> Markdown — curated sections block
+// Renders human-adopted, reviewed sections (contentDrafts.curatedSections)
+// into a prompt block that tells the AI to build upon them (soft variant:
+// refine wording/consistency, but never discard the human's substance).
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function buildCuratedSectionsBlock(
+  curatedSections: Array<{ section: SectionId; markdown: string }> | undefined | null
+): string {
+  const list = Array.isArray(curatedSections) ? curatedSections : [];
+  if (list.length === 0) return "";
+
+  return [
+    `═══════════════════════════════════════════════════════════════════════════`,
+    `HUMAN-CURATED SECTIONS (authoritative basis — build upon, do not discard)`,
+    `═══════════════════════════════════════════════════════════════════════════`,
+    `A human reviewed a previous generation of this unit and explicitly adopted`,
+    `the section(s) below into the brief. Treat their content as the authoritative`,
+    `basis for that section: preserve its substance and additions. You MAY refine`,
+    `wording, fix errors, and improve consistency with the rest of the unit, but`,
+    `do NOT remove, contradict, or substantially rewrite what the human approved.`,
+    ``,
+    ...list.map((c) =>
+      [`--- ${SECTION_LABELS[c.section] || c.section} (curated by human) ---`, c.markdown.trim(), ``].join("\n")
+    ),
+  ].join("\n");
+}
+
 export const getSpecialistUserPromptBase = (
   d: any,
   unitTitleOneLine: string,
   unitDescriptionOneLine: string,
   creatorBriefBlock: string,
-  previousVocabKeys: string[] = []
+  previousVocabKeys: string[] = [],
+  curatedSectionsBlock: string = ""
 ) => [
   `Write the full unit as Markdown with this exact top structure:`,
   ``,
@@ -76,4 +106,5 @@ export const getSpecialistUserPromptBase = (
   `## 6. Cultural Note: <Title>`,
   ``,
   creatorBriefBlock ? `${creatorBriefBlock}\n` : ``,
+  curatedSectionsBlock ? `${curatedSectionsBlock}\n` : ``,
 ].join("\n");

@@ -40,6 +40,7 @@ import { DraftStatusBadge } from "@/components/admin/contentStudio/StatusBadge";
 import type { Mode, Provider, StageKey, SectionId, NextStepKey, StepId, SettingsTab, StudioView } from "@/components/admin/contentStudio/types";
 import { SECTION_OPTIONS, isKnownModel, stageOrderedModels } from "@/components/admin/contentStudio/constants";
 import { buildSideBySideDiffRows } from "@/components/admin/contentStudio/utils/diffAlgorithm";
+import { computeBriefVersionNumbers, formatBriefVersionId } from "@/components/admin/contentStudio/utils/briefVersionLabel";
 import {
   isTranslatorQualityGuardError,
   parseUntranslatedPromptGuardFailures,
@@ -109,6 +110,18 @@ export default function ContentStudioAdmin() {
   const addHumanReviewNote = useMutation(api.contentStudio.addHumanReviewNote);
   const setDraftStatus = useMutation(api.contentStudio.setDraftStatus);
   const dismissFinding = useMutation(api.contentStudio.dismissFinding);
+
+  // Ping-Pong: Brief <-> Markdown (Brief Version history + section adoption)
+  const briefVersions = useQuery(
+    api.contentStudio.listBriefVersions,
+    selectedDraftId ? { draftId: selectedDraftId } : ("skip" as any)
+  );
+  const adoptSectionIntoBrief = useMutation(api.contentStudio.adoptSectionIntoBrief);
+  const selectBriefVersionMutation = useMutation(api.contentStudio.selectBriefVersion);
+  const saveBriefVersionMutation = useMutation(api.contentStudio.saveBriefVersion);
+  const nameBriefVersionMutation = useMutation(api.contentStudio.nameBriefVersion);
+  const [briefVersionBusy, setBriefVersionBusy] = useState(false);
+  const [adoptingSection, setAdoptingSection] = useState<SectionId | null>(null);
 
   const runSpecialist = useAction(api.contentStudio._creator.runAiSpecialistGenerate);
   const runValidate = useAction(api.contentStudio.runQcValidate);
@@ -217,6 +230,11 @@ export default function ContentStudioAdmin() {
   const [creatingPreview, setCreatingPreview] = useState(false);
   const [runningRevise, setRunningRevise] = useState(false);
   const [runningCreateValidate, setRunningCreateValidate] = useState(false);
+  // Guardrail: full Creator rebuild would discard curated snapshot; hold the
+  // pending intent until the user confirms the overwrite in a dialog.
+  const [creatorOverwriteConfirm, setCreatorOverwriteConfirm] = useState<
+    null | { mode: "single" | "generate"; reason: string }
+  >(null);
   const [runningSectionRevise, setRunningSectionRevise] = useState(false);
   const [runningTranslateDe, setRunningTranslateDe] = useState(false);
 
@@ -553,6 +571,33 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return false;
     return String(markdownText || "") !== snapshotMarkdown;
   }, [selectedDraftId, markdownText, snapshotMarkdown]);
+
+  // Ping-Pong adopt gate: a section may only be adopted into the Brief once the
+  // human has actually reviewed a Preview of the *current* snapshot. We treat a
+  // preview as "current" when it finished (success) at or after the latest
+  // snapshot was written. A plain "Save Markdown" (or a fresh Creator run)
+  // writes a newer snapshot without a preview, so the gate re-closes until a new
+  // preview is created — exactly the "review before adopt" workflow.
+  const previewIsCurrent = useMemo(() => {
+    const ps = (selected as any)?.draft?.publishState;
+    const snapCreatedAt = Number((selected as any)?.snapshot?.createdAt ?? 0);
+    if (!ps || ps.status !== "success" || snapCreatedAt <= 0) return false;
+    const doneAt = Number(ps.completedAt ?? ps.updatedAt ?? 0);
+    return doneAt >= snapCreatedAt;
+  }, [selected]);
+
+  // Short summary of the currently active Brief Version (milestone label or
+  // timestamp) for the draft-list sidebar hint.
+  const activeBriefVersionSummary = useMemo(() => {
+    const draft = (selected as any)?.draft;
+    const activeId = draft?.activeBriefVersionId;
+    if (!activeId || !Array.isArray(briefVersions)) return null;
+    const active = (briefVersions as any[]).find((v) => String(v._id) === String(activeId));
+    if (!active) return null;
+    const numbers = computeBriefVersionNumbers(briefVersions as any[]);
+    // Sidebar hint: number only (no trailing milestone label) to save space.
+    return formatBriefVersionId(draft?.moduleNumber, draft?.unitNumber, numbers.get(String(activeId)));
+  }, [briefVersions, selected]);
 
   const markdownLocalStorageKey = useMemo(() => {
     return selectedDraftId ? `contentStudio:markdown:${String(selectedDraftId)}` : "";
@@ -1672,14 +1717,18 @@ export default function ContentStudioAdmin() {
     }
   };
 
-  const handleRunSpecialist = async () => {
+  const runSpecialistFlow = async (force: boolean) => {
     if (!selectedDraftId) return;
     setRunningCreator(true);
     setProgressPercent(25);
     setProgressMessage("Creator: generating markdown…");
     try {
       toast.info(t("admin.contentStudio.toast.creatorRunning"));
-      await runSpecialist({ draftId: selectedDraftId });
+      const res: any = await runSpecialist({ draftId: selectedDraftId, confirmOverwrite: force } as any);
+      if (res?.needsConfirm) {
+        setCreatorOverwriteConfirm({ mode: "single", reason: String(res.reason || "existing_snapshot") });
+        return;
+      }
       toast.success(t("admin.contentStudio.toast.creatorGenerated"));
       setProgressPercent(40);
       setProgressMessage("Creator finished.");
@@ -1689,6 +1738,10 @@ export default function ContentStudioAdmin() {
     finally {
       setRunningCreator(false);
     }
+  };
+
+  const handleRunSpecialist = async () => {
+    await runSpecialistFlow(false);
   };
 
   const handleRunValidate = async () => {
@@ -1711,7 +1764,7 @@ export default function ContentStudioAdmin() {
     }
   };
 
-  const handleGenerate = async () => {
+  const runGenerateFlow = async (force: boolean) => {
     if (!selectedDraftId) return;
     setRunningCreateValidate(true);
     try {
@@ -1719,7 +1772,11 @@ export default function ContentStudioAdmin() {
       toast.info(t("admin.contentStudio.toast.creatingContent"));
       setProgressPercent(10);
       setProgressMessage("Creator: generating content…");
-      await runSpecialist({ draftId: selectedDraftId });
+      const specRes: any = await runSpecialist({ draftId: selectedDraftId, confirmOverwrite: force } as any);
+      if (specRes?.needsConfirm) {
+        setCreatorOverwriteConfirm({ mode: "generate", reason: String(specRes.reason || "existing_snapshot") });
+        return;
+      }
       
       // Step 2: Validator (includes auto-fix)
       toast.info(t("admin.contentStudio.toast.validating"));
@@ -1794,6 +1851,20 @@ export default function ContentStudioAdmin() {
     }
   };
 
+  const handleGenerate = async () => {
+    await runGenerateFlow(false);
+  };
+
+  // Confirm handler for the overwrite guardrail dialog: re-runs the requested
+  // flow with confirmOverwrite=true so the curated snapshot is intentionally rebuilt.
+  const confirmCreatorOverwrite = async () => {
+    const pending = creatorOverwriteConfirm;
+    setCreatorOverwriteConfirm(null);
+    if (!pending) return;
+    if (pending.mode === "single") await runSpecialistFlow(true);
+    else await runGenerateFlow(true);
+  };
+
   const runBatch = async (action: "generate" | "validate" | "preview") => {
     const ids = Array.from(new Set(batchSelectedDraftIds.map(String))).filter(Boolean);
     if (ids.length === 0) {
@@ -1836,7 +1907,17 @@ export default function ContentStudioAdmin() {
           }
 
           // action === "generate" (Creator -> Validator -> Lector)
-          await runSpecialist({ draftId } as any);
+          // Guardrail: never silently overwrite a curated snapshot in batch mode.
+          const specRes: any = await runSpecialist({ draftId } as any);
+          if (specRes?.needsConfirm) {
+            pushResult({
+              draftId: String(draftId),
+              action,
+              status: "failed",
+              message: "Skipped: draft has curated content (not overwritten)",
+            });
+            continue;
+          }
 
           const valRes = await runValidate({ draftId } as any);
           if (!valRes?.ok && (valRes as any)?.report?.deepIssues) {
@@ -1984,6 +2065,57 @@ export default function ContentStudioAdmin() {
     }
   };
 
+  // Ping-Pong: Brief <-> Markdown — adopt one reviewed, rendered section
+  // (from the current snapshot) into the Brief. Deliberately manual/explicit:
+  // never triggered automatically by Section-Revise or Markdown edits.
+  const handleAdoptSection = async (section: SectionId) => {
+    if (!selectedDraftId) return;
+    setAdoptingSection(section);
+    try {
+      await adoptSectionIntoBrief({ draftId: selectedDraftId, section });
+      const label = SECTION_OPTIONS.find((s) => s.value === section)?.label || section;
+      toast.success(t("admin.contentStudio.toast.sectionAdopted", { section: label }));
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.sectionAdoptFailed"));
+    } finally {
+      setAdoptingSection(null);
+    }
+  };
+
+  const handleSelectBriefVersion = async (versionId: string) => {
+    if (!selectedDraftId) return;
+    setBriefVersionBusy(true);
+    try {
+      await selectBriefVersionMutation({ draftId: selectedDraftId, versionId: versionId as any });
+      toast.success(t("admin.contentStudio.toast.briefVersionSelected"));
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionSelectFailed"));
+    } finally {
+      setBriefVersionBusy(false);
+    }
+  };
+
+  const handleSaveBriefMilestone = async (label: string) => {
+    if (!selectedDraftId) return;
+    setBriefVersionBusy(true);
+    try {
+      await saveBriefVersionMutation({ draftId: selectedDraftId, label: label || undefined });
+      toast.success(t("admin.contentStudio.toast.briefVersionSaved"));
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionSaveFailed"));
+    } finally {
+      setBriefVersionBusy(false);
+    }
+  };
+
+  const handleRenameBriefVersion = async (versionId: string, label: string) => {
+    try {
+      await nameBriefVersionMutation({ versionId: versionId as any, label });
+      toast.success(t("admin.contentStudio.toast.briefVersionRenamed"));
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionRenameFailed"));
+    }
+  };
 
   const handleDeleteUnit = async () => {
     if (!selected) return;
@@ -2346,6 +2478,7 @@ export default function ContentStudioAdmin() {
               if (selectedDraftId === draftId) { setIsDraftCreateMode(false); setSelectedDraftId(null); }
               toast.success(t("admin.contentStudio.toast.draftDeleted"));
             }}
+            activeBriefVersionSummary={activeBriefVersionSummary}
           />
         );
 
@@ -2399,6 +2532,11 @@ export default function ContentStudioAdmin() {
             hasUnsavedChanges={hasUnsavedChanges}
             metaAutosaveStatus={metaAutosaveStatus}
             metaAutosavedAt={metaAutosavedAt}
+            briefVersions={briefVersions}
+            briefVersionBusy={briefVersionBusy}
+            onSelectBriefVersion={handleSelectBriefVersion}
+            onSaveBriefMilestone={handleSaveBriefMilestone}
+            onRenameBriefVersion={handleRenameBriefVersion}
           />
         );
 
@@ -2445,6 +2583,7 @@ export default function ContentStudioAdmin() {
               if (selectedDraftId === draftId) { setIsDraftCreateMode(false); setSelectedDraftId(null); }
               toast.success(t("admin.contentStudio.toast.draftDeleted"));
             }}
+            activeBriefVersionSummary={activeBriefVersionSummary}
           />
         );
 
@@ -2663,6 +2802,10 @@ export default function ContentStudioAdmin() {
                     onLoadFromSnapshot={handleLoadFromSnapshot}
                     onSaveJson={handleSaveJson}
                     t={t}
+                    curatedSections={(selected as any)?.draft?.curatedSections}
+                    adoptingSection={adoptingSection}
+                    onAdoptSection={handleAdoptSection}
+                    previewCurrent={previewIsCurrent}
                   />
                 </div>
               </>
@@ -2718,6 +2861,64 @@ export default function ContentStudioAdmin() {
               }}
             >
               {cognateAcceptBusy ? "Speichert…" : "Passt so — speichern & erneut übersetzen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={creatorOverwriteConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreatorOverwriteConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Creator neu ausführen — kuratierte Inhalte überschreiben?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Dieser Draft hat bereits einen Snapshot (Section-Edits bzw. manuelle
+                  Markdown-Änderungen). Ein kompletter Neu-Bau durch den Creator{" "}
+                  <strong>verwirft alle Snapshot-Änderungen, die nicht ins Briefing übernommen wurden</strong>{" "}
+                  und generiert diese Teile neu aus dem Brief.
+                </p>
+                {(() => {
+                  const curatedCount = ((selected as any)?.draft?.curatedSections as
+                    | Array<{ section: string }>
+                    | undefined
+                  )?.length ?? 0;
+                  return curatedCount > 0 ? (
+                    <p>
+                      <strong>
+                        {curatedCount} {curatedCount === 1 ? "bereits ins Briefing übernommene Section" : "bereits ins Briefing übernommene Sections"}
+                      </strong>{" "}
+                      {curatedCount === 1 ? "bleibt" : "bleiben"} erhalten: Der Creator baut darauf auf
+                      (verfeinert ggf. Formulierung), verwirft sie nicht.
+                    </p>
+                  ) : null;
+                })()}
+                {creatorOverwriteConfirm?.reason === "approved_or_published" ? (
+                  <p className="text-amber-600 dark:text-amber-400 font-medium">
+                    Achtung: Dieser Draft wurde bereits freigegeben/veröffentlicht.
+                  </p>
+                ) : null}
+                <p>
+                  Für gezielte Anpassungen nutze stattdessen „Edit Content" (Section-Revise) oder
+                  „Revise" – oder übernimm die betroffene Section vorher im Rendered-Tab ins Briefing.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmCreatorOverwrite();
+              }}
+            >
+              Trotzdem neu generieren
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

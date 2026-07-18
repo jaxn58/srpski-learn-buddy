@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -66,7 +65,6 @@ export default function Chat() {
   const attachPreviewUrlRef = useRef<string | null>(null);
   const isMobile = useIsMobile();
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
-  const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
   const uiLang = (typeof navigator !== "undefined" && navigator.language?.startsWith("de")) ? "de" : "en";
   
   const formatMessageTime = (timestamp: number) => {
@@ -251,8 +249,11 @@ export default function Chat() {
     api.chat.getSessionFeedback,
     currentSessionId ? { sessionId: currentSessionId as Id<"chatSessions"> } : "skip"
   );
-  const feedbackByMessage = new Map(
-    (sessionFeedback ?? []).map((f: { messageId: Id<"chatMessages">; rating: string }) => [f.messageId, f.rating])
+  const feedbackByMessage = new Map<Id<"chatMessages">, string>(
+    (sessionFeedback ?? []).map(
+      (f: { messageId: Id<"chatMessages">; rating: string }) =>
+        [f.messageId, f.rating] as [Id<"chatMessages">, string],
+    )
   );
   const submitFeedback = useMutation(api.chat.submitMessageFeedback);
   const feedbackPrompt = useMemo(() => getChatFeedbackPrompt(t, user), [t, user]);
@@ -729,47 +730,31 @@ export default function Chat() {
                 ? (streamData?.text || "")
                 : msg.content;
 
+              const isUser = msg.role === "user";
+
               return (
                 <div
                   key={msg._id || idx}
-                  className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                  className={cn("flex", isUser ? "justify-end" : "justify-start")}
                 >
-                  <Avatar
-                    className={cn(
-                      "h-8 w-8 flex-shrink-0",
-                      msg.role === "assistant" ? "bg-serbian-blue" : "bg-card border"
-                    )}
-                  >
-                    {msg.role === "user" && myAvatar?.url ? (
-                      <AvatarImage src={myAvatar.url} alt="Your avatar" />
-                    ) : null}
-                    <AvatarFallback
-                      className={cn(
-                        "text-xs",
-                        msg.role === "assistant" ? "text-white bg-transparent" : "bg-muted text-foreground"
-                      )}
-                    >
-                      {msg.role === "assistant" ? (
-                        <Brain className="h-5 w-5 text-white" />
-                      ) : (
-                        <span className="font-semibold">
-                          {(user?.publicNickname || user?.name || user?.email || "U")
-                            .trim()
-                            .charAt(0)
-                            .toUpperCase()}
-                        </span>
-                      )}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                  <div className={cn("flex flex-col max-w-[85%] sm:max-w-[75%]", isUser ? "items-end" : "items-start")}>
                     <div
-                      className={`rounded-2xl px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm leading-[1.35] sm:leading-[1.43] ${
-                        msg.role === 'user'
-                          ? 'bg-serbian-blue text-white rounded-br-none'
-                          : 'bg-muted text-foreground rounded-bl-none'
-                      }`}
+                      className={cn(
+                        "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm leading-[1.35] sm:leading-[1.43]",
+                        isUser
+                          ? "bg-serbian-blue text-white rounded-tr-none"
+                          : "bg-muted text-foreground rounded-tl-none"
+                      )}
                     >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "absolute top-0 h-3 w-3",
+                          isUser
+                            ? "-right-1.5 bg-serbian-blue [clip-path:polygon(0_100%,0_0,100%_0)]"
+                            : "-left-1.5 bg-muted [clip-path:polygon(100%_100%,100%_0,0_0)]"
+                        )}
+                      />
                       {msg.role === 'assistant' ? (
                         displayContent ? (
                           <div className={isStreamingMsg ? "streaming-cursor" : undefined}>

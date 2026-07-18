@@ -1354,6 +1354,63 @@ interface InlineDetailCardProps {
   previewInfo: { draftId: string; previewState: PreviewCreationStateShape } | null;
 }
 
+// Dry-run preview of what an update-publish would remove (reconcile). Rendered
+// as its own component so the read-only query hook stays legal inside the
+// per-language publish panel. Only meaningful for update mode / EN.
+function PublishRemovalsPreview({
+  unitNumber,
+  language,
+}: {
+  unitNumber: number;
+  language: string;
+}) {
+  const data = useQuery(api.contentStudio.previewPublishRemovals, {
+    unitNumber,
+    language,
+  });
+
+  if (!data || !data.hasPreview) return null;
+
+  if (data.removals.length === 0) {
+    return (
+      <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded p-2">
+        <span>No vocabulary will be removed by this update.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 rounded p-2">
+      <div className="flex items-center gap-1.5 font-medium">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          {data.removals.length} vocabulary{" "}
+          {data.removals.length === 1 ? "entry" : "entries"} will be removed
+        </span>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        These words are no longer in the preview. They get archived and their
+        per-word progress is cleared. Total XP stays untouched.
+      </p>
+      <ul className="max-h-32 overflow-auto space-y-0.5 font-mono text-[11px]">
+        {data.removals.map((r: { _id: string; serbian: string; en?: string; progressRows: number }) => (
+          <li key={r._id} className="flex justify-between gap-2">
+            <span className="truncate">
+              {r.serbian}
+              {r.en ? ` \u2014 ${r.en}` : ""}
+            </span>
+            {r.progressRows > 0 && (
+              <span className="shrink-0 text-muted-foreground">
+                {r.progressRows} progress
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function InlineDetailCard({
   selectedOverview,
   detailLang,
@@ -1721,6 +1778,13 @@ function InlineDetailCard({
                                     Update promotes the preview to published and <strong>preserves vocabulary mastery</strong> by remapping progress to the new content. Exercise progress (by question ID) is also preserved.
                                   </span>
                                 </div>
+                              )}
+
+                              {publishMode === "update" && (
+                                <PublishRemovalsPreview
+                                  unitNumber={selectedOverview.unitNumber}
+                                  language={lang}
+                                />
                               )}
 
                               {publishMode === "replace" && (

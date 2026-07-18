@@ -12,9 +12,18 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Eye } from "lucide-react";
+import { CheckCircle2, Eye, Loader2, PlusCircle } from "lucide-react";
 import { toast } from "sonner";
+import type { SectionId } from "./types";
+import { SECTION_OPTIONS } from "./constants";
+import { splitMarkdownIntoSections } from "./utils/sectionSplit";
+
+export interface CuratedSectionInfo {
+  section: SectionId;
+  adoptedAt: number;
+}
 
 export interface ArtifactsPanelProps {
   selected: any;
@@ -49,6 +58,18 @@ export interface ArtifactsPanelProps {
   onLoadFromSnapshot: () => void;
   onSaveJson: () => void;
   t: (key: string, params?: any) => string;
+  /** Sections already adopted into the Brief (contentDrafts.curatedSections). */
+  curatedSections?: CuratedSectionInfo[];
+  /** Section currently being adopted (spinner state), if any. */
+  adoptingSection?: SectionId | null;
+  /** Adopt one rendered section's Markdown into the Brief (Ping-Pong loop). */
+  onAdoptSection?: (section: SectionId) => void;
+  /**
+   * True when a Preview has been created for the *current* snapshot. Adoption
+   * is gated behind this: the human must review a preview of the current state
+   * before a section can be adopted into the Brief.
+   */
+  previewCurrent?: boolean;
 }
 
 export function ArtifactsPanel({
@@ -81,8 +102,17 @@ export function ArtifactsPanel({
   onLoadFromSnapshot,
   onSaveJson,
   t,
+  curatedSections,
+  adoptingSection,
+  onAdoptSection,
+  previewCurrent,
 }: ArtifactsPanelProps) {
   void _setUnitPackageJson;
+
+  const curatedBySection = new Map<SectionId, CuratedSectionInfo>(
+    (curatedSections ?? []).map((c) => [c.section, c])
+  );
+  const renderedSections = markdownText.trim() ? splitMarkdownIntoSections(markdownText) : [];
   return (
     <Card>
       <CardHeader>
@@ -206,9 +236,91 @@ export function ArtifactsPanel({
                     <span>Markdown is saved.</span>
                   )}
                 </div>
-                <div className="rounded-lg border bg-card p-4">
-                  <MarkdownContent content={markdownText} />
-                </div>
+
+                {onAdoptSection && (
+                  <div className="rounded border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+                    Reviewed a section in the Preview and it looks good? Click{" "}
+                    <strong>&quot;Adopt into Brief&quot;</strong> below it — the human-approved Markdown becomes the
+                    authoritative basis for that section, so a future full Creator regeneration builds upon it instead
+                    of discarding it.
+                    {markdownDirty ? (
+                      <>
+                        {" "}
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          Save Markdown first — adoption reads the last saved snapshot, not unsaved edits.
+                        </span>
+                      </>
+                    ) : !previewCurrent ? (
+                      <>
+                        {" "}
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          Create a Preview of the current state first (&quot;Save &amp; Create Preview&quot; in the
+                          Markdown tab) and review it — adoption unlocks only after the current state has been
+                          previewed.
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+
+                {renderedSections.length > 0 ? (
+                  <div className="space-y-4">
+                    {renderedSections.map((block) => {
+                      const label = SECTION_OPTIONS.find((s) => s.value === block.id)?.label || block.id;
+                      const curated = curatedBySection.get(block.id);
+                      const isAdopting = adoptingSection === block.id;
+                      return (
+                        <div key={block.id} className="rounded-lg border bg-card p-4 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                              {label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {curated && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] gap-1"
+                                  title={new Date(curated.adoptedAt).toLocaleString()}
+                                >
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  In Brief
+                                </Badge>
+                              )}
+                              {onAdoptSection && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  disabled={markdownDirty || isAdopting || !previewCurrent}
+                                  title={
+                                    markdownDirty
+                                      ? "Save Markdown first"
+                                      : !previewCurrent
+                                        ? "Create & review a Preview of the current state first"
+                                        : undefined
+                                  }
+                                  onClick={() => onAdoptSection(block.id)}
+                                >
+                                  {isAdopting ? (
+                                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                  ) : (
+                                    <PlusCircle className="h-3.5 w-3.5 mr-1" />
+                                  )}
+                                  {curated ? "Re-adopt into Brief" : "Adopt into Brief"}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <MarkdownContent content={block.content} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border bg-card p-4">
+                    <MarkdownContent content={markdownText} />
+                  </div>
+                )}
               </>
             ) : (
               <div className="text-sm text-muted-foreground">No markdown to render yet.</div>

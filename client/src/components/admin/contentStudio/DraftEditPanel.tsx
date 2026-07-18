@@ -28,6 +28,8 @@ import {
   PreviewStatusBanner,
   type PreviewCreationStateShape,
 } from "./PreviewStatusBanner";
+import { BriefVersionsPanel, type BriefVersionShape } from "./BriefVersionsPanel";
+import { computeBriefVersionNumbers, formatBriefVersionId } from "./utils/briefVersionLabel";
 
 export interface DraftEditPanelCreateParams {
   unitNumber: number;
@@ -97,6 +99,13 @@ export interface DraftEditPanelProps {
   hasUnsavedChanges: boolean;
   metaAutosaveStatus: "idle" | "saving" | "error";
   metaAutosavedAt: number | null;
+
+  // Ping-Pong: Brief Version history (adopted sections + milestones)
+  briefVersions: BriefVersionShape[] | undefined;
+  briefVersionBusy: boolean;
+  onSelectBriefVersion: (versionId: string) => void;
+  onSaveBriefMilestone: (label: string) => void;
+  onRenameBriefVersion: (versionId: string, label: string) => void;
 }
 
 export function DraftEditPanel(props: DraftEditPanelProps) {
@@ -548,6 +557,8 @@ function EditForm(props: EditFormProps) {
     draftAuditorSkillIds, setDraftAuditorSkillIds,
     onSaveDraftSkillsAndReference,
     hasUnsavedChanges, metaAutosaveStatus, metaAutosavedAt,
+    briefVersions, briefVersionBusy,
+    onSelectBriefVersion, onSaveBriefMilestone, onRenameBriefVersion,
   } = props;
 
   const parsedUnit = Number(draftEditUnitNumber);
@@ -577,8 +588,60 @@ function EditForm(props: EditFormProps) {
     ? `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
     : null;
 
+  const draftModuleNumber = (selected as any)?.draft?.moduleNumber;
+  const draftUnitNumber = (selected as any)?.draft?.unitNumber;
+  const activeBriefVersionId = (selected as any)?.draft?.activeBriefVersionId;
+  const briefVersionNumbers = computeBriefVersionNumbers(briefVersions as BriefVersionShape[] | undefined);
+  const activeBriefVersion = Array.isArray(briefVersions)
+    ? (briefVersions as BriefVersionShape[]).find((v) => String(v._id) === String(activeBriefVersionId))
+    : undefined;
+  const activeBriefSummary = activeBriefVersion
+    ? (() => {
+        const id = formatBriefVersionId(
+          draftModuleNumber,
+          draftUnitNumber,
+          briefVersionNumbers.get(String(activeBriefVersion._id)),
+        );
+        const label = activeBriefVersion.label?.trim();
+        return label ? `${id} · ${label}` : id;
+      })()
+    : null;
+  const briefVersionCount = Array.isArray(briefVersions) ? briefVersions.length : 0;
+
   return (
     <div className="space-y-6">
+      {/* Brief Versions (Ping-Pong) — compact, collapsed by default, at the top of the brief */}
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="brief-versions" className="rounded-lg border bg-muted/20 px-3">
+          <AccordionTrigger className="py-2 hover:no-underline">
+            <div className="flex items-center gap-2 min-w-0 text-left">
+              <span className="text-sm font-semibold shrink-0">Brief Versions</span>
+              {briefVersionCount > 0 && (
+                <Badge variant="secondary" className="text-[10px] shrink-0">
+                  {briefVersionCount}
+                </Badge>
+              )}
+              <span className="text-xs text-muted-foreground truncate">
+                {activeBriefSummary ? `· Active: ${activeBriefSummary}` : "· none yet"}
+              </span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-1 pb-3">
+            <BriefVersionsPanel
+              versions={briefVersions}
+              activeBriefVersionId={activeBriefVersionId}
+              busy={briefVersionBusy}
+              moduleNumber={draftModuleNumber}
+              unitNumber={draftUnitNumber}
+              onSelectVersion={onSelectBriefVersion}
+              onSaveMilestone={onSaveBriefMilestone}
+              onRenameVersion={onRenameBriefVersion}
+              hideTitle
+            />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
       {/* Numbers */}
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-4">

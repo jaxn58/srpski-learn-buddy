@@ -8,6 +8,30 @@
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
+// Canonical section identifiers, mirrored from
+// scripts/markdownParser/sectionUtils.ts (SectionId). Kept in sync manually
+// since Convex validators cannot import a TS type-derived union at runtime.
+// "phrases" already covers dialogues (see sectionUtils.ts SECTIONS map).
+const curatedSectionIdValidator = v.union(
+  v.literal("overview"),
+  v.literal("vocabulary"),
+  v.literal("grammar"),
+  v.literal("phrases"),
+  v.literal("exercises"),
+  v.literal("cultural"),
+);
+
+// A single human-curated section: the reviewed, approved Markdown for one
+// section of the unit, adopted from a specific snapshot into the Brief so a
+// future full Creator regeneration builds upon it instead of discarding it.
+const curatedSectionEntryValidator = v.object({
+  section: curatedSectionIdValidator,
+  markdown: v.string(),
+  sourceSnapshotId: v.id("contentDraftSnapshots"),
+  adoptedAt: v.number(),
+  adoptedBy: v.id("users"),
+});
+
 export const contentStudioTables = {
   // ============= CONTENT STUDIO (Draft Layer, All-AI Pipeline) =============
   // Drafts are NOT live content. They are validated and then published via the existing import pipeline.
@@ -207,6 +231,20 @@ export const contentStudioTables = {
     approvedAt: v.optional(v.number()),
     approvedBy: v.optional(v.id("users")),
 
+    // ── Ping-Pong: Brief <-> Markdown (Brief Version Loop) ──────────────────
+    // Human-curated, per-section Markdown adopted from a reviewed snapshot
+    // back into the Brief (live/working copy). Replaced per section (not
+    // appended) so the Brief stays lean and always reflects the latest
+    // adopted state. NOT written automatically on section manipulation —
+    // only via the explicit "adopt into Brief" action from Preview/Rendered
+    // view, after the human has reviewed the rendered result.
+    curatedSections: v.optional(v.array(curatedSectionEntryValidator)),
+    // Status-quo pointer: which contentDraftBriefVersions row the live
+    // inspirationRef.notes + curatedSections currently correspond to.
+    // Selecting an older version moves this pointer (nothing is lost — full
+    // history remains in contentDraftBriefVersions).
+    activeBriefVersionId: v.optional(v.id("contentDraftBriefVersions")),
+
     // Public unit author note (optional; intended to be inserted into Markdown)
     authorNoteName: v.optional(v.string()),
     authorNoteQuote: v.optional(v.string()),
@@ -252,7 +290,31 @@ export const contentStudioTables = {
     unitPackageJson: v.string(), // canonical draft artifact (unitPackage.v1 JSON string)
     markdownSource: v.optional(v.string()), // optional: if draft was generated from markdown
     validationReportJson: v.string(), // JSON string: deep/template validation output
+    // Which Brief Version (input) this snapshot (output) was generated from.
+    // Absent for snapshots created before this field existed. Lets the UI show
+    // "generated from Brief Version N" for full input->output traceability.
+    briefVersionId: v.optional(v.id("contentDraftBriefVersions")),
     createdAt: v.number(),
+  })
+    .index("by_draft", ["draftId"])
+    .index("by_created_at", ["createdAt"]),
+
+  // ── Ping-Pong: Brief Version History ──────────────────────────────────────
+  // Each row is a full, self-contained snapshot of the Brief's editable state
+  // (inspirationRef.notes + curatedSections) at one point in time. Created
+  // automatically when a Section is adopted into the Brief, and whenever the
+  // Creator generates from the Brief. Can be manually named as a milestone.
+  // Selecting an older version moves contentDrafts.activeBriefVersionId to
+  // it (and copies its notes/curatedSections back onto the live draft) — it
+  // becomes the new status quo. History is never deleted by selection.
+  contentDraftBriefVersions: defineTable({
+    draftId: v.id("contentDrafts"),
+    notes: v.optional(v.string()), // copy of inspirationRef.notes at save time
+    curatedSections: v.optional(v.array(curatedSectionEntryValidator)),
+    label: v.optional(v.string()), // named milestone, e.g. "v1 approved"
+    parentVersionId: v.optional(v.id("contentDraftBriefVersions")),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
   })
     .index("by_draft", ["draftId"])
     .index("by_created_at", ["createdAt"]),

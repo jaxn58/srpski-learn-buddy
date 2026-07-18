@@ -3,7 +3,6 @@ import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -14,14 +13,19 @@ import {
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { Send, User, Brain, Sparkles, MessageSquarePlus, Zap } from "lucide-react";
+import { Send, Brain, MessageSquarePlus, Zap, Paperclip, Loader2, Square, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/useMobile";
+import { useFeatureAccess, canUseChatAttachments } from "@/hooks/useFeatureAccess";
 import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
+import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
 import { EnergyPill } from "@/components/chat/EnergyPill";
 import { ChatMessageFeedback, getChatFeedbackPrompt } from "@/components/chat/ChatMessageFeedback";
+import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
@@ -30,6 +34,19 @@ type ChatSession = Doc<"chatSessions">;
 const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string;
 
 const BUDDY_SESSION_PREFIX = "buddy-unit-";
+
+const ALLOWED_ATTACH_TYPES = [
+  "application/pdf", "text/plain", "text/markdown",
+  "image/jpeg", "image/png", "image/webp",
+];
+const MAX_ATTACH_SIZE: Record<string, number> = {
+  "application/pdf": 3 * 1024 * 1024,
+  "text/plain": 50 * 1024,
+  "text/markdown": 50 * 1024,
+  "image/jpeg": 3 * 1024 * 1024,
+  "image/png": 3 * 1024 * 1024,
+  "image/webp": 3 * 1024 * 1024,
+};
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -42,24 +59,41 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const { user } = useAuth();
   const { getToken } = useClerkAuth();
   const { t } = useTranslation();
-  const myAvatar = useQuery(api.users.getMyPublicAvatarUrl, user ? {} : "skip");
+  const isMobile = useIsMobile();
   const [message, setMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
   const [pendingPrefill, setPendingPrefill] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<{
+    storageId: string;
+    fileName: string;
+    fileType: string;
+    fileBytes: number;
+    previewUrl?: string;
+  } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachPreviewUrlRef = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const prefillHandledRef = useRef(false);
   const skipAutoSelectRef = useRef(false);
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
+  const featureAccess = useFeatureAccess();
+  const canUploadDocuments = canUseChatAttachments(featureAccess);
+  const { exportSession, exportingSessionId } = useChatPdfExport();
 
   // Live energy preview for the next message (RAG is always on in the modal
   // because unit context is always attached). Drives the energy pill overlay
   // and the send-button block.
+  const attachIsImage = attachedFile?.fileType.startsWith("image/") ?? false;
   const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
     ragHinted: true,
+    hasImageAttachment: attachIsImage,
+    hasFileAttachment: attachedFile != null && !attachIsImage,
+    attachmentBytes: attachedFile?.fileBytes,
   });
   const compactEstimate = useQuery(api.chat.estimateEnergyForAction, {
     responseMode: "compact" as const,
@@ -74,22 +108,31 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     !upcomingEnergyEstimate.unlimited &&
     !upcomingEnergyEstimate.teaserOnly &&
     !upcomingEnergyEstimate.enough;
-  
+
   const formatMessageTime = (timestamp: number) => {
     const date = new Date(timestamp);
     const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
     return date.toLocaleTimeString('de-DE', options);
   };
-  
+
   const progress = useQuery(api.progress.getUserProgress);
   const createSessionMutation = useMutation(api.chat.createSession);
   const addMessageMutation = useMutation(api.chat.addMessage);
   const checkRateLimitMutation = useMutation(api.chat.checkMessageRateLimit);
   const createStreamMutation = useMutation(api.streaming.createStream);
   const addStreamingAssistantMsg = useMutation(api.chat.addStreamingAssistantMessage);
+  const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const { data: streamData, feedResponse, reset: resetStream } = useChatStream();
+
+  const clearAttachedFile = useCallback(() => {
+    if (attachPreviewUrlRef.current) {
+      URL.revokeObjectURL(attachPreviewUrlRef.current);
+      attachPreviewUrlRef.current = null;
+    }
+    setAttachedFile(null);
+  }, []);
 
   // Reset prefill tracking and session selection when modal closes
   useEffect(() => {
@@ -98,8 +141,9 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       skipAutoSelectRef.current = false;
       setCurrentSessionId(null);
       setPendingPrefill(null);
+      clearAttachedFile();
     }
-  }, [isOpen]);
+  }, [isOpen, clearAttachedFile]);
 
   // Find or auto-select session based on context
   useEffect(() => {
@@ -137,34 +181,57 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   );
 
   const messages = (sessionMessages ?? []) as ChatMessageDisplay[];
+  const currentSession = sessions?.find(
+    (s) => (s._id as unknown as string) === currentSessionId
+  );
 
   const sessionFeedback = useQuery(
     api.chat.getSessionFeedback,
     currentSessionId ? { sessionId: currentSessionId as Id<"chatSessions"> } : "skip"
   );
-  const feedbackByMessage = new Map(
-    (sessionFeedback ?? []).map((f: { messageId: Id<"chatMessages">; rating: string }) => [f.messageId, f.rating])
+  const feedbackByMessage = new Map<Id<"chatMessages">, string>(
+    (sessionFeedback ?? []).map(
+      (f: { messageId: Id<"chatMessages">; rating: string }) =>
+        [f.messageId, f.rating] as [Id<"chatMessages">, string],
+    )
   );
   const submitFeedback = useMutation(api.chat.submitMessageFeedback);
   const feedbackPrompt = useMemo(() => getChatFeedbackPrompt(t, user), [t, user]);
 
-  const sendStreaming = useCallback(async (text: string, sessionId: string, responseMode?: "compact" | "detailed") => {
+  const sendStreaming = useCallback(async (
+    text: string,
+    sessionId: string,
+    responseMode?: "compact" | "detailed",
+    attachment?: { storageId: string; fileName: string; fileType: string; fileBytes: number } | null
+  ) => {
     setIsSending(true);
 
     try {
+      const hasImage = !!attachment && attachment.fileType.startsWith("image/");
+      const hasFile = !!attachment && !hasImage;
+
       await checkRateLimitMutation({
         sessionId: sessionId as Id<"chatSessions">,
         message: text,
         responseMode,
+        hasImageAttachment: hasImage,
+        hasFileAttachment: hasFile,
+        attachmentBytes: attachment?.fileBytes,
         ragHinted: true,
       });
 
       await addMessageMutation({
         sessionId: sessionId as Id<"chatSessions">,
         role: "user",
-        content: text,
+        content: text || (attachment ? `[Attached: ${attachment.fileName}]` : ""),
         unitContext: unitNumber ?? progress?.currentUnit,
         responseMode,
+        ...(attachment ? {
+          attachmentStorageId: attachment.storageId as unknown as Id<"_storage">,
+          attachmentFileName: attachment.fileName,
+          attachmentMimeType: attachment.fileType,
+          attachmentSizeBytes: attachment.fileBytes,
+        } : {}),
       });
 
       const meData = user as Doc<"users"> | null;
@@ -199,6 +266,12 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
           sessionId,
           messageId,
           responseMode,
+          ...(attachment ? {
+            attachmentStorageId: attachment.storageId,
+            attachmentFileName: attachment.fileName,
+            attachmentFileType: attachment.fileType,
+            attachmentBytes: attachment.fileBytes,
+          } : {}),
         }),
         signal: abortController.signal,
       }).then((response) => {
@@ -241,7 +314,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       }
       setIsSending(false);
     }
-  }, [user, progress, unitNumber, checkRateLimitMutation, addMessageMutation, createStreamMutation, addStreamingAssistantMsg, resetStream, feedResponse, t]);
+  }, [user, progress, unitNumber, checkRateLimitMutation, addMessageMutation, createStreamMutation, addStreamingAssistantMsg, resetStream, feedResponse, getToken, t]);
 
   // Watch stream status: clean up when done
   useEffect(() => {
@@ -361,6 +434,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       setActiveStreamId(null);
       setPendingPrefill(null);
       setMessage("");
+      clearAttachedFile();
 
       const sessionId = await createSessionMutation({ title: t('chat.newChat') });
       skipAutoSelectRef.current = true;
@@ -376,8 +450,115 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
 
   const headerActionsDisabled = isSending || isCreatingSession;
 
+  const handleStopStreaming = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setActiveStreamId(null);
+    setIsSending(false);
+  }, []);
+
+  const compressImage = useCallback((file: File, maxDim = 1024, quality = 0.7): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas not supported"));
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error("Compression failed"))),
+          "image/jpeg",
+          quality,
+        );
+      };
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = URL.createObjectURL(file);
+    });
+  }, []);
+
+  const handleFileAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_ATTACH_TYPES.includes(file.type)) {
+      toast.error(t('chat.unsupportedFile', 'PDF, TXT, MD, JPG, PNG or WebP only'));
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    const maxSize = MAX_ATTACH_SIZE[file.type] ?? 1 * 1024 * 1024;
+    if (file.size > maxSize) {
+      const isImage = file.type.startsWith("image/");
+      const isText = file.type === "text/plain" || file.type === "text/markdown";
+      if (isImage) {
+        toast.error(t('chat.fileTooLarge.image', 'Images: max. 3 MB'));
+      } else if (isText) {
+        toast.error(t('chat.fileTooLarge.text', 'Text files: max. 50 KB'));
+      } else {
+        toast.error(t('chat.fileTooLarge.pdf', 'PDF: max. 3 MB'));
+      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const isImage = file.type.startsWith("image/");
+      let uploadBody: Blob = file;
+      let uploadType = file.type || "application/octet-stream";
+
+      if (isImage) {
+        uploadBody = await compressImage(file);
+        uploadType = "image/jpeg";
+      }
+
+      // Pre-flight: report intended bytes/type so the backend can enforce the
+      // upload cap and AI-Energy budget BEFORE we transfer the file.
+      const intendedBytes = uploadBody.size;
+      const uploadUrl = await generateUploadUrl({
+        fileBytes: intendedBytes,
+        fileType: uploadType,
+        uploadSource: "chat_attachment",
+      });
+      const resp = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": uploadType },
+        body: uploadBody,
+      });
+      if (!resp.ok) throw new Error("Upload failed");
+      const { storageId } = await resp.json();
+      let previewUrl: string | undefined;
+      if (isImage) {
+        if (attachPreviewUrlRef.current) {
+          URL.revokeObjectURL(attachPreviewUrlRef.current);
+        }
+        previewUrl = URL.createObjectURL(uploadBody);
+        attachPreviewUrlRef.current = previewUrl;
+      }
+      setAttachedFile({
+        storageId,
+        fileName: file.name,
+        fileType: uploadType,
+        fileBytes: intendedBytes,
+        previewUrl,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const handleSend = async () => {
-    if (!message.trim() || isSending) return;
+    if ((!message.trim() && !attachedFile) || isSending) return;
 
     let sessionIdToUse = currentSessionId;
     if (!sessionIdToUse) {
@@ -392,8 +573,10 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     }
 
     const messageToSend = message;
+    const currentAttachment = attachedFile;
     setMessage("");
-    await sendStreaming(messageToSend, sessionIdToUse);
+    clearAttachedFile();
+    await sendStreaming(messageToSend, sessionIdToUse, undefined, currentAttachment);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -403,43 +586,80 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     }
   };
 
+  const handleInputFocus = () => {
+    if (!isMobile) return;
+    // Wait for the on-screen keyboard animation, then scroll the input into view.
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 350);
+  };
+
   if (!user) {
     return null;
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="w-[95vw] sm:w-[90vw] max-w-5xl max-h-[90vh] min-h-[60vh] sm:min-h-[70vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-3 border-b pr-14">
-          <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shrink-0">
-              <Brain className="h-6 w-6 text-white" />
+      <DialogContent
+        className={cn(
+          "flex flex-col p-0 gap-0",
+          "w-[100vw] max-w-none h-[100dvh] max-h-[100dvh] rounded-none border-0",
+          "sm:w-[95vw] sm:max-w-5xl sm:h-auto sm:max-h-[90vh] sm:min-h-[70vh] sm:rounded-lg sm:border"
+        )}
+      >
+        <DialogHeader className="px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top))] sm:pt-6 pb-2.5 sm:pb-3 border-b pr-14">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary flex items-center justify-center shrink-0">
+              <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
             </div>
-            <div className="flex-1 min-w-0 pt-0.5">
-              <DialogTitle>{t('chat.modal.title')}</DialogTitle>
-              <DialogDescription>{t('chat.modal.subtitle')}</DialogDescription>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-base sm:text-lg">{t('chat.modal.title')}</DialogTitle>
+              <DialogDescription className="hidden sm:block">{t('chat.modal.subtitle')}</DialogDescription>
             </div>
-            <EnergyPill
-              className="shrink-0 self-center"
-            />
             <Button
               variant="default"
               size="sm"
               onClick={() => void handleNewChat()}
               disabled={headerActionsDisabled}
-              className="h-7 px-2.5 text-xs font-normal shrink-0"
+              aria-label={t('chat.modal.newChat')}
+              className="h-8 sm:h-7 px-2 sm:px-2.5 text-xs font-normal shrink-0"
             >
-              <MessageSquarePlus className="h-3 w-3 mr-1.5 shrink-0" />
-              {t('chat.modal.newChat')}
+              <MessageSquarePlus className="h-4 w-4 sm:h-3 sm:w-3 sm:mr-1.5 shrink-0" />
+              <span className="hidden sm:inline">{t('chat.modal.newChat')}</span>
             </Button>
           </div>
         </DialogHeader>
 
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Tool row: PDF export */}
+          {currentSessionId && currentSession && (
+            <div className="flex justify-end px-3 sm:px-4 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 h-8"
+                disabled={exportingSessionId === currentSessionId}
+                onClick={() =>
+                  void exportSession(
+                    currentSessionId as Id<"chatSessions">,
+                    currentSession.title
+                  )
+                }
+                aria-label={t('chat.modal.exportPdf')}
+              >
+                <FileDown className="h-4 w-4" />
+                <span className="hidden sm:inline">{t('chat.modal.exportPdf')}</span>
+              </Button>
+            </div>
+          )}
+
           {/* Messages Area */}
-          <div 
+          <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-6 space-y-4"
+            className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4"
           >
             {pendingPrefill && !activeStreamId && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-6 py-12">
@@ -500,21 +720,21 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     {t('chat.welcome.examplesHint')}
                   </p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
                   <Card
-                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                    className="p-3 sm:p-4 hover:bg-accent cursor-pointer transition-colors"
                     onClick={() => void prefillExampleMessage(t('chat.examplePrefill.1'))}
                   >
                     <p className="text-sm font-medium">{t('chat.suggestion1')}</p>
                   </Card>
                   <Card
-                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                    className="p-3 sm:p-4 hover:bg-accent cursor-pointer transition-colors"
                     onClick={() => void prefillExampleMessage(t('chat.examplePrefill.2'))}
                   >
                     <p className="text-sm font-medium">{t('chat.suggestion2')}</p>
                   </Card>
                   <Card
-                    className="p-4 hover:bg-accent cursor-pointer transition-colors"
+                    className="p-3 sm:p-4 hover:bg-accent cursor-pointer transition-colors"
                     onClick={() => void prefillExampleMessage(t('chat.examplePrefill.3'))}
                   >
                     <p className="text-sm font-medium">{t('chat.suggestion3')}</p>
@@ -522,39 +742,66 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                 </div>
               </div>
             )}
-            
+
             {!pendingPrefill && messages.map((msg: ChatMessageDisplay, idx: number) => {
-              const isStreamingMsg = msg.role === "assistant" && (msg as any).streamId && (msg as any).streamId === activeStreamId;
+              const isStreamingMsg = msg.role === "assistant" && msg.streamId && msg.streamId === activeStreamId;
               const displayContent = isStreamingMsg
                 ? (streamData?.text || "")
                 : msg.content;
+              const isUser = msg.role === "user";
 
               return (
                 <div
-                  key={idx}
-                  className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                  key={msg._id || idx}
+                  className={cn("flex", isUser ? "justify-end" : "justify-start")}
                 >
-                  <Avatar className={`h-8 w-8 flex-shrink-0 ${msg.role === 'assistant' ? 'bg-primary' : 'bg-card border'}`}>
-                    {msg.role === 'user' && myAvatar?.url ? (
-                      <AvatarImage src={myAvatar.url} alt="Your avatar" />
-                    ) : null}
-                    <AvatarFallback className={`text-xs ${msg.role === 'assistant' ? 'text-white bg-transparent' : 'bg-muted text-foreground'}`}>
-                      {msg.role === 'assistant' ? <Brain className="h-5 w-5 text-white" /> : <User className="h-4 w-4" />}
-                    </AvatarFallback>
-                  </Avatar>
-                  
-                  <div className={`flex flex-col max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                  <div className={cn("flex flex-col max-w-[85%] sm:max-w-[75%]", isUser ? "items-end" : "items-start")}>
                     <div
-                      className={`rounded-2xl px-4 py-3 text-xs sm:text-sm leading-[1.35] sm:leading-[1.43] ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground rounded-br-none'
-                          : 'bg-muted text-foreground rounded-bl-none'
-                      }`}
+                      className={cn(
+                        "relative rounded-2xl px-3 py-2 sm:px-4 sm:py-3 text-sm leading-[1.4]",
+                        isUser
+                          ? "bg-serbian-blue text-white rounded-tr-none"
+                          : "bg-muted text-foreground rounded-tl-none"
+                      )}
                     >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "absolute top-0 h-3 w-3",
+                          isUser
+                            ? "-right-1.5 bg-serbian-blue [clip-path:polygon(0_100%,0_0,100%_0)]"
+                            : "-left-1.5 bg-muted [clip-path:polygon(100%_100%,100%_0,0_0)]"
+                        )}
+                      />
                       {msg.role === 'assistant' ? (
-                        <ChatMarkdownContent content={displayContent} />
+                        displayContent ? (
+                          <div className={isStreamingMsg ? "streaming-cursor" : undefined}>
+                            <ChatMarkdownContent content={displayContent} />
+                          </div>
+                        ) : (
+                          <div className="flex gap-1">
+                            <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                            <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                            <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                          </div>
+                        )
                       ) : (
-                        <p className="whitespace-pre-wrap text-xs sm:text-sm leading-[1.35] sm:leading-[1.43]">{msg.content}</p>
+                        <>
+                          {msg.attachmentStorageId && currentSessionId && msg._id && (
+                            <div className="mb-2">
+                              <ChatAttachmentPreview
+                                sessionId={currentSessionId as Id<"chatSessions">}
+                                messageId={msg._id as Id<"chatMessages">}
+                                fileName={msg.attachmentFileName}
+                                mimeType={msg.attachmentMimeType}
+                                tone="userBubble"
+                              />
+                            </div>
+                          )}
+                          {displayContent ? (
+                            <p className="whitespace-pre-wrap text-sm leading-[1.4]">{msg.content}</p>
+                          ) : null}
+                        </>
                       )}
                     </div>
                     {msg.role === "assistant" && msg._id && !isStreamingMsg && currentSessionId ? (
@@ -586,15 +833,14 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                 </div>
               );
             })}
-            
+
             {!pendingPrefill && isSending && !activeStreamId && (
-              <div className="flex gap-3">
-                <Avatar className="h-8 w-8 flex-shrink-0 bg-primary">
-                  <AvatarFallback className="text-white text-xs bg-transparent">
-                    <Sparkles className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="bg-muted rounded-2xl rounded-bl-none px-4 py-3">
+              <div className="flex justify-start">
+                <div className="relative bg-muted rounded-2xl rounded-tl-none px-4 py-3">
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-0 -left-1.5 h-3 w-3 bg-muted [clip-path:polygon(100%_100%,100%_0,0_0)]"
+                  />
                   <div className="flex gap-1">
                     <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                     <div className="h-2 w-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -605,58 +851,108 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
             )}
           </div>
 
-          {/* Auto-save hint */}
-          <div className="px-4 py-2 bg-primary/5 border-t text-xs text-muted-foreground text-center">
-            {t("buddy.sessionHint")}
-          </div>
-
           {/* Input Area -- hidden while mode-selection (pendingPrefill) is active */}
-          {!pendingPrefill && <div className="border-t p-4 bg-muted/30">
-            <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={t('chat.placeholder')}
-                className="flex-1 rounded-full"
-                disabled={isSending}
+          {!pendingPrefill && (
+            <div className="border-t p-3 sm:p-4 bg-muted/30 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              {attachedFile && (
+                <div className="flex items-center gap-2 px-2 pb-2">
+                  <ChatPendingAttachment
+                    fileName={attachedFile.fileName}
+                    fileType={attachedFile.fileType}
+                    previewUrl={attachedFile.previewUrl}
+                    onRemove={clearAttachedFile}
+                  />
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.txt,.md,.jpg,.jpeg,.png,.webp"
+                onChange={handleFileAttach}
               />
-              <Button
-                onClick={handleSend}
-                disabled={!message.trim() || isSending || energyBlocksSend}
-                size="icon"
-                className="rounded-full h-10 w-10"
-                title={energyBlocksSend
-                  ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
+              <div className="flex gap-2 items-center">
+                <Input
+                  ref={inputRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  onFocus={handleInputFocus}
+                  placeholder={t('chat.placeholder')}
+                  className="flex-1 rounded-full text-sm"
+                  disabled={isSending}
+                />
+                <EnergyPill className="shrink-0" />
+                {canUploadDocuments && (
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading || isSending || !!attachedFile}
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-full h-10 w-10 shrink-0"
+                    aria-label={t('chat.modal.attach')}
+                    title={t('chat.modal.attach')}
+                  >
+                    {isUploading
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Paperclip className="h-4 w-4" />}
+                  </Button>
+                )}
+                {activeStreamId ? (
+                  <Button
+                    onClick={handleStopStreaming}
+                    size="icon"
+                    variant="destructive"
+                    className="rounded-full h-10 w-10 shrink-0"
+                    aria-label={t('chat.modal.stop')}
+                    title={t('chat.modal.stop')}
+                  >
+                    <Square className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleSend}
+                    disabled={(!message.trim() && !attachedFile) || isSending || energyBlocksSend}
+                    size="icon"
+                    className="rounded-full h-10 w-10 shrink-0"
+                    title={energyBlocksSend
+                      ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
+                        ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
+                        : t('chat.energy.notEnough', {
+                            cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
+                            available: upcomingEnergyEstimate?.available ?? 0,
+                          })
+                      : undefined}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              {energyBlocksSend && (
+                <p className="text-[11px] text-destructive text-center mt-2 px-4">
+                  {(upcomingEnergyEstimate?.debtBalance ?? 0) > 0
                     ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
                     : t('chat.energy.notEnough', {
                         cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
                         available: upcomingEnergyEstimate?.available ?? 0,
-                      })
-                  : undefined}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-            {energyBlocksSend && (
-              <p className="text-[11px] text-destructive text-center mt-2 px-4">
-                {(upcomingEnergyEstimate?.debtBalance ?? 0) > 0
-                  ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
-                  : t('chat.energy.notEnough', {
-                      cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
-                      available: upcomingEnergyEstimate?.available ?? 0,
-                    })}
+                      })}
+                </p>
+              )}
+              {!currentSessionId && (
+                <div className="text-center mt-2">
+                  <Button variant="link" size="sm" onClick={handleNewChat} className="text-primary">
+                    {t('chat.startNewChat', 'Start a new chat to begin')}
+                  </Button>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground/50 text-center mt-2 px-4">
+                {t('chat.aiDisclaimer')}
               </p>
-            )}
-            {!currentSessionId && (
-              <div className="text-center mt-2">
-                <Button variant="link" size="sm" onClick={handleNewChat} className="text-primary">
-                  {t('chat.startNewChat', 'Start a new chat to begin')}
-                </Button>
-              </div>
-            )}
-          </div>}
+              <p className="text-[10px] text-muted-foreground/60 text-center mt-1 px-4">
+                {t("buddy.sessionHint")}
+              </p>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

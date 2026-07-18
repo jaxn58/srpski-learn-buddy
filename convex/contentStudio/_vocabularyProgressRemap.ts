@@ -132,6 +132,67 @@ export async function remapVocabularyProgressForPromotedEntry(
 }
 
 /**
+ * Remove a courseVocabulary id from quizProgress.incorrectVocabularyIds for
+ * every quiz-progress row of a unit. Used when a vocabulary entry is removed
+ * entirely (reconcile on update-publish), so no dangling references remain.
+ */
+export async function removeVocabIdFromQuizProgressForUnit(
+  ctx: MutationCtx,
+  unitNumber: number,
+  vocabId: Id<"courseVocabulary">,
+): Promise<number> {
+  let updated = 0;
+  const qzRows = await ctx.db
+    .query("quizProgress")
+    .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+    .collect();
+
+  for (const row of qzRows) {
+    const ids = row.incorrectVocabularyIds;
+    if (!ids || ids.length === 0) continue;
+    if (!ids.some((id) => id === vocabId)) continue;
+
+    const nextIds = ids.filter((id) => id !== vocabId);
+    await ctx.db.patch(row._id, { incorrectVocabularyIds: nextIds });
+    updated += 1;
+  }
+
+  return updated;
+}
+
+/**
+ * Purge the per-vocabulary progress of a removed courseVocabulary entry:
+ * deletes its `vocabularyProgress` rows and strips its id from `quizProgress`.
+ *
+ * IMPORTANT: This intentionally does NOT touch `user.totalXP` / `user.level`.
+ * Total XP is a stored, additive counter (see `recordVocabularyAnswer`) and is
+ * never recomputed from progress rows — so removing a word drops its granular
+ * progress without retroactively reducing a learner's accumulated XP. Mirrors
+ * the established behaviour of `bulkDeleteVocabularyByIds`.
+ */
+export async function purgeProgressForRemovedVocab(
+  ctx: MutationCtx,
+  unitNumber: number,
+  vocabId: Id<"courseVocabulary">,
+): Promise<{ deletedProgress: number; quizProgressUpdated: number }> {
+  let deletedProgress = 0;
+  const progressRows = await ctx.db
+    .query("vocabularyProgress")
+    .withIndex("by_course_vocab", (q) => q.eq("courseVocabularyId", vocabId))
+    .collect();
+  for (const p of progressRows) {
+    await ctx.db.delete(p._id);
+    deletedProgress += 1;
+  }
+  const quizProgressUpdated = await removeVocabIdFromQuizProgressForUnit(
+    ctx,
+    unitNumber,
+    vocabId,
+  );
+  return { deletedProgress, quizProgressUpdated };
+}
+
+/**
  * Find the best active published courseVocabulary row for a given
  * (unitNumber, serbianNormalized) key — highest unitVersion wins.
  */

@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { FilePlus2, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, ChevronRight, FilePlus2, Folder, GitBranch, Search, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 export interface DraftListProps {
   drafts: any[] | undefined;
   filteredDrafts: any[];
@@ -37,6 +37,11 @@ export interface DraftListProps {
   draftsStatusFilter: string;
   setDraftsStatusFilter: (v: any) => void;
   onDeleteDraft: (draftId: string) => Promise<void>;
+  /**
+   * Short label (milestone name or timestamp) of the active Brief Version for
+   * the currently selected draft. Shown only under the selected row.
+   */
+  activeBriefVersionSummary?: string | null;
 }
 
 export function DraftList({
@@ -51,9 +56,12 @@ export function DraftList({
   draftsStatusFilter,
   setDraftsStatusFilter,
   onDeleteDraft,
+  activeBriefVersionSummary,
 }: DraftListProps) {
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [collapsedModules, setCollapsedModules] = useState<Set<number>>(new Set());
 
   const handleConfirmDelete = async () => {
     if (!draftToDelete) return;
@@ -64,6 +72,111 @@ export function DraftList({
       setDeleting(false);
       setDraftToDelete(null);
     }
+  };
+
+  const toggleModule = (moduleNumber: number) =>
+    setCollapsedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(moduleNumber)) next.delete(moduleNumber);
+      else next.add(moduleNumber);
+      return next;
+    });
+
+  // Group drafts by module (folder), modules ascending, units ascending within.
+  const draftGroups = useMemo(() => {
+    const byModule = new Map<number, any[]>();
+    for (const d of filteredDrafts) {
+      const m = Number(d?.moduleNumber);
+      const key = Number.isFinite(m) ? m : Number.POSITIVE_INFINITY;
+      const arr = byModule.get(key) ?? [];
+      arr.push(d);
+      byModule.set(key, arr);
+    }
+    return Array.from(byModule.entries())
+      .map(([moduleNumber, items]) => ({
+        moduleNumber,
+        drafts: [...items].sort((a, b) => {
+          const ua = Number(a?.unitNumber);
+          const ub = Number(b?.unitNumber);
+          const na = Number.isFinite(ua) ? ua : Number.POSITIVE_INFINITY;
+          const nb = Number.isFinite(ub) ? ub : Number.POSITIVE_INFINITY;
+          if (na !== nb) return na - nb;
+          return String(a?.title || "").localeCompare(String(b?.title || ""));
+        }),
+      }))
+      .sort((a, b) => a.moduleNumber - b.moduleNumber);
+  }, [filteredDrafts]);
+
+  const renderDraftRow = (d: any) => {
+    const isSelected = !isCreateMode && selectedDraftId === d._id;
+    const status = String(d.status || "draft");
+    const statusDot =
+      status === "published" || status === "ready_to_publish" || status === "qc_passed"
+        ? "bg-emerald-500"
+        : status === "qc_failed" || status === "audit_failed"
+          ? "bg-red-500"
+          : "bg-muted-foreground/50";
+    const statusShort: Record<string, string> = {
+      draft: "Draft",
+      qc_failed: "QC Failed",
+      qc_passed: "QC OK",
+      audit_failed: "Review",
+      ready_to_publish: "Ready",
+      published: "Published",
+    };
+    return (
+      <div key={d._id} className="group flex items-stretch gap-1.5">
+        <button
+          type="button"
+          onClick={() => onSelectDraft(d._id)}
+          className={cn(
+            "flex-1 min-w-0 text-left rounded-md border px-2.5 py-1.5 transition-colors",
+            isSelected
+              ? "border-primary/40 bg-primary/8 ring-1 ring-primary/20"
+              : "hover:bg-muted/50 border-transparent hover:border-border"
+          )}
+        >
+          {/* Row 1: Unit#, Status */}
+          <div className="flex items-center justify-between gap-1.5 mb-0.5">
+            <span className="text-[10px] font-bold tabular-nums text-foreground">
+              U{d.unitNumber}
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", statusDot)} />
+              <span className="text-[9px] text-muted-foreground tabular-nums">
+                {statusShort[status] ?? status}
+              </span>
+            </div>
+          </div>
+          {/* Row 2: Title */}
+          <div className="text-[11px] font-medium leading-snug line-clamp-2 text-foreground/90">
+            {String(d.title || "Untitled").trim()}
+          </div>
+          {/* Row 3: Active Brief Version (selected draft only) */}
+          {isSelected && activeBriefVersionSummary && (
+            <div className="mt-1 flex items-center gap-1 text-[9px] text-muted-foreground">
+              <GitBranch className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate font-mono" title={activeBriefVersionSummary}>
+                {activeBriefVersionSummary}
+              </span>
+            </div>
+          )}
+        </button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-auto w-7 shrink-0 self-stretch rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDraftToDelete(String(d._id));
+          }}
+          aria-label="Delete draft"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
   };
 
   return (
@@ -121,71 +234,37 @@ export function DraftList({
               ) : filteredDrafts.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No drafts found.</div>
               ) : (
-                filteredDrafts.map((d: any) => {
-                  const isSelected = !isCreateMode && selectedDraftId === d._id;
-                  const status = String(d.status || "draft");
-                  const statusDot =
-                    status === "published" || status === "ready_to_publish" || status === "qc_passed"
-                      ? "bg-emerald-500"
-                      : status === "qc_failed" || status === "audit_failed"
-                        ? "bg-red-500"
-                        : "bg-muted-foreground/50";
-                  const statusShort: Record<string, string> = {
-                    draft: "Draft",
-                    qc_failed: "QC Failed",
-                    qc_passed: "QC OK",
-                    audit_failed: "Review",
-                    ready_to_publish: "Ready",
-                    published: "Published",
-                  };
+                draftGroups.map((g) => {
+                  const collapsed = collapsedModules.has(g.moduleNumber);
+                  const moduleLabel = Number.isFinite(g.moduleNumber)
+                    ? `Module ${g.moduleNumber}`
+                    : "No module";
                   return (
-                    <div key={d._id} className="group flex items-stretch gap-1.5">
+                    <div key={g.moduleNumber} className="space-y-1">
                       <button
                         type="button"
-                        onClick={() => onSelectDraft(d._id)}
-                        className={cn(
-                          "flex-1 min-w-0 text-left rounded-md border px-2.5 py-1.5 transition-colors",
-                          isSelected
-                            ? "border-primary/40 bg-primary/8 ring-1 ring-primary/20"
-                            : "hover:bg-muted/50 border-transparent hover:border-border"
+                        onClick={() => toggleModule(g.moduleNumber)}
+                        className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/50"
+                        aria-expanded={!collapsed}
+                      >
+                        {collapsed ? (
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         )}
-                      >
-                        {/* Row 1: Unit#, Module, Status */}
-                        <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] font-bold tabular-nums text-foreground">
-                              U{d.unitNumber}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground/70">·</span>
-                            <span className="text-[10px] text-muted-foreground">
-                              M{d.moduleNumber}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", statusDot)} />
-                            <span className="text-[10px] text-muted-foreground tabular-nums">
-                              {statusShort[status] ?? status}
-                            </span>
-                          </div>
-                        </div>
-                        {/* Row 2: Title */}
-                        <div className="text-xs font-medium leading-snug line-clamp-2 text-foreground/90">
-                          {String(d.title || "Untitled").trim()}
-                        </div>
+                        <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground truncate">
+                          {moduleLabel}
+                        </span>
+                        <Badge variant="secondary" className="ml-auto text-[9px] px-1.5 py-0 shrink-0">
+                          {g.drafts.length}
+                        </Badge>
                       </button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-auto w-7 shrink-0 self-stretch rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDraftToDelete(String(d._id));
-                        }}
-                        aria-label="Delete draft"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {!collapsed && (
+                        <div className="ml-2 space-y-1 border-l pl-2">
+                          {g.drafts.map((d: any) => renderDraftRow(d))}
+                        </div>
+                      )}
                     </div>
                   );
                 })

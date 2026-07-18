@@ -4,7 +4,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { api } from "../../../convex/_generated/api";
+
+type DashboardLibraryFolder = NonNullable<
+  FunctionReturnType<typeof api.chatLibrary.listFolders>
+>[number];
+type DashboardLeaderboardEntry =
+  FunctionReturnType<typeof api.leaderboard.getPublicLeaderboard>["entries"][number];
+type DashboardWishlistItem = NonNullable<
+  FunctionReturnType<typeof api.wishlist.listWishlistItems>
+>[number];
 import {
   BookOpen,
   Brain,
@@ -382,7 +392,9 @@ export default function Dashboard() {
 
   const topLevelLibraryFolders = useMemo(() => {
     if (!libraryFolders) return [];
-    return libraryFolders.filter((f) => !f.parentId).slice(0, 4);
+    return libraryFolders
+      .filter((f: DashboardLibraryFolder) => !f.parentId)
+      .slice(0, 4);
   }, [libraryFolders]);
 
   const topWishlist = useMemo(() => {
@@ -750,7 +762,7 @@ export default function Dashboard() {
                       {libraryHubStats === undefined ? (
                         <Skeleton className="h-20 w-full" />
                       ) : topLevelLibraryFolders.length > 0 ? (
-                        topLevelLibraryFolders.map((folder) => (
+                        topLevelLibraryFolders.map((folder: DashboardLibraryFolder) => (
                           <div
                             key={folder._id}
                             className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs bg-background/80"
@@ -987,7 +999,7 @@ export default function Dashboard() {
                   ) : (
                     <>
                       <ul className="space-y-1 flex-1">
-                        {leaderboardTop5.entries.map((entry) => (
+                        {leaderboardTop5.entries.map((entry: DashboardLeaderboardEntry) => (
                           <li
                             key={`${entry.rank}-${entry.nickname}`}
                             className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${
@@ -1073,7 +1085,7 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <ul className="space-y-1.5 flex-1">
-                      {topWishlist.map((item) => {
+                      {topWishlist.map((item: DashboardWishlistItem) => {
                         const status = wishlistStatusToken(item.status as WishlistStatus);
                         return (
                           <li key={item._id}>

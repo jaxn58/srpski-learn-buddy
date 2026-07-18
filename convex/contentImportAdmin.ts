@@ -7,6 +7,7 @@ import { UnitPackageSchema, validateUnitPackageDeep } from "../scripts/unitPacka
 import { autofixUnitPackage } from "../scripts/unitPackage/autofix";
 import { parseMarkdownToUnitPackage, validateMarkdownStructure } from "../scripts/markdownParser/parser";
 import { findEarlierUnitVocabulary, toVocabularyKey } from "./vocabulary";
+import { purgeProgressForRemovedVocab } from "./contentStudio/_vocabularyProgressRemap";
 
 type FileInput = { fileName: string; unitPackage: unknown };
 
@@ -505,6 +506,10 @@ export const internalImportUnitPackage = internalMutation({
     const vocabEn: any[] = ((fixed as any).vocabulary?.en as any[]) ?? [];
 
     const skippedCrossUnitDups: string[] = [];
+    // Keys that should remain active in THIS unit after import (update mode
+    // reconcile). Cross-unit duplicates are intentionally excluded because they
+    // live in an earlier unit, not here.
+    const desiredKeys = new Set<string>();
     for (const entry of vocabEn) {
       const entryNormKey = toVocabularyKey(entry?.serbian);
 
@@ -513,6 +518,7 @@ export const internalImportUnitPackage = internalMutation({
         skippedCrossUnitDups.push(`"${entry.serbian}" (already in Unit ${earlierHit.unitNumber})`);
         continue;
       }
+      if (entryNormKey) desiredKeys.add(entryNormKey);
 
       if (isReplace) {
         const payload: any = {
@@ -576,6 +582,37 @@ export const internalImportUnitPackage = internalMutation({
         `[Import] Skipped ${skippedCrossUnitDups.length} cross-unit duplicate(s) for Unit ${fixed.unitNumber}: ` +
           skippedCrossUnitDups.join(", "),
       );
+    }
+
+    // Update-mode reconcile: archive active EN vocabulary of this unit that is
+    // no longer part of the imported source, and purge its per-vocabulary
+    // progress (total XP stays untouched). Replace mode already rebuilds the
+    // unit from scratch, so reconcile only applies to update.
+    let reconciledRemovals = 0;
+    if (!isReplace) {
+      const activeRows = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", fixed.unitNumber))
+        .collect();
+      for (const row of activeRows as any[]) {
+        if (row.isActive === false) continue;
+        if (row.releaseStatus === "preview" || row.releaseStatus === "offline") continue;
+        const key = toVocabularyKey(row.serbianNormalized ?? row.serbian);
+        if (!key) continue;
+        if (desiredKeys.has(key)) continue;
+        await purgeProgressForRemovedVocab(ctx, fixed.unitNumber, row._id);
+        await ctx.db.patch(row._id, {
+          isActive: false,
+          archivedAt: now,
+          releaseStatus: "offline",
+        });
+        reconciledRemovals += 1;
+      }
+      if (reconciledRemovals > 0) {
+        console.log(
+          `[Import] Unit ${fixed.unitNumber}: update reconcile archived ${reconciledRemovals} removed vocabulary entr(ies).`,
+        );
+      }
     }
 
     // 4) Exercises (unitInteractiveTests) — English only for now
@@ -647,7 +684,7 @@ export const internalImportUnitPackage = internalMutation({
       }
     }
 
-    return { unitNumber: fixed.unitNumber, title: fixed.title };
+    return { unitNumber: fixed.unitNumber, title: fixed.title, reconciledRemovals };
   },
 });
 
