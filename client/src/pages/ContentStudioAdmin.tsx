@@ -568,8 +568,10 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId || !d) return "";
     const ref = d.inspirationRef || {};
     return JSON.stringify({
-      title: String(d.title || ""),
+      title: String(d.title || "").trim(),
       description: String(d.description || ""),
+      moduleNumber: typeof d.moduleNumber === "number" ? String(d.moduleNumber) : "",
+      unitNumber: typeof d.unitNumber === "number" ? String(d.unitNumber) : "",
       authorNoteName: String(d.authorNoteName || ""),
       authorNoteQuote: String(d.authorNoteQuote || ""),
       refId: ref.referenceId ? String(ref.referenceId) : "",
