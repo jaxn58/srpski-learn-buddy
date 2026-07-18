@@ -1057,6 +1057,21 @@ export const saveUnitPackageSnapshot = mutation({
     // (the status-quo pointer) so every call site gets input->output
     // traceability "for free" without having to look it up itself.
     briefVersionId: v.optional(v.id("contentDraftBriefVersions")),
+    // When this snapshot was produced by a single-section revise
+    // (runSectionRevise / addDialogue), the caller passes both fields so
+    // adoptSectionsIntoBrief can later attach the human instruction (the
+    // CAUSE of the revision) to the curatedSectionEntry in the Brief.
+    sectionRevisionSection: v.optional(
+      v.union(
+        v.literal("overview"),
+        v.literal("vocabulary"),
+        v.literal("grammar"),
+        v.literal("phrases"),
+        v.literal("exercises"),
+        v.literal("cultural"),
+      ),
+    ),
+    sectionRevisionInstruction: v.optional(v.string()),
     status: v.optional(
       v.union(
         v.literal("draft"),
@@ -1095,6 +1110,8 @@ export const saveUnitPackageSnapshot = mutation({
       markdownSource: args.markdownSource,
       validationReportJson: args.validationReportJson,
       briefVersionId,
+      sectionRevisionSection: args.sectionRevisionSection,
+      sectionRevisionInstruction: args.sectionRevisionInstruction,
       createdAt: now,
     });
 

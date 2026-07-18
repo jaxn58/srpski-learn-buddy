@@ -197,7 +197,9 @@ export const runSectionRevise = action({
       );
     }
 
-    // 11. Save new snapshot
+    // 11. Save new snapshot — attach section + instruction so a later
+    // `Adopt into Brief` can copy the CAUSE (this instruction) alongside
+    // the EFFECT (the generated markdown) into the curated section entry.
     await ctx.runMutation(api.contentStudio.saveUnitPackageSnapshot, {
       draftId: args.draftId,
       unitPackageJson: JSON.stringify(baseParsed.data),
@@ -206,6 +208,8 @@ export const runSectionRevise = action({
       status: "draft",
       replaceFindings: true,
       findings: [],
+      sectionRevisionSection: sectionId,
+      sectionRevisionInstruction: String(args.instruction ?? "").trim() || undefined,
     });
 
     await ctx.runMutation(api.contentStudio.logAiRun, {
@@ -307,6 +311,8 @@ Generate dialogue table:`;
       status: "draft",
       replaceFindings: true,
       findings: [],
+      sectionRevisionSection: "phrases",
+      sectionRevisionInstruction: `Add dialogue: ${String(args.topic ?? "").trim()}`.trim() || undefined,
     });
 
     await ctx.runMutation(api.contentStudio.logAiRun, {

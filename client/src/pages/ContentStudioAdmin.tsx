@@ -116,12 +116,17 @@ export default function ContentStudioAdmin() {
     api.contentStudio.listBriefVersions,
     selectedDraftId ? { draftId: selectedDraftId } : ("skip" as any)
   );
-  const adoptSectionIntoBrief = useMutation(api.contentStudio.adoptSectionIntoBrief);
+  const pendingSectionRevisions = useQuery(
+    api.contentStudio.listPendingSectionRevisions,
+    selectedDraftId ? { draftId: selectedDraftId } : ("skip" as any)
+  );
+  const adoptSectionsIntoBrief = useMutation(api.contentStudio.adoptSectionsIntoBrief);
   const selectBriefVersionMutation = useMutation(api.contentStudio.selectBriefVersion);
   const saveBriefVersionMutation = useMutation(api.contentStudio.saveBriefVersion);
   const nameBriefVersionMutation = useMutation(api.contentStudio.nameBriefVersion);
+  const deleteBriefVersionMutation = useMutation(api.contentStudio.deleteBriefVersion);
   const [briefVersionBusy, setBriefVersionBusy] = useState(false);
-  const [adoptingSection, setAdoptingSection] = useState<SectionId | null>(null);
+  const [adoptingChanges, setAdoptingChanges] = useState(false);
 
   const runSpecialist = useAction(api.contentStudio._creator.runAiSpecialistGenerate);
   const runValidate = useAction(api.contentStudio.runQcValidate);
@@ -2065,20 +2070,23 @@ export default function ContentStudioAdmin() {
     }
   };
 
-  // Ping-Pong: Brief <-> Markdown — adopt one reviewed, rendered section
-  // (from the current snapshot) into the Brief. Deliberately manual/explicit:
-  // never triggered automatically by Section-Revise or Markdown edits.
-  const handleAdoptSection = async (section: SectionId) => {
+  // Ping-Pong: Brief <-> Markdown — adopt ALL pending (revised-but-not-yet-
+  // adopted) sections into the Brief in one step, creating a single new Brief
+  // Version. Deliberately manual/explicit: never triggered automatically by
+  // Section-Revise or Markdown edits.
+  const handleAdoptChanges = async () => {
     if (!selectedDraftId) return;
-    setAdoptingSection(section);
+    setAdoptingChanges(true);
     try {
-      await adoptSectionIntoBrief({ draftId: selectedDraftId, section });
-      const label = SECTION_OPTIONS.find((s) => s.value === section)?.label || section;
-      toast.success(t("admin.contentStudio.toast.sectionAdopted", { section: label }));
+      const res = await adoptSectionsIntoBrief({ draftId: selectedDraftId });
+      const labels = (res?.adoptedSections ?? [])
+        .map((s: SectionId) => SECTION_OPTIONS.find((o) => o.value === s)?.label || s)
+        .join(", ");
+      toast.success(t("admin.contentStudio.toast.changesAdopted", { sections: labels }));
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.sectionAdoptFailed"));
     } finally {
-      setAdoptingSection(null);
+      setAdoptingChanges(false);
     }
   };
 
@@ -2114,6 +2122,18 @@ export default function ContentStudioAdmin() {
       toast.success(t("admin.contentStudio.toast.briefVersionRenamed"));
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.briefVersionRenameFailed"));
+    }
+  };
+
+  const handleDeleteBriefVersion = async (versionId: string) => {
+    setBriefVersionBusy(true);
+    try {
+      await deleteBriefVersionMutation({ versionId: versionId as any });
+      toast.success(t("admin.contentStudio.toast.briefVersionDeleted"));
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionDeleteFailed"));
+    } finally {
+      setBriefVersionBusy(false);
     }
   };
 
@@ -2537,6 +2557,7 @@ export default function ContentStudioAdmin() {
             onSelectBriefVersion={handleSelectBriefVersion}
             onSaveBriefMilestone={handleSaveBriefMilestone}
             onRenameBriefVersion={handleRenameBriefVersion}
+            onDeleteBriefVersion={handleDeleteBriefVersion}
           />
         );
 
@@ -2803,9 +2824,10 @@ export default function ContentStudioAdmin() {
                     onSaveJson={handleSaveJson}
                     t={t}
                     curatedSections={(selected as any)?.draft?.curatedSections}
-                    adoptingSection={adoptingSection}
-                    onAdoptSection={handleAdoptSection}
+                    adoptingChanges={adoptingChanges}
+                    onAdoptChanges={handleAdoptChanges}
                     previewCurrent={previewIsCurrent}
+                    pendingSectionRevisions={pendingSectionRevisions ?? []}
                   />
                 </div>
               </>

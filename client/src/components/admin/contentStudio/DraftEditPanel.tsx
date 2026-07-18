@@ -29,6 +29,7 @@ import {
   type PreviewCreationStateShape,
 } from "./PreviewStatusBanner";
 import { BriefVersionsPanel, type BriefVersionShape } from "./BriefVersionsPanel";
+import { CuratedSectionsPanel, type CuratedSectionEntryShape } from "./CuratedSectionsPanel";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "./utils/briefVersionLabel";
 
 export interface DraftEditPanelCreateParams {
@@ -106,6 +107,7 @@ export interface DraftEditPanelProps {
   onSelectBriefVersion: (versionId: string) => void;
   onSaveBriefMilestone: (label: string) => void;
   onRenameBriefVersion: (versionId: string, label: string) => void;
+  onDeleteBriefVersion: (versionId: string) => void;
 }
 
 export function DraftEditPanel(props: DraftEditPanelProps) {
@@ -558,8 +560,11 @@ function EditForm(props: EditFormProps) {
     onSaveDraftSkillsAndReference,
     hasUnsavedChanges, metaAutosaveStatus, metaAutosavedAt,
     briefVersions, briefVersionBusy,
-    onSelectBriefVersion, onSaveBriefMilestone, onRenameBriefVersion,
+    onSelectBriefVersion, onSaveBriefMilestone, onRenameBriefVersion, onDeleteBriefVersion,
   } = props;
+
+  const curatedSections: CuratedSectionEntryShape[] =
+    ((selected as any)?.draft?.curatedSections as CuratedSectionEntryShape[] | undefined) ?? [];
 
   const parsedUnit = Number(draftEditUnitNumber);
   const parsedModule = Number(draftEditModuleNumber);
@@ -636,6 +641,7 @@ function EditForm(props: EditFormProps) {
               onSelectVersion={onSelectBriefVersion}
               onSaveMilestone={onSaveBriefMilestone}
               onRenameVersion={onRenameBriefVersion}
+              onDeleteVersion={onDeleteBriefVersion}
               hideTitle
             />
           </AccordionContent>
@@ -693,6 +699,13 @@ function EditForm(props: EditFormProps) {
             rows={6}
           />
         </div>
+
+        <CuratedSectionsPanel
+          curatedSections={curatedSections}
+          briefVersions={briefVersions}
+          moduleNumber={draftModuleNumber}
+          unitNumber={draftUnitNumber}
+        />
       </div>
 
       <Separator />

@@ -11,7 +11,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Loader2, Pencil, Save } from "lucide-react";
+import { CheckCircle2, Loader2, Pencil, Save, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SECTION_OPTIONS } from "./constants";
 import { buildSideBySideDiffRows } from "./utils/diffAlgorithm";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "./utils/briefVersionLabel";
@@ -36,6 +46,12 @@ export interface BriefVersionsPanelProps {
   onSelectVersion: (versionId: string) => void;
   onSaveMilestone: (label: string) => void;
   onRenameVersion: (versionId: string, label: string) => void;
+  /**
+   * Optional delete handler. Delete button only shown when provided. The
+   * button is disabled for the currently active version — the caller must
+   * additionally enforce this server-side.
+   */
+  onDeleteVersion?: (versionId: string) => void;
   /** Hide the internal "Brief Versions" title (e.g. when rendered inside an accordion that already labels it). */
   hideTitle?: boolean;
 }
@@ -60,6 +76,7 @@ export function BriefVersionsPanel({
   onSelectVersion,
   onSaveMilestone,
   onRenameVersion,
+  onDeleteVersion,
   hideTitle,
 }: BriefVersionsPanelProps) {
   const [milestoneLabel, setMilestoneLabel] = useState("");
@@ -68,6 +85,7 @@ export function BriefVersionsPanel({
   const [diffLeftId, setDiffLeftId] = useState<string>("");
   const [diffRightId, setDiffRightId] = useState<string>("");
   const [showDiff, setShowDiff] = useState(false);
+  const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
 
   const list = versions ?? [];
 
@@ -152,6 +170,22 @@ export function BriefVersionsPanel({
                       >
                         <Pencil className="h-3 w-3" />
                       </Button>
+                      {onDeleteVersion && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                          title={
+                            isActive
+                              ? "Cannot delete the active version — select another version first"
+                              : "Delete this version"
+                          }
+                          disabled={isActive || busy}
+                          onClick={() => setDeleteCandidateId(v._id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -282,6 +316,54 @@ export function BriefVersionsPanel({
             </div>
           </ScrollArea>
         </div>
+      )}
+
+      {onDeleteVersion && (
+        <AlertDialog
+          open={deleteCandidateId !== null}
+          onOpenChange={(open) => {
+            if (!open) setDeleteCandidateId(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this Brief Version?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteCandidateId
+                  ? (() => {
+                      const v = list.find((x) => x._id === deleteCandidateId);
+                      const id = v ? idOf(v) : "";
+                      const label = v?.label?.trim();
+                      return (
+                        <>
+                          <span className="font-mono">{id}</span>
+                          {label ? ` · ${label}` : ""}
+                          {" "}
+                          will be removed from history. This cannot be undone.
+                          The live Brief (Description, Reference notes, curated
+                          sections) is not affected.
+                        </>
+                      );
+                    })()
+                  : null}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (deleteCandidateId) {
+                    onDeleteVersion(deleteCandidateId);
+                    setDeleteCandidateId(null);
+                  }
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );

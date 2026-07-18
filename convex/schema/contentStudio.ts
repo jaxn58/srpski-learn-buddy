@@ -24,9 +24,17 @@ const curatedSectionIdValidator = v.union(
 // A single human-curated section: the reviewed, approved Markdown for one
 // section of the unit, adopted from a specific snapshot into the Brief so a
 // future full Creator regeneration builds upon it instead of discarding it.
+//
+// `instruction` captures the ORIGIN of this section: the human's revise-
+// instruction (from the Section Editor) that led to this Markdown. This is
+// the "cause" the human cares about in the Brief; the `markdown` is the
+// "effect". Adoption copies both. May be absent for adoptions from snapshots
+// that were not produced by runSectionRevise/addDialogue (e.g. adopting a
+// section straight from a Creator full-run snapshot).
 const curatedSectionEntryValidator = v.object({
   section: curatedSectionIdValidator,
   markdown: v.string(),
+  instruction: v.optional(v.string()),
   sourceSnapshotId: v.id("contentDraftSnapshots"),
   adoptedAt: v.number(),
   adoptedBy: v.id("users"),
@@ -294,6 +302,13 @@ export const contentStudioTables = {
     // Absent for snapshots created before this field existed. Lets the UI show
     // "generated from Brief Version N" for full input->output traceability.
     briefVersionId: v.optional(v.id("contentDraftBriefVersions")),
+    // If this snapshot was produced by a single-section revise (runSection-
+    // Revise or addDialogue), captures which section was revised and the
+    // human instruction that caused it. Read by adoptSectionsIntoBrief so
+    // the Brief carries the CAUSE, not just the EFFECT. Absent for full
+    // Creator runs, fix-findings snapshots, and legacy rows.
+    sectionRevisionSection: v.optional(curatedSectionIdValidator),
+    sectionRevisionInstruction: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_draft", ["draftId"])

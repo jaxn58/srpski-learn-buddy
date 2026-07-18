@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Eye, Loader2, PlusCircle } from "lucide-react";
+import { CheckCircle2, Eye, Loader2, PlusCircle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
@@ -23,6 +23,18 @@ import { splitMarkdownIntoSections } from "./utils/sectionSplit";
 export interface CuratedSectionInfo {
   section: SectionId;
   adoptedAt: number;
+}
+
+/**
+ * A Section-Revise that has not yet been adopted into the Brief. Rendered in
+ * the "Rendered" tab as a visual cue (accent border + Adopt-button
+ * highlight) so the human reviewer clicks the correct section's Adopt-into-
+ * Brief button (and not a neighboring one).
+ */
+export interface PendingSectionRevisionInfo {
+  section: SectionId;
+  instruction: string;
+  at: number;
 }
 
 export interface ArtifactsPanelProps {
@@ -60,10 +72,22 @@ export interface ArtifactsPanelProps {
   t: (key: string, params?: any) => string;
   /** Sections already adopted into the Brief (contentDrafts.curatedSections). */
   curatedSections?: CuratedSectionInfo[];
-  /** Section currently being adopted (spinner state), if any. */
-  adoptingSection?: SectionId | null;
-  /** Adopt one rendered section's Markdown into the Brief (Ping-Pong loop). */
-  onAdoptSection?: (section: SectionId) => void;
+  /** True while the bulk adoption is running (spinner state). */
+  adoptingChanges?: boolean;
+  /**
+   * Adopt ALL pending (revised-but-not-yet-adopted) sections into the Brief
+   * in one step (creates a single new Brief Version). There is deliberately
+   * no per-section adopt — the human only ever revises one section at a time,
+   * and unchanged sections must not be "adopted".
+   */
+  onAdoptChanges?: () => void;
+  /**
+   * Section-Revises performed since the section's last adoption (or since
+   * ever, if never adopted). Drives the visual highlight in the Rendered-tab
+   * that tells the human which section(s) they revised, and gates the global
+   * "Adopt changes into Brief" button.
+   */
+  pendingSectionRevisions?: PendingSectionRevisionInfo[];
   /**
    * True when a Preview has been created for the *current* snapshot. Adoption
    * is gated behind this: the human must review a preview of the current state
@@ -103,14 +127,18 @@ export function ArtifactsPanel({
   onSaveJson,
   t,
   curatedSections,
-  adoptingSection,
-  onAdoptSection,
+  adoptingChanges,
+  onAdoptChanges,
   previewCurrent,
+  pendingSectionRevisions,
 }: ArtifactsPanelProps) {
   void _setUnitPackageJson;
 
   const curatedBySection = new Map<SectionId, CuratedSectionInfo>(
     (curatedSections ?? []).map((c) => [c.section, c])
+  );
+  const pendingBySection = new Map<SectionId, PendingSectionRevisionInfo>(
+    (pendingSectionRevisions ?? []).map((p) => [p.section, p]),
   );
   const renderedSections = markdownText.trim() ? splitMarkdownIntoSections(markdownText) : [];
   return (
@@ -237,44 +265,97 @@ export function ArtifactsPanel({
                   )}
                 </div>
 
-                {onAdoptSection && (
-                  <div className="rounded border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
-                    Reviewed a section in the Preview and it looks good? Click{" "}
-                    <strong>&quot;Adopt into Brief&quot;</strong> below it — the human-approved Markdown becomes the
-                    authoritative basis for that section, so a future full Creator regeneration builds upon it instead
-                    of discarding it.
-                    {markdownDirty ? (
-                      <>
-                        {" "}
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">
-                          Save Markdown first — adoption reads the last saved snapshot, not unsaved edits.
-                        </span>
-                      </>
-                    ) : !previewCurrent ? (
-                      <>
-                        {" "}
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">
-                          Create a Preview of the current state first (&quot;Save &amp; Create Preview&quot; in the
-                          Markdown tab) and review it — adoption unlocks only after the current state has been
-                          previewed.
-                        </span>
-                      </>
-                    ) : null}
-                  </div>
-                )}
+                {onAdoptChanges &&
+                  (pendingBySection.size > 0 ? (
+                    <div className="rounded-lg border-2 border-primary/40 bg-primary/5 px-3 py-3 text-xs space-y-2">
+                      <div className="flex items-center gap-1.5 font-semibold text-primary">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {pendingBySection.size === 1
+                          ? "1 section revised — not yet in the Brief"
+                          : `${pendingBySection.size} sections revised — not yet in the Brief`}
+                      </div>
+                      <div className="text-[11px] leading-relaxed text-foreground">
+                        The revised section{pendingBySection.size === 1 ? " is" : "s are"} highlighted below. Click{" "}
+                        <strong>Adopt changes into Brief</strong> to persist{" "}
+                        {pendingBySection.size === 1 ? "it" : "them"} — your instruction (the cause) and the resulting
+                        Markdown (the effect) are written into a single new Brief Version. Unchanged sections are left
+                        untouched.
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs shadow-sm"
+                          disabled={markdownDirty || adoptingChanges || !previewCurrent}
+                          title={
+                            markdownDirty
+                              ? "Save Markdown first"
+                              : !previewCurrent
+                                ? "Create & review a Preview of the current state first"
+                                : "Adopt all revised sections into a new Brief Version"
+                          }
+                          onClick={() => onAdoptChanges()}
+                        >
+                          {adoptingChanges ? (
+                            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          ) : (
+                            <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
+                          )}
+                          {pendingBySection.size === 1
+                            ? "Adopt changes into Brief"
+                            : `Adopt ${pendingBySection.size} changes into Brief`}
+                        </Button>
+                        {markdownDirty ? (
+                          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                            Save Markdown first — adoption reads the last saved snapshot, not unsaved edits.
+                          </span>
+                        ) : !previewCurrent ? (
+                          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                            Create &amp; review a Preview of the current state first (&quot;Save &amp; Create
+                            Preview&quot; in the Markdown tab).
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
+                      No section changes pending. Revise a section in the <strong>Edit Content</strong> panel; the
+                      revised section will appear highlighted here with an <strong>Adopt changes into Brief</strong>{" "}
+                      button, so a future full Creator regeneration builds upon your approved edits instead of
+                      discarding them.
+                    </div>
+                  ))}
 
                 {renderedSections.length > 0 ? (
                   <div className="space-y-4">
                     {renderedSections.map((block) => {
                       const label = SECTION_OPTIONS.find((s) => s.value === block.id)?.label || block.id;
                       const curated = curatedBySection.get(block.id);
-                      const isAdopting = adoptingSection === block.id;
+                      const pending = pendingBySection.get(block.id);
                       return (
-                        <div key={block.id} className="rounded-lg border bg-card p-4 space-y-2">
+                        <div
+                          key={block.id}
+                          data-section-id={block.id}
+                          className={cn(
+                            "rounded-lg border bg-card p-4 space-y-2",
+                            pending && "border-2 border-primary/60 shadow-md ring-1 ring-primary/20",
+                          )}
+                        >
                           <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                              {label}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                {label}
+                              </span>
+                              {pending && (
+                                <Badge
+                                  variant="default"
+                                  className="text-[10px] gap-1 bg-primary text-primary-foreground"
+                                  title={`Revised ${new Date(pending.at).toLocaleString()}\nInstruction: ${pending.instruction}`}
+                                >
+                                  <Sparkles className="h-3 w-3" />
+                                  Just revised
+                                </Badge>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2">
                               {curated && (
                                 <Badge
@@ -286,31 +367,14 @@ export function ArtifactsPanel({
                                   In Brief
                                 </Badge>
                               )}
-                              {onAdoptSection && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs"
-                                  disabled={markdownDirty || isAdopting || !previewCurrent}
-                                  title={
-                                    markdownDirty
-                                      ? "Save Markdown first"
-                                      : !previewCurrent
-                                        ? "Create & review a Preview of the current state first"
-                                        : undefined
-                                  }
-                                  onClick={() => onAdoptSection(block.id)}
-                                >
-                                  {isAdopting ? (
-                                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                                  ) : (
-                                    <PlusCircle className="h-3.5 w-3.5 mr-1" />
-                                  )}
-                                  {curated ? "Re-adopt into Brief" : "Adopt into Brief"}
-                                </Button>
-                              )}
                             </div>
                           </div>
+                          {pending && (
+                            <div className="rounded border border-primary/30 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground leading-snug">
+                              <span className="font-semibold text-foreground">Your instruction:</span>{" "}
+                              <span className="italic">{pending.instruction}</span>
+                            </div>
+                          )}
                           <MarkdownContent content={block.content} />
                         </div>
                       );

@@ -1,8 +1,75 @@
+import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
-import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { Toaster as Sonner, toast, useSonner, type ToasterProps } from "sonner";
+
+const TOAST_DURATION = 5000;
+
+/**
+ * sonner 2.x pausiert seine Auto-Close-Timer bedingungslos, solange der Tab
+ * unsichtbar ist (document.hidden) - eine Opt-out-Prop (frueher
+ * `pauseWhenPageIsHidden`) existiert in dieser Version nicht mehr. Dadurch
+ * frieren Toasts "ewig" ein, sobald man waehrend eines Vorgangs zum
+ * Terminal/anderen Tab wechselt, und muessen manuell geschlossen werden.
+ *
+ * Dieser Watchdog schliesst offene, nicht-persistente Toasts selbst - aber
+ * ausschliesslich solange der Tab im Hintergrund ist. Bei sichtbarem Tab
+ * bleibt sonners Hover-/Interaktions-Pause vollstaendig erhalten.
+ */
+function useHiddenTabAutoDismiss(defaultDuration: number) {
+  const { toasts } = useSonner();
+  const timers = useRef<Map<string | number, ReturnType<typeof setTimeout>>>(
+    new Map()
+  );
+
+  useEffect(() => {
+    const clearAll = () => {
+      timers.current.forEach((handle) => clearTimeout(handle));
+      timers.current.clear();
+    };
+
+    const sync = () => {
+      if (typeof document === "undefined" || !document.hidden) {
+        // Tab sichtbar: sonner steuert das Schliessen (inkl. Hover-Pause).
+        clearAll();
+        return;
+      }
+
+      const activeIds = new Set(toasts.map((entry) => entry.id));
+      timers.current.forEach((handle, id) => {
+        if (!activeIds.has(id)) {
+          clearTimeout(handle);
+          timers.current.delete(id);
+        }
+      });
+
+      for (const entry of toasts) {
+        if (timers.current.has(entry.id)) continue;
+        // Persistente Toasts (Loading/Promise/duration:Infinity) nicht anfassen.
+        if (entry.type === "loading" || entry.promise || entry.duration === Infinity) {
+          continue;
+        }
+        const ms =
+          typeof entry.duration === "number" ? entry.duration : defaultDuration;
+        const handle = setTimeout(() => {
+          toast.dismiss(entry.id);
+          timers.current.delete(entry.id);
+        }, ms);
+        timers.current.set(entry.id, handle);
+      }
+    };
+
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      document.removeEventListener("visibilitychange", sync);
+      clearAll();
+    };
+  }, [toasts, defaultDuration]);
+}
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
+  useHiddenTabAutoDismiss(TOAST_DURATION);
 
   return (
     <Sonner
@@ -10,7 +77,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       closeButton
       richColors
-      duration={8000}
+      duration={TOAST_DURATION}
       toastOptions={{
         classNames: {
           toast:
