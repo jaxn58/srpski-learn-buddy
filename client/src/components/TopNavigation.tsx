@@ -59,11 +59,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AvatarEnergyGauge,
-  AvatarProfileHoverContent,
-  AvatarProfileHoverRoot,
   AvatarWithRings,
-  HoverCardTrigger,
-  useAvatarProfileHoverMobile,
   useAvatarRingProps,
 } from "@/components/AvatarProfileHover";
 import {
@@ -195,13 +191,6 @@ export function TopNavigation() {
     currentLevel,
     progressToNextRatio,
   });
-  const {
-    isMobile: isAvatarHoverMobile,
-    hoverOpen: avatarHoverOpen,
-    setHoverOpen: setAvatarHoverOpen,
-    handleTouchStart: handleAvatarTouchStart,
-    handleTouchEnd: handleAvatarTouchEnd,
-  } = useAvatarProfileHoverMobile();
 
   const mainItems: NavItem[] = useMemo(
     () => [
@@ -731,63 +720,46 @@ export function TopNavigation() {
           )}
           
           <div className="flex items-center gap-1.5">
-            <AvatarProfileHoverRoot
-              isMobile={isAvatarHoverMobile}
-              hoverOpen={avatarHoverOpen}
-              onHoverOpenChange={setAvatarHoverOpen}
-            >
-              <DropdownMenu>
-                <HoverCardTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-transparent p-0 outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-0 data-[state=open]:bg-transparent data-[state=open]:ring-0"
-                      onTouchStart={handleAvatarTouchStart}
-                      onTouchEnd={handleAvatarTouchEnd}
-                      onTouchCancel={handleAvatarTouchEnd}
-                    >
-                      <AvatarWithRings {...avatarProps} />
-                    </button>
-                  </DropdownMenuTrigger>
-                </HoverCardTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {showLearning && (
-                    <DropdownMenuItem asChild>
-                      <Link href="/progress" className="cursor-pointer">
-                        <TrendingUp className="mr-2 h-4 w-4" />
-                        <span>{t("sidebar.viewProgress")}</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-transparent p-0 outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-0 data-[state=open]:bg-transparent data-[state=open]:ring-0"
+                >
+                  <AvatarWithRings {...avatarProps} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {showLearning && (
                   <DropdownMenuItem asChild>
-                    <Link href="/profile" className="cursor-pointer">
-                      <UserCircle className="mr-2 h-4 w-4" />
-                      <span>{t("sidebar.profile")}</span>
+                    <Link href="/progress" className="cursor-pointer">
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                      <span>{t("sidebar.viewProgress")}</span>
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/changelog" className="cursor-pointer">
-                      <ScrollText className="mr-2 h-4 w-4" />
-                      <span>{t("sidebar.changelog")}</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={logout}
-                    className="cursor-pointer text-destructive focus:text-destructive"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>{t("sidebar.logout")}</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <AvatarProfileHoverContent
-                showLearning={showLearning}
-                currentLevel={currentLevel}
-                totalXP={totalXP}
-                userName={user?.name || user?.email?.split("@")[0]}
-              />
-            </AvatarProfileHoverRoot>
+                )}
+                <DropdownMenuItem asChild>
+                  <Link href="/profile" className="cursor-pointer">
+                    <UserCircle className="mr-2 h-4 w-4" />
+                    <span>{t("sidebar.profile")}</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/changelog" className="cursor-pointer">
+                    <ScrollText className="mr-2 h-4 w-4" />
+                    <span>{t("sidebar.changelog")}</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={logout}
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>{t("sidebar.logout")}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {energyGauge ? <AvatarEnergyGauge {...energyGauge} /> : null}
           </div>
         </div>

@@ -2,7 +2,6 @@
 import { v } from "convex/values";
 import { query, QueryCtx } from "./_generated/server";
 import type { Id, Doc } from "./_generated/dataModel";
-import { assertLearnerAccountActive } from "./authz";
 
 type Period = "all" | "30d" | "7d";
 
@@ -217,82 +216,6 @@ export const getPublicLeaderboard = query({
       period: args.period,
       entries: out,
       self,
-    };
-  },
-});
-
-// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-export const getLeaderboard = query({
-  args: {
-    period: v.union(v.literal("all"), v.literal("30d"), v.literal("7d")),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const viewer = await ctx.db
-      .query("users")
-      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .first();
-    if (!viewer) {
-      throw new Error("User not found");
-    }
-
-    assertLearnerAccountActive(viewer);
-
-    const limit = Math.min(Math.max(args.limit ?? 100, 10), 500);
-
-    const raw =
-      args.period === "all"
-        ? await getAllTimeUserXp(ctx)
-        : await getPeriodUserXp(ctx, args.period);
-
-    const ranked = sortAndRank(raw);
-
-    const my = ranked.find((r) => r.userId === viewer._id) ?? null;
-
-    const slice = ranked.slice(0, limit);
-    const entries: Array<{
-      rank: number;
-      xp: number;
-      displayName: string;
-      avatarUrl: string | null;
-      isYou: boolean;
-      isPublic: boolean;
-      level: number | null;
-    }> = [];
-
-    for (const item of slice) {
-      const user = await ctx.db.get(item.userId);
-      if (!user) continue;
-      const display = getDisplayForViewer({ viewerUserId: viewer._id, user });
-      const resolvedAvatarUrl =
-        user.publicAvatarStorageId
-          ? await ctx.storage.getUrl(user.publicAvatarStorageId)
-          : display.avatarUrl;
-      entries.push({
-        rank: item.rank,
-        xp: item.xp,
-        displayName: display.displayName,
-        avatarUrl: resolvedAvatarUrl,
-        isYou: display.isYou,
-        isPublic: display.isPublic,
-        level: typeof user.level === "number" && Number.isFinite(user.level) ? user.level : null,
-      });
-    }
-
-    return {
-      period: args.period,
-      entries,
-      myRank: my?.rank ?? null,
-      myXp: my?.xp ?? 0,
-      myPublicEnabled: isLeaderboardOptInWish(viewer),
-      myNickname: viewer.publicNickname ?? null,
-      myAvatarUrl: viewer.publicAvatarUrl ?? null,
     };
   },
 });
