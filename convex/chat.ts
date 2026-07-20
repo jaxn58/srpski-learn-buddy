@@ -132,6 +132,9 @@ function applyOutputTokenLimits(
 const DETAILED_RESPONSE_GUIDANCE =
   "\n\n[RESPONSE LENGTH GUIDANCE] This is a DETAILED answer request. Cover the topic thoroughly with examples, but if the subject is large (e.g. an entire unit's grammar), prioritize the most important concepts first and use clear sections. If you cannot cover everything in one answer, finish the current section cleanly, list what remains, and invite the user to ask for the next part. Never stop mid-sentence or mid-heading.";
 
+const COMPACT_RESPONSE_GUIDANCE =
+  "\n\n[RESPONSE LENGTH GUIDANCE] This is a COMPACT answer request. Keep your answer to 3-4 sentences maximum. Cover only the most essential information. No lengthy examples, no tables, no exhaustive lists.";
+
 function getTruncationNotice(learningLanguage: string): string {
   switch (learningLanguage) {
     case "de":
@@ -1914,6 +1917,8 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
 
   if (body.responseMode === "detailed") {
     systemPrompt += DETAILED_RESPONSE_GUIDANCE;
+  } else if (body.responseMode === "compact") {
+    systemPrompt += COMPACT_RESPONSE_GUIDANCE;
   }
 
   type AiContentPart =

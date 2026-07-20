@@ -30,8 +30,10 @@ import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
 import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
 import { EnergyPill } from "@/components/chat/EnergyPill";
+import { ChatResponseModeToggle } from "@/components/chat/ChatResponseModeToggle";
 import { ChatMessageFeedback, getChatFeedbackPrompt } from "@/components/chat/ChatMessageFeedback";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
@@ -48,6 +50,7 @@ export default function Chat() {
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
+  const [responseMode, setResponseMode] = useState<"compact" | "detailed">("compact");
   const [attachedFile, setAttachedFile] = useState<{
     storageId: string;
     fileName: string;
@@ -56,7 +59,6 @@ export default function Chat() {
     previewUrl?: string;
   } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [showAttachHint, setShowAttachHint] = useState(false);
   const [attachQuotaNow, setAttachQuotaNow] = useState(() => Date.now());
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -80,6 +82,7 @@ export default function Chat() {
   // chat surface ships unit context + semantic search by default.
   const attachIsImage = attachedFile?.fileType.startsWith("image/") ?? false;
   const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
+    responseMode,
     ragHinted: true,
     hasImageAttachment: attachIsImage,
     hasFileAttachment: attachedFile != null && !attachIsImage,
@@ -90,6 +93,22 @@ export default function Chat() {
     !upcomingEnergyEstimate.unlimited &&
     !upcomingEnergyEstimate.teaserOnly &&
     !upcomingEnergyEstimate.enough;
+
+  // Rough per-analysis Energy band for the attach hint, shown before a file is
+  // picked. Bound to the admin-configured Energy pricing (same query that gates
+  // the send button), so it stays dynamic and never hardcoded.
+  const attachEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
+    ragHinted: true,
+    hasFileAttachment: true,
+  });
+  const formatEnergyRange = (
+    estimate?: { costMin: number; costMax: number; unlimited: boolean; teaserOnly: boolean } | null,
+  ): string | null => {
+    if (!estimate || estimate.unlimited || estimate.teaserOnly) return null;
+    return estimate.costMin === estimate.costMax
+      ? `${estimate.costMin}`
+      : `${estimate.costMin}\u2013${estimate.costMax}`;
+  };
 
   // Beta banner dismiss state (localStorage-based, per-session until dismissed)
   const BETA_BANNER_KEY = "chat_beta_banner_dismissed";
@@ -141,6 +160,7 @@ export default function Chat() {
       const sessionId = await createSessionMutation({ title: t('chat.newChat') });
       const sessionIdStr = sessionId as unknown as string;
       setCurrentSessionId(sessionIdStr);
+      setResponseMode("compact");
       if (options?.showSuccessToast) {
         toast.success(t('chat.newChatSuccess'));
       }
@@ -435,6 +455,7 @@ export default function Chat() {
       await checkRateLimitMutation({
         sessionId: currentSessionId as Id<"chatSessions">,
         message: messageToSend,
+        responseMode,
         hasImageAttachment: hasImage,
         hasFileAttachment: hasFile,
         attachmentBytes: currentAttachment?.fileBytes,
@@ -446,6 +467,7 @@ export default function Chat() {
         role: "user",
         content: messageToSend || (currentAttachment ? `[Attached: ${currentAttachment.fileName}]` : ""),
         unitContext: progress?.currentUnit,
+        responseMode,
         ...(currentAttachment ? {
           attachmentStorageId: currentAttachment.storageId,
           attachmentFileName: currentAttachment.fileName,
@@ -487,6 +509,7 @@ export default function Chat() {
           streamId,
           sessionId: currentSessionId,
           messageId,
+          responseMode,
           ...(currentAttachment ? {
             attachmentStorageId: currentAttachment.storageId,
             attachmentFileName: currentAttachment.fileName,
@@ -827,6 +850,18 @@ export default function Chat() {
                   previewUrl={attachedFile.previewUrl}
                   onRemove={clearAttachedFile}
                 />
+                {(() => {
+                  const analysisCost = formatEnergyRange(upcomingEnergyEstimate);
+                  return analysisCost ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
+                      <Zap className="h-3 w-3 shrink-0" />
+                      {t('chat.attachHint.analysisCost', {
+                        cost: analysisCost,
+                        defaultValue: '≈ {{cost}} Energy to analyze',
+                      })}
+                    </span>
+                  ) : null;
+                })()}
               </div>
             )}
             <input
@@ -851,79 +886,90 @@ export default function Chat() {
                 className="flex-1 rounded-full"
                 disabled={isSending || !currentSessionId}
               />
+              <ChatResponseModeToggle
+                value={responseMode}
+                onChange={setResponseMode}
+                disabled={isSending || !currentSessionId}
+              />
               {/* AI Energy pill (always visible for metered users) */}
               <EnergyPill />
               {canUploadDocuments && (
-              <div
-                className="relative shrink-0"
-                onMouseEnter={() => {
-                  setAttachQuotaNow(Date.now());
-                  setShowAttachHint(true);
+              <Tooltip
+                onOpenChange={(open) => {
+                  if (open) setAttachQuotaNow(Date.now());
                 }}
-                onMouseLeave={() => setShowAttachHint(false)}
               >
-                {showAttachHint && !isUploading && (
-                  <div className="absolute bottom-full mb-2 right-0 z-50 pointer-events-none">
-                    <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-md px-3 py-2 text-[11px] leading-relaxed whitespace-nowrap">
-                      <p className="font-semibold mb-1">{t('chat.attachHint.title', 'Supported files')}</p>
-                      <p>{t('chat.attachHint.images', 'JPG / PNG / WebP — max. 3 MB')}</p>
-                      <p>{t('chat.attachHint.pdf', 'PDF — max. 3 MB')}</p>
-                      <p>{t('chat.attachHint.text', 'TXT / MD — max. 50 KB')}</p>
-                      <div className="border-t border-border my-1.5" />
-                      {attachQuota?.unlimited ? (
-                        <p>{t('chat.attachHint.storageUnlimited', 'Storage: unlimited')}</p>
-                      ) : attachQuota?.remainingFormatted != null && attachQuota.quotaFormatted != null ? (
-                        <p>
-                          {attachQuota.remainingBytes === 0
-                            ? t('chat.attachHint.storageExhausted', {
-                                used: attachQuota.usedFormatted,
-                                quota: attachQuota.quotaFormatted,
-                                defaultValue: 'Storage full ({{used}} of {{quota}})',
-                              })
-                            : t('chat.attachHint.storage', {
-                                remaining: attachQuota.remainingFormatted,
-                                quota: attachQuota.quotaFormatted,
-                                defaultValue: 'Storage: {{remaining}} of {{quota}} left',
-                              })}
-                        </p>
-                      ) : (
-                        <p className="text-muted-foreground">{t('chat.attachHint.storageLoading', 'Storage: …')}</p>
-                      )}
-                      {attachQuota ? (
-                        <p>
-                          {attachQuota.dailyRemaining === 0
-                            ? t('chat.attachHint.dailyExhausted', {
-                                limit: attachQuota.dailyLimit,
-                                defaultValue: 'Today: upload limit reached ({{limit}}/day)',
-                              })
-                            : t('chat.attachHint.daily', {
-                                remaining: attachQuota.dailyRemaining,
-                                limit: attachQuota.dailyLimit,
-                                defaultValue: 'Today: {{remaining}} of {{limit}} uploads left',
-                              })}
-                        </p>
-                      ) : (
-                        <p className="text-muted-foreground">{t('chat.attachHint.dailyLoading', 'Today: …')}</p>
-                      )}
-                    </div>
-                    {/* Arrow pointing down */}
-                    <div className="absolute right-3 top-full w-2.5 h-2.5 overflow-hidden">
-                      <div className="w-2.5 h-2.5 bg-popover border-r border-b border-border rotate-45 -translate-y-1/2" />
-                    </div>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading || isSending || !currentSessionId || !!attachedFile}
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-full h-10 w-10 shrink-0"
+                    aria-label={t('chat.attachHint.title', 'Supported files')}
+                  >
+                    {isUploading
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Paperclip className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" collisionPadding={12} className="max-w-[240px] px-2.5 py-1.5">
+                  <div className="text-[11px] leading-snug space-y-px">
+                    <div className="font-semibold">{t('chat.attachHint.title', 'Supported files')}</div>
+                    <div className="opacity-80">{t('chat.attachHint.images', 'JPG / PNG / WebP — max. 3 MB')}</div>
+                    <div className="opacity-80">{t('chat.attachHint.pdf', 'PDF — max. 3 MB')}</div>
+                    <div className="opacity-80">{t('chat.attachHint.text', 'TXT / MD — max. 50 KB')}</div>
+                    {(() => {
+                      const analysisCost = formatEnergyRange(attachEnergyEstimate);
+                      return analysisCost ? (
+                        <div className="flex items-center gap-1 pt-0.5 tabular-nums">
+                          <Zap className="h-3 w-3 shrink-0" />
+                          {t('chat.attachHint.energy', {
+                            cost: analysisCost,
+                            defaultValue: 'Analysis from ≈ {{cost}} Energy',
+                          })}
+                        </div>
+                      ) : null;
+                    })()}
+                    <div className="my-1 border-t border-background/20" />
+                    {attachQuota?.unlimited ? (
+                      <div className="opacity-80">{t('chat.attachHint.storageUnlimited', 'Storage: unlimited')}</div>
+                    ) : attachQuota?.remainingFormatted != null && attachQuota.quotaFormatted != null ? (
+                      <div className="opacity-80">
+                        {attachQuota.remainingBytes === 0
+                          ? t('chat.attachHint.storageExhausted', {
+                              used: attachQuota.usedFormatted,
+                              quota: attachQuota.quotaFormatted,
+                              defaultValue: 'Storage full ({{used}} of {{quota}})',
+                            })
+                          : t('chat.attachHint.storage', {
+                              remaining: attachQuota.remainingFormatted,
+                              quota: attachQuota.quotaFormatted,
+                              defaultValue: 'Storage: {{remaining}} of {{quota}} left',
+                            })}
+                      </div>
+                    ) : (
+                      <div className="opacity-60">{t('chat.attachHint.storageLoading', 'Storage: …')}</div>
+                    )}
+                    {attachQuota ? (
+                      <div className="opacity-80">
+                        {attachQuota.dailyRemaining === 0
+                          ? t('chat.attachHint.dailyExhausted', {
+                              limit: attachQuota.dailyLimit,
+                              defaultValue: 'Today: upload limit reached ({{limit}}/day)',
+                            })
+                          : t('chat.attachHint.daily', {
+                              remaining: attachQuota.dailyRemaining,
+                              limit: attachQuota.dailyLimit,
+                              defaultValue: 'Today: {{remaining}} of {{limit}} uploads left',
+                            })}
+                      </div>
+                    ) : (
+                      <div className="opacity-60">{t('chat.attachHint.dailyLoading', 'Today: …')}</div>
+                    )}
                   </div>
-                )}
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading || isSending || !currentSessionId || !!attachedFile}
-                  size="icon"
-                  variant="ghost"
-                  className="rounded-full h-10 w-10"
-                >
-                  {isUploading
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Paperclip className="h-4 w-4" />}
-                </Button>
-              </div>
+                </TooltipContent>
+              </Tooltip>
               )}
               {activeStreamId ? (
                 <Button

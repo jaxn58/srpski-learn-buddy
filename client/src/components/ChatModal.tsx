@@ -24,8 +24,10 @@ import { ChatMarkdownContent } from "@/components/ChatMarkdownContent";
 import { useChatStream } from "@/hooks/useChatStream";
 import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
 import { EnergyPill } from "@/components/chat/EnergyPill";
+import { ChatResponseModeToggle } from "@/components/chat/ChatResponseModeToggle";
 import { ChatMessageFeedback, getChatFeedbackPrompt } from "@/components/chat/ChatMessageFeedback";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type ChatMessageDoc = Doc<"chatMessages">;
 type ChatMessageDisplay = ChatMessageDoc & { createdAt?: number };
@@ -65,6 +67,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const [isSending, setIsSending] = useState(false);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
   const [pendingPrefill, setPendingPrefill] = useState<string | null>(null);
+  const [responseMode, setResponseMode] = useState<"compact" | "detailed">("compact");
   const [attachedFile, setAttachedFile] = useState<{
     storageId: string;
     fileName: string;
@@ -90,6 +93,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   // and the send-button block.
   const attachIsImage = attachedFile?.fileType.startsWith("image/") ?? false;
   const upcomingEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
+    responseMode,
     ragHinted: true,
     hasImageAttachment: attachIsImage,
     hasFileAttachment: attachedFile != null && !attachIsImage,
@@ -108,6 +112,26 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     !upcomingEnergyEstimate.unlimited &&
     !upcomingEnergyEstimate.teaserOnly &&
     !upcomingEnergyEstimate.enough;
+
+  // Upload quota + rough per-analysis Energy band for the attach info tooltip.
+  // Mirrors the main chat page so both surfaces show the same, admin-bound hint.
+  const [attachQuotaNow, setAttachQuotaNow] = useState(() => Date.now());
+  const attachQuota = useQuery(
+    api.documents.getChatAttachmentQuota,
+    canUploadDocuments && user ? { now: attachQuotaNow } : "skip"
+  );
+  const attachEnergyEstimate = useQuery(api.chat.estimateEnergyForAction, {
+    ragHinted: true,
+    hasFileAttachment: true,
+  });
+  const formatEnergyRange = (
+    estimate?: { costMin: number; costMax: number; unlimited: boolean; teaserOnly: boolean } | null,
+  ): string | null => {
+    if (!estimate || estimate.unlimited || estimate.teaserOnly) return null;
+    return estimate.costMin === estimate.costMax
+      ? `${estimate.costMin}`
+      : `${estimate.costMin}\u2013${estimate.costMax}`;
+  };
 
   const formatMessageTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -141,6 +165,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       skipAutoSelectRef.current = false;
       setCurrentSessionId(null);
       setPendingPrefill(null);
+      setResponseMode("compact");
       clearAttachedFile();
     }
   }, [isOpen, clearAttachedFile]);
@@ -433,6 +458,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
       resetStream();
       setActiveStreamId(null);
       setPendingPrefill(null);
+      setResponseMode("compact");
       setMessage("");
       clearAttachedFile();
 
@@ -576,7 +602,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
     const currentAttachment = attachedFile;
     setMessage("");
     clearAttachedFile();
-    await sendStreaming(messageToSend, sessionIdToUse, undefined, currentAttachment);
+    await sendStreaming(messageToSend, sessionIdToUse, responseMode, currentAttachment);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -678,11 +704,11 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     <p className="text-sm font-semibold mb-1">{t("buddy.modeSelect.compact", "Compact")}</p>
                     <p className="text-xs text-muted-foreground">{t("buddy.modeSelect.compactDesc", "3-4 sentences, essentials only")}</p>
                     {compactEstimate && !compactEstimate.unlimited && (
-                      <p className="flex items-center gap-1 mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                        <Zap className="h-3 w-3" />
-                        ~{compactEstimate.costMin === compactEstimate.costMax
+                      <p className="flex items-center gap-1 mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium tabular-nums">
+                        <Zap className="h-3 w-3 shrink-0" />
+                        ≈ {compactEstimate.costMin === compactEstimate.costMax
                           ? compactEstimate.costMin
-                          : `${compactEstimate.costMin}–${compactEstimate.costMax}`} Energy
+                          : `${compactEstimate.costMin}\u2013${compactEstimate.costMax}`} Energy
                       </p>
                     )}
                   </Card>
@@ -695,11 +721,11 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                       {t("buddy.modeSelect.detailedDesc", "Full explanation with examples")}
                     </p>
                     {detailedEstimate && !detailedEstimate.unlimited && (
-                      <p className="flex items-center gap-1 mt-2 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                        <Zap className="h-3 w-3" />
-                        ~{detailedEstimate.costMin === detailedEstimate.costMax
+                      <p className="flex items-center gap-1 mt-2 text-[11px] text-amber-600 dark:text-amber-400 font-medium tabular-nums">
+                        <Zap className="h-3 w-3 shrink-0" />
+                        ≈ {detailedEstimate.costMin === detailedEstimate.costMax
                           ? detailedEstimate.costMin
-                          : `${detailedEstimate.costMin}–${detailedEstimate.costMax}`} Energy
+                          : `${detailedEstimate.costMin}\u2013${detailedEstimate.costMax}`} Energy
                       </p>
                     )}
                   </Card>
@@ -862,6 +888,18 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     previewUrl={attachedFile.previewUrl}
                     onRemove={clearAttachedFile}
                   />
+                  {(() => {
+                    const analysisCost = formatEnergyRange(upcomingEnergyEstimate);
+                    return analysisCost ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
+                        <Zap className="h-3 w-3 shrink-0" />
+                        {t('chat.attachHint.analysisCost', {
+                          cost: analysisCost,
+                          defaultValue: '≈ {{cost}} Energy to analyze',
+                        })}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
               )}
               <input
@@ -882,21 +920,94 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                   className="flex-1 rounded-full text-sm"
                   disabled={isSending}
                 />
+                <ChatResponseModeToggle
+                  value={responseMode}
+                  onChange={setResponseMode}
+                  disabled={isSending}
+                />
                 <EnergyPill className="shrink-0" />
                 {canUploadDocuments && (
-                  <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading || isSending || !!attachedFile}
-                    size="icon"
-                    variant="ghost"
-                    className="rounded-full h-10 w-10 shrink-0"
-                    aria-label={t('chat.modal.attach')}
-                    title={t('chat.modal.attach')}
+                  <Tooltip
+                    onOpenChange={(open) => {
+                      if (open) setAttachQuotaNow(Date.now());
+                    }}
                   >
-                    {isUploading
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Paperclip className="h-4 w-4" />}
-                  </Button>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading || isSending || !!attachedFile}
+                        size="icon"
+                        variant="ghost"
+                        className="rounded-full h-10 w-10 shrink-0"
+                        aria-label={t('chat.modal.attach')}
+                      >
+                        {isUploading
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Paperclip className="h-4 w-4" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      align="end"
+                      collisionPadding={12}
+                      className="max-w-[240px] px-2.5 py-1.5"
+                    >
+                      <div className="text-[11px] leading-snug space-y-px">
+                        <div className="font-semibold">{t('chat.attachHint.title', 'Supported files')}</div>
+                        <div className="opacity-80">{t('chat.attachHint.images', 'JPG / PNG / WebP — max. 3 MB')}</div>
+                        <div className="opacity-80">{t('chat.attachHint.pdf', 'PDF — max. 3 MB')}</div>
+                        <div className="opacity-80">{t('chat.attachHint.text', 'TXT / MD — max. 50 KB')}</div>
+                        {(() => {
+                          const analysisCost = formatEnergyRange(attachEnergyEstimate);
+                          return analysisCost ? (
+                            <div className="flex items-center gap-1 pt-0.5 tabular-nums">
+                              <Zap className="h-3 w-3 shrink-0" />
+                              {t('chat.attachHint.energy', {
+                                cost: analysisCost,
+                                defaultValue: 'Analysis from ≈ {{cost}} Energy',
+                              })}
+                            </div>
+                          ) : null;
+                        })()}
+                        <div className="my-1 border-t border-background/20" />
+                        {attachQuota?.unlimited ? (
+                          <div className="opacity-80">{t('chat.attachHint.storageUnlimited', 'Storage: unlimited')}</div>
+                        ) : attachQuota?.remainingFormatted != null && attachQuota.quotaFormatted != null ? (
+                          <div className="opacity-80">
+                            {attachQuota.remainingBytes === 0
+                              ? t('chat.attachHint.storageExhausted', {
+                                  used: attachQuota.usedFormatted,
+                                  quota: attachQuota.quotaFormatted,
+                                  defaultValue: 'Storage full ({{used}} of {{quota}})',
+                                })
+                              : t('chat.attachHint.storage', {
+                                  remaining: attachQuota.remainingFormatted,
+                                  quota: attachQuota.quotaFormatted,
+                                  defaultValue: 'Storage: {{remaining}} of {{quota}} left',
+                                })}
+                          </div>
+                        ) : (
+                          <div className="opacity-60">{t('chat.attachHint.storageLoading', 'Storage: …')}</div>
+                        )}
+                        {attachQuota ? (
+                          <div className="opacity-80">
+                            {attachQuota.dailyRemaining === 0
+                              ? t('chat.attachHint.dailyExhausted', {
+                                  limit: attachQuota.dailyLimit,
+                                  defaultValue: 'Today: upload limit reached ({{limit}}/day)',
+                                })
+                              : t('chat.attachHint.daily', {
+                                  remaining: attachQuota.dailyRemaining,
+                                  limit: attachQuota.dailyLimit,
+                                  defaultValue: 'Today: {{remaining}} of {{limit}} uploads left',
+                                })}
+                          </div>
+                        ) : (
+                          <div className="opacity-60">{t('chat.attachHint.dailyLoading', 'Today: …')}</div>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
                 {activeStreamId ? (
                   <Button

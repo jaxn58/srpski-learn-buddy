@@ -160,10 +160,25 @@ export function previewEnergyBandForChat(
     config
   );
 
+  // Attachment surcharge – mirrors the actual billing model so the preview no
+  // longer understates uploads. Images carry the vision premium; documents the
+  // upload base plus a linear per-KB factor (identical formula to
+  // `estimateEnergyCost`, which is what a non-image upload is actually charged
+  // when the provider returns no measured token usage). Added on top of the
+  // answer-token band so the learner sees a realistic higher cost for analyses.
+  let attachmentSurcharge = 0;
+  if (input.hasImageAttachment) {
+    attachmentSurcharge = config.costs.visionSurcharge;
+  } else if (input.hasFileAttachment) {
+    const kb = (input.attachmentBytes ?? 0) / 1024;
+    attachmentSurcharge = config.costs.uploadBase + kb * config.costs.uploadPerKb;
+  }
+  const surcharge = Math.ceil(attachmentSurcharge);
+
   return {
-    costMin: minEnergy,
-    costMax: maxEnergy,
-    costMid: Math.ceil((minEnergy + maxEnergy) / 2),
+    costMin: minEnergy + surcharge,
+    costMax: maxEnergy + surcharge,
+    costMid: Math.ceil((minEnergy + maxEnergy) / 2) + surcharge,
   };
 }
 

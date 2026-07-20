@@ -53,20 +53,21 @@ export function EnergyPill({ className }: EnergyPillProps) {
               <span className="tabular-nums">{available}</span>
             </span>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[220px] px-2.5 py-1.5">
+          <TooltipContent side="bottom" collisionPadding={12} className="max-w-[220px] px-2.5 py-1.5">
             <div className="text-[11px] leading-snug space-y-px">
-              <p className="font-semibold text-[11px]">{t("energy.title")}</p>
-              <p className="tabular-nums">
+              <div className="font-semibold">{t("energy.title")}</div>
+              <div className="flex items-center gap-1 pt-0.5 tabular-nums">
+                <Zap className="h-3 w-3 shrink-0" />
                 <span className="font-medium">{Math.max(0, quotaMonthly - usedThisPeriod)}</span>
-                <span className="opacity-60"> / {quotaMonthly}</span>
-              </p>
+                <span className="opacity-60">/ {quotaMonthly}</span>
+              </div>
               {topUpBalance > 0 && (
-                <p className="opacity-70">+{topUpBalance} {t("energy.topUpBalance")}</p>
+                <div className="opacity-70">+{topUpBalance} {t("energy.topUpBalance")}</div>
               )}
               {showDebtWarning && (
-                <p className="text-destructive font-medium">
+                <div className="text-destructive font-medium">
                   {t("energy.debtOutstanding", { amount: debtBalance })}
-                </p>
+                </div>
               )}
             </div>
           </TooltipContent>
