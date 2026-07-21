@@ -1,7 +1,20 @@
 /**
  * Ping-Pong: Brief <-> Markdown (Brief Version History)
  *
- * Lets a human "adopt" a reviewed, rendered section of the current snapshot's
+ * Nomenclature (do not conflate these terms):
+ * - Draft (`contentDrafts`) is the FOUNDATION of a unit's work: metadata,
+ *   status, and pointers to its Brief and Snapshots. A Draft is never a
+ *   Markdown document.
+ * - Brief is the editable, human-curated part OF a Draft: free-form notes
+ *   (`inspirationRef.notes`) plus adopted section content (`curatedSections`),
+ *   versioned in `contentDraftBriefVersions`.
+ * - Markdown is an AI-GENERATED ARTIFACT that results from Draft+Brief going
+ *   through the Creator or Section-Revise, stored on a Snapshot
+ *   (`contentDraftSnapshots.markdownSource`). Markdown is never the Draft and
+ *   is never "adopted into itself" — adoption always copies FROM the current
+ *   Snapshot's Markdown INTO the Brief.
+ *
+ * Lets a human "adopt" a reviewed, rendered section of the current Snapshot's
  * Markdown back into the Brief (contentDrafts.curatedSections), so a future
  * full Creator regeneration builds upon it instead of discarding it. Every
  * adoption (and every Creator generation) creates a new, immutable Brief
@@ -12,11 +25,19 @@
  * edits — the human must review the Preview/Rendered view first and then
  * explicitly adopt a section (see convex/contentStudio/_sectionRevise.ts and
  * client ArtifactsPanel "Rendered" tab for the manipulation/preview side).
+ *
+ * The counterpart to adoption is `refuseSectionRevision` below: instead of
+ * copying the revised section INTO the Brief, it discards the revision by
+ * writing the section's PREVIOUS Markdown content back into a new Snapshot.
+ * This only ever touches the Markdown artifact — the Brief is never modified
+ * by a refusal.
  */
 import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "../_generated/server";
 import { requireSuperadmin } from "./_shared";
-import { extractSection, SECTION_LABELS, type SectionId } from "../../scripts/markdownParser/sectionUtils";
+import { extractSection, replaceSection, SECTION_LABELS, type SectionId } from "../../scripts/markdownParser/sectionUtils";
+import { validateMarkdownStructure, parseMarkdownToUnitPackage } from "../../scripts/markdownParser/parser";
+import { UnitPackageSchema } from "../../scripts/unitPackage/schema";
 import type { Doc, Id } from "../_generated/dataModel";
 
 const sectionIdValidator = v.union(
@@ -60,7 +81,8 @@ type PendingSectionRevision = {
 
 /**
  * Determine which sections were revised (via a targeted Section-Revise)
- * since each section's last adoption and are therefore "pending adoption".
+ * since each section was last "resolved" (adopted into the Brief, or
+ * refused via refuseSectionRevision) and are therefore "pending adoption".
  * Shared by `listPendingSectionRevisions` (UI highlight) and
  * `adoptSectionsIntoBrief` (bulk adoption) so both agree on exactly what
  * counts as "changed". Bounded scan (200 newest snapshots per draft).
@@ -75,19 +97,34 @@ async function computePendingSectionRevisions(
     .order("desc")
     .take(200);
 
-  const adoptedAtBySection = new Map<SectionId, number>();
-  for (const c of getCuratedSections(draft)) adoptedAtBySection.set(c.section, c.adoptedAt);
+  // A section counts as "resolved as of T" if it was either adopted into the
+  // Brief (curatedSections[].adoptedAt) or refused (sectionRevisionRefused-
+  // Section on a later snapshot) — whichever happened more recently. Without
+  // folding refusals in here, a refused revision would keep reappearing as
+  // pending forever, since the older sectionRevisionSection-tagged snapshot
+  // that caused it never disappears from history.
+  const resolvedAtBySection = new Map<SectionId, number>();
+  for (const c of getCuratedSections(draft)) {
+    const prev = resolvedAtBySection.get(c.section) ?? 0;
+    if (c.adoptedAt > prev) resolvedAtBySection.set(c.section, c.adoptedAt);
+  }
+  for (const s of recent) {
+    const refused = (s as unknown as { sectionRevisionRefusedSection?: SectionId }).sectionRevisionRefusedSection;
+    if (!refused) continue;
+    const prev = resolvedAtBySection.get(refused) ?? 0;
+    if (s.createdAt > prev) resolvedAtBySection.set(refused, s.createdAt);
+  }
 
   // Newest section-revise snapshot per section wins (iterating newest-first),
-  // and only counts if it is newer than that section's last adoption.
+  // and only counts if it is newer than that section's last resolution.
   const pendingBySection = new Map<SectionId, PendingSectionRevision>();
   for (const s of recent) {
     const revised = (s as unknown as { sectionRevisionSection?: SectionId }).sectionRevisionSection;
     const instr = (s as unknown as { sectionRevisionInstruction?: string }).sectionRevisionInstruction;
     if (!revised || typeof instr !== "string" || instr.trim().length === 0) continue;
     if (pendingBySection.has(revised)) continue;
-    const lastAdopted = adoptedAtBySection.get(revised) ?? 0;
-    if (s.createdAt <= lastAdopted) continue;
+    const resolvedAt = resolvedAtBySection.get(revised) ?? 0;
+    if (s.createdAt <= resolvedAt) continue;
     pendingBySection.set(revised, {
       section: revised,
       instruction: instr.trim(),
@@ -333,6 +370,137 @@ export const listPendingSectionRevisions = query({
     const draft = await ctx.db.get(args.draftId);
     if (!draft) return [];
     return await computePendingSectionRevisions(ctx, draft);
+  },
+});
+
+/**
+ * Refuse a pending Section-Revise: reverts the section's Markdown to the
+ * version it had immediately before that revise, discarding only that one
+ * step (never the whole revision history of the section — a second Refuse
+ * on a freshly-re-revised section would roll back one more step in the same
+ * way). The Brief is never touched by this — refusal only concerns the
+ * Markdown artifact on the Draft's Snapshots.
+ *
+ * "Immediately before" = the newest Snapshot older than the pending
+ * Section-Revise Snapshot that still has Markdown. Bounded scan (200 newest
+ * snapshots), same bound as `computePendingSectionRevisions` above, which
+ * this function's "still pending" check depends on.
+ */
+export const refuseSectionRevision = mutation({
+  args: {
+    draftId: v.id("contentDrafts"),
+    section: sectionIdValidator,
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    snapshotId: v.id("contentDraftSnapshots"),
+  }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft) throw new Error("Draft not found");
+    if (!draft.lastSnapshotId) {
+      throw new Error("Draft has no snapshot yet.");
+    }
+
+    const pending = await computePendingSectionRevisions(ctx, draft);
+    const target = pending.find((p) => p.section === args.section);
+    if (!target) {
+      throw new Error(
+        `Section '${SECTION_LABELS[args.section] || args.section}' has no pending revision to refuse.`,
+      );
+    }
+
+    const currentSnapshot = await ctx.db.get(draft.lastSnapshotId);
+    if (!currentSnapshot?.markdownSource) {
+      throw new Error("Current snapshot has no Markdown to revert.");
+    }
+
+    // Same bounded, newest-first scan as computePendingSectionRevisions, so the
+    // position of the pending revise's snapshot within it is meaningful.
+    const recent = await ctx.db
+      .query("contentDraftSnapshots")
+      .withIndex("by_draft", (q) => q.eq("draftId", args.draftId))
+      .order("desc")
+      .take(200);
+
+    const targetIdx = recent.findIndex((s) => String(s._id) === String(target.snapshotId));
+    if (targetIdx === -1) {
+      throw new Error("Pending revision snapshot not found in recent history.");
+    }
+
+    // The one immediately preceding version: the newest snapshot OLDER than
+    // the pending revise that still carries Markdown. Only ever one step back.
+    const baseline = recent
+      .slice(targetIdx + 1)
+      .find((s) => typeof s.markdownSource === "string" && s.markdownSource.trim().length > 0);
+    if (!baseline) {
+      throw new Error(
+        `No earlier version of '${SECTION_LABELS[args.section] || args.section}' exists to revert to.`,
+      );
+    }
+
+    const baselineSectionContent = extractSection(String(baseline.markdownSource), args.section);
+    if (!baselineSectionContent) {
+      throw new Error(
+        `Section '${SECTION_LABELS[args.section] || args.section}' was not found in the previous version's Markdown.`,
+      );
+    }
+
+    const currentMarkdown = String(currentSnapshot.markdownSource);
+    const revertedMarkdown = replaceSection(currentMarkdown, args.section, baselineSectionContent);
+
+    const structure = validateMarkdownStructure(revertedMarkdown);
+    if (!structure.valid) {
+      throw new Error(`Reverted markdown failed structure validation: ${structure.errors.join("; ")}`);
+    }
+
+    const parsedUnitPackage = parseMarkdownToUnitPackage(revertedMarkdown);
+    const baseParsed = UnitPackageSchema.safeParse(parsedUnitPackage);
+    if (!baseParsed.success) {
+      const first = baseParsed.error.issues?.[0];
+      throw new Error(
+        `Parsed reverted markdown produced invalid unitPackage.v1. First issue: ${first?.path?.join(".") || "(unknown)"}: ${first?.message || "invalid"}`,
+      );
+    }
+
+    const now = Date.now();
+
+    // New Snapshot deliberately has NO sectionRevisionSection/Instruction (it
+    // must never itself count as a new pending revision), but DOES carry
+    // sectionRevisionRefusedSection as an explicit "resolved" marker, so
+    // computePendingSectionRevisions stops counting the refused revision as
+    // pending — the Rendered-tab banner clears itself for it.
+    const snapshotId = await ctx.db.insert("contentDraftSnapshots", {
+      draftId: args.draftId,
+      unitPackageJson: JSON.stringify(baseParsed.data),
+      markdownSource: revertedMarkdown,
+      validationReportJson: JSON.stringify({
+        ok: false,
+        note: `Reverted section '${args.section}' to its previous version; run Validator.`,
+      }),
+      briefVersionId: (draft as unknown as { activeBriefVersionId?: Id<"contentDraftBriefVersions"> })
+        .activeBriefVersionId,
+      sectionRevisionRefusedSection: args.section,
+      createdAt: now,
+    });
+
+    // Content changed (a section was rolled back) — clear findings the same
+    // way runSectionRevise does, so stale issues from the now-discarded
+    // revision don't linger. Status returns to "draft" pending re-validation.
+    const existingFindings = await ctx.db
+      .query("contentDraftFindings")
+      .withIndex("by_draft", (q) => q.eq("draftId", args.draftId))
+      .collect();
+    for (const f of existingFindings) await ctx.db.delete(f._id);
+
+    await ctx.db.patch(args.draftId, {
+      lastSnapshotId: snapshotId,
+      status: "draft",
+      updatedAt: now,
+    } as Partial<Doc<"contentDrafts">>);
+
+    return { ok: true, snapshotId };
   },
 });
 

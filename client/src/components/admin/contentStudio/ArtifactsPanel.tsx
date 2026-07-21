@@ -1,3 +1,16 @@
+/**
+ * ArtifactsPanel — Markdown / Rendered / JSON / Diff views of a Draft's
+ * current Snapshot.
+ *
+ * Nomenclature reminder (see convex/contentStudio/_briefVersions.ts for the
+ * full definitions): a Draft is the foundation of a unit's work and is never
+ * the same thing as its Markdown. Markdown is the AI-generated artifact that
+ * results from the Draft's Brief going through the Creator or Section-Revise,
+ * held on a Snapshot. The "Rendered" tab below shows that Markdown and lets
+ * the human either Adopt a revised section INTO the Brief, or Refuse it
+ * (revert the Markdown one step) — neither action ever turns Markdown into
+ * the Draft itself.
+ */
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Eye, Loader2, PlusCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, Eye, Loader2, PlusCircle, Sparkles, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
@@ -30,6 +43,11 @@ export interface CuratedSectionInfo {
  * the "Rendered" tab as a visual cue (accent border + Adopt-button
  * highlight) so the human reviewer clicks the correct section's Adopt-into-
  * Brief button (and not a neighboring one).
+ *
+ * Nomenclature reminder: this is Markdown-level state on the Draft's current
+ * Snapshot, not the Draft itself and not the Brief. Adopting copies it INTO
+ * the Brief (contentDrafts.curatedSections); refusing reverts the Markdown
+ * one step and never touches the Brief.
  */
 export interface PendingSectionRevisionInfo {
   section: SectionId;
@@ -94,6 +112,16 @@ export interface ArtifactsPanelProps {
    * before a section can be adopted into the Brief.
    */
   previewCurrent?: boolean;
+  /**
+   * Refuse a single pending Section-Revise: reverts that section's Markdown
+   * to the version it had immediately before the revise (one step back —
+   * never the whole revision history of the section). The Brief is never
+   * modified by this. Per-section (unlike the bulk Adopt), since refusing
+   * one revised section says nothing about the others.
+   */
+  onRefuseChanges?: (section: SectionId) => void;
+  /** Section currently being reverted (spinner / disabled state). */
+  refusingSection?: SectionId | null;
 }
 
 export function ArtifactsPanel({
@@ -131,6 +159,8 @@ export function ArtifactsPanel({
   onAdoptChanges,
   previewCurrent,
   pendingSectionRevisions,
+  onRefuseChanges,
+  refusingSection,
 }: ArtifactsPanelProps) {
   void _setUnitPackageJson;
 
@@ -304,14 +334,25 @@ export function ArtifactsPanel({
                             ? "Adopt changes into Brief"
                             : `Adopt ${pendingBySection.size} changes into Brief`}
                         </Button>
+                        {!previewCurrent && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            disabled={isBusy || !selectedDraftId || !markdownText.trim()}
+                            onClick={onCreatePreview}
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1.5" />
+                            {creatingPreview ? "Creating preview…" : "Save & Create Preview"}
+                          </Button>
+                        )}
                         {markdownDirty ? (
                           <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
                             Save Markdown first — adoption reads the last saved snapshot, not unsaved edits.
                           </span>
                         ) : !previewCurrent ? (
                           <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                            Create &amp; review a Preview of the current state first (&quot;Save &amp; Create
-                            Preview&quot; in the Markdown tab).
+                            Create &amp; review a Preview of the current state first.
                           </span>
                         ) : null}
                       </div>
@@ -366,6 +407,23 @@ export function ArtifactsPanel({
                                   <CheckCircle2 className="h-3 w-3" />
                                   In Brief
                                 </Badge>
+                              )}
+                              {pending && onRefuseChanges && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[11px] text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                                  disabled={refusingSection === block.id}
+                                  title="Revert this section to the version it had before this revise (one step back). The Brief is not affected."
+                                  onClick={() => onRefuseChanges(block.id)}
+                                >
+                                  {refusingSection === block.id ? (
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <Undo2 className="h-3 w-3 mr-1" />
+                                  )}
+                                  Refuse & revert
+                                </Button>
                               )}
                             </div>
                           </div>
