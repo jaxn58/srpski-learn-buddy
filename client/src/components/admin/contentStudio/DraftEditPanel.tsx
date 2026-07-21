@@ -549,6 +549,7 @@ function EditForm(props: EditFormProps) {
     draftEditDescription, setDraftEditDescription,
     draftEditModuleNumber, setDraftEditModuleNumber,
     draftEditUnitNumber, setDraftEditUnitNumber,
+    draftCreatorBrief, setDraftCreatorBrief,
     draftAuthorNoteName, setDraftAuthorNoteName,
     draftAuthorNoteQuote, setDraftAuthorNoteQuote, onFounderQuoteBlur,
     draftRefId, setDraftRefId,
@@ -700,6 +701,25 @@ function EditForm(props: EditFormProps) {
           </p>
         </div>
 
+        <div className="space-y-2">
+          <Label>Creator brief / unit prompt</Label>
+          <p className="text-xs text-muted-foreground">
+            Main prompt for the unit (scenes, didactic progression). German or English — output is always English.
+          </p>
+          <Textarea
+            value={draftCreatorBrief}
+            onChange={(e) => setDraftCreatorBrief(e.target.value)}
+            className="min-h-[180px]"
+            placeholder={[
+              "Example:",
+              "- Situation: café in Montenegro",
+              "- Prerequisites: greetings (Unit 1), introductions (Unit 2)",
+              "- New: ordering drinks, asking for the bill, 'Ja bih ...'",
+              "- Constraints: max 30 vocab, max 4 dialogues, keep it concise",
+            ].join("\n")}
+          />
+        </div>
+
         <CuratedSectionsPanel
           curatedSections={curatedSections}
           briefVersions={briefVersions}
@@ -745,23 +765,17 @@ function EditForm(props: EditFormProps) {
                 onChange={(e) => setDraftRefPages(e.target.value)}
               />
             </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Notes</Label>
+              <Textarea
+                value={draftRefNotes}
+                onChange={(e) => setDraftRefNotes(e.target.value)}
+                rows={2}
+                placeholder="Additional notes about how to use this reference..."
+              />
+            </div>
           </div>
         )}
-        <div className="space-y-1">
-          <Label className="text-xs">
-            {draftRefId ? "Reference notes" : "Creator brief / notes"}
-          </Label>
-          <Textarea
-            value={draftRefNotes}
-            onChange={(e) => setDraftRefNotes(e.target.value)}
-            rows={draftRefId ? 2 : 6}
-            placeholder={
-              draftRefId
-                ? "Additional notes about how to use this reference..."
-                : "Main prompt for the unit (scenes, didactic progression)."
-            }
-          />
-        </div>
       </div>
 
       <Separator />
