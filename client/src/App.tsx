@@ -57,7 +57,6 @@ const WishlistManagement = lazy(() => import("./pages/WishlistManagement"));
 const SubscriptionAnalytics = lazy(() => import("./pages/SubscriptionAnalytics"));
 const EmailTemplates = lazy(() => import("./pages/EmailTemplates"));
 const BackupManagement = lazy(() => import("./pages/BackupManagement"));
-const ContentImportAdmin = lazy(() => import("./pages/ContentImportAdmin"));
 const ContentStudioAdmin = lazy(() => import("./pages/ContentStudioAdmin"));
 const TranslationCoverageAdmin = lazy(() => import("./pages/TranslationCoverageAdmin"));
 const AdminWaitlist = lazy(() => import("./pages/AdminWaitlist"));
@@ -468,17 +467,6 @@ function Router() {
               <Suspense fallback={<DashboardLayoutSkeleton />}>
                 <DashboardLayout>
                   <BackupManagement />
-                </DashboardLayout>
-              </Suspense>
-            </ProtectedRoute>
-          )}
-        </Route>
-        <Route path="/admin/content-import">
-          {() => (
-            <ProtectedRoute>
-              <Suspense fallback={<DashboardLayoutSkeleton />}>
-                <DashboardLayout>
-                  <ContentImportAdmin />
                 </DashboardLayout>
               </Suspense>
             </ProtectedRoute>

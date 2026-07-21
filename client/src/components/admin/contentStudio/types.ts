@@ -7,7 +7,7 @@ export type StepId = "generate" | "qa" | "createPreview";
 export type SectionId = "overview" | "vocabulary" | "grammar" | "phrases" | "exercises" | "cultural";
 export type DraftStatusKey = "draft" | "qc_failed" | "qc_passed" | "audit_failed" | "ready_to_publish" | "published";
 export type SettingsTab = "ai" | "libraries" | "prompts";
-export type StudioView = "draftManager" | "drafts" | "units" | "import" | "audioFiles" | "validatorMemory";
+export type StudioView = "draftManager" | "drafts" | "units" | "modules" | "audioFiles" | "validatorMemory";
 
 export type ModelEntry = {
   id: string;

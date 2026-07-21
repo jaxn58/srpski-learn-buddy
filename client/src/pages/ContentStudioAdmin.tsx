@@ -19,14 +19,14 @@ import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from "
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { Sparkles, Loader2, Settings, Plus, LayoutList, PanelLeft, PanelRight, Volume2, Brain } from "lucide-react";
+import { Sparkles, Loader2, Settings, Plus, LayoutList, PanelLeft, PanelRight, Volume2, Brain, FolderTree } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
 import { UnitManagerTab } from "@/components/admin/UnitManagerTab";
-const LazyImportTab = lazy(() => import("./ContentImportAdmin").then(m => ({ default: m.ImportTab })));
+const LazyModulesTab = lazy(() => import("@/components/admin/contentStudio/ModulesTab").then(m => ({ default: m.ModulesTab })));
 const LazyAudioFilesTab = lazy(() => import("@/components/admin/contentStudio/AudioFilesTab").then(m => ({ default: m.AudioFilesTab })));
 const LazyValidatorMemoryPanel = lazy(() => import("@/components/admin/contentStudio/ValidatorMemoryPanel").then(m => ({ default: m.ValidatorMemoryPanel })));
 import { SettingsSheet } from "@/components/admin/contentStudio/SettingsSheet";
@@ -121,12 +121,19 @@ export default function ContentStudioAdmin() {
     selectedDraftId ? { draftId: selectedDraftId } : ("skip" as any)
   );
   const adoptSectionsIntoBrief = useMutation(api.contentStudio.adoptSectionsIntoBrief);
+  const refuseSectionRevisionMutation = useMutation(api.contentStudio.refuseSectionRevision);
   const selectBriefVersionMutation = useMutation(api.contentStudio.selectBriefVersion);
   const saveBriefVersionMutation = useMutation(api.contentStudio.saveBriefVersion);
   const nameBriefVersionMutation = useMutation(api.contentStudio.nameBriefVersion);
   const deleteBriefVersionMutation = useMutation(api.contentStudio.deleteBriefVersion);
   const [briefVersionBusy, setBriefVersionBusy] = useState(false);
   const [adoptingChanges, setAdoptingChanges] = useState(false);
+  // Refuse = revert a single pending Section-Revise's Markdown one step back
+  // (never the Brief). refuseSectionConfirm holds the section awaiting the
+  // human's confirmation (destructive: discards the Section-Revise output);
+  // refusingSection tracks which section's mutation is in flight.
+  const [refuseSectionConfirm, setRefuseSectionConfirm] = useState<SectionId | null>(null);
+  const [refusingSection, setRefusingSection] = useState<SectionId | null>(null);
 
   const runSpecialist = useAction(api.contentStudio._creator.runAiSpecialistGenerate);
   const runValidate = useAction(api.contentStudio.runQcValidate);
@@ -258,7 +265,7 @@ export default function ContentStudioAdmin() {
     const params = new URLSearchParams(window.location.search);
     const v = params.get("view");
     if (
-      v === "import" ||
+      v === "modules" ||
       v === "units" ||
       v === "drafts" ||
       v === "audioFiles" ||
@@ -2090,6 +2097,31 @@ export default function ContentStudioAdmin() {
     }
   };
 
+  // Ping-Pong: Brief <-> Markdown — refuse a single pending Section-Revise by
+  // reverting that section's Markdown to the version it had immediately
+  // before the revise (one step back, never the whole history). Never
+  // touches the Brief. Destructive to the Section-Revise's output, so it
+  // requires confirmation via the AlertDialog below before running.
+  const handleRefuseChanges = (section: SectionId) => {
+    setRefuseSectionConfirm(section);
+  };
+
+  const confirmRefuseSection = async () => {
+    const section = refuseSectionConfirm;
+    if (!selectedDraftId || !section) return;
+    setRefusingSection(section);
+    try {
+      await refuseSectionRevisionMutation({ draftId: selectedDraftId, section });
+      const label = SECTION_OPTIONS.find((o) => o.value === section)?.label || section;
+      toast.success(t("admin.contentStudio.toast.sectionRefused", { section: label }));
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.sectionRefuseFailed"));
+    } finally {
+      setRefusingSection(null);
+      setRefuseSectionConfirm(null);
+    }
+  };
+
   const handleSelectBriefVersion = async (versionId: string) => {
     if (!selectedDraftId) return;
     setBriefVersionBusy(true);
@@ -2145,8 +2177,12 @@ export default function ContentStudioAdmin() {
       return;
     }
     try {
+      // deleteUnitFull only starts the (async, batched) deletion job — a full
+      // deletion can touch thousands of rows and does not fit in a single
+      // Convex function execution. Live progress can be checked in the Unit
+      // Manager's Danger Zone (getUnitDeletionJob).
       await deleteUnitFull({ unitNumber: unitNum, confirm: deleteConfirmation });
-      toast.success(t("admin.contentStudio.toast.unitDeleted", { unit: unitNum }));
+      toast.info(t("admin.contentStudio.toast.unitDeletionStarted", { unit: unitNum }));
       setDeleteUnitOpen(false);
       setSelectedDraftId(null);
     } catch (e: any) {
@@ -2386,8 +2422,8 @@ export default function ContentStudioAdmin() {
               ? "Create and configure drafts (skills, reference, brief)"
               : studioView === "drafts"
                 ? "Generate \u2192 QA \u2192 Preview \u2192 Publish"
-                : studioView === "import"
-                  ? "Upload Markdown / JSON to import units"
+                : studioView === "modules"
+                  ? "Create, edit and translate course modules"
                   : studioView === "audioFiles"
                   ? "Manage audio files across modules and units"
                   : studioView === "validatorMemory"
@@ -2418,12 +2454,13 @@ export default function ContentStudioAdmin() {
               Generator
             </Button>
             <Button
-              variant={studioView === "import" ? "default" : "ghost"}
+              variant={studioView === "modules" ? "default" : "ghost"}
               size="sm"
               className="h-7 text-xs"
-              onClick={() => setStudioView("import")}
+              onClick={() => setStudioView("modules")}
             >
-              Quick Import
+              <FolderTree className="mr-1.5 h-3.5 w-3.5" />
+              Modules
             </Button>
             <Button
               variant={studioView === "units" ? "default" : "ghost"}
@@ -2460,8 +2497,8 @@ export default function ContentStudioAdmin() {
         </div>
       </div>
 
-      {/* Import view */}
-      {studioView === "import" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyImportTab /></Suspense>}
+      {/* Modules view */}
+      {studioView === "modules" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyModulesTab /></Suspense>}
 
       {/* Unit Manager view */}
       {studioView === "units" && (
@@ -2828,6 +2865,8 @@ export default function ContentStudioAdmin() {
                     onAdoptChanges={handleAdoptChanges}
                     previewCurrent={previewIsCurrent}
                     pendingSectionRevisions={pendingSectionRevisions ?? []}
+                    onRefuseChanges={handleRefuseChanges}
+                    refusingSection={refusingSection}
                   />
                 </div>
               </>
@@ -2941,6 +2980,47 @@ export default function ContentStudioAdmin() {
               }}
             >
               Trotzdem neu generieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={refuseSectionConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open && !refusingSection) setRefuseSectionConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Section-Revise verwerfen?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  <strong>
+                    {SECTION_OPTIONS.find((o) => o.value === refuseSectionConfirm)?.label ||
+                      refuseSectionConfirm}
+                  </strong>{" "}
+                  wird im Markdown auf die Version vor dieser Revision zurückgesetzt — nur dieser
+                  eine Schritt wird verworfen, ältere Revisionen derselben Section bleiben
+                  unberührt.
+                </p>
+                <p>
+                  Das Briefing (curatedSections) wird dabei <strong>nicht</strong> verändert.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={refusingSection !== null}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={refusingSection !== null}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmRefuseSection();
+              }}
+            >
+              {refusingSection ? "Wird zurückgesetzt…" : "Verwerfen & zurücksetzen"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
+import { mutation, query, internalMutation, action, MutationCtx, ActionCtx } from "./_generated/server";
+import { requireSuperadminAction, callAiJson } from "./contentStudio/_shared";
 
 // ============= MODULE METADATA =============
 
@@ -416,16 +417,153 @@ export const getAllModulesAbsolute = query({
   },
 });
 
+// ============= TRANSLATION =============
+
+// Translate a module's EN title + description into German (superadmin-only).
+// Mirrors translateOnboardingEnToDe (convex/onboarding.ts): the caller (UI) fills
+// the DE fields for review — nothing is persisted here.
+// @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+export const translateModuleEnToDe = action({
+  args: {
+    titleEn: v.string(),
+    descriptionEn: v.string(),
+    preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
+  },
+  handler: async (ctx: ActionCtx, args) => {
+    await requireSuperadminAction(ctx);
+
+    const titleEn = args.titleEn.trim();
+    const descriptionEn = args.descriptionEn.trim();
+    if (!titleEn || !descriptionEn) {
+      throw new Error("MISSING_REQUIRED_FIELDS");
+    }
+
+    const system = [
+      "You are a translation engine for a Serbian-learning course platform.",
+      "Translate the provided course module title and description from English to German (de-DE).",
+      "Keep the tone concise and consistent with course module naming (e.g. 'Modul 1: Grundlagen').",
+      "Return ONLY valid JSON with keys: titleDe, descriptionDe.",
+    ].join("\n");
+
+    const user = ["Title (EN):", titleEn, "", "Description (EN):", descriptionEn].join("\n");
+
+    const ai = await callAiJson(ctx, {
+      stage: "specialist",
+      preferredProvider: args.preferredProvider ?? "gemini",
+      system,
+      user,
+      maxTokens: 800,
+    });
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(ai.raw);
+    } catch {
+      throw new Error("AI returned invalid JSON.");
+    }
+
+    const titleDe = typeof parsed?.titleDe === "string" ? parsed.titleDe.trim() : "";
+    const descriptionDe = typeof parsed?.descriptionDe === "string" ? parsed.descriptionDe.trim() : "";
+
+    if (!titleDe || !descriptionDe) {
+      throw new Error("AI returned empty translation fields.");
+    }
+
+    return { titleDe, descriptionDe };
+  },
+});
+
 // ============= CLEANUP UTILITIES =============
 
-// Delete a module by ID (for cleanup scripts - no auth required)
+/**
+ * Returns every unitMetadata row associated with a module, via EITHER the
+ * new foreign key (moduleMetadataId) OR the deprecated string linkage
+ * (unitMetadata.moduleId matching the module's slug or legacy moduleId).
+ * Shared by the delete guard (deleteModuleById) and the unit-count display
+ * (getModuleUnitCounts) so both always agree on whether a module "has units".
+ */
+async function findUnitsForModule(
+  ctx: { db: any },
+  moduleDoc: { _id: Id<"moduleMetadata">; slug?: string; moduleId?: string }
+) {
+  const byFk = await ctx.db
+    .query("unitMetadata")
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    .withIndex("by_module_metadata", (q) => q.eq("moduleMetadataId", moduleDoc._id))
+    .collect();
+
+  const legacyKeys = [
+    ...new Set(
+      [moduleDoc.slug, moduleDoc.moduleId].filter(
+        (key): key is string => typeof key === "string" && key.length > 0
+      )
+    ),
+  ];
+
+  const legacyRows: any[] = [];
+  for (const key of legacyKeys) {
+    const rows = await ctx.db
+      .query("unitMetadata")
+      // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+      .withIndex("by_module", (q) => q.eq("moduleId", key))
+      .collect();
+    legacyRows.push(...rows);
+  }
+
+  // De-dupe in case a row matches both the FK and a legacy key.
+  const byId = new Map<string, any>();
+  for (const row of [...byFk, ...legacyRows]) {
+    byId.set(String(row._id), row);
+  }
+  return Array.from(byId.values());
+}
+
+// Delete a module by ID. Superadmin-only. Blocked while units are still
+// assigned to this module, whether linked via the new foreign key
+// (unitMetadata.moduleMetadataId) or the deprecated string linkage
+// (unitMetadata.moduleId matching slug / legacy moduleId), to avoid leaving
+// orphaned foreign keys behind.
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const deleteModuleById = mutation({
   args: { id: v.id("moduleMetadata") },
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
+
+    const moduleDoc = await ctx.db.get(args.id);
+    if (!moduleDoc) {
+      throw new Error("MODULE_NOT_FOUND");
+    }
+
+    const assignedUnits = await findUnitsForModule(ctx, moduleDoc);
+    if (assignedUnits.length > 0) {
+      throw new Error("MODULE_HAS_UNITS");
+    }
+
     await ctx.db.delete(args.id);
     return { success: true };
+  },
+});
+
+// Returns, per module (_id as string), the number of DISTINCT unit numbers
+// assigned to it (via new FK or deprecated moduleId/slug linkage). Powers
+// the "Units" column and the proactive delete-guard in the Modulverwaltung
+// UI - stays in sync with the deleteModuleById guard via findUnitsForModule.
+export const getModuleUnitCounts = query({
+  args: {},
+  returns: v.record(v.string(), v.number()),
+  handler: async (ctx) => {
+    await requireSuperadmin(ctx);
+
+    const modules = await ctx.db.query("moduleMetadata").collect();
+    const counts: Record<string, number> = {};
+
+    for (const moduleDoc of modules) {
+      const units = await findUnitsForModule(ctx, moduleDoc);
+      const distinctUnitNumbers = new Set(units.map((u: any) => u.unitNumber));
+      counts[String(moduleDoc._id)] = distinctUnitNumbers.size;
+    }
+
+    return counts;
   },
 });
 

@@ -157,7 +157,7 @@ export default function TranslationCoverageAdmin() {
             <span className="text-sm text-muted-foreground">{t("admin.translationCoverage.onlyMissing")}</span>
             <Switch checked={onlyMissing} onCheckedChange={setOnlyMissing} />
           </div>
-          <Link href="/admin/content-import">
+          <Link href="/admin/content-studio">
             <Button variant="outline">{t("admin.translationCoverage.openEditor")}</Button>
           </Link>
         </div>

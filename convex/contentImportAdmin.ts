@@ -1,11 +1,10 @@
 import { v } from "convex/values";
 import { action, internalMutation, query, ActionCtx, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 
 import { UnitPackageSchema, validateUnitPackageDeep } from "../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../scripts/unitPackage/autofix";
-import { parseMarkdownToUnitPackage, validateMarkdownStructure } from "../scripts/markdownParser/parser";
 import { findEarlierUnitVocabulary, toVocabularyKey } from "./vocabulary";
 import { purgeProgressForRemovedVocab } from "./contentStudio/_vocabularyProgressRemap";
 
@@ -166,56 +165,6 @@ export const internalCreateRun = internalMutation({
   },
 });
 
-export const listRuns = query({
-  args: {
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const user = await getSuperadminUser(ctx);
-    if (!user) throw new Error("Unauthorized - Superadmin required");
-
-    const limit = args.limit && args.limit > 0 ? Math.min(args.limit, 200) : 50;
-
-    const runs = await ctx.db
-      .query("contentImportRuns")
-      .withIndex("by_started_at")
-      .order("desc")
-      .take(limit);
-
-    // Keep list view lightweight (reportJson only via getRun)
-    return runs.map((r) => ({
-      _id: r._id,
-      _creationTime: r._creationTime,
-      type: r.type,
-      status: r.status,
-      mode: (r as any).mode,
-      unitVersion: (r as any).unitVersion,
-      startedAt: r.startedAt,
-      completedAt: r.completedAt,
-      createdBy: r.createdBy,
-      fileNames: r.fileNames,
-      filesCount: r.filesCount,
-      unitNumbers: r.unitNumbers,
-      totalErrors: r.totalErrors,
-      totalWarnings: r.totalWarnings,
-    }));
-  },
-});
-
-export const getRun = query({
-  args: {
-    runId: v.id("contentImportRuns"),
-  },
-  handler: async (ctx, args) => {
-    const user = await getSuperadminUser(ctx);
-    if (!user) throw new Error("Unauthorized - Superadmin required");
-
-    const run = await ctx.db.get(args.runId);
-    if (!run) throw new Error("Run not found");
-    return run;
-  },
-});
-
 export const previewReplaceUnit = query({
   args: {
     unitNumber: v.number(),
@@ -292,62 +241,6 @@ export const previewReplaceUnit = query({
       nextUnitVersion: maxVersion + 1,
       willArchive: { content: activeContent, tests: activeTests, vocabulary: activeVocab },
     };
-  },
-});
-
-export const validateUnitPackages = action({
-  args: {
-    files: v.array(v.object({ fileName: v.string(), unitPackage: v.any() })),
-    includeFixed: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args): Promise<{ runId: Id<"contentImportRuns">; report: Report }> => {
-    const user = await requireSuperadminAction(ctx);
-
-    const startedAt = Date.now();
-    const includeFixed = args.includeFixed ?? true;
-
-    const files: FileResult[] = args.files.map((f) => analyzeOne(f, includeFixed));
-    const validFiles = files.filter((f) => f.valid).length;
-    const invalidFiles = files.length - validFiles;
-    const totalErrors = files.reduce((sum, f) => sum + f.errors.length + f.parseErrors.length, 0);
-    const totalWarnings = 0;
-
-    const status: "success" | "failed" = invalidFiles === 0 ? "success" : "failed";
-
-    const report: Report = {
-      generatedAt: new Date().toISOString(),
-      type: "validate",
-      status,
-      summary: {
-        files: files.length,
-        validFiles,
-        invalidFiles,
-        totalErrors,
-        totalWarnings,
-      },
-      files,
-    };
-
-    const fileNames = files.map((f) => f.fileName);
-    const unitNumbers = Array.from(
-      new Set(files.map((f) => f.unitNumber).filter((n): n is number => typeof n === "number"))
-    ).sort((a, b) => a - b);
-
-    const runId = await ctx.runMutation(internal.contentImportAdmin.internalCreateRun, {
-      type: "validate",
-      status,
-      startedAt,
-      completedAt: Date.now(),
-      createdBy: user._id as Id<"users">,
-      fileNames,
-      filesCount: files.length,
-      unitNumbers,
-      totalErrors,
-      totalWarnings,
-      reportJson: JSON.stringify(report),
-    });
-
-    return { runId, report };
   },
 });
 
@@ -741,87 +634,6 @@ export const internalArchiveUnitForReplace = internalMutation({
       nextUnitVersion: maxVersion + 1,
       archived: { content: archivedContent, tests: archivedTests, vocabulary: archivedVocab },
     };
-  },
-});
-
-// ============= MARKDOWN TO JSON CONVERSION =============
-export const parseMarkdownToJson = action({
-  args: {
-    files: v.array(v.object({ 
-      fileName: v.string(), 
-      markdownContent: v.string() 
-    })),
-  },
-  handler: async (ctx, args) => {
-    const user = await requireSuperadminAction(ctx);
-    
-    const results = args.files.map(file => {
-      try {
-        // First, validate markdown structure
-        const structureValidation = validateMarkdownStructure(file.markdownContent);
-        if (!structureValidation.valid) {
-          return {
-            fileName: file.fileName,
-            success: false,
-            error: `Invalid Markdown structure: ${structureValidation.errors.join(", ")}`,
-            structureErrors: structureValidation.errors,
-          };
-        }
-
-        // Parse markdown to unit package
-        const unitPackage = parseMarkdownToUnitPackage(file.markdownContent);
-        
-        const { fixed, changes } = autofixUnitPackage(unitPackage);
-
-        const schemaResult = UnitPackageSchema.safeParse(fixed);
-        if (!schemaResult.success) {
-          const schemaErrors = schemaResult.error.issues.map((i) => ({
-            path: i.path.join(".") || "(root)",
-            message: i.message,
-          }));
-          return {
-            fileName: file.fileName,
-            success: false,
-            unitPackage: fixed,
-            unitNumber: fixed.unitNumber,
-            title: fixed.title,
-            changesCount: changes.length,
-            changesPreview: changes.slice(0, 10), // First 10 changes
-            errorsCount: schemaErrors.length,
-            warningsCount: 0,
-            errors: schemaErrors,
-            warnings: [],
-          };
-        }
-
-        // Validate the fixed package (deep rules)
-        const issues = validateUnitPackageDeep(schemaResult.data);
-        const errors = issues.filter((i) => i.level === "error");
-        const warnings = issues.filter((i) => i.level === "warning");
-        
-        return {
-          fileName: file.fileName,
-          success: errors.length === 0,
-          unitPackage: fixed,
-          unitNumber: fixed.unitNumber,
-          title: fixed.title,
-          changesCount: changes.length,
-          changesPreview: changes.slice(0, 10), // First 10 changes
-          errorsCount: errors.length,
-          warningsCount: warnings.length,
-          errors: errors.map(e => ({ path: e.path, message: e.message })),
-          warnings: warnings.map(w => ({ path: w.path, message: w.message })),
-        };
-      } catch (error: any) {
-        return {
-          fileName: file.fileName,
-          success: false,
-          error: error.message || "Unknown parsing error",
-        };
-      }
-    });
-    
-    return { results };
   },
 });
 

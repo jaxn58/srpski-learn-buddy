@@ -30,6 +30,7 @@ import {
 } from "./PreviewStatusBanner";
 import { BriefVersionsPanel, type BriefVersionShape } from "./BriefVersionsPanel";
 import { CuratedSectionsPanel, type CuratedSectionEntryShape } from "./CuratedSectionsPanel";
+import { ModuleSelect } from "./ModuleSelect";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "./utils/briefVersionLabel";
 
 export interface DraftEditPanelCreateParams {
@@ -76,6 +77,9 @@ export interface DraftEditPanelProps {
   setDraftEditModuleNumber: (v: string) => void;
   draftEditUnitNumber: string;
   setDraftEditUnitNumber: (v: string) => void;
+  /** Creator brief / unit prompt (maps to inspirationRef.notes — the main authoring prompt). */
+  draftCreatorBrief: string;
+  setDraftCreatorBrief: (v: string) => void;
   draftAuthorNoteName: string;
   setDraftAuthorNoteName: (v: string) => void;
   draftAuthorNoteQuote: string;
@@ -83,6 +87,7 @@ export interface DraftEditPanelProps {
   onFounderQuoteBlur: () => void;
   draftRefId: string;
   setDraftRefId: (v: string) => void;
+  /** Reference-specific note (maps to inspirationRef.referenceNotes — individualizes this unit's use of the reference). */
   draftRefNotes: string;
   setDraftRefNotes: (v: string) => void;
   draftRefChapter: string;
@@ -242,7 +247,7 @@ function CreateForm({
     if (ref.referenceId) setRefId(String(ref.referenceId));
     if (ref.chapter) setRefChapter(String(ref.chapter));
     if (ref.pages) setRefPages(String(ref.pages));
-    if (ref.notes && !brief) setRefNotes(String(ref.notes));
+    if (ref.referenceNotes) setRefNotes(String(ref.referenceNotes));
     // Pre-fill skills from template
     if (Array.isArray(tpl?.specialistSkillIds)) setSpecialistSkillIds(tpl.specialistSkillIds.map(String));
     if (Array.isArray(tpl?.auditorSkillIds)) setAuditorSkillIds(tpl.auditorSkillIds.map(String));
@@ -267,7 +272,8 @@ function CreateForm({
   );
   const collides = collisionCheck?.collides === true;
   const collisionMessage = collides
-    ? `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
+    ? collisionCheck?.message ??
+      `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
     : null;
 
   const handleCreate = async () => {
@@ -325,12 +331,7 @@ function CreateForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Module Number</Label>
-          <Input
-            value={moduleNumber}
-            onChange={(e) => setModuleNumber(e.target.value)}
-            aria-invalid={collides || undefined}
-            className={cn(collides && "border-destructive focus-visible:ring-destructive")}
-          />
+          <ModuleSelect value={moduleNumber} onChange={setModuleNumber} hasError={collides} />
         </div>
         <div className="space-y-2">
           <Label>Unit Number</Label>
@@ -590,7 +591,8 @@ function EditForm(props: EditFormProps) {
   );
   const collides = collisionCheck?.collides === true;
   const collisionMessage = collides
-    ? `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
+    ? collisionCheck?.message ??
+      `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
     : null;
 
   const draftModuleNumber = (selected as any)?.draft?.moduleNumber;
@@ -653,12 +655,7 @@ function EditForm(props: EditFormProps) {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Module Number</Label>
-            <Input
-              value={draftEditModuleNumber}
-              onChange={(e) => setDraftEditModuleNumber(e.target.value)}
-              aria-invalid={collides || undefined}
-              className={cn(collides && "border-destructive focus-visible:ring-destructive")}
-            />
+            <ModuleSelect value={draftEditModuleNumber} onChange={setDraftEditModuleNumber} hasError={collides} />
           </div>
           <div className="space-y-2">
             <Label>Unit Number</Label>
@@ -692,12 +689,15 @@ function EditForm(props: EditFormProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label>Description / Creator Brief</Label>
-          <Textarea
+          <Label>Unit description (1 short sentence)</Label>
+          <Input
             value={draftEditDescription}
             onChange={(e) => setDraftEditDescription(e.target.value)}
-            rows={6}
+            placeholder="This becomes **Description:** in the unit header (max ~120 chars)."
           />
+          <p className="text-xs text-muted-foreground">
+            Becomes the unit header line <span className="font-mono">**Description:** ...</span>.
+          </p>
         </div>
 
         <CuratedSectionsPanel
