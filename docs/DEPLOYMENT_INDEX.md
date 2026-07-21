@@ -116,7 +116,23 @@ Diese Seite gibt dir einen Überblick über alle verfügbaren Deployment-Guides 
 
 ---
 
-### 4. Email-System
+### 4. Beta-Umgebung (beta.learn-with.me)
+
+#### [BETA_ENVIRONMENT_SETUP.md](./BETA_ENVIRONMENT_SETUP.md)
+**Umfang**: Aufbau einer eigenständigen, geschlossenen Beta-Umgebung parallel zu Production
+
+**Inhalt**:
+- Zielarchitektur (eigenes Convex-Projekt, eigene Clerk-Instanz, eigenes Vercel-Projekt)
+- Schritt-für-Schritt-Anleitung für Convex-, Clerk- und Vercel-Dashboard
+- Environment-Variablen-Referenz für das Beta-Deployment
+- Content-Import aus Production (nur Content-Tabellen, keine User-/Payment-Daten)
+- Smoke-Test-Checkliste
+
+**Wann verwenden**: Beim Aufsetzen von `beta.learn-with.me` als geschlossene Testumgebung neben der Live-Seite
+
+---
+
+### 5. Email-System
 
 #### [EMAIL_AUTOMATION_IMPLEMENTATION.md](./EMAIL_AUTOMATION_IMPLEMENTATION.md)
 **Umfang**: Resend Email-Integration
@@ -275,6 +291,7 @@ Bei Problemen:
 Diese Dokumentation wird regelmäßig aktualisiert. Letzte Änderung: 2024-12-16
 
 **Änderungshistorie**:
+- 2026-07-21: Beta-Umgebung-Setup-Guide (`BETA_ENVIRONMENT_SETUP.md`) hinzugefügt
 - 2024-12-17: Development vs. Production Workflow Guide hinzugefügt
 - 2024-12-16: Clerk Production Migration Guide hinzugefügt
 - 2024-12-16: Deployment Index erstellt

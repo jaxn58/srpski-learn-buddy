@@ -85,6 +85,7 @@ async function main() {
   const siteUrl = getSiteUrl();
   const isWaitlistMode = process.env.VITE_WAITLIST_MODE === "on";
   const showWaitlist = isWaitlistMode; // prerender assumes non-privileged, logged-out visitor
+  const isBetaEnv = process.env.VITE_BETA_ENV === "on";
 
   await initI18nForNode();
   const t = (key: string, options?: Record<string, any>) => i18n.t(key, options) as string;
@@ -97,6 +98,12 @@ async function main() {
   const headTags: string[] = [];
   headTags.push(`<title>${escapeHtml(title)}</title>`);
   headTags.push(`<meta name="description" content="${escapeHtml(heroDescriptionPlain)}" />`);
+  if (isBetaEnv) {
+    // Closed beta on beta.learn-with.me must never be indexed as a duplicate of the live site.
+    // The same index.html is served for every route (SPA rewrite in vercel.json), so this
+    // single meta tag covers the whole app, not just the landing page.
+    headTags.push(`<meta name="robots" content="noindex, nofollow" />`);
+  }
 
   if (siteUrl) {
     headTags.push(`<link rel="canonical" href="${escapeHtml(siteUrl + "/")}" />`);

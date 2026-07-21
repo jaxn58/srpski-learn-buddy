@@ -101,6 +101,13 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
   - Convex Deployment: `fleet-labrador-324`
   - URL: `https://learn-with.me`
   - Production-Datenbank mit echten User-Daten
+- **Beta (geschlossene Testphase)**: öffentlich erreichbar, aber nur für eingeladene Tester
+  - Convex Deployment: eigenes, von Dev/Prod komplett getrenntes Convex-Projekt (Name wird bei Anlage ergänzt)
+  - Vercel-Projekt: eigenes Projekt (Name wird bei Anlage ergänzt), gleiches Repo/gleicher Build wie Prod
+  - Clerk: eigene Clerk-Production-Instanz mit Restricted Sign-up (Einladung/Allowlist im Clerk-Dashboard)
+  - URL: `https://beta.learn-with.me`
+  - `VITE_BETA_ENV=on` gesetzt → Seite wird site-wide `noindex, nofollow` (siehe `scripts/prerender-landing.ts`)
+  - Eigene Datenbank; Content wird punktuell aus Production exportiert/importiert (nur Content-/Konfigurationstabellen, keine User-/Payment-Daten), Details siehe Beta-Setup-Runbook
 
 ### Standard Development-Workflow
 
@@ -174,6 +181,7 @@ pnpm sync:email-templates
 
 **✅ DO's:**
 - **VOR JEDEM Production-Deployment: User explizit fragen "Soll ich jetzt auf Production deployen?"**
+- **VOR JEDEM Beta-Deployment ebenso explizit fragen** ("Soll ich jetzt auf Beta deployen?") - Beta ist öffentlich erreichbar und zählt trotz Testdaten wie ein Live-System
 - Immer erst lokal entwickeln gegen Dev-Environment
 - Testen auf Dev bevor nach Production deployed wird
 - Commit-Messages sollten klar sein (conventional commits)
@@ -183,8 +191,8 @@ pnpm sync:email-templates
 - **IMMER nur Platzhalter für Secrets verwenden** (z.B. `<development-key>`, `...`, `pk_test_...`)
 
 **❌ DON'Ts:**
-- **NIEMALS `npx convex deploy` ausführen ohne VORHER explizit zu fragen!**
-- **NIEMALS `vercel --prod` ausführen ohne VORHER explizit zu fragen!**
+- **NIEMALS `npx convex deploy` ausführen ohne VORHER explizit zu fragen!** (gilt für Prod- UND Beta-Deployment)
+- **NIEMALS `vercel --prod` ausführen ohne VORHER explizit zu fragen!** (gilt für Prod- UND Beta-Deployment)
 - **NIEMALS Dev-Server (pnpm dev, npm run dev, vite, etc.) starten oder stoppen ohne VORHER explizit zu fragen!**
 - **NIEMALS direkt auf Production entwickeln**
 - **NIEMALS Production-Datenbank für Tests verwenden**

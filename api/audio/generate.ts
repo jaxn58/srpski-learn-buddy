@@ -16,6 +16,7 @@ const AUDIO_VERSION_TAG = "standard-v1";
 const ALLOWED_ORIGINS = [
   "https://learn-with.me",
   "https://www.learn-with.me",
+  "https://beta.learn-with.me",
 ];
 
 function isAllowedOrigin(origin: string | undefined): string | null {

@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_CLERK_PUBLISHABLE_KEY: string;
   readonly VITE_WAITLIST_MODE?: string;
   readonly VITE_APP_URL?: string;
+  readonly VITE_BETA_ENV?: string;
 }
 
 interface ImportMeta {
