@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -225,6 +225,27 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     selectedUnit != null ? { unitNumber: selectedUnit } : "skip",
   );
 
+  // Live status of the batched deleteUnitFull cascade (see processUnitDeletionBatch).
+  // Reactive: updates automatically as the backend job progresses, no polling needed.
+  const unitDeletionJob = useQuery(
+    api.contentStudio.getUnitDeletionJob,
+    selectedUnit != null ? { unitNumber: selectedUnit } : "skip",
+  );
+  const handledDeletionJobRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!unitDeletionJob) return;
+    const key = `${unitDeletionJob._id}:${unitDeletionJob.status}`;
+    if (handledDeletionJobRef.current === key) return;
+    if (unitDeletionJob.status === "completed") {
+      handledDeletionJobRef.current = key;
+      toast.success(`Unit ${unitDeletionJob.unitNumber} wurde vollstaendig geloescht.`);
+      setSelectedUnit(null);
+    } else if (unitDeletionJob.status === "failed") {
+      handledDeletionJobRef.current = key;
+      toast.error(`Loeschung von Unit ${unitDeletionJob.unitNumber} fehlgeschlagen: ${unitDeletionJob.error ?? "Unbekannter Fehler"}`);
+    }
+  }, [unitDeletionJob]);
+
   // Translation workflow state
   const [translateOpen, setTranslateOpen] = useState(false);
   const [translateSource, setTranslateSource] = useState<"published" | "preview">("published");
@@ -440,12 +461,15 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     }
     setRunning(true);
     try {
+      // deleteUnitFull only starts the (async, batched) deletion job — a
+      // full deletion can touch thousands of rows across many tables and
+      // does not fit in a single Convex function execution. Progress is
+      // shown live below via getUnitDeletionJob; see processUnitDeletionBatch.
       await deleteUnitFull({ unitNumber, confirm: confirmStr });
-      toast.success(`Unit ${unitNumber} has been permanently deleted.`);
+      toast.info(`Loeschung fuer Unit ${unitNumber} gestartet. Fortschritt wird unten live angezeigt.`);
       setUnitDeleteConfirm("");
-      setSelectedUnit(null);
     } catch (e: any) {
-      toast.error(e?.message ?? "Failed to delete unit.");
+      toast.error(e?.message ?? "Failed to start unit deletion.");
     } finally {
       setRunning(false);
     }
@@ -714,6 +738,17 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   }
 
   const selectUnit = (unitNumber: number) => {
+    // These confirm-strings/modes are contextual to whichever unit is open.
+    // Without resetting them here, a confirmation typed for one unit (e.g.
+    // "DELETE UNIT 1") stays in state and is shown again when switching to a
+    // different unit's detail view, which is misleading and could enable a
+    // destructive action for the wrong unit if the text happens to match.
+    setPromoteConfirm("");
+    setOfflineConfirm("");
+    setPublishMode("update");
+    setUnitOfflineConfirm("");
+    setUnitDeleteConfirm("");
+
     if (selectedUnit === unitNumber) {
       setSelectedUnit(null);
       return;
@@ -871,6 +906,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                           onOpenDiff={() => setDiffOpen(true)}
                           onOpenTranslate={(source) => { setTranslateSource(source); setTranslateConfirm(""); setTranslateOpen(true); }}
                           recentTranslationInfo={recentTranslationInfo(selectedOverview.unitNumber)}
+                          unitDeletionJob={unitDeletionJob ?? null}
                           previewInfo={
                             unitPreviewInfo
                               ? {
@@ -1177,6 +1213,16 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                     <div className="text-xs font-semibold text-foreground">
                       Quality issues — Cognates hier direkt speichern
                     </div>
+                    <details className="text-[11px] text-muted-foreground">
+                      <summary className="cursor-pointer select-none hover:text-foreground py-0.5">
+                        Was sind Cognates?
+                      </summary>
+                      <p className="mt-0.5 leading-relaxed">
+                        Wörter, die im Deutschen (fast) gleich sind wie im Englischen (name→Name, Hotel, Taxi).
+                        Trifft das zu, per Button als Cognate speichern; sonst richtig übersetzen (Monday→Montag).
+                        Der Button ändert den Text nicht — „Name" muss ggf. großgeschrieben werden.
+                      </p>
+                    </details>
                     {translateReport.steps
                       .filter((s) => s.qualityIssues.length > 0)
                       .map((s, i) => (
@@ -1351,6 +1397,7 @@ interface InlineDetailCardProps {
   onOpenDiff: () => void;
   onOpenTranslate: (source: "published" | "preview") => void;
   recentTranslationInfo: string | null;
+  unitDeletionJob: any;
   previewInfo: { draftId: string; previewState: PreviewCreationStateShape } | null;
 }
 
@@ -1411,6 +1458,28 @@ function PublishRemovalsPreview({
   );
 }
 
+// Human-readable labels for unitDeletionRuns.phase (see processUnitDeletionBatch).
+const DELETION_PHASE_LABELS: Record<string, string> = {
+  unitMetadata: "Metadaten",
+  unitContent: "Inhalte",
+  unitInteractiveTests: "Interaktive Tests",
+  courseVocabulary: "Vokabeln",
+  unitContentAudio: "Audio-Cache",
+  exerciseQuestionProgress: "Uebungs-Fortschritt (Fragen)",
+  questionProgress: "Test-Fortschritt (Fragen)",
+  exerciseResults: "Uebungsergebnisse",
+  exerciseCompletions: "Uebungs-Abschluesse",
+  quizProgress: "Vokabel-Quiz-Fortschritt",
+  userProgress: "User-Fortschritt (Unit-Zuordnung)",
+  done: "Abgeschlossen",
+};
+
+function totalDeletionRowsDeleted(counts: Record<string, number>): number {
+  return Object.entries(counts)
+    .filter(([key]) => key !== "userProgressScanned")
+    .reduce((sum, [, value]) => sum + (value ?? 0), 0);
+}
+
 function InlineDetailCard({
   selectedOverview,
   detailLang,
@@ -1437,6 +1506,7 @@ function InlineDetailCard({
   onOpenDiff,
   onOpenTranslate,
   recentTranslationInfo,
+  unitDeletionJob,
   previewInfo,
 }: InlineDetailCardProps) {
 
@@ -1722,21 +1792,43 @@ function InlineDetailCard({
                                   <p className="text-xs text-muted-foreground">
                                     Empfehlung: Unit zuerst offline schalten, bevor sie geloescht wird. Diese Aktion kann nicht rueckgaengig gemacht werden.
                                   </p>
-                                  <Input
-                                    placeholder={`Eingabe: DELETE UNIT ${selectedOverview.unitNumber}`}
-                                    value={unitDeleteConfirm}
-                                    onChange={(e) => setUnitDeleteConfirm(e.target.value)}
-                                    className="font-mono text-xs h-8 border-destructive/40 focus-visible:ring-destructive/40"
-                                  />
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    disabled={running || unitDeleteConfirm !== `DELETE UNIT ${selectedOverview.unitNumber}`}
-                                    onClick={() => onDeleteUnitFull(selectedOverview.unitNumber)}
-                                  >
-                                    {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
-                                    Unit vollstaendig loeschen
-                                  </Button>
+                                  {unitDeletionJob?.status === "running" ? (
+                                    <div className="space-y-1.5 rounded border border-destructive/40 bg-destructive/10 p-3">
+                                      <div className="flex items-center gap-2 text-xs font-medium text-destructive">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        Loeschung laeuft — Schritt: {DELETION_PHASE_LABELS[unitDeletionJob.phase] ?? unitDeletionJob.phase}
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground font-mono">
+                                        {totalDeletionRowsDeleted(unitDeletionJob.counts)} Zeilen bisher geloescht
+                                        {unitDeletionJob.counts.userProgressScanned > 0 && (
+                                          <> &middot; {unitDeletionJob.counts.userProgressScanned} User-Datensaetze geprueft</>
+                                        )}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {unitDeletionJob?.status === "failed" && (
+                                        <div className="rounded border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                                          Letzter Loeschversuch fehlgeschlagen: {unitDeletionJob.error ?? "Unbekannter Fehler"}. Ein erneuter Versuch ist moeglich.
+                                        </div>
+                                      )}
+                                      <Input
+                                        placeholder={`Eingabe: DELETE UNIT ${selectedOverview.unitNumber}`}
+                                        value={unitDeleteConfirm}
+                                        onChange={(e) => setUnitDeleteConfirm(e.target.value)}
+                                        className="font-mono text-xs h-8 border-destructive/40 focus-visible:ring-destructive/40"
+                                      />
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        disabled={running || unitDeleteConfirm !== `DELETE UNIT ${selectedOverview.unitNumber}`}
+                                        onClick={() => onDeleteUnitFull(selectedOverview.unitNumber)}
+                                      >
+                                        {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1 h-3.5 w-3.5" />}
+                                        Unit vollstaendig loeschen
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </AccordionContent>
                             </AccordionItem>

@@ -13,6 +13,7 @@ import {
   stripTrailingParentheticalGlosses,
 } from "./_translationCore";
 import { findUnitModuleCollision } from "./_queries";
+import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import {
   remapVocabularyProgressForPromotedEntry,
@@ -137,9 +138,13 @@ async function deduplicateUnitVocabulary(
 }
 
 /**
- * Server-side hard guard: throws when another Content Studio draft already
- * exists for the same (moduleNumber, unitNumber) slot. Live units are NOT
- * blocked - a new draft for an existing live unit is the intended update path.
+ * Server-side hard guard against unit/module collisions. `unitNumber` is a
+ * global identifier across the live content tables, so it can belong to only
+ * one module. This blocks:
+ *   - a duplicate draft for the same (moduleNumber, unitNumber) slot,
+ *   - the same unit number claimed by a draft in a different module,
+ *   - the same unit number already owned by a live unit in a different module.
+ * Creating a fresh draft to update a live unit in its OWN module stays allowed.
  * Used by createDraft, createDraftFromTemplate, and updateDraftMeta so no code
  * path can bypass it.
  */
@@ -154,7 +159,8 @@ async function assertNoUnitModuleCollision(
   const result = await findUnitModuleCollision(ctx, args);
   if (!result.collides) return;
   throw new Error(
-    `Another draft already exists for Unit ${args.unitNumber} in Module ${args.moduleNumber}.`
+    result.message ??
+      `Another draft already exists for Unit ${args.unitNumber} in Module ${args.moduleNumber}.`
   );
 }
 
@@ -222,6 +228,7 @@ export const createDraftTemplateFromDraft = mutation({
         chapter: ref.chapter,
         pages: ref.pages,
         notes: ref.notes,
+        referenceNotes: ref.referenceNotes,
         referenceId: ref.referenceId,
       },
       specialistSkillIds: Array.isArray(draft.specialistSkillIds) ? draft.specialistSkillIds : [],
@@ -246,6 +253,7 @@ export const updateDraftTemplate = mutation({
         chapter: v.optional(v.string()),
         pages: v.optional(v.string()),
         notes: v.optional(v.string()),
+        referenceNotes: v.optional(v.string()),
         referenceId: v.optional(v.id("contentStudioReferences")),
       })
     ),
@@ -294,6 +302,7 @@ export const createDraftFromTemplate = mutation({
         chapter: v.optional(v.string()),
         pages: v.optional(v.string()),
         notes: v.optional(v.string()),
+        referenceNotes: v.optional(v.string()),
         referenceId: v.optional(v.id("contentStudioReferences")),
       })
     ),
@@ -358,6 +367,7 @@ export const updateDraftMeta = mutation({
         chapter: v.optional(v.string()),
         pages: v.optional(v.string()),
         notes: v.optional(v.string()),
+        referenceNotes: v.optional(v.string()),
         referenceId: v.optional(v.id("contentStudioReferences")),
       })
     ),
@@ -484,161 +494,332 @@ export const deleteDraft = mutation({
   },
 });
 
+// Fixed processing order for the batched deletion cascade. Each phase is one
+// scheduled step (or several, if the table has more rows than BATCH_SIZE).
+const UNIT_DELETION_PHASES = [
+  "unitMetadata",
+  "unitContent",
+  "unitInteractiveTests",
+  "courseVocabulary",
+  "unitContentAudio",
+  "exerciseQuestionProgress",
+  "questionProgress",
+  "exerciseResults",
+  "exerciseCompletions",
+  "quizProgress",
+  "userProgress",
+  "done",
+] as const;
+type UnitDeletionPhase = (typeof UNIT_DELETION_PHASES)[number];
+
+// Rows read+deleted per scheduled step. Kept comfortably below Convex's
+// per-execution read limit (4096) even after accounting for the small
+// per-item fanout in the courseVocabulary phase (see below).
+const UNIT_DELETION_BATCH_SIZE = 200;
+// courseVocabulary additionally does one indexed lookup per vocab item to
+// find+delete its vocabularyProgress rows, so its batch is deliberately
+// smaller to bound the worst-case reads of a single step.
+const UNIT_DELETION_VOCAB_BATCH_SIZE = 50;
+
+type UnitDeletionCounts = {
+  unitMetadata: number;
+  unitContent: number;
+  unitInteractiveTests: number;
+  courseVocabulary: number;
+  vocabularyProgress: number;
+  unitContentAudio: number;
+  exerciseQuestionProgress: number;
+  questionProgress: number;
+  exerciseResults: number;
+  exerciseCompletions: number;
+  quizProgress: number;
+  userProgressPatched: number;
+  userProgressScanned: number;
+};
+
+function emptyUnitDeletionCounts(): UnitDeletionCounts {
+  return {
+    unitMetadata: 0,
+    unitContent: 0,
+    unitInteractiveTests: 0,
+    courseVocabulary: 0,
+    vocabularyProgress: 0,
+    unitContentAudio: 0,
+    exerciseQuestionProgress: 0,
+    questionProgress: 0,
+    exerciseResults: 0,
+    exerciseCompletions: 0,
+    quizProgress: 0,
+    userProgressPatched: 0,
+    userProgressScanned: 0,
+  };
+}
+
 export const deleteUnitFull = mutation({
   args: {
     unitNumber: v.number(),
     confirm: v.string(), // Must be "DELETE UNIT <N>"
   },
+  returns: v.object({ ok: v.boolean(), jobId: v.id("unitDeletionRuns") }),
   handler: async (ctx, args) => {
-    await requireSuperadmin(ctx);
+    const user = await requireSuperadmin(ctx);
     const { unitNumber, confirm } = args;
     const expected = `DELETE UNIT ${unitNumber}`;
     if (confirm !== expected) {
       throw new Error(`Confirmation mismatch. Expected "${expected}", got "${confirm}"`);
     }
 
-    const deleted: Record<string, number> = {
-      unitMetadata: 0,
-      unitContent: 0,
-      unitInteractiveTests: 0,
-      courseVocabulary: 0,
-      vocabularyProgress: 0,
-      unitContentAudio: 0,
-      exerciseQuestionProgress: 0,
-      questionProgress: 0,
-      exerciseResults: 0,
-      exerciseCompletions: 0,
-      quizProgress: 0,
-      userProgressPatched: 0,
-    };
-
-    // 1. Delete Published Content
-    // unitMetadata
-    const metas = await ctx.db
-      .query("unitMetadata")
-      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
-      .collect();
-    for (const m of metas) {
-      await ctx.db.delete(m._id);
-      deleted.unitMetadata += 1;
-    }
-
-    // unitContent
-    const contents = await ctx.db
-      .query("unitContent")
-      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
-      .collect();
-    for (const c of contents) {
-      await ctx.db.delete(c._id);
-      deleted.unitContent += 1;
-    }
-
-    // unitInteractiveTests
-    const tests = await ctx.db
-      .query("unitInteractiveTests")
-      .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber))
-      .collect();
-    for (const t of tests) {
-      await ctx.db.delete(t._id);
-      deleted.unitInteractiveTests += 1;
-    }
-
-    // courseVocabulary (only those belonging primarily to this unit)
-    const vocabs = await ctx.db
-      .query("courseVocabulary")
+    // A deletion for this unit can touch thousands of rows across many
+    // tables (unit history, vocabulary, tests, and every user's progress),
+    // far beyond what fits in one Convex function execution (4096 reads).
+    // So this only starts the job; processUnitDeletionBatch below carries
+    // it forward in small, scheduled steps until everything is gone.
+    const existingJob = await ctx.db
+      .query("unitDeletionRuns")
       .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
-      .collect();
-    const courseVocabIds = (vocabs as any[]).map((v) => v._id);
-    // vocabularyProgress (FK: courseVocabularyId)
-    for (const vid of courseVocabIds) {
-      const progressRows = await ctx.db
-        .query("vocabularyProgress")
-        .withIndex("by_course_vocab", (q) => q.eq("courseVocabularyId", vid))
-        .collect();
-      for (const p of progressRows as any[]) {
-        await ctx.db.delete(p._id);
-        deleted.vocabularyProgress += 1;
+      .order("desc")
+      .first();
+    if (existingJob && existingJob.status === "running") {
+      return { ok: true, jobId: existingJob._id };
+    }
+
+    const now = Date.now();
+    const jobId = await ctx.db.insert("unitDeletionRuns", {
+      unitNumber,
+      status: "running",
+      phase: "unitMetadata",
+      counts: emptyUnitDeletionCounts(),
+      startedAt: now,
+      updatedAt: now,
+      startedBy: user._id,
+    });
+
+    await ctx.scheduler.runAfter(0, internal.contentStudio.processUnitDeletionBatch, {
+      jobId,
+      unitNumber,
+      phase: "unitMetadata",
+      cursor: null,
+    });
+
+    return { ok: true, jobId };
+  },
+});
+
+// One batched step of the deleteUnitFull cascade for a single phase (table).
+// Deletes up to `pageSize` matching rows via an index (never .filter()/.collect()
+// on a potentially large table) and reports how many were removed.
+async function deleteIndexedPage(
+  ctx: MutationCtx,
+  table: "unitMetadata" | "unitContent" | "unitInteractiveTests" | "unitContentAudio" | "exerciseQuestionProgress" | "questionProgress" | "exerciseResults" | "exerciseCompletions" | "quizProgress",
+  indexName: string,
+  unitNumber: number,
+  cursor: string | null,
+  pageSize: number,
+): Promise<{ isDone: boolean; continueCursor: string; deletedCount: number }> {
+  const result = await (ctx.db.query(table) as any)
+    .withIndex(indexName, (q: any) => q.eq("unitNumber", unitNumber))
+    .paginate({ cursor, numItems: pageSize });
+  for (const doc of result.page) {
+    await ctx.db.delete(doc._id);
+  }
+  return { isDone: result.isDone, continueCursor: result.continueCursor, deletedCount: result.page.length };
+}
+
+// Runs exactly one scheduled step for the given phase and returns which
+// phase/cursor to continue with, plus the counts delta produced this step.
+async function runUnitDeletionStep(
+  ctx: MutationCtx,
+  unitNumber: number,
+  phase: UnitDeletionPhase,
+  cursor: string | null,
+): Promise<{ nextPhase: UnitDeletionPhase; nextCursor: string | null; delta: Partial<UnitDeletionCounts> }> {
+  switch (phase) {
+    case "unitMetadata": {
+      const r = await deleteIndexedPage(ctx, "unitMetadata", "by_unit_lang", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "unitContent" : "unitMetadata",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { unitMetadata: r.deletedCount },
+      };
+    }
+    case "unitContent": {
+      const r = await deleteIndexedPage(ctx, "unitContent", "by_unit_lang", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "unitInteractiveTests" : "unitContent",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { unitContent: r.deletedCount },
+      };
+    }
+    case "unitInteractiveTests": {
+      const r = await deleteIndexedPage(ctx, "unitInteractiveTests", "by_unit_lang", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "courseVocabulary" : "unitInteractiveTests",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { unitInteractiveTests: r.deletedCount },
+      };
+    }
+    case "courseVocabulary": {
+      const page = await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+        .paginate({ cursor, numItems: UNIT_DELETION_VOCAB_BATCH_SIZE });
+      let vocabularyProgressDeleted = 0;
+      for (const vocab of page.page as any[]) {
+        const progressRows = await ctx.db
+          .query("vocabularyProgress")
+          .withIndex("by_course_vocab", (q) => q.eq("courseVocabularyId", vocab._id))
+          .collect();
+        for (const p of progressRows) {
+          await ctx.db.delete(p._id);
+          vocabularyProgressDeleted += 1;
+        }
+        await ctx.db.delete(vocab._id);
       }
+      return {
+        nextPhase: page.isDone ? "unitContentAudio" : "courseVocabulary",
+        nextCursor: page.isDone ? null : page.continueCursor,
+        delta: { courseVocabulary: page.page.length, vocabularyProgress: vocabularyProgressDeleted },
+      };
     }
-    for (const v of vocabs) {
-      await ctx.db.delete(v._id);
-      deleted.courseVocabulary += 1;
+    case "unitContentAudio": {
+      // by_unit_lang_type has unitNumber as its first field, so an eq-only
+      // lookup on unitNumber is a valid, index-backed prefix query.
+      const r = await deleteIndexedPage(ctx, "unitContentAudio", "by_unit_lang_type", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "exerciseQuestionProgress" : "unitContentAudio",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { unitContentAudio: r.deletedCount },
+      };
     }
+    case "exerciseQuestionProgress": {
+      const r = await deleteIndexedPage(ctx, "exerciseQuestionProgress", "by_unit", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "questionProgress" : "exerciseQuestionProgress",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { exerciseQuestionProgress: r.deletedCount },
+      };
+    }
+    case "questionProgress": {
+      const r = await deleteIndexedPage(ctx, "questionProgress", "by_unit", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "exerciseResults" : "questionProgress",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { questionProgress: r.deletedCount },
+      };
+    }
+    case "exerciseResults": {
+      const r = await deleteIndexedPage(ctx, "exerciseResults", "by_unit", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "exerciseCompletions" : "exerciseResults",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { exerciseResults: r.deletedCount },
+      };
+    }
+    case "exerciseCompletions": {
+      const r = await deleteIndexedPage(ctx, "exerciseCompletions", "by_unit", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "quizProgress" : "exerciseCompletions",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { exerciseCompletions: r.deletedCount },
+      };
+    }
+    case "quizProgress": {
+      const r = await deleteIndexedPage(ctx, "quizProgress", "by_unit", unitNumber, cursor, UNIT_DELETION_BATCH_SIZE);
+      return {
+        nextPhase: r.isDone ? "userProgress" : "quizProgress",
+        nextCursor: r.isDone ? null : r.continueCursor,
+        delta: { quizProgress: r.deletedCount },
+      };
+    }
+    case "userProgress": {
+      // No index is possible here: completedUnits is an array and currentUnit
+      // isn't unit-scoped, so every user's row must be inspected. Paginating
+      // in small steps keeps each execution's reads bounded regardless of
+      // how many users the app has.
+      const page = await ctx.db.query("userProgress").paginate({ cursor, numItems: UNIT_DELETION_BATCH_SIZE });
+      let patched = 0;
+      for (const up of page.page as any[]) {
+        const completedUnits: number[] = Array.isArray(up.completedUnits) ? up.completedUnits : [];
+        const nextCompleted = completedUnits.filter((n) => n !== unitNumber);
+        const wasCompleted = nextCompleted.length !== completedUnits.length;
+        const currentUnit = typeof up.currentUnit === "number" ? up.currentUnit : 1;
+        const nextCurrent = currentUnit === unitNumber ? Math.max(1, unitNumber - 1) : currentUnit;
+        const currentChanged = nextCurrent !== currentUnit;
+        if (!wasCompleted && !currentChanged) continue;
+        await ctx.db.patch(up._id, {
+          ...(wasCompleted ? { completedUnits: nextCompleted } : {}),
+          ...(currentChanged ? { currentUnit: nextCurrent } : {}),
+        });
+        patched += 1;
+      }
+      return {
+        nextPhase: page.isDone ? "done" : "userProgress",
+        nextCursor: page.isDone ? null : page.continueCursor,
+        delta: { userProgressPatched: patched, userProgressScanned: page.page.length },
+      };
+    }
+    case "done":
+      return { nextPhase: "done", nextCursor: null, delta: {} };
+  }
+}
 
-    // unitContentAudio (TTS cache)
-    const audios = await ctx.db
-      .query("unitContentAudio")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-    for (const a of audios as any[]) {
-      await ctx.db.delete(a._id);
-      deleted.unitContentAudio += 1;
-    }
+function mergeUnitDeletionCounts(base: UnitDeletionCounts, delta: Partial<UnitDeletionCounts>): UnitDeletionCounts {
+  const next = { ...base };
+  for (const key of Object.keys(delta) as (keyof UnitDeletionCounts)[]) {
+    next[key] = base[key] + (delta[key] ?? 0);
+  }
+  return next;
+}
 
-    // 3. Delete gamification / progress data for this unit (cascade)
-    const eqp = await ctx.db
-      .query("exerciseQuestionProgress")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-    for (const row of eqp as any[]) {
-      await ctx.db.delete(row._id);
-      deleted.exerciseQuestionProgress += 1;
-    }
+export const processUnitDeletionBatch = internalMutation({
+  args: {
+    jobId: v.id("unitDeletionRuns"),
+    unitNumber: v.number(),
+    phase: v.union(...UNIT_DELETION_PHASES.map((p) => v.literal(p))),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    // Job may have been superseded/cleared; nothing to continue.
+    if (!job || job.status !== "running") return null;
 
-    const qp = await ctx.db
-      .query("questionProgress")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-    for (const row of qp as any[]) {
-      await ctx.db.delete(row._id);
-      deleted.questionProgress += 1;
-    }
+    try {
+      const { nextPhase, nextCursor, delta } = await runUnitDeletionStep(ctx, args.unitNumber, args.phase, args.cursor);
+      const nextCounts = mergeUnitDeletionCounts(job.counts, delta);
+      const now = Date.now();
 
-    const results = await ctx.db
-      .query("exerciseResults")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-    for (const row of results as any[]) {
-      await ctx.db.delete(row._id);
-      deleted.exerciseResults += 1;
-    }
+      if (nextPhase === "done") {
+        await ctx.db.patch(args.jobId, {
+          phase: "done",
+          counts: nextCounts,
+          status: "completed",
+          updatedAt: now,
+          completedAt: now,
+        });
+        return null;
+      }
 
-    const completions = await ctx.db
-      .query("exerciseCompletions")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-    for (const row of completions as any[]) {
-      await ctx.db.delete(row._id);
-      deleted.exerciseCompletions += 1;
-    }
-
-    const quizzes = await ctx.db
-      .query("quizProgress")
-      .filter((q) => q.eq(q.field("unitNumber"), unitNumber))
-      .collect();
-    for (const row of quizzes as any[]) {
-      await ctx.db.delete(row._id);
-      deleted.quizProgress += 1;
-    }
-
-    // 4. Patch userProgress to remove deleted unit references
-    const allUserProgress = await ctx.db.query("userProgress").collect();
-    for (const up of allUserProgress as any[]) {
-      const completedUnits: number[] = Array.isArray(up.completedUnits) ? up.completedUnits : [];
-      const nextCompleted = completedUnits.filter((n) => n !== unitNumber);
-      const wasCompleted = nextCompleted.length !== completedUnits.length;
-      const currentUnit = typeof up.currentUnit === "number" ? up.currentUnit : 1;
-      const nextCurrent = currentUnit === unitNumber ? Math.max(1, unitNumber - 1) : currentUnit;
-      const currentChanged = nextCurrent !== currentUnit;
-      if (!wasCompleted && !currentChanged) continue;
-      await ctx.db.patch(up._id, {
-        ...(wasCompleted ? { completedUnits: nextCompleted } : {}),
-        ...(currentChanged ? { currentUnit: nextCurrent } : {}),
+      await ctx.db.patch(args.jobId, {
+        phase: nextPhase,
+        counts: nextCounts,
+        updatedAt: now,
       });
-      deleted.userProgressPatched += 1;
+      await ctx.scheduler.runAfter(0, internal.contentStudio.processUnitDeletionBatch, {
+        jobId: args.jobId,
+        unitNumber: args.unitNumber,
+        phase: nextPhase,
+        cursor: nextCursor,
+      });
+      return null;
+    } catch (err) {
+      await ctx.db.patch(args.jobId, {
+        status: "failed",
+        error: err instanceof Error ? err.message : String(err),
+        updatedAt: Date.now(),
+      });
+      return null;
     }
-
-    return { ok: true, unitNumber, deleted };
   },
 });
 
@@ -3540,3 +3721,4 @@ export const backfillValidatorMemoryApplyInTranslator = internalMutation({
     return { scanned: all.length, patched };
   },
 });
+

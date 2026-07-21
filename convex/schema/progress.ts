@@ -22,7 +22,9 @@ export const progressTables = {
   })
     .index("by_user", ["userId"])
     .index("by_user_exercise", ["userId", "exerciseId"])
-    .index("by_user_question", ["userId", "exerciseId", "questionId"]),
+    .index("by_user_question", ["userId", "exerciseId", "questionId"])
+    // Cross-user lookup for admin bulk-delete-by-unit (deleteUnitFull).
+    .index("by_unit", ["unitNumber"]),
 
   // ============= INTERACTIVE TEST QUESTION PROGRESS (Mastery per Question) =============
   questionProgress: defineTable({
@@ -37,7 +39,9 @@ export const progressTables = {
   })
     .index("by_user", ["userId"])
     .index("by_user_unit", ["userId", "unitNumber"])
-    .index("by_user_question", ["userId", "questionId"]),
+    .index("by_user_question", ["userId", "questionId"])
+    // Cross-user lookup for admin bulk-delete-by-unit (deleteUnitFull).
+    .index("by_unit", ["unitNumber"]),
 
   // ============= EXERCISE RESULTS =============
   exerciseResults: defineTable({
@@ -47,7 +51,10 @@ export const progressTables = {
     score: v.number(), // Percentage score
     totalQuestions: v.number(),
     correctAnswers: v.number(),
-  }).index("by_user", ["userId"]),
+  })
+    .index("by_user", ["userId"])
+    // Cross-user lookup for admin bulk-delete-by-unit (deleteUnitFull).
+    .index("by_unit", ["unitNumber"]),
 
   // ============= GAMIFICATION: EXERCISE COMPLETIONS =============
   exerciseCompletions: defineTable({
@@ -59,7 +66,9 @@ export const progressTables = {
     xpEarned: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_user_exercise", ["userId", "exerciseId", "unitNumber"]),
+    .index("by_user_exercise", ["userId", "exerciseId", "unitNumber"])
+    // Cross-user lookup for admin bulk-delete-by-unit (deleteUnitFull).
+    .index("by_unit", ["unitNumber"]),
 
   // ============= GAMIFICATION: USER BADGES =============
   userBadges: defineTable({

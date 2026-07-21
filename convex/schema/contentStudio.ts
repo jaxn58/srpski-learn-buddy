@@ -153,7 +153,11 @@ export const contentStudioTables = {
         source: v.optional(v.string()), // e.g. "template"
         chapter: v.optional(v.string()),
         pages: v.optional(v.string()),
-        notes: v.optional(v.string()), // creator brief / high-level notes (no copied content)
+        notes: v.optional(v.string()), // creator brief / unit prompt (no copied content)
+        // Reference-specific note (e.g. "this PDF covers the language exam") that
+        // individualizes content creation. Kept separate from `notes` (the
+        // creator brief) so the two never overwrite each other.
+        referenceNotes: v.optional(v.string()),
         referenceId: v.optional(v.id("contentStudioReferences")),
       })
     ),
@@ -189,7 +193,11 @@ export const contentStudioTables = {
         source: v.optional(v.string()), // e.g. "StepByStepSerbian"
         chapter: v.optional(v.string()),
         pages: v.optional(v.string()), // freeform like "12-15"
-        notes: v.optional(v.string()), // high-level inspiration notes (no copied content)
+        notes: v.optional(v.string()), // creator brief / unit prompt (no copied content)
+        // Reference-specific note (e.g. "this PDF covers the language exam") that
+        // individualizes content creation. Kept separate from `notes` (the
+        // creator brief) so the two never overwrite each other.
+        referenceNotes: v.optional(v.string()),
         referenceId: v.optional(v.id("contentStudioReferences")),
       })
     ),
@@ -309,6 +317,17 @@ export const contentStudioTables = {
     // Creator runs, fix-findings snapshots, and legacy rows.
     sectionRevisionSection: v.optional(curatedSectionIdValidator),
     sectionRevisionInstruction: v.optional(v.string()),
+    // Explicit "resolved" marker written by refuseSectionRevision on the new
+    // (reverted) snapshot it creates. Unlike sectionRevisionSection above,
+    // this never itself counts as a new pending revision — it only tells
+    // computePendingSectionRevisions (convex/contentStudio/_briefVersions.ts)
+    // "this section's pending revision was refused as of this snapshot's
+    // createdAt", exactly mirroring how curatedSections[].adoptedAt tells it
+    // "this section was adopted as of this timestamp". Without this marker,
+    // a refused revision keeps reappearing as pending forever, because the
+    // older sectionRevisionSection-tagged snapshot that caused it never
+    // disappears from history.
+    sectionRevisionRefusedSection: v.optional(curatedSectionIdValidator),
     createdAt: v.number(),
   })
     .index("by_draft", ["draftId"])
@@ -471,4 +490,52 @@ export const contentStudioTables = {
     createdBy: v.id("users"),
     createdAt: v.number(),
   }).index("by_term", ["term"]),
+
+  // ============= UNIT DELETION RUNS (Danger Zone: async batched cascade) =============
+  // deleteUnitFull can touch thousands of rows (metadata/content/tests/vocabulary and
+  // all users' progress for the unit), far beyond Convex's per-execution read limit.
+  // Deletion therefore runs as a scheduler-driven batch job (see processUnitDeletionBatch
+  // in contentStudio/_mutations.ts). This table tracks live status so the admin UI can
+  // show progress and survive a page reload while the job is still running.
+  unitDeletionRuns: defineTable({
+    unitNumber: v.number(),
+    status: v.union(v.literal("running"), v.literal("completed"), v.literal("failed")),
+    // Which cascade step is currently being processed (order fixed in _mutations.ts).
+    phase: v.union(
+      v.literal("unitMetadata"),
+      v.literal("unitContent"),
+      v.literal("unitInteractiveTests"),
+      v.literal("courseVocabulary"),
+      v.literal("unitContentAudio"),
+      v.literal("exerciseQuestionProgress"),
+      v.literal("questionProgress"),
+      v.literal("exerciseResults"),
+      v.literal("exerciseCompletions"),
+      v.literal("quizProgress"),
+      v.literal("userProgress"),
+      v.literal("done"),
+    ),
+    counts: v.object({
+      unitMetadata: v.number(),
+      unitContent: v.number(),
+      unitInteractiveTests: v.number(),
+      courseVocabulary: v.number(),
+      vocabularyProgress: v.number(),
+      unitContentAudio: v.number(),
+      exerciseQuestionProgress: v.number(),
+      questionProgress: v.number(),
+      exerciseResults: v.number(),
+      exerciseCompletions: v.number(),
+      quizProgress: v.number(),
+      userProgressPatched: v.number(),
+      userProgressScanned: v.number(),
+    }),
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    startedBy: v.id("users"),
+  })
+    .index("by_unit", ["unitNumber"])
+    .index("by_started_at", ["startedAt"]),
 };

@@ -948,13 +948,17 @@ export const getUnitManagementOverview = query({
     const unitMap = new Map<number, Record<string, MetaBucket>>();
 
     // Step 1: Group all eligible rows by unitNumber+lang.
+    // Note: rows with releaseStatus "offline" (discarded previews, see
+    // takeLanguagePreviewOffline) are intentionally NOT skipped here. They are
+    // still added to the group so metaPrio below can fall back to them when no
+    // published/preview row exists for that unit+lang -- otherwise a unit whose
+    // only rows are "offline" would vanish entirely from this admin overview and
+    // become unreachable (e.g. for the "delete unit" danger zone).
     const grouped = new Map<string, typeof allMeta>();
     for (const m of allMeta as any[]) {
       const n = Number(m.unitNumber);
       const lang = String(m.language ?? "en");
       if (!n || n <= 0) continue;
-      const status = m.releaseStatus ?? "published";
-      if (status === "offline") continue;
       if (m.isActive === false) continue;
       const key = `${n}|${lang}`;
       if (!grouped.has(key)) grouped.set(key, []);
@@ -1152,13 +1156,17 @@ export const getUnitLanguageDetail = query({
     const language = String(args.language);
 
     // 1) Metadata — prefer preview over published (admin sees latest state).
+    // Rows with releaseStatus "offline" (discarded previews) are intentionally
+    // NOT filtered out here -- they remain a fallback candidate so this query
+    // still resolves (instead of returning null) when that's the only metadata
+    // left for this unit+lang, matching the fallback in getUnitManagementOverview.
     const metaRows = await ctx.db
       .query("unitMetadata")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
       .collect();
 
     const sorted = (metaRows as any[])
-      .filter((m) => m.isActive !== false && m.releaseStatus !== "offline")
+      .filter((m) => m.isActive !== false)
       .sort((a, b) => {
         // Admin view: preview has higher priority (latest state)
         const aPrio = isPreviewStatus(a.releaseStatus) ? 3 : isPublishedStatus(a.releaseStatus) ? 2 : 1;
@@ -1289,6 +1297,66 @@ export const getUnitLanguageDetail = query({
       testCategories,
       vocabulary,
     };
+  },
+});
+
+// Live status of the (async, batched) deleteUnitFull cascade for a unit —
+// see processUnitDeletionBatch in _mutations.ts. Returns the most recent run,
+// so the admin UI can show progress and survive a page reload while a
+// deletion job is still in flight.
+export const getUnitDeletionJob = query({
+  args: { unitNumber: v.number() },
+  returns: v.union(
+    v.object({
+      _id: v.id("unitDeletionRuns"),
+      _creationTime: v.number(),
+      unitNumber: v.number(),
+      status: v.union(v.literal("running"), v.literal("completed"), v.literal("failed")),
+      phase: v.union(
+        v.literal("unitMetadata"),
+        v.literal("unitContent"),
+        v.literal("unitInteractiveTests"),
+        v.literal("courseVocabulary"),
+        v.literal("unitContentAudio"),
+        v.literal("exerciseQuestionProgress"),
+        v.literal("questionProgress"),
+        v.literal("exerciseResults"),
+        v.literal("exerciseCompletions"),
+        v.literal("quizProgress"),
+        v.literal("userProgress"),
+        v.literal("done"),
+      ),
+      counts: v.object({
+        unitMetadata: v.number(),
+        unitContent: v.number(),
+        unitInteractiveTests: v.number(),
+        courseVocabulary: v.number(),
+        vocabularyProgress: v.number(),
+        unitContentAudio: v.number(),
+        exerciseQuestionProgress: v.number(),
+        questionProgress: v.number(),
+        exerciseResults: v.number(),
+        exerciseCompletions: v.number(),
+        quizProgress: v.number(),
+        userProgressPatched: v.number(),
+        userProgressScanned: v.number(),
+      }),
+      startedAt: v.number(),
+      updatedAt: v.number(),
+      completedAt: v.optional(v.number()),
+      error: v.optional(v.string()),
+      startedBy: v.id("users"),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const job = await ctx.db
+      .query("unitDeletionRuns")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .order("desc")
+      .first();
+    return job;
   },
 });
 
@@ -1556,9 +1624,24 @@ export const getPromptPreview = query({
 // Also usable as a pure helper by mutations for the hard server-side guard.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Kinds of collision the guard can detect. `unitNumber` is a GLOBAL identifier
+// across the live content tables (composite key is only (unitNumber, language)),
+// so a unit number can only ever belong to ONE module. Reusing it for a second
+// module silently overwrites the first module's unit on publish.
+export type UnitModuleCollisionKind =
+  | "none"
+  | "duplicateDraft" // Another draft exists for the exact same (module, unit) slot.
+  | "crossModuleDraft" // Another draft claims the same unit number in a different module.
+  | "crossModuleLive"; // A live unit with this number already belongs to another module.
+
 export type UnitModuleCollisionResult = {
   collides: boolean;
   conflictingDraftId: Id<"contentDrafts"> | null;
+  kind: UnitModuleCollisionKind;
+  // Human-readable, English (admin UI is English). Null when there is no collision.
+  message: string | null;
+  // The module number that already owns the unit (for cross-module conflicts).
+  conflictModuleNumber: number | null;
 };
 
 export async function findUnitModuleCollision(
@@ -1572,6 +1655,9 @@ export async function findUnitModuleCollision(
   const empty: UnitModuleCollisionResult = {
     collides: false,
     conflictingDraftId: null,
+    kind: "none",
+    message: null,
+    conflictModuleNumber: null,
   };
 
   if (!Number.isFinite(args.moduleNumber) || args.moduleNumber <= 0) return empty;
@@ -1579,19 +1665,83 @@ export async function findUnitModuleCollision(
 
   const excludeId = args.excludeDraftId ?? null;
 
-  // Draft duplicate (any status, same (moduleNumber, unitNumber), excluding self on update).
-  const draftsWithUnit = await ctx.db
+  // ── 1) Draft collisions (any status), excluding self on update. ────────────
+  const draftsWithUnit = (await ctx.db
     .query("contentDrafts")
     .withIndex("by_unit", (q: any) => q.eq("unitNumber", args.unitNumber))
-    .collect();
-  const conflictingDraft = (draftsWithUnit as Array<Doc<"contentDrafts">>).find(
-    (d) => d.moduleNumber === args.moduleNumber && String(d._id) !== String(excludeId)
+    .collect()) as Array<Doc<"contentDrafts">>;
+  const otherDrafts = draftsWithUnit.filter(
+    (d) => String(d._id) !== String(excludeId)
   );
 
-  return {
-    collides: !!conflictingDraft,
-    conflictingDraftId: conflictingDraft?._id ?? null,
-  };
+  // 1a) Exact duplicate slot (same module + unit).
+  const duplicateDraft = otherDrafts.find(
+    (d) => d.moduleNumber === args.moduleNumber
+  );
+  if (duplicateDraft) {
+    return {
+      collides: true,
+      conflictingDraftId: duplicateDraft._id,
+      kind: "duplicateDraft",
+      message: `Another draft already exists for Unit ${args.unitNumber} in Module ${args.moduleNumber}.`,
+      conflictModuleNumber: args.moduleNumber,
+    };
+  }
+
+  // 1b) Same unit number claimed by a draft in a DIFFERENT module.
+  const crossModuleDraft = otherDrafts.find(
+    (d) => d.moduleNumber !== args.moduleNumber
+  );
+  if (crossModuleDraft) {
+    return {
+      collides: true,
+      conflictingDraftId: crossModuleDraft._id,
+      kind: "crossModuleDraft",
+      message: `Unit number ${args.unitNumber} is already used by a draft in Module ${crossModuleDraft.moduleNumber}. Unit numbers are global and can belong to only one module - pick a free unit number.`,
+      conflictModuleNumber: crossModuleDraft.moduleNumber,
+    };
+  }
+
+  // ── 2) Live-unit collision: a published/preview/offline unit with this ─────
+  // number already belongs to a different module. Resolving the same module is
+  // fine (creating a fresh draft to update a live unit is the intended path).
+  const liveRows = (await ctx.db
+    .query("unitMetadata")
+    .withIndex("by_unit_lang", (q: any) => q.eq("unitNumber", args.unitNumber))
+    .collect()) as Array<Doc<"unitMetadata">>;
+
+  const moduleNumberCache = new Map<string, number | null>();
+  for (const row of liveRows) {
+    const moduleMetadataId = (row as any).moduleMetadataId as
+      | Id<"moduleMetadata">
+      | undefined;
+    if (!moduleMetadataId) continue; // Legacy row without FK: cannot resolve, skip.
+
+    const key = String(moduleMetadataId);
+    let liveModuleNumber = moduleNumberCache.get(key);
+    if (liveModuleNumber === undefined) {
+      const moduleDoc = (await ctx.db.get(moduleMetadataId)) as
+        | Doc<"moduleMetadata">
+        | null;
+      liveModuleNumber =
+        typeof moduleDoc?.moduleNumber === "number"
+          ? moduleDoc.moduleNumber
+          : null;
+      moduleNumberCache.set(key, liveModuleNumber);
+    }
+
+    if (liveModuleNumber !== null && liveModuleNumber !== args.moduleNumber) {
+      return {
+        collides: true,
+        conflictingDraftId: null,
+        kind: "crossModuleLive",
+        message: `Unit number ${args.unitNumber} already exists as a live unit in Module ${liveModuleNumber}. Unit numbers are global - reusing it here would overwrite that unit on publish. Pick a free unit number.`,
+        conflictModuleNumber: liveModuleNumber,
+      };
+    }
+  }
+
+  return empty;
 }
 
 export const checkUnitModuleCollision = query({
