@@ -44,7 +44,8 @@ export const createDraftPreview = action({
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
 
-    const current = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
+    // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+    const current: any = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
     if (!current.snapshot) throw new Error("Draft has no snapshot");
 
     const parsed = parseJsonOrThrow(current.snapshot.unitPackageJson);
@@ -55,7 +56,34 @@ export const createDraftPreview = action({
 
     const { fixed } = autofixUnitPackage(base.data);
     const unitPackage: any = fixed as any;
-    const unitNumber = Number(unitPackage?.unitNumber);
+
+    // The draft is the single source of truth for placement. Never trust the
+    // snapshot/markdown-authored unit number when deciding which unit to write,
+    // otherwise a header like "## Unit 1" in a U6 draft would overwrite Unit 1.
+    const draftUnitNumber = Number((current.draft as any)?.unitNumber);
+    if (!Number.isFinite(draftUnitNumber) || draftUnitNumber <= 0) {
+      throw new Error("Draft has no valid unitNumber");
+    }
+    const draftModuleNumber = Number((current.draft as any)?.moduleNumber);
+    const snapshotUnitNumber = Number(unitPackage?.unitNumber);
+    if (Number.isFinite(snapshotUnitNumber) && snapshotUnitNumber !== draftUnitNumber) {
+      console.warn(
+        `[CreatePreview] Snapshot unitNumber (${snapshotUnitNumber}) != draft.unitNumber (${draftUnitNumber}). ` +
+          `Forcing draft value. Re-run "Save Markdown" to regenerate a fully consistent snapshot.`,
+      );
+    }
+    // Force placement onto the package so every downstream mutation targets the
+    // draft's unit/module (metadata resolves the module via module.moduleNumber).
+    unitPackage.unitNumber = draftUnitNumber;
+    if (
+      unitPackage.module &&
+      typeof unitPackage.module === "object" &&
+      Number.isFinite(draftModuleNumber) &&
+      draftModuleNumber > 0
+    ) {
+      unitPackage.module.moduleNumber = draftModuleNumber;
+    }
+    const unitNumber = draftUnitNumber;
     const languages: string[] = Array.isArray(unitPackage?.languages) && unitPackage.languages.length > 0
       ? unitPackage.languages
       : ["en"];

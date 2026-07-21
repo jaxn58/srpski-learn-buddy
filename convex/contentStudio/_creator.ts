@@ -8,6 +8,7 @@ import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
   parseMarkdownToUnitPackage,
+  enforceUnitModuleHeader,
 } from "../../scripts/markdownParser/parser";
 import { UnitPackageSchema } from "../../scripts/unitPackage/schema";
 import {
@@ -376,6 +377,10 @@ export const runAiSpecialistGenerate = action({
     const referenceBlock = (() => {
       if (!refDoc) return "";
       const safeNotes = String((refDoc as any).notes || "").trim();
+      // Draft-specific reference note: how THIS unit should use the reference
+      // (e.g. "this PDF covers the language exam"). Distinct from the creator
+      // brief (inspirationRef.notes) — never overwrites it.
+      const safeReferenceNotes = String((d as any).inspirationRef?.referenceNotes || "").trim();
       const refUrl = String((refDoc as any).downloadUrl || (refDoc as any).url || "").trim();
       const safeGuidelines = refGuidelines;
       return [
@@ -383,6 +388,7 @@ export const runAiSpecialistGenerate = action({
         `- Title: ${String((refDoc as any).title || "").trim()}`,
         refUrl ? `- URL: ${refUrl}` : "",
         safeNotes ? `- Notes: ${safeNotes}` : "",
+        safeReferenceNotes ? `- Unit-specific note: ${safeReferenceNotes}` : "",
         safeGuidelines ? `- Guidelines (distilled; follow these patterns):\n${safeGuidelines}` : "",
       ]
         .filter(Boolean)
@@ -532,6 +538,15 @@ export const runAiSpecialistGenerate = action({
       if (!structure.valid) {
         throw new Error(`Creator markdown failed structure validation after post-processing: ${structure.errors.join("; ")}`);
       }
+
+      // The draft is the single source of truth for placement: force the
+      // Module/Unit numbers in the header to the draft's values so the parsed
+      // package (unitNumber, module.moduleNumber, questionIds) can never point
+      // at a different unit than the draft (e.g. an AI-authored "## Unit 1").
+      markdown = enforceUnitModuleHeader(markdown, {
+        unitNumber: d.unitNumber,
+        moduleNumber: d.moduleNumber,
+      });
 
       const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);
       const baseParsed = UnitPackageSchema.safeParse(parsedUnitPackage);

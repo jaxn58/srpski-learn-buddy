@@ -18,6 +18,34 @@ import {
 import type { ParsedExercise } from "./types";
 
 /**
+ * Force the Module/Unit numbers in the Markdown header to match the
+ * authoritative draft values before parsing. Titles and all other content
+ * are preserved; only the leading number in the first `# Module N:` and
+ * `## Unit N:` header line is rewritten.
+ *
+ * Rationale: An AI- or human-authored header (e.g. "## Unit 1") must never
+ * override the draft's real placement (e.g. Unit 6). Because downstream
+ * artifacts (unitNumber, module.moduleNumber, exercise questionIds like
+ * `u6_ex1_q01`) are derived from the header during parsing, the numbers are
+ * enforced on the raw Markdown so the whole package stays internally
+ * consistent.
+ */
+export function enforceUnitModuleHeader(
+  markdown: string,
+  opts: { unitNumber?: number; moduleNumber?: number },
+): string {
+  let out = String(markdown || "").replace(/\r\n/g, "\n");
+  const { unitNumber, moduleNumber } = opts;
+  if (typeof moduleNumber === "number" && Number.isFinite(moduleNumber) && moduleNumber > 0) {
+    out = out.replace(/^(#\s+Module\s+)(\d+)(\s*:)/m, `$1${moduleNumber}$3`);
+  }
+  if (typeof unitNumber === "number" && Number.isFinite(unitNumber) && unitNumber > 0) {
+    out = out.replace(/^(##\s+Unit\s+)(\d+)(\s*:)/m, `$1${unitNumber}$3`);
+  }
+  return out;
+}
+
+/**
  * Parse a Markdown file into a unitPackage.v1 JSON structure
  */
 export function parseMarkdownToUnitPackage(markdown: string): UnitPackage {

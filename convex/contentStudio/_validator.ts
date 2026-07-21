@@ -24,7 +24,7 @@ import {
 import { UnitPackageSchema, validateUnitPackageDeep, type ValidationIssue } from "../../scripts/unitPackage/schema";
 import { validateUnitPackageTemplateRules } from "../../scripts/unitPackage/templateRules";
 import { autofixUnitPackage } from "../../scripts/unitPackage/autofix";
-import { parseMarkdownToUnitPackage, validateMarkdownStructure } from "../../scripts/markdownParser/parser";
+import { parseMarkdownToUnitPackage, validateMarkdownStructure, enforceUnitModuleHeader } from "../../scripts/markdownParser/parser";
 
 export const runQcValidate = action({
   args: { draftId: v.id("contentDrafts") },
@@ -373,6 +373,14 @@ export const saveMarkdownSnapshot = action({
     if (!structure.valid) {
       throw new Error(`Markdown structure invalid: ${structure.errors.join("; ")}`);
     }
+
+    // The draft is the single source of truth for placement: force the
+    // Module/Unit numbers in the header to the draft's values so a manually
+    // edited header can never redirect the snapshot to a different unit.
+    markdown = enforceUnitModuleHeader(markdown, {
+      unitNumber: (current.draft as any).unitNumber,
+      moduleNumber: (current.draft as any).moduleNumber,
+    });
 
     const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);
     const baseParsed = UnitPackageSchema.safeParse(parsedUnitPackage);
