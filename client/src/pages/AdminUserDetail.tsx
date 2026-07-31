@@ -186,7 +186,10 @@ export default function AdminUserDetail({ userId }: Props) {
 
     setDeleting(true);
     try {
-      const result = await deleteUserAction({ userId: userId as any });
+      const result = await deleteUserAction({
+        userId: userId as any,
+        confirmationEmail: typed,
+      });
 
       if (!result.success) {
         toast.error(
