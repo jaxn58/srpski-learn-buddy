@@ -352,7 +352,6 @@ export default function Chat() {
 
       const messageId = await addStreamingAssistantMsg({
         sessionId: currentSessionId as Id<"chatSessions">,
-        userId: meData._id,
         streamId: streamId as string,
       });
 
