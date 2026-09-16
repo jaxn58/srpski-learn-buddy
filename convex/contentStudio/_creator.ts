@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiText, resolvePromptFromDb, buildStageSkillBlock } from "./_shared";
+import { requireSuperadminAction, callAiText, resolvePromptFromDb, buildStageSkillBlock, usageForRunLog } from "./_shared";
 import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
@@ -11,6 +11,7 @@ import {
   enforceUnitModuleHeader,
 } from "../../scripts/markdownParser/parser";
 import { UnitPackageSchema } from "../../scripts/unitPackage/schema";
+import { BRIEF_MAX_CHARS } from "../../shared/contentStudio/briefTemplate";
 import {
   canonicalizeDialoguesToUnit1Tables,
   ensureFounderNoteInMarkdownIfConfigured,
@@ -353,8 +354,11 @@ export const runAiSpecialistGenerate = action({
     const refId = (d as any).inspirationRef?.referenceId as Id<"contentStudioReferences"> | undefined;
     const refDoc = refId ? await ctx.runQuery(api.contentStudio.getReferenceById, { referenceId: refId }) : null;
     const creatorBriefRaw = String((d as any).inspirationRef?.notes || "").trim();
+    // Limit shared with the admin Brief Builder (shows a counter and a warning at this value).
     const creatorBrief =
-      creatorBriefRaw.length > 6000 ? `${creatorBriefRaw.slice(0, 6000)}\n[CREATOR_BRIEF_TRUNCATED]` : creatorBriefRaw;
+      creatorBriefRaw.length > BRIEF_MAX_CHARS
+        ? `${creatorBriefRaw.slice(0, BRIEF_MAX_CHARS)}\n[CREATOR_BRIEF_TRUNCATED]`
+        : creatorBriefRaw;
 
     // If a PDF reference is selected, lazily distill a guidance summary once and store it on the reference.
     // This makes the reference actually influence authoring (structure, question writing, etc.).
@@ -601,9 +605,7 @@ export const runAiSpecialistGenerate = action({
         model: modelUsed,
         inputSummary: `module=${d.moduleNumber}, unit=${d.unitNumber}`,
         outputSummary: `generated markdownChars=${markdown.length} vocabAdded=${vocabAdded} unresolvedNew=${vocabUnresolved}`,
-        inputTokens: typeof lastUsage?.inputTokens === "number" ? lastUsage.inputTokens : undefined,
-        outputTokens: typeof lastUsage?.outputTokens === "number" ? lastUsage.outputTokens : undefined,
-        totalTokens: typeof lastUsage?.totalTokens === "number" ? lastUsage.totalTokens : undefined,
+        ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
         status: "success",
       });
@@ -615,9 +617,7 @@ export const runAiSpecialistGenerate = action({
         provider: providerUsed,
         model: modelUsed,
         inputSummary: `module=${d.moduleNumber}, unit=${d.unitNumber}`,
-        inputTokens: typeof lastUsage?.inputTokens === "number" ? lastUsage.inputTokens : undefined,
-        outputTokens: typeof lastUsage?.outputTokens === "number" ? lastUsage.outputTokens : undefined,
-        totalTokens: typeof lastUsage?.totalTokens === "number" ? lastUsage.totalTokens : undefined,
+        ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
         status: "failed",
         error,
@@ -818,9 +818,7 @@ export const runAiCreatorRevise = action({
         model: modelUsed,
         inputSummary: `revise findings=${issues.length} notes=${humanNotes.length}`,
         outputSummary: `revised markdownChars=${markdown.length}`,
-        inputTokens: typeof lastUsage?.inputTokens === "number" ? lastUsage.inputTokens : undefined,
-        outputTokens: typeof lastUsage?.outputTokens === "number" ? lastUsage.outputTokens : undefined,
-        totalTokens: typeof lastUsage?.totalTokens === "number" ? lastUsage.totalTokens : undefined,
+        ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
         status: "success",
       });
@@ -855,9 +853,7 @@ export const runAiCreatorRevise = action({
         provider: providerUsed,
         model: modelUsed,
         inputSummary: `revise findings=${issues.length}`,
-        inputTokens: typeof lastUsage?.inputTokens === "number" ? lastUsage.inputTokens : undefined,
-        outputTokens: typeof lastUsage?.outputTokens === "number" ? lastUsage.outputTokens : undefined,
-        totalTokens: typeof lastUsage?.totalTokens === "number" ? lastUsage.totalTokens : undefined,
+        ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
         status: "failed",
         error,

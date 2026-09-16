@@ -11,6 +11,7 @@
  *   feedback.ts       – Feedback submissions, comments, status history, wishlist
  *   communication.ts  – Email templates, signatures, waitlist, newsletter (contacts, campaigns, logs, link clicks)
  *   contentStudio.ts  – Content Studio config, skills, references, drafts, snapshots, AI runs, findings, reviews, imports
+ *   curriculum.ts     – Course plan: planned units (module, CEFR, grammar targets) and Can-Do statements
  *   system.ts         – App versions, changelog, onboarding, dashboard announcements, backups, Dodo webhook events, platform config
  *
  * Note: TS2589 ("Type instantiation is excessively deep") in Convex function files is a known
@@ -28,6 +29,7 @@ import { chatTables } from "./schema/chat";
 import { feedbackTables } from "./schema/feedback";
 import { communicationTables } from "./schema/communication";
 import { contentStudioTables } from "./schema/contentStudio";
+import { curriculumTables } from "./schema/curriculum";
 import { systemTables } from "./schema/system";
 
 export default defineSchema({
@@ -39,5 +41,6 @@ export default defineSchema({
   ...feedbackTables,
   ...communicationTables,
   ...contentStudioTables,
+  ...curriculumTables,
   ...systemTables,
 });

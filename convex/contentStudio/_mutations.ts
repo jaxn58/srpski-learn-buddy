@@ -932,6 +932,60 @@ export const deactivateSkill = mutation({
   },
 });
 
+export const reactivateSkill = mutation({
+  args: { skillId: v.id("contentStudioSkills") },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const skill = await ctx.db.get(args.skillId);
+    if (!skill) throw new Error("Skill not found");
+    await ctx.db.patch(args.skillId, { isActive: true, updatedAt: Date.now() });
+    return { ok: true };
+  },
+});
+
+/**
+ * Permanently delete a skill. Only allowed for deactivated skills so an
+ * accidental click on an active, in-use skill cannot destroy it. Removes the
+ * skill id from every draft and template that still references it, so no
+ * dangling ids remain in `specialistSkillIds` / `auditorSkillIds`.
+ */
+export const deleteSkill = mutation({
+  args: { skillId: v.id("contentStudioSkills") },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const skill = await ctx.db.get(args.skillId);
+    if (!skill) throw new Error("Skill not found");
+    if (skill.isActive) throw new Error("Deactivate the skill before deleting it");
+
+    const idStr = String(args.skillId);
+    let draftsPatched = 0;
+    let templatesPatched = 0;
+
+    const drafts = await ctx.db.query("contentDrafts").collect();
+    for (const d of drafts) {
+      const spec = (d.specialistSkillIds ?? []).filter((id) => String(id) !== idStr);
+      const aud = (d.auditorSkillIds ?? []).filter((id) => String(id) !== idStr);
+      if (spec.length !== (d.specialistSkillIds ?? []).length || aud.length !== (d.auditorSkillIds ?? []).length) {
+        await ctx.db.patch(d._id, { specialistSkillIds: spec, auditorSkillIds: aud });
+        draftsPatched += 1;
+      }
+    }
+
+    const templates = await ctx.db.query("contentDraftTemplates").collect();
+    for (const t of templates) {
+      const spec = (t.specialistSkillIds ?? []).filter((id) => String(id) !== idStr);
+      const aud = (t.auditorSkillIds ?? []).filter((id) => String(id) !== idStr);
+      if (spec.length !== (t.specialistSkillIds ?? []).length || aud.length !== (t.auditorSkillIds ?? []).length) {
+        await ctx.db.patch(t._id, { specialistSkillIds: spec, auditorSkillIds: aud, updatedAt: Date.now() });
+        templatesPatched += 1;
+      }
+    }
+
+    await ctx.db.delete(args.skillId);
+    return { ok: true, draftsPatched, templatesPatched };
+  },
+});
+
 // upsertSectionSkill removed -- section prompts are now managed exclusively
 // via chatPrompts (cs_section_*) in the Prompt Administration.
 
@@ -1560,6 +1614,7 @@ export const logAiRun = mutation({
     inputTokens: v.optional(v.number()),
     outputTokens: v.optional(v.number()),
     totalTokens: v.optional(v.number()),
+    thinkingTokens: v.optional(v.number()),
     estimatedCostUsd: v.optional(v.number()),
     status: v.union(v.literal("success"), v.literal("failed")),
     error: v.optional(v.string()),
@@ -1577,6 +1632,7 @@ export const logAiRun = mutation({
       inputTokens: args.inputTokens,
       outputTokens: args.outputTokens,
       totalTokens: args.totalTokens,
+      thinkingTokens: args.thinkingTokens,
       estimatedCostUsd: args.estimatedCostUsd,
       status: args.status,
       error: args.error,

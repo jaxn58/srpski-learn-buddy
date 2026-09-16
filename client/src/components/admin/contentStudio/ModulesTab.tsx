@@ -3,12 +3,15 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -32,19 +35,30 @@ function slugify(input: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function humanizeModuleError(message: string) {
-  if (message.includes("MODULE_SLUG_TAKEN")) return "Slug is already in use. Please choose a unique slug.";
-  if (message.includes("MODULE_NUMBER_TAKEN")) return "Module number is already in use. Please choose a different number.";
-  if (message.includes("INVALID_MODULE_NUMBER")) return "Module number must be a positive number.";
-  if (message.includes("INVALID_SLUG")) return "Slug is invalid. Use letters/numbers and hyphens.";
-  if (message.includes("MISSING_REQUIRED_FIELDS")) return "Please fill all required fields.";
-  if (message.includes("MODULE_HAS_UNITS")) return "This module still has units assigned to it. Reassign or remove those units first.";
-  if (message.includes("MODULE_NOT_FOUND")) return "Module not found.";
-  if (message.includes("Unauthorized")) return "Unauthorized. Superadmin required.";
+function humanizeModuleError(message: string, t: TFunction) {
+  if (message.includes("MODULE_SLUG_TAKEN"))
+    return t("admin.contentStudio.modules.errorSlugTaken", "Slug is already in use. Please choose a unique slug.");
+  if (message.includes("MODULE_NUMBER_TAKEN"))
+    return t("admin.contentStudio.modules.errorNumberTaken", "Module number is already in use. Please choose a different number.");
+  if (message.includes("INVALID_MODULE_NUMBER"))
+    return t("admin.contentStudio.modules.errorInvalidNumber", "Module number must be a positive number.");
+  if (message.includes("INVALID_SLUG"))
+    return t("admin.contentStudio.modules.errorInvalidSlug", "Slug is invalid. Use letters/numbers and hyphens.");
+  if (message.includes("MISSING_REQUIRED_FIELDS"))
+    return t("admin.contentStudio.modules.errorMissingFields", "Please fill all required fields.");
+  if (message.includes("MODULE_HAS_UNITS"))
+    return t(
+      "admin.contentStudio.modules.errorHasUnits",
+      "This module still has units assigned to it. Reassign or remove those units first.",
+    );
+  if (message.includes("MODULE_NOT_FOUND")) return t("admin.contentStudio.modules.errorNotFound", "Module not found.");
+  if (message.includes("Unauthorized"))
+    return t("admin.contentStudio.modules.errorUnauthorized", "Unauthorized. Superadmin required.");
   return message;
 }
 
 export function ModulesTab() {
+  const { t } = useTranslation();
   const dbModules = useQuery(api.modules.getAllModulesConsolidated) as Doc<"moduleMetadata">[] | undefined;
   const unitCounts = useQuery(api.modules.getModuleUnitCounts);
 
@@ -60,6 +74,7 @@ export function ModulesTab() {
   const [newDescriptionEn, setNewDescriptionEn] = useState<string>("");
   const [newDescriptionDe, setNewDescriptionDe] = useState<string>("");
   const [newSlug, setNewSlug] = useState<string>("");
+  const [newCefrLevel, setNewCefrLevel] = useState<string>("");
   const [newSlugTouched, setNewSlugTouched] = useState(false);
   const [creating, setCreating] = useState(false);
   const [translatingCreate, setTranslatingCreate] = useState(false);
@@ -73,6 +88,7 @@ export function ModulesTab() {
   const [editDescriptionEn, setEditDescriptionEn] = useState<string>("");
   const [editDescriptionDe, setEditDescriptionDe] = useState<string>("");
   const [editSlug, setEditSlug] = useState<string>("");
+  const [editCefrLevel, setEditCefrLevel] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [translatingEdit, setTranslatingEdit] = useState(false);
 
@@ -93,6 +109,7 @@ export function ModulesTab() {
     setNewDescriptionEn("");
     setNewDescriptionDe("");
     setNewSlug("");
+    setNewCefrLevel("");
     setNewSlugTouched(false);
   }, []);
 
@@ -109,13 +126,14 @@ export function ModulesTab() {
         titleDe: newTitleDe,
         descriptionEn: newDescriptionEn,
         descriptionDe: newDescriptionDe,
+        cefrLevel: (newCefrLevel || undefined) as CefrLevel | undefined,
       });
 
-      toast.success("Module created");
+      toast.success(t("admin.contentStudio.modules.toastCreated", "Module created"));
       resetNewModuleForm();
     } catch (error: any) {
-      toast.error("Failed to create module", {
-        description: humanizeModuleError(String(error?.message || error)),
+      toast.error(t("admin.contentStudio.modules.toastCreateFailed", "Failed to create module"), {
+        description: humanizeModuleError(String(error?.message || error), t),
       });
     } finally {
       setCreating(false);
@@ -124,8 +142,8 @@ export function ModulesTab() {
 
   const handleTranslateCreate = async () => {
     if (!newTitleEn.trim() || !newDescriptionEn.trim()) {
-      toast.error("Cannot translate", {
-        description: "Please fill Title (EN) and Description (EN) first.",
+      toast.error(t("admin.contentStudio.modules.toastCannotTranslate", "Cannot translate"), {
+        description: t("admin.contentStudio.modules.toastFillEnglishFirst", "Please fill Title (EN) and Description (EN) first."),
       });
       return;
     }
@@ -137,10 +155,10 @@ export function ModulesTab() {
       });
       setNewTitleDe(res.titleDe);
       setNewDescriptionDe(res.descriptionDe);
-      toast.success("German translation generated");
+      toast.success(t("admin.contentStudio.modules.toastTranslated", "German translation generated"));
     } catch (error: any) {
-      toast.error("Failed to translate to German", {
-        description: humanizeModuleError(String(error?.message || error)),
+      toast.error(t("admin.contentStudio.modules.toastTranslateFailed", "Failed to translate to German"), {
+        description: humanizeModuleError(String(error?.message || error), t),
       });
     } finally {
       setTranslatingCreate(false);
@@ -155,6 +173,7 @@ export function ModulesTab() {
     setEditTitleDe(String(m.titleDe ?? ""));
     setEditDescriptionEn(String(m.descriptionEn ?? ""));
     setEditDescriptionDe(String(m.descriptionDe ?? ""));
+    setEditCefrLevel(String((m as any).cefrLevel ?? ""));
     setEditDialogOpen(true);
   };
 
@@ -171,14 +190,15 @@ export function ModulesTab() {
         titleDe: editTitleDe,
         descriptionEn: editDescriptionEn,
         descriptionDe: editDescriptionDe,
+        ...(editCefrLevel ? { cefrLevel: editCefrLevel as CefrLevel } : {}),
       });
 
-      toast.success("Module updated");
+      toast.success(t("admin.contentStudio.modules.toastUpdated", "Module updated"));
       setEditDialogOpen(false);
       setEditingModuleId(null);
     } catch (error: any) {
-      toast.error("Failed to update module", {
-        description: humanizeModuleError(String(error?.message || error)),
+      toast.error(t("admin.contentStudio.modules.toastUpdateFailed", "Failed to update module"), {
+        description: humanizeModuleError(String(error?.message || error), t),
       });
     } finally {
       setSaving(false);
@@ -187,8 +207,8 @@ export function ModulesTab() {
 
   const handleTranslateEdit = async () => {
     if (!editTitleEn.trim() || !editDescriptionEn.trim()) {
-      toast.error("Cannot translate", {
-        description: "Please fill Title (EN) and Description (EN) first.",
+      toast.error(t("admin.contentStudio.modules.toastCannotTranslate", "Cannot translate"), {
+        description: t("admin.contentStudio.modules.toastFillEnglishFirst", "Please fill Title (EN) and Description (EN) first."),
       });
       return;
     }
@@ -200,10 +220,10 @@ export function ModulesTab() {
       });
       setEditTitleDe(res.titleDe);
       setEditDescriptionDe(res.descriptionDe);
-      toast.success("German translation generated");
+      toast.success(t("admin.contentStudio.modules.toastTranslated", "German translation generated"));
     } catch (error: any) {
-      toast.error("Failed to translate to German", {
-        description: humanizeModuleError(String(error?.message || error)),
+      toast.error(t("admin.contentStudio.modules.toastTranslateFailed", "Failed to translate to German"), {
+        description: humanizeModuleError(String(error?.message || error), t),
       });
     } finally {
       setTranslatingEdit(false);
@@ -215,11 +235,11 @@ export function ModulesTab() {
     try {
       setDeleting(true);
       await deleteModuleMutation({ id: deleteTarget._id });
-      toast.success("Module deleted");
+      toast.success(t("admin.contentStudio.modules.toastDeleted", "Module deleted"));
       setDeleteTarget(null);
     } catch (error: any) {
-      toast.error("Failed to delete module", {
-        description: humanizeModuleError(String(error?.message || error)),
+      toast.error(t("admin.contentStudio.modules.toastDeleteFailed", "Failed to delete module"), {
+        description: humanizeModuleError(String(error?.message || error), t),
       });
     } finally {
       setDeleting(false);
@@ -232,17 +252,19 @@ export function ModulesTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FolderTree className="h-5 w-5" />
-            Create Module
+            {t("admin.contentStudio.modules.createTitle", "Create module")}
           </CardTitle>
           <CardDescription>
-            Modules are created in English first. Use "Translate to German" to generate the German title and
-            description, then review before saving.
+            {t(
+              "admin.contentStudio.modules.createDescription",
+              "Modules are created in English first. Use \"Translate to German\" to generate the German title and description, then review before saving.",
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>Module number</Label>
+              <Label>{t("admin.contentStudio.modules.moduleNumber", "Module number")}</Label>
               <Input
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -252,7 +274,7 @@ export function ModulesTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Slug</Label>
+              <Label>{t("admin.contentStudio.modules.slug", "Slug")}</Label>
               <Input
                 placeholder="foundation"
                 value={newSlug}
@@ -262,12 +284,16 @@ export function ModulesTab() {
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                Used in URLs and as stable identifier. Auto-generated from Title (EN) until edited.
+                {t(
+                  "admin.contentStudio.modules.slugHelp",
+                  "Used in URLs and as stable identifier. Auto-generated from Title (EN) until edited.",
+                )}
               </p>
             </div>
+            <CefrLevelField value={newCefrLevel} onChange={setNewCefrLevel} />
 
             <div className="space-y-2">
-              <Label>Title (EN)</Label>
+              <Label>{t("admin.contentStudio.modules.titleEn", "Title (EN)")}</Label>
               <Input
                 placeholder="Module 1: Foundation"
                 value={newTitleEn}
@@ -275,9 +301,9 @@ export function ModulesTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Title (DE)</Label>
+              <Label>{t("admin.contentStudio.modules.titleDe", "Title (DE)")}</Label>
               <Input
-                placeholder="Generated via Translate to German"
+                placeholder={t("admin.contentStudio.modules.generatedPlaceholder", "Generated via \"Translate to German\"")}
                 value={newTitleDe}
                 readOnly
                 tabIndex={-1}
@@ -286,17 +312,17 @@ export function ModulesTab() {
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label>Description (EN)</Label>
+              <Label>{t("admin.contentStudio.modules.descriptionEn", "Description (EN)")}</Label>
               <Textarea
-                placeholder="Short description shown in the app (English)."
+                placeholder={t("admin.contentStudio.modules.descriptionEnPlaceholder", "Short description shown in the app (English).")}
                 value={newDescriptionEn}
                 onChange={(e) => setNewDescriptionEn(e.target.value)}
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label>Description (DE)</Label>
+              <Label>{t("admin.contentStudio.modules.descriptionDe", "Description (DE)")}</Label>
               <Textarea
-                placeholder="Generated via Translate to German"
+                placeholder={t("admin.contentStudio.modules.generatedPlaceholder", "Generated via \"Translate to German\"")}
                 value={newDescriptionDe}
                 readOnly
                 tabIndex={-1}
@@ -306,7 +332,10 @@ export function ModulesTab() {
           </div>
 
           <p className="text-xs text-muted-foreground mt-4">
-            German fields are filled automatically. Fill the English fields, then click "Translate to German".
+            {t(
+              "admin.contentStudio.modules.germanAutoHint",
+              "German fields are filled automatically. Fill the English fields, then click \"Translate to German\".",
+            )}
           </p>
 
           <div className="flex gap-2 mt-6">
@@ -321,7 +350,7 @@ export function ModulesTab() {
               ) : (
                 <Languages className="h-4 w-4" />
               )}
-              Translate to German
+              {t("admin.contentStudio.modules.translateToGerman", "Translate to German")}
             </Button>
             <Button
               onClick={() => void handleCreateModule()}
@@ -337,10 +366,10 @@ export function ModulesTab() {
               className="gap-2"
             >
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderTree className="h-4 w-4" />}
-              Create Module
+              {t("admin.contentStudio.modules.createButton", "Create module")}
             </Button>
             <Button variant="outline" onClick={resetNewModuleForm} disabled={creating}>
-              Reset
+              {t("admin.contentStudio.modules.reset", "Reset")}
             </Button>
           </div>
         </CardContent>
@@ -348,8 +377,8 @@ export function ModulesTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Existing Modules</CardTitle>
-          <CardDescription>Sorted by moduleNumber (as stored).</CardDescription>
+          <CardTitle>{t("admin.contentStudio.modules.existingTitle", "Existing modules")}</CardTitle>
+          <CardDescription>{t("admin.contentStudio.modules.existingDescription", "Sorted by module number (as stored).")}</CardDescription>
         </CardHeader>
         <CardContent>
           {dbModules === undefined ? (
@@ -358,18 +387,18 @@ export function ModulesTab() {
             </div>
           ) : dbModules.length === 0 ? (
             <Alert>
-              <AlertDescription>No modules found in the database yet.</AlertDescription>
+              <AlertDescription>{t("admin.contentStudio.modules.noModules", "No modules found in the database yet.")}</AlertDescription>
             </Alert>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>#</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Title (EN)</TableHead>
-                  <TableHead>Title (DE)</TableHead>
-                  <TableHead className="text-right">Units</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("admin.contentStudio.modules.slug", "Slug")}</TableHead>
+                  <TableHead>{t("admin.contentStudio.modules.titleEn", "Title (EN)")}</TableHead>
+                  <TableHead>{t("admin.contentStudio.modules.titleDe", "Title (DE)")}</TableHead>
+                  <TableHead className="text-right">{t("admin.contentStudio.modules.colUnits", "Units")}</TableHead>
+                  <TableHead className="text-right">{t("admin.contentStudio.modules.colActions", "Actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -387,7 +416,7 @@ export function ModulesTab() {
                         <div className="flex justify-end gap-2">
                           <Button variant="outline" size="sm" className="gap-2" onClick={() => openEditModule(m)}>
                             <Pencil className="h-4 w-4" />
-                            Edit
+                            {t("admin.contentStudio.modules.edit", "Edit")}
                           </Button>
                           <Button
                             variant="outline"
@@ -397,12 +426,20 @@ export function ModulesTab() {
                             disabled={hasUnits}
                             title={
                               hasUnits
-                                ? `This module has ${unitCount} unit${unitCount === 1 ? "" : "s"} assigned and cannot be deleted.`
+                                ? unitCount === 1
+                                  ? t(
+                                      "admin.contentStudio.modules.cannotDeleteOneUnit",
+                                      "This module has 1 unit assigned and cannot be deleted.",
+                                    )
+                                  : t("admin.contentStudio.modules.cannotDeleteManyUnits", {
+                                      defaultValue: "This module has {{n}} units assigned and cannot be deleted.",
+                                      n: unitCount,
+                                    })
                                 : undefined
                             }
                           >
                             <Trash2 className="h-4 w-4" />
-                            Delete
+                            {t("admin.contentStudio.modules.delete", "Delete")}
                           </Button>
                         </div>
                       </TableCell>
@@ -419,15 +456,15 @@ export function ModulesTab() {
       <AlertDialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Edit Module</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.contentStudio.modules.editTitle", "Edit module")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Update module fields. Slug and module number must remain unique.
+              {t("admin.contentStudio.modules.editDescription", "Update module fields. Slug and module number must remain unique.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="grid gap-4 md:grid-cols-2 py-2">
             <div className="space-y-2">
-              <Label>Module number</Label>
+              <Label>{t("admin.contentStudio.modules.moduleNumber", "Module number")}</Label>
               <Input
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -436,34 +473,35 @@ export function ModulesTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Slug</Label>
+              <Label>{t("admin.contentStudio.modules.slug", "Slug")}</Label>
               <Input value={editSlug} onChange={(e) => setEditSlug(e.target.value)} />
             </div>
+            <CefrLevelField value={editCefrLevel} onChange={setEditCefrLevel} />
             <div className="space-y-2">
-              <Label>Title (EN)</Label>
+              <Label>{t("admin.contentStudio.modules.titleEn", "Title (EN)")}</Label>
               <Input value={editTitleEn} onChange={(e) => setEditTitleEn(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Title (DE)</Label>
+              <Label>{t("admin.contentStudio.modules.titleDe", "Title (DE)")}</Label>
               <Input
                 value={editTitleDe}
                 readOnly
                 tabIndex={-1}
-                placeholder="Generated via Translate to German"
+                placeholder={t("admin.contentStudio.modules.generatedPlaceholder", "Generated via \"Translate to German\"")}
                 className="bg-muted/50 cursor-not-allowed"
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label>Description (EN)</Label>
+              <Label>{t("admin.contentStudio.modules.descriptionEn", "Description (EN)")}</Label>
               <Textarea value={editDescriptionEn} onChange={(e) => setEditDescriptionEn(e.target.value)} />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label>Description (DE)</Label>
+              <Label>{t("admin.contentStudio.modules.descriptionDe", "Description (DE)")}</Label>
               <Textarea
                 value={editDescriptionDe}
                 readOnly
                 tabIndex={-1}
-                placeholder="Generated via Translate to German"
+                placeholder={t("admin.contentStudio.modules.generatedPlaceholder", "Generated via \"Translate to German\"")}
                 className="bg-muted/50 cursor-not-allowed"
               />
             </div>
@@ -480,7 +518,7 @@ export function ModulesTab() {
                 ) : (
                   <Languages className="h-4 w-4" />
                 )}
-                Translate to German
+                {t("admin.contentStudio.modules.translateToGerman", "Translate to German")}
               </Button>
             </div>
           </div>
@@ -492,7 +530,7 @@ export function ModulesTab() {
                 setEditingModuleId(null);
               }}
             >
-              Cancel
+              {t("admin.contentStudio.modules.cancel", "Cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
@@ -511,7 +549,7 @@ export function ModulesTab() {
               }
             >
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Save
+              {t("admin.contentStudio.modules.save", "Save")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -521,17 +559,21 @@ export function ModulesTab() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Module</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.contentStudio.modules.deleteTitle", "Delete module")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete module{" "}
+              {t("admin.contentStudio.modules.deleteDescriptionPrefix", "This will permanently delete module")}{" "}
               <strong>
                 {deleteTarget?.moduleNumber}: {deleteTarget?.titleEn}
               </strong>
-              . This action cannot be undone. Modules that still have units assigned to them cannot be deleted.
+              .{" "}
+              {t(
+                "admin.contentStudio.modules.deleteDescriptionSuffix",
+                "This action cannot be undone. Modules that still have units assigned to them cannot be deleted.",
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("admin.contentStudio.modules.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -541,7 +583,7 @@ export function ModulesTab() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Delete
+              {t("admin.contentStudio.modules.delete", "Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -549,3 +591,35 @@ export function ModulesTab() {
     </div>
   );
 }
+
+type CefrLevel = "A1.1" | "A1.2" | "A2.1" | "A2.2" | "B1";
+const CEFR_LEVELS: CefrLevel[] = ["A1.1", "A1.2", "A2.1", "A2.2", "B1"];
+
+/**
+ * Language level of the whole module. The Content Studio derives the
+ * difficulty and the grammar progression of new units from it; authors never
+ * have to pick a level per unit.
+ */
+function CefrLevelField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-2">
+      <Label>{t("admin.contentStudio.modules.cefrLevel", "Language level of this module")}</Label>
+      <Select value={value || "__auto__"} onValueChange={(v) => onChange(v === "__auto__" ? "" : v)}>
+        <SelectTrigger className="h-10 text-sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__auto__" className="text-sm">{t("admin.contentStudio.modules.cefrLevelAuto", "Automatic (from the module's position in the course)")}</SelectItem>
+          {CEFR_LEVELS.map((l) => (
+            <SelectItem key={l} value={l} className="text-sm">{t(`admin.contentStudio.workflow.level.${l}`, l)}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {t("admin.contentStudio.modules.cefrLevelHelp", "Sets how difficult the units of this module are and which grammar the AI may introduce. Units build on each other within and across modules.")}
+      </p>
+    </div>
+  );
+}
+

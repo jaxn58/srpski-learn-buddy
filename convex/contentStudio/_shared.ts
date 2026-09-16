@@ -6,6 +6,8 @@ import { assertLearnerAccountActive } from "../authz";
 import { UnitPackageSchema, type ValidationIssue } from "../../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../../scripts/unitPackage/autofix";
 import { validateMarkdownStructure } from "../../scripts/markdownParser/parser";
+import { buildReasoningParams, effectiveMaxTokens, type ReasoningEffort } from "./_modelCapabilities";
+import { MODEL_PRICING } from "../ai/modelPricing";
 
 export type DraftStatus =
   | "draft"
@@ -253,20 +255,29 @@ export function extractUsageFromAiResponse(data: any): AiUsage | null {
   };
 }
 
+/**
+ * Token fields for `logAiRun`, derived from an AiUsage object. Centralised so
+ * every caller (creator, revise, section revise, auditor) logs the same shape,
+ * including thinking tokens.
+ */
+export function usageForRunLog(usage: AiUsage | null | undefined): {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  thinkingTokens?: number;
+} {
+  return {
+    inputTokens: typeof usage?.inputTokens === "number" ? usage.inputTokens : undefined,
+    outputTokens: typeof usage?.outputTokens === "number" ? usage.outputTokens : undefined,
+    totalTokens: typeof usage?.totalTokens === "number" ? usage.totalTokens : undefined,
+    thinkingTokens: typeof usage?.thinkingTokens === "number" ? usage.thinkingTokens : undefined,
+  };
+}
+
 let cachedPricingTable: Record<string, { input: number; output: number }> | null | "invalid" = null;
 
-export function estimateCostUsdFromEnv(params: {
-  provider: string;
-  model: string;
-  usage: AiUsage | null;
-}): number | null {
-  const usage = params.usage;
-  if (!usage) return null;
-
-  const input = typeof usage.inputTokens === "number" ? usage.inputTokens : 0;
-  const output = typeof usage.outputTokens === "number" ? usage.outputTokens : 0;
-  if (input <= 0 && output <= 0) return null;
-
+function resolvePricingRate(provider: string, model: string): { input: number; output: number } | null {
+  // 1) Optional runtime override via env (JSON: { "gemini:gemini-2.5-pro": { "input": 1.25, "output": 10 } }).
   if (cachedPricingTable === null) {
     const raw = String(process.env.AI_PRICING_USD_PER_1M_JSON || "").trim();
     if (!raw) {
@@ -280,13 +291,39 @@ export function estimateCostUsdFromEnv(params: {
       }
     }
   }
-  if (cachedPricingTable === "invalid" || !cachedPricingTable) return null;
+  if (cachedPricingTable !== "invalid" && cachedPricingTable) {
+    const rate = cachedPricingTable[`${provider}:${model}`];
+    if (rate && typeof rate.input === "number" && typeof rate.output === "number") return rate;
+  }
 
-  const key = `${params.provider}:${params.model}`;
-  const rate = cachedPricingTable[key];
-  if (!rate || typeof rate.input !== "number" || typeof rate.output !== "number") return null;
+  // 2) Fallback: the verified pricing table that also drives the Energy admin UI.
+  const known = MODEL_PRICING[model];
+  if (known) return { input: known.inputUsdPer1M, output: known.outputUsdPer1M };
+  return null;
+}
 
-  const cost = (input / 1_000_000) * rate.input + (output / 1_000_000) * rate.output;
+/**
+ * Estimated USD cost of one AI call. Thinking tokens are billed as output by
+ * both Google and OpenAI, so they are added to the output side. Returns null
+ * when no usage or no pricing is available.
+ */
+export function estimateCostUsdFromEnv(params: {
+  provider: string;
+  model: string;
+  usage: AiUsage | null;
+}): number | null {
+  const usage = params.usage;
+  if (!usage) return null;
+
+  const input = typeof usage.inputTokens === "number" ? usage.inputTokens : 0;
+  const output = typeof usage.outputTokens === "number" ? usage.outputTokens : 0;
+  const thinking = typeof usage.thinkingTokens === "number" ? usage.thinkingTokens : 0;
+  if (input <= 0 && output <= 0 && thinking <= 0) return null;
+
+  const rate = resolvePricingRate(params.provider, params.model);
+  if (!rate) return null;
+
+  const cost = (input / 1_000_000) * rate.input + ((output + thinking) / 1_000_000) * rate.output;
   // Keep a stable, small decimal representation
   return Math.round(cost * 1e6) / 1e6;
 }
@@ -298,9 +335,10 @@ export async function callAiJson(ctx: ActionCtx, params: {
   user: string;
   maxTokens?: number;
   timeoutMs?: number;
-  // Pass "none" to disable Gemini 2.5 thinking (faster, no thinking-token overhead).
-  // Maps to `reasoning_effort: "none"` in the OpenAI-compat API.
-  reasoningEffort?: "none" | "low" | "medium" | "high";
+  // Thinking control for Gemini thinking models (2.5 and 3.x). "none" disables
+  // thinking where the model allows it (2.5 Flash / Flash-Lite only); for all
+  // other thinking models "none" is silently dropped. See _modelCapabilities.ts.
+  reasoningEffort?: ReasoningEffort;
 }): Promise<{ provider: string; model: string; raw: string; usage: AiUsage | null; estimatedCostUsd: number | null }> {
   const configDoc = await ctx.runQuery(api.contentStudio.getModelConfig, {});
   const config = configDoc
@@ -315,12 +353,15 @@ export async function callAiJson(ctx: ActionCtx, params: {
     config,
   });
 
-  const isGemini25 = provider === "gemini" && model.includes("2.5");
-  // When thinking is disabled, no extra token budget needed. Otherwise multiply for thinking overhead.
-  const thinkingDisabled = params.reasoningEffort === "none";
-  const effectiveMaxTokens = isGemini25 && !thinkingDisabled
-    ? Math.max((params.maxTokens ?? 2500) * 4, 16384)
-    : (params.maxTokens ?? 2500);
+  // Thinking tokens count towards max_tokens on Gemini thinking models, so the
+  // completion budget is inflated unless thinking was disabled for that model.
+  const maxTokens = effectiveMaxTokens({
+    provider,
+    model,
+    requestedMaxTokens: params.maxTokens,
+    defaultMaxTokens: 2500,
+    reasoningEffort: params.reasoningEffort,
+  });
 
   const controller = new AbortController();
   const timeoutMs = typeof params.timeoutMs === "number" && params.timeoutMs > 0 ? params.timeoutMs : 90_000;
@@ -341,12 +382,8 @@ export async function callAiJson(ctx: ActionCtx, params: {
       ],
       response_format: { type: "json_object" },
       temperature: 0.2,
-      max_tokens: effectiveMaxTokens,
-      // reasoning_effort "none" disables thinking — only supported by Flash, NOT Pro.
-      // gemini-2.5-pro always runs in thinking mode and rejects thinkingBudget=0.
-      ...(isGemini25 && params.reasoningEffort && !(params.reasoningEffort === "none" && model.includes("pro"))
-        ? { reasoning_effort: params.reasoningEffort }
-        : {}),
+      max_tokens: maxTokens,
+      ...buildReasoningParams(provider, model, params.reasoningEffort),
     }),
       signal: controller.signal,
     });
@@ -389,8 +426,8 @@ export async function callAiText(ctx: ActionCtx, params: {
   user: string;
   maxTokens?: number;
   timeoutMs?: number;
-  // Pass "none" to disable Gemini 2.5 thinking (faster, no thinking-token overhead).
-  reasoningEffort?: "none" | "low" | "medium" | "high";
+  // Thinking control for Gemini thinking models (2.5 and 3.x); see callAiJson.
+  reasoningEffort?: ReasoningEffort;
 }): Promise<{ provider: string; model: string; raw: string; usage: AiUsage | null; estimatedCostUsd: number | null }> {
   const configDoc = await ctx.runQuery(api.contentStudio.getModelConfig, {});
   const config = configDoc
@@ -405,11 +442,13 @@ export async function callAiText(ctx: ActionCtx, params: {
     config,
   });
 
-  const isGemini25 = provider === "gemini" && model.includes("2.5");
-  const thinkingDisabled = params.reasoningEffort === "none";
-  const effectiveMaxTokens = isGemini25 && !thinkingDisabled
-    ? Math.max((params.maxTokens ?? 3500) * 4, 16384)
-    : (params.maxTokens ?? 3500);
+  const maxTokens = effectiveMaxTokens({
+    provider,
+    model,
+    requestedMaxTokens: params.maxTokens,
+    defaultMaxTokens: 3500,
+    reasoningEffort: params.reasoningEffort,
+  });
 
   const controller = new AbortController();
   const timeoutMs = typeof params.timeoutMs === "number" && params.timeoutMs > 0 ? params.timeoutMs : 90_000;
@@ -429,11 +468,8 @@ export async function callAiText(ctx: ActionCtx, params: {
         { role: "user", content: params.user },
       ],
       temperature: 0.2,
-      max_tokens: effectiveMaxTokens,
-      // reasoning_effort "none" disables thinking — only supported by Flash, NOT Pro.
-      ...(isGemini25 && params.reasoningEffort && !(params.reasoningEffort === "none" && model.includes("pro"))
-        ? { reasoning_effort: params.reasoningEffort }
-        : {}),
+      max_tokens: maxTokens,
+      ...buildReasoningParams(provider, model, params.reasoningEffort),
     }),
       signal: controller.signal,
     });

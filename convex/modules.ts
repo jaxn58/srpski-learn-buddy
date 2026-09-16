@@ -43,6 +43,7 @@ async function createConsolidatedModule(
     titleEn: string;
     descriptionDe: string;
     descriptionEn: string;
+    cefrLevel?: "A1.1" | "A1.2" | "A2.1" | "A2.2" | "B1";
   }
 ) {
   await requireSuperadmin(ctx);
@@ -89,8 +90,17 @@ async function createConsolidatedModule(
     descriptionEn,
     slug,
     moduleNumber,
+    ...(args.cefrLevel ? { cefrLevel: args.cefrLevel } : {}),
   });
 }
+
+const cefrLevelValidator = v.union(
+  v.literal("A1.1"),
+  v.literal("A1.2"),
+  v.literal("A2.1"),
+  v.literal("A2.2"),
+  v.literal("B1"),
+);
 
 // Insert module metadata (migration tooling only).
 // SECURITY: was a public mutation allowing anyone to write module metadata.
@@ -207,6 +217,7 @@ export const createModule = mutation({
     titleEn: v.string(),
     descriptionDe: v.string(),
     descriptionEn: v.string(),
+    cefrLevel: v.optional(cefrLevelValidator),
   },
   handler: async (ctx, args) => {
     // @ts-ignore TS2345 TS2589 – Convex schema depth limit (50 tables)
@@ -251,6 +262,7 @@ export const updateModuleMetadata = mutation({
     descriptionEn: v.optional(v.string()),
     slug: v.optional(v.string()),
     moduleNumber: v.optional(v.number()),
+    cefrLevel: v.optional(cefrLevelValidator),
   },
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
@@ -261,6 +273,7 @@ export const updateModuleMetadata = mutation({
     }
 
     const updates: Record<string, unknown> = {};
+    if (args.cefrLevel !== undefined) updates.cefrLevel = args.cefrLevel;
 
     if (args.titleEn !== undefined) {
       const v = args.titleEn.trim();

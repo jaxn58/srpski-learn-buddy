@@ -9,6 +9,7 @@ import {
   canonicalizeDialoguesToUnit1Tables,
   translateUnitMarkdownToEnglishIfNeeded,
   ensureFounderNoteInMarkdownIfConfigured,
+  usageForRunLog,
 } from "./_shared";
 import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
 import {
@@ -127,9 +128,7 @@ export const runSectionRevise = action({
         model,
         inputSummary: `revise section=${sectionId}`,
         outputSummary: `revised chars=0`,
-        inputTokens: typeof (usage as any)?.inputTokens === "number" ? (usage as any).inputTokens : undefined,
-        outputTokens: typeof (usage as any)?.outputTokens === "number" ? (usage as any).outputTokens : undefined,
-        totalTokens: typeof (usage as any)?.totalTokens === "number" ? (usage as any).totalTokens : undefined,
+        ...usageForRunLog(usage),
         estimatedCostUsd: typeof estimatedCostUsd === "number" ? estimatedCostUsd : undefined,
         status: "failed",
         error: "AI returned empty content for section revision",
@@ -161,9 +160,7 @@ export const runSectionRevise = action({
         model,
         inputSummary: `revise section=${sectionId}`,
         outputSummary: `revised chars=${revisedSection.length}`,
-        inputTokens: typeof (usage as any)?.inputTokens === "number" ? (usage as any).inputTokens : undefined,
-        outputTokens: typeof (usage as any)?.outputTokens === "number" ? (usage as any).outputTokens : undefined,
-        totalTokens: typeof (usage as any)?.totalTokens === "number" ? (usage as any).totalTokens : undefined,
+        ...usageForRunLog(usage),
         estimatedCostUsd: typeof estimatedCostUsd === "number" ? estimatedCostUsd : undefined,
         status: "failed",
         error: `section validation failed: ${details}`,
@@ -219,9 +216,7 @@ export const runSectionRevise = action({
       model,
       inputSummary: `revise section=${sectionId}`,
       outputSummary: `revised chars=${revisedSection.length}`,
-      inputTokens: typeof (usage as any)?.inputTokens === "number" ? (usage as any).inputTokens : undefined,
-      outputTokens: typeof (usage as any)?.outputTokens === "number" ? (usage as any).outputTokens : undefined,
-      totalTokens: typeof (usage as any)?.totalTokens === "number" ? (usage as any).totalTokens : undefined,
+      ...usageForRunLog(usage),
       estimatedCostUsd: typeof estimatedCostUsd === "number" ? estimatedCostUsd : undefined,
       status: "success",
     });
@@ -321,9 +316,7 @@ Generate dialogue table:`;
       provider,
       model,
       inputSummary: `add dialogue topic=${args.topic}`,
-      inputTokens: typeof (usage as any)?.inputTokens === "number" ? (usage as any).inputTokens : undefined,
-      outputTokens: typeof (usage as any)?.outputTokens === "number" ? (usage as any).outputTokens : undefined,
-      totalTokens: typeof (usage as any)?.totalTokens === "number" ? (usage as any).totalTokens : undefined,
+      ...usageForRunLog(usage),
       estimatedCostUsd: typeof estimatedCostUsd === "number" ? estimatedCostUsd : undefined,
       status: "success",
     });

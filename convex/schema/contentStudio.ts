@@ -368,6 +368,9 @@ export const contentStudioTables = {
     inputTokens: v.optional(v.number()),
     outputTokens: v.optional(v.number()),
     totalTokens: v.optional(v.number()),
+    // Internal reasoning tokens of thinking models (Gemini 2.5/3.x, OpenAI o-series).
+    // Billed as output by the providers; not included in outputTokens.
+    thinkingTokens: v.optional(v.number()),
     estimatedCostUsd: v.optional(v.number()),
     status: v.union(v.literal("success"), v.literal("failed")),
     error: v.optional(v.string()),

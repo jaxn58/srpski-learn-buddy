@@ -6,16 +6,21 @@
  *   - Google AI pricing (https://ai.google.dev/gemini-api/docs/pricing)
  *   - OpenAI pricing (https://platform.openai.com/docs/pricing)
  *
- * Verified June 2026. Update via PR whenever Google/OpenAI publishes new
+ * Verified September 2026. Update via PR whenever Google/OpenAI publishes new
  * prices — there is no runtime override (admin UI shows these read-only).
  *
  * Notes:
- *   - Gemini 2.5 Pro pricing is tiered by prompt size (≤200k vs >200k tokens).
- *     We list the entry-level tariff (≤200k) which covers our typical chat
+ *   - Gemini 2.5 Pro / 3.1 Pro pricing is tiered by prompt size (≤200k vs >200k
+ *     tokens). We list the entry-level tariff (≤200k) which covers our typical
  *     payloads; if/when we hit the high-context tier regularly, add a separate
  *     entry or expose a context-size selector in the admin UI.
+ *   - Gemini 3.6 / 3.7 / 3.8 Flash carry introductory prices until
+ *     2026-12-31 (0.75 / 3.75) and double from 2027-01-01 (1.50 / 7.50).
+ *     Re-verify and bump this table at the turn of the year.
  *   - "Cached input" is intentionally ignored — context caching adds another
  *     dimension and is not used uniformly across our endpoints.
+ *   - Keep in sync with client/src/components/admin/contentStudio/constants.ts
+ *     (MODEL_META), which drives the Content Studio model picker.
  */
 
 export type ModelPricing = {
@@ -36,11 +41,11 @@ export type ModelPricing = {
  * `PRICING_STALENESS_WARN_DAYS` and a hard reminder past
  * `PRICING_STALENESS_ALERT_DAYS`.
  *
- * Format: ISO 8601 (YYYY-MM-DD). Last verified June 2026 against
+ * Format: ISO 8601 (YYYY-MM-DD). Last verified September 2026 against
  * https://ai.google.dev/gemini-api/docs/pricing and
  * https://platform.openai.com/docs/pricing.
  */
-export const PRICING_LAST_VERIFIED_AT = "2026-06-15";
+export const PRICING_LAST_VERIFIED_AT = "2026-09-16";
 
 /** Days until the admin UI shows an amber "may be outdated" hint. */
 export const PRICING_STALENESS_WARN_DAYS = 90;
@@ -77,6 +82,48 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     displayName: "Gemini 2.5 Pro (\u2264200k ctx)",
     inputUsdPer1M: 1.25,
     outputUsdPer1M: 10.00,
+    provider: "google",
+  },
+  "gemini-3.1-pro-preview": {
+    displayName: "Gemini 3.1 Pro Preview (\u2264200k ctx)",
+    inputUsdPer1M: 2.00,
+    outputUsdPer1M: 12.00,
+    provider: "google",
+  },
+  "gemini-3.8-flash": {
+    displayName: "Gemini 3.8 Flash (intro price until 2026-12-31)",
+    inputUsdPer1M: 0.75,
+    outputUsdPer1M: 3.75,
+    provider: "google",
+  },
+  "gemini-3.7-flash": {
+    displayName: "Gemini 3.7 Flash (intro price until 2026-12-31)",
+    inputUsdPer1M: 0.75,
+    outputUsdPer1M: 3.75,
+    provider: "google",
+  },
+  "gemini-3.6-flash": {
+    displayName: "Gemini 3.6 Flash (intro price until 2026-12-31)",
+    inputUsdPer1M: 0.75,
+    outputUsdPer1M: 3.75,
+    provider: "google",
+  },
+  "gemini-3.5-flash": {
+    displayName: "Gemini 3.5 Flash",
+    inputUsdPer1M: 1.50,
+    outputUsdPer1M: 9.00,
+    provider: "google",
+  },
+  "gemini-3.5-flash-lite": {
+    displayName: "Gemini 3.5 Flash-Lite",
+    inputUsdPer1M: 0.30,
+    outputUsdPer1M: 2.50,
+    provider: "google",
+  },
+  "gemini-3.1-flash-lite": {
+    displayName: "Gemini 3.1 Flash-Lite",
+    inputUsdPer1M: 0.25,
+    outputUsdPer1M: 1.50,
     provider: "google",
   },
 

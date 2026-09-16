@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Doc } from "../../../../../convex/_generated/dataModel";
@@ -31,6 +32,7 @@ interface ModuleSelectProps {
  * that was never actually created).
  */
 export function ModuleSelect({ value, onChange, hasError, disabled }: ModuleSelectProps) {
+  const { t } = useTranslation();
   const modules = useQuery(api.modules.getAllModulesConsolidated) as Doc<"moduleMetadata">[] | undefined;
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -60,29 +62,47 @@ export function ModuleSelect({ value, onChange, hasError, disabled }: ModuleSele
           aria-invalid={hasError || isOrphaned || undefined}
           className={cn((hasError || isOrphaned) && "border-destructive focus-visible:ring-destructive")}
         >
-          <SelectValue placeholder={loading ? "Loading modules..." : "Select module..."} />
+          <SelectValue
+            placeholder={
+              loading
+                ? t("admin.contentStudio.moduleSelect.loading", "Loading modules…")
+                : t("admin.contentStudio.moduleSelect.placeholder", "Select module…")
+            }
+          />
         </SelectTrigger>
         <SelectContent>
           {isOrphaned && (
-            <SelectItem value={value}>Module {value} (not linked to a real module)</SelectItem>
+            <SelectItem value={value}>
+              {t("admin.contentStudio.moduleSelect.orphanedItem", {
+                defaultValue: "Module {{n}} (not linked to a real module)",
+                n: value,
+              })}
+            </SelectItem>
           )}
           {(modules ?? []).map((m) => (
             <SelectItem key={String(m._id)} value={String(m.moduleNumber)}>
-              Module {m.moduleNumber}: {m.titleEn || "Untitled"}
+              {t("admin.contentStudio.moduleSelect.moduleItem", {
+                defaultValue: "Module {{n}}: {{title}}",
+                n: m.moduleNumber,
+                title: m.titleEn || t("admin.contentStudio.moduleSelect.untitled", "Untitled"),
+              })}
             </SelectItem>
           ))}
           <SelectSeparator />
           <SelectItem value={CREATE_NEW_VALUE}>
             <span className="flex items-center gap-1.5">
               <PlusCircle className="h-3.5 w-3.5" />
-              Create new module...
+              {t("admin.contentStudio.moduleSelect.createNew", "Create new module…")}
             </span>
           </SelectItem>
         </SelectContent>
       </Select>
       {isOrphaned && (
         <p className="text-xs text-destructive">
-          This module number does not exist in the Modulverwaltung. Select an existing module or create a new one.
+          {t(
+            "admin.contentStudio.moduleSelect.orphanedHint",
+            "This module number does not exist in the module manager. Select an existing module or create a new one."
+          )}
         </p>
       )}
 

@@ -19,6 +19,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Trans, useTranslation } from "react-i18next";
+import { AiRunTokenLine, formatAiRunTimestamp, useAiRunStageLabel } from "./AiRunMeta";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, CheckCircle, XCircle, Sparkles, RotateCcw, X } from "lucide-react";
 import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
+import { useSectionLabel } from "./utils/sectionLabel";
 import { DraftStatusBadge } from "./StatusBadge";
 import {
   PreviewStatusBanner,
@@ -98,13 +101,18 @@ export interface InspectorPanelProps {
 
 export function InspectorPanel(props: InspectorPanelProps) {
   const { activeStep, selected, selectedDraftId } = props;
+  const { t } = useTranslation();
   const previewState = selected?.draft?.publishState as PreviewCreationStateShape | undefined;
 
   return (
     <div className="flex flex-col h-full">
       <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {activeStep === "generate" ? "Generate" : activeStep === "review" ? "Review" : "Preview"}
+          {activeStep === "generate"
+            ? t("admin.contentStudio.inspector.stepGenerate", "Generator")
+            : activeStep === "review"
+              ? t("admin.contentStudio.inspector.stepReview", "Review")
+              : t("admin.contentStudio.inspector.stepPreview", "Preview")}
         </span>
         <DraftStatusBadge status={selected?.draft?.status} />
       </div>
@@ -128,6 +136,7 @@ function GenerateContent(props: InspectorPanelProps) {
     progressPercent, progressMessage, elapsedSeconds, currentTaskLabel,
     onGenerate, onRunSpecialist, onRunValidate,
   } = props;
+  const { t } = useTranslation();
 
   return (
     <>
@@ -137,14 +146,16 @@ function GenerateContent(props: InspectorPanelProps) {
         disabled={isBusy}
       >
         {runningCreateValidate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-        Generate (auto)
+        {t("admin.contentStudio.inspector.generateAuto", "Generate (auto)")}
       </Button>
 
       {isBusy && (
         <div className="space-y-2">
           {progressPercent != null && <Progress value={progressPercent} className="h-2" />}
           <div className="text-xs text-muted-foreground">{progressMessage || currentTaskLabel}</div>
-          <div className="text-xs text-muted-foreground/60">{elapsedSeconds}s elapsed</div>
+          <div className="text-xs text-muted-foreground/60">
+            {t("admin.contentStudio.inspector.elapsed", { defaultValue: "{{s}}s elapsed", s: elapsedSeconds })}
+          </div>
         </div>
       )}
 
@@ -152,15 +163,17 @@ function GenerateContent(props: InspectorPanelProps) {
 
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="advanced" className="border-none">
-          <AccordionTrigger className="text-xs font-semibold py-1">Advanced</AccordionTrigger>
+          <AccordionTrigger className="text-xs font-semibold py-1">
+            {t("admin.contentStudio.inspector.advanced", "Advanced")}
+          </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2">
             <Button size="sm" variant="outline" className="w-full" onClick={onRunSpecialist} disabled={isBusy}>
               {runningCreator ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
-              Run Creator only
+              {t("admin.contentStudio.inspector.runCreatorOnly", "Run Creator only")}
             </Button>
             <Button size="sm" variant="outline" className="w-full" onClick={onRunValidate} disabled={isBusy}>
               {runningValidator ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
-              Run Validator only
+              {t("admin.contentStudio.inspector.runValidatorOnly", "Run Validator only")}
             </Button>
           </AccordionContent>
         </AccordionItem>
@@ -177,6 +190,9 @@ function ReviewContent(props: InspectorPanelProps) {
     expandInstruction, setExpandInstruction, canRunLector,
     onRunRevise, onRunAuditor, onSectionRevise, onDismissFinding, selected,
   } = props;
+  const { t } = useTranslation();
+  const stageLabel = useAiRunStageLabel();
+  const sectionLabel = useSectionLabel();
 
   return (
     <>
@@ -184,12 +200,13 @@ function ReviewContent(props: InspectorPanelProps) {
       <div className="flex items-center gap-2 flex-wrap">
         {errorFindings.length > 0 && (
           <Badge variant="destructive" className="text-[10px]">
-            <XCircle className="mr-1 h-3 w-3" /> {errorFindings.length} errors
+            <XCircle className="mr-1 h-3 w-3" />{" "}
+            {t("admin.contentStudio.inspector.errorsCount", { defaultValue: "{{n}} errors", n: errorFindings.length })}
           </Badge>
         )}
         {warningFindings.length > 0 && (
           <Badge variant="secondary" className="text-[10px]">
-            {warningFindings.length} warnings
+            {t("admin.contentStudio.inspector.warningsCount", { defaultValue: "{{n}} warnings", n: warningFindings.length })}
           </Badge>
         )}
         {(() => {
@@ -198,14 +215,16 @@ function ReviewContent(props: InspectorPanelProps) {
             return (
               <Badge variant="outline" className="text-[10px]">
                 <CheckCircle className="mr-1 h-3 w-3 text-emerald-500" />
-                No issues{infoCount > 0 ? ` (${infoCount} info)` : ""}
+                {infoCount > 0
+                  ? t("admin.contentStudio.inspector.noIssuesWithInfo", { defaultValue: "No issues ({{n}} info)", n: infoCount })
+                  : t("admin.contentStudio.inspector.noIssues", "No issues")}
               </Badge>
             );
           }
           if (infoCount > 0) {
             return (
               <Badge variant="outline" className="text-[10px] border-blue-300/60 text-blue-600 dark:text-blue-400">
-                {infoCount} info
+                {t("admin.contentStudio.inspector.infoCount", { defaultValue: "{{n}} info", n: infoCount })}
               </Badge>
             );
           }
@@ -217,12 +236,14 @@ function ReviewContent(props: InspectorPanelProps) {
           Disabled unless there are error/warning findings OR the admin has typed
           human notes (info-only findings alone are not enough to auto-fix). */}
       <div className="space-y-2">
-        <Label className="text-xs">Human notes for revision AI</Label>
+        <Label className="text-xs">
+          {t("admin.contentStudio.inspector.humanNotesLabel", "Author notes for the fix run")}
+        </Label>
         <Textarea
           value={fixHumanNotes}
           onChange={(e) => setFixHumanNotes(e.target.value)}
           rows={2}
-          placeholder="Optional: additional instructions for fix..."
+          placeholder={t("admin.contentStudio.inspector.humanNotesPlaceholder", "Optional: additional instructions for the fix…")}
           className="text-sm"
         />
         <Button
@@ -237,7 +258,7 @@ function ReviewContent(props: InspectorPanelProps) {
           }
         >
           {runningRevise ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RotateCcw className="mr-2 h-3 w-3" />}
-          Fix Findings
+          {t("admin.contentStudio.inspector.fixFindings", "Fix findings")}
         </Button>
       </div>
 
@@ -245,14 +266,14 @@ function ReviewContent(props: InspectorPanelProps) {
 
       {/* Section Edit */}
       <div className="space-y-2">
-        <Label className="text-xs font-semibold">Edit Section</Label>
+        <Label className="text-xs font-semibold">{t("admin.contentStudio.inspector.editSection", "Edit section")}</Label>
         <Select value={expandSection} onValueChange={(v) => setExpandSection(v as SectionId)}>
           <SelectTrigger className="h-8 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {SECTION_OPTIONS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              <SelectItem key={s.value} value={s.value}>{sectionLabel(s.value)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -260,7 +281,7 @@ function ReviewContent(props: InspectorPanelProps) {
           value={expandInstruction}
           onChange={(e) => setExpandInstruction(e.target.value)}
           rows={3}
-          placeholder="Describe changes for this section..."
+          placeholder={t("admin.contentStudio.inspector.sectionInstructionPlaceholder", "Describe changes for this section…")}
           className="text-sm"
         />
         <Button
@@ -270,7 +291,7 @@ function ReviewContent(props: InspectorPanelProps) {
           disabled={isBusy || !expandInstruction.trim()}
         >
           {runningSectionRevise ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
-          Apply Section Changes
+          {t("admin.contentStudio.inspector.applySectionChanges", "Apply section changes")}
         </Button>
       </div>
 
@@ -285,7 +306,7 @@ function ReviewContent(props: InspectorPanelProps) {
         disabled={isBusy || !canRunLector}
       >
         {runningLector ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
-        Run Lector
+        {t("admin.contentStudio.inspector.runLector", "Run Lector")}
       </Button>
 
       {/* Findings List */}
@@ -293,7 +314,7 @@ function ReviewContent(props: InspectorPanelProps) {
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="findings" className="border-none">
             <AccordionTrigger className="text-xs font-semibold py-1">
-              All Findings ({findings.length})
+              {t("admin.contentStudio.inspector.allFindings", { defaultValue: "All findings ({{n}})", n: findings.length })}
             </AccordionTrigger>
             <AccordionContent className="space-y-1 pt-1 min-w-0">
               {findings.map((f: any, i: number) => (
@@ -329,16 +350,20 @@ function ReviewContent(props: InspectorPanelProps) {
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="runs" className="border-none">
             <AccordionTrigger className="text-xs font-semibold py-1">
-              AI Runs ({selected.aiRuns.length})
+              {t("admin.contentStudio.aiRuns.title", "AI Runs")} ({selected.aiRuns.length})
             </AccordionTrigger>
             <AccordionContent className="space-y-1 pt-1">
               {(selected.aiRuns as any[]).slice(0, 10).map((r: any, i: number) => (
                 <div key={String(r._id || i)} className="rounded border p-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    {r.status === "success" ? <CheckCircle className="h-3 w-3 text-emerald-500" /> : <XCircle className="h-3 w-3 text-red-500" />}
-                    <span className="font-medium">{r.stage}</span>
-                    <span className="text-muted-foreground">{r.model}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 min-w-0">
+                      {r.status === "success" ? <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" /> : <XCircle className="h-3 w-3 text-red-500 shrink-0" />}
+                      <span className="font-medium">{stageLabel(r.stage)}</span>
+                      <span className="text-muted-foreground truncate">{r.model}</span>
+                    </div>
+                    <span className="text-muted-foreground text-xs shrink-0">{formatAiRunTimestamp(r)}</span>
                   </div>
+                  <AiRunTokenLine run={r} className="text-muted-foreground text-xs mt-0.5" />
                   {r.error && <div className="text-red-600 mt-0.5">{String(r.error).slice(0, 100)}</div>}
                 </div>
               ))}
@@ -358,19 +383,20 @@ function CreatePreviewContent(props: InspectorPanelProps) {
     onDeleteUnit, onDeleteSelectedDraft, showDeleteDraftDialog,
     setShowDeleteDraftDialog, onConfirmDeleteDraft,
   } = props;
+  const { t } = useTranslation();
 
   return (
     <>
       {/* Module */}
       <div className="space-y-2">
         <div>
-          <Label className="text-xs">Module</Label>
+          <Label className="text-xs">{t("admin.contentStudio.inspector.moduleLabel", "Module")}</Label>
           <Select value={previewModuleId} onValueChange={setPreviewModuleId}>
             <SelectTrigger className="h-8 text-sm mt-1">
-              <SelectValue placeholder="Auto-detect" />
+              <SelectValue placeholder={t("admin.contentStudio.inspector.autoDetect", "Auto-detect")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__auto__">Auto-detect</SelectItem>
+              <SelectItem value="__auto__">{t("admin.contentStudio.inspector.autoDetect", "Auto-detect")}</SelectItem>
               {((modules || []) as any[]).map((m: any) => (
                 <SelectItem key={String(m._id)} value={String(m._id)}>
                   M{m.moduleNumber}: {m.titleEn || m.title}
@@ -380,8 +406,11 @@ function CreatePreviewContent(props: InspectorPanelProps) {
           </Select>
         </div>
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          Use <strong>Save &amp; Create Preview</strong> in the Markdown tab to push a preview to the database.
-          Publishing (Update / Replace) happens only in the <strong>Unit Manager</strong>.
+          <Trans
+            i18nKey="admin.contentStudio.inspector.previewHint"
+            defaults="Use <strong>Save &amp; Create preview</strong> in the Markdown tab to push a preview to the database. Publishing (Update / Replace) happens only in the <strong>Unit Manager</strong>."
+            components={{ strong: <strong /> }}
+          />
         </p>
       </div>
 
@@ -390,36 +419,43 @@ function CreatePreviewContent(props: InspectorPanelProps) {
       {/* Danger Zone */}
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="danger" className="border-none">
-          <AccordionTrigger className="text-xs font-semibold py-1 text-red-600">Danger Zone</AccordionTrigger>
+          <AccordionTrigger className="text-xs font-semibold py-1 text-red-600">
+            {t("admin.contentStudio.inspector.dangerZone", "Danger zone")}
+          </AccordionTrigger>
           <AccordionContent className="space-y-2 pt-2">
             <Button size="sm" variant="destructive" className="w-full" onClick={onDeleteSelectedDraft}>
-              Delete Draft
+              {t("admin.contentStudio.inspector.deleteUnit", "Delete unit")}
             </Button>
 
             <AlertDialog open={deleteUnitOpen} onOpenChange={setDeleteUnitOpen}>
               <AlertDialogTrigger asChild>
                 <Button size="sm" variant="destructive" className="w-full">
-                  Delete Unit from DB
+                  {t("admin.contentStudio.inspector.deleteUnitFromDb", "Delete unit from DB")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Unit {selected?.draft?.unitNumber}?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    {t("admin.contentStudio.inspector.deleteUnitTitle", { defaultValue: "Delete unit {{n}}?", n: selected?.draft?.unitNumber })}
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
-                    This deletes all published data for this unit (metadata, content, tests, vocabulary) and user progress. Drafts are preserved.
+                    {t(
+                      "admin.contentStudio.inspector.deleteUnitDescription",
+                      "This deletes all published data for this unit (metadata, content, tests, vocabulary) and user progress. The unit in the studio and its drafts are preserved."
+                    )}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-2 py-2">
-                  <Label>Type: <code>DELETE UNIT {selected?.draft?.unitNumber}</code></Label>
+                  <Label>{t("admin.contentStudio.inspector.typeToConfirm", "Type:")} <code>DELETE UNIT {selected?.draft?.unitNumber}</code></Label>
                   <Input
                     value={deleteConfirmation}
                     onChange={(e) => setDeleteConfirmation(e.target.value)}
                   />
                 </div>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel>{t("admin.contentStudio.inspector.cancel", "Cancel")}</AlertDialogCancel>
                   <AlertDialogAction onClick={onDeleteUnit} disabled={deleteConfirmation !== `DELETE UNIT ${selected?.draft?.unitNumber}`}>
-                    Delete
+                    {t("admin.contentStudio.inspector.delete", "Delete")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -432,14 +468,17 @@ function CreatePreviewContent(props: InspectorPanelProps) {
       <AlertDialog open={showDeleteDraftDialog} onOpenChange={setShowDeleteDraftDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.contentStudio.inspector.deleteUnitConfirmTitle", "Delete this unit?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the draft and all its snapshots. Published units are not affected.
+              {t(
+                "admin.contentStudio.inspector.deleteUnitConfirmDescription",
+                "This removes the unit and all its drafts. Published units are not affected."
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onConfirmDeleteDraft}>Delete</AlertDialogAction>
+            <AlertDialogCancel>{t("admin.contentStudio.inspector.cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmDeleteDraft}>{t("admin.contentStudio.inspector.delete", "Delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

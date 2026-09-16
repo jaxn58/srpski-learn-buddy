@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,10 +57,10 @@ export interface BriefVersionsPanelProps {
   hideTitle?: boolean;
 }
 
-function versionDiffText(v: BriefVersionShape | undefined): string {
+function versionDiffText(v: BriefVersionShape | undefined, notesHeading: string): string {
   if (!v) return "";
   const parts: string[] = [];
-  if (v.notes?.trim()) parts.push(`NOTES:\n${v.notes.trim()}`);
+  if (v.notes?.trim()) parts.push(`${notesHeading}\n${v.notes.trim()}`);
   for (const c of v.curatedSections ?? []) {
     const label = SECTION_OPTIONS.find((s) => s.value === c.section)?.label || c.section;
     parts.push(`\n${label.toUpperCase()}:\n${c.markdown.trim()}`);
@@ -79,6 +80,7 @@ export function BriefVersionsPanel({
   onDeleteVersion,
   hideTitle,
 }: BriefVersionsPanelProps) {
+  const { t } = useTranslation();
   const [milestoneLabel, setMilestoneLabel] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -97,28 +99,40 @@ export function BriefVersionsPanel({
     if (!showDiff) return [];
     const left = list.find((v) => v._id === diffLeftId);
     const right = list.find((v) => v._id === diffRightId);
-    return buildSideBySideDiffRows(versionDiffText(left), versionDiffText(right));
-  }, [showDiff, diffLeftId, diffRightId, list]);
+    const notesHeading = t("admin.contentStudio.briefingVersions.diffNotesHeading", "BRIEFING:");
+    return buildSideBySideDiffRows(versionDiffText(left, notesHeading), versionDiffText(right, notesHeading));
+  }, [showDiff, diffLeftId, diffRightId, list, t]);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        {hideTitle ? <span /> : <Label className="font-semibold">Brief Versions</Label>}
+        {hideTitle ? (
+          <span />
+        ) : (
+          <Label className="font-semibold">{t("admin.contentStudio.briefingVersions.title", "Briefing versions")}</Label>
+        )}
         {list.length >= 2 && (
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowDiff((v) => !v)}>
-            {showDiff ? "Hide diff" : "Diff two versions"}
+            {showDiff
+              ? t("admin.contentStudio.briefingVersions.hideDiff", "Hide diff")
+              : t("admin.contentStudio.briefingVersions.diffTwoVersions", "Compare two versions")}
           </Button>
         )}
       </div>
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Versions are numbered <span className="font-mono">M#U#_v#</span>. &quot;Adopt into Brief&quot; and
-        &quot;Save current as version&quot; add a new one. Selecting an older version makes it the status quo —
-        nothing is deleted.
+        <Trans
+          i18nKey="admin.contentStudio.briefingVersions.numberingHint"
+          defaults="Versions are numbered <mono>M#U#_v#</mono>. &quot;Adopt into Briefing&quot; and &quot;Save current as version&quot; add a new one. Selecting an older version makes it the status quo — nothing is deleted."
+          components={{ mono: <span className="font-mono" /> }}
+        />
       </p>
 
       {list.length === 0 ? (
         <p className="text-sm text-muted-foreground italic">
-          No Brief Versions yet. Adopt a reviewed section (Rendered tab) or save a milestone below.
+          {t(
+            "admin.contentStudio.briefingVersions.empty",
+            "No briefing versions yet. Adopt a reviewed section (Rendered tab) or save a milestone below."
+          )}
         </p>
       ) : (
         <ScrollArea className="max-h-[280px] rounded border">
@@ -135,14 +149,17 @@ export function BriefVersionsPanel({
                       title={new Date(v.createdAt).toLocaleString()}
                     >
                       {isActive && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" aria-label="Active" />
+                        <CheckCircle2
+                          className="h-3.5 w-3.5 text-primary shrink-0"
+                          aria-label={t("admin.contentStudio.briefingVersions.active", "Active")}
+                        />
                       )}
                       <span className="font-mono text-xs font-semibold shrink-0">{idOf(v)}</span>
                       {v.label ? (
                         <span className="text-[11px] text-muted-foreground truncate">{v.label}</span>
                       ) : null}
                       <span className="text-[10px] text-muted-foreground/70 shrink-0 tabular-nums">
-                        · {sectionCount} sec
+                        {t("admin.contentStudio.briefingVersions.sectionCount", { defaultValue: "· {{n}} sec", n: sectionCount })}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -155,14 +172,14 @@ export function BriefVersionsPanel({
                           onClick={() => onSelectVersion(v._id)}
                         >
                           {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
-                          Select
+                          {t("admin.contentStudio.briefingVersions.select", "Select")}
                         </Button>
                       )}
                       <Button
                         size="sm"
                         variant="ghost"
                         className="h-6 w-6 p-0"
-                        title="Name (optional)"
+                        title={t("admin.contentStudio.briefingVersions.renameTitle", "Name (optional)")}
                         onClick={() => {
                           setRenamingId(v._id);
                           setRenameValue(v.label || "");
@@ -177,8 +194,11 @@ export function BriefVersionsPanel({
                           className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                           title={
                             isActive
-                              ? "Cannot delete the active version — select another version first"
-                              : "Delete this version"
+                              ? t(
+                                  "admin.contentStudio.briefingVersions.cannotDeleteActive",
+                                  "Cannot delete the active version — select another version first"
+                                )
+                              : t("admin.contentStudio.briefingVersions.deleteVersion", "Delete this version")
                           }
                           disabled={isActive || busy}
                           onClick={() => setDeleteCandidateId(v._id)}
@@ -194,7 +214,7 @@ export function BriefVersionsPanel({
                       <Input
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
-                        placeholder="Optional name…"
+                        placeholder={t("admin.contentStudio.briefingVersions.namePlaceholder", "Optional name…")}
                         className="h-7 text-xs"
                         autoFocus
                       />
@@ -206,7 +226,7 @@ export function BriefVersionsPanel({
                           setRenamingId(null);
                         }}
                       >
-                        Save
+                        {t("admin.contentStudio.briefingVersions.save", "Save")}
                       </Button>
                       <Button
                         size="sm"
@@ -214,7 +234,7 @@ export function BriefVersionsPanel({
                         className="h-7 text-xs"
                         onClick={() => setRenamingId(null)}
                       >
-                        Cancel
+                        {t("admin.contentStudio.briefingVersions.cancel", "Cancel")}
                       </Button>
                     </div>
                   )}
@@ -229,7 +249,7 @@ export function BriefVersionsPanel({
         <Input
           value={milestoneLabel}
           onChange={(e) => setMilestoneLabel(e.target.value)}
-          placeholder="Optional name…"
+          placeholder={t("admin.contentStudio.briefingVersions.namePlaceholder", "Optional name…")}
           className="h-8 text-xs"
         />
         <Button
@@ -243,7 +263,7 @@ export function BriefVersionsPanel({
           }}
         >
           <Save className="h-3.5 w-3.5 mr-1" />
-          Save current as version
+          {t("admin.contentStudio.briefingVersions.saveCurrent", "Save current as version")}
         </Button>
       </div>
 
@@ -252,7 +272,7 @@ export function BriefVersionsPanel({
           <div className="grid grid-cols-2 gap-2">
             <Select value={diffLeftId} onValueChange={setDiffLeftId}>
               <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Left (older)" />
+                <SelectValue placeholder={t("admin.contentStudio.briefingVersions.diffLeft", "Left (older)")} />
               </SelectTrigger>
               <SelectContent>
                 {list.map((v) => (
@@ -265,7 +285,7 @@ export function BriefVersionsPanel({
             </Select>
             <Select value={diffRightId} onValueChange={setDiffRightId}>
               <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Right (newer)" />
+                <SelectValue placeholder={t("admin.contentStudio.briefingVersions.diffRight", "Right (newer)")} />
               </SelectTrigger>
               <SelectContent>
                 {list.map((v) => (
@@ -280,7 +300,9 @@ export function BriefVersionsPanel({
           <ScrollArea className="h-[260px] rounded border">
             <div className="p-2 space-y-1">
               {diffRows.length === 0 ? (
-                <div className="text-xs text-muted-foreground">Select both versions to compare.</div>
+                <div className="text-xs text-muted-foreground">
+                  {t("admin.contentStudio.briefingVersions.diffSelectBoth", "Select both versions to compare.")}
+                </div>
               ) : (
                 diffRows.map((row, idx) => {
                   const leftClass =
@@ -327,7 +349,9 @@ export function BriefVersionsPanel({
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete this Brief Version?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {t("admin.contentStudio.briefingVersions.deleteTitle", "Delete this briefing version?")}
+              </AlertDialogTitle>
               <AlertDialogDescription>
                 {deleteCandidateId
                   ? (() => {
@@ -339,9 +363,10 @@ export function BriefVersionsPanel({
                           <span className="font-mono">{id}</span>
                           {label ? ` · ${label}` : ""}
                           {" "}
-                          will be removed from history. This cannot be undone.
-                          The live Brief (Description, Reference notes, curated
-                          sections) is not affected.
+                          {t(
+                            "admin.contentStudio.briefingVersions.deleteDescription",
+                            "will be removed from history. This cannot be undone. The live briefing (description, reference notes, curated sections) is not affected."
+                          )}
                         </>
                       );
                     })()
@@ -349,7 +374,7 @@ export function BriefVersionsPanel({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("admin.contentStudio.briefingVersions.cancel", "Cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
                   if (deleteCandidateId) {
@@ -359,7 +384,7 @@ export function BriefVersionsPanel({
                 }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Delete
+                {t("admin.contentStudio.briefingVersions.delete", "Delete")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

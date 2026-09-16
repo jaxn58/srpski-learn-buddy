@@ -443,6 +443,24 @@ export const listStageSkills = query({
   },
 });
 
+/** Deactivated skills of a stage, so they can be reactivated or deleted from the admin UI. */
+export const listInactiveStageSkills = query({
+  args: {
+    stage: v.union(
+      v.literal("specialist"),
+      v.literal("auditor"),
+      v.literal("translator")
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    return await ctx.db
+      .query("contentStudioSkills")
+      .withIndex("by_stage_active", (q) => q.eq("stage", args.stage).eq("isActive", false))
+      .collect();
+  },
+});
+
 /** Active skills for a stage — used by translator (and other action pipelines). */
 export const listActiveSkillsByStageInternal = internalQuery({
   args: {

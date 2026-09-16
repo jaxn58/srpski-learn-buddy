@@ -3,6 +3,8 @@ import { useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Doc } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,13 +29,19 @@ function slugify(input: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function humanizeModuleError(message: string) {
-  if (message.includes("MODULE_SLUG_TAKEN")) return "Slug is already in use. Please choose a unique slug.";
-  if (message.includes("MODULE_NUMBER_TAKEN")) return "Module number is already in use. Please choose a different number.";
-  if (message.includes("INVALID_MODULE_NUMBER")) return "Module number must be a positive number.";
-  if (message.includes("INVALID_SLUG")) return "Slug is invalid. Use letters/numbers and hyphens.";
-  if (message.includes("MISSING_REQUIRED_FIELDS")) return "Please fill all required fields.";
-  if (message.includes("Unauthorized")) return "Unauthorized. Superadmin required.";
+function humanizeModuleError(message: string, t: TFunction) {
+  if (message.includes("MODULE_SLUG_TAKEN"))
+    return t("admin.contentStudio.modules.errorSlugTaken", "Slug is already in use. Please choose a unique slug.");
+  if (message.includes("MODULE_NUMBER_TAKEN"))
+    return t("admin.contentStudio.modules.errorNumberTaken", "Module number is already in use. Please choose a different number.");
+  if (message.includes("INVALID_MODULE_NUMBER"))
+    return t("admin.contentStudio.modules.errorInvalidNumber", "Module number must be a positive number.");
+  if (message.includes("INVALID_SLUG"))
+    return t("admin.contentStudio.modules.errorInvalidSlug", "Slug is invalid. Use letters/numbers and hyphens.");
+  if (message.includes("MISSING_REQUIRED_FIELDS"))
+    return t("admin.contentStudio.modules.errorMissingFields", "Please fill all required fields.");
+  if (message.includes("Unauthorized"))
+    return t("admin.contentStudio.modules.errorUnauthorized", "Unauthorized. Superadmin required.");
   return message;
 }
 
@@ -46,6 +54,7 @@ interface CreateModuleDialogProps {
 }
 
 export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, onCreated }: CreateModuleDialogProps) {
+  const { t } = useTranslation();
   const createModuleMutation = useMutation(api.modules.createModule);
   const translateModuleAction = useAction(api.modules.translateModuleEnToDe);
 
@@ -78,8 +87,8 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
 
   const handleTranslate = async () => {
     if (!titleEn.trim() || !descriptionEn.trim()) {
-      toast.error("Cannot translate", {
-        description: "Please fill Title (EN) and Description (EN) first.",
+      toast.error(t("admin.contentStudio.modules.toastCannotTranslate", "Cannot translate"), {
+        description: t("admin.contentStudio.modules.toastFillEnglishFirst", "Please fill Title (EN) and Description (EN) first."),
       });
       return;
     }
@@ -88,10 +97,10 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
       const res = await translateModuleAction({ titleEn, descriptionEn });
       setTitleDe(res.titleDe);
       setDescriptionDe(res.descriptionDe);
-      toast.success("German translation generated");
+      toast.success(t("admin.contentStudio.modules.toastTranslated", "German translation generated"));
     } catch (error: any) {
-      toast.error("Failed to translate to German", {
-        description: humanizeModuleError(String(error?.message || error)),
+      toast.error(t("admin.contentStudio.modules.toastTranslateFailed", "Failed to translate to German"), {
+        description: humanizeModuleError(String(error?.message || error), t),
       });
     } finally {
       setTranslating(false);
@@ -113,7 +122,7 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
         descriptionDe,
       });
 
-      toast.success("Module created");
+      toast.success(t("admin.contentStudio.modules.toastCreated", "Module created"));
       onCreated({
         _id: moduleId,
         moduleNumber: parsedModuleNumber,
@@ -125,8 +134,8 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
       } as Doc<"moduleMetadata">);
       onOpenChange(false);
     } catch (error: any) {
-      toast.error("Failed to create module", {
-        description: humanizeModuleError(String(error?.message || error)),
+      toast.error(t("admin.contentStudio.modules.toastCreateFailed", "Failed to create module"), {
+        description: humanizeModuleError(String(error?.message || error), t),
       });
     } finally {
       setCreating(false);
@@ -147,17 +156,18 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Create New Module</DialogTitle>
+          <DialogTitle>{t("admin.contentStudio.modules.createNewTitle", "Create new module")}</DialogTitle>
           <DialogDescription>
-            Modules are created in English first. Use "Translate to German" to generate the German title and
-            description, then review before saving. This module will immediately be available for reuse in the
-            Modulverwaltung tab.
+            {t(
+              "admin.contentStudio.modules.createNewDescription",
+              "Modules are created in English first. Use \"Translate to German\" to generate the German title and description, then review before saving. This module will immediately be available for reuse in the Modules tab.",
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 md:grid-cols-2 py-2">
           <div className="space-y-2">
-            <Label>Module number</Label>
+            <Label>{t("admin.contentStudio.modules.moduleNumber", "Module number")}</Label>
             <Input
               inputMode="numeric"
               pattern="[0-9]*"
@@ -166,7 +176,7 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
             />
           </div>
           <div className="space-y-2">
-            <Label>Slug</Label>
+            <Label>{t("admin.contentStudio.modules.slug", "Slug")}</Label>
             <Input
               value={slug}
               onChange={(e) => {
@@ -176,13 +186,13 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
             />
           </div>
           <div className="space-y-2">
-            <Label>Title (EN)</Label>
+            <Label>{t("admin.contentStudio.modules.titleEn", "Title (EN)")}</Label>
             <Input placeholder="Module 6: ..." value={titleEn} onChange={(e) => setTitleEn(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Title (DE)</Label>
+            <Label>{t("admin.contentStudio.modules.titleDe", "Title (DE)")}</Label>
             <Input
-              placeholder="Generated via Translate to German"
+              placeholder={t("admin.contentStudio.modules.generatedPlaceholder", "Generated via \"Translate to German\"")}
               value={titleDe}
               readOnly
               tabIndex={-1}
@@ -190,13 +200,13 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>Description (EN)</Label>
+            <Label>{t("admin.contentStudio.modules.descriptionEn", "Description (EN)")}</Label>
             <Textarea value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>Description (DE)</Label>
+            <Label>{t("admin.contentStudio.modules.descriptionDe", "Description (DE)")}</Label>
             <Textarea
-              placeholder="Generated via Translate to German"
+              placeholder={t("admin.contentStudio.modules.generatedPlaceholder", "Generated via \"Translate to German\"")}
               value={descriptionDe}
               readOnly
               tabIndex={-1}
@@ -212,23 +222,25 @@ export function CreateModuleDialog({ open, onOpenChange, suggestedModuleNumber, 
               className="gap-2"
             >
               {translating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
-              Translate to German
+              {t("admin.contentStudio.modules.translateToGerman", "Translate to German")}
             </Button>
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground">
-          German fields are filled automatically. Fill the English fields, then click "Translate to German" before
-          creating the module.
+          {t(
+            "admin.contentStudio.modules.germanAutoHintDialog",
+            "German fields are filled automatically. Fill the English fields, then click \"Translate to German\" before creating the module.",
+          )}
         </p>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={creating}>
-            Cancel
+            {t("admin.contentStudio.modules.cancel", "Cancel")}
           </Button>
           <Button onClick={() => void handleCreate()} disabled={!canCreate}>
             {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            Create Module
+            {t("admin.contentStudio.modules.createButton", "Create module")}
           </Button>
         </DialogFooter>
       </DialogContent>

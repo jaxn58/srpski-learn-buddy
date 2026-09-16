@@ -78,6 +78,11 @@ const PROMPT_CATEGORIES: PromptCategory[] = [
         hint: "Static instructions for the Lector/Auditor. Dynamic context (unit number, vocabulary) is added at runtime.",
       },
       {
+        key: "cs_brief_assistant",
+        label: "Briefing Assistant",
+        hint: "System prompt for the assistant that turns an author's free-text description plus the curriculum plan into a structured Creator briefing (JSON output).",
+      },
+      {
         key: "cs_section_overview",
         label: "Section: Overview",
         hint: "Section-specific editing prompt for the Overview section.",

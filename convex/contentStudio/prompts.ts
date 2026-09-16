@@ -10,12 +10,15 @@ export type ContentStudioPromptKey =
   | "cs_unit_creator"
   | "cs_finding_fixer"
   | "cs_lector"
+  | "cs_brief_assistant"
   | `cs_section_${string}`;
 
 export const CS_PROMPT_KEYS = {
   unitCreator: "cs_unit_creator",
   findingFixer: "cs_finding_fixer",
   lector: "cs_lector",
+  /** Turns a free-text unit description plus the curriculum plan into a structured brief. */
+  briefAssistant: "cs_brief_assistant",
   section: (id: SectionId) => `cs_section_${id}` as const,
 } as const;
 

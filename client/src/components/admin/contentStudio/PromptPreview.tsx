@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PenTool, Wrench, Shield, Layers, ExternalLink, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 interface RolePrompt {
@@ -35,6 +36,7 @@ interface PromptStatusRowProps {
 }
 
 function PromptStatusRow({ icon, label, dbKey, source, charCount }: PromptStatusRowProps) {
+  const { t } = useTranslation();
   const isDb = source === "database";
   const isMissing = source === "missing";
   return (
@@ -48,21 +50,21 @@ function PromptStatusRow({ icon, label, dbKey, source, charCount }: PromptStatus
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className="text-[10px] text-muted-foreground tabular-nums hidden md:inline">
-          {charCount.toLocaleString()} chars
+          {t("admin.contentStudio.promptPreview.chars", { defaultValue: "{{n}} chars", n: charCount.toLocaleString() })}
         </span>
         {isDb ? (
           <Badge variant="outline" className="text-[10px] border-green-300 text-green-700 bg-green-50">
-            Active
+            {t("admin.contentStudio.promptPreview.active", "Active")}
           </Badge>
         ) : isMissing ? (
           <Badge variant="outline" className="text-[10px] border-red-300 text-red-700 bg-red-50 flex items-center gap-1">
             <AlertTriangle className="h-2.5 w-2.5" />
-            Missing
+            {t("admin.contentStudio.promptPreview.missing", "Missing")}
           </Badge>
         ) : (
           <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50 flex items-center gap-1">
             <AlertTriangle className="h-2.5 w-2.5" />
-            Unknown
+            {t("admin.contentStudio.promptPreview.unknown", "Unknown")}
           </Badge>
         )}
       </div>
@@ -71,11 +73,12 @@ function PromptStatusRow({ icon, label, dbKey, source, charCount }: PromptStatus
 }
 
 export function PromptPreview({ promptPreview }: PromptPreviewProps) {
+  const { t } = useTranslation();
   if (!promptPreview) {
     return (
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground text-sm">
-          Loading...
+          {t("admin.contentStudio.promptPreview.loading", "Loading…")}
         </CardContent>
       </Card>
     );
@@ -99,8 +102,10 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span>
-            Some prompts are missing from the database. Actions will fail until they are created.
-            Open Prompt Administration and create the missing prompts.
+            {t(
+              "admin.contentStudio.promptPreview.missingWarning",
+              "Some prompts are missing from the database. Actions will fail until they are created. Open the prompt administration and create the missing prompts."
+            )}
           </span>
         </div>
       )}
@@ -111,21 +116,21 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
             <>
               <PromptStatusRow
                 icon={<PenTool className="h-4 w-4" />}
-                label="Unit Creator"
+                label={t("admin.contentStudio.promptPreview.roleCreator", "Creator")}
                 dbKey={roles.creator.key}
                 source={roles.creator.source}
                 charCount={roles.creator.content.length}
               />
               <PromptStatusRow
                 icon={<Wrench className="h-4 w-4" />}
-                label="Finding Fixer"
+                label={t("admin.contentStudio.promptPreview.roleFixer", "Findings fixer")}
                 dbKey={roles.fixer.key}
                 source={roles.fixer.source}
                 charCount={roles.fixer.content.length}
               />
               <PromptStatusRow
                 icon={<Shield className="h-4 w-4" />}
-                label="Lector (Auditor)"
+                label={t("admin.contentStudio.promptPreview.roleLector", "Lector")}
                 dbKey={roles.lector.key}
                 source={roles.lector.source}
                 charCount={roles.lector.content.length}
@@ -134,7 +139,7 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
           ) : (
             <PromptStatusRow
               icon={<PenTool className="h-4 w-4" />}
-              label="Base System Prompt"
+              label={t("admin.contentStudio.promptPreview.baseSystemPrompt", "Base system prompt")}
               dbKey="cs_unit_creator"
               source={promptPreview.source.base === "database (chatPrompts)" ? "database" : "missing"}
               charCount={promptPreview.baseSystemPrompt.length}
@@ -148,9 +153,11 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
           <CardContent className="pt-4 pb-2">
             <div className="flex items-center gap-2 mb-2 pb-2 border-b">
               <Layers className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">Section Prompts</span>
+              <span className="text-sm font-semibold">
+                {t("admin.contentStudio.promptPreview.sectionPrompts", "Section prompts")}
+              </span>
               <Badge variant="secondary" className="text-[10px] ml-auto">
-                {sectionEntries.length} sections
+                {t("admin.contentStudio.promptPreview.sectionsCount", { defaultValue: "{{n}} sections", n: sectionEntries.length })}
               </Badge>
             </div>
             {sectionEntries
@@ -173,14 +180,24 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
         <div className="text-xs text-muted-foreground px-1 space-y-1">
           {promptPreview.skillsBlock && (
             <div className="flex items-center justify-between">
-              <span>Active Skills</span>
-              <span className="tabular-nums">{promptPreview.skillsBlock.length.toLocaleString()} chars</span>
+              <span>{t("admin.contentStudio.promptPreview.activeSkills", "Active house style (skills)")}</span>
+              <span className="tabular-nums">
+                {t("admin.contentStudio.promptPreview.chars", {
+                  defaultValue: "{{n}} chars",
+                  n: promptPreview.skillsBlock.length.toLocaleString(),
+                })}
+              </span>
             </div>
           )}
           {promptPreview.referenceBlock && (
             <div className="flex items-center justify-between">
-              <span>Reference Guidelines</span>
-              <span className="tabular-nums">{promptPreview.referenceBlock.length.toLocaleString()} chars</span>
+              <span>{t("admin.contentStudio.promptPreview.referenceGuidelines", "Reference guidelines")}</span>
+              <span className="tabular-nums">
+                {t("admin.contentStudio.promptPreview.chars", {
+                  defaultValue: "{{n}} chars",
+                  n: promptPreview.referenceBlock.length.toLocaleString(),
+                })}
+              </span>
             </div>
           )}
         </div>
@@ -188,12 +205,12 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
 
       <div className={cn("border-t pt-4 flex items-center justify-between gap-3")}>
         <p className="text-xs text-muted-foreground">
-          To view or edit prompt content, use the Prompt Administration.
+          {t("admin.contentStudio.promptPreview.adminHint", "To view or edit prompt content, use the prompt administration.")}
         </p>
         <Link href="/admin/prompt">
           <Button variant="outline" size="sm" className="shrink-0 gap-1.5">
             <ExternalLink className="h-3.5 w-3.5" />
-            Prompt Admin
+            {t("admin.contentStudio.promptPreview.openPromptAdmin", "Prompt admin")}
           </Button>
         </Link>
       </div>

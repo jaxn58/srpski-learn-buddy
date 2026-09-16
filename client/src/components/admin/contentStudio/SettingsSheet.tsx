@@ -39,8 +39,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Info } from "lucide-react";
 import type { Dispatch, SetStateAction, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { Provider, SettingsTab, StageKey } from "./types";
 import {
   CONTENT_STUDIO_DIALOG_WIDTH,
@@ -84,6 +86,9 @@ export interface SettingsSheetProps {
   onCreateSkill: () => void | Promise<void>;
   onEditSkill: (s: any) => void;
   onDeactivateSkill: (id: string) => void | Promise<void>;
+  inactiveStageSkills: any[] | undefined;
+  onReactivateSkill: (id: string) => void | Promise<void>;
+  onDeleteSkill: (id: string, name: string) => void | Promise<void>;
 
   refs: any[] | undefined;
   newRefType: "pdf" | "book" | "article" | "other";
@@ -141,6 +146,8 @@ export interface SettingsSheetProps {
 }
 
 export function SettingsSheet(props: SettingsSheetProps) {
+  // Named `tr` because this component already uses `t` as a loop variable for templates.
+  const { t: tr } = useTranslation();
   const {
     settingsOpen,
     setSettingsOpen,
@@ -171,6 +178,9 @@ export function SettingsSheet(props: SettingsSheetProps) {
     onCreateSkill,
     onEditSkill,
     onDeactivateSkill,
+    inactiveStageSkills,
+    onReactivateSkill,
+    onDeleteSkill,
     refs,
     newRefType,
     setNewRefType,
@@ -226,36 +236,41 @@ export function SettingsSheet(props: SettingsSheetProps) {
     <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Content Studio Settings</SheetTitle>
-          <SheetDescription>Configure AI models and manage libraries</SheetDescription>
+          <SheetTitle>{tr("admin.contentStudio.settings.title", "Content Studio settings")}</SheetTitle>
+          <SheetDescription>
+            {tr("admin.contentStudio.settings.description", "Configure AI models and manage libraries")}
+          </SheetDescription>
         </SheetHeader>
         <div className="py-4">
           <Tabs value={settingsTab} onValueChange={(v) => setSettingsTab(v as SettingsTab)}>
             <TabsList className="w-full grid grid-cols-3">
-              <TabsTrigger value="ai">AI Models</TabsTrigger>
-              <TabsTrigger value="libraries">Libraries</TabsTrigger>
-              <TabsTrigger value="prompts">Prompt Preview</TabsTrigger>
+              <TabsTrigger value="ai">{tr("admin.contentStudio.settings.tabAi", "AI models")}</TabsTrigger>
+              <TabsTrigger value="libraries">{tr("admin.contentStudio.settings.tabLibraries", "Libraries")}</TabsTrigger>
+              <TabsTrigger value="prompts">{tr("admin.contentStudio.settings.tabPrompts", "Prompt preview")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="ai" className="mt-4 space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>AI Roles – Model Config</CardTitle>
+                  <CardTitle>{tr("admin.contentStudio.settings.modelConfigTitle", "AI roles – model config")}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 rounded border p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-medium">Creator</div>
+                      <div className="font-medium">{tr("admin.contentStudio.settings.creator", "Creator")}</div>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button className="text-muted-foreground hover:text-foreground" aria-label="Creator help">
+                          <button
+                            className="text-muted-foreground hover:text-foreground"
+                            aria-label={tr("admin.contentStudio.settings.creatorHelp", "Creator help")}
+                          >
                             <Info className="h-4 w-4" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent sideOffset={6}>{STAGE_HELP.specialist}</TooltipContent>
                       </Tooltip>
                     </div>
-                    <Label>Provider</Label>
+                    <Label>{tr("admin.contentStudio.settings.provider", "Provider")}</Label>
                     <Select value={cfgSpecialistProvider} onValueChange={(v) => setCfgSpecialistProvider(v as Provider)}>
                       <SelectTrigger>
                         <SelectValue />
@@ -265,7 +280,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                         <SelectItem value="openai">openai</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Label>Model</Label>
+                    <Label>{tr("admin.contentStudio.settings.model", "Model")}</Label>
                     {!cfgSpecialistCustom ? (
                       <>
                         <Select
@@ -287,7 +302,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                   <ModelTierBadge tier={m.tier} />
                                 </div>
                               ) : (
-                                <SelectValue placeholder="Select model…" />
+                                <SelectValue placeholder={tr("admin.contentStudio.settings.selectModelPlaceholder", "Select model…")} />
                               );
                             })()}
                           </SelectTrigger>
@@ -301,13 +316,19 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                   </div>
                                   <span className="text-xs text-muted-foreground leading-snug">{m.blurb}</span>
                                   <span className="text-xs text-muted-foreground/60 font-mono">
-                                    ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
+                                    {tr("admin.contentStudio.settings.pricePer1M", {
+                                      defaultValue: "${{input}} in / ${{output}} out per 1M tokens",
+                                      input: m.inputPricePer1M.toFixed(2),
+                                      output: m.outputPricePer1M.toFixed(2),
+                                    })}
                                   </span>
                                 </div>
                               </SelectItem>
                             ))}
                             <SelectItem value="__custom__" className="py-2">
-                              <span className="text-muted-foreground text-sm">Custom model…</span>
+                              <span className="text-muted-foreground text-sm">
+                                {tr("admin.contentStudio.settings.customModel", "Custom model…")}
+                              </span>
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -318,7 +339,11 @@ export function SettingsSheet(props: SettingsSheetProps) {
                               <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
                                 <p className="text-muted-foreground leading-snug">{m.blurb}</p>
                                 <p className="font-mono text-muted-foreground/60">
-                                  ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
+                                  {tr("admin.contentStudio.settings.pricePer1M", {
+                                    defaultValue: "${{input}} in / ${{output}} out per 1M tokens",
+                                    input: m.inputPricePer1M.toFixed(2),
+                                    output: m.outputPricePer1M.toFixed(2),
+                                  })}
                                 </p>
                               </div>
                             );
@@ -328,28 +353,31 @@ export function SettingsSheet(props: SettingsSheetProps) {
                       <div className="space-y-2">
                         <Input value={cfgSpecialistModel} onChange={(e) => setCfgSpecialistModel(e.target.value)} />
                         <Button variant="secondary" onClick={() => setCfgSpecialistCustom(false)}>
-                          Back to dropdown
+                          {tr("admin.contentStudio.settings.backToDropdown", "Back to dropdown")}
                         </Button>
                       </div>
                     )}
                     <div className="text-xs text-muted-foreground">
-                      Recommended:{" "}
+                      {tr("admin.contentStudio.settings.recommended", "Recommended:")}{" "}
                       <span className="font-medium">{stageOrderedModels(cfgSpecialistProvider, "specialist")[0]?.id}</span>
                     </div>
                   </div>
                   <div className="space-y-2 rounded border p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-medium">Lector</div>
+                      <div className="font-medium">{tr("admin.contentStudio.settings.lector", "Lector")}</div>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <button className="text-muted-foreground hover:text-foreground" aria-label="Lector help">
+                          <button
+                            className="text-muted-foreground hover:text-foreground"
+                            aria-label={tr("admin.contentStudio.settings.lectorHelp", "Lector help")}
+                          >
                             <Info className="h-4 w-4" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent sideOffset={6}>{STAGE_HELP.auditor}</TooltipContent>
                       </Tooltip>
                     </div>
-                    <Label>Provider</Label>
+                    <Label>{tr("admin.contentStudio.settings.provider", "Provider")}</Label>
                     <Select value={cfgAuditorProvider} onValueChange={(v) => setCfgAuditorProvider(v as Provider)}>
                       <SelectTrigger>
                         <SelectValue />
@@ -359,7 +387,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                         <SelectItem value="openai">openai</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Label>Model</Label>
+                    <Label>{tr("admin.contentStudio.settings.model", "Model")}</Label>
                     {!cfgAuditorCustom ? (
                       <>
                         <Select
@@ -381,7 +409,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                   <ModelTierBadge tier={m.tier} />
                                 </div>
                               ) : (
-                                <SelectValue placeholder="Select model…" />
+                                <SelectValue placeholder={tr("admin.contentStudio.settings.selectModelPlaceholder", "Select model…")} />
                               );
                             })()}
                           </SelectTrigger>
@@ -395,13 +423,19 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                   </div>
                                   <span className="text-xs text-muted-foreground leading-snug">{m.blurb}</span>
                                   <span className="text-xs text-muted-foreground/60 font-mono">
-                                    ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
+                                    {tr("admin.contentStudio.settings.pricePer1M", {
+                                      defaultValue: "${{input}} in / ${{output}} out per 1M tokens",
+                                      input: m.inputPricePer1M.toFixed(2),
+                                      output: m.outputPricePer1M.toFixed(2),
+                                    })}
                                   </span>
                                 </div>
                               </SelectItem>
                             ))}
                             <SelectItem value="__custom__" className="py-2">
-                              <span className="text-muted-foreground text-sm">Custom model…</span>
+                              <span className="text-muted-foreground text-sm">
+                                {tr("admin.contentStudio.settings.customModel", "Custom model…")}
+                              </span>
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -412,7 +446,11 @@ export function SettingsSheet(props: SettingsSheetProps) {
                               <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
                                 <p className="text-muted-foreground leading-snug">{m.blurb}</p>
                                 <p className="font-mono text-muted-foreground/60">
-                                  ${m.inputPricePer1M.toFixed(2)} in / ${m.outputPricePer1M.toFixed(2)} out per 1M tokens
+                                  {tr("admin.contentStudio.settings.pricePer1M", {
+                                    defaultValue: "${{input}} in / ${{output}} out per 1M tokens",
+                                    input: m.inputPricePer1M.toFixed(2),
+                                    output: m.outputPricePer1M.toFixed(2),
+                                  })}
                                 </p>
                               </div>
                             );
@@ -422,22 +460,25 @@ export function SettingsSheet(props: SettingsSheetProps) {
                       <div className="space-y-2">
                         <Input value={cfgAuditorModel} onChange={(e) => setCfgAuditorModel(e.target.value)} />
                         <Button variant="secondary" onClick={() => setCfgAuditorCustom(false)}>
-                          Back to dropdown
+                          {tr("admin.contentStudio.settings.backToDropdown", "Back to dropdown")}
                         </Button>
                       </div>
                     )}
                     <div className="text-xs text-muted-foreground">
-                      Recommended:{" "}
+                      {tr("admin.contentStudio.settings.recommended", "Recommended:")}{" "}
                       <span className="font-medium">{stageOrderedModels(cfgAuditorProvider, "auditor")[0]?.id}</span>
                     </div>
                   </div>
                   <div className="md:col-span-2 flex justify-end">
                     <Button variant="secondary" onClick={onSaveModelConfig}>
-                      Save Model Config
+                      {tr("admin.contentStudio.settings.saveModelConfig", "Save model config")}
                     </Button>
                   </div>
                   <div className="md:col-span-2 text-xs text-muted-foreground">
-                    Note: If the selected provider key is not configured, the system automatically falls back to the other provider (if available).
+                    {tr(
+                      "admin.contentStudio.settings.providerFallbackNote",
+                      "Note: if the selected provider key is not configured, the system automatically falls back to the other provider (if available)."
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -446,26 +487,26 @@ export function SettingsSheet(props: SettingsSheetProps) {
             <TabsContent value="libraries" className="mt-4 space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Reference Library (external links)</CardTitle>
+                  <CardTitle>{tr("admin.contentStudio.settings.referenceLibraryTitle", "Reference library (external links)")}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 rounded border p-3">
-                    <div className="font-medium">Add reference</div>
-                    <Label>Type</Label>
+                    <div className="font-medium">{tr("admin.contentStudio.settings.addReference", "Add reference")}</div>
+                    <Label>{tr("admin.contentStudio.settings.type", "Type")}</Label>
                     <Select value={newRefType} onValueChange={(v) => setNewRefType(v as any)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pdf">pdf</SelectItem>
-                        <SelectItem value="book">book</SelectItem>
-                        <SelectItem value="article">article</SelectItem>
-                        <SelectItem value="other">other</SelectItem>
+                        <SelectItem value="pdf">{tr("admin.contentStudio.settings.refTypePdf", "PDF")}</SelectItem>
+                        <SelectItem value="book">{tr("admin.contentStudio.settings.refTypeBook", "Book")}</SelectItem>
+                        <SelectItem value="article">{tr("admin.contentStudio.settings.refTypeArticle", "Article")}</SelectItem>
+                        <SelectItem value="other">{tr("admin.contentStudio.settings.refTypeOther", "Other")}</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Label>Title</Label>
+                    <Label>{tr("admin.contentStudio.settings.titleLabel", "Title")}</Label>
                     <Input value={newRefTitle} onChange={(e) => setNewRefTitle(e.target.value)} />
-                    <Label>PDF Upload (optional)</Label>
+                    <Label>{tr("admin.contentStudio.settings.pdfUpload", "PDF upload (optional)")}</Label>
                     <Input
                       type="file"
                       accept="application/pdf"
@@ -477,37 +518,42 @@ export function SettingsSheet(props: SettingsSheetProps) {
                     />
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-xs text-muted-foreground">
-                        PDF max 25 MB. Tip: you can either click “Upload PDF” first, or directly click “Create Reference” (it will auto-upload).
+                        {tr(
+                          "admin.contentStudio.settings.pdfUploadHint",
+                          "PDF max 25 MB. Tip: you can either click “Upload PDF” first, or directly click “Create reference” (it will auto-upload)."
+                        )}
                       </div>
                       <Button variant="secondary" onClick={onUploadReferencePdf} disabled={newRefUploading || !newRefFile}>
-                        {newRefUploading ? "Uploading..." : "Upload PDF"}
+                        {newRefUploading
+                          ? tr("admin.contentStudio.settings.uploading", "Uploading…")
+                          : tr("admin.contentStudio.settings.uploadPdf", "Upload PDF")}
                       </Button>
                     </div>
                     {newRefStorageId ? (
                       <div className="text-xs text-muted-foreground">
-                        Uploaded: <code>{newRefStorageId}</code>
+                        {tr("admin.contentStudio.settings.uploaded", "Uploaded:")} <code>{newRefStorageId}</code>
                       </div>
                     ) : null}
 
-                    <Label>URL (optional)</Label>
+                    <Label>{tr("admin.contentStudio.settings.urlOptional", "URL (optional)")}</Label>
                     <Input value={newRefUrl} onChange={(e) => setNewRefUrl(e.target.value)} placeholder="https://..." />
-                    <Label>Tags (comma separated)</Label>
+                    <Label>{tr("admin.contentStudio.settings.tags", "Tags (comma separated)")}</Label>
                     <Input value={newRefTags} onChange={(e) => setNewRefTags(e.target.value)} />
-                    <Label>Notes (high-level, no copied text)</Label>
+                    <Label>{tr("admin.contentStudio.settings.notes", "Notes (high-level, no copied text)")}</Label>
                     <Textarea value={newRefNotes} onChange={(e) => setNewRefNotes(e.target.value)} />
-                    <Button onClick={onCreateReference}>Create Reference</Button>
+                    <Button onClick={onCreateReference}>{tr("admin.contentStudio.settings.createReference", "Create reference")}</Button>
                   </div>
 
                   <div className="space-y-2 rounded border p-3">
-                    <div className="font-medium">Existing references</div>
+                    <div className="font-medium">{tr("admin.contentStudio.settings.existingReferences", "Existing references")}</div>
                     <div className="max-h-[260px] overflow-auto rounded border">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Title</TableHead>
-                            <TableHead>URL</TableHead>
-                            <TableHead className="w-[140px]">Actions</TableHead>
+                            <TableHead>{tr("admin.contentStudio.settings.type", "Type")}</TableHead>
+                            <TableHead>{tr("admin.contentStudio.settings.titleLabel", "Title")}</TableHead>
+                            <TableHead>{tr("admin.contentStudio.settings.url", "URL")}</TableHead>
+                            <TableHead className="w-[140px]">{tr("admin.contentStudio.settings.actions", "Actions")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -523,7 +569,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                     rel="noreferrer"
                                     className="text-primary underline underline-offset-2"
                                   >
-                                    Download / Open
+                                    {tr("admin.contentStudio.settings.downloadOpen", "Download / open")}
                                   </a>
                                 ) : r.url ? (
                                   <a
@@ -532,7 +578,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                     rel="noreferrer"
                                     className="text-primary underline underline-offset-2"
                                   >
-                                    Open link
+                                    {tr("admin.contentStudio.settings.openLink", "Open link")}
                                   </a>
                                 ) : (
                                   <span className="text-muted-foreground">—</span>
@@ -540,7 +586,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                               </TableCell>
                               <TableCell>
                                 <Button size="sm" variant="secondary" onClick={() => onOpenEditReferenceGuidelines(r)}>
-                                  Edit guidelines
+                                  {tr("admin.contentStudio.settings.editGuidelines", "Edit guidelines")}
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -565,23 +611,30 @@ export function SettingsSheet(props: SettingsSheetProps) {
               >
                 <DialogContent className={CONTENT_STUDIO_DIALOG_WIDTH}>
                   <DialogHeader>
-                    <DialogTitle>Edit Reference Guidelines</DialogTitle>
+                    <DialogTitle>{tr("admin.contentStudio.settings.editGuidelinesTitle", "Edit reference guidelines")}</DialogTitle>
                     <DialogDescription>
-                      Manual override. Keep this high-level and original (no quotes, no copied text).
+                      {tr(
+                        "admin.contentStudio.settings.editGuidelinesDescription",
+                        "Manual override. Keep this high-level and original (no quotes, no copied text)."
+                      )}
                     </DialogDescription>
                   </DialogHeader>
 
                   {!editRef ? (
-                    <div className="text-sm text-muted-foreground">No reference selected.</div>
+                    <div className="text-sm text-muted-foreground">
+                      {tr("admin.contentStudio.settings.noReferenceSelected", "No reference selected.")}
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       <div className="grid gap-2 md:grid-cols-2">
                         <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground">Title</div>
+                          <div className="text-xs text-muted-foreground">{tr("admin.contentStudio.settings.titleLabel", "Title")}</div>
                           <div className="text-sm font-medium">{String(editRef.title || "")}</div>
                         </div>
                         <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground">Last guidelines update</div>
+                          <div className="text-xs text-muted-foreground">
+                            {tr("admin.contentStudio.settings.lastGuidelinesUpdate", "Last guidelines update")}
+                          </div>
                           <div className="text-sm">
                             {(editRef as any)?.guidelinesUpdatedAt
                               ? new Date(Number((editRef as any).guidelinesUpdatedAt)).toLocaleString()
@@ -597,7 +650,12 @@ export function SettingsSheet(props: SettingsSheetProps) {
                           <div className="flex flex-wrap items-center gap-2 pt-1">
                             {typeof editRefLoadedFromVersion === "number" ? (
                               <>
-                                <Badge variant="secondary">Loaded v{editRefLoadedFromVersion}</Badge>
+                                <Badge variant="secondary">
+                                  {tr("admin.contentStudio.settings.loadedVersion", {
+                                    defaultValue: "Loaded v{{version}}",
+                                    version: editRefLoadedFromVersion,
+                                  })}
+                                </Badge>
                                 <Button
                                   size="sm"
                                   variant="secondary"
@@ -605,11 +663,13 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                   onClick={onReloadCurrentGuidelinesIntoEditor}
                                   disabled={editRefSaving}
                                 >
-                                  Back to current
+                                  {tr("admin.contentStudio.settings.backToCurrent", "Back to current")}
                                 </Button>
                               </>
                             ) : (
-                              <div className="text-xs text-muted-foreground">Tip: Saving always creates a new version in history.</div>
+                              <div className="text-xs text-muted-foreground">
+                                {tr("admin.contentStudio.settings.savingCreatesVersionTip", "Tip: saving always creates a new version in history.")}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -617,7 +677,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
 
                       <div className="space-y-2 rounded border p-3">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="font-medium text-sm">PDF attachments</div>
+                          <div className="font-medium text-sm">{tr("admin.contentStudio.settings.pdfAttachments", "PDF attachments")}</div>
                           <Badge variant="secondary">
                             {Array.isArray((editRef as any)?.pdfFiles) ? (editRef as any).pdfFiles.length : 0}
                           </Badge>
@@ -629,7 +689,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                           disabled={editRefPdfUploading}
                         />
                         <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs text-muted-foreground">PDF max 25 MB.</div>
+                          <div className="text-xs text-muted-foreground">{tr("admin.contentStudio.settings.pdfMaxSize", "PDF max 25 MB.")}</div>
                           <Button
                             size="sm"
                             variant="secondary"
@@ -637,7 +697,9 @@ export function SettingsSheet(props: SettingsSheetProps) {
                             onClick={onAddPdfToReference}
                             disabled={editRefPdfUploading || !editRefNewPdfFile}
                           >
-                            {editRefPdfUploading ? "Uploading…" : "Add PDF"}
+                            {editRefPdfUploading
+                              ? tr("admin.contentStudio.settings.uploading", "Uploading…")
+                              : tr("admin.contentStudio.settings.addPdf", "Add PDF")}
                           </Button>
                         </div>
 
@@ -662,7 +724,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                         rel="noreferrer"
                                         className="text-primary underline underline-offset-2"
                                       >
-                                        Open
+                                        {tr("admin.contentStudio.settings.open", "Open")}
                                       </a>
                                     ) : null}
                                     <Button
@@ -672,14 +734,16 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                       onClick={() => onRemovePdfFromReference(sid)}
                                       disabled={!sid || editRefPdfUploading}
                                     >
-                                      Remove
+                                      {tr("admin.contentStudio.settings.remove", "Remove")}
                                     </Button>
                                   </div>
                                 </div>
                               );
                             })
                           ) : (
-                            <div className="text-xs text-muted-foreground">No PDFs attached.</div>
+                            <div className="text-xs text-muted-foreground">
+                              {tr("admin.contentStudio.settings.noPdfsAttached", "No PDFs attached.")}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -688,26 +752,25 @@ export function SettingsSheet(props: SettingsSheetProps) {
                         value={editRefGuidelines}
                         onChange={(e) => setEditRefGuidelines(e.target.value)}
                         className="min-h-[360px] font-mono text-xs"
-                        placeholder={[
-                          "- Use clear unit scaffolding (overview, vocab, grammar, dialogues, exercises).",
-                          "- Keep progression beginner-friendly (Unit N builds on Units < N).",
-                          "- Ensure variety across exercises and avoid repetitive stems.",
-                        ].join("\n")}
+                        placeholder={tr(
+                          "admin.contentStudio.settings.guidelinesPlaceholder",
+                          "- Use clear unit scaffolding (overview, vocab, grammar, dialogues, exercises).\n- Keep progression beginner-friendly (Unit N builds on Units < N).\n- Ensure variety across exercises and avoid repetitive stems."
+                        )}
                       />
 
                       <div className="space-y-2 rounded border p-3">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="font-medium text-sm">Guidelines history</div>
+                          <div className="font-medium text-sm">{tr("admin.contentStudio.settings.guidelinesHistory", "Guidelines history")}</div>
                           <Badge variant="secondary">{Array.isArray(guidelineVersions) ? guidelineVersions.length : 0}</Badge>
                         </div>
                         <div className="max-h-[200px] overflow-auto rounded border">
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>Version</TableHead>
-                                <TableHead>When</TableHead>
-                                <TableHead>Source</TableHead>
-                                <TableHead className="w-[180px]">Actions</TableHead>
+                                <TableHead>{tr("admin.contentStudio.settings.version", "Version")}</TableHead>
+                                <TableHead>{tr("admin.contentStudio.settings.when", "When")}</TableHead>
+                                <TableHead>{tr("admin.contentStudio.settings.source", "Source")}</TableHead>
+                                <TableHead className="w-[180px]">{tr("admin.contentStudio.settings.actions", "Actions")}</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -721,7 +784,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                     <TableCell className="text-xs text-muted-foreground">
                                       {String(v.provider || "—")}
                                       {v.model ? `/${String(v.model)}` : ""}
-                                      {v.isManual ? " (manual)" : ""}
+                                      {v.isManual ? ` ${tr("admin.contentStudio.settings.manualSource", "(manual)")}` : ""}
                                     </TableCell>
                                     <TableCell>
                                       <div className="flex gap-2">
@@ -732,7 +795,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                           onClick={() => onLoadGuidelinesVersionIntoEditor(Number(v.version))}
                                           disabled={editRefSaving}
                                         >
-                                          Open
+                                          {tr("admin.contentStudio.settings.open", "Open")}
                                         </Button>
                                         <Button
                                           size="sm"
@@ -741,23 +804,31 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                           onClick={() => onRevertGuidelinesToVersion(Number(v.version))}
                                           disabled={editRefSaving}
                                         >
-                                          Revert
+                                          {tr("admin.contentStudio.settings.revert", "Revert")}
                                         </Button>
                                         <AlertDialog>
                                           <AlertDialogTrigger asChild>
                                             <Button size="sm" variant="destructive" type="button" disabled={editRefSaving}>
-                                              Delete
+                                              {tr("admin.contentStudio.settings.delete", "Delete")}
                                             </Button>
                                           </AlertDialogTrigger>
                                           <AlertDialogContent>
                                             <AlertDialogHeader>
-                                              <AlertDialogTitle>Delete guideline version v{String(v.version)}?</AlertDialogTitle>
+                                              <AlertDialogTitle>
+                                                {tr("admin.contentStudio.settings.deleteVersionTitle", {
+                                                  defaultValue: "Delete guideline version v{{version}}?",
+                                                  version: String(v.version),
+                                                })}
+                                              </AlertDialogTitle>
                                               <AlertDialogDescription>
-                                                This permanently removes the selected history entry. The current guidelines remain unchanged.
+                                                {tr(
+                                                  "admin.contentStudio.settings.deleteVersionDescription",
+                                                  "This permanently removes the selected history entry. The current guidelines remain unchanged."
+                                                )}
                                               </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
-                                              <AlertDialogCancel disabled={editRefSaving}>Cancel</AlertDialogCancel>
+                                              <AlertDialogCancel disabled={editRefSaving}>{tr("common.cancel", "Cancel")}</AlertDialogCancel>
                                               <AlertDialogAction
                                                 disabled={editRefSaving}
                                                 onClick={() =>
@@ -767,7 +838,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                                   })
                                                 }
                                               >
-                                                Delete
+                                                {tr("admin.contentStudio.settings.delete", "Delete")}
                                               </AlertDialogAction>
                                             </AlertDialogFooter>
                                           </AlertDialogContent>
@@ -779,7 +850,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                               ) : (
                                 <TableRow>
                                   <TableCell colSpan={4} className="text-sm text-muted-foreground">
-                                    No history yet.
+                                    {tr("admin.contentStudio.settings.noHistoryYet", "No history yet.")}
                                   </TableCell>
                                 </TableRow>
                               )}
@@ -790,14 +861,16 @@ export function SettingsSheet(props: SettingsSheetProps) {
 
                       <div className="flex items-center justify-between gap-2">
                         <Button variant="destructive" type="button" onClick={onClearReferenceGuidelines} disabled={editRefSaving}>
-                          Clear
+                          {tr("admin.contentStudio.settings.clear", "Clear")}
                         </Button>
                         <div className="flex items-center gap-2">
                           <Button variant="secondary" type="button" onClick={() => setEditRefOpen(false)} disabled={editRefSaving}>
-                            Cancel
+                            {tr("common.cancel", "Cancel")}
                           </Button>
                           <Button type="button" onClick={onSaveReferenceGuidelines} disabled={editRefSaving}>
-                            {editRefSaving ? "Saving…" : "Save guidelines"}
+                            {editRefSaving
+                              ? tr("admin.contentStudio.settings.saving", "Saving…")
+                              : tr("admin.contentStudio.settings.saveGuidelines", "Save guidelines")}
                           </Button>
                         </div>
                       </div>
@@ -808,54 +881,66 @@ export function SettingsSheet(props: SettingsSheetProps) {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Draft Templates</CardTitle>
+                  <CardTitle>{tr("admin.contentStudio.settings.templatesTitle", "Unit templates")}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 rounded border p-3">
-                    <div className="font-medium">Create template (from current draft)</div>
-                    <div className="text-xs text-muted-foreground">
-                      Saves reference + skills + brief from the currently selected draft.
+                    <div className="font-medium">
+                      {tr("admin.contentStudio.settings.createTemplateFromCurrent", "Create template (from current unit)")}
                     </div>
-                    <Label>Template name</Label>
+                    <div className="text-xs text-muted-foreground">
+                      {tr(
+                        "admin.contentStudio.settings.createTemplateHelp",
+                        "Saves reference, house style (skills) and briefing of the currently selected unit."
+                      )}
+                    </div>
+                    <Label>{tr("admin.contentStudio.settings.templateName", "Template name")}</Label>
                     <Input
                       value={newTemplateName}
                       onChange={(e) => setNewTemplateName(e.target.value)}
-                      placeholder="e.g. Unit template (café)"
+                      placeholder={tr("admin.contentStudio.settings.templateNamePlaceholder", "e.g. Unit template (café)")}
                     />
-                    <Label>Description (optional)</Label>
+                    <Label>{tr("admin.contentStudio.settings.descriptionOptional", "Description (optional)")}</Label>
                     <Input
                       value={newTemplateDescription}
                       onChange={(e) => setNewTemplateDescription(e.target.value)}
-                      placeholder="Short note for admins"
+                      placeholder={tr("admin.contentStudio.settings.templateDescriptionPlaceholder", "Short note for admins")}
                     />
                     <Button onClick={onCreateTemplateFromSelectedDraft} disabled={!selectedDraftId}>
-                      Save current draft as template
+                      {tr("admin.contentStudio.settings.saveAsTemplate", "Save current unit as template")}
                     </Button>
                   </div>
 
                   <div className="space-y-2 rounded border p-3">
-                    <div className="font-medium">Existing templates</div>
-                    <div className="text-sm text-muted-foreground">{(draftTemplates || []).length ?? 0} templates</div>
+                    <div className="font-medium">{tr("admin.contentStudio.settings.existingTemplates", "Existing templates")}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {tr("admin.contentStudio.settings.templatesCount", {
+                        defaultValue: "{{n}} templates",
+                        n: (draftTemplates || []).length ?? 0,
+                      })}
+                    </div>
                     <div className="max-h-[260px] overflow-auto rounded border">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead className="w-[180px]">Actions</TableHead>
+                            <TableHead>{tr("admin.contentStudio.settings.name", "Name")}</TableHead>
+                            <TableHead className="w-[180px]">{tr("admin.contentStudio.settings.actions", "Actions")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {(draftTemplates || []).length === 0 ? (
                             <TableRow>
                               <TableCell colSpan={2} className="text-sm text-muted-foreground">
-                                No templates yet.
+                                {tr("admin.contentStudio.settings.noTemplatesYet", "No templates yet.")}
                               </TableCell>
                             </TableRow>
                           ) : (
                             (draftTemplates || []).map((t: any) => (
                               <TableRow key={t._id}>
                                 <TableCell className="min-w-0">
-                                  <div className="font-medium text-sm truncate">{String(t.name || "Untitled")}</div>
+                                  <div className="font-medium text-sm truncate">
+                                    {String(t.name || tr("admin.contentStudio.settings.untitled", "Untitled"))}
+                                  </div>
                                   {t.description ? (
                                     <div className="text-xs text-muted-foreground truncate">{String(t.description)}</div>
                                   ) : null}
@@ -863,10 +948,10 @@ export function SettingsSheet(props: SettingsSheetProps) {
                                 <TableCell>
                                   <div className="flex gap-2">
                                     <Button size="sm" variant="secondary" onClick={() => onUseTemplate(t)}>
-                                      Use
+                                      {tr("admin.contentStudio.settings.use", "Use")}
                                     </Button>
                                     <Button size="sm" variant="destructive" onClick={() => onDeactivateTemplate(String(t._id))}>
-                                      Deactivate
+                                      {tr("admin.contentStudio.settings.deactivate", "Deactivate")}
                                     </Button>
                                   </div>
                                 </TableCell>
@@ -882,31 +967,38 @@ export function SettingsSheet(props: SettingsSheetProps) {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>AI Skills Library (by role)</CardTitle>
+                  <CardTitle>{tr("admin.contentStudio.settings.skillsLibraryTitle", "House style (skills) by role")}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 rounded border p-3">
-                    <div className="font-medium">AI Skills Library (by role)</div>
+                    <div className="font-medium">{tr("admin.contentStudio.settings.skillsLibraryTitle", "House style (skills) by role")}</div>
                     <div className="text-xs text-muted-foreground">
-                      These skills influence a specific AI role globally (Creator / Lector / EN→DE Translator).
+                      {tr(
+                        "admin.contentStudio.settings.skillsLibraryHelp",
+                        "These skills influence a specific AI role globally (Creator / Lector / EN→DE translator)."
+                      )}
                     </div>
-                    <Label>Role</Label>
+                    <Label>{tr("admin.contentStudio.settings.role", "Role")}</Label>
                     <Select value={skillsStage} onValueChange={(v) => setSkillsStage(v as any)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="specialist">Creator</SelectItem>
-                        <SelectItem value="auditor">Lector</SelectItem>
-                        <SelectItem value="translator">EN → DE Translator</SelectItem>
+                        <SelectItem value="specialist">{tr("admin.contentStudio.settings.creator", "Creator")}</SelectItem>
+                        <SelectItem value="auditor">{tr("admin.contentStudio.settings.lector", "Lector")}</SelectItem>
+                        <SelectItem value="translator">{tr("admin.contentStudio.settings.roleTranslator", "EN → DE translator")}</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Label>Name</Label>
+                    <Label>{tr("admin.contentStudio.settings.name", "Name")}</Label>
                     <Input value={newSkillName} onChange={(e) => setNewSkillName(e.target.value)} />
-                    <Label>Prompt snippet (system)</Label>
+                    <Label>{tr("admin.contentStudio.settings.promptSnippet", "Prompt snippet (system)")}</Label>
                     <Textarea value={newSkillPrompt} onChange={(e) => setNewSkillPrompt(e.target.value)} className="min-h-[160px]" />
                     <div className="flex gap-2">
-                      <Button onClick={onCreateSkill}>{editSkillId ? "Update Skill" : "Create Skill"}</Button>
+                      <Button onClick={onCreateSkill}>
+                        {editSkillId
+                          ? tr("admin.contentStudio.settings.updateSkill", "Update skill")
+                          : tr("admin.contentStudio.settings.createSkill", "Create skill")}
+                      </Button>
                       {editSkillId ? (
                         <Button
                           variant="secondary"
@@ -916,20 +1008,30 @@ export function SettingsSheet(props: SettingsSheetProps) {
                             setNewSkillPrompt("");
                           }}
                         >
-                          Cancel
+                          {tr("common.cancel", "Cancel")}
                         </Button>
                       ) : null}
                     </div>
                   </div>
                   <div className="space-y-2 rounded border p-3">
-                    <div className="font-medium">Active skills (selected role)</div>
-                    <div className="text-sm text-muted-foreground">{stageSkills?.length ?? 0} skills</div>
+                    <div className="font-medium">{tr("admin.contentStudio.settings.activeSkills", "Active skills (selected role)")}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {tr("admin.contentStudio.settings.skillsCount", {
+                        defaultValue: "{{n}} skills",
+                        n: stageSkills?.length ?? 0,
+                      })}
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      You can edit or deactivate a skill. Deactivated skills disappear from lists and won't be applied.
+                      {tr(
+                        "admin.contentStudio.settings.activeSkillsHelp",
+                        "You can edit or deactivate a skill. Deactivated skills disappear from lists and won't be applied."
+                      )}
                     </div>
                     <div className="max-h-[260px] overflow-auto rounded border p-2">
                       {(stageSkills || []).length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No skills for this role yet.</div>
+                        <div className="text-sm text-muted-foreground">
+                          {tr("admin.contentStudio.settings.noSkillsForRole", "No skills for this role yet.")}
+                        </div>
                       ) : (
                         <div className="space-y-2">
                           {(stageSkills || []).map((s: any) => (
@@ -942,10 +1044,10 @@ export function SettingsSheet(props: SettingsSheetProps) {
                               </div>
                               <div className="flex gap-2 shrink-0">
                                 <Button size="sm" variant="secondary" onClick={() => onEditSkill(s)}>
-                                  Edit
+                                  {tr("admin.contentStudio.settings.edit", "Edit")}
                                 </Button>
                                 <Button size="sm" variant="destructive" onClick={() => onDeactivateSkill(String(s._id))}>
-                                  Deactivate
+                                  {tr("admin.contentStudio.settings.deactivate", "Deactivate")}
                                 </Button>
                               </div>
                             </div>
@@ -953,6 +1055,51 @@ export function SettingsSheet(props: SettingsSheetProps) {
                         </div>
                       )}
                     </div>
+
+                    {/* Deactivated skills: reactivate or delete permanently */}
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="inactive-skills" className="border-none">
+                        <AccordionTrigger className="py-1 text-xs text-muted-foreground hover:no-underline">
+                          {tr("admin.contentStudio.skills.inactiveTitle", "Deactivated skills")} ({inactiveStageSkills?.length ?? 0})
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="text-xs text-muted-foreground mb-2">
+                            {tr(
+                              "admin.contentStudio.skills.inactiveHelp",
+                              "Deactivated skills are not applied. Reactivate them or delete them permanently; deleting also removes the skill from all units and templates."
+                            )}
+                          </div>
+                          <div className="max-h-[220px] overflow-auto rounded border p-2">
+                            {(inactiveStageSkills || []).length === 0 ? (
+                              <div className="text-sm text-muted-foreground">
+                                {tr("admin.contentStudio.skills.inactiveNone", "No deactivated skills for this role.")}
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {(inactiveStageSkills || []).map((s: any) => (
+                                  <div key={s._id} className="flex items-start justify-between gap-3 opacity-80">
+                                    <div className="min-w-0">
+                                      <div className="font-medium text-sm">{s.name}</div>
+                                      <div className="text-xs text-muted-foreground break-words line-clamp-2">
+                                        {String(s.prompt || "").slice(0, 220)}
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2 shrink-0">
+                                      <Button size="sm" variant="secondary" onClick={() => onReactivateSkill(String(s._id))}>
+                                        {tr("admin.contentStudio.skills.reactivate", "Reactivate")}
+                                      </Button>
+                                      <Button size="sm" variant="destructive" onClick={() => onDeleteSkill(String(s._id), String(s.name || ""))}>
+                                        {tr("admin.contentStudio.skills.delete", "Delete")}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   </div>
                 </CardContent>
               </Card>
@@ -961,7 +1108,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
             <TabsContent value="prompts" className="mt-4">
               {props.promptPreviewSlot ?? (
                 <div className="text-sm text-muted-foreground py-8 text-center">
-                  No prompt preview available.
+                  {tr("admin.contentStudio.settings.noPromptPreview", "No prompt preview available.")}
                 </div>
               )}
             </TabsContent>

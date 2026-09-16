@@ -55,6 +55,13 @@ export const learningTables = {
     descriptionEn: v.optional(v.string()),
     slug: v.optional(v.string()), // URL-friendly identifier (e.g., "foundation", "daily-life")
     moduleNumber: v.optional(v.number()), // For sorting (1, 2, 3, etc.)
+    // CEFR level of the whole module (phase of the course). The Content Studio
+    // derives difficulty and the grammar progression of new units from this
+    // level plus what earlier units already taught. Optional: when missing,
+    // the level is inferred from the module's position in the course.
+    cefrLevel: v.optional(
+      v.union(v.literal("A1.1"), v.literal("A1.2"), v.literal("A2.1"), v.literal("A2.2"), v.literal("B1")),
+    ),
 
     // Old structure (deprecated - kept for backward compatibility during migration)
     moduleId: v.optional(v.string()), // "foundation", "daily-life", etc. - DEPRECATED

@@ -29,6 +29,7 @@
     "migrate:all-units": "tsx scripts/migrate-unit-content-new-structure.ts",
     "validate:content": "tsx scripts/validate-unit-packages.ts --dry-run",
     "import:content": "tsx scripts/import-unit-packages.ts",
+    "import:curriculum": "tsx scripts/curriculum/import-curriculum.ts",
     "test:markdown": "tsx scripts/test-markdown-parser.ts",
     "cleanup:vocabulary": "tsx scripts/cleanup-vocabulary-units-1-6.ts",
     "cleanup:practice": "tsx scripts/cleanup-invalid-practice-content.ts",

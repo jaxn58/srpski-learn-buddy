@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { CheckCircle2, Eye, Loader2, PlusCircle, Sparkles, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import type { SectionId } from "./types";
-import { SECTION_OPTIONS } from "./constants";
+import { useSectionLabel } from "./utils/sectionLabel";
 import { splitMarkdownIntoSections } from "./utils/sectionSplit";
 
 export interface CuratedSectionInfo {
@@ -163,6 +163,7 @@ export function ArtifactsPanel({
   refusingSection,
 }: ArtifactsPanelProps) {
   void _setUnitPackageJson;
+  const sectionLabel = useSectionLabel();
 
   const curatedBySection = new Map<SectionId, CuratedSectionInfo>(
     (curatedSections ?? []).map((c) => [c.section, c])
@@ -175,7 +176,7 @@ export function ArtifactsPanel({
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
-          <CardTitle>Artifacts</CardTitle>
+          <CardTitle>{t("admin.contentStudio.artifacts.title", "Artifacts")}</CardTitle>
           {(selected as any)?.snapshot?.createdAt ? (
             <span className="text-xs text-muted-foreground">
               {new Date((selected as any).snapshot.createdAt).toLocaleString()}
@@ -186,16 +187,20 @@ export function ArtifactsPanel({
       <CardContent className="space-y-3">
         <Tabs defaultValue="markdown" className="w-full">
           <TabsList className="w-full grid grid-cols-4">
-            <TabsTrigger value="markdown">Markdown</TabsTrigger>
-            <TabsTrigger value="rendered">Rendered</TabsTrigger>
-            <TabsTrigger value="json">JSON</TabsTrigger>
-            <TabsTrigger value="diff">Diff</TabsTrigger>
+            <TabsTrigger value="markdown">{t("admin.contentStudio.artifacts.tabMarkdown", "Markdown")}</TabsTrigger>
+            <TabsTrigger value="rendered">{t("admin.contentStudio.artifacts.tabRendered", "Rendered")}</TabsTrigger>
+            <TabsTrigger value="json">{t("admin.contentStudio.artifacts.tabJson", "JSON")}</TabsTrigger>
+            <TabsTrigger value="diff">{t("admin.contentStudio.artifacts.tabDiff", "Diff")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="markdown" className="mt-4 space-y-3">
             {markdownDirty && selectedDraftId && (
               <div className="rounded border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                Unsaved changes — click <strong>Save Markdown</strong> or use <strong>Save &amp; Create Preview</strong> to include your edits in the preview.
+                {t("admin.contentStudio.artifacts.unsavedHintPrefix", "Unsaved changes — click")}{" "}
+                <strong>{t("admin.contentStudio.artifacts.saveMarkdown", "Save markdown")}</strong>{" "}
+                {t("admin.contentStudio.artifacts.unsavedHintMiddle", "or use")}{" "}
+                <strong>{t("admin.contentStudio.artifacts.saveAndCreatePreview", "Save & create preview")}</strong>{" "}
+                {t("admin.contentStudio.artifacts.unsavedHintSuffix", "to include your edits in the preview.")}
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
@@ -205,7 +210,7 @@ export function ArtifactsPanel({
                 disabled={isBusy || !selectedDraftId || !markdownText.trim()}
                 className={markdownDirty ? "border-amber-500 ring-1 ring-amber-500" : ""}
               >
-                Save Markdown{markdownDirty ? " *" : ""}
+                {t("admin.contentStudio.artifacts.saveMarkdown", "Save markdown")}{markdownDirty ? " *" : ""}
               </Button>
               <Button
                 size="sm"
@@ -213,13 +218,15 @@ export function ArtifactsPanel({
                 disabled={isBusy || !selectedDraftId || !markdownText.trim()}
               >
                 <Eye className="h-3.5 w-3.5 mr-1.5" />
-                {creatingPreview ? "Creating preview…" : "Save & Create Preview"}
+                {creatingPreview
+                  ? t("admin.contentStudio.artifacts.creatingPreview", "Creating preview…")
+                  : t("admin.contentStudio.artifacts.saveAndCreatePreview", "Save & create preview")}
               </Button>
               <Button size="sm" variant="secondary" onClick={onCopyMarkdown} disabled={!markdownText.trim()}>
-                Copy
+                {t("admin.contentStudio.artifacts.copy", "Copy")}
               </Button>
               <Button size="sm" variant="secondary" onClick={onDownloadMarkdown} disabled={!markdownText.trim()}>
-                Download
+                {t("admin.contentStudio.artifacts.download", "Download")}
               </Button>
               <Button
                 size="sm"
@@ -227,17 +234,18 @@ export function ArtifactsPanel({
                 onClick={onLoadMarkdownFromSnapshot}
                 disabled={isBusy || !selectedDraftId}
               >
-                Load from snapshot
+                {t("admin.contentStudio.artifacts.loadFromDraft", "Load from latest draft")}
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Preview only — publishing (Update / Replace) happens in the <strong>Unit Manager</strong>.
+              {t("admin.contentStudio.artifacts.previewOnlyPrefix", "Preview only — publishing (Update / Replace) happens in the")}{" "}
+              <strong>{t("admin.contentStudio.artifacts.unitManager", "Unit Manager")}</strong>.
             </p>
 
             {restoreMarkdownText.trim() ? (
               <div className="rounded border bg-muted/30 p-2 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-xs text-muted-foreground">
-                  Local autosave found{" "}
+                  {t("admin.contentStudio.artifacts.autosaveFound", "Local autosave found")}{" "}
                   {restoreMarkdownUpdatedAt ? `(${new Date(restoreMarkdownUpdatedAt).toLocaleString()})` : ""}.
                 </div>
                 <div className="flex items-center gap-2">
@@ -250,7 +258,7 @@ export function ArtifactsPanel({
                       toast.success(t("admin.contentStudio.toast.autosaveRestored"));
                     }}
                   >
-                    Restore
+                    {t("admin.contentStudio.artifacts.restore", "Restore")}
                   </Button>
                   <Button
                     size="sm"
@@ -267,7 +275,7 @@ export function ArtifactsPanel({
                       toast.success(t("admin.contentStudio.toast.autosaveDiscarded"));
                     }}
                   >
-                    Discard
+                    {t("admin.contentStudio.artifacts.discard", "Discard")}
                   </Button>
                 </div>
               </div>
@@ -276,11 +284,14 @@ export function ArtifactsPanel({
             <Textarea
               value={markdownText}
               onChange={(e) => setMarkdownText(e.target.value)}
-              placeholder="No markdown yet. Run Creator first."
+              placeholder={t("admin.contentStudio.artifacts.noMarkdownPlaceholder", "No markdown yet. Run Creator first.")}
               className="min-h-[420px] font-mono text-xs"
             />
             <div className="text-xs text-muted-foreground">
-              Tip: Use “Edit Content” (right) for section-based revisions; then Save Markdown if you make manual edits.
+              {t(
+                "admin.contentStudio.artifacts.markdownTip",
+                "Tip: Use “Edit content” (right) for section-based revisions; then save the markdown if you make manual edits.",
+              )}
             </div>
           </TabsContent>
 
@@ -289,9 +300,11 @@ export function ArtifactsPanel({
               <>
                 <div className="text-xs text-muted-foreground">
                   {markdownDirty ? (
-                    <span className="text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      {t("admin.contentStudio.artifacts.unsavedChanges", "Unsaved changes")}
+                    </span>
                   ) : (
-                    <span>Markdown is saved.</span>
+                    <span>{t("admin.contentStudio.artifacts.markdownSaved", "Markdown is saved.")}</span>
                   )}
                 </div>
 
@@ -301,15 +314,26 @@ export function ArtifactsPanel({
                       <div className="flex items-center gap-1.5 font-semibold text-primary">
                         <Sparkles className="h-3.5 w-3.5" />
                         {pendingBySection.size === 1
-                          ? "1 section revised — not yet in the Brief"
-                          : `${pendingBySection.size} sections revised — not yet in the Brief`}
+                          ? t("admin.contentStudio.artifacts.revisedOne", "1 section revised — not yet in the Briefing")
+                          : t("admin.contentStudio.artifacts.revisedMany", {
+                              defaultValue: "{{n}} sections revised — not yet in the Briefing",
+                              n: pendingBySection.size,
+                            })}
                       </div>
                       <div className="text-[11px] leading-relaxed text-foreground">
-                        The revised section{pendingBySection.size === 1 ? " is" : "s are"} highlighted below. Click{" "}
-                        <strong>Adopt changes into Brief</strong> to persist{" "}
-                        {pendingBySection.size === 1 ? "it" : "them"} — your instruction (the cause) and the resulting
-                        Markdown (the effect) are written into a single new Brief Version. Unchanged sections are left
-                        untouched.
+                        {pendingBySection.size === 1
+                          ? t("admin.contentStudio.artifacts.revisedHintOnePrefix", "The revised section is highlighted below. Click")
+                          : t("admin.contentStudio.artifacts.revisedHintManyPrefix", "The revised sections are highlighted below. Click")}{" "}
+                        <strong>{t("admin.contentStudio.artifacts.adoptChanges", "Adopt changes into Briefing")}</strong>{" "}
+                        {pendingBySection.size === 1
+                          ? t(
+                              "admin.contentStudio.artifacts.revisedHintOneSuffix",
+                              "to persist it — your instruction (the cause) and the resulting markdown (the effect) are written into a single new Briefing version. Unchanged sections are left untouched.",
+                            )
+                          : t(
+                              "admin.contentStudio.artifacts.revisedHintManySuffix",
+                              "to persist them — your instructions (the cause) and the resulting markdown (the effect) are written into a single new Briefing version. Unchanged sections are left untouched.",
+                            )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 pt-0.5">
                         <Button
@@ -318,10 +342,10 @@ export function ArtifactsPanel({
                           disabled={markdownDirty || adoptingChanges || !previewCurrent}
                           title={
                             markdownDirty
-                              ? "Save Markdown first"
+                              ? t("admin.contentStudio.artifacts.saveMarkdownFirst", "Save the markdown first")
                               : !previewCurrent
-                                ? "Create & review a Preview of the current state first"
-                                : "Adopt all revised sections into a new Brief Version"
+                                ? t("admin.contentStudio.artifacts.createPreviewFirstTitle", "Create & review a preview of the current state first")
+                                : t("admin.contentStudio.artifacts.adoptAllTitle", "Adopt all revised sections into a new Briefing version")
                           }
                           onClick={() => onAdoptChanges()}
                         >
@@ -331,8 +355,11 @@ export function ArtifactsPanel({
                             <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
                           )}
                           {pendingBySection.size === 1
-                            ? "Adopt changes into Brief"
-                            : `Adopt ${pendingBySection.size} changes into Brief`}
+                            ? t("admin.contentStudio.artifacts.adoptChanges", "Adopt changes into Briefing")
+                            : t("admin.contentStudio.artifacts.adoptChangesMany", {
+                                defaultValue: "Adopt {{n}} changes into Briefing",
+                                n: pendingBySection.size,
+                              })}
                         </Button>
                         {!previewCurrent && (
                           <Button
@@ -343,33 +370,42 @@ export function ArtifactsPanel({
                             onClick={onCreatePreview}
                           >
                             <Eye className="h-3.5 w-3.5 mr-1.5" />
-                            {creatingPreview ? "Creating preview…" : "Save & Create Preview"}
+                            {creatingPreview
+                              ? t("admin.contentStudio.artifacts.creatingPreview", "Creating preview…")
+                              : t("admin.contentStudio.artifacts.saveAndCreatePreview", "Save & create preview")}
                           </Button>
                         )}
                         {markdownDirty ? (
                           <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                            Save Markdown first — adoption reads the last saved snapshot, not unsaved edits.
+                            {t(
+                              "admin.contentStudio.artifacts.saveMarkdownFirstHint",
+                              "Save the markdown first — adoption reads the last saved draft, not unsaved edits.",
+                            )}
                           </span>
                         ) : !previewCurrent ? (
                           <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                            Create &amp; review a Preview of the current state first.
+                            {t("admin.contentStudio.artifacts.createPreviewFirstHint", "Create & review a preview of the current state first.")}
                           </span>
                         ) : null}
                       </div>
                     </div>
                   ) : (
                     <div className="rounded border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
-                      No section changes pending. Revise a section in the <strong>Edit Content</strong> panel; the
-                      revised section will appear highlighted here with an <strong>Adopt changes into Brief</strong>{" "}
-                      button, so a future full Creator regeneration builds upon your approved edits instead of
-                      discarding them.
+                      {t("admin.contentStudio.artifacts.noPendingPrefix", "No section changes pending. Revise a section in the")}{" "}
+                      <strong>{t("admin.contentStudio.artifacts.editContent", "Edit content")}</strong>{" "}
+                      {t("admin.contentStudio.artifacts.noPendingMiddle", "panel; the revised section will appear highlighted here with an")}{" "}
+                      <strong>{t("admin.contentStudio.artifacts.adoptChanges", "Adopt changes into Briefing")}</strong>{" "}
+                      {t(
+                        "admin.contentStudio.artifacts.noPendingSuffix",
+                        "button, so a future full Creator regeneration builds upon your approved edits instead of discarding them.",
+                      )}
                     </div>
                   ))}
 
                 {renderedSections.length > 0 ? (
                   <div className="space-y-4">
                     {renderedSections.map((block) => {
-                      const label = SECTION_OPTIONS.find((s) => s.value === block.id)?.label || block.id;
+                      const label = sectionLabel(block.id);
                       const curated = curatedBySection.get(block.id);
                       const pending = pendingBySection.get(block.id);
                       return (
@@ -390,10 +426,14 @@ export function ArtifactsPanel({
                                 <Badge
                                   variant="default"
                                   className="text-[10px] gap-1 bg-primary text-primary-foreground"
-                                  title={`Revised ${new Date(pending.at).toLocaleString()}\nInstruction: ${pending.instruction}`}
+                                  title={t("admin.contentStudio.artifacts.revisedAtTitle", {
+                                    defaultValue: "Revised {{date}}\nInstruction: {{instruction}}",
+                                    date: new Date(pending.at).toLocaleString(),
+                                    instruction: pending.instruction,
+                                  })}
                                 >
                                   <Sparkles className="h-3 w-3" />
-                                  Just revised
+                                  {t("admin.contentStudio.artifacts.justRevised", "Just revised")}
                                 </Badge>
                               )}
                             </div>
@@ -405,7 +445,7 @@ export function ArtifactsPanel({
                                   title={new Date(curated.adoptedAt).toLocaleString()}
                                 >
                                   <CheckCircle2 className="h-3 w-3" />
-                                  In Brief
+                                  {t("admin.contentStudio.artifacts.inBriefing", "In Briefing")}
                                 </Badge>
                               )}
                               {pending && onRefuseChanges && (
@@ -414,7 +454,10 @@ export function ArtifactsPanel({
                                   variant="outline"
                                   className="h-6 px-2 text-[11px] text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                                   disabled={refusingSection === block.id}
-                                  title="Revert this section to the version it had before this revise (one step back). The Brief is not affected."
+                                  title={t(
+                                    "admin.contentStudio.artifacts.refuseTitle",
+                                    "Revert this section to the version it had before this revise (one step back). The Briefing is not affected.",
+                                  )}
                                   onClick={() => onRefuseChanges(block.id)}
                                 >
                                   {refusingSection === block.id ? (
@@ -422,14 +465,16 @@ export function ArtifactsPanel({
                                   ) : (
                                     <Undo2 className="h-3 w-3 mr-1" />
                                   )}
-                                  Refuse & revert
+                                  {t("admin.contentStudio.artifacts.refuseAndRevert", "Refuse & revert")}
                                 </Button>
                               )}
                             </div>
                           </div>
                           {pending && (
                             <div className="rounded border border-primary/30 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground leading-snug">
-                              <span className="font-semibold text-foreground">Your instruction:</span>{" "}
+                              <span className="font-semibold text-foreground">
+                                {t("admin.contentStudio.artifacts.yourInstruction", "Your instruction:")}
+                              </span>{" "}
                               <span className="italic">{pending.instruction}</span>
                             </div>
                           )}
@@ -445,7 +490,9 @@ export function ArtifactsPanel({
                 )}
               </>
             ) : (
-              <div className="text-sm text-muted-foreground">No markdown to render yet.</div>
+              <div className="text-sm text-muted-foreground">
+                {t("admin.contentStudio.artifacts.noMarkdownToRender", "No markdown to render yet.")}
+              </div>
             )}
           </TabsContent>
 
@@ -457,7 +504,7 @@ export function ArtifactsPanel({
                 onClick={onLoadFromSnapshot}
                 disabled={isBusy || !selectedDraftId}
               >
-                Load snapshot JSON
+                {t("admin.contentStudio.artifacts.loadDraftJson", "Load JSON from latest draft")}
               </Button>
               <Button
                 size="sm"
@@ -465,7 +512,7 @@ export function ArtifactsPanel({
                 onClick={onSaveJson}
                 disabled={isBusy || !selectedDraftId || !unitPackageJson.trim()}
               >
-                Save JSON snapshot
+                {t("admin.contentStudio.artifacts.saveJsonDraft", "Save JSON as new draft")}
               </Button>
             </div>
 
@@ -485,13 +532,13 @@ export function ArtifactsPanel({
               <>
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Left (older)</Label>
+                    <Label>{t("admin.contentStudio.artifacts.diffLeft", "Left (older)")}</Label>
                     <Select
                       value={diffLeftSnapshotId || (draftSnapshots[0]?._id ? String(draftSnapshots[0]._id) : "")}
                       onValueChange={(v) => setDiffLeftSnapshotId(String(v))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select snapshot" />
+                        <SelectValue placeholder={t("admin.contentStudio.artifacts.selectDraftVersion", "Select draft version")} />
                       </SelectTrigger>
                       <SelectContent>
                         {draftSnapshots.map((s: any) => (
@@ -504,13 +551,13 @@ export function ArtifactsPanel({
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Right (newer)</Label>
+                    <Label>{t("admin.contentStudio.artifacts.diffRight", "Right (newer)")}</Label>
                     <Select
                       value={diffRightSnapshotId || (draftSnapshots[0]?._id ? String(draftSnapshots[0]._id) : "")}
                       onValueChange={(v) => setDiffRightSnapshotId(String(v))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select snapshot" />
+                        <SelectValue placeholder={t("admin.contentStudio.artifacts.selectDraftVersion", "Select draft version")} />
                       </SelectTrigger>
                       <SelectContent>
                         {draftSnapshots.map((s: any) => (
@@ -535,19 +582,21 @@ export function ArtifactsPanel({
                       }}
                       disabled={!diffLeftSnapshotId || !diffRightSnapshotId}
                     >
-                      Swap
+                      {t("admin.contentStudio.artifacts.swap", "Swap")}
                     </Button>
                   </div>
                 </div>
 
                 <div className="text-xs text-muted-foreground">
-                  Green = added (right), red = removed (left). This compares <b>Markdown</b> between two snapshots.
+                  {t("admin.contentStudio.artifacts.diffLegendPrefix", "Green = added (right), red = removed (left). This compares")}{" "}
+                  <b>{t("admin.contentStudio.artifacts.tabMarkdown", "Markdown")}</b>{" "}
+                  {t("admin.contentStudio.artifacts.diffLegendSuffix", "between two draft versions.")}
                 </div>
 
                 <ScrollArea className="h-[420px] rounded border">
                   <div className="p-2 space-y-1">
                     {diffRows.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">No diff.</div>
+                      <div className="text-sm text-muted-foreground">{t("admin.contentStudio.artifacts.noDiff", "No diff.")}</div>
                     ) : (
                       diffRows.map((row, idx) => {
                         const leftClass =
@@ -584,7 +633,9 @@ export function ArtifactsPanel({
                 </ScrollArea>
               </>
             ) : (
-              <div className="text-sm text-muted-foreground">No snapshots yet. Run Creator first.</div>
+              <div className="text-sm text-muted-foreground">
+                {t("admin.contentStudio.artifacts.noDraftVersions", "No draft versions yet. Run Creator first.")}
+              </div>
             )}
           </TabsContent>
         </Tabs>

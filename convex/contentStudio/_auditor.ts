@@ -100,7 +100,9 @@ export const runAiAuditor = action({
     let inputTokens = 0;
     let outputTokens = 0;
     let totalTokens = 0;
+    let thinkingTokens = 0;
     let hasAnyTokens = false;
+    let hasThinkingTokens = false;
     let estimatedCostUsdTotal = 0;
     let hasAnyCost = false;
 
@@ -117,6 +119,10 @@ export const runAiAuditor = action({
         if (typeof usage.totalTokens === "number") {
           totalTokens += usage.totalTokens;
           hasAnyTokens = true;
+        }
+        if (typeof usage.thinkingTokens === "number") {
+          thinkingTokens += usage.thinkingTokens;
+          hasThinkingTokens = true;
         }
       }
       if (typeof estimatedCostUsd === "number") {
@@ -367,6 +373,7 @@ export const runAiAuditor = action({
         inputTokens: hasAnyTokens ? inputTokens : undefined,
         outputTokens: hasAnyTokens ? outputTokens : undefined,
         totalTokens: hasAnyTokens ? (totalTokens || inputTokens + outputTokens) : undefined,
+        thinkingTokens: hasThinkingTokens ? thinkingTokens : undefined,
         estimatedCostUsd: hasAnyCost ? estimatedCostUsdTotal : undefined,
         status: "success",
       });
@@ -383,6 +390,7 @@ export const runAiAuditor = action({
         inputTokens: hasAnyTokens ? inputTokens : undefined,
         outputTokens: hasAnyTokens ? outputTokens : undefined,
         totalTokens: hasAnyTokens ? (totalTokens || inputTokens + outputTokens) : undefined,
+        thinkingTokens: hasThinkingTokens ? thinkingTokens : undefined,
         estimatedCostUsd: hasAnyCost ? estimatedCostUsdTotal : undefined,
         status: "failed",
         error,

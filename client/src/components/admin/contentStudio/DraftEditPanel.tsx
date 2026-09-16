@@ -1,13 +1,10 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -30,7 +27,9 @@ import {
 } from "./PreviewStatusBanner";
 import { BriefVersionsPanel, type BriefVersionShape } from "./BriefVersionsPanel";
 import { CuratedSectionsPanel, type CuratedSectionEntryShape } from "./CuratedSectionsPanel";
-import { ModuleSelect } from "./ModuleSelect";
+import { useTranslation } from "react-i18next";
+import { BriefWorkflow } from "./BriefWorkflow";
+import { DraftExtras } from "./DraftExtras";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "./utils/briefVersionLabel";
 
 export interface DraftEditPanelCreateParams {
@@ -48,6 +47,8 @@ export interface DraftEditPanelCreateParams {
   auditorSkillIds?: string[];
   authorNoteName?: string;
   authorNoteQuote?: string;
+  /** Run Creator -> Validator -> Lector right after creating the unit. */
+  generateAfterCreate?: boolean;
 }
 
 export interface DraftEditPanelProps {
@@ -102,6 +103,8 @@ export interface DraftEditPanelProps {
   draftAuditorSkillIds: string[];
   setDraftAuditorSkillIds: (v: string[]) => void;
   onSaveDraftSkillsAndReference: () => void;
+  /** Save unit settings and immediately run Creator -> Validator -> Lector. */
+  onSaveAndGenerate: () => Promise<void>;
   hasUnsavedChanges: boolean;
   metaAutosaveStatus: "idle" | "saving" | "error";
   metaAutosavedAt: number | null;
@@ -131,6 +134,7 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
   const showCreate = isCreateMode;
   const hasDraft = !!selectedDraftId && !!selected?.draft;
   const previewState: PreviewCreationStateShape | undefined = selected?.draft?.publishState;
+  const { t } = useTranslation();
 
   return (
     <div className="flex flex-col h-full">
@@ -140,7 +144,7 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
           {showCreate ? (
             <div className="flex items-center gap-2">
               <FilePlus2 className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-sm font-semibold">New Draft</span>
+              <span className="text-sm font-semibold">{t("admin.contentStudio.workflow.newDraft", "New unit")}</span>
             </div>
           ) : hasDraft ? (
             <div className="flex items-center gap-2 min-w-0">
@@ -150,11 +154,11 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
               </span>
               <DraftStatusBadge status={selected?.draft?.status} />
               {props.hasUnsavedChanges && (
-                <Badge variant="secondary" className="text-[10px] shrink-0">Unsaved</Badge>
+                <Badge variant="secondary" className="text-xs shrink-0">{t("admin.contentStudio.workflow.unsavedShort", "Unsaved")}</Badge>
               )}
             </div>
           ) : (
-            <span className="text-sm text-muted-foreground">Select a draft or create a new one.</span>
+            <span className="text-sm text-muted-foreground">{t("admin.contentStudio.workflow.selectDraft", "Select a unit or create a new one.")}</span>
           )}
         </div>
         {!showCreate && hasDraft && (
@@ -164,7 +168,7 @@ export function DraftEditPanel(props: DraftEditPanelProps) {
             disabled={isBusy}
             className="shrink-0"
           >
-            Open in Generator
+            {t("admin.contentStudio.workflow.openGenerator", "Open in Generator")}
             <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
           </Button>
         )}
@@ -276,11 +280,12 @@ function CreateForm({
       `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
     : null;
 
-  const handleCreate = async () => {
+  const handleCreate = async (generateAfterCreate: boolean) => {
     if (!numbersValid || collides) return;
     setCreating(true);
     try {
       await onCreateDraft({
+        generateAfterCreate,
         unitNumber: parsedUnit,
         moduleNumber: parsedModule,
         title: title.trim() || `Unit ${parsedUnit}`,
@@ -301,235 +306,71 @@ function CreateForm({
     }
   };
 
+  const { t } = useTranslation();
+
+  const templateSelect = (draftTemplates || []).length > 0 ? (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium">{t("admin.contentStudio.workflow.preset", "Template (optional)")}</Label>
+      <Select value={templateId || "none"} onValueChange={handleTemplateChange}>
+        <SelectTrigger className="h-10 text-sm">
+          <SelectValue placeholder={t("admin.contentStudio.workflow.presetSelect", "Select a template")} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none" className="text-sm">{t("admin.contentStudio.workflow.presetNone", "None")}</SelectItem>
+          {((draftTemplates || []) as any[]).map((tpl: any) => (
+            <SelectItem key={String(tpl._id)} value={String(tpl._id)} className="text-sm">
+              {String(tpl.name || "Untitled")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {t("admin.contentStudio.workflow.presetHelp", "A template pre-fills briefing, reference and skills. You can change everything afterwards.")}
+      </p>
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-6">
-      {/* Template */}
-      {(draftTemplates || []).length > 0 && (
-        <div className="space-y-2">
-          <Label>Template (optional)</Label>
-          <Select value={templateId || "none"} onValueChange={handleTemplateChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select template" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">None</SelectItem>
-              {((draftTemplates || []) as any[]).map((t: any) => (
-                <SelectItem key={String(t._id)} value={String(t._id)}>
-                  {String(t.name || "Untitled")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Selecting a template pre-fills reference, skills, and creator brief below.
-          </p>
-          <Separator />
-        </div>
-      )}
-
-      {/* Numbers + Title */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Module Number</Label>
-          <ModuleSelect value={moduleNumber} onChange={setModuleNumber} hasError={collides} />
-        </div>
-        <div className="space-y-2">
-          <Label>Unit Number</Label>
-          <Input
-            value={unitNumber}
-            onChange={(e) => setUnitNumber(e.target.value)}
-            aria-invalid={collides || undefined}
-            className={cn(collides && "border-destructive focus-visible:ring-destructive")}
-          />
-        </div>
-      </div>
-      {collisionMessage && (
-        <p className="text-sm text-destructive" role="alert">
-          {collisionMessage}
-        </p>
-      )}
-
-      <div className="space-y-2">
-        <Label>Title</Label>
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Unit description (1 short sentence)</Label>
-        <Input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="This becomes **Description:** in the unit header (max ~120 chars)."
-        />
-        <p className="text-xs text-muted-foreground">
-          Becomes the unit header line <span className="font-mono">**Description:** ...</span>.
-        </p>
-      </div>
-
-      <Separator />
-
-      {/* Creator Brief */}
-      <div className="space-y-2">
-        <Label>Creator brief / unit prompt</Label>
-        <p className="text-xs text-muted-foreground">
-          Main prompt for the unit (scenes, didactic progression). German or English — output is always English.
-        </p>
-        <Textarea
-          value={creatorBrief}
-          onChange={(e) => setCreatorBrief(e.target.value)}
-          className="min-h-[180px]"
-          placeholder={[
-            "Example:",
-            "- Situation: café in Montenegro",
-            "- Prerequisites: greetings (Unit 1), introductions (Unit 2)",
-            "- New: ordering drinks, asking for the bill, 'Ja bih ...'",
-            "- Constraints: max 30 vocab, max 4 dialogues, keep it concise",
-          ].join("\n")}
-        />
-      </div>
-
-      <Separator />
-
-      {/* Reference */}
-      <div className="space-y-3">
-        <Label className="font-semibold">Reference (optional)</Label>
-        <Select
-          value={refId || "__none__"}
-          onValueChange={(v) => {
-            setRefId(v === "__none__" ? "" : v);
-            if (v === "__none__") { setRefChapter(""); setRefPages(""); setRefNotes(""); }
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select reference..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">None</SelectItem>
-            {((refs || []) as any[]).filter((r: any) => r?.isActive).map((r: any) => (
-              <SelectItem key={String(r._id)} value={String(r._id)}>
-                {r.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {refId && (
-          <div className="grid gap-3 grid-cols-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Chapter</Label>
-              <Input value={refChapter} onChange={(e) => setRefChapter(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Pages</Label>
-              <Input value={refPages} onChange={(e) => setRefPages(e.target.value)} />
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs">Notes</Label>
-              <Textarea value={refNotes} onChange={(e) => setRefNotes(e.target.value)} rows={2} />
-            </div>
-          </div>
-        )}
-      </div>
-
-      <Separator />
-
-      {/* Skills */}
-      <div className="space-y-4">
-        <Label className="font-semibold">Skills (optional)</Label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Creator Skills</Label>
-            <div className="space-y-1.5">
-              {((specialistSkills || []) as any[]).map((s: any) => (
-                <label key={String(s._id)} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={specialistSkillIds.includes(String(s._id))}
-                    onChange={(e) => {
-                      const id = String(s._id);
-                      setSpecialistSkillIds(
-                        e.target.checked
-                          ? [...specialistSkillIds, id]
-                          : specialistSkillIds.filter((x) => x !== id)
-                      );
-                    }}
-                    className="rounded"
-                  />
-                  {s.name}
-                </label>
-              ))}
-              {!specialistSkills?.length && (
-                <span className="text-sm text-muted-foreground">No creator skills defined.</span>
-              )}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Lector Skills</Label>
-            <div className="space-y-1.5">
-              {((auditorSkills || []) as any[]).map((s: any) => (
-                <label key={String(s._id)} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={auditorSkillIds.includes(String(s._id))}
-                    onChange={(e) => {
-                      const id = String(s._id);
-                      setAuditorSkillIds(
-                        e.target.checked
-                          ? [...auditorSkillIds, id]
-                          : auditorSkillIds.filter((x) => x !== id)
-                      );
-                    }}
-                    className="rounded"
-                  />
-                  {s.name}
-                </label>
-              ))}
-              {!auditorSkills?.length && (
-                <span className="text-sm text-muted-foreground">No lector skills defined.</span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Author Note */}
-      <div className="space-y-3">
-        <Label className="font-semibold">Author Note (optional)</Label>
-        <p className="text-xs text-muted-foreground">
-          Displayed as the founder voice at the top of the unit. Leave the quote empty to add it later in the draft settings.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Name</Label>
-            <Input
-              value={authorNoteName}
-              onChange={(e) => setAuthorNoteName(e.target.value)}
-              placeholder="e.g. Jacksenn"
+      <BriefWorkflow
+        mode="create"
+        moduleNumber={moduleNumber}
+        setModuleNumber={setModuleNumber}
+        unitNumber={unitNumber}
+        setUnitNumber={setUnitNumber}
+        collides={collides}
+        collisionMessage={collisionMessage}
+        numbersValid={numbersValid}
+        title={title}
+        setTitle={setTitle}
+        description={description}
+        setDescription={setDescription}
+        brief={creatorBrief}
+        setBrief={setCreatorBrief}
+        idPrefix="create-brief"
+        onPrimary={() => handleCreate(true)}
+        onSecondary={() => handleCreate(false)}
+        actionBusy={creating}
+        expertChildren={
+          <>
+            {templateSelect}
+            <DraftExtras
+              refs={refs}
+              refId={refId} setRefId={setRefId}
+              refChapter={refChapter} setRefChapter={setRefChapter}
+              refPages={refPages} setRefPages={setRefPages}
+              refNotes={refNotes} setRefNotes={setRefNotes}
+              specialistSkills={specialistSkills}
+              auditorSkills={auditorSkills}
+              specialistSkillIds={specialistSkillIds} setSpecialistSkillIds={setSpecialistSkillIds}
+              auditorSkillIds={auditorSkillIds} setAuditorSkillIds={setAuditorSkillIds}
+              authorNoteName={authorNoteName} setAuthorNoteName={setAuthorNoteName}
+              authorNoteQuote={authorNoteQuote} setAuthorNoteQuote={setAuthorNoteQuote}
+              idPrefix="create"
             />
-          </div>
-          <div className="col-span-2 space-y-1">
-            <Label className="text-xs">Quote</Label>
-            <Textarea
-              value={authorNoteQuote}
-              onChange={(e) => setAuthorNoteQuote(e.target.value)}
-              rows={3}
-              placeholder="A brief motivational quote..."
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="pt-2">
-        <Button
-          className="w-full"
-          onClick={() => void handleCreate()}
-          disabled={creating || !numbersValid || collides}
-        >
-          {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Create Draft
-        </Button>
-      </div>
+          </>
+        }
+      />
     </div>
   );
 }
@@ -560,6 +401,7 @@ function EditForm(props: EditFormProps) {
     draftSpecialistSkillIds, setDraftSpecialistSkillIds,
     draftAuditorSkillIds, setDraftAuditorSkillIds,
     onSaveDraftSkillsAndReference,
+    onSaveAndGenerate,
     hasUnsavedChanges, metaAutosaveStatus, metaAutosavedAt,
     briefVersions, briefVersionBusy,
     onSelectBriefVersion, onSaveBriefMilestone, onRenameBriefVersion, onDeleteBriefVersion,
@@ -615,289 +457,110 @@ function EditForm(props: EditFormProps) {
       })()
     : null;
   const briefVersionCount = Array.isArray(briefVersions) ? briefVersions.length : 0;
+  const { t } = useTranslation();
 
   return (
     <div className="space-y-6">
-      {/* Brief Versions (Ping-Pong) — compact, collapsed by default, at the top of the brief */}
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="brief-versions" className="rounded-lg border bg-muted/20 px-3">
-          <AccordionTrigger className="py-2 hover:no-underline">
-            <div className="flex items-center gap-2 min-w-0 text-left">
-              <span className="text-sm font-semibold shrink-0">Brief Versions</span>
-              {briefVersionCount > 0 && (
-                <Badge variant="secondary" className="text-[10px] shrink-0">
-                  {briefVersionCount}
-                </Badge>
-              )}
-              <span className="text-xs text-muted-foreground truncate">
-                {activeBriefSummary ? `· Active: ${activeBriefSummary}` : "· none yet"}
-              </span>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-1 pb-3">
-            <BriefVersionsPanel
-              versions={briefVersions}
-              activeBriefVersionId={activeBriefVersionId}
-              busy={briefVersionBusy}
+      <BriefWorkflow
+        mode="edit"
+        moduleNumber={draftEditModuleNumber}
+        setModuleNumber={setDraftEditModuleNumber}
+        unitNumber={draftEditUnitNumber}
+        setUnitNumber={setDraftEditUnitNumber}
+        collides={collides}
+        collisionMessage={collisionMessage}
+        numbersValid={numbersValid}
+        title={draftEditTitle}
+        setTitle={setDraftEditTitle}
+        description={draftEditDescription}
+        setDescription={setDraftEditDescription}
+        brief={draftCreatorBrief}
+        setBrief={setDraftCreatorBrief}
+        disabled={isBusy}
+        idPrefix={`edit-brief-${String(selectedDraftId ?? "")}`}
+        onPrimary={onSaveAndGenerate}
+        onSecondary={onSaveDraftSkillsAndReference}
+        actionBusy={isBusy}
+        expertChildren={
+          <>
+            {/* Briefing versions (adopted sections + milestones) */}
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="brief-versions" className="rounded-lg border bg-muted/20 px-3">
+                <AccordionTrigger className="py-2 hover:no-underline">
+                  <div className="flex items-center gap-2 min-w-0 text-left">
+                    <span className="text-sm font-semibold shrink-0">{t("admin.contentStudio.workflow.briefVersions", "Briefing versions")}</span>
+                    {briefVersionCount > 0 && (
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {briefVersionCount}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground truncate">
+                      {activeBriefSummary
+                        ? `· ${t("admin.contentStudio.workflow.briefVersionActive", "Active")}: ${activeBriefSummary}`
+                        : `· ${t("admin.contentStudio.workflow.briefVersionNone", "none yet")}`}
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pt-1 pb-3">
+                  <BriefVersionsPanel
+                    versions={briefVersions}
+                    activeBriefVersionId={activeBriefVersionId}
+                    busy={briefVersionBusy}
+                    moduleNumber={draftModuleNumber}
+                    unitNumber={draftUnitNumber}
+                    onSelectVersion={onSelectBriefVersion}
+                    onSaveMilestone={onSaveBriefMilestone}
+                    onRenameVersion={onRenameBriefVersion}
+                    onDeleteVersion={onDeleteBriefVersion}
+                    hideTitle
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            <CuratedSectionsPanel
+              curatedSections={curatedSections}
+              briefVersions={briefVersions}
               moduleNumber={draftModuleNumber}
               unitNumber={draftUnitNumber}
-              onSelectVersion={onSelectBriefVersion}
-              onSaveMilestone={onSaveBriefMilestone}
-              onRenameVersion={onRenameBriefVersion}
-              onDeleteVersion={onDeleteBriefVersion}
-              hideTitle
             />
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
 
-      {/* Numbers */}
-      <div className="space-y-2">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Module Number</Label>
-            <ModuleSelect value={draftEditModuleNumber} onChange={setDraftEditModuleNumber} hasError={collides} />
-          </div>
-          <div className="space-y-2">
-            <Label>Unit Number</Label>
-            <Input
-              value={draftEditUnitNumber}
-              onChange={(e) => setDraftEditUnitNumber(e.target.value)}
-              aria-invalid={collides || undefined}
-              className={cn(collides && "border-destructive focus-visible:ring-destructive")}
+            <DraftExtras
+              refs={refs}
+              refId={draftRefId} setRefId={setDraftRefId}
+              refChapter={draftRefChapter} setRefChapter={setDraftRefChapter}
+              refPages={draftRefPages} setRefPages={setDraftRefPages}
+              refNotes={draftRefNotes} setRefNotes={setDraftRefNotes}
+              specialistSkills={specialistSkills}
+              auditorSkills={auditorSkills}
+              specialistSkillIds={draftSpecialistSkillIds} setSpecialistSkillIds={setDraftSpecialistSkillIds}
+              auditorSkillIds={draftAuditorSkillIds} setAuditorSkillIds={setDraftAuditorSkillIds}
+              authorNoteName={draftAuthorNoteName} setAuthorNoteName={setDraftAuthorNoteName}
+              authorNoteQuote={draftAuthorNoteQuote} setAuthorNoteQuote={setDraftAuthorNoteQuote}
+              onAuthorQuoteBlur={onFounderQuoteBlur}
+              disabled={isBusy}
+              idPrefix="edit"
             />
-          </div>
-        </div>
-        {collisionMessage && (
-          <p className="text-sm text-destructive" role="alert">
-            {collisionMessage}
-          </p>
+          </>
+        }
+      />
+
+      {/* Autosave status */}
+      <div className={cn("flex items-center justify-center gap-2 text-xs pb-4", "text-muted-foreground")}>
+        {metaAutosaveStatus === "saving" && (
+          <span className="flex items-center gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" /> {t("admin.contentStudio.workflow.autosaving", "Saving automatically...")}
+          </span>
         )}
-        {!numbersValid && (draftEditUnitNumber !== "" || draftEditModuleNumber !== "") && (
-          <p className="text-xs text-muted-foreground">
-            Module and Unit must both be positive integers.
-          </p>
+        {metaAutosaveStatus === "error" && (
+          <span className="text-red-600">{t("admin.contentStudio.workflow.autosaveFailed", "Automatic save failed")}</span>
         )}
-      </div>
-
-      {/* Title + Description */}
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>Title</Label>
-          <Input
-            value={draftEditTitle}
-            onChange={(e) => setDraftEditTitle(e.target.value)}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Unit description (1 short sentence)</Label>
-          <Input
-            value={draftEditDescription}
-            onChange={(e) => setDraftEditDescription(e.target.value)}
-            placeholder="This becomes **Description:** in the unit header (max ~120 chars)."
-          />
-          <p className="text-xs text-muted-foreground">
-            Becomes the unit header line <span className="font-mono">**Description:** ...</span>.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Creator brief / unit prompt</Label>
-          <p className="text-xs text-muted-foreground">
-            Main prompt for the unit (scenes, didactic progression). German or English — output is always English.
-          </p>
-          <Textarea
-            value={draftCreatorBrief}
-            onChange={(e) => setDraftCreatorBrief(e.target.value)}
-            className="min-h-[180px]"
-            placeholder={[
-              "Example:",
-              "- Situation: café in Montenegro",
-              "- Prerequisites: greetings (Unit 1), introductions (Unit 2)",
-              "- New: ordering drinks, asking for the bill, 'Ja bih ...'",
-              "- Constraints: max 30 vocab, max 4 dialogues, keep it concise",
-            ].join("\n")}
-          />
-        </div>
-
-        <CuratedSectionsPanel
-          curatedSections={curatedSections}
-          briefVersions={briefVersions}
-          moduleNumber={draftModuleNumber}
-          unitNumber={draftUnitNumber}
-        />
-      </div>
-
-      <Separator />
-
-      {/* Reference */}
-      <div className="space-y-3">
-        <Label className="font-semibold">Reference (optional)</Label>
-        <Select
-          value={draftRefId || "__none__"}
-          onValueChange={(v) => {
-            setDraftRefId(v === "__none__" ? "" : v);
-            if (v === "__none__") { setDraftRefChapter(""); setDraftRefPages(""); setDraftRefNotes(""); }
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select reference..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">None</SelectItem>
-            {((refs || []) as any[]).filter((r: any) => r?.isActive).map((r: any) => (
-              <SelectItem key={String(r._id)} value={String(r._id)}>
-                {r.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {draftRefId && (
-          <div className="grid gap-3 grid-cols-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Chapter</Label>
-              <Input
-                value={draftRefChapter}
-                onChange={(e) => setDraftRefChapter(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Pages</Label>
-              <Input
-                value={draftRefPages}
-                onChange={(e) => setDraftRefPages(e.target.value)}
-              />
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs">Notes</Label>
-              <Textarea
-                value={draftRefNotes}
-                onChange={(e) => setDraftRefNotes(e.target.value)}
-                rows={2}
-                placeholder="Additional notes about how to use this reference..."
-              />
-            </div>
-          </div>
+        {metaAutosavedAt && metaAutosaveStatus === "idle" && (
+          <span>{t("admin.contentStudio.workflow.autosavedAt", { defaultValue: "Saved automatically at {{time}}", time: new Date(metaAutosavedAt).toLocaleTimeString() })}</span>
         )}
-      </div>
-
-      <Separator />
-
-      {/* Skills */}
-      <Accordion type="single" collapsible className="w-full" defaultValue="skills">
-        <AccordionItem value="skills" className="border-none">
-          <AccordionTrigger className="text-sm font-semibold py-1">Skills</AccordionTrigger>
-          <AccordionContent className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">Creator Skills</Label>
-              <div className="space-y-1.5">
-                {((specialistSkills || []) as any[]).map((s: any) => (
-                  <label key={String(s._id)} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={draftSpecialistSkillIds.includes(String(s._id))}
-                      onChange={(e) => {
-                        const id = String(s._id);
-                        setDraftSpecialistSkillIds(
-                          e.target.checked
-                            ? [...draftSpecialistSkillIds, id]
-                            : draftSpecialistSkillIds.filter((x) => x !== id)
-                        );
-                      }}
-                      className="rounded"
-                    />
-                    {s.name}
-                  </label>
-                ))}
-                {!specialistSkills?.length && (
-                  <span className="text-sm text-muted-foreground">No creator skills defined.</span>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-medium">Lector Skills</Label>
-              <div className="space-y-1.5">
-                {((auditorSkills || []) as any[]).map((s: any) => (
-                  <label key={String(s._id)} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={draftAuditorSkillIds.includes(String(s._id))}
-                      onChange={(e) => {
-                        const id = String(s._id);
-                        setDraftAuditorSkillIds(
-                          e.target.checked
-                            ? [...draftAuditorSkillIds, id]
-                            : draftAuditorSkillIds.filter((x) => x !== id)
-                        );
-                      }}
-                      className="rounded"
-                    />
-                    {s.name}
-                  </label>
-                ))}
-                {!auditorSkills?.length && (
-                  <span className="text-sm text-muted-foreground">No lector skills defined.</span>
-                )}
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-
-      <Separator />
-
-      {/* Author Note */}
-      <div className="space-y-3">
-        <Label className="font-semibold">Author Note (optional)</Label>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Name</Label>
-            <Input
-              value={draftAuthorNoteName}
-              onChange={(e) => setDraftAuthorNoteName(e.target.value)}
-              placeholder="e.g. Maxi"
-            />
-          </div>
-          <div className="col-span-2 space-y-1">
-            <Label className="text-xs">Quote</Label>
-            <Textarea
-              value={draftAuthorNoteQuote}
-              onChange={(e) => setDraftAuthorNoteQuote(e.target.value)}
-              onBlur={onFounderQuoteBlur}
-              rows={2}
-              placeholder="A brief motivational quote..."
-            />
-          </div>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Save */}
-      <div className="space-y-2 pb-4">
-        <Button
-          className="w-full"
-          onClick={onSaveDraftSkillsAndReference}
-          disabled={!props.selectedDraftId || isBusy || !numbersValid || collides}
-        >
-          Save Draft Settings
-        </Button>
-        <div className={cn("flex items-center gap-2 text-xs", "text-muted-foreground")}>
-          {metaAutosaveStatus === "saving" && (
-            <span className="flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Autosaving...
-            </span>
-          )}
-          {metaAutosaveStatus === "error" && (
-            <span className="text-red-600">Autosave failed</span>
-          )}
-          {metaAutosavedAt && metaAutosaveStatus === "idle" && (
-            <span>Autosaved {new Date(metaAutosavedAt).toLocaleTimeString()}</span>
-          )}
-          {hasUnsavedChanges && (
-            <Badge variant="secondary" className="text-[10px]">Unsaved changes</Badge>
-          )}
-        </div>
+        {hasUnsavedChanges && (
+          <Badge variant="secondary" className="text-xs">{t("admin.contentStudio.workflow.unsaved", "Unsaved changes")}</Badge>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
@@ -37,6 +38,8 @@ export interface PreviewCreationStateShape {
   error?: string;
 }
 
+// English fallbacks; translated at render time via
+// `admin.contentStudio.previewBanner.stage.<stage>`.
 const STAGE_LABEL: Record<PreviewCreationStage, string> = {
   metadata: "Metadata",
   content: "Content",
@@ -71,11 +74,15 @@ export function PreviewStatusBanner({
   /** Optional layout tweak (e.g. rounded inset in Unit Manager). */
   className?: string;
 }) {
+  const { t } = useTranslation();
   const createPreviewAction = useAction(api.contentStudio.createDraftPreview);
   const [showDetails, setShowDetails] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  const stageLabel = STAGE_LABEL[previewState.stage] ?? previewState.stage;
+  const stageLabel = t(
+    `admin.contentStudio.previewBanner.stage.${previewState.stage}`,
+    STAGE_LABEL[previewState.stage] ?? previewState.stage,
+  );
   const hasProgress =
     typeof previewState.batchIndex === "number" &&
     typeof previewState.totalBatches === "number" &&
@@ -105,16 +112,23 @@ export function PreviewStatusBanner({
           <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="font-medium text-blue-900 dark:text-blue-100">
-              Creating preview — {stageLabel}
+              {t("admin.contentStudio.previewBanner.creating", { defaultValue: "Creating preview — {{stage}}", stage: stageLabel })}
               {hasProgress && (
                 <span className="text-blue-700 dark:text-blue-300 font-normal">
                   {" "}
-                  (batch {(previewState.batchIndex ?? 0) + 1} / {previewState.totalBatches})
+                  {t("admin.contentStudio.previewBanner.batch", {
+                    defaultValue: "(batch {{i}} / {{total}})",
+                    i: (previewState.batchIndex ?? 0) + 1,
+                    total: previewState.totalBatches,
+                  })}
                 </span>
               )}
             </div>
             <div className="text-xs text-blue-700/80 dark:text-blue-300/80">
-              started at {formatTime(previewState.startedAt)}
+              {t("admin.contentStudio.previewBanner.startedAt", {
+                defaultValue: "started at {{time}}",
+                time: formatTime(previewState.startedAt),
+              })}
             </div>
           </div>
         </div>
@@ -135,7 +149,7 @@ export function PreviewStatusBanner({
           <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="font-medium text-emerald-900 dark:text-emerald-100">
-              Preview created successfully
+              {t("admin.contentStudio.previewBanner.success", "Preview created successfully")}
             </div>
             <div className="text-xs text-emerald-700/80 dark:text-emerald-300/80">
               {formatTime(previewState.startedAt)} → {formatTime(finishedAt)}
@@ -148,7 +162,8 @@ export function PreviewStatusBanner({
     );
   }
 
-  const errText = previewState.error ?? "Unknown preview creation error.";
+  const errText =
+    previewState.error ?? t("admin.contentStudio.previewBanner.unknownError", "Unknown preview creation error.");
   return (
     <div
       className={cn(
@@ -160,11 +175,18 @@ export function PreviewStatusBanner({
         <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-red-900 dark:text-red-100">
-            Preview creation failed at stage &quot;{stageLabel}&quot;
+            {t("admin.contentStudio.previewBanner.failedAtStage", {
+              defaultValue: 'Preview creation failed at stage "{{stage}}"',
+              stage: stageLabel,
+            })}
             {hasProgress && (
               <span className="text-red-700 dark:text-red-300 font-normal">
                 {" "}
-                (batch {(previewState.batchIndex ?? 0) + 1} / {previewState.totalBatches})
+                {t("admin.contentStudio.previewBanner.batch", {
+                  defaultValue: "(batch {{i}} / {{total}})",
+                  i: (previewState.batchIndex ?? 0) + 1,
+                  total: previewState.totalBatches,
+                })}
               </span>
             )}
           </div>
@@ -186,7 +208,7 @@ export function PreviewStatusBanner({
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
-              Retry
+              {t("admin.contentStudio.previewBanner.retry", "Retry")}
             </Button>
             {errText.length > 180 && (
               <Button
@@ -200,7 +222,9 @@ export function PreviewStatusBanner({
                 ) : (
                   <ChevronRight className="h-3.5 w-3.5" />
                 )}
-                {showDetails ? "Hide details" : "Details"}
+                {showDetails
+                  ? t("admin.contentStudio.previewBanner.hideDetails", "Hide details")
+                  : t("admin.contentStudio.previewBanner.details", "Details")}
               </Button>
             )}
           </div>

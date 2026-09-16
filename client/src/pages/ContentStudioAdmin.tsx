@@ -38,7 +38,8 @@ import type { InspectorStep } from "@/components/admin/contentStudio/InspectorPa
 import { DraftEditPanel } from "@/components/admin/contentStudio/DraftEditPanel";
 import { DraftStatusBadge } from "@/components/admin/contentStudio/StatusBadge";
 import type { Mode, Provider, StageKey, SectionId, NextStepKey, StepId, SettingsTab, StudioView } from "@/components/admin/contentStudio/types";
-import { SECTION_OPTIONS, isKnownModel, stageOrderedModels } from "@/components/admin/contentStudio/constants";
+import { isKnownModel, stageOrderedModels } from "@/components/admin/contentStudio/constants";
+import { useSectionLabel } from "@/components/admin/contentStudio/utils/sectionLabel";
 import { buildSideBySideDiffRows } from "@/components/admin/contentStudio/utils/diffAlgorithm";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "@/components/admin/contentStudio/utils/briefVersionLabel";
 import {
@@ -59,6 +60,7 @@ import {
 export default function ContentStudioAdmin() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
+  const sectionLabelOf = useSectionLabel();
   const drafts = useQuery(api.contentStudio.listDrafts);
   const studioMetrics = useQuery(api.contentStudio.getStudioMetrics);
   const [selectedDraftId, setSelectedDraftId] = useState<Id<"contentDrafts"> | null>(null);
@@ -94,8 +96,11 @@ export default function ContentStudioAdmin() {
 
   const [skillsStage, setSkillsStage] = useState<"specialist" | "auditor" | "translator">("specialist");
   const stageSkills = useQuery(api.contentStudio.listStageSkills, { stage: skillsStage });
+  const inactiveStageSkills = useQuery(api.contentStudio.listInactiveStageSkills, { stage: skillsStage });
   const upsertStageSkill = useMutation(api.contentStudio.upsertStageSkill);
   const deactivateSkill = useMutation(api.contentStudio.deactivateSkill);
+  const reactivateSkill = useMutation(api.contentStudio.reactivateSkill);
+  const deleteSkill = useMutation(api.contentStudio.deleteSkill);
 
   const specialistSkills = useQuery(api.contentStudio.listStageSkills, { stage: "specialist" });
   const auditorSkills = useQuery(api.contentStudio.listStageSkills, { stage: "auditor" });
@@ -164,7 +169,7 @@ export default function ContentStudioAdmin() {
       setCognateAcceptPrompt({ terms, errorMessage: message, retry });
       return;
     }
-    toast.error(message || "Translation failed.");
+    toast.error(message || t("admin.contentStudio.toast.translationFailed", "Translation failed."));
   };
 
   const handleAcceptCognatesAndRetry = async () => {
@@ -176,12 +181,19 @@ export default function ContentStudioAdmin() {
         note: "Akzeptiert nach Quality-Guard-Fail (EN=DE Cognate)",
       });
       const label = [...res.added, ...res.alreadyPresent].join(", ");
-      toast.success(`Cognate(s) akzeptiert: ${label}. Starte Übersetzung erneut…`);
+      toast.success(
+        t("admin.contentStudio.toast.cognatesAccepted", {
+          defaultValue: "Cognate(s) accepted: {{terms}}. Restarting translation…",
+          terms: label,
+        })
+      );
       const retry = cognateAcceptPrompt.retry;
       setCognateAcceptPrompt(null);
       await retry();
     } catch (e: any) {
-      toast.error(e?.message || "Cognates speichern / Retry fehlgeschlagen.");
+      toast.error(
+        e?.message || t("admin.contentStudio.toast.cognatesSaveFailed", "Failed to save cognates / retry translation.")
+      );
     } finally {
       setCognateAcceptBusy(false);
     }
@@ -196,12 +208,32 @@ export default function ContentStudioAdmin() {
     const retried = !!v.retryAttempted;
     if (critical > 0) {
       toast.warning(
-        `SR→DE Verifier: ${critical} critical issue(s) remain after${retried ? " auto-retry" : ""}. Review DE preview before publishing.`
+        retried
+          ? t("admin.contentStudio.toast.verifierCriticalRemainAfterRetry", {
+              defaultValue:
+                "SR→DE verifier: {{n}} critical issue(s) remain after auto-retry. Review the DE preview before publishing.",
+              n: critical,
+            })
+          : t("admin.contentStudio.toast.verifierCriticalRemain", {
+              defaultValue:
+                "SR→DE verifier: {{n}} critical issue(s) remain. Review the DE preview before publishing.",
+              n: critical,
+            })
       );
     } else if (retried) {
-      toast.success(`SR→DE Verifier: critical issues auto-fixed by retry (${warning} warning(s) remain).`);
+      toast.success(
+        t("admin.contentStudio.toast.verifierAutoFixed", {
+          defaultValue: "SR→DE verifier: critical issues auto-fixed by retry ({{warnings}} warning(s) remain).",
+          warnings: warning,
+        })
+      );
     } else if (warning > 0) {
-      toast.info(`SR→DE Verifier: ${warning} warning(s); no critical issues.`);
+      toast.info(
+        t("admin.contentStudio.toast.verifierWarningsOnly", {
+          defaultValue: "SR→DE verifier: {{warnings}} warning(s); no critical issues.",
+          warnings: warning,
+        })
+      );
     }
   };
 
@@ -426,16 +458,16 @@ export default function ContentStudioAdmin() {
     runningTranslateDe;
 
   const currentTaskLabel = useMemo(() => {
-    if (runningCreator) return "Creator is generating content...";
-    if (runningValidator) return "Validator is checking structure...";
-    if (runningLector) return "Lector is reviewing content...";
-    if (runningRevise) return "Applying revisions...";
-    if (runningCreateValidate) return "Running Creator + Validator...";
-    if (runningSectionRevise) return "Applying changes...";
-    if (creatingPreview) return "Creating preview...";
-    if (runningTranslateDe) return "Translating to German...";
+    if (runningCreator) return t("admin.contentStudio.page.taskCreatorGenerating", "Creator is generating content...");
+    if (runningValidator) return t("admin.contentStudio.page.taskValidatorChecking", "Validator is checking structure...");
+    if (runningLector) return t("admin.contentStudio.page.taskLectorReviewing", "Lector is reviewing content...");
+    if (runningRevise) return t("admin.contentStudio.page.taskApplyingRevisions", "Applying revisions...");
+    if (runningCreateValidate) return t("admin.contentStudio.page.taskCreatorValidator", "Running Creator + Validator...");
+    if (runningSectionRevise) return t("admin.contentStudio.page.taskApplyingChanges", "Applying changes...");
+    if (creatingPreview) return t("admin.contentStudio.page.taskCreatingPreview", "Creating preview...");
+    if (runningTranslateDe) return t("admin.contentStudio.page.taskTranslatingGerman", "Translating to German...");
     return "";
-  }, [runningCreator, runningValidator, runningLector, runningCreateValidate, runningSectionRevise, creatingPreview, runningTranslateDe]);
+  }, [runningCreator, runningValidator, runningLector, runningCreateValidate, runningSectionRevise, creatingPreview, runningTranslateDe, t]);
 
 
   const nextStepKey: NextStepKey = useMemo(() => {
@@ -455,17 +487,17 @@ export default function ContentStudioAdmin() {
   const nextStepLabel = useMemo(() => {
     switch (nextStepKey) {
       case "creator":
-        return "Run Creator";
+        return t("admin.contentStudio.page.nextStepRunCreator", "Run Creator");
       case "validator":
-        return "Run Validator";
+        return t("admin.contentStudio.page.nextStepRunValidator", "Run Validator");
       case "lector":
-        return "Run Lector";
+        return t("admin.contentStudio.page.nextStepRunLector", "Run Lector");
       case "createPreview":
-        return "Create Preview";
+        return t("admin.contentStudio.page.nextStepCreatePreview", "Create preview");
       default:
-        return "Next step";
+        return t("admin.contentStudio.page.nextStepDefault", "Next step");
     }
-  }, [nextStepKey]);
+  }, [nextStepKey, t]);
 
   const stepVariant = (key: NextStepKey) => (key === nextStepKey ? "default" : "secondary");
 
@@ -560,7 +592,12 @@ export default function ContentStudioAdmin() {
         ? unitPackageJson
         : String((selected as any)?.snapshot?.unitPackageJson || "");
 
-    if (!raw.trim()) return { ok: false as const, error: "No unitPackage JSON available yet." };
+    if (!raw.trim()) {
+      return {
+        ok: false as const,
+        error: t("admin.contentStudio.page.previewNoJson", "No unitPackage JSON available yet."),
+      };
+    }
 
     try {
       const parsed = JSON.parse(raw);
@@ -571,14 +608,26 @@ export default function ContentStudioAdmin() {
 
       const contentEn = (pkg as any)?.content?.en;
       if (!contentEn || typeof contentEn !== "object") {
-        return { ok: false as const, error: "Preview: JSON does not look like unitPackage.v1 (missing content.en)." };
+        return {
+          ok: false as const,
+          error: t(
+            "admin.contentStudio.page.previewNotUnitPackage",
+            "Preview: JSON does not look like unitPackage.v1 (missing content.en)."
+          ),
+        };
       }
 
       return { ok: true as const, pkg };
     } catch (e: any) {
-      return { ok: false as const, error: `Preview: invalid JSON (${e?.message || String(e)})` };
+      return {
+        ok: false as const,
+        error: t("admin.contentStudio.page.previewInvalidJson", {
+          defaultValue: "Preview: invalid JSON ({{error}})",
+          error: e?.message || String(e),
+        }),
+      };
     }
-  }, [unitPackageJson, selected]);
+  }, [unitPackageJson, selected, t]);
 
   const snapshotMarkdown = useMemo(() => {
     return String((selected as any)?.snapshot?.markdownSource || "");
@@ -959,10 +1008,10 @@ export default function ContentStudioAdmin() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Content Studio</CardTitle>
+          <CardTitle>{t("admin.contentStudio.page.title", "Content Studio")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p>Unauthorized. Superadmin required.</p>
+          <p>{t("admin.contentStudio.page.unauthorized", "Unauthorized. Superadmin required.")}</p>
         </CardContent>
       </Card>
     );
@@ -1094,7 +1143,8 @@ export default function ContentStudioAdmin() {
 
     setIsDraftCreateMode(false);
     setSelectedDraftId(id);
-    toast.success(t("admin.contentStudio.toast.draftCreated"));
+    toast.success(t("admin.contentStudio.toast.draftCreated", "Unit created"));
+    return id;
   };
 
   const handleSaveModelConfig = async () => {
@@ -1150,6 +1200,37 @@ export default function ContentStudioAdmin() {
     }
   };
 
+  const handleReactivateSkill = async (id: string) => {
+    try {
+      await reactivateSkill({ skillId: id as any });
+      toast.success(t("admin.contentStudio.toast.skillReactivated", "Skill reactivated."));
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.skillReactivateFailed", "Could not reactivate skill."));
+    }
+  };
+
+  const handleDeleteSkill = async (id: string, name: string) => {
+    const confirmed = window.confirm(
+      t("admin.contentStudio.skills.deleteConfirm", {
+        defaultValue: 'Permanently delete the skill "{{name}}"? It will be removed from all units and templates.',
+        name,
+      })
+    );
+    if (!confirmed) return;
+    try {
+      const res: any = await deleteSkill({ skillId: id as any });
+      toast.success(
+        t("admin.contentStudio.toast.skillDeleted", {
+          defaultValue: "Skill deleted (removed from {{drafts}} units, {{templates}} templates).",
+          drafts: res?.draftsPatched ?? 0,
+          templates: res?.templatesPatched ?? 0,
+        })
+      );
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.skillDeleteFailed", "Could not delete skill."));
+    }
+  };
+
   const handleCreateReference = async () => {
     try {
       const title = newRefTitle.trim();
@@ -1176,16 +1257,26 @@ export default function ContentStudioAdmin() {
         });
         if (!uploadResp.ok) {
           const text = await uploadResp.text().catch(() => uploadResp.statusText);
-          throw new Error(`Upload failed: ${uploadResp.status} ${text}`);
+          throw new Error(
+            t("admin.contentStudio.error.uploadFailedStatus", {
+              defaultValue: "Upload failed: {{status}} {{text}}",
+              status: uploadResp.status,
+              text,
+            })
+          );
         }
         const json = (await uploadResp.json()) as { storageId?: string };
         const sid = json.storageId;
-        if (!sid) throw new Error("Upload failed: missing storageId.");
+        if (!sid) throw new Error(t("admin.contentStudio.error.uploadMissingStorageId", "Upload failed: missing storageId."));
         storageId = sid;
         setNewRefStorageId(sid);
       }
 
-      if (!url && !storageId) throw new Error("Provide either a URL or upload a PDF (storageId).");
+      if (!url && !storageId) {
+        throw new Error(
+          t("admin.contentStudio.error.provideUrlOrPdf", "Provide either a URL or upload a PDF (storageId).")
+        );
+      }
       const tags = newRefTags
         .split(",")
         .map((t) => t.trim())
@@ -1216,7 +1307,7 @@ export default function ContentStudioAdmin() {
 
   const handleCreateTemplateFromSelectedDraft = async () => {
     if (!selectedDraftId) {
-      toast.error(t("admin.contentStudio.toast.selectDraftFirst"));
+      toast.error(t("admin.contentStudio.toast.selectDraftFirst", "Select a unit first"));
       return;
     }
     const name = newTemplateName.trim();
@@ -1232,7 +1323,7 @@ export default function ContentStudioAdmin() {
       } as any);
       setNewTemplateName("");
       setNewTemplateDescription("");
-      toast.success(t("admin.contentStudio.toast.templateCreatedFromDraft"));
+      toast.success(t("admin.contentStudio.toast.templateCreatedFromDraft", "Template created from current unit"));
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.templateCreateFailed"));
     }
@@ -1285,12 +1376,18 @@ export default function ContentStudioAdmin() {
 
       if (!uploadResp.ok) {
         const text = await uploadResp.text().catch(() => uploadResp.statusText);
-        throw new Error(`Upload failed: ${uploadResp.status} ${text}`);
+        throw new Error(
+          t("admin.contentStudio.error.uploadFailedStatus", {
+            defaultValue: "Upload failed: {{status}} {{text}}",
+            status: uploadResp.status,
+            text,
+          })
+        );
       }
 
       const json = (await uploadResp.json()) as { storageId?: string };
       const sid = json.storageId;
-      if (!sid) throw new Error("Upload failed: missing storageId.");
+      if (!sid) throw new Error(t("admin.contentStudio.error.uploadMissingStorageId", "Upload failed: missing storageId."));
       setNewRefStorageId(sid);
       toast.success(t("admin.contentStudio.toast.pdfUploaded"));
     } catch (e: any) {
@@ -1325,18 +1422,23 @@ export default function ContentStudioAdmin() {
     const list = Array.isArray(guidelineVersions) ? (guidelineVersions as any[]) : [];
     const found = list.find((v) => Number((v as any)?.version) === Number(version));
     if (!found) {
-      toast.error("Guideline version not found.");
+      toast.error(t("admin.contentStudio.toast.guidelineVersionNotFound", "Guideline version not found."));
       return;
     }
     setEditRefGuidelines(String((found as any)?.guidelines || ""));
     setEditRefLoadedFromVersion(Number(version));
-    toast.success(`Loaded v${Number(version)} into editor. Edit + save to create a new version.`);
+    toast.success(
+      t("admin.contentStudio.toast.guidelineVersionLoaded", {
+        defaultValue: "Loaded v{{version}} into the editor. Edit and save to create a new version.",
+        version: Number(version),
+      })
+    );
   };
 
   const handleReloadCurrentGuidelinesIntoEditor = () => {
     setEditRefGuidelines(String((editRef as any)?.guidelines || ""));
     setEditRefLoadedFromVersion(null);
-    toast.info("Loaded current guidelines.");
+    toast.info(t("admin.contentStudio.toast.guidelinesCurrentLoaded", "Loaded current guidelines."));
   };
 
   const handleSaveReferenceGuidelines = async () => {
@@ -1400,9 +1502,16 @@ export default function ContentStudioAdmin() {
       await deleteReferenceGuidelineVersion({
         versionId: params.versionId as any,
       });
-      toast.success(`Deleted v${params.version}.`);
+      toast.success(
+        t("admin.contentStudio.toast.guidelineVersionDeleted", {
+          defaultValue: "Deleted v{{version}}.",
+          version: params.version,
+        })
+      );
     } catch (e: any) {
-      toast.error(e?.message || "Failed to delete guideline version.");
+      toast.error(
+        e?.message || t("admin.contentStudio.toast.guidelineVersionDeleteFailed", "Failed to delete guideline version.")
+      );
     } finally {
       setEditRefSaving(false);
     }
@@ -1435,11 +1544,17 @@ export default function ContentStudioAdmin() {
       });
       if (!uploadResp.ok) {
         const text = await uploadResp.text().catch(() => uploadResp.statusText);
-        throw new Error(`Upload failed: ${uploadResp.status} ${text}`);
+        throw new Error(
+          t("admin.contentStudio.error.uploadFailedStatus", {
+            defaultValue: "Upload failed: {{status}} {{text}}",
+            status: uploadResp.status,
+            text,
+          })
+        );
       }
       const json = (await uploadResp.json()) as { storageId?: string };
       const sid = String(json.storageId || "").trim();
-      if (!sid) throw new Error("Upload failed: missing storageId.");
+      if (!sid) throw new Error(t("admin.contentStudio.error.uploadMissingStorageId", "Upload failed: missing storageId."));
 
       await addReferencePdfFile({
         referenceId: editRef._id,
@@ -1471,8 +1586,8 @@ export default function ContentStudioAdmin() {
     }
   };
 
-  const handleSaveDraftSkillsAndReference = async () => {
-    if (!selectedDraftId) return;
+  const handleSaveDraftSkillsAndReference = async (): Promise<boolean> => {
+    if (!selectedDraftId) return false;
     try {
       await setDraftSpecialistSkills({
         draftId: selectedDraftId,
@@ -1509,10 +1624,22 @@ export default function ContentStudioAdmin() {
         },
       });
 
-      toast.success(t("admin.contentStudio.toast.draftSettingsSaved"));
+      toast.success(t("admin.contentStudio.toast.draftSettingsSaved", "Unit settings saved"));
+      return true;
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.draftSettingsSaveFailed"));
+      toast.error(e?.message || t("admin.contentStudio.toast.draftSettingsSaveFailed", "Failed to save unit settings"));
+      return false;
     }
+  };
+
+  // Simplified authoring path: save the unit (briefing, title, description),
+  // switch to the Generator so progress is visible, and run Creator ->
+  // Validator -> Lector in one go.
+  const handleSaveAndGenerate = async () => {
+    const ok = await handleSaveDraftSkillsAndReference();
+    if (!ok) return;
+    setStudioView("drafts");
+    await runGenerateFlow(false);
   };
 
   const looksGerman = (text: string): boolean => {
@@ -1595,9 +1722,9 @@ export default function ContentStudioAdmin() {
       await deleteDraft({ draftId: selectedDraftId });
       setIsDraftCreateMode(false);
       setSelectedDraftId(null);
-      toast.success(t("admin.contentStudio.toast.draftDeleted"));
+      toast.success(t("admin.contentStudio.toast.draftDeleted", "Unit deleted"));
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.draftDeleteFailed"));
+      toast.error(e?.message || t("admin.contentStudio.toast.draftDeleteFailed", "Failed to delete unit"));
     }
   };
 
@@ -1614,9 +1741,9 @@ export default function ContentStudioAdmin() {
         replaceFindings: true,
         findings: [],
       });
-      toast.success(t("admin.contentStudio.toast.snapshotSaved"));
+      toast.success(t("admin.contentStudio.toast.snapshotSaved", "Draft saved"));
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.snapshotSaveFailed"));
+      toast.error(e?.message || t("admin.contentStudio.toast.snapshotSaveFailed", "Failed to save draft"));
     }
   };
 
@@ -1625,10 +1752,15 @@ export default function ContentStudioAdmin() {
     const md = String(snap?.markdownSource || "");
     if (md.trim()) {
       setMarkdownText(md);
-      toast.success(t("admin.contentStudio.toast.loadedMarkdownFromSnapshot"));
+      toast.success(t("admin.contentStudio.toast.loadedMarkdownFromSnapshot", "Loaded markdown from draft"));
       return;
     }
-    toast.error(t("admin.contentStudio.toast.noMarkdownInSnapshot"));
+    toast.error(
+      t(
+        "admin.contentStudio.toast.noMarkdownInSnapshot",
+        "No markdown found in the latest draft. Run Creator first (or save Markdown once)."
+      )
+    );
   };
 
   const handleSaveMarkdown = async () => {
@@ -1637,9 +1769,9 @@ export default function ContentStudioAdmin() {
       const md = markdownText.trim();
       if (!md) throw new Error(t("admin.contentStudio.error.emptyMarkdown"));
       await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md, skipTranslation: true } as any);
-      toast.success(t("admin.contentStudio.toast.markdownSnapshotSaved"));
+      toast.success(t("admin.contentStudio.toast.markdownSnapshotSaved", "Markdown draft saved. Run Validator next."));
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.markdownSnapshotSaveFailed"));
+      toast.error(e?.message || t("admin.contentStudio.toast.markdownSnapshotSaveFailed", "Failed to save markdown draft"));
     }
   };
 
@@ -1654,7 +1786,7 @@ export default function ContentStudioAdmin() {
       if (!md) throw new Error(t("admin.contentStudio.error.emptyMarkdown"));
 
       // Step 1: Save markdown (skipTranslation=true so the AI does not modify the manually-edited content)
-      toast.info("Saving markdown…");
+      toast.info(t("admin.contentStudio.toast.savingMarkdown", "Saving markdown…"));
       await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md, skipTranslation: true } as any);
 
       // Step 2: QC Validate (parses Markdown → JSON snapshot)
@@ -1663,7 +1795,12 @@ export default function ContentStudioAdmin() {
       const valRes = await runValidate({ draftId: selectedDraftId });
       setRunningValidator(false);
       if (!valRes.ok) {
-        toast.error("Validation failed — fix the errors in the findings before creating a preview.");
+        toast.error(
+          t(
+            "admin.contentStudio.toast.validationFailedBeforePreview",
+            "Validation failed — fix the errors in the findings before creating a preview."
+          )
+        );
         return;
       }
 
@@ -1679,7 +1816,10 @@ export default function ContentStudioAdmin() {
       let previewMsg = t("admin.contentStudio.toast.previewLive");
       const dedupCount = (previewResult as any)?.stats?.vocabDeduplicated ?? 0;
       if (dedupCount > 0) {
-        previewMsg += ` | ${dedupCount} duplicate(s) auto-removed.`;
+        previewMsg += ` | ${t("admin.contentStudio.toast.duplicatesAutoRemoved", {
+          defaultValue: "{{n}} duplicate(s) auto-removed.",
+          n: dedupCount,
+        })}`;
       }
       toast.success(previewMsg);
 
@@ -1688,7 +1828,7 @@ export default function ContentStudioAdmin() {
         window.open(`/unit/${unitNumber}`, "_blank");
       }
     } catch (e: any) {
-      toast.error(e?.message || "Save & Create Preview failed.");
+      toast.error(e?.message || t("admin.contentStudio.toast.saveAndPreviewFailed", "Save & create preview failed."));
     } finally {
       setCreatingPreview(false);
       setRunningValidator(false);
@@ -1730,18 +1870,24 @@ export default function ContentStudioAdmin() {
     const snap = selected?.snapshot as any;
     if (snap?.unitPackageJson) {
       setUnitPackageJson(String(snap.unitPackageJson));
-      toast.success(t("admin.contentStudio.toast.loadedSnapshot"));
+      toast.success(t("admin.contentStudio.toast.loadedSnapshot", "Loaded draft into editor"));
       return;
     }
     const lastRun = (selected as any)?.aiRuns?.[0];
     if (lastRun?.status === "failed" && lastRun?.error) {
       toast.error(
         t("admin.contentStudio.toast.noSnapshotLastRunFailed", {
+          defaultValue: "No draft yet. Last run failed: {{error}}",
           error: String(lastRun.error).slice(0, 180),
         })
       );
     } else {
-      toast.error(t("admin.contentStudio.toast.noSnapshotRunCreator"));
+      toast.error(
+        t(
+          "admin.contentStudio.toast.noSnapshotRunCreator",
+          "No draft yet. Run Creator first (and check errors if it fails)."
+        )
+      );
     }
   };
 
@@ -1749,7 +1895,7 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return;
     setRunningCreator(true);
     setProgressPercent(25);
-    setProgressMessage("Creator: generating markdown…");
+    setProgressMessage(t("admin.contentStudio.page.progressCreatorMarkdown", "Creator: generating markdown…"));
     try {
       toast.info(t("admin.contentStudio.toast.creatorRunning"));
       const res: any = await runSpecialist({ draftId: selectedDraftId, confirmOverwrite: force } as any);
@@ -1759,7 +1905,7 @@ export default function ContentStudioAdmin() {
       }
       toast.success(t("admin.contentStudio.toast.creatorGenerated"));
       setProgressPercent(40);
-      setProgressMessage("Creator finished.");
+      setProgressMessage(t("admin.contentStudio.page.progressCreatorFinished", "Creator finished."));
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.creatorFailed"));
     }
@@ -1776,14 +1922,18 @@ export default function ContentStudioAdmin() {
     if (!selectedDraftId) return;
     setRunningValidator(true);
     setProgressPercent(60);
-    setProgressMessage("Validator: checking structure…");
+    setProgressMessage(t("admin.contentStudio.page.progressValidatorChecking", "Validator: checking structure…"));
     try {
       toast.info(t("admin.contentStudio.toast.validatorRunning"));
       const res = await runValidate({ draftId: selectedDraftId });
       if (res.ok) toast.success(t("admin.contentStudio.toast.validatorPassed"));
       else toast.error(t("admin.contentStudio.toast.validatorFailedSeeFindings"));
       setProgressPercent(res?.ok ? 80 : 70);
-      setProgressMessage(res?.ok ? "Validator passed." : "Validator failed.");
+      setProgressMessage(
+        res?.ok
+          ? t("admin.contentStudio.page.progressValidatorPassed", "Validator passed.")
+          : t("admin.contentStudio.page.progressValidatorFailed", "Validator failed.")
+      );
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.validatorFailed"));
     }
@@ -1792,15 +1942,16 @@ export default function ContentStudioAdmin() {
     }
   };
 
-  const runGenerateFlow = async (force: boolean) => {
-    if (!selectedDraftId) return;
+  const runGenerateFlow = async (force: boolean, draftIdOverride?: string) => {
+    const targetDraftId = (draftIdOverride ?? selectedDraftId) as any;
+    if (!targetDraftId) return;
     setRunningCreateValidate(true);
     try {
       // Step 1: Creator
       toast.info(t("admin.contentStudio.toast.creatingContent"));
       setProgressPercent(10);
-      setProgressMessage("Creator: generating content…");
-      const specRes: any = await runSpecialist({ draftId: selectedDraftId, confirmOverwrite: force } as any);
+      setProgressMessage(t("admin.contentStudio.page.progressCreatorContent", "Creator: generating content…"));
+      const specRes: any = await runSpecialist({ draftId: targetDraftId, confirmOverwrite: force } as any);
       if (specRes?.needsConfirm) {
         setCreatorOverwriteConfirm({ mode: "generate", reason: String(specRes.reason || "existing_snapshot") });
         return;
@@ -1809,8 +1960,8 @@ export default function ContentStudioAdmin() {
       // Step 2: Validator (includes auto-fix)
       toast.info(t("admin.contentStudio.toast.validating"));
       setProgressPercent(60);
-      setProgressMessage("Validator: validating + autofix…");
-      const valRes = await runValidate({ draftId: selectedDraftId });
+      setProgressMessage(t("admin.contentStudio.page.progressValidatorAutofix", "Validator: validating + autofix…"));
+      const valRes = await runValidate({ draftId: targetDraftId });
       
       // Step 2b: Auto-Recovery for truncated Grammar
       // If validator found truncated Grammar, fix it automatically with section-based regeneration
@@ -1824,9 +1975,11 @@ export default function ContentStudioAdmin() {
         if (hasTruncatedGrammar) {
           toast.info(t("admin.contentStudio.toast.autoFixingGrammar"));
           setProgressPercent(70);
-          setProgressMessage("Auto-fix: regenerating Grammar section…");
+          setProgressMessage(
+            t("admin.contentStudio.page.progressAutofixGrammar", "Auto-fix: regenerating Grammar section…")
+          );
           await runSectionRevise({
-            draftId: selectedDraftId,
+            draftId: targetDraftId,
             sectionId: "grammar",
             instruction: "Complete the Grammar section with proper subsections (###) and detailed examples. Include at least 3 examples with Serbian + English translations for each grammar concept."
           });
@@ -1834,46 +1987,50 @@ export default function ContentStudioAdmin() {
           // Re-validate after fix
           toast.info(t("admin.contentStudio.toast.revalidatingAfterFix"));
           setProgressPercent(75);
-          setProgressMessage("Validator: re-validating after fix…");
-          const revalidateRes = await runValidate({ draftId: selectedDraftId });
+          setProgressMessage(
+            t("admin.contentStudio.page.progressRevalidating", "Validator: re-validating after fix…")
+          );
+          const revalidateRes = await runValidate({ draftId: targetDraftId });
           if (!revalidateRes.ok) {
             toast.error(t("admin.contentStudio.toast.validationStillFailedAfterAutofix"));
             setProgressPercent(75);
-            setProgressMessage("Validation failed after auto-fix.");
+            setProgressMessage(
+              t("admin.contentStudio.page.progressValidationFailedAfterAutofix", "Validation failed after auto-fix.")
+            );
             return;
           }
         } else {
           toast.error(t("admin.contentStudio.toast.validationFailedCheckFindings"));
           setProgressPercent(65);
-          setProgressMessage("Validation failed.");
+          setProgressMessage(t("admin.contentStudio.page.progressValidationFailed", "Validation failed."));
           return;
         }
       } else if (!valRes.ok) {
         toast.error(t("admin.contentStudio.toast.validationFailedCheckFindings"));
         setProgressPercent(65);
-        setProgressMessage("Validation failed.");
+        setProgressMessage(t("admin.contentStudio.page.progressValidationFailed", "Validation failed."));
         return;
       }
       
       // Step 3: Lector
       toast.info(t("admin.contentStudio.toast.runningLector"));
       setProgressPercent(85);
-      setProgressMessage("Lector: reviewing content…");
-      const lecRes = await runAuditor({ draftId: selectedDraftId });
+      setProgressMessage(t("admin.contentStudio.page.progressLectorReviewing", "Lector: reviewing content…"));
+      const lecRes = await runAuditor({ draftId: targetDraftId });
       
       if (lecRes.ok) {
         toast.success(t("admin.contentStudio.toast.doneReady"));
         setProgressPercent(100);
-        setProgressMessage("Done. Ready for preview.");
+        setProgressMessage(t("admin.contentStudio.page.progressDoneReadyPreview", "Done. Ready for preview."));
       } else {
         toast.warning(t("admin.contentStudio.toast.lectorFoundIssues"));
         setProgressPercent(92);
-        setProgressMessage("Lector found issues.");
+        setProgressMessage(t("admin.contentStudio.page.progressLectorFoundIssues", "Lector found issues."));
       }
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.generationFailed"));
       setProgressPercent(0);
-      setProgressMessage("Generation failed.");
+      setProgressMessage(t("admin.contentStudio.page.progressGenerationFailed", "Generation failed."));
     } finally {
       setRunningCreateValidate(false);
     }
@@ -1896,7 +2053,7 @@ export default function ContentStudioAdmin() {
   const runBatch = async (action: "generate" | "validate" | "preview") => {
     const ids = Array.from(new Set(batchSelectedDraftIds.map(String))).filter(Boolean);
     if (ids.length === 0) {
-      toast.error(t("admin.contentStudio.toast.noDraftsSelected"));
+      toast.error(t("admin.contentStudio.toast.noDraftsSelected", "No units selected"));
       return;
     }
     if (isBusy) {
@@ -1942,7 +2099,7 @@ export default function ContentStudioAdmin() {
               draftId: String(draftId),
               action,
               status: "failed",
-              message: "Skipped: draft has curated content (not overwritten)",
+              message: "Skipped: unit has curated content (not overwritten)",
             });
             continue;
           }
@@ -2041,9 +2198,9 @@ export default function ContentStudioAdmin() {
     }
     setRunningSectionRevise(true);
     setProgressPercent(70);
-    setProgressMessage("Applying section changes…");
+    setProgressMessage(t("admin.contentStudio.page.progressApplyingSectionChanges", "Applying section changes…"));
     try {
-      const sectionLabel = SECTION_OPTIONS.find((s) => s.value === expandSection)?.label || expandSection;
+      const sectionLabel = sectionLabelOf(expandSection);
       toast.info(t("admin.contentStudio.toast.applyingChanges", { section: sectionLabel }));
       const res = await runSectionRevise({
         draftId: selectedDraftId,
@@ -2054,7 +2211,7 @@ export default function ContentStudioAdmin() {
         toast.success(t("admin.contentStudio.toast.sectionUpdated", { section: sectionLabel }));
         setExpandInstruction(""); // Clear after success
         setProgressPercent(80);
-        setProgressMessage("Section updated. Validating…");
+        setProgressMessage(t("admin.contentStudio.page.progressSectionUpdatedValidating", "Section updated. Validating…"));
 
         // Validator runs as a separate action so the section revise call can return
         // before the client WebSocket times out (see runSectionRevise).
@@ -2066,28 +2223,34 @@ export default function ContentStudioAdmin() {
           if (valRes?.ok) {
             toast.success(t("admin.contentStudio.toast.validatorPassed"));
             setProgressPercent(100);
-            setProgressMessage("Section updated and validated.");
+            setProgressMessage(
+              t("admin.contentStudio.page.progressSectionUpdatedValidated", "Section updated and validated.")
+            );
           } else {
             toast.warning(t("admin.contentStudio.toast.validatorFailedSeeFindings"));
             setProgressPercent(90);
-            setProgressMessage("Section updated; validation found issues.");
+            setProgressMessage(
+              t("admin.contentStudio.page.progressSectionUpdatedIssues", "Section updated; validation found issues.")
+            );
           }
         } catch (valErr: any) {
           toast.error(valErr?.message || t("admin.contentStudio.toast.validatorFailed"));
           setProgressPercent(85);
-          setProgressMessage("Section updated; validation failed to run.");
+          setProgressMessage(
+            t("admin.contentStudio.page.progressSectionUpdatedValidationError", "Section updated; validation failed to run.")
+          );
         } finally {
           setRunningValidator(false);
         }
       } else {
         toast.error(t("admin.contentStudio.toast.changesFailed"));
         setProgressPercent(0);
-        setProgressMessage("Section update failed.");
+        setProgressMessage(t("admin.contentStudio.page.progressSectionUpdateFailed", "Section update failed."));
       }
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.sectionReviseFailed"));
       setProgressPercent(0);
-      setProgressMessage("Section update failed.");
+      setProgressMessage(t("admin.contentStudio.page.progressSectionUpdateFailed", "Section update failed."));
     } finally {
       setRunningSectionRevise(false);
     }
@@ -2103,11 +2266,19 @@ export default function ContentStudioAdmin() {
     try {
       const res = await adoptSectionsIntoBrief({ draftId: selectedDraftId });
       const labels = (res?.adoptedSections ?? [])
-        .map((s: SectionId) => SECTION_OPTIONS.find((o) => o.value === s)?.label || s)
+        .map((s: SectionId) => sectionLabelOf(s))
         .join(", ");
-      toast.success(t("admin.contentStudio.toast.changesAdopted", { sections: labels }));
+      toast.success(
+        t("admin.contentStudio.toast.changesAdopted", {
+          defaultValue:
+            "Changes adopted into the briefing ({{sections}}). A future full regeneration will build upon them.",
+          sections: labels,
+        })
+      );
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.sectionAdoptFailed"));
+      toast.error(
+        e?.message || t("admin.contentStudio.toast.sectionAdoptFailed", "Failed to adopt section into the briefing")
+      );
     } finally {
       setAdoptingChanges(false);
     }
@@ -2128,8 +2299,13 @@ export default function ContentStudioAdmin() {
     setRefusingSection(section);
     try {
       await refuseSectionRevisionMutation({ draftId: selectedDraftId, section });
-      const label = SECTION_OPTIONS.find((o) => o.value === section)?.label || section;
-      toast.success(t("admin.contentStudio.toast.sectionRefused", { section: label }));
+      const label = sectionLabelOf(section);
+      toast.success(
+        t("admin.contentStudio.toast.sectionRefused", {
+          defaultValue: '"{{section}}" reverted to its previous version. The briefing was not changed.',
+          section: label,
+        })
+      );
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.sectionRefuseFailed"));
     } finally {
@@ -2143,9 +2319,11 @@ export default function ContentStudioAdmin() {
     setBriefVersionBusy(true);
     try {
       await selectBriefVersionMutation({ draftId: selectedDraftId, versionId: versionId as any });
-      toast.success(t("admin.contentStudio.toast.briefVersionSelected"));
+      toast.success(t("admin.contentStudio.toast.briefVersionSelected", "Briefing version selected as status quo"));
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionSelectFailed"));
+      toast.error(
+        e?.message || t("admin.contentStudio.toast.briefVersionSelectFailed", "Failed to select briefing version")
+      );
     } finally {
       setBriefVersionBusy(false);
     }
@@ -2156,9 +2334,9 @@ export default function ContentStudioAdmin() {
     setBriefVersionBusy(true);
     try {
       await saveBriefVersionMutation({ draftId: selectedDraftId, label: label || undefined });
-      toast.success(t("admin.contentStudio.toast.briefVersionSaved"));
+      toast.success(t("admin.contentStudio.toast.briefVersionSaved", "Briefing version saved"));
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionSaveFailed"));
+      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionSaveFailed", "Failed to save briefing version"));
     } finally {
       setBriefVersionBusy(false);
     }
@@ -2167,9 +2345,11 @@ export default function ContentStudioAdmin() {
   const handleRenameBriefVersion = async (versionId: string, label: string) => {
     try {
       await nameBriefVersionMutation({ versionId: versionId as any, label });
-      toast.success(t("admin.contentStudio.toast.briefVersionRenamed"));
+      toast.success(t("admin.contentStudio.toast.briefVersionRenamed", "Briefing version renamed"));
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionRenameFailed"));
+      toast.error(
+        e?.message || t("admin.contentStudio.toast.briefVersionRenameFailed", "Failed to rename briefing version")
+      );
     }
   };
 
@@ -2177,9 +2357,11 @@ export default function ContentStudioAdmin() {
     setBriefVersionBusy(true);
     try {
       await deleteBriefVersionMutation({ versionId: versionId as any });
-      toast.success(t("admin.contentStudio.toast.briefVersionDeleted"));
+      toast.success(t("admin.contentStudio.toast.briefVersionDeleted", "Briefing version deleted"));
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.briefVersionDeleteFailed"));
+      toast.error(
+        e?.message || t("admin.contentStudio.toast.briefVersionDeleteFailed", "Failed to delete briefing version")
+      );
     } finally {
       setBriefVersionBusy(false);
     }
@@ -2217,7 +2399,12 @@ export default function ContentStudioAdmin() {
 
     setRunningTranslateDe(true);
     try {
-      toast.info(`Translating Unit ${unitNum} (SR → DE Preview)…`);
+      toast.info(
+        t("admin.contentStudio.toast.translatingUnitToDe", {
+          defaultValue: "Translating Unit {{unit}} (SR → DE preview)…",
+          unit: unitNum,
+        })
+      );
       const res = await translatePublishedUnitEnToDe({
         unitNumber: unitNum,
         confirm: translateDeConfirmation,
@@ -2229,14 +2416,32 @@ export default function ContentStudioAdmin() {
       const previewV = (res as any)?.previewUnitVersion;
       if (info?.contentInserted != null || info?.testsInserted != null || info?.vocabInserted != null) {
         toast.success(
-          `DE Preview created${previewV ? ` (v${previewV})` : ""}. Content: ${info.contentInserted ?? 0}, Tests: ${info.testsInserted ?? 0}, Vocabulary: ${info.vocabInserted ?? 0}.`
+          t("admin.contentStudio.toast.dePreviewCreatedStats", {
+            defaultValue: "DE preview created{{version}}. Content: {{content}}, Tests: {{tests}}, Vocabulary: {{vocab}}.",
+            version: previewV ? ` (v${previewV})` : "",
+            content: info.contentInserted ?? 0,
+            tests: info.testsInserted ?? 0,
+            vocab: info.vocabInserted ?? 0,
+          })
         );
       } else if (info?.contentUpserted != null || info?.testsUpserted != null || info?.vocabPatched != null) {
         toast.success(
-          `DE Preview created${previewV ? ` (v${previewV})` : ""}. Content: ${info.contentUpserted ?? 0}, Tests: ${info.testsUpserted ?? 0}, Vocabulary: ${info.vocabPatched ?? 0}.`
+          t("admin.contentStudio.toast.dePreviewCreatedStats", {
+            defaultValue: "DE preview created{{version}}. Content: {{content}}, Tests: {{tests}}, Vocabulary: {{vocab}}.",
+            version: previewV ? ` (v${previewV})` : "",
+            content: info.contentUpserted ?? 0,
+            tests: info.testsUpserted ?? 0,
+            vocab: info.vocabPatched ?? 0,
+          })
         );
       } else {
-        toast.success(`DE Preview created for Unit ${unitNum}${previewV ? ` (v${previewV})` : ""}.`);
+        toast.success(
+          t("admin.contentStudio.toast.dePreviewCreatedForUnit", {
+            defaultValue: "DE preview created for Unit {{unit}}{{version}}.",
+            unit: unitNum,
+            version: previewV ? ` (v${previewV})` : "",
+          })
+        );
       }
       showVerifierToast(res);
       window.open(`/unit/${unitNum}?lang=de`, "_blank", "noopener,noreferrer");
@@ -2252,7 +2457,7 @@ export default function ContentStudioAdmin() {
   const handleTranslateAnyUnitToGerman = async () => {
     const unitNum = translateAnyUnitNumberParsed;
     if (!unitNum) {
-      toast.error("Please select a valid unit.");
+      toast.error(t("admin.contentStudio.toast.selectValidUnit", "Please select a valid unit."));
       return;
     }
     const expected = `TRANSLATE UNIT ${unitNum} SR TO DE`;
@@ -2263,7 +2468,12 @@ export default function ContentStudioAdmin() {
 
     setRunningTranslateDe(true);
     try {
-      toast.info(`Translating Unit ${unitNum} (SR → DE Preview)…`);
+      toast.info(
+        t("admin.contentStudio.toast.translatingUnitToDe", {
+          defaultValue: "Translating Unit {{unit}} (SR → DE preview)…",
+          unit: unitNum,
+        })
+      );
       const res = await translatePublishedUnitEnToDe({
         unitNumber: unitNum,
         confirm: translateAnyConfirmation,
@@ -2275,14 +2485,32 @@ export default function ContentStudioAdmin() {
       const previewV = (res as any)?.previewUnitVersion;
       if (info?.contentInserted != null || info?.testsInserted != null || info?.vocabInserted != null) {
         toast.success(
-          `DE Preview created${previewV ? ` (v${previewV})` : ""}. Content: ${info.contentInserted ?? 0}, Tests: ${info.testsInserted ?? 0}, Vocabulary: ${info.vocabInserted ?? 0}.`
+          t("admin.contentStudio.toast.dePreviewCreatedStats", {
+            defaultValue: "DE preview created{{version}}. Content: {{content}}, Tests: {{tests}}, Vocabulary: {{vocab}}.",
+            version: previewV ? ` (v${previewV})` : "",
+            content: info.contentInserted ?? 0,
+            tests: info.testsInserted ?? 0,
+            vocab: info.vocabInserted ?? 0,
+          })
         );
       } else if (info?.contentUpserted != null || info?.testsUpserted != null || info?.vocabPatched != null) {
         toast.success(
-          `DE Preview created${previewV ? ` (v${previewV})` : ""}. Content: ${info.contentUpserted ?? 0}, Tests: ${info.testsUpserted ?? 0}, Vocabulary: ${info.vocabPatched ?? 0}.`
+          t("admin.contentStudio.toast.dePreviewCreatedStats", {
+            defaultValue: "DE preview created{{version}}. Content: {{content}}, Tests: {{tests}}, Vocabulary: {{vocab}}.",
+            version: previewV ? ` (v${previewV})` : "",
+            content: info.contentUpserted ?? 0,
+            tests: info.testsUpserted ?? 0,
+            vocab: info.vocabPatched ?? 0,
+          })
         );
       } else {
-        toast.success(`DE Preview created for Unit ${unitNum}${previewV ? ` (v${previewV})` : ""}.`);
+        toast.success(
+          t("admin.contentStudio.toast.dePreviewCreatedForUnit", {
+            defaultValue: "DE preview created for Unit {{unit}}{{version}}.",
+            unit: unitNum,
+            version: previewV ? ` (v${previewV})` : "",
+          })
+        );
       }
       showVerifierToast(res);
       setTranslateDeResult({
@@ -2306,7 +2534,12 @@ export default function ContentStudioAdmin() {
     const expected = `TRANSLATE UNIT ${unitNum} SR TO DE`;
     setRunningTranslateDe(true);
     try {
-      toast.info(`Publishing DE translation for Unit ${unitNum} live…`);
+      toast.info(
+        t("admin.contentStudio.toast.publishingDeTranslation", {
+          defaultValue: "Publishing DE translation for Unit {{unit}} live…",
+          unit: unitNum,
+        })
+      );
       // First take preview offline (clean up preview rows)
       await takeUnitPreviewOfflineByUnitNumber({ unitNumber: unitNum } as any);
       // Then write as published
@@ -2316,7 +2549,12 @@ export default function ContentStudioAdmin() {
         preferredProvider: cfgSpecialistProvider,
         targetReleaseStatus: "published",
       } as any);
-      toast.success(`DE translation for Unit ${unitNum} published live.`);
+      toast.success(
+        t("admin.contentStudio.toast.deTranslationPublished", {
+          defaultValue: "DE translation for Unit {{unit}} published live.",
+          unit: unitNum,
+        })
+      );
       showVerifierToast(publishRes);
       setTranslateDeResult(null);
     } catch (e: any) {
@@ -2329,16 +2567,32 @@ export default function ContentStudioAdmin() {
   const handleTakeUnitPreviewOfflineForAny = async () => {
     const unitNum = translateAnyUnitNumberParsed;
     if (!unitNum) {
-      toast.error("Please select a valid unit.");
+      toast.error(t("admin.contentStudio.toast.selectValidUnit", "Please select a valid unit."));
       return;
     }
     setCreatingPreview(true);
     try {
-      toast.info(`Taking preview offline for Unit ${unitNum}…`);
+      toast.info(
+        t("admin.contentStudio.toast.takingPreviewOfflineForUnit", {
+          defaultValue: "Taking preview offline for Unit {{unit}}…",
+          unit: unitNum,
+        })
+      );
       await takeUnitPreviewOfflineByUnitNumber({ unitNumber: unitNum } as any);
-      toast.success(`Preview taken offline for Unit ${unitNum}.`);
+      toast.success(
+        t("admin.contentStudio.toast.previewTakenOfflineForUnit", {
+          defaultValue: "Preview taken offline for Unit {{unit}}.",
+          unit: unitNum,
+        })
+      );
     } catch (e: any) {
-      toast.error(e?.message || `Failed to take preview offline for Unit ${unitNum}.`);
+      toast.error(
+        e?.message ||
+          t("admin.contentStudio.toast.previewOfflineFailedForUnit", {
+            defaultValue: "Failed to take preview offline for Unit {{unit}}.",
+            unit: unitNum,
+          })
+      );
     } finally {
       setCreatingPreview(false);
     }
@@ -2377,6 +2631,9 @@ export default function ContentStudioAdmin() {
         onCreateSkill={handleCreateSkill}
         onEditSkill={handleEditSkill}
         onDeactivateSkill={handleDeactivateSkill}
+        inactiveStageSkills={inactiveStageSkills}
+        onReactivateSkill={handleReactivateSkill}
+        onDeleteSkill={handleDeleteSkill}
         refs={refs}
         newRefType={newRefType}
         setNewRefType={setNewRefType}
@@ -2432,19 +2689,25 @@ export default function ContentStudioAdmin() {
       {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold leading-tight">Content Studio</h1>
+          <h1 className="text-2xl font-bold leading-tight">{t("admin.contentStudio.page.title", "Content Studio")}</h1>
           <div className="text-sm text-muted-foreground">
             {studioView === "draftManager"
-              ? "Create and configure drafts (skills, reference, brief)"
+              ? t(
+                  "admin.contentStudio.page.subtitleUnits",
+                  "Create and configure units (house style, reference, briefing)"
+                )
               : studioView === "drafts"
-                ? "Generate \u2192 QA \u2192 Preview \u2192 Publish"
+                ? t("admin.contentStudio.page.subtitleGenerator", "Generate \u2192 QA \u2192 Preview \u2192 Publish")
                 : studioView === "modules"
-                  ? "Create, edit and translate course modules"
+                  ? t("admin.contentStudio.page.subtitleModules", "Create, edit and translate course modules")
                   : studioView === "audioFiles"
-                  ? "Manage audio files across modules and units"
+                  ? t("admin.contentStudio.page.subtitleAudioFiles", "Manage audio files across modules and units")
                   : studioView === "validatorMemory"
-                  ? "Content Studio Memory: kuratierte Lehren aus behobenen Findings"
-                  : "Manage all units across languages"}
+                  ? t(
+                      "admin.contentStudio.page.subtitleValidatorMemory",
+                      "Validator memory: curated lessons from resolved findings"
+                    )
+                  : t("admin.contentStudio.page.subtitleUnitManager", "Manage all units across languages")}
           </div>
         </div>
 
@@ -2458,7 +2721,7 @@ export default function ContentStudioAdmin() {
               onClick={() => setStudioView("draftManager")}
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Drafts
+              {t("admin.contentStudio.page.tabUnits", "Units in progress")}
             </Button>
             <Button
               variant={studioView === "drafts" ? "default" : "ghost"}
@@ -2467,7 +2730,7 @@ export default function ContentStudioAdmin() {
               onClick={() => setStudioView("drafts")}
             >
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-              Generator
+              {t("admin.contentStudio.page.tabGenerator", "Generator")}
             </Button>
             <Button
               variant={studioView === "modules" ? "default" : "ghost"}
@@ -2476,7 +2739,7 @@ export default function ContentStudioAdmin() {
               onClick={() => setStudioView("modules")}
             >
               <FolderTree className="mr-1.5 h-3.5 w-3.5" />
-              Modules
+              {t("admin.contentStudio.page.tabModules", "Modules")}
             </Button>
             <Button
               variant={studioView === "units" ? "default" : "ghost"}
@@ -2485,7 +2748,7 @@ export default function ContentStudioAdmin() {
               onClick={() => setStudioView("units")}
             >
               <LayoutList className="mr-1.5 h-3.5 w-3.5" />
-              Unit Manager
+              {t("admin.contentStudio.page.tabUnitManager", "Unit manager")}
             </Button>
             <Button
               variant={studioView === "audioFiles" ? "default" : "ghost"}
@@ -2494,7 +2757,7 @@ export default function ContentStudioAdmin() {
               onClick={() => setStudioView("audioFiles")}
             >
               <Volume2 className="mr-1.5 h-3.5 w-3.5" />
-              Audio Files
+              {t("admin.contentStudio.page.tabAudioFiles", "Audio files")}
             </Button>
             <Button
               variant={studioView === "validatorMemory" ? "default" : "ghost"}
@@ -2503,18 +2766,18 @@ export default function ContentStudioAdmin() {
               onClick={() => setStudioView("validatorMemory")}
             >
               <Brain className="mr-1.5 h-3.5 w-3.5" />
-              Memory
+              {t("admin.contentStudio.page.tabValidatorMemory", "Validator memory")}
             </Button>
           </div>
           <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
             <Settings className="mr-2 h-4 w-4" />
-            Settings
+            {t("admin.contentStudio.page.settings", "Settings")}
           </Button>
         </div>
       </div>
 
       {/* Modules view */}
-      {studioView === "modules" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyModulesTab /></Suspense>}
+      {studioView === "modules" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">{t("admin.contentStudio.page.loading", "Loading...")}</div>}><LazyModulesTab /></Suspense>}
 
       {/* Unit Manager view */}
       {studioView === "units" && (
@@ -2527,10 +2790,10 @@ export default function ContentStudioAdmin() {
       )}
 
       {/* Audio Files view */}
-      {studioView === "audioFiles" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyAudioFilesTab /></Suspense>}
+      {studioView === "audioFiles" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">{t("admin.contentStudio.page.loading", "Loading...")}</div>}><LazyAudioFilesTab /></Suspense>}
 
       {/* Validator Memory view */}
-      {studioView === "validatorMemory" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}><LazyValidatorMemoryPanel /></Suspense>}
+      {studioView === "validatorMemory" && <Suspense fallback={<div className="p-8 text-center text-muted-foreground">{t("admin.contentStudio.page.loading", "Loading...")}</div>}><LazyValidatorMemoryPanel /></Suspense>}
 
       {/* Draft Manager view */}
       {studioView === "draftManager" && (() => {
@@ -2549,7 +2812,7 @@ export default function ContentStudioAdmin() {
             onDeleteDraft={async (draftId) => {
               await deleteDraft({ draftId: draftId as any });
               if (selectedDraftId === draftId) { setIsDraftCreateMode(false); setSelectedDraftId(null); }
-              toast.success(t("admin.contentStudio.toast.draftDeleted"));
+              toast.success(t("admin.contentStudio.toast.draftDeleted", "Unit deleted"));
             }}
             activeBriefVersionSummary={activeBriefVersionSummary}
           />
@@ -2565,10 +2828,15 @@ export default function ContentStudioAdmin() {
             initialCreate={pendingDraftCreate ?? undefined}
             onCreateDraft={async (params) => {
               try {
-                await handleCreateDraft(params);
+                const { generateAfterCreate, ...createParams } = params;
+                const id = await handleCreateDraft(createParams);
                 setPendingDraftCreate(null);
+                if (generateAfterCreate && id) {
+                  setStudioView("drafts");
+                  await runGenerateFlow(false, String(id));
+                }
               } catch (e: any) {
-                toast.error(e?.message || t("admin.contentStudio.toast.draftCreateFailed"));
+                toast.error(e?.message || t("admin.contentStudio.toast.draftCreateFailed", "Failed to create unit"));
               }
             }}
             selected={selected}
@@ -2603,7 +2871,8 @@ export default function ContentStudioAdmin() {
             setDraftSpecialistSkillIds={setDraftSpecialistSkillIds}
             draftAuditorSkillIds={draftAuditorSkillIds}
             setDraftAuditorSkillIds={setDraftAuditorSkillIds}
-            onSaveDraftSkillsAndReference={handleSaveDraftSkillsAndReference}
+            onSaveDraftSkillsAndReference={() => { void handleSaveDraftSkillsAndReference(); }}
+            onSaveAndGenerate={handleSaveAndGenerate}
             hasUnsavedChanges={hasUnsavedChanges}
             metaAutosaveStatus={metaAutosaveStatus}
             metaAutosavedAt={metaAutosavedAt}
@@ -2657,7 +2926,7 @@ export default function ContentStudioAdmin() {
             onDeleteDraft={async (draftId) => {
               await deleteDraft({ draftId: draftId as any });
               if (selectedDraftId === draftId) { setIsDraftCreateMode(false); setSelectedDraftId(null); }
-              toast.success(t("admin.contentStudio.toast.draftDeleted"));
+              toast.success(t("admin.contentStudio.toast.draftDeleted", "Unit deleted"));
             }}
             activeBriefVersionSummary={activeBriefVersionSummary}
           />
@@ -2742,14 +3011,14 @@ export default function ContentStudioAdmin() {
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             {!selectedDraftId || !selected?.draft ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm">
-                <span>Select a draft from the sidebar to start generating.</span>
+                <span>{t("admin.contentStudio.page.selectUnitHint", "Select a unit from the sidebar to start generating.")}</span>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setStudioView("draftManager")}
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Go to Drafts Manager
+                  {t("admin.contentStudio.page.goToUnits", "Go to units in progress")}
                 </Button>
                 <Button
                   size="sm"
@@ -2758,7 +3027,7 @@ export default function ContentStudioAdmin() {
                   onClick={() => setMobileSidebarOpen(true)}
                 >
                   <PanelLeft className="h-4 w-4 mr-2" />
-                  Open Drafts
+                  {t("admin.contentStudio.page.openUnitList", "Open unit list")}
                 </Button>
               </div>
             ) : (
@@ -2778,11 +3047,15 @@ export default function ContentStudioAdmin() {
                       U{selected.draft.unitNumber}: {selected.draft.title}
                     </span>
                     <DraftStatusBadge status={selected.draft.status} />
-                    {hasUnsavedChanges && <Badge variant="secondary" className="text-[10px]">Unsaved</Badge>}
+                    {hasUnsavedChanges && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {t("admin.contentStudio.page.unsavedBadge", "Unsaved")}
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Button size="sm" variant="outline" onClick={() => setStudioView("draftManager")} disabled={isBusy}>
-                      Edit Draft
+                      {t("admin.contentStudio.page.editUnit", "Edit unit")}
                     </Button>
                     {inspectorContent && (
                       <Button
@@ -2802,9 +3075,9 @@ export default function ContentStudioAdmin() {
                   {(["generate", "review", "createPreview"] as InspectorStep[]).map((step, idx) => {
                     const isActive = step === activeInspectorStep;
                     const stepLabels: Record<InspectorStep, string> = {
-                      generate: "1. Generate",
-                      review: "2. Review",
-                      createPreview: "3. Preview",
+                      generate: t("admin.contentStudio.page.step1Generate", "1. Generate"),
+                      review: t("admin.contentStudio.page.step2Review", "2. Review"),
+                      createPreview: t("admin.contentStudio.page.step3Preview", "3. Preview"),
                     };
                     return (
                       <Fragment key={step}>
@@ -2909,13 +3182,16 @@ export default function ContentStudioAdmin() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Quality Guard: EN = DE Cognate?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("admin.contentStudio.page.cognateDialogTitle", "Quality guard: EN = DE cognate?")}
+            </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  Der Übersetzer-Guard hat folgende Prompt(s) als „noch Englisch“ markiert.
-                  Wenn das im Deutschen korrekt identisch bleibt (z.B. orange, hotel), kannst du
-                  sie als Cognate akzeptieren und die Übersetzung erneut starten.
+                  {t(
+                    "admin.contentStudio.page.cognateDialogBody",
+                    "The translator guard flagged the following prompt(s) as still English. If they are legitimately identical in German (e.g. orange, hotel), you can accept them as cognates and restart the translation."
+                  )}
                 </p>
                 <ul className="list-disc pl-5 font-mono text-foreground">
                   {(cognateAcceptPrompt?.terms ?? []).map((t) => (
@@ -2931,7 +3207,9 @@ export default function ContentStudioAdmin() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cognateAcceptBusy}>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel disabled={cognateAcceptBusy}>
+              {t("admin.contentStudio.page.cancel", "Cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={cognateAcceptBusy}
               onClick={(e) => {
@@ -2939,7 +3217,9 @@ export default function ContentStudioAdmin() {
                 void handleAcceptCognatesAndRetry();
               }}
             >
-              {cognateAcceptBusy ? "Speichert…" : "Passt so — speichern & erneut übersetzen"}
+              {cognateAcceptBusy
+                ? t("admin.contentStudio.page.saving", "Saving…")
+                : t("admin.contentStudio.page.cognateAcceptAndRetry", "Accept, save & translate again")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2953,14 +3233,23 @@ export default function ContentStudioAdmin() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Creator neu ausführen — kuratierte Inhalte überschreiben?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("admin.contentStudio.page.overwriteDialogTitle", "Run Creator again — overwrite curated content?")}
+            </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  Dieser Draft hat bereits einen Snapshot (Section-Edits bzw. manuelle
-                  Markdown-Änderungen). Ein kompletter Neu-Bau durch den Creator{" "}
-                  <strong>verwirft alle Snapshot-Änderungen, die nicht ins Briefing übernommen wurden</strong>{" "}
-                  und generiert diese Teile neu aus dem Brief.
+                  {t(
+                    "admin.contentStudio.page.overwriteDialogBody1",
+                    "This unit already has a draft (section edits or manual markdown changes). A full rebuild by the Creator"
+                  )}{" "}
+                  <strong>
+                    {t(
+                      "admin.contentStudio.page.overwriteDialogBodyStrong",
+                      "discards all draft changes that were not adopted into the briefing"
+                    )}
+                  </strong>{" "}
+                  {t("admin.contentStudio.page.overwriteDialogBody2", "and regenerates those parts from the briefing.")}
                 </p>
                 {(() => {
                   const curatedCount = ((selected as any)?.draft?.curatedSections as
@@ -2970,34 +3259,54 @@ export default function ContentStudioAdmin() {
                   return curatedCount > 0 ? (
                     <p>
                       <strong>
-                        {curatedCount} {curatedCount === 1 ? "bereits ins Briefing übernommene Section" : "bereits ins Briefing übernommene Sections"}
+                        {curatedCount === 1
+                          ? t("admin.contentStudio.page.overwriteCuratedOne", {
+                              defaultValue: "{{n}} section already adopted into the briefing",
+                              n: curatedCount,
+                            })
+                          : t("admin.contentStudio.page.overwriteCuratedMany", {
+                              defaultValue: "{{n}} sections already adopted into the briefing",
+                              n: curatedCount,
+                            })}
                       </strong>{" "}
-                      {curatedCount === 1 ? "bleibt" : "bleiben"} erhalten: Der Creator baut darauf auf
-                      (verfeinert ggf. Formulierung), verwirft sie nicht.
+                      {curatedCount === 1
+                        ? t(
+                            "admin.contentStudio.page.overwriteCuratedKeptOne",
+                            "is kept: the Creator builds on it (may refine wording) and does not discard it."
+                          )
+                        : t(
+                            "admin.contentStudio.page.overwriteCuratedKeptMany",
+                            "are kept: the Creator builds on them (may refine wording) and does not discard them."
+                          )}
                     </p>
                   ) : null;
                 })()}
                 {creatorOverwriteConfirm?.reason === "approved_or_published" ? (
                   <p className="text-amber-600 dark:text-amber-400 font-medium">
-                    Achtung: Dieser Draft wurde bereits freigegeben/veröffentlicht.
+                    {t(
+                      "admin.contentStudio.page.overwriteApprovedWarning",
+                      "Warning: this unit has already been approved or published."
+                    )}
                   </p>
                 ) : null}
                 <p>
-                  Für gezielte Anpassungen nutze stattdessen „Edit Content" (Section-Revise) oder
-                  „Revise" – oder übernimm die betroffene Section vorher im Rendered-Tab ins Briefing.
+                  {t(
+                    "admin.contentStudio.page.overwriteDialogHint",
+                    "For targeted changes use \"Edit content\" (section revise) or \"Revise\" instead — or adopt the affected section into the briefing first in the Rendered tab."
+                  )}
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel>{t("admin.contentStudio.page.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
                 void confirmCreatorOverwrite();
               }}
             >
-              Trotzdem neu generieren
+              {t("admin.contentStudio.page.overwriteConfirm", "Regenerate anyway")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -3011,26 +3320,32 @@ export default function ContentStudioAdmin() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Section-Revise verwerfen?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("admin.contentStudio.page.refuseDialogTitle", "Discard section revision?")}
+            </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>
                   <strong>
-                    {SECTION_OPTIONS.find((o) => o.value === refuseSectionConfirm)?.label ||
-                      refuseSectionConfirm}
+                    {sectionLabelOf(refuseSectionConfirm ?? "")}
                   </strong>{" "}
-                  wird im Markdown auf die Version vor dieser Revision zurückgesetzt — nur dieser
-                  eine Schritt wird verworfen, ältere Revisionen derselben Section bleiben
-                  unberührt.
+                  {t(
+                    "admin.contentStudio.page.refuseDialogBody",
+                    "will be reset in the markdown to the version before this revision — only this one step is discarded, older revisions of the same section stay untouched."
+                  )}
                 </p>
                 <p>
-                  Das Briefing (curatedSections) wird dabei <strong>nicht</strong> verändert.
+                  {t("admin.contentStudio.page.refuseDialogBriefing1", "The briefing (curatedSections) is")}{" "}
+                  <strong>{t("admin.contentStudio.page.refuseDialogBriefingNot", "not")}</strong>{" "}
+                  {t("admin.contentStudio.page.refuseDialogBriefing2", "changed.")}
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={refusingSection !== null}>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel disabled={refusingSection !== null}>
+              {t("admin.contentStudio.page.cancel", "Cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={refusingSection !== null}
               onClick={(e) => {
@@ -3038,7 +3353,9 @@ export default function ContentStudioAdmin() {
                 void confirmRefuseSection();
               }}
             >
-              {refusingSection ? "Wird zurückgesetzt…" : "Verwerfen & zurücksetzen"}
+              {refusingSection
+                ? t("admin.contentStudio.page.refuseInProgress", "Resetting…")
+                : t("admin.contentStudio.page.refuseConfirm", "Discard & reset")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

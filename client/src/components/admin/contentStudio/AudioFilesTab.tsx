@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ type AudioModule = {
 };
 
 export function AudioFilesTab() {
+  const { t } = useTranslation();
   const modulesData = useQuery(api.audioAdmin.listModulesWithAudioStats);
   const deleteVocabAudio = useMutation(api.audioAdmin.deleteSingleVocabularyAudio);
   const deleteContentAudio = useMutation(api.audioAdmin.deleteSingleContentAudio);
@@ -63,7 +65,7 @@ export function AudioFilesTab() {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-        Loading audio data...
+        {t("admin.contentStudio.audio.loading", "Loading audio data...")}
       </div>
     );
   }
@@ -76,9 +78,9 @@ export function AudioFilesTab() {
     setDeletingIds((prev) => new Set(prev).add(key));
     try {
       await deleteVocabAudio({ vocabularyId: id });
-      toast.success(`Deleted audio for "${serbian}"`);
+      toast.success(t("admin.contentStudio.audio.deletedFor", { defaultValue: "Deleted audio for \"{{text}}\"", text: serbian }));
     } catch (e: any) {
-      toast.error(e.message ?? "Failed to delete audio");
+      toast.error(e.message ?? t("admin.contentStudio.audio.deleteFailed", "Failed to delete audio"));
     } finally {
       setDeletingIds((prev) => {
         const next = new Set(prev);
@@ -93,9 +95,11 @@ export function AudioFilesTab() {
     setDeletingIds((prev) => new Set(prev).add(key));
     try {
       await deleteContentAudio({ audioId: id });
-      toast.success(`Deleted audio for "${text.slice(0, 40)}..."`);
+      toast.success(
+        t("admin.contentStudio.audio.deletedFor", { defaultValue: "Deleted audio for \"{{text}}\"", text: `${text.slice(0, 40)}...` }),
+      );
     } catch (e: any) {
-      toast.error(e.message ?? "Failed to delete audio");
+      toast.error(e.message ?? t("admin.contentStudio.audio.deleteFailed", "Failed to delete audio"));
     } finally {
       setDeletingIds((prev) => {
         const next = new Set(prev);
@@ -111,12 +115,17 @@ export function AudioFilesTab() {
     try {
       const result = await deleteAllForUnit({ unitNumber: deleteAllDialog.unitNumber });
       toast.success(
-        `Unit ${result.unitNumber}: ${result.vocabDeleted} vocab + ${result.contentDeleted} content audio deleted`
+        t("admin.contentStudio.audio.deletedAllForUnit", {
+          defaultValue: "Unit {{n}}: {{vocab}} vocabulary + {{content}} content audio files deleted",
+          n: result.unitNumber,
+          vocab: result.vocabDeleted,
+          content: result.contentDeleted,
+        }),
       );
       setDeleteAllDialog(null);
       setDeleteAllConfirm("");
     } catch (e: any) {
-      toast.error(e.message ?? "Failed to delete audio for unit");
+      toast.error(e.message ?? t("admin.contentStudio.audio.deleteAllFailed", "Failed to delete audio for unit"));
     } finally {
       setDeletingAllUnit(null);
     }
@@ -128,7 +137,9 @@ export function AudioFilesTab() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Audio Files</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t("admin.contentStudio.audio.totalFiles", "Total audio files")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalVocab + totalContent}</div>
@@ -138,7 +149,7 @@ export function AudioFilesTab() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                <Volume2 className="h-3.5 w-3.5" /> Vocabulary Audio
+                <Volume2 className="h-3.5 w-3.5" /> {t("admin.contentStudio.audio.vocabularyAudio", "Vocabulary audio")}
               </span>
             </CardTitle>
           </CardHeader>
@@ -150,13 +161,15 @@ export function AudioFilesTab() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                <MessageSquare className="h-3.5 w-3.5" /> Content Audio
+                <MessageSquare className="h-3.5 w-3.5" /> {t("admin.contentStudio.audio.contentAudio", "Content audio")}
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalContent}</div>
-            <p className="text-xs text-muted-foreground mt-1">Phrases & Dialogues</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("admin.contentStudio.audio.phrasesAndDialogues", "Phrases & dialogues")}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -184,7 +197,9 @@ export function AudioFilesTab() {
             </AccordionTrigger>
             <AccordionContent>
               {mod.units.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">No units in this module.</p>
+                <p className="text-sm text-muted-foreground py-2">
+                  {t("admin.contentStudio.audio.noUnitsInModule", "No units in this module.")}
+                </p>
               ) : (
                 <Accordion type="single" collapsible className="space-y-1">
                   {mod.units.map((unit: AudioUnit) => {
@@ -201,7 +216,11 @@ export function AudioFilesTab() {
                         >
                           <div className="flex items-center gap-3 w-full">
                             <span className="text-sm font-medium">
-                              Unit {unit.unitNumber}: {unit.title}
+                              {t("admin.contentStudio.audio.unitLabel", {
+                                defaultValue: "Unit {{n}}: {{title}}",
+                                n: unit.unitNumber,
+                                title: unit.title,
+                              })}
                             </span>
                             <div className="flex items-center gap-2 ml-auto mr-4">
                               <Badge variant="outline" className="text-[11px]">
@@ -217,7 +236,9 @@ export function AudioFilesTab() {
                         </AccordionTrigger>
                         <AccordionContent className="pt-2">
                           {unitAudioTotal === 0 ? (
-                            <p className="text-sm text-muted-foreground py-2">No audio files for this unit.</p>
+                            <p className="text-sm text-muted-foreground py-2">
+                              {t("admin.contentStudio.audio.noFilesForUnit", "No audio files for this unit.")}
+                            </p>
                           ) : (
                             <UnitAudioDetail
                               unitNumber={unit.unitNumber}
@@ -247,17 +268,33 @@ export function AudioFilesTab() {
       <Dialog open={!!deleteAllDialog} onOpenChange={(open) => { if (!open) { setDeleteAllDialog(null); setDeleteAllConfirm(""); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete All Audio for Unit {deleteAllDialog?.unitNumber}</DialogTitle>
+            <DialogTitle>
+              {t("admin.contentStudio.audio.deleteAllTitle", {
+                defaultValue: "Delete all audio for unit {{n}}",
+                n: deleteAllDialog?.unitNumber,
+              })}
+            </DialogTitle>
             <DialogDescription>
-              This will permanently delete all vocabulary audio and content audio (phrases/dialogues)
-              for <strong>Unit {deleteAllDialog?.unitNumber}: {deleteAllDialog?.title}</strong>.
-              Audio files will be regenerated on next playback.
+              {t(
+                "admin.contentStudio.audio.deleteAllDescriptionPrefix",
+                "This will permanently delete all vocabulary audio and content audio (phrases/dialogues) for",
+              )}{" "}
+              <strong>
+                {t("admin.contentStudio.audio.unitLabel", {
+                  defaultValue: "Unit {{n}}: {{title}}",
+                  n: deleteAllDialog?.unitNumber,
+                  title: deleteAllDialog?.title,
+                })}
+              </strong>
+              . {t("admin.contentStudio.audio.regeneratedOnPlayback", "Audio files will be regenerated on next playback.")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
               <p className="text-sm mb-2">
-                Type <strong>DELETE UNIT {deleteAllDialog?.unitNumber}</strong> to confirm:
+                {t("admin.contentStudio.audio.typeToConfirmPrefix", "Type")}{" "}
+                <strong>DELETE UNIT {deleteAllDialog?.unitNumber}</strong>{" "}
+                {t("admin.contentStudio.audio.typeToConfirmSuffix", "to confirm:")}
               </p>
               <Input
                 value={deleteAllConfirm}
@@ -269,10 +306,10 @@ export function AudioFilesTab() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="outline" onClick={() => { setDeleteAllDialog(null); setDeleteAllConfirm(""); }}>
-                    Cancel
+                    {t("admin.contentStudio.audio.cancel", "Cancel")}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Abort without deleting anything</TooltipContent>
+                <TooltipContent>{t("admin.contentStudio.audio.cancelTooltip", "Abort without deleting anything")}</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -285,13 +322,18 @@ export function AudioFilesTab() {
                     onClick={handleDeleteAllForUnit}
                   >
                     {deletingAllUnit !== null ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</>
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("admin.contentStudio.audio.deleting", "Deleting...")}</>
                     ) : (
-                      <><Trash2 className="mr-2 h-4 w-4" /> Delete All Audio</>
+                      <><Trash2 className="mr-2 h-4 w-4" /> {t("admin.contentStudio.audio.deleteAll", "Delete all audio")}</>
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Permanently remove all audio files from storage and database for this unit</TooltipContent>
+                <TooltipContent>
+                  {t(
+                    "admin.contentStudio.audio.deleteAllConfirmTooltip",
+                    "Permanently remove all audio files from storage and database for this unit",
+                  )}
+                </TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -320,10 +362,11 @@ function UnitAudioDetail({
   onDeleteContent: (id: Id<"unitContentAudio">, text: string) => void;
   onDeleteAll: () => void;
 }) {
+  const { t } = useTranslation();
   if (!data) {
     return (
       <div className="flex items-center gap-2 py-4 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading audio entries...
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("admin.contentStudio.audio.loadingEntries", "Loading audio entries...")}
       </div>
     );
   }
@@ -344,13 +387,21 @@ function UnitAudioDetail({
                 disabled={deletingAllUnit === unitNumber}
               >
                 {deletingAllUnit === unitNumber ? (
-                  <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Deleting...</>
+                  <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> {t("admin.contentStudio.audio.deleting", "Deleting...")}</>
                 ) : (
-                  <><Trash2 className="mr-2 h-3.5 w-3.5" /> Delete All Audio for Unit {unitNumber}</>
+                  <>
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />{" "}
+                    {t("admin.contentStudio.audio.deleteAllTitle", { defaultValue: "Delete all audio for unit {{n}}", n: unitNumber })}
+                  </>
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Permanently delete all vocab and content audio for this unit. Files will be regenerated on next playback.</TooltipContent>
+            <TooltipContent>
+              {t(
+                "admin.contentStudio.audio.deleteAllTooltip",
+                "Permanently delete all vocabulary and content audio for this unit. Files will be regenerated on next playback.",
+              )}
+            </TooltipContent>
           </Tooltip>
         </div>
       )}
@@ -360,15 +411,18 @@ function UnitAudioDetail({
         <div>
           <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
             <Volume2 className="h-4 w-4" />
-            Vocabulary Audio ({data.vocabAudio.length})
+            {t("admin.contentStudio.audio.vocabularyAudioWithCount", {
+              defaultValue: "Vocabulary audio ({{n}})",
+              n: data.vocabAudio.length,
+            })}
           </h4>
           <div className="rounded-md border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left px-3 py-2 font-medium">Serbian</th>
-                  <th className="text-left px-3 py-2 font-medium">English</th>
-                  <th className="text-right px-3 py-2 font-medium w-24">Action</th>
+                  <th className="text-left px-3 py-2 font-medium">{t("admin.contentStudio.audio.colSerbian", "Serbian")}</th>
+                  <th className="text-left px-3 py-2 font-medium">{t("admin.contentStudio.audio.colEnglish", "English")}</th>
+                  <th className="text-right px-3 py-2 font-medium w-24">{t("admin.contentStudio.audio.colAction", "Action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -395,7 +449,12 @@ function UnitAudioDetail({
                               )}
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Delete audio for this word. A new file will be generated on next playback.</TooltipContent>
+                          <TooltipContent>
+                            {t(
+                              "admin.contentStudio.audio.deleteWordTooltip",
+                              "Delete audio for this word. A new file will be generated on next playback.",
+                            )}
+                          </TooltipContent>
                         </Tooltip>
                       </td>
                     </tr>
@@ -412,16 +471,19 @@ function UnitAudioDetail({
         <div>
           <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
-            Content Audio ({data.contentAudio.length})
+            {t("admin.contentStudio.audio.contentAudioWithCount", {
+              defaultValue: "Content audio ({{n}})",
+              n: data.contentAudio.length,
+            })}
           </h4>
           <div className="rounded-md border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left px-3 py-2 font-medium">Type</th>
-                  <th className="text-left px-3 py-2 font-medium">Serbian Text</th>
-                  <th className="text-left px-3 py-2 font-medium">Voice</th>
-                  <th className="text-right px-3 py-2 font-medium w-24">Action</th>
+                  <th className="text-left px-3 py-2 font-medium">{t("admin.contentStudio.audio.colType", "Type")}</th>
+                  <th className="text-left px-3 py-2 font-medium">{t("admin.contentStudio.audio.colSerbianText", "Serbian text")}</th>
+                  <th className="text-left px-3 py-2 font-medium">{t("admin.contentStudio.audio.colVoice", "Voice")}</th>
+                  <th className="text-right px-3 py-2 font-medium w-24">{t("admin.contentStudio.audio.colAction", "Action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -436,7 +498,7 @@ function UnitAudioDetail({
                           ) : (
                             <MessageSquare className="h-2.5 w-2.5 mr-1" />
                           )}
-                          {a.contentType}
+                          {t(`admin.contentStudio.audio.contentType.${String(a.contentType)}`, String(a.contentType))}
                         </Badge>
                       </td>
                       <td className="px-3 py-2 max-w-xs truncate" title={a.textSr}>
@@ -460,7 +522,9 @@ function UnitAudioDetail({
                               )}
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Delete this TTS audio. It will be regenerated on next playback.</TooltipContent>
+                          <TooltipContent>
+                            {t("admin.contentStudio.audio.deleteTtsTooltip", "Delete this TTS audio. It will be regenerated on next playback.")}
+                          </TooltipContent>
                         </Tooltip>
                       </td>
                     </tr>
@@ -473,7 +537,9 @@ function UnitAudioDetail({
       )}
 
       {!hasAny && (
-        <p className="text-sm text-muted-foreground py-2">No audio files found for this unit.</p>
+        <p className="text-sm text-muted-foreground py-2">
+          {t("admin.contentStudio.audio.noFilesFound", "No audio files found for this unit.")}
+        </p>
       )}
     </div>
   );

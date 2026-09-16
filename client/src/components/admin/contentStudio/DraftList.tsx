@@ -23,6 +23,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, FilePlus2, Folder, GitBranch, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { DRAFT_STATUS_LABEL } from "./constants";
 export interface DraftListProps {
   drafts: any[] | undefined;
   filteredDrafts: any[];
@@ -58,6 +60,7 @@ export function DraftList({
   onDeleteDraft,
   activeBriefVersionSummary,
 }: DraftListProps) {
+  const { t } = useTranslation();
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -117,12 +120,12 @@ export function DraftList({
           ? "bg-red-500"
           : "bg-muted-foreground/50";
     const statusShort: Record<string, string> = {
-      draft: "Draft",
-      qc_failed: "QC Failed",
-      qc_passed: "QC OK",
-      audit_failed: "Review",
-      ready_to_publish: "Ready",
-      published: "Published",
+      draft: t("admin.contentStudio.unitList.statusShort.draft", "In progress"),
+      qc_failed: t("admin.contentStudio.unitList.statusShort.qc_failed", "Validator failed"),
+      qc_passed: t("admin.contentStudio.unitList.statusShort.qc_passed", "Validated"),
+      audit_failed: t("admin.contentStudio.unitList.statusShort.audit_failed", "Lector flagged"),
+      ready_to_publish: t("admin.contentStudio.unitList.statusShort.ready_to_publish", "Ready"),
+      published: t("admin.contentStudio.unitList.statusShort.published", "Published"),
     };
     return (
       <div key={d._id} className="group flex items-stretch gap-1.5">
@@ -150,7 +153,7 @@ export function DraftList({
           </div>
           {/* Row 2: Title */}
           <div className="text-[11px] font-medium leading-snug line-clamp-2 text-foreground/90">
-            {String(d.title || "Untitled").trim()}
+            {String(d.title || t("admin.contentStudio.unitList.untitled", "Untitled")).trim()}
           </div>
           {/* Row 3: Active Brief Version (selected draft only) */}
           {isSelected && activeBriefVersionSummary && (
@@ -171,7 +174,7 @@ export function DraftList({
             e.stopPropagation();
             setDraftToDelete(String(d._id));
           }}
-          aria-label="Delete draft"
+          aria-label={t("admin.contentStudio.unitList.deleteUnitAria", "Delete unit")}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
@@ -184,7 +187,7 @@ export function DraftList({
       <Card className="h-fit">
         <CardHeader className="gap-3">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle>Drafts</CardTitle>
+            <CardTitle>{t("admin.contentStudio.unitList.title", "Units in progress")}</CardTitle>
             <Badge variant="secondary">{drafts?.length ?? 0}</Badge>
           </div>
 
@@ -197,7 +200,7 @@ export function DraftList({
             className="h-9 w-full justify-start gap-2 font-medium"
           >
             <FilePlus2 className="h-3.5 w-3.5 shrink-0" />
-            New Draft
+            {t("admin.contentStudio.unitList.newUnit", "New unit")}
           </Button>
 
           <div className="grid gap-2">
@@ -207,21 +210,21 @@ export function DraftList({
                 value={draftsSearch}
                 onChange={(e) => setDraftsSearch(e.target.value)}
                 className="pl-8"
-                placeholder="Search (title, U#, M#)"
+                placeholder={t("admin.contentStudio.unitList.searchPlaceholder", "Search (title, U#, M#)")}
               />
             </div>
             <Select value={draftsStatusFilter} onValueChange={(v) => setDraftsStatusFilter(v as any)}>
               <SelectTrigger>
-                <SelectValue placeholder="Filter status" />
+                <SelectValue placeholder={t("admin.contentStudio.unitList.filterStatus", "Filter status")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="qc_failed">Validator failed</SelectItem>
-                <SelectItem value="qc_passed">Validated</SelectItem>
-                <SelectItem value="audit_failed">Lector flagged issues</SelectItem>
-                <SelectItem value="ready_to_publish">Ready to publish</SelectItem>
-                <SelectItem value="published">Published</SelectItem>
+                <SelectItem value="all">{t("admin.contentStudio.unitList.allStatuses", "All statuses")}</SelectItem>
+                <SelectItem value="draft">{t("admin.contentStudio.status.draft", DRAFT_STATUS_LABEL.draft)}</SelectItem>
+                <SelectItem value="qc_failed">{t("admin.contentStudio.status.qc_failed", DRAFT_STATUS_LABEL.qc_failed)}</SelectItem>
+                <SelectItem value="qc_passed">{t("admin.contentStudio.status.qc_passed", DRAFT_STATUS_LABEL.qc_passed)}</SelectItem>
+                <SelectItem value="audit_failed">{t("admin.contentStudio.status.audit_failed", DRAFT_STATUS_LABEL.audit_failed)}</SelectItem>
+                <SelectItem value="ready_to_publish">{t("admin.contentStudio.status.ready_to_publish", DRAFT_STATUS_LABEL.ready_to_publish)}</SelectItem>
+                <SelectItem value="published">{t("admin.contentStudio.status.published", DRAFT_STATUS_LABEL.published)}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -230,15 +233,15 @@ export function DraftList({
           <ScrollArea className="max-h-[560px] pr-1">
             <div className="space-y-1">
               {drafts === undefined ? (
-                <div className="text-sm text-muted-foreground">Loading drafts…</div>
+                <div className="text-sm text-muted-foreground">{t("admin.contentStudio.unitList.loading", "Loading units…")}</div>
               ) : filteredDrafts.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No drafts found.</div>
+                <div className="text-sm text-muted-foreground">{t("admin.contentStudio.unitList.empty", "No units found.")}</div>
               ) : (
                 draftGroups.map((g) => {
                   const collapsed = collapsedModules.has(g.moduleNumber);
                   const moduleLabel = Number.isFinite(g.moduleNumber)
-                    ? `Module ${g.moduleNumber}`
-                    : "No module";
+                    ? t("admin.contentStudio.unitList.moduleLabel", { defaultValue: "Module {{n}}", n: g.moduleNumber })
+                    : t("admin.contentStudio.unitList.noModule", "No module");
                   return (
                     <div key={g.moduleNumber} className="space-y-1">
                       <button
@@ -277,19 +280,24 @@ export function DraftList({
       <AlertDialog open={!!draftToDelete} onOpenChange={(open) => { if (!open && !deleting) setDraftToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.contentStudio.unitList.deleteTitle", "Delete this unit?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the draft and all its snapshots, findings, and AI run logs. Published units are not affected.
+              {t(
+                "admin.contentStudio.unitList.deleteDescription",
+                "This removes the unit and all its drafts, findings and AI run logs. Published units are not affected."
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("admin.contentStudio.unitList.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); void handleConfirmDelete(); }}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting
+                ? t("admin.contentStudio.unitList.deleting", "Deleting…")
+                : t("admin.contentStudio.unitList.delete", "Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

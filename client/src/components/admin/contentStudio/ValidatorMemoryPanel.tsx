@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
@@ -134,32 +135,33 @@ function formatTimestamp(ts: number | undefined): string {
 }
 
 function ScopeBadges({ scope }: { scope: ValidatorMemoryEntry["scope"] }) {
+  const { t } = useTranslation();
   const inTranslator = scope.applyInTranslator === true;
   return (
     <div className="flex flex-wrap gap-1">
       {scope.applyInCreator && (
         <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-          Creator
+          {t("admin.contentStudio.validatorMemory.scopeCreator", "Creator")}
         </Badge>
       )}
       {scope.applyInFix && (
         <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-          Fix
+          {t("admin.contentStudio.validatorMemory.scopeFix", "Fix")}
         </Badge>
       )}
       {scope.applyInValidator && (
         <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-          Validator
+          {t("admin.contentStudio.validatorMemory.scopeValidator", "Validator")}
         </Badge>
       )}
       {inTranslator && (
         <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-          Translator
+          {t("admin.contentStudio.validatorMemory.scopeTranslator", "Translator")}
         </Badge>
       )}
       {!scope.applyInCreator && !scope.applyInFix && !scope.applyInValidator && !inTranslator && (
         <Badge variant="secondary" className="text-[10px]">
-          kein Scope
+          {t("admin.contentStudio.validatorMemory.scopeNone", "No scope")}
         </Badge>
       )}
     </div>
@@ -167,16 +169,22 @@ function ScopeBadges({ scope }: { scope: ValidatorMemoryEntry["scope"] }) {
 }
 
 function StatusBadge({ status }: { status: ValidatorMemoryEntry["status"] }) {
+  const { t } = useTranslation();
   if (status === "candidate") {
-    return <Badge variant="secondary">Kandidat</Badge>;
+    return <Badge variant="secondary">{t("admin.contentStudio.validatorMemory.statusCandidate", "Candidate")}</Badge>;
   }
   if (status === "active") {
-    return <Badge className="bg-emerald-600 hover:bg-emerald-600">Aktiv</Badge>;
+    return (
+      <Badge className="bg-emerald-600 hover:bg-emerald-600">
+        {t("admin.contentStudio.validatorMemory.statusActive", "Active")}
+      </Badge>
+    );
   }
-  return <Badge variant="outline">Archiviert</Badge>;
+  return <Badge variant="outline">{t("admin.contentStudio.validatorMemory.statusArchived", "Archived")}</Badge>;
 }
 
 export function ValidatorMemoryPanel() {
+  const { t } = useTranslation();
   const all = (useQuery(api.contentStudio.listValidatorMemory, {}) ?? []) as unknown as ValidatorMemoryEntry[];
 
   const createEntry = useMutation(api.contentStudio.createValidatorMemoryEntry);
@@ -254,18 +262,18 @@ export function ValidatorMemoryPanel() {
   const handleSave = async () => {
     if (!editor) return;
     if (!editor.title.trim()) {
-      toast.error("Titel ist erforderlich");
+      toast.error(t("admin.contentStudio.validatorMemory.errorTitleRequired", "Title is required"));
       return;
     }
     if (editor.mode === "create" && !editor.code.trim()) {
-      toast.error("Code ist erforderlich");
+      toast.error(t("admin.contentStudio.validatorMemory.errorCodeRequired", "Code is required"));
       return;
     }
     if (editor.pattern.trim()) {
       try {
         new RegExp(editor.pattern, editor.patternFlags || undefined);
       } catch {
-        toast.error("Ungueltiger Regex im Pattern-Feld");
+        toast.error(t("admin.contentStudio.validatorMemory.errorInvalidRegex", "Invalid regex in the pattern field"));
         return;
       }
     }
@@ -285,7 +293,7 @@ export function ValidatorMemoryPanel() {
           scope: editor.scope,
           status: "active",
         });
-        toast.success("Gedaechtniseintrag erstellt");
+        toast.success(t("admin.contentStudio.validatorMemory.toastCreated", "Memory entry created"));
       } else if (editor.entry) {
         await updateEntry({
           entryId: editor.entry._id,
@@ -297,49 +305,49 @@ export function ValidatorMemoryPanel() {
           patternFlags: editor.patternFlags,
           scope: editor.scope,
         });
-        toast.success("Gedaechtniseintrag gespeichert");
+        toast.success(t("admin.contentStudio.validatorMemory.toastSaved", "Memory entry saved"));
       }
       closeEditor();
     } catch (e: any) {
-      toast.error(e?.message || "Speichern fehlgeschlagen");
+      toast.error(e?.message || t("admin.contentStudio.validatorMemory.toastSaveFailed", "Saving failed"));
       setSaving(false);
     }
   };
 
   const handleActivate = async (entry: ValidatorMemoryEntry) => {
     if (!entry.title.trim() || entry.title === entry.code) {
-      toast.error("Bitte zuerst Titel und Guidance kuratieren.");
+      toast.error(t("admin.contentStudio.validatorMemory.errorCurateFirst", "Curate title and guidance first."));
       openEdit(entry);
       return;
     }
     if (!entry.guidance.trim()) {
-      toast.error("Bitte zuerst eine Guidance hinterlegen.");
+      toast.error(t("admin.contentStudio.validatorMemory.errorGuidanceFirst", "Add guidance first."));
       openEdit(entry);
       return;
     }
     try {
       await setStatus({ entryId: entry._id, status: "active" });
-      toast.success("Eintrag aktiviert");
+      toast.success(t("admin.contentStudio.validatorMemory.toastActivated", "Entry activated"));
     } catch (e: any) {
-      toast.error(e?.message || "Aktivierung fehlgeschlagen");
+      toast.error(e?.message || t("admin.contentStudio.validatorMemory.toastActivateFailed", "Activation failed"));
     }
   };
 
   const handleArchive = async (entry: ValidatorMemoryEntry) => {
     try {
       await setStatus({ entryId: entry._id, status: "archived" });
-      toast.success("Eintrag archiviert");
+      toast.success(t("admin.contentStudio.validatorMemory.toastArchived", "Entry archived"));
     } catch (e: any) {
-      toast.error(e?.message || "Archivieren fehlgeschlagen");
+      toast.error(e?.message || t("admin.contentStudio.validatorMemory.toastArchiveFailed", "Archiving failed"));
     }
   };
 
   const handleReactivate = async (entry: ValidatorMemoryEntry) => {
     try {
       await setStatus({ entryId: entry._id, status: "active" });
-      toast.success("Eintrag reaktiviert");
+      toast.success(t("admin.contentStudio.validatorMemory.toastReactivated", "Entry reactivated"));
     } catch (e: any) {
-      toast.error(e?.message || "Reaktivieren fehlgeschlagen");
+      toast.error(e?.message || t("admin.contentStudio.validatorMemory.toastReactivateFailed", "Reactivation failed"));
     }
   };
 
@@ -347,9 +355,9 @@ export function ValidatorMemoryPanel() {
     if (!confirmDelete) return;
     try {
       await deleteEntry({ entryId: confirmDelete._id });
-      toast.success("Eintrag geloescht");
+      toast.success(t("admin.contentStudio.validatorMemory.toastDeleted", "Entry deleted"));
     } catch (e: any) {
-      toast.error(e?.message || "Loeschen fehlgeschlagen");
+      toast.error(e?.message || t("admin.contentStudio.validatorMemory.toastDeleteFailed", "Deletion failed"));
     } finally {
       setConfirmDelete(null);
     }
@@ -361,17 +369,18 @@ export function ValidatorMemoryPanel() {
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            Validator Memory
+            {t("admin.contentStudio.validatorMemory.title", "Validator memory")}
           </h2>
           <p className="text-sm text-muted-foreground max-w-2xl">
-            Das Gedaechtnis des Content Studios. Hier kuratierst du Lehren aus behobenen
-            Findings. Aktive Eintraege fliessen automatisch in Creator-, Fix- und
-            Validator-Lauf ein.
+            {t(
+              "admin.contentStudio.validatorMemory.description",
+              "The Content Studio's memory. Curate lessons learned from resolved findings here. Active entries automatically flow into Creator, Fix and Validator runs."
+            )}
           </p>
         </div>
         <Button size="sm" onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Neuer Eintrag
+          {t("admin.contentStudio.validatorMemory.newEntry", "New entry")}
         </Button>
       </div>
 
@@ -381,11 +390,13 @@ export function ValidatorMemoryPanel() {
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Inbox className="h-4 w-4" />
-                Kandidaten-Inbox
+                {t("admin.contentStudio.validatorMemory.inboxTitle", "Candidate inbox")}
               </CardTitle>
               <div className="text-xs text-muted-foreground">
-                Automatisch erfasste Findings, die zuletzt behoben wurden. Kuratiere
-                Titel + Guidance und aktiviere.
+                {t(
+                  "admin.contentStudio.validatorMemory.inboxHelp",
+                  "Automatically captured findings that were recently resolved. Curate title and guidance, then activate."
+                )}
               </div>
             </div>
             <Badge variant="secondary">{candidates.length}</Badge>
@@ -394,8 +405,10 @@ export function ValidatorMemoryPanel() {
         <CardContent>
           {candidates.length === 0 ? (
             <div className="text-sm text-muted-foreground italic py-4">
-              Keine offenen Kandidaten. Nach dem naechsten Fix-Findings-Zyklus erscheinen
-              hier Auto-Capture-Eintraege.
+              {t(
+                "admin.contentStudio.validatorMemory.inboxEmpty",
+                "No open candidates. Auto-captured entries appear here after the next fix-findings cycle."
+              )}
             </div>
           ) : (
             <div className="space-y-2">
@@ -411,15 +424,33 @@ export function ValidatorMemoryPanel() {
                       </Badge>
                       <code className="text-[11px]">{entry.code}</code>
                       {entry.path && (
-                        <span className="text-[11px] truncate">path: {entry.path}</span>
+                        <span className="text-[11px] truncate">
+                          {t("admin.contentStudio.validatorMemory.pathLabel", {
+                            defaultValue: "Path: {{path}}",
+                            path: entry.path,
+                          })}
+                        </span>
                       )}
                       {typeof entry.sourceUnitNumber === "number" && (
-                        <span className="text-[11px]">Unit {entry.sourceUnitNumber}</span>
+                        <span className="text-[11px]">
+                          {t("admin.contentStudio.validatorMemory.unitNumber", {
+                            defaultValue: "Unit {{n}}",
+                            n: entry.sourceUnitNumber,
+                          })}
+                        </span>
                       )}
                       <span className="text-[11px]">
-                        zuletzt: {formatTimestamp(entry.lastSeenAt)}
+                        {t("admin.contentStudio.validatorMemory.lastSeen", {
+                          defaultValue: "Last seen: {{when}}",
+                          when: formatTimestamp(entry.lastSeenAt),
+                        })}
                       </span>
-                      <span className="text-[11px]">x{entry.occurrenceCount}</span>
+                      <span className="text-[11px]">
+                        {t("admin.contentStudio.validatorMemory.occurrences", {
+                          defaultValue: "x{{n}}",
+                          n: entry.occurrenceCount,
+                        })}
+                      </span>
                     </div>
                     {entry.exampleBefore && (
                       <p className="text-sm mt-1 whitespace-pre-wrap break-words">
@@ -430,11 +461,11 @@ export function ValidatorMemoryPanel() {
                   <div className="flex gap-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => openEdit(entry)}>
                       <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                      Kuratieren
+                      {t("admin.contentStudio.validatorMemory.curate", "Curate")}
                     </Button>
                     <Button size="sm" onClick={() => handleActivate(entry)}>
                       <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                      Aktivieren
+                      {t("admin.contentStudio.validatorMemory.activate", "Activate")}
                     </Button>
                     <Button
                       size="sm"
@@ -442,7 +473,7 @@ export function ValidatorMemoryPanel() {
                       onClick={() => handleArchive(entry)}
                     >
                       <Archive className="mr-1.5 h-3.5 w-3.5" />
-                      Verwerfen
+                      {t("admin.contentStudio.validatorMemory.discard", "Discard")}
                     </Button>
                   </div>
                 </div>
@@ -456,9 +487,11 @@ export function ValidatorMemoryPanel() {
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle className="text-base">Gedaechtniseintraege</CardTitle>
+              <CardTitle className="text-base">
+                {t("admin.contentStudio.validatorMemory.entriesTitle", "Memory entries")}
+              </CardTitle>
               <div className="text-xs text-muted-foreground">
-                Alle erfassten Eintraege, gefiltert nach Status + Suche.
+                {t("admin.contentStudio.validatorMemory.entriesHelp", "All captured entries, filtered by status and search.")}
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -467,7 +500,7 @@ export function ValidatorMemoryPanel() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Suche (Title, Code, Path, Guidance)"
+                  placeholder={t("admin.contentStudio.validatorMemory.searchPlaceholder", "Search (title, code, path, guidance)")}
                   className="pl-7 h-8 w-64"
                 />
               </div>
@@ -479,10 +512,10 @@ export function ValidatorMemoryPanel() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Aktiv</SelectItem>
-                  <SelectItem value="candidate">Kandidat</SelectItem>
-                  <SelectItem value="archived">Archiviert</SelectItem>
-                  <SelectItem value="all">Alle</SelectItem>
+                  <SelectItem value="active">{t("admin.contentStudio.validatorMemory.statusActive", "Active")}</SelectItem>
+                  <SelectItem value="candidate">{t("admin.contentStudio.validatorMemory.statusCandidate", "Candidate")}</SelectItem>
+                  <SelectItem value="archived">{t("admin.contentStudio.validatorMemory.statusArchived", "Archived")}</SelectItem>
+                  <SelectItem value="all">{t("admin.contentStudio.validatorMemory.filterAll", "All")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -491,19 +524,19 @@ export function ValidatorMemoryPanel() {
         <CardContent className="px-0">
           {filteredActive.length === 0 ? (
             <div className="text-sm text-muted-foreground italic px-6 py-6">
-              Keine Eintraege fuer diesen Filter.
+              {t("admin.contentStudio.validatorMemory.entriesEmpty", "No entries for this filter.")}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Titel / Code</TableHead>
-                    <TableHead>Guidance</TableHead>
-                    <TableHead>Scope</TableHead>
-                    <TableHead className="text-right"># / zuletzt</TableHead>
-                    <TableHead className="text-right">Aktionen</TableHead>
+                    <TableHead>{t("admin.contentStudio.validatorMemory.colStatus", "Status")}</TableHead>
+                    <TableHead>{t("admin.contentStudio.validatorMemory.colTitleCode", "Title / code")}</TableHead>
+                    <TableHead>{t("admin.contentStudio.validatorMemory.colGuidance", "Guidance")}</TableHead>
+                    <TableHead>{t("admin.contentStudio.validatorMemory.colScope", "Scope")}</TableHead>
+                    <TableHead className="text-right">{t("admin.contentStudio.validatorMemory.colCountLast", "# / last seen")}</TableHead>
+                    <TableHead className="text-right">{t("admin.contentStudio.validatorMemory.colActions", "Actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -533,11 +566,11 @@ export function ValidatorMemoryPanel() {
                             !entry.guidance && "italic text-muted-foreground"
                           )}
                         >
-                          {entry.guidance || "(keine Guidance - bitte kuratieren)"}
+                          {entry.guidance || t("admin.contentStudio.validatorMemory.noGuidance", "(no guidance – please curate)")}
                         </div>
                         {entry.pattern && (
                           <div className="text-[10px] mt-1 text-muted-foreground">
-                            Pattern: <code>{entry.pattern}</code>
+                            {t("admin.contentStudio.validatorMemory.patternLabel", "Pattern:")} <code>{entry.pattern}</code>
                             {entry.patternFlags ? ` /${entry.patternFlags}` : ""}
                           </div>
                         )}
@@ -546,7 +579,12 @@ export function ValidatorMemoryPanel() {
                         <ScopeBadges scope={entry.scope} />
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap text-xs">
-                        <div>x{entry.occurrenceCount}</div>
+                        <div>
+                          {t("admin.contentStudio.validatorMemory.occurrences", {
+                            defaultValue: "x{{n}}",
+                            n: entry.occurrenceCount,
+                          })}
+                        </div>
                         <div className="text-muted-foreground">
                           {formatTimestamp(entry.lastSeenAt)}
                         </div>
@@ -565,7 +603,7 @@ export function ValidatorMemoryPanel() {
                               size="sm"
                               variant="ghost"
                               onClick={() => handleReactivate(entry)}
-                              title="Reaktivieren"
+                              title={t("admin.contentStudio.validatorMemory.reactivate", "Reactivate")}
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                             </Button>
@@ -574,7 +612,7 @@ export function ValidatorMemoryPanel() {
                               size="sm"
                               variant="ghost"
                               onClick={() => handleArchive(entry)}
-                              title="Archivieren"
+                              title={t("admin.contentStudio.validatorMemory.archive", "Archive")}
                             >
                               <Archive className="h-3.5 w-3.5" />
                             </Button>
@@ -583,7 +621,7 @@ export function ValidatorMemoryPanel() {
                             size="sm"
                             variant="ghost"
                             onClick={() => setConfirmDelete(entry)}
-                            title="Loeschen"
+                            title={t("admin.contentStudio.validatorMemory.delete", "Delete")}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
@@ -605,11 +643,15 @@ export function ValidatorMemoryPanel() {
         >
           <SheetHeader>
             <SheetTitle>
-              {editor?.mode === "create" ? "Neuer Gedaechtniseintrag" : "Eintrag bearbeiten"}
+              {editor?.mode === "create"
+                ? t("admin.contentStudio.validatorMemory.editorTitleCreate", "New memory entry")
+                : t("admin.contentStudio.validatorMemory.editorTitleEdit", "Edit entry")}
             </SheetTitle>
             <SheetDescription>
-              Titel + Guidance sind Pflicht. Pattern ist optional - wird nur im
-              Validator-Scope genutzt.
+              {t(
+                "admin.contentStudio.validatorMemory.editorDescription",
+                "Title and guidance are required. Pattern is optional and only used in the Validator scope."
+              )}
             </SheetDescription>
           </SheetHeader>
 
@@ -617,7 +659,7 @@ export function ValidatorMemoryPanel() {
             <div className="space-y-4 py-4 px-1">
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-1">
-                  <Label className="text-xs">Stage</Label>
+                  <Label className="text-xs">{t("admin.contentStudio.validatorMemory.stage", "Stage")}</Label>
                   <Select
                     value={editor.stage}
                     onValueChange={(v) =>
@@ -629,56 +671,61 @@ export function ValidatorMemoryPanel() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="validator">validator</SelectItem>
-                      <SelectItem value="auditor">auditor</SelectItem>
+                      <SelectItem value="validator">{t("admin.contentStudio.validatorMemory.stageValidator", "Validator")}</SelectItem>
+                      <SelectItem value="auditor">{t("admin.contentStudio.validatorMemory.stageAuditor", "Lector")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="col-span-1">
-                  <Label className="text-xs">Code</Label>
+                  <Label className="text-xs">{t("admin.contentStudio.validatorMemory.code", "Code")}</Label>
                   <Input
                     value={editor.code}
                     onChange={(e) => setEditor({ ...editor, code: e.target.value })}
                     disabled={editor.mode === "edit"}
-                    placeholder="z.B. validation"
+                    placeholder={t("admin.contentStudio.validatorMemory.codePlaceholder", "e.g. validation")}
                     className="h-9"
                   />
                 </div>
                 <div className="col-span-1">
-                  <Label className="text-xs">Path (optional)</Label>
+                  <Label className="text-xs">{t("admin.contentStudio.validatorMemory.pathOptional", "Path (optional)")}</Label>
                   <Input
                     value={editor.path}
                     onChange={(e) => setEditor({ ...editor, path: e.target.value })}
                     disabled={editor.mode === "edit"}
-                    placeholder="z.B. vocabulary.en.0"
+                    placeholder={t("admin.contentStudio.validatorMemory.pathPlaceholder", "e.g. vocabulary.en.0")}
                     className="h-9"
                   />
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs">Titel</Label>
+                <Label className="text-xs">{t("admin.contentStudio.validatorMemory.titleLabel", "Title")}</Label>
                 <Input
                   value={editor.title}
                   onChange={(e) => setEditor({ ...editor, title: e.target.value })}
-                  placeholder="Kurzbezeichnung der Lektion"
+                  placeholder={t("admin.contentStudio.validatorMemory.titlePlaceholder", "Short name of the lesson learned")}
                   className="h-9"
                 />
               </div>
 
               <div>
-                <Label className="text-xs">Guidance (wird in Prompts injiziert)</Label>
+                <Label className="text-xs">
+                  {t("admin.contentStudio.validatorMemory.guidanceLabel", "Guidance (injected into prompts)")}
+                </Label>
                 <Textarea
                   value={editor.guidance}
                   onChange={(e) => setEditor({ ...editor, guidance: e.target.value })}
-                  placeholder="Was ist die Regel? Wie vermeidet man diesen Fehler?"
+                  placeholder={t(
+                    "admin.contentStudio.validatorMemory.guidancePlaceholder",
+                    "What is the rule? How do you avoid this mistake?"
+                  )}
                   className="min-h-[120px]"
                 />
               </div>
 
               <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <Label className="text-xs">Beispiel (vorher)</Label>
+                  <Label className="text-xs">{t("admin.contentStudio.validatorMemory.exampleBefore", "Example (before)")}</Label>
                   <Textarea
                     value={editor.exampleBefore}
                     onChange={(e) =>
@@ -688,7 +735,7 @@ export function ValidatorMemoryPanel() {
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Beispiel (nachher)</Label>
+                  <Label className="text-xs">{t("admin.contentStudio.validatorMemory.exampleAfter", "Example (after)")}</Label>
                   <Textarea
                     value={editor.exampleAfter}
                     onChange={(e) =>
@@ -701,16 +748,16 @@ export function ValidatorMemoryPanel() {
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
-                  <Label className="text-xs">Pattern (Regex, optional)</Label>
+                  <Label className="text-xs">{t("admin.contentStudio.validatorMemory.patternRegex", "Pattern (regex, optional)")}</Label>
                   <Input
                     value={editor.pattern}
                     onChange={(e) => setEditor({ ...editor, pattern: e.target.value })}
-                    placeholder="z.B. \bzdravo,\s+kako\s+ste\b"
+                    placeholder={t("admin.contentStudio.validatorMemory.patternPlaceholder", "e.g. \\bzdravo,\\s+kako\\s+ste\\b")}
                     className="h-9 font-mono text-xs"
                   />
                 </div>
                 <div className="col-span-1">
-                  <Label className="text-xs">Flags</Label>
+                  <Label className="text-xs">{t("admin.contentStudio.validatorMemory.flags", "Flags")}</Label>
                   <Input
                     value={editor.patternFlags}
                     onChange={(e) =>
@@ -723,10 +770,15 @@ export function ValidatorMemoryPanel() {
               </div>
 
               <div className="rounded-md border p-3 space-y-2">
-                <div className="text-xs font-medium">Scope (wo wird dieser Eintrag angewandt?)</div>
+                <div className="text-xs font-medium">
+                  {t("admin.contentStudio.validatorMemory.scopeTitle", "Scope (where is this entry applied?)")}
+                </div>
                 <div className="flex items-center justify-between">
                   <div className="text-xs">
-                    Creator (Praevention - KNOWN PITFALLS im System-Prompt)
+                    {t(
+                      "admin.contentStudio.validatorMemory.scopeCreatorHelp",
+                      "Creator (prevention – KNOWN PITFALLS in the system prompt)"
+                    )}
                   </div>
                   <Switch
                     checked={editor.scope.applyInCreator}
@@ -740,7 +792,10 @@ export function ValidatorMemoryPanel() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-xs">
-                    Fix (Reparatur - CORRECTION RECIPES im Fix-Prompt)
+                    {t(
+                      "admin.contentStudio.validatorMemory.scopeFixHelp",
+                      "Fix (repair – CORRECTION RECIPES in the fix prompt)"
+                    )}
                   </div>
                   <Switch
                     checked={editor.scope.applyInFix}
@@ -754,7 +809,10 @@ export function ValidatorMemoryPanel() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-xs">
-                    Validator (Regression - nur mit Pattern sinnvoll)
+                    {t(
+                      "admin.contentStudio.validatorMemory.scopeValidatorHelp",
+                      "Validator (regression – only useful with a pattern)"
+                    )}
                   </div>
                   <Switch
                     checked={editor.scope.applyInValidator}
@@ -768,7 +826,7 @@ export function ValidatorMemoryPanel() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-xs">
-                    In Translator anwenden (EN → DE Übersetzung)
+                    {t("admin.contentStudio.validatorMemory.scopeTranslatorHelp", "Translator (EN → DE translation)")}
                   </div>
                   <Switch
                     checked={editor.scope.applyInTranslator}
@@ -784,9 +842,17 @@ export function ValidatorMemoryPanel() {
 
               {editor.mode === "edit" && editor.entry && (
                 <div className="text-xs text-muted-foreground border-t pt-3">
-                  Status: <StatusBadge status={editor.entry.status} /> - Vorkommen x
-                  {editor.entry.occurrenceCount} - Zuletzt gesehen:{" "}
-                  {formatTimestamp(editor.entry.lastSeenAt)}
+                  {t("admin.contentStudio.validatorMemory.statusLabel", "Status:")}{" "}
+                  <StatusBadge status={editor.entry.status} /> –{" "}
+                  {t("admin.contentStudio.validatorMemory.metaOccurrences", {
+                    defaultValue: "Occurrences x{{n}}",
+                    n: editor.entry.occurrenceCount,
+                  })}{" "}
+                  –{" "}
+                  {t("admin.contentStudio.validatorMemory.lastSeen", {
+                    defaultValue: "Last seen: {{when}}",
+                    when: formatTimestamp(editor.entry.lastSeenAt),
+                  })}
                 </div>
               )}
             </div>
@@ -794,10 +860,12 @@ export function ValidatorMemoryPanel() {
 
           <SheetFooter className="flex flex-row gap-2 px-1">
             <Button variant="outline" onClick={closeEditor} disabled={saving}>
-              Abbrechen
+              {t("common.cancel", "Cancel")}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Speichert..." : "Speichern"}
+              {saving
+                ? t("admin.contentStudio.validatorMemory.saving", "Saving…")
+                : t("admin.contentStudio.validatorMemory.save", "Save")}
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -809,16 +877,21 @@ export function ValidatorMemoryPanel() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eintrag wirklich loeschen?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("admin.contentStudio.validatorMemory.deleteConfirmTitle", "Delete this entry permanently?")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              "{confirmDelete?.title}" ({confirmDelete?.code}) wird dauerhaft entfernt.
-              Diese Aktion kann nicht rueckgaengig gemacht werden.
+              {t("admin.contentStudio.validatorMemory.deleteConfirmDescription", {
+                defaultValue: "“{{title}}” ({{code}}) will be removed permanently. This action cannot be undone.",
+                title: confirmDelete?.title ?? "",
+                code: confirmDelete?.code ?? "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive">
-              Loeschen
+              {t("admin.contentStudio.validatorMemory.delete", "Delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
