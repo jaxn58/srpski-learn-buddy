@@ -52,13 +52,21 @@ export const runAiAuditor = action({
       if (!refDoc) return "";
       const title = String((refDoc as any).title || "").trim();
       const notes = String((refDoc as any).notes || "").trim();
+      // Draft-specific reference note + location, mirroring the Creator's
+      // reference context so authoring and audit share the same inputs.
+      const referenceNotes = String((current.draft as any).inspirationRef?.referenceNotes || "").trim();
+      const chapter = String((current.draft as any).inspirationRef?.chapter || "").trim();
+      const pages = String((current.draft as any).inspirationRef?.pages || "").trim();
       const guidelines = String((refDoc as any).guidelines || "").trim();
       const refUrl = String((refDoc as any).downloadUrl || (refDoc as any).url || "").trim();
       return [
         title ? `- Title: ${title}` : "",
         refUrl ? `- URL: ${refUrl}` : "",
+        chapter ? `- Chapter: ${chapter}` : "",
+        pages ? `- Pages: ${pages}` : "",
         guidelines ? `- Guidelines:\n${guidelines}` : "",
         notes ? `- Notes: ${notes}` : "",
+        referenceNotes ? `- Unit-specific note: ${referenceNotes}` : "",
       ]
         .filter(Boolean)
         .join("\n")

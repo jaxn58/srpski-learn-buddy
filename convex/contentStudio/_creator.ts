@@ -381,12 +381,16 @@ export const runAiSpecialistGenerate = action({
       // (e.g. "this PDF covers the language exam"). Distinct from the creator
       // brief (inspirationRef.notes) — never overwrites it.
       const safeReferenceNotes = String((d as any).inspirationRef?.referenceNotes || "").trim();
+      const safeChapter = String((d as any).inspirationRef?.chapter || "").trim();
+      const safePages = String((d as any).inspirationRef?.pages || "").trim();
       const refUrl = String((refDoc as any).downloadUrl || (refDoc as any).url || "").trim();
       const safeGuidelines = refGuidelines;
       return [
         "REFERENCE (inspiration only; do NOT copy text):",
         `- Title: ${String((refDoc as any).title || "").trim()}`,
         refUrl ? `- URL: ${refUrl}` : "",
+        safeChapter ? `- Chapter: ${safeChapter}` : "",
+        safePages ? `- Pages: ${safePages}` : "",
         safeNotes ? `- Notes: ${safeNotes}` : "",
         safeReferenceNotes ? `- Unit-specific note: ${safeReferenceNotes}` : "",
         safeGuidelines ? `- Guidelines (distilled; follow these patterns):\n${safeGuidelines}` : "",

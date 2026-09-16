@@ -732,10 +732,13 @@ function EditForm(props: EditFormProps) {
 
       {/* Reference */}
       <div className="space-y-3">
-        <Label className="font-semibold">Reference</Label>
+        <Label className="font-semibold">Reference (optional)</Label>
         <Select
           value={draftRefId || "__none__"}
-          onValueChange={(v) => setDraftRefId(v === "__none__" ? "" : v)}
+          onValueChange={(v) => {
+            setDraftRefId(v === "__none__" ? "" : v);
+            if (v === "__none__") { setDraftRefChapter(""); setDraftRefPages(""); setDraftRefNotes(""); }
+          }}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select reference..." />

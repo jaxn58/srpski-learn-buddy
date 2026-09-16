@@ -318,6 +318,9 @@ export default function ContentStudioAdmin() {
 
   // Draft: specialist skills + reference
   const [draftRefId, setDraftRefId] = useState<string>("");
+  // Reference-specific note (inspirationRef.referenceNotes) — individualizes
+  // how THIS unit uses the selected reference. Distinct from the creator
+  // brief below; the two must never overwrite each other.
   const [draftRefNotes, setDraftRefNotes] = useState<string>("");
   const [draftRefChapter, setDraftRefChapter] = useState<string>("");
   const [draftRefPages, setDraftRefPages] = useState<string>("");
@@ -327,6 +330,8 @@ export default function ContentStudioAdmin() {
   const [draftEditDescription, setDraftEditDescription] = useState<string>("");
   const [draftEditModuleNumber, setDraftEditModuleNumber] = useState<string>("");
   const [draftEditUnitNumber, setDraftEditUnitNumber] = useState<string>("");
+  // Creator brief / unit prompt (inspirationRef.notes) — the main authoring prompt.
+  const [draftCreatorBrief, setDraftCreatorBrief] = useState<string>("");
   const [draftAuthorNoteName, setDraftAuthorNoteName] = useState<string>("");
   const [draftAuthorNoteQuote, setDraftAuthorNoteQuote] = useState<string>("");
 
@@ -631,8 +636,9 @@ export default function ContentStudioAdmin() {
       unitNumber: typeof d.unitNumber === "number" ? String(d.unitNumber) : "",
       authorNoteName: String(d.authorNoteName || ""),
       authorNoteQuote: String(d.authorNoteQuote || ""),
+      creatorBrief: ref.notes ? String(ref.notes) : "",
       refId: ref.referenceId ? String(ref.referenceId) : "",
-      refNotes: ref.notes ? String(ref.notes) : "",
+      refNotes: ref.referenceNotes ? String(ref.referenceNotes) : "",
       refChapter: ref.chapter ? String(ref.chapter) : "",
       refPages: ref.pages ? String(ref.pages) : "",
       specialistSkills: normalizeIdList(d.specialistSkillIds),
@@ -649,6 +655,7 @@ export default function ContentStudioAdmin() {
       unitNumber: String(draftEditUnitNumber || "").trim(),
       authorNoteName: String(draftAuthorNoteName || ""),
       authorNoteQuote: String(draftAuthorNoteQuote || ""),
+      creatorBrief: String(draftCreatorBrief || "").trim(),
       refId: String(draftRefId || ""),
       refNotes: String(draftRefNotes || "").trim(),
       refChapter: String(draftRefChapter || "").trim(),
@@ -664,6 +671,7 @@ export default function ContentStudioAdmin() {
     draftEditUnitNumber,
     draftAuthorNoteName,
     draftAuthorNoteQuote,
+    draftCreatorBrief,
     draftRefId,
     draftRefNotes,
     draftRefChapter,
@@ -764,7 +772,8 @@ export default function ContentStudioAdmin() {
               source: "reference-library",
               chapter: draftRefChapter.trim() || undefined,
               pages: draftRefPages.trim() || undefined,
-              notes: draftRefNotes.trim() || undefined,
+              notes: draftCreatorBrief.trim() || undefined,
+              referenceNotes: draftRefNotes.trim() || undefined,
               referenceId: draftRefId ? (draftRefId as any) : undefined,
             },
           });
@@ -793,6 +802,7 @@ export default function ContentStudioAdmin() {
     draftEditUnitNumber,
     draftAuthorNoteName,
     draftAuthorNoteQuote,
+    draftCreatorBrief,
     draftRefId,
     draftRefNotes,
     draftRefChapter,
@@ -875,9 +885,10 @@ export default function ContentStudioAdmin() {
     if (!d) return;
     const ref = d.inspirationRef || {};
     setDraftRefId(ref.referenceId ? String(ref.referenceId) : "");
-    setDraftRefNotes(ref.notes ? String(ref.notes) : "");
+    setDraftRefNotes(ref.referenceNotes ? String(ref.referenceNotes) : "");
     setDraftRefChapter(ref.chapter ? String(ref.chapter) : "");
     setDraftRefPages(ref.pages ? String(ref.pages) : "");
+    setDraftCreatorBrief(ref.notes ? String(ref.notes) : "");
 
     const ids: string[] = Array.isArray(d.specialistSkillIds) ? d.specialistSkillIds.map(String) : [];
     // Backward-compat: if an old draft used sectionSkillIds, prefill specialistSkillIds with unique IDs.
@@ -1014,14 +1025,17 @@ export default function ContentStudioAdmin() {
     const trimmedChapter = (refChapter || "").trim();
     const trimmedPages = (refPages || "").trim();
 
-    // Compose inspirationRef once (single source of truth for meta write)
+    // Compose inspirationRef once (single source of truth for meta write).
+    // `notes` is always the creator brief; `referenceNotes` is always the
+    // reference-specific note — the two are independent and never merged.
     const composedRef = refId
       ? {
           source: "reference-library" as const,
           referenceId: refId as any,
           chapter: trimmedChapter || undefined,
           pages: trimmedPages || undefined,
-          notes: (trimmedRefNotes || trimmedBrief) || undefined,
+          notes: trimmedBrief || undefined,
+          referenceNotes: trimmedRefNotes || undefined,
         }
       : trimmedBrief
         ? { source: "creator-brief" as const, notes: trimmedBrief }
@@ -1071,7 +1085,8 @@ export default function ContentStudioAdmin() {
     setDraftRefId(refId || "");
     setDraftRefChapter(trimmedChapter);
     setDraftRefPages(trimmedPages);
-    setDraftRefNotes(trimmedRefNotes || trimmedBrief);
+    setDraftCreatorBrief(trimmedBrief);
+    setDraftRefNotes(trimmedRefNotes);
     setDraftSpecialistSkillIds(newSpecialistIds ? newSpecialistIds.map(String) : []);
     setDraftAuditorSkillIds(newAuditorIds ? newAuditorIds.map(String) : []);
     setDraftAuthorNoteName(effectiveAuthorNoteName);
@@ -1488,7 +1503,8 @@ export default function ContentStudioAdmin() {
           source: "reference-library",
           chapter: draftRefChapter.trim() || undefined,
           pages: draftRefPages.trim() || undefined,
-          notes: draftRefNotes.trim() || undefined,
+          notes: draftCreatorBrief.trim() || undefined,
+          referenceNotes: draftRefNotes.trim() || undefined,
           referenceId: draftRefId ? (draftRefId as any) : undefined,
         },
       });
@@ -2565,6 +2581,8 @@ export default function ContentStudioAdmin() {
             setDraftEditModuleNumber={setDraftEditModuleNumber}
             draftEditUnitNumber={draftEditUnitNumber}
             setDraftEditUnitNumber={setDraftEditUnitNumber}
+            draftCreatorBrief={draftCreatorBrief}
+            setDraftCreatorBrief={setDraftCreatorBrief}
             draftAuthorNoteName={draftAuthorNoteName}
             setDraftAuthorNoteName={setDraftAuthorNoteName}
             draftAuthorNoteQuote={draftAuthorNoteQuote}
