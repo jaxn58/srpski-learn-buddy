@@ -16,6 +16,7 @@ import {
   extractExercises,
 } from "./extractors";
 import type { ParsedExercise } from "./types";
+import { analyzeGrammarV2 } from "./sectionUtils";
 
 /**
  * Force the Module/Unit numbers in the Markdown header to match the
@@ -316,6 +317,11 @@ export function validateMarkdownStructure(markdown: string): {
     if (grammarContent.trim().endsWith("#") || grammarContent.trim().endsWith("##")) {
       errors.push("Grammar section appears to be cut off mid-generation (ends with incomplete header).");
     }
+
+    // Didactic v2 template (Why You Need This / The Rule / Pattern / Examples /
+    // Watch Out / Quick Check). Only enforced when the section uses the
+    // template; legacy units are unaffected.
+    errors.push(...analyzeGrammarV2(grammarContent).errors);
   }
 
   return {

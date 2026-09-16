@@ -241,6 +241,9 @@ export const contentStudioTables = {
     createdAt: v.number(),
     updatedAt: v.number(),
     lastSnapshotId: v.optional(v.id("contentDraftSnapshots")),
+    // Snapshot the Lector last judged. When it differs from lastSnapshotId the
+    // content changed after the audit, so the "Lector passed" verdict is stale.
+    lastAuditedSnapshotId: v.optional(v.id("contentDraftSnapshots")),
 
     // Human approval after preview (stores a fixed, approved markdown snapshot)
     approvedSnapshotId: v.optional(v.id("contentDraftSnapshots")),

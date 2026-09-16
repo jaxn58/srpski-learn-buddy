@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { isLectorStale } from "./utils/draftReviewState";
 import { ChevronDown, ChevronRight, FilePlus2, Folder, GitBranch, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -127,6 +128,9 @@ export function DraftList({
       ready_to_publish: t("admin.contentStudio.unitList.statusShort.ready_to_publish", "Ready"),
       published: t("admin.contentStudio.unitList.statusShort.published", "Published"),
     };
+    // The list has no findings per row, so this only reacts to the recorded
+    // audit snapshot (drafts audited before that bookkeeping show nothing).
+    const lectorStale = isLectorStale(d);
     return (
       <div key={d._id} className="group flex items-stretch gap-1.5">
         <button
@@ -145,6 +149,14 @@ export function DraftList({
               U{d.unitNumber}
             </span>
             <div className="flex items-center gap-1 shrink-0">
+              {lectorStale && (
+                <span
+                  className="text-[9px] text-amber-600 dark:text-amber-400"
+                  title={t("admin.contentStudio.unitList.lectorStaleHint", "Content changed after the last Lector run")}
+                >
+                  {t("admin.contentStudio.unitList.lectorStaleShort", "Lector outdated")}
+                </span>
+              )}
               <span className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", statusDot)} />
               <span className="text-[9px] text-muted-foreground tabular-nums">
                 {statusShort[status] ?? status}
@@ -280,11 +292,11 @@ export function DraftList({
       <AlertDialog open={!!draftToDelete} onOpenChange={(open) => { if (!open && !deleting) setDraftToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("admin.contentStudio.unitList.deleteTitle", "Delete this unit?")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.contentStudio.unitList.deleteTitle", "Delete this draft?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
                 "admin.contentStudio.unitList.deleteDescription",
-                "This removes the unit and all its drafts, findings and AI run logs. Published units are not affected."
+                "This removes only this draft and its snapshots, findings and AI run logs. The published unit and any other drafts are not affected."
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

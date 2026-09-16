@@ -8,6 +8,7 @@ import { autofixUnitPackage } from "../../scripts/unitPackage/autofix";
 import { validateMarkdownStructure } from "../../scripts/markdownParser/parser";
 import { buildReasoningParams, effectiveMaxTokens, type ReasoningEffort } from "./_modelCapabilities";
 import { MODEL_PRICING } from "../ai/modelPricing";
+import { CS_PROMPT_KEYS } from "./prompts";
 
 export type DraftStatus =
   | "draft"
@@ -1002,4 +1003,24 @@ export async function resolvePromptFromDb(
   const doc: any = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: key });
   if (doc?.content) return doc.content;
   throw new Error(`[Content Studio] Required prompt "${key}" not found in chatPrompts table. Please create it via /admin/prompt.`);
+}
+
+/** Like resolvePromptFromDb, but returns "" when the prompt does not exist yet. */
+export async function resolveOptionalPromptFromDb(
+  ctx: ActionCtx,
+  key: string,
+): Promise<string> {
+  const doc: any = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: key });
+  return typeof doc?.content === "string" ? doc.content.trim() : "";
+}
+
+/**
+ * Shared Serbian language rules (clitic placement, Ekavian norm, script, ...)
+ * maintained once in the DB prompt `cs_language_rules` and appended to the
+ * system prompt of every stage that writes or checks Serbian (Creator,
+ * Section revise, Finding fixer, Lector). Returns "" when not configured.
+ */
+export async function languageRulesBlock(ctx: ActionCtx): Promise<string> {
+  const rules = await resolveOptionalPromptFromDb(ctx, CS_PROMPT_KEYS.languageRules);
+  return rules ? `\n=== SERBIAN LANGUAGE RULES (binding for all Serbian text) ===\n${rules}\n` : "";
 }

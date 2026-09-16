@@ -1344,11 +1344,13 @@ export function buildAuditPayload(pkg: any): any {
     title: pkg?.title,
     description: pkg?.description,
     contentEn: {
-      // Keep only the parts auditors actually reason about; avoid huge payloads.
-      overviewMd: truncateForAudit(contentEn?.overviewMd, 1600),
-      grammarMd: truncateForAudit(contentEn?.grammarMd, 1200),
-      phrasesMd: truncateForAudit(contentEn?.phrasesMd, 1200),
-      dialoguesMd: truncateForAudit(contentEn?.dialoguesMd, 1200),
+      // The Lector must see the whole grammar section (v2 structure is
+      // 3,000-5,000 chars) and complete dialogues; clitic placement and
+      // out-of-scope forms hide in examples, not in the first paragraph.
+      overviewMd: truncateForAudit(contentEn?.overviewMd, 2500),
+      grammarMd: truncateForAudit(contentEn?.grammarMd, 8000),
+      phrasesMd: truncateForAudit(contentEn?.phrasesMd, 4000),
+      dialoguesMd: truncateForAudit(contentEn?.dialoguesMd, 4000),
       testIntroductionMd: truncateForAudit(contentEn?.testIntroductionMd, 1600),
     },
     // Provide FULL vocabulary keys so the auditor never misfires due to sampling.

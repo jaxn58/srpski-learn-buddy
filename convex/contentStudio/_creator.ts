@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiText, resolvePromptFromDb, buildStageSkillBlock, usageForRunLog } from "./_shared";
+import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, buildStageSkillBlock, usageForRunLog } from "./_shared";
 import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
@@ -439,8 +439,10 @@ export const runAiSpecialistGenerate = action({
     );
 
     // Replace [LANGUAGE] placeholder if present
+    const rulesBlock = await languageRulesBlock(ctx);
     const system = [
       baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
+      rulesBlock,
       skillBlock ? `\n${skillBlock}\n` : ``,
       memoryBlock ? `\n${memoryBlock}\n` : ``,
       referenceBlock ? `\n${referenceBlock}\n` : ``,
@@ -705,8 +707,10 @@ export const runAiCreatorRevise = action({
     );
 
     // Replace [LANGUAGE] placeholder if present
+    const fixerRulesBlock = await languageRulesBlock(ctx);
     const system = [
       baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
+      fixerRulesBlock,
       skillBlock ? `\n${skillBlock}\n` : ``,
       `\nCONTEXT:`,
       `Unit ${d.unitNumber}: ${d.title}`,

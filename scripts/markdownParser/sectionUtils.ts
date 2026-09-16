@@ -422,22 +422,134 @@ function validateVocabulary(content: string): SectionValidationResult {
   return { valid: errors.length === 0, errors, warnings };
 }
 
+// -----------------------------------------------------------------------------
+// Grammar v2 (didactic template, Content Studio upgrade 2026-09)
+//
+// Every grammar point ("### <title>") is expected to carry six "####" blocks in
+// this order: Why You Need This, The Rule, Pattern, Examples, Watch Out,
+// Quick Check. Legacy units (no "####" template blocks at all) are left
+// untouched so published content keeps validating.
+// -----------------------------------------------------------------------------
+
+export const GRAMMAR_V2_BLOCKS = [
+  "Why You Need This",
+  "The Rule",
+  "Pattern",
+  "Examples",
+  "Watch Out",
+  "Quick Check",
+] as const;
+
+export interface GrammarV2Analysis {
+  /** True when the section uses the v2 template (at least one template block found). */
+  isV2: boolean;
+  /** Number of "###" grammar points found. */
+  points: number;
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Analyse a "## 3. Grammar" section for the v2 didactic structure.
+ * Pure function; safe to call on legacy content (returns isV2=false, no errors).
+ */
+export function analyzeGrammarV2(grammarContent: string): GrammarV2Analysis {
+  const text = String(grammarContent || "").replace(/\r\n/g, "\n");
+  const blockHeader = (name: string) => new RegExp(`^####\\s+${name.replace(/ /g, "\\s+")}\\b`, "im");
+  const isV2 = GRAMMAR_V2_BLOCKS.some((b) => blockHeader(b).test(text));
+  if (!isV2) return { isV2: false, points: 0, errors: [], warnings: [] };
+
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Split into grammar points at "### " (ignore the intro before the first point).
+  const parts = text.split(/^###\s+(?!#)/m);
+  const points = parts.slice(1).map((p) => {
+    const nl = p.indexOf("\n");
+    return { title: (nl >= 0 ? p.slice(0, nl) : p).trim(), body: nl >= 0 ? p.slice(nl + 1) : "" };
+  });
+
+  if (points.length === 0) {
+    errors.push("Grammar v2: no '### <grammar point>' heading found above the template blocks.");
+  }
+
+  for (const point of points) {
+    const missing = GRAMMAR_V2_BLOCKS.filter((b) => !blockHeader(b).test(point.body));
+    if (missing.length > 0) {
+      errors.push(`Grammar v2: point '${point.title}' is missing block(s): ${missing.map((m) => `#### ${m}`).join(", ")}.`);
+      continue;
+    }
+
+    // Order check: blocks must appear in the canonical sequence.
+    const positions = GRAMMAR_V2_BLOCKS.map((b) => point.body.search(blockHeader(b)));
+    for (let i = 1; i < positions.length; i++) {
+      if (positions[i] < positions[i - 1]) {
+        warnings.push(`Grammar v2: point '${point.title}' has blocks out of order (expected ${GRAMMAR_V2_BLOCKS.join(" > ")}).`);
+        break;
+      }
+    }
+
+    const block = (name: string) => {
+      const start = point.body.search(blockHeader(name));
+      if (start < 0) return "";
+      const rest = point.body.slice(start).split("\n").slice(1).join("\n");
+      const next = rest.search(/^####\s+/m);
+      return next >= 0 ? rest.slice(0, next) : rest;
+    };
+
+    // Pattern: a table or an explicit form list.
+    const pattern = block("Pattern");
+    if (!/\|.*\|/.test(pattern) && !/^\s*[-*]\s+/m.test(pattern)) {
+      errors.push(`Grammar v2: point '${point.title}': '#### Pattern' needs a table or a bullet list of forms.`);
+    }
+
+    // Examples: at least 3 example lines containing a translation in parentheses.
+    const exampleLines = block("Examples")
+      .split("\n")
+      .filter((l) => /^\s*(?:[-*]|\d+\.)\s+/.test(l) && /\(.+\)/.test(l));
+    if (exampleLines.length < 3) {
+      errors.push(`Grammar v2: point '${point.title}': '#### Examples' needs at least 3 example lines with an English translation in parentheses (found ${exampleLines.length}).`);
+    }
+
+    // Watch Out: at least one WRONG -> CORRECT pair.
+    if (!/WRONG/i.test(block("Watch Out")) || !/CORRECT/i.test(block("Watch Out"))) {
+      errors.push(`Grammar v2: point '${point.title}': '#### Watch Out' needs at least one 'WRONG: ... -> CORRECT: ...' pair.`);
+    }
+
+    // Quick Check: numbered items plus an answers line.
+    const quick = block("Quick Check");
+    const items = quick.split("\n").filter((l) => /^\s*\d+\.\s+/.test(l)).length;
+    if (items < 2) {
+      errors.push(`Grammar v2: point '${point.title}': '#### Quick Check' needs at least 2 numbered items (found ${items}).`);
+    }
+    if (!/answers?\s*:/i.test(quick)) {
+      errors.push(`Grammar v2: point '${point.title}': '#### Quick Check' must end with an '**Answers:**' line.`);
+    }
+  }
+
+  return { isV2: true, points: points.length, errors, warnings };
+}
+
 function validateGrammar(content: string): SectionValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  
+
   if (!content.includes("## 3. Grammar")) {
     errors.push("Missing section header '## 3. Grammar'");
   }
-  
+
   if (content.length < 500) {
     errors.push("Grammar section must be substantial (minimum 500 characters). Current: " + content.length + " chars.");
   }
-  
+
   if (!/###\s+/.test(content)) {
     errors.push("Grammar must contain ### subsections for grammar points (e.g., '### The Locative Case').");
   }
-  
+
+  const v2 = analyzeGrammarV2(content);
+  errors.push(...v2.errors);
+  warnings.push(...v2.warnings);
+
   return { valid: errors.length === 0, errors, warnings };
 }
 

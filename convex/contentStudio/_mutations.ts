@@ -1317,6 +1317,8 @@ export const saveUnitPackageSnapshot = mutation({
         v.literal("published")
       )
     ),
+    /** Set by the Lector so the UI can tell whether its verdict still matches the content. */
+    markAudited: v.optional(v.boolean()),
     replaceFindings: v.optional(v.boolean()),
     findings: v.optional(
       v.array(
@@ -1589,6 +1591,7 @@ export const saveUnitPackageSnapshot = mutation({
       lastSnapshotId: snapId,
       updatedAt: now,
     };
+    if (args.markAudited) patch.lastAuditedSnapshotId = snapId;
     if (args.status) patch.status = args.status as DraftStatus;
     // Validator Memory auto-capture bookkeeping: store the pre-Fix snapshot
     // (Fix save) or clear it once consumed by the comparison (Validator save).

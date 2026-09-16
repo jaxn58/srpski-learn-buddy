@@ -80,7 +80,12 @@ const PROMPT_CATEGORIES: PromptCategory[] = [
       {
         key: "cs_brief_assistant",
         label: "Briefing Assistant",
-        hint: "System prompt for the assistant that turns an author's free-text description plus the curriculum plan into a structured Creator briefing (JSON output).",
+        hint: "System prompt for the assistant that turns an author's free-text description plus the course context into a structured Creator briefing (JSON output).",
+      },
+      {
+        key: "cs_language_rules",
+        label: "Serbian Language Rules (shared)",
+        hint: "Optional shared block of binding Serbian rules (clitic placement, Ekavian norm, script). Appended automatically to Creator, Section revise, Finding fixer and Lector.",
       },
       {
         key: "cs_section_overview",

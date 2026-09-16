@@ -264,6 +264,50 @@ export const getUnitPlan = query({
 const CEFR_LADDER = ["A1.1", "A1.2", "A2.1", "A2.2", "B1"] as const;
 type CefrLevel = (typeof CEFR_LADDER)[number];
 
+const levelCoverageValidator = v.object({
+  level: v.string(),
+  covered: v.array(v.string()),
+  missing: v.array(v.string()),
+  status: v.union(v.literal("open"), v.literal("nearly_complete"), v.literal("complete")),
+  note: v.string(),
+  computedAt: v.number(),
+  unitNumber: v.number(),
+});
+
+/**
+ * Level of every module, chronologically: an explicitly set level wins; an
+ * unset module takes the level after the previous module's level (capped at
+ * B1); the first module starts at A1.1. So "Module 2 = A1.1 (explicit)" makes
+ * Module 3 = A1.2 automatically.
+ */
+export function resolveModuleLevels(
+  modules: Array<{ moduleNumber?: number; cefrLevel?: string }>,
+): Map<number, { level: CefrLevel; source: "module" | "position" }> {
+  const sorted = modules
+    .filter((m) => typeof m.moduleNumber === "number")
+    .sort((a, b) => (a.moduleNumber ?? 0) - (b.moduleNumber ?? 0));
+  const out = new Map<number, { level: CefrLevel; source: "module" | "position" }>();
+  let prev: CefrLevel | null = null;
+  for (const m of sorted) {
+    let level: CefrLevel;
+    let source: "module" | "position";
+    if (m.cefrLevel && (CEFR_LADDER as readonly string[]).includes(m.cefrLevel)) {
+      level = m.cefrLevel as CefrLevel;
+      source = "module";
+    } else if (prev) {
+      const idx = CEFR_LADDER.indexOf(prev);
+      level = CEFR_LADDER[Math.min(idx + 1, CEFR_LADDER.length - 1)];
+      source = "position";
+    } else {
+      level = CEFR_LADDER[0];
+      source = "position";
+    }
+    out.set(m.moduleNumber as number, { level, source });
+    prev = level;
+  }
+  return out;
+}
+
 const taughtUnitValidator = v.object({
   unitNumber: v.number(),
   title: v.string(),
@@ -284,8 +328,14 @@ export const getUnitContext = query({
   args: { unitNumber: v.number(), moduleNumber: v.number() },
   returns: v.object({
     cefrLevel: curriculumCefrLevelValidator,
-    levelSource: v.union(v.literal("module"), v.literal("plan"), v.literal("position")),
+    levelSource: v.union(v.literal("module"), v.literal("position")),
     moduleTitleEn: v.optional(v.string()),
+    /** Last coverage judgement stored on the module (null until the first briefing run). */
+    moduleCoverage: v.union(v.null(), levelCoverageValidator),
+    /** Next free module number, for the "create next module" shortcut. */
+    nextModuleNumber: v.number(),
+    /** Level the next module would get automatically. */
+    nextModuleLevel: curriculumCefrLevelValidator,
     previouslyTaught: v.array(taughtUnitValidator),
     plannedHint: v.union(
       v.null(),
@@ -300,7 +350,7 @@ export const getUnitContext = query({
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
 
-    // 1. Level of the phase: module setting, else plan, else position.
+    // 1. Level of the phase: explicit module setting, else chronological chain.
     const modules = (await ctx.db.query("moduleMetadata").collect())
       .filter((m) => typeof m.moduleNumber === "number")
       .sort((a, b) => (a.moduleNumber ?? 0) - (b.moduleNumber ?? 0));
@@ -311,23 +361,20 @@ export const getUnitContext = query({
       .withIndex("by_active_unit", (q) => q.eq("isActive", true))
       .collect();
     const planForUnit = planRows.find((u) => u.unitNumber === args.unitNumber) ?? null;
-    const planLevelsInModule = planRows.filter((u) => u.moduleNumber === args.moduleNumber).map((u) => u.cefrLevel);
 
-    let cefrLevel: CefrLevel;
-    let levelSource: "module" | "plan" | "position";
-    if (moduleRow?.cefrLevel) {
-      cefrLevel = moduleRow.cefrLevel as CefrLevel;
-      levelSource = "module";
-    } else if (planLevelsInModule.length > 0) {
-      const counts = new Map<string, number>();
-      for (const l of planLevelsInModule) counts.set(l, (counts.get(l) ?? 0) + 1);
-      cefrLevel = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0] as CefrLevel;
-      levelSource = "plan";
-    } else {
-      const idx = Math.max(0, modules.findIndex((m) => m.moduleNumber === args.moduleNumber));
-      cefrLevel = CEFR_LADDER[Math.min(idx, CEFR_LADDER.length - 1)];
-      levelSource = "position";
-    }
+    // Resolve levels including a not-yet-existing target module (so a new
+    // module number still gets a sensible level).
+    const levelInput = modules.map((m) => ({ moduleNumber: m.moduleNumber, cefrLevel: m.cefrLevel }));
+    if (!moduleRow) levelInput.push({ moduleNumber: args.moduleNumber, cefrLevel: undefined });
+    const levels = resolveModuleLevels(levelInput);
+    const resolved = levels.get(args.moduleNumber) ?? { level: CEFR_LADDER[0], source: "position" as const };
+    const cefrLevel: CefrLevel = resolved.level;
+    const levelSource = resolved.source;
+
+    const maxModuleNumber = Math.max(0, ...modules.map((m) => m.moduleNumber ?? 0), args.moduleNumber);
+    const nextModuleNumber = maxModuleNumber + 1;
+    const nextLevels = resolveModuleLevels([...levelInput, { moduleNumber: nextModuleNumber, cefrLevel: undefined }]);
+    const nextModuleLevel: CefrLevel = nextLevels.get(nextModuleNumber)?.level ?? cefrLevel;
 
     // 2. What earlier units already taught. Newest briefing per unit wins,
     //    then published metadata, then the plan.
@@ -385,6 +432,9 @@ export const getUnitContext = query({
       cefrLevel,
       levelSource,
       moduleTitleEn: moduleRow?.titleEn ?? undefined,
+      moduleCoverage: (moduleRow as any)?.levelCoverage ?? null,
+      nextModuleNumber,
+      nextModuleLevel,
       previouslyTaught,
       plannedHint,
       nextPlannedHints,

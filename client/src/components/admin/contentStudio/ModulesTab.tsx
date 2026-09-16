@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../../convex/_generated/dataModel";
@@ -64,6 +65,7 @@ export function ModulesTab() {
 
   const createModuleMutation = useMutation(api.modules.createModule);
   const updateModuleMutation = useMutation(api.modules.updateModuleMetadata);
+  const resolvedLevels = useMemo(() => resolveModuleLevelsClient(dbModules ?? []), [dbModules]);
   const deleteModuleMutation = useMutation(api.modules.deleteModuleById);
   const translateModuleAction = useAction(api.modules.translateModuleEnToDe);
 
@@ -397,6 +399,7 @@ export function ModulesTab() {
                   <TableHead>{t("admin.contentStudio.modules.slug", "Slug")}</TableHead>
                   <TableHead>{t("admin.contentStudio.modules.titleEn", "Title (EN)")}</TableHead>
                   <TableHead>{t("admin.contentStudio.modules.titleDe", "Title (DE)")}</TableHead>
+                  <TableHead>{t("admin.contentStudio.modules.colLevel", "Level")}</TableHead>
                   <TableHead className="text-right">{t("admin.contentStudio.modules.colUnits", "Units")}</TableHead>
                   <TableHead className="text-right">{t("admin.contentStudio.modules.colActions", "Actions")}</TableHead>
                 </TableRow>
@@ -411,6 +414,13 @@ export function ModulesTab() {
                       <TableCell>{m.slug ?? "—"}</TableCell>
                       <TableCell>{m.titleEn ?? "—"}</TableCell>
                       <TableCell>{m.titleDe ?? "—"}</TableCell>
+                      <TableCell>
+                        <ModuleLevelCell
+                          level={resolvedLevels.get(m.moduleNumber ?? -1)}
+                          explicit={!!(m as any).cefrLevel}
+                          coverage={(m as any).levelCoverage}
+                        />
+                      </TableCell>
                       <TableCell className="text-right">{unitCounts === undefined ? "—" : unitCount}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -454,7 +464,7 @@ export function ModulesTab() {
 
       {/* Edit Module Dialog */}
       <AlertDialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("admin.contentStudio.modules.editTitle", "Edit module")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -596,6 +606,57 @@ type CefrLevel = "A1.1" | "A1.2" | "A2.1" | "A2.2" | "B1";
 const CEFR_LEVELS: CefrLevel[] = ["A1.1", "A1.2", "A2.1", "A2.2", "B1"];
 
 /**
+ * Same rule as `resolveModuleLevels` in convex/curriculum.ts: explicit level
+ * wins, otherwise the level after the previous module (capped at B1), the
+ * first module starts at A1.1. Kept in sync by hand; the server is the source
+ * of truth for the assistant, this is display only.
+ */
+function resolveModuleLevelsClient(modules: Array<{ moduleNumber?: number; cefrLevel?: string }>): Map<number, CefrLevel> {
+  const sorted = modules
+    .filter((m) => typeof m.moduleNumber === "number")
+    .sort((a, b) => (a.moduleNumber ?? 0) - (b.moduleNumber ?? 0));
+  const out = new Map<number, CefrLevel>();
+  let prev: CefrLevel | null = null;
+  for (const m of sorted) {
+    let level: CefrLevel;
+    if (m.cefrLevel && (CEFR_LEVELS as string[]).includes(m.cefrLevel)) level = m.cefrLevel as CefrLevel;
+    else if (prev) level = CEFR_LEVELS[Math.min(CEFR_LEVELS.indexOf(prev) + 1, CEFR_LEVELS.length - 1)];
+    else level = CEFR_LEVELS[0];
+    out.set(m.moduleNumber as number, level);
+    prev = level;
+  }
+  return out;
+}
+
+function ModuleLevelCell({
+  level, explicit, coverage,
+}: { level?: CefrLevel; explicit: boolean; coverage?: { covered: string[]; missing: string[]; status: "open" | "nearly_complete" | "complete" } }) {
+  const { t } = useTranslation();
+  if (!level) return <span className="text-muted-foreground">—</span>;
+  const total = coverage ? coverage.covered.length + coverage.missing.length : 0;
+  return (
+    <div className="flex flex-col gap-1 min-w-0">
+      <span className="text-sm">
+        {level}
+        {!explicit && <span className="text-xs text-muted-foreground"> · {t("admin.contentStudio.modules.levelAutoShort", "auto")}</span>}
+      </span>
+      {coverage && (
+        <Badge
+          variant={coverage.status === "complete" ? "default" : "outline"}
+          className={coverage.status === "complete" ? "w-fit text-xs bg-emerald-600 hover:bg-emerald-600" : "w-fit text-xs font-normal"}
+        >
+          {coverage.status === "complete"
+            ? t("admin.contentStudio.modules.coverageComplete", "complete")
+            : total > 0
+              ? t("admin.contentStudio.modules.coverageProgress", { defaultValue: "{{done}}/{{total}} covered", done: coverage.covered.length, total })
+              : t("admin.contentStudio.modules.coverageOpen", "in progress")}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+/**
  * Language level of the whole module. The Content Studio derives the
  * difficulty and the grammar progression of new units from it; authors never
  * have to pick a level per unit.
@@ -603,10 +664,10 @@ const CEFR_LEVELS: CefrLevel[] = ["A1.1", "A1.2", "A2.1", "A2.2", "B1"];
 function CefrLevelField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useTranslation();
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 md:col-span-2 min-w-0">
       <Label>{t("admin.contentStudio.modules.cefrLevel", "Language level of this module")}</Label>
       <Select value={value || "__auto__"} onValueChange={(v) => onChange(v === "__auto__" ? "" : v)}>
-        <SelectTrigger className="h-10 text-sm">
+        <SelectTrigger className="h-10 text-sm w-full [&>span]:truncate">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

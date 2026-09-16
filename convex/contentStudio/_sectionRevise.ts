@@ -31,7 +31,7 @@ import {
   deduplicateVocabularySectionMarkdown,
 } from "../../scripts/markdownParser/sectionUtils";
 import { CS_PROMPT_KEYS } from "./prompts";
-import { resolvePromptFromDb, buildStageSkillBlock } from "./_shared";
+import { resolvePromptFromDb, languageRulesBlock, buildStageSkillBlock } from "./_shared";
 
 /**
  * Expand a single section of the markdown without touching other sections.
@@ -95,7 +95,8 @@ export const runSectionRevise = action({
       { scope: "creator", limit: 60 }
     );
     const memoryBlock = buildValidatorMemoryBlockFromEntries(memoryEntries as any, { limit: 30 });
-    const systemPrompt = [basePrompt, skillBlock, memoryBlock, sectionPrompt]
+    const rulesBlock = await languageRulesBlock(ctx);
+    const systemPrompt = [basePrompt, rulesBlock, skillBlock, memoryBlock, sectionPrompt]
       .filter(Boolean)
       .join("\n\n");
 
@@ -110,7 +111,9 @@ export const runSectionRevise = action({
     ].join("\n");
 
     // 5. Call AI with only this section
-    const maxTokens = args.maxTokens ?? 4000;
+    // v2 grammar sections (rule, pattern table, examples, watch-out, quick
+    // check) run to ~1,500 output tokens; leave headroom for thinking models.
+    const maxTokens = args.maxTokens ?? 6000;
     const { provider, model, raw, usage, estimatedCostUsd } = await callAiText(ctx, {
       stage: "specialist",
       preferredProvider: (args.preferredProvider as any) || undefined,

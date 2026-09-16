@@ -27,7 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Eye, Loader2, PlusCircle, Sparkles, Undo2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Eye, Loader2, PlusCircle, Sparkles, Undo2 } from "lucide-react";
+import { countOpenFindings, isLectorStale, reviewSeverity } from "./utils/draftReviewState";
 import { toast } from "sonner";
 import type { SectionId } from "./types";
 import { useSectionLabel } from "./utils/sectionLabel";
@@ -165,6 +166,32 @@ export function ArtifactsPanel({
   void _setUnitPackageJson;
   const sectionLabel = useSectionLabel();
 
+  // Signal on the preview button: amber for unfinished quality steps, red for
+  // a reported defect. The button stays clickable either way.
+  const findings = (selected as any)?.findings ?? [];
+  const draft = (selected as any)?.draft;
+  const reviewState = reviewSeverity(draft, findings);
+  const openFindings = countOpenFindings(findings);
+  const reviewHint = (() => {
+    const status = String(draft?.status ?? "");
+    if (status === "qc_failed") return t("admin.contentStudio.artifacts.hintValidatorFailed", "The validator reported errors. Fix them and run the validator again before creating a preview.");
+    if (status === "audit_failed") return t("admin.contentStudio.artifacts.hintLectorBlocked", "The Lector found language errors. Use \"Fix findings\", then run the Lector again.");
+    if (openFindings > 0 && isLectorStale(draft, findings)) {
+      return t("admin.contentStudio.artifacts.hintFindingsAndStale", {
+        defaultValue: "{{n}} open finding(s), and the content changed after the last Lector run. Fix or dismiss them, then run the Lector again.",
+        n: openFindings,
+      });
+    }
+    if (openFindings > 0) {
+      return t("admin.contentStudio.artifacts.hintOpenFindings", {
+        defaultValue: "{{n}} open finding(s). Fix or dismiss them before creating a preview.",
+        n: openFindings,
+      });
+    }
+    if (isLectorStale(draft, findings)) return t("admin.contentStudio.artifacts.hintLectorStale", "The content changed after the last Lector run. Run the Lector again before creating a preview.");
+    return "";
+  })();
+
   const curatedBySection = new Map<SectionId, CuratedSectionInfo>(
     (curatedSections ?? []).map((c) => [c.section, c])
   );
@@ -214,10 +241,19 @@ export function ArtifactsPanel({
               </Button>
               <Button
                 size="sm"
+                variant={reviewState === "clean" ? "default" : "outline"}
                 onClick={onCreatePreview}
                 disabled={isBusy || !selectedDraftId || !markdownText.trim()}
+                className={cn(
+                  reviewState === "attention" && "border-amber-500 ring-1 ring-amber-500 text-amber-700 dark:text-amber-400",
+                  reviewState === "failed" && "border-destructive ring-1 ring-destructive text-destructive",
+                )}
               >
-                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                {reviewState === "clean" ? (
+                  <Eye className="h-3.5 w-3.5 mr-1.5" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+                )}
                 {creatingPreview
                   ? t("admin.contentStudio.artifacts.creatingPreview", "Creating preview…")
                   : t("admin.contentStudio.artifacts.saveAndCreatePreview", "Save & create preview")}
@@ -237,6 +273,16 @@ export function ArtifactsPanel({
                 {t("admin.contentStudio.artifacts.loadFromDraft", "Load from latest draft")}
               </Button>
             </div>
+            {reviewHint && (
+              <p
+                className={cn(
+                  "text-xs font-medium leading-relaxed",
+                  reviewState === "failed" ? "text-destructive" : "text-amber-700 dark:text-amber-400",
+                )}
+              >
+                {reviewHint}
+              </p>
+            )}
             <p className="text-[10px] text-muted-foreground leading-relaxed">
               {t("admin.contentStudio.artifacts.previewOnlyPrefix", "Preview only — publishing (Update / Replace) happens in the")}{" "}
               <strong>{t("admin.contentStudio.artifacts.unitManager", "Unit Manager")}</strong>.

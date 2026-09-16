@@ -7,6 +7,7 @@ import {
   callAiJson,
   buildStageSkillBlock,
   resolvePromptFromDb,
+  languageRulesBlock,
 } from "./_shared";
 import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
 import { CS_PROMPT_KEYS } from "./prompts";
@@ -75,8 +76,10 @@ export const runAiAuditor = action({
     const baseLectorPrompt = await resolvePromptFromDb(
       ctx, CS_PROMPT_KEYS.lector,
     );
+    const rulesBlock = await languageRulesBlock(ctx);
     const system = [
       baseLectorPrompt,
+      rulesBlock,
       ``,
       `=== COURSE CONTEXT ===`,
       `This is Unit ${unitNumber} of a Serbian language course for English speakers.`,
@@ -132,8 +135,10 @@ export const runAiAuditor = action({
     };
 
     try {
-      const maxTokensRaw = typeof args.maxTokens === "number" ? args.maxTokens : 2000;
-      const maxTokens = Math.max(1000, Math.min(3500, Math.floor(maxTokensRaw)));
+      // The Lector now sees the full grammar section and longer dialogues
+      // (see buildAuditPayload), so it needs room for more findings.
+      const maxTokensRaw = typeof args.maxTokens === "number" ? args.maxTokens : 3500;
+      const maxTokens = Math.max(1000, Math.min(6000, Math.floor(maxTokensRaw)));
 
       const { provider, model, raw, usage, estimatedCostUsd } = await callAiJson(ctx, {
         stage: "auditor",
@@ -183,8 +188,17 @@ export const runAiAuditor = action({
         audit = parseJsonOrThrow(repaired.raw);
       }
 
-      let blockers = Array.isArray(audit?.blockers) ? audit.blockers : [];
-      let warnings = Array.isArray(audit?.warnings) ? audit.warnings : [];
+      // Classification happens by CODE, not by the array the model chose:
+      // models put the same issue in "blockers" or "warnings" inconsistently.
+      // Only objective language defects block (decision 2026-09-16); didactic
+      // and stylistic remarks stay advisory.
+      const BLOCKING_CODES = new Set(["SERBIAN_ERROR", "TRANSLATION_MISMATCH"]);
+
+      let blockers: any[] = [];
+      let warnings = [
+        ...(Array.isArray(audit?.blockers) ? audit.blockers : []),
+        ...(Array.isArray(audit?.warnings) ? audit.warnings : []),
+      ];
 
       // Defensive normalization: ensure issues are consistently shaped strings.
       const normalizeIssue = (i: any) => ({
@@ -192,24 +206,6 @@ export const runAiAuditor = action({
         message: String(i?.message || "").trim(),
         path: typeof i?.path === "string" ? i.path : undefined,
       });
-
-      // Server-side enforcement: some models still emit subjective "blockers".
-      // We only allow objective blockers in this pipeline. Downgrade known subjective codes to warnings.
-      const downgradeCodes = new Set([
-        "GRAMMAR_CONTENT_TRUNCATED",
-        "EXERCISE_TYPE_MISMATCH",
-        "EXERCISE_CONTENT_MISMATCH",
-        "EXERCISE_MISMATCH",
-        "EXERCISE_INCONSISTENCY",
-        "EXERCISE_CATEGORY_MISSING",
-        "VOCAB_MISSING",
-        "VOCAB_MISSING_FROM_SAMPLE",
-        "VOCAB_MISSING_KEY",
-        "VOCAB_MISSING_IN_DIALOGUE",
-        "VOCAB_KEY_INVALID",        // Linguistic suggestions (e.g., "use infinitive instead of conjugated form")
-        "MISSING_VOCABULARY",
-        "MISSING_CORE_VOCABULARY",
-      ]);
 
       const allowedExerciseCategories = new Set([
         "translation",
@@ -220,50 +216,23 @@ export const runAiAuditor = action({
       ]);
 
       const downgraded: any[] = [];
-      blockers = blockers.filter((b: any) => {
-        const code = String(b?.code || "");
-        const msg = String(b?.message || "");
-        const looksTrunc = /truncat/i.test(code) || /truncat/i.test(msg);
-
-        // If the model invents missing categories outside our supported set, always downgrade.
-        if (code === "EXERCISE_CATEGORY_MISSING") {
-          const m = msg.match(/category\s+'([^']+)'/i);
-          const cat = m ? String(m[1] || "").trim() : "";
-          if (cat && !allowedExerciseCategories.has(cat)) {
-            downgraded.push({
-              code,
-              message: `Auditor suggested unsupported exercise category '${cat}'. Ignored.`,
-              path: b?.path,
-            });
-            return false;
-          }
-        }
-
-        if (downgradeCodes.has(code) || looksTrunc) {
+      // Drop invented exercise categories outright; they are pure noise.
+      warnings = warnings.filter((w: any) => {
+        const code = String(w?.code || "");
+        if (code !== "EXERCISE_CATEGORY_MISSING") return true;
+        const m = String(w?.message || "").match(/category\s+'([^']+)'/i);
+        const cat = m ? String(m[1] || "").trim() : "";
+        if (cat && !allowedExerciseCategories.has(cat)) {
           downgraded.push({
-            code: code || "auditor_warning",
-            message: msg || "Warning",
-            path: b?.path,
+            code,
+            message: `Auditor suggested unsupported exercise category '${cat}'. Ignored.`,
+            path: w?.path,
           });
           return false;
         }
         return true;
       });
       if (downgraded.length) warnings = [...downgraded, ...warnings];
-
-      // Additional safety: the Lector is not reliable enough to hard-block publishing.
-      // Convert any remaining blockers into warnings.
-      if (blockers.length) {
-        warnings = [
-          ...blockers.map((b: any) => ({
-            ...normalizeIssue(b),
-            code: String(b?.code || "auditor_blocker").trim() || "auditor_blocker",
-            message: String(b?.message || "Blocker").trim() || "Blocker",
-          })),
-          ...warnings,
-        ];
-        blockers = [];
-      }
 
       // Post-process: Filter out vocabulary warnings for words that already exist in the course
       // This catches false positives where the Lector claims a word is "missing" but it's already taught
@@ -300,7 +269,9 @@ export const runAiAuditor = action({
         if (!norm.path) continue;
 
         // Normalize/limit codes to reduce UI noise and prevent "invented" categories.
-        const allowedCodes = new Set(["SERBIAN_ERROR", "TRANSLATION_MISMATCH", "CULTURAL_FACT_RISK", "STYLE_SUGGESTION"]);
+        // DIDACTIC_GAP: grammar explanation incomplete or above level, missing
+        // pattern/examples/self-check (v2 grammar structure), or wrong scope.
+        const allowedCodes = new Set(["SERBIAN_ERROR", "TRANSLATION_MISMATCH", "CULTURAL_FACT_RISK", "DIDACTIC_GAP", "STYLE_SUGGESTION"]);
         const outCode = allowedCodes.has(code) ? code : "STYLE_SUGGESTION";
         const outMsg = allowedCodes.has(code) ? msg : `[${code || "unknown"}] ${msg}`;
         
@@ -315,12 +286,16 @@ export const runAiAuditor = action({
       }
       // Deduplicate warnings by (code + message + path) to reduce model spam.
       const seen = new Set<string>();
-      warnings = filteredWarnings.filter((w: any) => {
+      const deduped = filteredWarnings.filter((w: any) => {
         const k = `${String(w?.code || "")}||${String(w?.message || "")}||${String(w?.path || "")}`;
         if (seen.has(k)) return false;
         seen.add(k);
         return true;
       });
+
+      // Split by code: objective language defects block, the rest is advisory.
+      blockers = deduped.filter((w: any) => BLOCKING_CODES.has(String(w?.code || "")));
+      warnings = deduped.filter((w: any) => !BLOCKING_CODES.has(String(w?.code || "")));
 
       // Normalize audit object so UI shows the post-processed blocker/warning sets.
       const normalizedAudit = {
@@ -329,8 +304,10 @@ export const runAiAuditor = action({
         warnings,
       };
 
-      // Non-blocking by design: auditor output is advisory only.
-      const ok = true;
+      // Objective language defects (SERBIAN_ERROR, TRANSLATION_MISMATCH) fail
+      // the audit and keep the unit out of "ready to publish"; everything else
+      // is advisory.
+      const ok = blockers.length === 0;
 
       const findings = [
         ...blockers.map((b: any) => ({
@@ -356,7 +333,8 @@ export const runAiAuditor = action({
         unitPackageJson: snapshot.unitPackageJson,
         markdownSource: snapshot.markdownSource,
         validationReportJson: JSON.stringify({ ok, audit: normalizedAudit }),
-        status: "ready_to_publish",
+        status: ok ? "ready_to_publish" : "audit_failed",
+        markAudited: true,
         // Replace findings so old auditor blockers don't linger after reruns.
         // After qc_passed, validator findings should already be empty, so this is safe.
         replaceFindings: true,

@@ -565,16 +565,24 @@ export default function ContentStudioAdmin() {
 
   const [activeInspectorStep, setActiveInspectorStep] = useState<InspectorStep>("generate");
 
+  // Open findings (errors and warnings, not dismissed). Info-level notes from
+  // the validator are not something the author has to look at.
+  const openFindingsCount = (selected?.findings ?? []).filter(
+    (f: any) => (f.severity === "error" || f.severity === "warning") && !f.dismissed
+  ).length;
+
   useEffect(() => {
     const computed: InspectorStep = (() => {
       if (!selectedDraftId || !selected?.draft) return "generate";
       if (nextStepKey === "creator") return "generate";
       if (nextStepKey === "validator" || nextStepKey === "lector") return "review";
-      if (nextStepKey === "createPreview") return "createPreview";
+      // Do not skip past Review while the Lector's remarks are unread: after a
+      // successful audit the status alone would advance to Preview and hide them.
+      if (nextStepKey === "createPreview") return openFindingsCount > 0 ? "review" : "createPreview";
       return "generate";
     })();
     setActiveInspectorStep(computed);
-  }, [selectedDraftId, selected?.draft, nextStepKey]);
+  }, [selectedDraftId, selected?.draft, nextStepKey, openFindingsCount]);
 
   const latestReport = useMemo(() => {
     const raw = (selected as any)?.snapshot?.validationReportJson;

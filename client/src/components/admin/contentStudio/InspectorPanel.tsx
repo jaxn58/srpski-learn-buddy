@@ -37,6 +37,7 @@ import { Loader2, CheckCircle, XCircle, Sparkles, RotateCcw, X } from "lucide-re
 import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
 import { useSectionLabel } from "./utils/sectionLabel";
+import { isLectorStale } from "./utils/draftReviewState";
 import { DraftStatusBadge } from "./StatusBadge";
 import {
   PreviewStatusBanner,
@@ -194,8 +195,19 @@ function ReviewContent(props: InspectorPanelProps) {
   const stageLabel = useAiRunStageLabel();
   const sectionLabel = useSectionLabel();
 
+  const lectorStale = isLectorStale(selected?.draft, findings);
+
   return (
     <>
+      {lectorStale && (
+        <div className="rounded-md border border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs leading-relaxed">
+          {t(
+            "admin.contentStudio.inspector.lectorStale",
+            "The content changed after the last Lector run. Run the Lector again before creating a preview.",
+          )}
+        </div>
+      )}
+
       {/* QA Summary */}
       <div className="flex items-center gap-2 flex-wrap">
         {errorFindings.length > 0 && (
@@ -468,11 +480,11 @@ function CreatePreviewContent(props: InspectorPanelProps) {
       <AlertDialog open={showDeleteDraftDialog} onOpenChange={setShowDeleteDraftDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("admin.contentStudio.inspector.deleteUnitConfirmTitle", "Delete this unit?")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.contentStudio.inspector.deleteUnitConfirmTitle", "Delete this draft?")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
                 "admin.contentStudio.inspector.deleteUnitConfirmDescription",
-                "This removes the unit and all its drafts. Published units are not affected."
+                "This removes only this draft and its snapshots, findings and AI run logs. The published unit and any other drafts are not affected."
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

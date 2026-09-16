@@ -11,14 +11,20 @@ export type ContentStudioPromptKey =
   | "cs_finding_fixer"
   | "cs_lector"
   | "cs_brief_assistant"
+  | "cs_language_rules"
   | `cs_section_${string}`;
 
 export const CS_PROMPT_KEYS = {
   unitCreator: "cs_unit_creator",
   findingFixer: "cs_finding_fixer",
   lector: "cs_lector",
-  /** Turns a free-text unit description plus the curriculum plan into a structured brief. */
+  /** Turns a free-text unit description plus the course context into a structured briefing. */
   briefAssistant: "cs_brief_assistant",
+  /**
+   * Shared Serbian language rules (clitics, Ekavian norm, script). Optional:
+   * appended to Creator, Section revise, Finding fixer and Lector when present.
+   */
+  languageRules: "cs_language_rules",
   section: (id: SectionId) => `cs_section_${id}` as const,
 } as const;
 
@@ -92,8 +98,11 @@ export const getSpecialistUserPromptBase = (
   `═══════════════════════════════════════════════════════════════════════════`,
   `KNOWN VOCABULARY (${previousVocabKeys.length} words already taught in previous units)`,
   `═══════════════════════════════════════════════════════════════════════════`,
+  // Full known-vocabulary list up to a generous cap. 75 units x ~25 words is
+  // below 2,000 entries (~4k tokens), so the Creator normally sees everything
+  // and never re-teaches a word by accident.
   previousVocabKeys.length > 0
-    ? previousVocabKeys.slice(0, 300).join(", ") + (previousVocabKeys.length > 300 ? " ... (truncated)" : "")
+    ? previousVocabKeys.slice(0, 2000).join(", ") + (previousVocabKeys.length > 2000 ? " ... (truncated)" : "")
     : "(This is Unit 1 - no previous vocabulary)",
   ``,
   `═══════════════════════════════════════════════════════════════════════════`,
