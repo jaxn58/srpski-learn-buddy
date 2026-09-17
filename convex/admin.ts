@@ -5,7 +5,6 @@ import { mutation, query, internalQuery, internalMutation, action, QueryCtx, Mut
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { VOCABULARY } from "../shared/data/vocabulary/words";
-import { UNIT_EXERCISES } from "./unitExercises";
 import { upsertDailyActivityByUserId } from "./units";
 import { requireSuperadminAction, callAiText } from "./contentStudio/_shared";
 import {
@@ -1594,178 +1593,42 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
-// Mark Unit 1 as complete for current user
-// This mutation allows users to mark Unit 1 as complete without redoing all exercises
-export const markUnit1Complete = mutation({
+export const auditLearningIntegrity = query({
+  args: {},
+  returns: v.object({
+    unitsWithoutModule: v.array(
+      v.object({
+        unitNumber: v.number(),
+        language: v.string(),
+        releaseStatus: v.optional(v.string()),
+      }),
+    ),
+    orphanQuestionProgressCount: v.number(),
+  }),
   handler: async (ctx) => {
-    console.log('[markUnit1Complete] Starting Unit 1 completion process');
-    
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      console.error('[markUnit1Complete] User not authenticated');
-      throw new Error("Not authenticated");
-    }
+    const admin = await getAdminUser(ctx);
+    if (!admin) throw new Error("Unauthorized");
 
-    console.log('[markUnit1Complete] User found:', user._id);
-    if (user.role !== "superadmin") {
-      console.error('[markUnit1Complete] Unauthorized role:', user.role);
-      throw new Error("Unauthorized");
-    }
+    const metas = await ctx.db.query("unitMetadata").collect();
+    const unitsWithoutModule = metas
+      .filter((m) => m.isOffline !== true && m.releaseStatus !== "offline" && !m.moduleMetadataId)
+      .map((m) => ({
+        unitNumber: m.unitNumber,
+        language: m.language,
+        releaseStatus: m.releaseStatus,
+      }))
+      .sort((a, b) => a.unitNumber - b.unitNumber || a.language.localeCompare(b.language));
 
-    // Unit 1 vocabulary words (from shared/data/vocabulary/words.ts)
-    const unit1VocabWords = [
-      { serbian: "aerodrom", english: "airport" },
-      { serbian: "pasoš", english: "passport" },
-      { serbian: "karta", english: "ticket" },
-      { serbian: "prtljag", english: "luggage" },
-      { serbian: "dobar dan", english: "good day" },
-      { serbian: "dobro jutro", english: "good morning" },
-      { serbian: "dobro veče", english: "good evening" },
-      { serbian: "laku noć", english: "good night" },
-      { serbian: "hvala", english: "thank you" },
-      { serbian: "molim", english: "please" },
-      { serbian: "da", english: "yes" },
-      { serbian: "ne", english: "no" },
-      { serbian: "izvinite", english: "excuse me" },
-      { serbian: "zdravo", english: "hello" },
-      { serbian: "ćao", english: "bye" },
-      { serbian: "doviđenja", english: "goodbye" },
-      { serbian: "ja", english: "I" },
-      { serbian: "ti", english: "you (informal)" },
-      { serbian: "on", english: "he" },
-      { serbian: "ona", english: "she" },
-      { serbian: "ono", english: "it" },
-      { serbian: "biti", english: "to be" },
-      { serbian: "imati", english: "to have" },
-    ];
+    const tests = await ctx.db.query("unitInteractiveTests").collect();
+    const activeQuestionIds = new Set(
+      tests
+        .filter((t) => t.isActive !== false && t.releaseStatus !== "preview" && t.releaseStatus !== "offline")
+        .map((t) => t.questionId),
+    );
+    const questionProgress = await ctx.db.query("questionProgress").collect();
+    const orphanQuestionProgressCount = questionProgress.filter((row) => !activeQuestionIds.has(row.questionId)).length;
 
-    let vocabProcessed = 0;
-    const now = Date.now();
-
-    // 1. Create/update exercise completions for all 3 Unit 1 exercises
-    console.log('[markUnit1Complete] Processing exercises...');
-    const exercises = [
-      {
-        exerciseId: "unit1-biti-conjugation",
-        exerciseType: "fillInBlank",
-        score: 6,
-        totalQuestions: 6,
-        xpEarned: 16,
-      },
-      {
-        exerciseId: "unit1-basic-phrases",
-        exerciseType: "translation",
-        score: 5,
-        totalQuestions: 5,
-        xpEarned: 16,
-      },
-      {
-        exerciseId: "unit1-gender",
-        exerciseType: "fillInBlank",
-        score: 5,
-        totalQuestions: 5,
-        xpEarned: 16,
-      },
-    ];
-
-    let exercisesProcessed = 0;
-    let totalXPEarned = 0;
-
-    for (const exercise of exercises) {
-      // Check if exercise completion already exists
-      const existingCompletion = await ctx.db
-        .query("exerciseCompletions")
-        .withIndex("by_user_exercise", (q) =>
-          q.eq("userId", user._id)
-           .eq("exerciseId", exercise.exerciseId)
-           .eq("unitNumber", 1)
-        )
-        .first();
-
-      if (existingCompletion) {
-        // Update existing completion to perfect score
-        await ctx.db.patch(existingCompletion._id, {
-          score: exercise.score,
-          totalQuestions: exercise.totalQuestions,
-          xpEarned: exercise.xpEarned,
-        });
-        exercisesProcessed++;
-      } else {
-        // Create new exercise completion
-        await ctx.db.insert("exerciseCompletions", {
-          userId: user._id,
-          unitNumber: 1,
-          exerciseId: exercise.exerciseId,
-          score: exercise.score,
-          totalQuestions: exercise.totalQuestions,
-          xpEarned: exercise.xpEarned,
-        });
-        exercisesProcessed++;
-      }
-      totalXPEarned += exercise.xpEarned;
-    }
-
-    console.log(`[markUnit1Complete] Processed ${exercisesProcessed} exercises, total XP: ${totalXPEarned}`);
-
-    // 3. Update user progress: Mark Unit 1 as completed and set currentUnit to 2
-    console.log('[markUnit1Complete] Updating user progress...');
-    const progress = await ctx.db
-      .query("userProgress")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .first();
-
-    if (progress) {
-      const completedUnits = progress.completedUnits.includes(1)
-        ? progress.completedUnits
-        : [...progress.completedUnits, 1];
-      
-      await ctx.db.patch(progress._id, {
-        completedUnits,
-        currentUnit: Math.max(progress.currentUnit, 2),
-      });
-      console.log(`[markUnit1Complete] Updated progress: completedUnits=${completedUnits}, currentUnit=${Math.max(progress.currentUnit, 2)}`);
-    } else {
-      // Create new progress if it doesn't exist
-      await ctx.db.insert("userProgress", {
-        userId: user._id,
-        currentUnit: 2,
-        completedUnits: [1],
-        learningDuration: 12,
-        uiLanguage: "en",
-      });
-      console.log('[markUnit1Complete] Created new progress record');
-    }
-
-    // 4. Update user XP and level
-    console.log('[markUnit1Complete] Updating XP and level...');
-    const newTotalXP = user.totalXP + totalXPEarned;
-    const newLevel = levelFromXp(newTotalXP);
-
-    await ctx.db.patch(user._id, {
-      totalXP: newTotalXP,
-      level: newLevel,
-    });
-
-    if (totalXPEarned > 0) {
-      await upsertDailyActivityByUserId(ctx, user._id, {
-        xpEarned: totalXPEarned,
-        exercisesCompleted: exercisesProcessed,
-        unitsCompleted: 1,
-      });
-    }
-
-    console.log(`[markUnit1Complete] Updated XP: ${user.totalXP} → ${newTotalXP}, Level: ${user.level} → ${newLevel}`);
-
-    console.log('[markUnit1Complete] ✅ Unit 1 completion process finished successfully');
-
-    return {
-      success: true,
-      vocabProcessed,
-      exercisesProcessed,
-      xpEarned: totalXPEarned,
-      newTotalXP,
-      newLevel,
-    };
+    return { unitsWithoutModule, orphanQuestionProgressCount };
   },
 });
 
@@ -1797,7 +1660,7 @@ export const simulateUnitProgress = mutation({
     const vocabWords = VOCABULARY.filter((word) => word.unit === unitNumber);
     let vocabProcessed = 0;
 
-    const exerciseIds = UNIT_EXERCISES[unitNumber] || [];
+    const exerciseIds: string[] = [];
     const xpPerExercise = 16;
     let exercisesProcessed = 0;
 

@@ -1,8 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
-import { upsertDailyActivityByUserId } from "./units";
+import { upsertDailyActivityByUserId, checkUnitAccess } from "./units";
 import { assertLearnerAccountActive } from "./authz";
-import { loadBetaMaxUnits } from "./platform";
 import { spacedRepetitionXp, levelFromXp } from "./gamification";
 
 // Helper to get the current user
@@ -18,51 +17,6 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     assertLearnerAccountActive(user);
   }
   return user;
-}
-
-// Helper to check unit access
-async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
-  const user = await getCurrentUser(ctx);
-  if (!user) return false;
-
-  // Admins have full access
-  if (user.role === "admin" || user.role === "superadmin") {
-    return true;
-  }
-
-  // Check for active subscription
-  const subscription = await ctx.db
-    .query("userSubscriptions")
-    .withIndex("by_user", (q) => q.eq("userId", user._id))
-    .filter((q) => q.eq(q.field("status"), "active"))
-    .first();
-
-  const betaMaxUnits = await loadBetaMaxUnits(ctx);
-
-  // Beta subscriptions are hard-capped by the admin-tunable beta unit limit.
-  if (subscription?.planType === "beta") {
-    return unitNumber <= betaMaxUnits;
-  }
-
-  if (subscription?.maxAccessibleUnits && unitNumber <= subscription.maxAccessibleUnits) {
-    return true;
-  }
-
-  // Paid subscriptions get full access (bounded by current course length in DB).
-  // Beta subscriptions already returned above, so any remaining sub is paid.
-  if (subscription) {
-    const units = await ctx.db.query("unitMetadata").collect();
-    const englishUnits = units.filter((u) => u.language === "en");
-    const totalUnits = new Set(englishUnits.map((u) => u.unitNumber)).size;
-    if (unitNumber <= totalUnits) return true;
-  }
-
-  // Fallback: Beta Tester Flag (governed by the beta unit limit).
-  if (user.isBetaTester && unitNumber <= betaMaxUnits) {
-    return true;
-  }
-
-  return false;
 }
 
 // Get exercise results for current user

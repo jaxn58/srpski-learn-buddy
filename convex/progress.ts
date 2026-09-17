@@ -6,8 +6,10 @@ import { spacedRepetitionXp, cumulativeSpacedRepetitionXp, levelFromXp } from ".
 import {
   evaluateUserUnitCompletion,
   learnerTrackLanguage,
+  loadPlannedUnits,
   markUnitCompletedIfReady,
 } from "./lib/unitProgress";
+import { buildModuleGates, isModuleOpen, isUnitUnlockedByModule, nextRecommendedUnit } from "../shared/learning/moduleUnlock";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -80,18 +82,39 @@ export const getUserProgress = query({
         continue;
       }
       if (unit > correctCurrentUnit) break;
-      // unit < correctCurrentUnit: duplicate/out-of-order -> ignore
     }
 
-    // Return corrected progress (don't modify DB in query, just return corrected value)
-    if (progress.currentUnit !== correctCurrentUnit) {
-      return {
-        ...progress,
-        currentUnit: correctCurrentUnit,
-      };
-    }
+    const planned = await loadPlannedUnits(ctx);
+    const recommended =
+      planned.length > 0
+        ? nextRecommendedUnit({ completedUnits, units: planned })
+        : correctCurrentUnit;
+    const gates = planned.length > 0 ? buildModuleGates(planned) : [];
+    const openModuleNumbers = gates
+      .filter((g) => isModuleOpen({ moduleNumber: g.moduleNumber, completedUnits, gates }))
+      .map((g) => g.moduleNumber);
+    const lockedUnitNumbers =
+      planned.length > 0
+        ? planned
+            .filter(
+              (u) =>
+                !completedUnits.includes(u.unitNumber) &&
+                !isUnitUnlockedByModule({
+                  unitNumber: u.unitNumber,
+                  completedUnits,
+                  units: planned,
+                }),
+            )
+            .map((u) => u.unitNumber)
+        : [];
 
-    return progress;
+    return {
+      ...progress,
+      currentUnit: recommended ?? correctCurrentUnit,
+      recommendedUnit: recommended,
+      openModuleNumbers,
+      lockedUnitNumbers,
+    };
   },
 });
 

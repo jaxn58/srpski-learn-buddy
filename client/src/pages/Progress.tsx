@@ -134,7 +134,7 @@ export default function Progress() {
     return u;
   }, [completedUnits]);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
-  const totalUnitsFromDb = dbUnitsEn?.length || 27;
+  const totalUnitsFromDb = dbUnitsEn?.length ?? 0;
   const maxAccessibleUnits = accessInfo?.maxUnits ?? 0;
   const totalUnits = isAdmin
     ? totalUnitsFromDb

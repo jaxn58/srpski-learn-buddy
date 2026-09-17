@@ -49,6 +49,7 @@ type QuestionProgressEntry = {
 type SubmitCategoryResult = {
   earnedXP: number;
   updatedProgress: QuestionProgressEntry[];
+  unitCompleted?: boolean;
 };
 
 type UnitContentSections = {
@@ -246,7 +247,9 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
       setCheckedCategories(prev => new Set(prev).add(category));
 
       // Show toast with result
-      if (result.earnedXP > 0) {
+      if (result.unitCompleted) {
+        toast.success(t("unit.unitCompleted"));
+      } else if (result.earnedXP > 0) {
         toast.success(t("interactiveTest.toastEarnedXp", { xp: result.earnedXP }));
       } else {
         const incorrectInThisCheck = categoryQuestions.length - correctCount;

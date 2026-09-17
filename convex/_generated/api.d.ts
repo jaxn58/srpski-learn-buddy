@@ -88,7 +88,6 @@ import type * as streaming from "../streaming.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as system from "../system.js";
 import type * as unitContentAudio from "../unitContentAudio.js";
-import type * as unitExercises from "../unitExercises.js";
 import type * as units from "../units.js";
 import type * as users from "../users.js";
 import type * as versions from "../versions.js";
@@ -183,7 +182,6 @@ declare const fullApi: ApiFromModules<{
   subscriptions: typeof subscriptions;
   system: typeof system;
   unitContentAudio: typeof unitContentAudio;
-  unitExercises: typeof unitExercises;
   units: typeof units;
   users: typeof users;
   versions: typeof versions;

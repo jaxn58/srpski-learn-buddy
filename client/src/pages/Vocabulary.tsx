@@ -13,7 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Switch } from "@/components/ui/switch";
 import { Link, useLocation } from "wouter";
 import { useBuddyModal } from "@/contexts/BuddyModalContext";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Types only - no hardcoded data imports
@@ -21,9 +21,11 @@ import type { SupportedLanguage } from "@shared/const";
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { GamificationModal } from "@/components/GamificationModal";
 import { BuddyHelpHint } from "@/components/BuddyHelpHint";
 import { whenAudioCanPlayThrough } from "@/lib/whenAudioCanPlayThrough";
+import { cumulativeSpacedRepetitionXp } from "../../../convex/gamification";
 
 type QuizProgressDoc = Doc<"quizProgress">;
 type VocabularyProgressDoc = Doc<"vocabularyProgress">;
@@ -43,8 +45,25 @@ type VocabItem = {
   noteSr?: string;
 };
 
+// Single shape for both the word itself and its per-user progress, as
+// returned by getVocabularyWithProgress. This is the only vocabulary source
+// used by Learn/Quiz mode (see rationale at the `vocabWithProgress` query
+// below) so the word list and its progress can never disagree.
 type VocabWithProgressItem = {
   _id: Id<"courseVocabulary">;
+  unitNumber: number;
+  serbian: string;
+  en?: string;
+  de?: string;
+  sr?: string;
+  es?: string;
+  fr?: string;
+  audioStorageId?: string | null;
+  noteEn?: string;
+  noteDe?: string;
+  noteSr?: string;
+  noteEs?: string;
+  noteFr?: string;
   progress: {
     correctAnswerCount?: number;
     incorrectAnswerCount?: number;
@@ -55,17 +74,47 @@ type VocabWithProgressItem = {
   } | null;
 };
 
-type UserVocabProgressRow = {
-  serbianWord: string;
-  unitNumber: number;
-  correctAnswerCount: number;
-  incorrectAnswerCount: number;
-  mastered: boolean;
-  reviewCount: number;
-  lastReviewedAt?: number;
-  lastAnsweredAt?: number;
-  courseVocabularyId?: Id<"courseVocabulary">;
-};
+function trimmedText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function translationForLanguage(
+  word: { en?: string; de?: string } | null | undefined,
+  language: SupportedLanguage
+): string {
+  if (!word) return "";
+  return language === "de" ? trimmedText(word.de) : trimmedText(word.en);
+}
+
+function noteForLanguage(
+  word:
+    | {
+        noteEn?: string;
+        noteDe?: string;
+        noteEs?: string;
+        noteFr?: string;
+      }
+    | null
+    | undefined,
+  language: SupportedLanguage
+): string | null {
+  if (!word) return null;
+  const note =
+    language === "de"
+      ? trimmedText(word.noteDe)
+      : language === "es"
+        ? trimmedText(word.noteEs)
+        : language === "fr"
+          ? trimmedText(word.noteFr)
+          : trimmedText(word.noteEn);
+  return note || null;
+}
+
+function missingTranslationKey(
+  language: SupportedLanguage
+): "vocab.missingTranslation.de" | "vocab.missingTranslation.en" {
+  return language === "de" ? "vocab.missingTranslation.de" : "vocab.missingTranslation.en";
+}
 
 export default function Vocabulary() {
   const { user } = useAuth();
@@ -83,13 +132,9 @@ export default function Vocabulary() {
   const userLanguage: SupportedLanguage =
     rawLang === "de" || rawLang === "es" || rawLang === "fr" ? rawLang : "en";
   
-  // Helper function to get note for current language
-  const getNoteForLanguage = (word: any, language: SupportedLanguage): string | null => {
-    if (!word) return null;
-    if (language === "de") return word.noteDe || word.noteEn || null;
-    if (language === "es") return word.noteEs || word.noteEn || null;
-    if (language === "fr") return word.noteFr || word.noteEn || null;
-    return word.noteEn || null;
+  const resolveTranslationLabel = (word: VocabItem | null | undefined): string => {
+    if (!word) return "";
+    return translationForLanguage(word, userLanguage) || t(missingTranslationKey(userLanguage));
   };
   
   // Load all unit metadata for displaying unit titles
@@ -115,6 +160,12 @@ export default function Vocabulary() {
   const [hasCaseHint, setHasCaseHint] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
   const [quizStarted, setQuizStarted] = useState(false);
+  // True once the current quiz round's last word has been answered. Decoupled
+  // from currentIndex/filteredVocab.length because those can shift the very
+  // moment a word leaves the pool (mastery, or "new words only"), before the
+  // user advances - relying on them directly would show the completion card
+  // (or hide the "Weiter" button) one word too early. Reset in handleReset.
+  const [quizFinished, setQuizFinished] = useState(false);
   const [lastQuizProgress, setLastQuizProgress] = useState<any>(null);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
   // Optimistic updates for vocabulary progress
@@ -134,6 +185,20 @@ export default function Vocabulary() {
     const saved = localStorage.getItem('vocab_quiz_auto_advance');
     return saved === 'true';
   });
+  // "New words only" filter setting for quiz mode (load from localStorage).
+  // When enabled, only vocabulary that has never been answered correctly
+  // (correctAnswerCount === 0) is shown. Mastery (3x correct) requires this
+  // filter to be turned off, since words leave the "new" pool after the
+  // first correct answer.
+  const [newWordsOnly, setNewWordsOnly] = useState<boolean>(() => {
+    const saved = localStorage.getItem('vocab_quiz_new_words_only');
+    return saved === 'true';
+  });
+  // Tracks whether the word just answered will drop out of the filtered quiz
+  // pool (mastery reached, or excluded by the "new words only" filter). Used
+  // by handleNextWord to decide whether the next word already occupies the
+  // current index (pool shrank) or whether we still need to advance by one.
+  const wordRemovedFromPoolRef = useRef(false);
   
   // Audio generation mutations/actions
   // We use direct fetch for generation to avoid Cloud->Localhost issues in dev
@@ -181,7 +246,6 @@ export default function Vocabulary() {
 
   // Mutations for quiz progress
   const updateQuizProgressMutation = useMutation(api.exercises.updateQuizProgress);
-  const resetQuizProgressMutation = useMutation(api.exercises.resetQuizProgress);
   const recordVocabularyAnswerMutation = useMutation(api.vocabulary.recordVocabularyAnswer);
   
   // Handle audio playback
@@ -205,13 +269,6 @@ export default function Vocabulary() {
         }
         
         storageId = word?.audioStorageId;
-        
-        // If not in vocabWithProgress, check master list if available
-        if (!storageId && courseVocabulary) {
-          const masterWord = courseVocabulary.find((w: any) => w._id === vocabularyId);
-          storageId = masterWord?.audioStorageId;
-          if (!word && masterWord) word = masterWord;
-        }
       }
 
       // 3. If not found, generate it via server endpoint
@@ -315,30 +372,44 @@ export default function Vocabulary() {
     }
   };
 
-  // Fetch vocabulary progress for filtering (both quiz and learn mode)
-  // Load ALL units for mastery checking, not just selected unit
-  const vocabProgressData = useQuery(
-    api.vocabulary.getUserVocabularyProgress,
-    (mode === 'quiz' || mode === 'learn') 
-      ? { unitNumber: undefined } // Load all units
-      : "skip"
-  ) as UserVocabProgressRow[] | undefined;
-
-  // NEW: Fetch course vocabulary from database (for both Learn Mode and Quiz Mode)
-  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
+  // Single source of truth for both the word list and per-word progress in
+  // Learn/Quiz mode. Always unscoped (all units), so unit-mastery stars for
+  // units other than the currently selected one keep working, and so the
+  // visible word list and its progress always come from the exact same
+  // release-gated courseVocabulary row.
+  //
+  // Previously this page combined getAllCourseVocabulary (word list, ignores
+  // releaseStatus) with getVocabularyWithProgress (progress, published-only
+  // for non-superadmins) and a getUserVocabularyProgress fallback matched by
+  // serbian+unit. During a content preview those three could disagree: the
+  // word list would show a "preview" duplicate of a word while the learner's
+  // real progress (correctAnswerCount) sat on the "published" duplicate -
+  // invisible to the ID-based progress lookup, so mastery/"new words only"
+  // treated an already-answered word as brand new while the badge (via the
+  // serbian+unit fallback) still showed the real count. Using this single,
+  // release-gated query for both the list and the progress lookup removes
+  // that split entirely.
   const vocabWithProgress = useQuery(
     api.vocabulary.getVocabularyWithProgress,
-    (mode === 'learn' || mode === 'quiz') 
-      ? { unitNumber: selectedUnit === 'all' ? undefined : selectedUnit } 
-      : "skip"
+    (mode === 'learn' || mode === 'quiz') ? { unitNumber: undefined } : "skip"
   ) as VocabWithProgressItem[] | undefined;
 
-  const handleQuizComplete = async () => {
-    const earnedXP = calculateXP(score.correct, score.total);
+  // finalScore is passed explicitly by the caller (the score just computed
+  // for the last answer), rather than read from the `score` state closure.
+  // handleQuizComplete is invoked from inside handleSubmitAnswer via
+  // setTimeout, so by the time it runs the `score` state closed over at
+  // render time is already one answer behind - reading it directly would
+  // save/display a score missing the final answer (or, since the bounds
+  // effect no longer resets score while quizFinished, could otherwise still
+  // be correct - but relying on that coupling is fragile).
+  const handleQuizComplete = async (finalScore: { correct: number; total: number }) => {
+    const earnedXP = calculateXP(finalScore.correct, finalScore.total);
     setXpEarned(earnedXP);
     
     const unitToSave = selectedUnit === 'all' ? 0 : (selectedUnit as number);
-    const scorePercentage = Math.round((score.correct / score.total) * 100);
+    const scorePercentage = finalScore.total > 0
+      ? Math.round((finalScore.correct / finalScore.total) * 100)
+      : 0;
 
     // Vocabulary XP is awarded server-side per answer via recordVocabularyAnswer.
     // The legacy client-side "addExerciseCompletion" call was removed as part of
@@ -422,7 +493,7 @@ export default function Vocabulary() {
     const modeParam = params.get('mode');
     if (unitParam) {
       const unitNum = parseInt(unitParam);
-      if (!isNaN(unitNum) && unitNum >= 1 && unitNum <= 27) {
+      if (!isNaN(unitNum) && unitNum >= 1) {
         setSelectedUnit(unitNum);
       }
     }
@@ -499,104 +570,99 @@ export default function Vocabulary() {
     return null;
   }
 
-  // Filter vocabulary by unit and access
+  // Filter vocabulary by unit and access. Learn and Quiz mode both read from
+  // the same release-gated vocabWithProgress list (see query comment above).
   const filteredVocab = useMemo<VocabItem[]>(() => {
-    // NEW: Learn Mode uses database data
-    if (mode === 'learn' && courseVocabulary && courseVocabulary.length > 0) {
-      let vocab = selectedUnit === 'all'
-        ? courseVocabulary
-        : courseVocabulary.filter((v: Doc<"courseVocabulary">) => v.unitNumber === selectedUnit);
-      
-      // Beta/Subscription Beschraenkung
-      if (accessInfo && accessInfo.maxUnits > 0) {
-        vocab = vocab.filter((v: Doc<"courseVocabulary">) => v.unitNumber <= accessInfo.maxUnits);
-      }
-      
-      // Map to format compatible with existing code
-      const mappedVocab: VocabItem[] = vocab.map((word: Doc<"courseVocabulary">) => ({
-        _id: word._id,
-        serbian: word.serbian,
-        serbianWord: word.serbian, // For compatibility
-        unit: word.unitNumber,
-        unitNumber: word.unitNumber,
-        en: word.en,
-        de: word.de,
-        noteEn: word.noteEn,
-        noteDe: word.noteDe,
-        noteEs: word.noteEs,
-        noteFr: word.noteFr,
-        noteSr: word.noteSr,
-      }));
-      
-      // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
-      return mappedVocab.sort((a: { unitNumber: number; serbian: string }, b: { unitNumber: number; serbian: string }) => {
-        if (a.unitNumber !== b.unitNumber) {
-          return a.unitNumber - b.unitNumber;
-        }
-        return a.serbian.localeCompare(b.serbian);
-      });
-    }
-    
-    // NEW: Quiz Mode also uses database data
-    if (mode === 'quiz' && courseVocabulary && courseVocabulary.length > 0) {
-      let vocab = selectedUnit === 'all'
-        ? courseVocabulary
-        : courseVocabulary.filter((v: Doc<"courseVocabulary">) => v.unitNumber === selectedUnit);
-      
-      // Beta/Subscription Beschraenkung
-      if (accessInfo && accessInfo.maxUnits > 0) {
-        vocab = vocab.filter((v: Doc<"courseVocabulary">) => v.unitNumber <= accessInfo.maxUnits);
-      }
-      
-      // Filter out mastered words (correctAnswerCount >= 3)
-      vocab = vocab.filter((word: Doc<"courseVocabulary">) => {
-        // NEW: Use courseVocabularyId for optimistic updates
-        const optimisticKey = String(word._id);
-        const optimistic = optimisticProgress.get(optimisticKey);
-        
-        // Find progress from vocabWithProgress (contains progress data)
-        const progress = vocabWithProgress?.find((p) => p._id === word._id)?.progress;
-        
-        // Use optimistic count if available, otherwise use database count
-        const correctCount = optimistic?.correctAnswerCount ?? progress?.correctAnswerCount ?? 0;
-        
-        // Show word if: not mastered (correctAnswerCount < 3)
-        return correctCount < 3;
-      });
-      
-      // Map to format compatible with existing code
-      const mappedVocab: VocabItem[] = vocab.map((word: Doc<"courseVocabulary">) => ({
-        _id: word._id,
-        serbian: word.serbian,
-        serbianWord: word.serbian, // For compatibility
-        unit: word.unitNumber,
-        unitNumber: word.unitNumber,
-        en: word.en,
-        de: word.de,
-        noteEn: word.noteEn,
-        noteDe: word.noteDe,
-        noteEs: word.noteEs,
-        noteFr: word.noteFr,
-        noteSr: word.noteSr,
-      }));
-      
-      // Sort by unitNumber (ascending), then alphabetically by serbian (fallback if backend didn't sort)
-      return mappedVocab.sort((a: { unitNumber: number; serbian: string }, b: { unitNumber: number; serbian: string }) => {
-        if (a.unitNumber !== b.unitNumber) {
-          return a.unitNumber - b.unitNumber;
-        }
-        return a.serbian.localeCompare(b.serbian);
-      });
-    }
-    
-    // Database is the only source of truth - no fallback to hardcoded data
-    if (!courseVocabulary || courseVocabulary.length === 0) {
-      // This is expected during initial load - don't log as error
+    if (!vocabWithProgress || vocabWithProgress.length === 0) {
+      // Expected during initial load - don't log as error
       return [];
     }
-    
-    return [];
-  }, [selectedUnit, accessInfo, mode, vocabProgressData, optimisticProgress, courseVocabulary, vocabWithProgress]);
+
+    let vocab = selectedUnit === 'all'
+      ? vocabWithProgress
+      : vocabWithProgress.filter((v) => v.unitNumber === selectedUnit);
+
+    // Beta/Subscription Beschraenkung
+    if (accessInfo && accessInfo.maxUnits > 0) {
+      vocab = vocab.filter((v) => v.unitNumber <= accessInfo.maxUnits);
+    }
+
+    if (mode === 'quiz') {
+      // Filter out mastered words (correctAnswerCount >= 3) and, when the
+      // "new words only" filter is on, anything already answered correctly
+      // at least once. Progress here comes from the exact same document as
+      // the word itself, so this can never disagree with the progress badge.
+      vocab = vocab.filter((word) => {
+        const optimisticKey = String(word._id);
+        const optimistic = optimisticProgress.get(optimisticKey);
+        const correctCount = optimistic?.correctAnswerCount ?? word.progress?.correctAnswerCount ?? 0;
+
+        // Mastered words (correctAnswerCount >= 3) never appear in the quiz
+        if (correctCount >= 3) return false;
+
+        // "New words only" filter: only words never answered correctly.
+        // Mastery (3x correct) is unreachable while this filter is on, since
+        // a word leaves the pool after its very first correct answer.
+        if (newWordsOnly && correctCount > 0) return false;
+
+        return true;
+      });
+    }
+
+    // Map to format compatible with existing code
+    const mappedVocab: VocabItem[] = vocab.map((word) => ({
+      _id: word._id,
+      serbian: word.serbian,
+      serbianWord: word.serbian, // For compatibility
+      unit: word.unitNumber,
+      unitNumber: word.unitNumber,
+      en: word.en,
+      de: word.de,
+      noteEn: word.noteEn,
+      noteDe: word.noteDe,
+      noteEs: word.noteEs,
+      noteFr: word.noteFr,
+      noteSr: word.noteSr,
+    }));
+
+    // Quiz mode requires a translation to type against; Learn mode shows the
+    // word regardless (falls back to a "missing translation" label).
+    const visibleVocab = mode === 'quiz'
+      ? mappedVocab.filter((word) => Boolean(translationForLanguage(word, userLanguage)))
+      : mappedVocab;
+
+    // Sort by unitNumber (ascending), then alphabetically by serbian
+    return visibleVocab.sort((a, b) => {
+      if (a.unitNumber !== b.unitNumber) {
+        return a.unitNumber - b.unitNumber;
+      }
+      return a.serbian.localeCompare(b.serbian);
+    });
+  }, [selectedUnit, accessInfo, mode, userLanguage, optimisticProgress, vocabWithProgress, newWordsOnly]);
+
+  // Used only for the empty-state message: are there still unmastered words
+  // in the current unit/access selection once the "new words only" filter is
+  // ignored? Distinguishes "everything mastered" from "everything has been
+  // answered correctly once, but 2nd/3rd repetitions are still pending" (in
+  // which case the user must turn the filter off to continue toward mastery).
+  const hasRemainingUnmasteredWords = useMemo(() => {
+    if (mode !== 'quiz' || !vocabWithProgress || vocabWithProgress.length === 0) return false;
+
+    let vocab = selectedUnit === 'all'
+      ? vocabWithProgress
+      : vocabWithProgress.filter((v) => v.unitNumber === selectedUnit);
+
+    if (accessInfo && accessInfo.maxUnits > 0) {
+      vocab = vocab.filter((v) => v.unitNumber <= accessInfo.maxUnits);
+    }
+
+    return vocab.some((word) => {
+      const optimisticKey = String(word._id);
+      const optimistic = optimisticProgress.get(optimisticKey);
+      const correctCount = optimistic?.correctAnswerCount ?? word.progress?.correctAnswerCount ?? 0;
+      return correctCount < 3;
+    });
+  }, [mode, vocabWithProgress, selectedUnit, accessInfo, optimisticProgress]);
 
   const currentWord = filteredVocab[currentIndex];
   const progressPercent = filteredVocab.length > 0 ? ((currentIndex + 1) / filteredVocab.length) * 100 : 0;
@@ -612,22 +678,11 @@ export default function Vocabulary() {
     const optimisticKey = String(wordToCheck._id);
     const optimistic = optimisticProgress.get(optimisticKey);
     
-    // Find progress from database
-    // NEW: Try vocabWithProgress first (contains progress data)
-    let dbProgress = null;
-    if (vocabWithProgress) {
-      const vocabProgress = vocabWithProgress.find((p) => p._id === wordToCheck._id)?.progress;
-      if (vocabProgress) {
-        dbProgress = vocabProgress as any;
-      }
-    }
-    
-    // FALLBACK: Use old vocabProgressData structure
-    if (!dbProgress && vocabProgressData) {
-      dbProgress = vocabProgressData.find(
-        (p) => p.serbianWord === wordToCheck.serbian && p.unitNumber === wordToCheck.unit
-      );
-    }
+    // Progress comes from the same release-gated vocabWithProgress row as the
+    // word itself (matched by exact courseVocabularyId) - no more serbian+unit
+    // fallback, which could previously surface progress from a different
+    // (e.g. archived or differently-versioned) duplicate of the same word.
+    const dbProgress = vocabWithProgress?.find((p) => p._id === wordToCheck._id)?.progress ?? null;
     
     if (optimistic && dbProgress) {
       // Merge optimistic update with database data
@@ -648,16 +703,20 @@ export default function Vocabulary() {
       } as any;
     }
     
-    return dbProgress || null;
-  }, [currentWord, answeredWord, showAnswer, vocabProgressData, vocabWithProgress, optimisticProgress]);
+    return dbProgress;
+  }, [currentWord, answeredWord, showAnswer, vocabWithProgress, optimisticProgress]);
 
-  // Reset currentIndex if it's out of bounds (e.g., after completing a quiz)
+  // Reset currentIndex if it's out of bounds (e.g., the last word left the
+  // filtered pool via mastery or the "new words only" filter). Skipped while
+  // the completion card is showing (quizFinished), otherwise this would wipe
+  // the session score the completion card still needs to display.
   useEffect(() => {
+    if (quizFinished) return;
     if (currentIndex >= filteredVocab.length && filteredVocab.length > 0) {
       setCurrentIndex(0);
       setScore({ correct: 0, total: 0 });
     }
-  }, [currentIndex, filteredVocab.length]);
+  }, [currentIndex, filteredVocab.length, quizFinished]);
 
   const handleNext = () => {
     if (currentIndex < filteredVocab.length - 1) {
@@ -680,13 +739,9 @@ export default function Vocabulary() {
   };
 
   // Handle moving to next word (used for manual "Weiter" button click AND auto-advance)
+  // Only ever called when the quiz round is NOT finished (guarded by
+  // !quizFinished at the call sites), so there is always a next word to show.
   const handleNextWord = useCallback(() => {
-    // Check if it's the last word
-    if (currentIndex >= filteredVocab.length - 1) {
-      // Last word - don't advance, show completion
-      return;
-    }
-    
     // Reset UI state to show next word
     setShowAnswer(false);
     setUserAnswer('');
@@ -695,14 +750,29 @@ export default function Vocabulary() {
     setCurrentCorrectTranslation(null);
     setAnsweredWord(null);
     
-    // Increment index to move to next word
-    setCurrentIndex(prevIndex => prevIndex + 1);
-  }, [currentIndex, filteredVocab.length]);
+    // If the just-answered word left the quiz pool (mastered, or excluded by
+    // the "new words only" filter), the next word already occupies the
+    // current index once the list re-filters - advancing again would skip
+    // it. Otherwise the word stays in the pool, so advance by one as usual.
+    const removedFromPool = wordRemovedFromPoolRef.current;
+    wordRemovedFromPoolRef.current = false;
+    if (!removedFromPool) {
+      setCurrentIndex(prevIndex => prevIndex + 1);
+    }
+  }, []);
 
   // Handle auto-advance setting change
   const handleAutoAdvanceChange = (checked: boolean) => {
     setAutoAdvance(checked);
     localStorage.setItem('vocab_quiz_auto_advance', checked.toString());
+  };
+
+  // Handle "new words only" filter change - the pool composition changes, so
+  // reset the round like a unit/mode switch does.
+  const handleNewWordsOnlyChange = (checked: boolean) => {
+    setNewWordsOnly(checked);
+    localStorage.setItem('vocab_quiz_new_words_only', checked.toString());
+    handleReset();
   };
 
   const handleSubmitAnswer = async () => {
@@ -715,18 +785,10 @@ export default function Vocabulary() {
     
     // Each vocabulary entry has exactly ONE primary translation per language
     // (in 'de' and 'en'). Alternative meanings live in 'noteDe' / 'noteEn' and
-    // are NOT accepted as correct quiz answers.
-    let correctTranslationForWord: string;
-
-    if (userLanguage === "de" && wordToAnswer.de?.trim()) {
-      correctTranslationForWord = wordToAnswer.de.trim();
-    } else if (wordToAnswer.en?.trim()) {
-      correctTranslationForWord = wordToAnswer.en.trim();
-    } else if (wordToAnswer.de?.trim()) {
-      correctTranslationForWord = wordToAnswer.de.trim();
-    } else {
-      console.error('[Vocabulary] No translation available for word:', wordToAnswer);
-      correctTranslationForWord = "";
+    // are NOT accepted as correct quiz answers. No cross-language fallback.
+    const correctTranslationForWord = translationForLanguage(wordToAnswer, userLanguage);
+    if (!correctTranslationForWord) {
+      return;
     }
 
     const normalizeQuizAnswer = (s: string) =>
@@ -741,9 +803,15 @@ export default function Vocabulary() {
 
     const caseMismatch = correct && normalizeWithoutCase(userAnswer) !== normalizeWithoutCase(correctTranslationForWord);
 
+    // Computed once here so every consumer (state, localStorage, DB save,
+    // and handleQuizComplete on the last word) agrees on the exact same
+    // score - reading the `score` state again later in this closure would
+    // return the pre-update value, since setScore below hasn't re-rendered yet.
+    const newScore = { correct: score.correct + (correct ? 1 : 0), total: score.total + 1 };
+
     setIsCorrect(correct);
     setHasCaseHint(caseMismatch);
-    setScore({ correct: score.correct + (correct ? 1 : 0), total: score.total + 1 });
+    setScore(newScore);
     // Store the current word and translation before showing answer (to prevent them from changing)
     setAnsweredWord(wordToAnswer);
     setCurrentCorrectTranslation(correctTranslationForWord);
@@ -761,6 +829,13 @@ export default function Vocabulary() {
       
       const newCorrectCount = correct ? currentCorrectCount + 1 : currentCorrectCount;
       const newIncorrectCount = correct ? currentIncorrectCount : currentIncorrectCount + 1;
+      
+      // Track whether this answer removes the word from the quiz pool
+      // (mastery reached, or excluded by the "new words only" filter), so
+      // handleNextWord below can navigate to the correct next word without
+      // skipping one once the list re-filters.
+      wordRemovedFromPoolRef.current =
+        correct && (newCorrectCount >= 3 || (newWordsOnly && newCorrectCount > 0));
       
       // Update optimistic progress immediately
       setOptimisticProgress(prev => {
@@ -796,21 +871,21 @@ export default function Vocabulary() {
       try {
         // NEW: Use courseVocabularyId (preferred)
         // FALLBACK: Use serbianWord + unitNumber for backward compatibility
-        if (wordToAnswer._id) {
-          await recordVocabularyAnswerMutation({
-            courseVocabularyId: wordToAnswer._id,
-            isCorrect: correct,
-          });
-        } else {
-          // FALLBACK: Old format
-          await recordVocabularyAnswerMutation({
-            serbianWord: wordToAnswer.serbian,
-            unitNumber: wordToAnswer.unit || wordToAnswer.unitNumber,
-            isCorrect: correct,
-          });
+        const recorded = wordToAnswer._id
+          ? await recordVocabularyAnswerMutation({
+              courseVocabularyId: wordToAnswer._id,
+              isCorrect: correct,
+            })
+          : await recordVocabularyAnswerMutation({
+              serbianWord: wordToAnswer.serbian,
+              unitNumber: wordToAnswer.unit || wordToAnswer.unitNumber,
+              isCorrect: correct,
+            });
+        if ((recorded as { unitCompleted?: boolean } | null)?.unitCompleted) {
+          toast.success(t("unit.unitCompleted"));
         }
         
-        // Convex will automatically revalidate the query, which will update vocabProgressData
+        // Convex will automatically revalidate the query, which will update vocabWithProgress
         // The optimistic update will be replaced by the real data when it arrives
       } catch (e) {
         console.error('Failed to record vocabulary answer', e);
@@ -826,14 +901,16 @@ export default function Vocabulary() {
     // Save answer to BOTH localStorage and database in quiz mode
     if (mode === 'quiz') {
       const newIndex = currentIndex + 1;
-      const newScore = { correct: score.correct + (correct ? 1 : 0), total: score.total + 1 };
-      
+      const newScorePercentage = newScore.total > 0
+        ? Math.round((newScore.correct / newScore.total) * 100)
+        : 0;
+
       // 1. Save to localStorage immediately (fast, reliable)
       const storageKey = getStorageKey();
       const progressData = {
         currentIndex: newIndex,
         score: newScore,
-        lastScore: Math.round((newScore.correct / newScore.total) * 100),
+        lastScore: newScorePercentage,
         totalAttempts: (lastQuizProgress?.totalAttempts || 0) + 1,
         updatedAt: new Date().toISOString(),
       };
@@ -846,7 +923,7 @@ export default function Vocabulary() {
         await updateQuizProgressMutation({
           unitNumber: unitToSave,
           currentIndex: newIndex,
-          lastScore: Math.round((newScore.correct / newScore.total) * 100),
+          lastScore: newScorePercentage,
           incrementAttempts: true,
         });
       } catch (e) {
@@ -860,9 +937,15 @@ export default function Vocabulary() {
     
     if (isLastWord) {
       // Don't reset showAnswer - keep it true to show complete screen
-      // Call handleQuizComplete to save results and XP
+      // Mark the round as finished via state (not the live, possibly already
+      // shifted currentIndex/filteredVocab.length) so the "Weiter" button and
+      // completion card render correctly regardless of pool removal.
+      setQuizFinished(true);
+      // Call handleQuizComplete to save results and XP, passing the score
+      // computed above directly (avoids the stale `score` closure - see
+      // handleQuizComplete's own comment).
       setTimeout(async () => {
-        await handleQuizComplete();
+        await handleQuizComplete(newScore);
       }, 100);
       return;
     }
@@ -889,19 +972,14 @@ export default function Vocabulary() {
     setXpEarned(0);
     setSessionXP(0); // Reset session XP
     setQuizStarted(false);
+    setQuizFinished(false);
     setCurrentCorrectTranslation(null);
     setAnsweredWord(null);
+    wordRemovedFromPoolRef.current = false;
     
     // Clear localStorage
     const storageKey = getStorageKey();
     localStorage.removeItem(storageKey);
-  };
-
-  const handleResetQuizProgress = async () => {
-      await resetQuizProgressMutation({
-      unitNumber: selectedUnit === 'all' ? 0 : (selectedUnit as number),
-      });
-      handleReset();
   };
 
   const calculateXP = (correct: number, total: number): number => {
@@ -913,60 +991,50 @@ export default function Vocabulary() {
     return Math.floor(total * 1);
   };
 
-  // Helper function to check if a unit is mastered
-  // A unit is mastered when ALL vocabulary words in that unit have correctAnswerCount >= 3
-  const isUnitMastered = (unitNumber: number): boolean => {
-    // NEW: Use courseVocabulary from database (if available)
-    // FALLBACK: Use hardcoded VOCABULARY for backward compatibility
-    let unitVocab: Array<{ _id?: Id<"courseVocabulary">; serbian: string; serbianWord: string; unit: number; unitNumber: number }> = [];
-    
-    if (courseVocabulary && courseVocabulary.length > 0) {
-      unitVocab = courseVocabulary
-        .filter((v: Doc<"courseVocabulary">) => v.unitNumber === unitNumber)
-        .map((word: Doc<"courseVocabulary">) => ({
-          _id: word._id,
-          serbian: word.serbian,
-          serbianWord: word.serbian,
-          unit: word.unitNumber,
-          unitNumber: word.unitNumber,
-        }));
-    } else {
-      // Database is the only source - no fallback
-      // This is expected during initial load - don't log as error
-      return false;
-    }
-    
-    if (unitVocab.length === 0) return false;
-    
-    // Check if vocabProgressData or vocabWithProgress is loaded
-    if ((!vocabProgressData || vocabProgressData.length === 0) && 
-        (!vocabWithProgress || vocabWithProgress.length === 0)) {
-      return false;
-    }
-    
-    // Check if all words in the unit are mastered (correctAnswerCount >= 3)
-    const allMastered = unitVocab.every(word => {
-      // NEW: Try vocabWithProgress first (contains progress data)
-      if (word._id && vocabWithProgress) {
-        const progress = vocabWithProgress.find((p) => p._id === word._id)?.progress;
-        if (progress) {
-          return (progress.correctAnswerCount ?? 0) >= 3;
-        }
-      }
-      
-      // FALLBACK: Use old vocabProgressData structure
-      if (vocabProgressData) {
-        const progress = vocabProgressData.find(
-          (p) => p.serbianWord === word.serbian && p.unitNumber === word.unit
-        );
-        return (progress?.correctAnswerCount ?? 0) >= 3;
-      }
-      
-      return false;
-    });
-    
-    return allMastered;
+  // Effective correct-answer count for a word, including optimistic quiz updates
+  // so the pass/mastery card can react immediately after the last answer.
+  // Plain helpers (not hooks): this block sits after the !user early return,
+  // matching the existing pattern for filteredVocab-related helpers.
+  const getEffectiveCorrectCount = (word: VocabWithProgressItem): number => {
+    const optimistic = optimisticProgress.get(String(word._id));
+    return optimistic?.correctAnswerCount ?? word.progress?.correctAnswerCount ?? 0;
   };
+
+  // Unit passed = every word in the unit answered correctly at least once.
+  const isUnitPassed = (unitNumber: number): boolean => {
+    if (!vocabWithProgress || vocabWithProgress.length === 0) return false;
+    const unitVocab = vocabWithProgress.filter((word) => word.unitNumber === unitNumber);
+    if (unitVocab.length === 0) return false;
+    return unitVocab.every((word) => getEffectiveCorrectCount(word) >= 1);
+  };
+
+  // Unit mastered = every word correct at least 3 times (full XP per word).
+  const isUnitMastered = (unitNumber: number): boolean => {
+    if (!vocabWithProgress || vocabWithProgress.length === 0) return false;
+    const unitVocab = vocabWithProgress.filter((word) => word.unitNumber === unitNumber);
+    if (unitVocab.length === 0) return false;
+    return unitVocab.every((word) => getEffectiveCorrectCount(word) >= 3);
+  };
+
+  // Total XP earned so far in a unit (sum of spaced-repetition XP per word).
+  const getUnitXpTotal = (unitNumber: number): number => {
+    if (!vocabWithProgress || vocabWithProgress.length === 0) return 0;
+    return vocabWithProgress
+      .filter((word) => word.unitNumber === unitNumber)
+      .reduce(
+        (sum, word) => sum + cumulativeSpacedRepetitionXp(getEffectiveCorrectCount(word)),
+        0
+      );
+  };
+
+  const selectedUnitPassed =
+    selectedUnit !== "all" && typeof selectedUnit === "number" && isUnitPassed(selectedUnit);
+  const selectedUnitMastered =
+    selectedUnit !== "all" && typeof selectedUnit === "number" && isUnitMastered(selectedUnit);
+  const selectedUnitXpTotal =
+    selectedUnit !== "all" && typeof selectedUnit === "number"
+      ? getUnitXpTotal(selectedUnit)
+      : 0;
 
   return (
     <AnimatedPage>
@@ -1026,7 +1094,11 @@ export default function Vocabulary() {
               <Progress value={progressPercent} />
               {mode === 'quiz' && score.total > 0 && (
                 <div className="text-sm text-muted-foreground text-center">
-                  {t('vocabulary.score', { correct: score.correct, total: score.total })} ({Math.round((score.correct / score.total) * 100)}%)
+                  {t('vocabulary.score', {
+                    correct: score.correct,
+                    total: score.total,
+                    percent: Math.round((score.correct / score.total) * 100),
+                  })}
                 </div>
               )}
               {mode === 'quiz' && sessionXP > 0 && (
@@ -1088,6 +1160,18 @@ export default function Vocabulary() {
                   );
                 })}
               </div>
+              {mode === 'quiz' && (
+                <div className="flex items-center justify-between gap-2 pt-4 mt-4 border-t">
+                  <p className="text-xs text-muted-foreground">
+                    {t('vocabulary.newWordsOnly.description')}
+                  </p>
+                  <Switch
+                    id="new-words-only"
+                    checked={newWordsOnly}
+                    onCheckedChange={handleNewWordsOnlyChange}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </AnimatedItem>
@@ -1198,9 +1282,10 @@ export default function Vocabulary() {
                     })()}
                   </div>
                 )}
-                    {/* Note im Quiz-Modus unter der Vokabel anzeigen (vor der Antwort) */}
-                    {mode === 'quiz' && !showAnswer && (() => {
-                      const note = getNoteForLanguage(displayWord, userLanguage);
+                    {/* Quiz: Note erst nach der Antwort unter der Vokabel, damit sie die Loesung nicht vorwegnimmt */}
+                    {mode === 'quiz' && showAnswer && (() => {
+                      const word = answeredWord || displayWord;
+                      const note = noteForLanguage(word, userLanguage);
                       return note ? (
                         <p className="text-muted-foreground mt-2 italic text-[0.85rem]">
                           {note}
@@ -1211,19 +1296,14 @@ export default function Vocabulary() {
                     {mode === 'learn' && (
                       <>
                         <p className="text-xl sm:text-2xl text-muted-foreground mt-4">
-                          {(() => {
-                            const word = showAnswer && answeredWord ? answeredWord : displayWord;
-                            if (!word) return "";
-                            if (userLanguage === "de" && word.de?.trim()) {
-                              return word.de.trim();
-                            }
-                            return word.en?.trim() || word.de?.trim() || "";
-                          })()}
+                          {resolveTranslationLabel(
+                            showAnswer && answeredWord ? answeredWord : displayWord
+                          )}
                         </p>
                         {/* Note anzeigen wenn vorhanden */}
                         {(() => {
                           const word = showAnswer && answeredWord ? answeredWord : displayWord;
-                          const note = getNoteForLanguage(word, userLanguage);
+                          const note = noteForLanguage(word, userLanguage);
                           return note ? (
                             <p className="text-muted-foreground mt-2 italic text-[0.85rem]">
                               {note}
@@ -1393,7 +1473,7 @@ export default function Vocabulary() {
                                 {/* Note direkt hinter der Antwort bei korrekter Antwort */}
                                 {isCorrect && (() => {
                                   const word = answeredWord || currentWord;
-                                  const note = getNoteForLanguage(word, userLanguage);
+                                  const note = noteForLanguage(word, userLanguage);
                                   return note ? (
                                     <span className="text-muted-foreground italic text-sm ml-2">
                                       ({note})
@@ -1424,19 +1504,13 @@ export default function Vocabulary() {
                               >
                                 <div className="text-xs text-muted-foreground mb-1">{t('vocabulary.correctAnswer')}</div>
                                 <div className="font-semibold text-lg text-green-700">
-                                  {currentCorrectTranslation || (() => {
-                                    const word = answeredWord || currentWord;
-                                    if (!word) return "";
-                                    if (userLanguage === "de" && word.de?.trim()) {
-                                      return word.de.trim();
-                                    }
-                                    return word.en?.trim() || word.de?.trim() || "";
-                                  })()}
+                                  {currentCorrectTranslation ||
+                                    resolveTranslationLabel(answeredWord || currentWord)}
                                 </div>
                                 {/* Note anzeigen wenn vorhanden */}
                                 {(() => {
                                   const word = answeredWord || currentWord;
-                                  const note = getNoteForLanguage(word, userLanguage);
+                                  const note = noteForLanguage(word, userLanguage);
                                   return note ? (
                                     <div className="text-muted-foreground mt-2 italic text-sm">
                                       {note}
@@ -1448,12 +1522,10 @@ export default function Vocabulary() {
                             {!isCorrect && (
                               <BuddyHelpHint
                                 serbianWord={(answeredWord || currentWord)?.serbian}
-                                correctAnswer={currentCorrectTranslation || (() => {
-                                  const word = answeredWord || currentWord;
-                                  if (!word) return "";
-                                  if (userLanguage === "de" && word.de?.trim()) return word.de.trim();
-                                  return word.en?.trim() || word.de?.trim() || "";
-                                })()}
+                                correctAnswer={
+                                  currentCorrectTranslation ||
+                                  translationForLanguage(answeredWord || currentWord, userLanguage)
+                                }
                                 userAnswer={userAnswer}
                                 unitNumber={(answeredWord || currentWord)?.unitNumber}
                                 questionContext="vocabulary-quiz"
@@ -1480,7 +1552,7 @@ export default function Vocabulary() {
                           </motion.div>
                         )}
                         {/* Weiter-Button fuer Quiz-Modus */}
-                        {mode === 'quiz' && showAnswer && currentIndex < filteredVocab.length - 1 && (
+                        {mode === 'quiz' && showAnswer && !quizFinished && (
                           <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -1551,55 +1623,92 @@ export default function Vocabulary() {
         ) : (
           <AnimatedItem>
             <Card className="min-h-[200px] flex items-center justify-center">
-              <CardContent className="text-center py-12">
-                <p className="text-muted-foreground">{t('vocabulary.allCorrect')}</p>
+              <CardContent className="text-center py-12 space-y-4">
+                {mode === 'quiz' && newWordsOnly && hasRemainingUnmasteredWords ? (
+                  <>
+                    <p className="text-muted-foreground">{t('vocabulary.newWordsOnly.empty')}</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {t('vocabulary.newWordsOnly.description')}
+                      </span>
+                      <Switch
+                        id="new-words-only-empty"
+                        checked={newWordsOnly}
+                        onCheckedChange={handleNewWordsOnlyChange}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">{t('vocabulary.allCorrect')}</p>
+                )}
               </CardContent>
             </Card>
           </AnimatedItem>
         )}
 
-        {/* Completed */}
-        {currentIndex === filteredVocab.length - 1 && showAnswer && mode === 'quiz' && (
+        {/* Completed: pass card only when this specific unit is passed (every word ≥1× correct).
+            Round end without pass shows a small continue CTA so the user is not stuck. */}
+        {quizFinished && showAnswer && mode === 'quiz' && selectedUnitPassed && typeof selectedUnit === 'number' && (
           <AnimatedItem>
             <Card className="bg-primary/5 border-primary/20">
               <CardHeader>
                 <CardTitle className="text-center">
-                  {t('vocabulary.quizComplete')}
+                  {t('vocabulary.unitQuizPassed', { unit: selectedUnit })}
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-center space-y-4">
-                <p className="text-xl sm:text-2xl font-bold">
-                  {t('vocabulary.score', { correct: score.correct, total: score.total })} ({Math.round((score.correct / score.total) * 100)}%)
-                </p>
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-sm mb-2 text-yellow-800">
-                    Total XP Earned in this Session
+                    {t('vocabulary.unitXpTotal')}
                   </p>
                   <p className="text-2xl sm:text-3xl font-bold text-yellow-600">
-                    +{sessionXP} XP
+                    {selectedUnitXpTotal} XP
                   </p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Progressive XP based on word mastery levels
+                    {t('vocabulary.sessionXpHint')}
                   </p>
                 </div>
                 <div className="flex gap-4 justify-center flex-wrap">
-                  <Button onClick={handleReset}>
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    {t('vocabulary.tryAgain')}
-                  </Button>
-                  <Button variant="outline" onClick={handleResetQuizProgress}>
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    {t('vocabulary.resetProgress')}
-                  </Button>
-                  {/* Auto-advance to next unit */}
-                  {selectedUnit !== 'all' && typeof selectedUnit === 'number' && selectedUnit < availableUnits[availableUnits.length - 1] && (
-                    <Link href={`/vocabulary?unit=${(selectedUnit as number) + 1}`}>
+                  {!selectedUnitMastered && (
+                    <Button onClick={handleReset}>
+                      <Star className="mr-2 h-4 w-4" />
+                      {t('vocabulary.continueToMastery')}
+                    </Button>
+                  )}
+                  {availableUnits.length > 0 &&
+                    selectedUnit < availableUnits[availableUnits.length - 1]! && (
+                    <Link href={`/vocabulary?unit=${selectedUnit + 1}`}>
                       <Button className="bg-green-600 hover:bg-green-700">
                         <ArrowRight className="mr-2 h-4 w-4" />
-                        {t('vocabulary.continueToNextUnit', { next: (selectedUnit as number) + 1 })}
+                        {t('vocabulary.continueToNextUnit', { next: selectedUnit + 1 })}
                       </Button>
                     </Link>
                   )}
+                  <Link href="/dashboard">
+                    <Button variant="outline">
+                      <ArrowRight className="mr-2 h-4 w-4" />
+                      {t('vocabulary.backToDashboard')}
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </AnimatedItem>
+        )}
+
+        {/* Round finished but unit not yet passed: continue practicing, no "bestanden" claim */}
+        {quizFinished && showAnswer && mode === 'quiz' && !selectedUnitPassed && (
+          <AnimatedItem>
+            <Card className="bg-muted/40 border-border">
+              <CardContent className="text-center py-6 space-y-4">
+                <p className="text-muted-foreground">
+                  {t('vocabulary.roundComplete.keepPracticing')}
+                </p>
+                <div className="flex gap-4 justify-center flex-wrap">
+                  <Button onClick={handleReset}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    {t('vocabulary.continuePracticing')}
+                  </Button>
                   <Link href="/dashboard">
                     <Button variant="outline">
                       <ArrowRight className="mr-2 h-4 w-4" />

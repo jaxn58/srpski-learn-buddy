@@ -29,9 +29,15 @@ type VocabularyProgressDoc = {
   lastAnsweredAt?: number;
 };
 
+function trimmedText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export default function VocabularyList() {
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const rawLang = user?.learningLanguage ?? i18n.language;
+  const displayLanguage: "en" | "de" = rawLang === "de" ? "de" : "en";
   const [searchTerm, setSearchTerm] = useState("");
   // 0 = "All Units" (all unlocked units)
   const [selectedUnit, setSelectedUnit] = useState<number>(0);
@@ -43,8 +49,13 @@ export default function VocabularyList() {
     | VocabularyProgressDoc[]
     | undefined;
   
-  // NEW: Fetch course vocabulary from database
-  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary, hasAccess ? undefined : "skip");
+  // NEW: Fetch course vocabulary from database. learnerView: true excludes
+  // preview/offline content, so this learner-facing list can never show a
+  // word whose real progress lives on a different (published) duplicate.
+  const courseVocabulary = useQuery(
+    api.vocabulary.getAllCourseVocabulary,
+    hasAccess ? { learnerView: true } : "skip"
+  );
   const vocabWithProgress = useQuery(
     api.vocabulary.getVocabularyWithProgress,
     hasAccess ? {} : "skip"
@@ -187,10 +198,18 @@ export default function VocabularyList() {
         (p: VocabularyProgressDoc) => p.serbianWord === word.serbian && p.unitNumber === word.unit
       );
 
-      const enFromColumns = typeof word.en === "string" ? word.en.trim() : "";
-      const deFromColumns = typeof word.de === "string" ? word.de.trim() : "";
-      const displayTranslation: string = enFromColumns || deFromColumns || "";
-      const note = (typeof word.noteEn === "string" ? word.noteEn : null) as string | null;
+      const translation =
+        displayLanguage === "de" ? trimmedText(word.de) : trimmedText(word.en);
+      const displayTranslation =
+        translation ||
+        t(
+          displayLanguage === "de"
+            ? "vocab.missingTranslation.de"
+            : "vocab.missingTranslation.en"
+        );
+      const noteRaw =
+        displayLanguage === "de" ? trimmedText(word.noteDe) : trimmedText(word.noteEn);
+      const note = noteRaw || null;
 
       const correctCountRaw = (wordProgress?.correctAnswerCount ?? 0) as number;
       const incorrectCountRaw = (wordProgress as any)?.incorrectAnswerCount ?? 0;
@@ -217,7 +236,7 @@ export default function VocabularyList() {
         mastery: { correctCount, incorrectCount, mastered },
       } satisfies VocabularyDictionaryRow;
     });
-  }, [filteredVocabulary, vocabProgressData, vocabWithProgress]);
+  }, [displayLanguage, filteredVocabulary, t, vocabProgressData, vocabWithProgress]);
 
   return (
     <AnimatedPage>

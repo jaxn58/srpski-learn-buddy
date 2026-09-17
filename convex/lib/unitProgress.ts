@@ -16,8 +16,8 @@ function isPublishedActive(row: { isActive?: boolean; releaseStatus?: string }):
   return status !== "preview" && status !== "offline";
 }
 
-function learnerLanguage(user: { language?: string } | null): "en" | "de" {
-  return user?.language === "de" ? "de" : "en";
+function learnerLanguage(user: { learningLanguage?: string } | null): "en" | "de" {
+  return user?.learningLanguage === "de" ? "de" : "en";
 }
 
 export async function loadPlannedUnits(ctx: AnyCtx): Promise<PlannedUnit[]> {
@@ -136,7 +136,7 @@ export async function markUnitCompletedIfReady(
   return { unitCompleted: true };
 }
 
-export function learnerTrackLanguage(user: { language?: string } | null): "en" | "de" {
+export function learnerTrackLanguage(user: { learningLanguage?: string } | null): "en" | "de" {
   return learnerLanguage(user);
 }
 

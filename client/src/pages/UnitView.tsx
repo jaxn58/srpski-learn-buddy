@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { Link, useParams } from "wouter";
@@ -14,7 +14,6 @@ import { UnitContentAudioMarkdown } from "@/components/UnitContentAudioMarkdown"
 // Sidebar import removed
 import { AnimatedPage, AnimatedItem } from "@/components/AnimatedPage";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { InteractiveTest } from "@/components/InteractiveTest";
 import { VocabularyDictionaryTable, type VocabularyDictionaryRow } from "@/components/vocabulary/VocabularyDictionaryTable";
 import { useVocabularyAudioPlayback } from "@/hooks/useVocabularyAudioPlayback";
@@ -271,33 +270,35 @@ export default function UnitView() {
   const vocabularyRows: VocabularyDictionaryRow[] = React.useMemo(() => {
     if (!vocabularyWithProgress || vocabularyWithProgress.length === 0) return [];
 
+    const pickField = (value: unknown): string =>
+      typeof value === "string" && value.trim() ? value.trim() : "";
+
     const getNoteForLanguage = (word: any, language: string): string | null => {
       if (!word) return null;
-      if (language === "de") return word.noteDe || word.noteEn || null;
-      if (language === "sr") return word.noteSr || word.noteEn || null;
-      if (language === "es") return word.noteEs || word.noteEn || null;
-      if (language === "fr") return word.noteFr || word.noteEn || null;
-      return word.noteEn || null;
+      if (language === "de") return pickField(word.noteDe) || null;
+      if (language === "sr") return pickField(word.noteSr) || null;
+      if (language === "es") return pickField(word.noteEs) || null;
+      if (language === "fr") return pickField(word.noteFr) || null;
+      return pickField(word.noteEn) || null;
     };
 
     const getTranslationForLanguage = (word: any, language: string): string => {
-      const pick = (key: "en" | "de" | "sr" | "es" | "fr") => {
-        const val = word[key];
-        return val && String(val).trim() ? String(val).trim() : "";
-      };
-
+      const pick = (key: "en" | "de" | "sr" | "es" | "fr") => pickField(word[key]);
       const translation =
         language === "de"
-          ? pick("de") || pick("en")
+          ? pick("de")
           : language === "sr"
-            ? pick("sr") || pick("en")
+            ? pick("sr")
             : language === "es"
-              ? pick("es") || pick("en")
+              ? pick("es")
               : language === "fr"
-                ? pick("fr") || pick("en")
-                : pick("en") || pick("de");
+                ? pick("fr")
+                : pick("en");
 
-      return translation || "-";
+      if (translation) return translation;
+      return t(
+        language === "de" ? "vocab.missingTranslation.de" : "vocab.missingTranslation.en"
+      );
     };
 
     return vocabularyWithProgress.map((word: any, idx: number) => {
@@ -318,7 +319,7 @@ export default function UnitView() {
         mastery: { correctCount, incorrectCount, mastered },
       } satisfies VocabularyDictionaryRow;
     });
-  }, [vocabularyWithProgress, displayLanguage, unitNumber]);
+  }, [vocabularyWithProgress, displayLanguage, t, unitNumber]);
 
   const vocabularyGroupsForUnitView = React.useMemo(() => {
     const md = content?.vocabulary;
@@ -404,13 +405,7 @@ export default function UnitView() {
   // Progress hooks
   const progress = useQuery(api.progress.getUserProgress);
   const masteryStatus = useQuery(api.progress.getUnitMasteryStatus, { unitNumber });
-  const completeUnitMutation = useMutation(api.progress.completeUnit);
-  const markUnit1CompleteMutation = useMutation(api.admin.markUnit1Complete);
-  const unitCompletionStatus = useQuery(api.progress.canCompleteUnit, { unitNumber });
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
-  const [showSuccess, setShowSuccess] = React.useState(false);
-  const [isCompleting, setIsCompleting] = React.useState(false);
-  const [isMarkingComplete, setIsMarkingComplete] = React.useState(false);
   const [isScrolled, setIsScrolled] = React.useState(false);
 
   // Derived values
@@ -430,19 +425,6 @@ export default function UnitView() {
       : unitNumber + 1;
   const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
 
-  // Handle completion
-  const handleComplete = React.useCallback(async () => {
-    setIsCompleting(true);
-    try {
-      await completeUnitMutation({ unitNumber });
-      setShowSuccess(true);
-    } catch (error) {
-      console.error('Failed to complete unit:', error);
-    } finally {
-      setIsCompleting(false);
-    }
-  }, [completeUnitMutation, unitNumber]);
-
   // Track scroll state for breadcrumb styling
   React.useEffect(() => {
     const handleScroll = () => {
@@ -451,27 +433,6 @@ export default function UnitView() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  // Auto-complete if requirements met - TEMPORARILY DISABLED
-  // React.useEffect(() => {
-  //   if (!isCompleted && unitCompletionStatus?.canComplete && !isCompleting && !showSuccess) {
-  //     handleComplete();
-  //   }
-  // }, [isCompleted, unitCompletionStatus?.canComplete, isCompleting, showSuccess, handleComplete]);
-
-  // Handle manual Unit 1 completion (Admin)
-  const handleMarkUnit1Complete = async () => {
-    setIsMarkingComplete(true);
-    try {
-      await markUnit1CompleteMutation();
-      toast.success(t('unit.mark1CompleteSuccess'));
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (error) {
-      toast.error(t('unit.mark1CompleteFailed'));
-    } finally {
-      setIsMarkingComplete(false);
-    }
-  };
 
   if (authLoading || isLoading) {
     return (
@@ -660,7 +621,11 @@ export default function UnitView() {
                 </div>
               </div>
               <div className="flex gap-2">
-                {/* {isCompleted && <Badge className="bg-green-600"><CheckCircle2 className="w-4 h-4 mr-1"/> Completed</Badge>} */}
+                {isCompleted && (
+                  <Badge className="bg-green-600">
+                    <CheckCircle2 className="w-4 h-4 mr-1" /> {t("unit.completed")}
+                  </Badge>
+                )}
                 {isMastered && (
                   <Badge className="bg-amber-500">
                     <Star className="w-4 h-4 mr-1" /> {t('unit.mastered')}

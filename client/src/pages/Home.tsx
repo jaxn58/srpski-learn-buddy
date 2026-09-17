@@ -450,8 +450,9 @@ export default function Home() {
   
   // Language is controlled globally (LanguageProvider + DB user setting).
   
-  // Fetch data from database
-  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary);
+  // Fetch data from database. learnerView: true excludes preview/offline
+  // content, so the public landing page never surfaces unreleased content.
+  const courseVocabulary = useQuery(api.vocabulary.getAllCourseVocabulary, { learnerView: true });
   const dbModules = useQuery(api.modules.getAllModulesConsolidated);
   const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" });
   

@@ -118,17 +118,41 @@ export const upsertCourseVocabulary = internalMutation({
 });
 
 // Get all course vocabulary (for frontend migration)
+//
+// `learnerView` (default false, i.e. today's behavior) additionally gates
+// the result by releaseStatus using the same rule as
+// getVocabularyWithProgress / getCourseVocabularyByUnit: non-superadmins see
+// only published rows; superadmins see the latest of preview-or-published.
+// Learner-facing pages (VocabularyList, the public landing page) must pass
+// `learnerView: true` so the word list they render can never include a
+// "preview" duplicate of a word whose real progress lives on the published
+// row - previously that mismatch made mastered/in-progress words look brand
+// new (or vice versa) whenever a unit had an active content preview.
+// All other callers (Content Studio auditing/creation, migration and audio
+// scripts, dev/prod diagnostics) keep calling this without `learnerView`
+// and are unaffected - they need the complete list regardless of release
+// status.
 export const getAllCourseVocabulary = query({
-  handler: async (ctx) => {
+  args: {
+    learnerView: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
     const allVocab = await ctx.db
       .query("courseVocabulary")
       .collect();
     
     // Versioning/soft-archive: treat undefined isActive as active; unitVersion defaults to 1
     const active = allVocab.filter((v: any) => v.isActive !== false);
+
+    let pool: any[] = active;
+    if (args.learnerView) {
+      const user = await getCurrentUser(ctx);
+      pool = filterByReleaseStatus(active, user?.role === "superadmin");
+    }
+
     // If multiple active versions exist (shouldn't, but possible during rollout), keep highest unitVersion per (unitNumber, serbian)
     const latestByKey = new Map<string, any>();
-    for (const v of active as any[]) {
+    for (const v of pool) {
       const key = `${v.unitNumber}::${v.serbian}`;
       const ver = v.unitVersion ?? 1;
       const prev = latestByKey.get(key);

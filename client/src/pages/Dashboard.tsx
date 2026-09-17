@@ -313,6 +313,9 @@ export default function Dashboard() {
   };
 
   const completedUnits = progress?.completedUnits || [];
+  const lockedByCurriculum = new Set(
+    (progress as { lockedUnitNumbers?: number[] } | null)?.lockedUnitNumbers ?? [],
+  );
   const isBeta = user?.isBetaTester || accessibleUnits?.isBeta || false;
   const isAdmin = user?.role === "superadmin" || user?.role === "admin";
 
@@ -859,7 +862,10 @@ export default function Dashboard() {
                     const isCompleted = completedUnits.includes(unitNum);
                     const isCurrent = unitNum === progress?.currentUnit;
                     const isMastered = masteredUnits?.includes(unitNum);
-                    const isLocked = isBetaTester && unitNum > (accessibleUnits?.maxUnits ?? 1);
+                    const isLockedByCurriculum = !isAdmin && lockedByCurriculum.has(unitNum);
+                    const isLocked =
+                      isLockedByCurriculum ||
+                      (isBetaTester && unitNum > (accessibleUnits?.maxUnits ?? 1));
                     const notStarted = !isCompleted && !isCurrent && !isLocked;
 
                     if (isLocked) {

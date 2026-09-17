@@ -126,31 +126,24 @@ export default function Units() {
       }
 
       if (!moduleSlug) {
-        // Try to match by unit number ranges (fallback)
-        if (unitEn.unitNumber <= 6) moduleSlug = "foundation";
-        else if (unitEn.unitNumber <= 11) moduleSlug = "daily-life";
-        else if (unitEn.unitNumber <= 15) moduleSlug = "communication-culture";
-        else if (unitEn.unitNumber <= 20) moduleSlug = "advanced-communication";
-        else moduleSlug = "mastery";
+        return;
       }
 
-      if (moduleSlug) {
-        if (!result[moduleSlug]) {
-          result[moduleSlug] = [];
-        }
-        
-        // Check if unit already exists (avoid duplicates)
-        const exists = result[moduleSlug].find(u => u.number === unitEn.unitNumber);
-        if (!exists) {
-          result[moduleSlug].push({
-            number: unitEn.unitNumber,
-            title: unitEn.title ?? "",
-            titleEnglish: unitEn.title ?? "",
-            titleGerman: unitDe?.title || unitEn.title || "",
-            topics: unitEn.topics || [],
-            topicsGerman: unitDe?.topics || unitEn.topics || [],
-          });
-        }
+      if (!result[moduleSlug]) {
+        result[moduleSlug] = [];
+      }
+
+      // Check if unit already exists (avoid duplicates)
+      const exists = result[moduleSlug].find(u => u.number === unitEn.unitNumber);
+      if (!exists) {
+        result[moduleSlug].push({
+          number: unitEn.unitNumber,
+          title: unitEn.title ?? "",
+          titleEnglish: unitEn.title ?? "",
+          titleGerman: unitDe?.title || unitEn.title || "",
+          topics: unitEn.topics || [],
+          topicsGerman: unitDe?.topics || unitEn.topics || [],
+        });
       }
     });
 
@@ -216,7 +209,15 @@ export default function Units() {
             const moduleMinUnit = moduleUnits.length > 0
               ? Math.min(...moduleUnits.map((u) => u.number))
               : Number.POSITIVE_INFINITY;
-            const isModuleLocked = !isAdmin && isBetaTester && moduleMinUnit > betaMaxUnits;
+            const openModules = (progress as { openModuleNumbers?: number[] } | null)?.openModuleNumbers;
+            const isModuleLockedByCurriculum =
+              !isAdmin &&
+              Array.isArray(openModules) &&
+              openModules.length > 0 &&
+              !openModules.includes(module.number);
+            const isModuleLocked =
+              isModuleLockedByCurriculum ||
+              (!isAdmin && isBetaTester && moduleMinUnit > betaMaxUnits);
             
             // Get module title and description based on language
             const moduleTitle = i18n.language === "de" ? module.titleGerman : module.titleEnglish;
@@ -308,7 +309,9 @@ export default function Units() {
                       <AccordionContent>
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                           {moduleUnits.map((unit) => {
-                            const locked = !isAdmin && isBetaTester && unit.number > betaMaxUnits;
+                            const locked =
+                              isModuleLocked ||
+                              (!isAdmin && isBetaTester && unit.number > betaMaxUnits);
                             const isCurrent = progress?.currentUnit === unit.number;
                             const isCompleted = completedUnits.includes(unit.number);
                             const isMastered = masteredUnits?.includes(unit.number);

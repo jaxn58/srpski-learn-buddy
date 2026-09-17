@@ -119,7 +119,7 @@ export const setUnitOffline = mutation({
 });
 
 // Helper to check unit access
-async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
+export async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number): Promise<boolean> {
   const user = await getCurrentUser(ctx);
   if (!user) {
     return false;
@@ -445,6 +445,11 @@ export const getUnitInteractiveTest = query({
       user?.role === "superadmin" && args.preferPublished !== true;
     const allowOffline = user?.role === "admin" || user?.role === "superadmin";
 
+    const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
+    if (!hasAccess) {
+      return [];
+    }
+
     // Hide offline units for students without throwing (keeps UI resilient).
     if (!allowOffline && (await isUnitOffline(ctx, args.unitNumber))) {
       return [];
@@ -636,6 +641,11 @@ export const getUnitContentSections = query({
     const allowPreview =
       user?.role === "superadmin" && args.preferPublished !== true;
     const allowOffline = user?.role === "admin" || user?.role === "superadmin";
+
+    const hasAccess = await checkUnitAccess(ctx, args.unitNumber);
+    if (!hasAccess) {
+      return {};
+    }
 
     // Hide offline units for students without throwing (keeps UI resilient).
     if (!allowOffline && (await isUnitOffline(ctx, args.unitNumber))) {
