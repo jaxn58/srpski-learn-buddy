@@ -17,7 +17,7 @@ import {
   ensureFounderNoteInMarkdownIfConfigured,
   translateUnitMarkdownToEnglishIfNeeded,
 } from "./_shared";
-import { syncVocabularyCoverageFromExercises } from "./_validatorHelpers";
+import { checkVocabularyCoverage } from "./_validatorHelpers";
 import {
   getSpecialistUserPromptBase,
   buildCuratedSectionsBlock,
@@ -574,15 +574,17 @@ export const runAiSpecialistGenerate = action({
         );
       }
 
-      // Early guardrail: vocabulary coverage (so missing vocab doesn't only show up in QC)
+      // Early visibility: vocabulary coverage gaps are counted here so the run
+      // summary shows them; the Validator turns them into findings. Nothing is
+      // inserted into the package (see checkVocabularyCoverage).
       let pkg = baseParsed.data as any;
-      let vocabAdded = 0;
+      let vocabMissing = 0;
       let vocabUnresolved = 0;
       let vocabSkippedProperNouns = 0;
       try {
-        const vocabSync = await syncVocabularyCoverageFromExercises(ctx, pkg);
+        const vocabSync = await checkVocabularyCoverage(ctx, pkg);
         pkg = vocabSync.pkg;
-        vocabAdded = Array.isArray(vocabSync.added) ? vocabSync.added.length : 0;
+        vocabMissing = Array.isArray(vocabSync.missing) ? vocabSync.missing.length : 0;
         vocabUnresolved = Array.isArray(vocabSync.unresolvedNew) ? vocabSync.unresolvedNew.length : 0;
         vocabSkippedProperNouns = Array.isArray(vocabSync.skippedProperNouns) ? vocabSync.skippedProperNouns.length : 0;
       } catch (e: any) {
@@ -598,7 +600,7 @@ export const runAiSpecialistGenerate = action({
           ok: false,
           note: "Generated; run Validator.",
           vocabCoverage: {
-            added: vocabAdded,
+            missing: vocabMissing,
             unresolvedNew: vocabUnresolved,
             skippedProperNouns: vocabSkippedProperNouns,
           },
@@ -613,7 +615,7 @@ export const runAiSpecialistGenerate = action({
         provider: providerUsed,
         model: modelUsed,
         inputSummary: `module=${d.moduleNumber}, unit=${d.unitNumber}`,
-        outputSummary: `generated markdownChars=${markdown.length} vocabAdded=${vocabAdded} unresolvedNew=${vocabUnresolved}`,
+        outputSummary: `generated markdownChars=${markdown.length} vocabMissing=${vocabMissing} unresolvedNew=${vocabUnresolved}`,
         ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
         status: "success",
@@ -675,6 +677,14 @@ export const runAiCreatorRevise = action({
       return true;
     });
     const humanNotes = String(args.humanNotes || "").trim();
+
+    // Nothing to fix and no instructions: a full-text rewrite would only
+    // paraphrase correct content and invalidate the Lector verdict. One such
+    // no-op run burned 0.046 USD and produced a needless new snapshot on
+    // 2026-09-17.
+    if (issues.length === 0 && !humanNotes) {
+      return { ok: true, skipped: true, reason: "no_findings" };
+    }
 
     // Only re-append auditor findings that were NOT sent to the fixer.
     // Findings sent to the fixer are considered "attempted" -- if they persist,

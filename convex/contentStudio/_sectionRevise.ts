@@ -14,7 +14,6 @@ import {
 import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
 import {
   fillMissingUnitPackageFields,
-  syncVocabularyCoverageFromExercises,
 } from "./_validatorHelpers";
 import {
   validateMarkdownStructure,

@@ -1,9 +1,13 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
-import { getRequiredExercises } from "./unitExercises";
 import { upsertDailyActivityByUserId } from "./units";
 import { assertLearnerAccountActive } from "./authz";
 import { spacedRepetitionXp, cumulativeSpacedRepetitionXp, levelFromXp } from "./gamification";
+import {
+  evaluateUserUnitCompletion,
+  learnerTrackLanguage,
+  markUnitCompletedIfReady,
+} from "./lib/unitProgress";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -174,24 +178,12 @@ export const completeUnit = mutation({
       completedUnits: progress.completedUnits,
     });
 
-    // Add unit to completed list if not already there
-    if (!progress.completedUnits.includes(args.unitNumber)) {
-      const newCompletedUnits = [...progress.completedUnits, args.unitNumber];
-      const newCurrentUnit = args.unitNumber + 1;
-      
-      console.log(`[Progress] completeUnit: Marking unit ${args.unitNumber} as complete`);
-      console.log(`[Progress] completeUnit: New completedUnits:`, newCompletedUnits);
-      console.log(`[Progress] completeUnit: Setting currentUnit to: ${newCurrentUnit}`);
-      
-      await ctx.db.patch(progress._id, {
-        completedUnits: newCompletedUnits,
-        currentUnit: newCurrentUnit,
-      });
-      
-      console.log(`[Progress] completeUnit: Successfully updated progress. Unit ${args.unitNumber} completed, currentUnit now ${newCurrentUnit}`);
-    } else {
-      console.log(`[Progress] completeUnit: Unit ${args.unitNumber} already in completedUnits, skipping update`);
-    }
+    const marked = await markUnitCompletedIfReady(ctx, {
+      userId: user._id,
+      unitNumber: args.unitNumber,
+      language: learnerTrackLanguage(user),
+    });
+    return { unitCompleted: marked.unitCompleted };
   },
 });
 
@@ -282,7 +274,7 @@ export const getAllProgress = query({
   },
 });
 
-// Check if unit can be completed (all vocab mastered + all exercises done)
+// Check if unit can be completed (each published vocab + question answered correctly once)
 // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
 export const canCompleteUnit = query({
   args: {
@@ -290,173 +282,36 @@ export const canCompleteUnit = query({
   },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
-    console.log(`[Progress] canCompleteUnit called for unit ${args.unitNumber}`);
-    
     const user = await getCurrentUser(ctx);
     if (!user) {
-      console.log(`[Progress] canCompleteUnit: User not authenticated`);
       return { canComplete: false, reasons: [], vocabMastered: false, vocabTotal: 0, vocabMasteredCount: 0, exercisesCompleted: false };
     }
 
-    console.log(`[Progress] canCompleteUnit: User found: ${user._id}`);
-
-    const reasons: string[] = [];
-    
-    // 1. Check if all vocabulary entries in DB are mastered
-    // Get all vocabulary progress for this unit via vocabularyProgress + courseVocabulary join
-    const allUserVocabProgress = await ctx.db
-      .query("vocabularyProgress")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .collect();
-    
-    const userVocabProgress: Array<{ correctAnswerCount: number }> = [];
-    for (const vp of allUserVocabProgress) {
-      const courseVocab = await ctx.db.get(vp.courseVocabularyId);
-      if (courseVocab && courseVocab.unitNumber === args.unitNumber) {
-        userVocabProgress.push({ correctAnswerCount: vp.correctAnswerCount });
-      }
-    }
-    
-    console.log(`[Progress] canCompleteUnit: Found ${userVocabProgress.length} vocabulary entries for unit ${args.unitNumber}`);
-    
-    // Check for any unmastered vocabulary entries
-    // For unit unlocking: vocabulary needs to be answered correctly at least once (>= 1)
-    // "Mastered" status (3x correct) is separate from "passed" status (1x correct)
-    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
-    const unmasteredVocab = userVocabProgress.filter(v => (v.correctAnswerCount || 0) < 1);
-    console.log(`[Progress] canCompleteUnit: Unmastered vocab (not answered correctly yet): ${unmasteredVocab.length}, Passed vocab (answered correctly at least once): ${userVocabProgress.length - unmasteredVocab.length}`);
-    
-    if (unmasteredVocab.length > 0) {
-      reasons.push(`${unmasteredVocab.length} vocabulary item(s) not answered correctly yet`);
-    }
-    
-    // Count passed vocabulary (answered correctly at least once)
-    const masteredVocab = userVocabProgress.filter(v => (v.correctAnswerCount || 0) >= 1);
-    
-    // 2. Check if vocab quiz is completed with 100%
-    // This ensures all vocabulary has been attempted and mastered
-    // BUT: If all vocabulary is already mastered (3x correct), quiz is optional
-    const vocabQuizId = `vocab_quiz_unit_${args.unitNumber}`;
-    console.log(`[Progress] canCompleteUnit: Looking for vocab quiz with exerciseId: ${vocabQuizId}`);
-    
-    const vocabQuizCompleted = await ctx.db
-      .query("exerciseCompletions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .filter((q) => 
-        q.eq(q.field("unitNumber"), args.unitNumber) &&
-        q.eq(q.field("exerciseId"), vocabQuizId)
-      )
-      .first();
-    
-    const allVocabMastered = unmasteredVocab.length === 0 && userVocabProgress.length > 0;
-    
-    if (!vocabQuizCompleted) {
-      console.log(`[Progress] canCompleteUnit: Vocab quiz NOT found`);
-      if (!allVocabMastered) {
-        // Only require quiz if vocabulary is not all mastered
-        console.log(`[Progress] canCompleteUnit: Requiring quiz because not all vocab mastered`);
-        reasons.push("Vocabulary quiz not completed yet");
-      } else {
-        console.log(`[Progress] canCompleteUnit: Quiz optional - all vocabulary already mastered`);
-      }
-    } else {
-      console.log(`[Progress] canCompleteUnit: Vocab quiz found: score=${vocabQuizCompleted.score}/${vocabQuizCompleted.totalQuestions}`);
-      // Check if quiz was completed with 100% (all vocab mastered)
-      const quizScore = vocabQuizCompleted.totalQuestions > 0 
-        ? (vocabQuizCompleted.score / vocabQuizCompleted.totalQuestions) * 100 
-        : 0;
-      
-      if (quizScore < 100) {
-        console.log(`[Progress] canCompleteUnit: Quiz score < 100%: ${quizScore}%`);
-        reasons.push("Not all vocabulary mastered (quiz < 100%)");
-      } else {
-        console.log(`[Progress] canCompleteUnit: Quiz score = 100% ✓`);
-      }
-    }
-    
-    // 3. Check if ALL required exercises are completed with perfect score
-    // Get list of all required exercises for this unit
-    const requiredExercises = getRequiredExercises(args.unitNumber);
-    console.log(`[Progress] canCompleteUnit: Required exercises for unit ${args.unitNumber}:`, requiredExercises);
-    
-    // Get all existing exercise completions for this unit (excluding vocab quiz)
-    const allExerciseCompletions = await ctx.db
-      .query("exerciseCompletions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .filter((q) => 
-        q.eq(q.field("unitNumber"), args.unitNumber) &&
-        q.neq(q.field("exerciseId"), vocabQuizId)
-      )
-      .collect();
-    
-    console.log(`[Progress] canCompleteUnit: Found ${allExerciseCompletions.length} exercise completions for unit ${args.unitNumber}`);
-    
-    // Create a map of exerciseId -> completion record for quick lookup
-    const completionMap = new Map(
-      allExerciseCompletions.map(c => [c.exerciseId, c])
+    const evaluation = await evaluateUserUnitCompletion(
+      ctx,
+      user._id,
+      args.unitNumber,
+      learnerTrackLanguage(user),
     );
-    
-    // Check if ALL required exercises are completed at least once with perfect score
-    const missingExercises: string[] = [];
-    const incompleteExercises: Array<{exerciseId: string, score: number, totalQuestions: number}> = [];
-    
-    for (const exerciseId of requiredExercises) {
-      const completion = completionMap.get(exerciseId);
-      
-      if (!completion) {
-        // Exercise was never attempted
-        missingExercises.push(exerciseId);
-        console.log(`[Progress] canCompleteUnit: Exercise ${exerciseId} not completed yet`);
-      // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-      } else if (completion.score < completion.totalQuestions) {
-        // Exercise was attempted but not completed perfectly
-        incompleteExercises.push({
-          exerciseId,
-          // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-          score: completion.score,
-          // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-          totalQuestions: completion.totalQuestions
-        });
-        // @ts-ignore TS2339 TS2589 – Convex schema depth limit (50 tables)
-        console.log(`[Progress] canCompleteUnit: Exercise ${exerciseId} incomplete: ${completion.score}/${completion.totalQuestions}`);
-      } else {
-        // Exercise completed perfectly ✓
-        console.log(`[Progress] canCompleteUnit: Exercise ${exerciseId} completed perfectly ✓`);
-      }
+    const reasons: string[] = [];
+    if (evaluation.missingVocabIds.length > 0) {
+      reasons.push(`${evaluation.missingVocabIds.length} vocabulary item(s) not answered correctly yet`);
     }
-    
-    // Add reasons for missing or incomplete exercises
-    if (missingExercises.length > 0) {
-      reasons.push(`${missingExercises.length} exercise(s) not completed yet: ${missingExercises.join(', ')}`);
+    if (evaluation.missingQuestionIds.length > 0) {
+      reasons.push(`${evaluation.missingQuestionIds.length} exercise question(s) not answered correctly yet`);
     }
-    
-    if (incompleteExercises.length > 0) {
-      incompleteExercises.forEach(ex => {
-        reasons.push(`Exercise "${ex.exerciseId}" not fully completed (${ex.score}/${ex.totalQuestions})`);
-      });
+    if (!evaluation.complete && reasons.length === 0) {
+      reasons.push("Unit has no published vocabulary or questions");
     }
-    
-    const exercisesCompleted = missingExercises.length === 0 && incompleteExercises.length === 0;
-    
-    const result = {
-      canComplete: reasons.length === 0,
+
+    return {
+      canComplete: evaluation.complete,
       reasons,
-      vocabMastered: unmasteredVocab.length === 0 && userVocabProgress.length > 0, // All vocab answered correctly at least once
-      vocabTotal: userVocabProgress.length,
-      vocabMasteredCount: masteredVocab.length, // Count of vocab answered correctly at least once
-      exercisesCompleted,
+      vocabMastered: evaluation.missingVocabIds.length === 0 && evaluation.vocabTotal > 0,
+      vocabTotal: evaluation.vocabTotal,
+      vocabMasteredCount: evaluation.vocabPassed,
+      exercisesCompleted: evaluation.missingQuestionIds.length === 0 && evaluation.questionsTotal > 0,
     };
-    
-    console.log(`[Progress] canCompleteUnit: Result for unit ${args.unitNumber}:`, {
-      canComplete: result.canComplete,
-      reasons: result.reasons,
-      vocabMastered: result.vocabMastered,
-      vocabTotal: result.vocabTotal,
-      vocabMasteredCount: result.vocabMasteredCount,
-      exercisesCompleted: result.exercisesCompleted,
-    });
-    
-    return result;
   },
 });
 
@@ -732,11 +587,18 @@ export const submitCategoryResult = mutation({
       });
     }
 
+    const marked = await markUnitCompletedIfReady(ctx, {
+      userId: user._id,
+      unitNumber: args.unitNumber,
+      language: learnerTrackLanguage(user),
+    });
+
     console.log(`[Progress] submitCategoryResult: User ${user._id} earned ${totalXP} XP from ${args.category} in unit ${args.unitNumber}`);
 
     return { 
       earnedXP: totalXP,
       updatedProgress,
+      unitCompleted: marked.unitCompleted,
     };
   },
 });

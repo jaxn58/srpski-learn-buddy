@@ -162,14 +162,14 @@ export function QAFindingsPanel({
                               {t("admin.contentStudio.findings.persists", { defaultValue: "persists x{{n}}", n: f.persistCount })}
                             </span>
                           )}
-                          {f.path ? <span className="text-muted-foreground font-normal">({f.path})</span> : null}
+                          {f.path ? <span className="text-muted-foreground font-normal break-all">({f.path})</span> : null}
                           {typeof f.createdAt === "number" && (
                             <span className="ml-auto text-xs text-muted-foreground font-normal whitespace-nowrap">
                               {formatDateTimeEU(f.createdAt)}
                             </span>
                           )}
                         </div>
-                        <div className="break-words text-muted-foreground">{f.message}</div>
+                        <div className="[overflow-wrap:anywhere] text-muted-foreground">{f.message}</div>
                         {typeof f.persistCount === "number" && f.persistCount >= 2 && (
                           <div className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">
                             {t("admin.contentStudio.findings.persistsHint", {

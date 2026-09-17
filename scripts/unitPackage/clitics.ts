@@ -126,8 +126,28 @@ export interface CliticIssue {
 }
 
 /**
- * Scan every place a learner reads Serbian: grammar examples, phrase and
- * dialogue tables, exercise stems, options and answers.
+ * Lines of the "Watch Out" block deliberately show a WRONG form next to the
+ * CORRECT one. Only the CORRECT part may be checked; the WRONG part is the
+ * teaching point. (The first version of this check flagged
+ * "WRONG: Li imate kafu?" and the Fix stage then rewrote the example into a
+ * description, destroying the learner-facing contrast; Unit 2, 2026-09-17.)
+ */
+export function correctPartOfWatchOutLine(line: string): string | null {
+  if (!/\bWRONG\s*:/i.test(line)) return null;
+  const m = line.match(/CORRECT\s*:\s*(.+?)\s*(?:\((?:[^()]*)\))?\s*$/i);
+  return m ? m[1].replace(/\*\*|`/g, "").trim() : "";
+}
+
+/**
+ * Scan every place a learner reads Serbian AS CORRECT LANGUAGE: grammar
+ * examples, the CORRECT half of Watch Out lines, phrase and dialogue tables,
+ * exercise stems with the answer filled in, and correct answers.
+ *
+ * Deliberately NOT scanned: multiple-choice and dialogue-completion OPTIONS.
+ * Distractors are supposed to be wrong, and "wrong word order" is one of the
+ * three distractor types the Creator prompt prescribes. Flagging them made
+ * the Fix stage remove exactly the distractor that tested the unit's grammar
+ * point (Unit 2: "Li imate mleko?" was the intended trap).
  */
 export function collectLeadingCliticIssues(pkg: {
   content?: Record<string, { grammarMd?: string; phrasesMd?: string; dialoguesMd?: string } | undefined>;
@@ -150,6 +170,11 @@ export function collectLeadingCliticIssues(pkg: {
     const content = pkg.content?.[lang];
     if (content) {
       for (const line of String(content.grammarMd ?? "").split("\n")) {
+        const correctPart = correctPartOfWatchOutLine(line);
+        if (correctPart !== null) {
+          if (correctPart) report(["content", lang, "grammarMd"], correctPart);
+          continue;
+        }
         const sr = serbianOfExampleLine(line);
         if (sr) report(["content", lang, "grammarMd"], sr);
       }
@@ -171,7 +196,7 @@ export function collectLeadingCliticIssues(pkg: {
             report([...base, "question"], utterance);
           }
         }
-        for (const opt of q.options ?? []) report([...base, "options"], opt.replace(/^[A-D]\)\s*/, ""));
+        // Options are distractors by design and are not checked (see above).
         if (q.correctAnswer) report([...base, "correctAnswer"], q.correctAnswer.replace(/^[A-D]\)\s*/, ""));
       }
     }

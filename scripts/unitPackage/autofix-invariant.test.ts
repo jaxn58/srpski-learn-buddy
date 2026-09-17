@@ -241,6 +241,31 @@ describe("autofixUnitPackage invariant: no template finding on autofix-touched p
     assertInvariant(pkg);
   });
 
+  it("does not split a pronoun chain such as 'he/she/it has' (Unit 2 regression, 2026-09-17)", () => {
+    // "he/she/it has" is ONE verb form with three subjects, not three
+    // meanings. Splitting produced en="he", the Lector flagged it, and the
+    // Fix stage could never repair it because this autofix re-split it.
+    const pkg = makeBasePackage({
+      vocabulary: {
+        en: [
+          { serbian: "ima", en: "he/she/it has" },
+          { serbian: "nema", en: "he/she/it doesn't have" },
+          { serbian: "ste", en: "you/they are" },
+          { serbian: "molim", en: "please / you're welcome" },
+        ],
+      },
+    });
+    const { fixed } = autofixUnitPackage(pkg);
+    expect(fixed.vocabulary.en[0].en).toBe("he/she/it has");
+    expect(fixed.vocabulary.en[0].noteEn ?? "").not.toMatch(/AlsoMeaning/);
+    expect(fixed.vocabulary.en[1].en).toBe("he/she/it doesn't have");
+    expect(fixed.vocabulary.en[2].en).toBe("you/they are");
+    // A real alternative is still collapsed.
+    expect(fixed.vocabulary.en[3].en).toBe("please");
+    expect(fixed.vocabulary.en[3].noteEn ?? "").toMatch(/AlsoMeaning: you're welcome/);
+    assertInvariant(pkg);
+  });
+
   it("leaves canonical 'AlsoMeaning:' untouched and produces no finding", () => {
     const pkg = makeBasePackage({
       vocabulary: {

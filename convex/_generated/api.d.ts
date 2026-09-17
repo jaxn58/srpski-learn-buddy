@@ -61,6 +61,7 @@ import type * as knowledge from "../knowledge.js";
 import type * as leaderboard from "../leaderboard.js";
 import type * as lib_attachmentMime from "../lib/attachmentMime.js";
 import type * as lib_storageHelpers from "../lib/storageHelpers.js";
+import type * as lib_unitProgress from "../lib/unitProgress.js";
 import type * as migrations_backfillOrphanVocabProgress from "../migrations/backfillOrphanVocabProgress.js";
 import type * as migrations_clearAutoAddedNoteMarker from "../migrations/clearAutoAddedNoteMarker.js";
 import type * as migrations_deduplicateVocabulary from "../migrations/deduplicateVocabulary.js";
@@ -155,6 +156,7 @@ declare const fullApi: ApiFromModules<{
   leaderboard: typeof leaderboard;
   "lib/attachmentMime": typeof lib_attachmentMime;
   "lib/storageHelpers": typeof lib_storageHelpers;
+  "lib/unitProgress": typeof lib_unitProgress;
   "migrations/backfillOrphanVocabProgress": typeof migrations_backfillOrphanVocabProgress;
   "migrations/clearAutoAddedNoteMarker": typeof migrations_clearAutoAddedNoteMarker;
   "migrations/deduplicateVocabulary": typeof migrations_deduplicateVocabulary;

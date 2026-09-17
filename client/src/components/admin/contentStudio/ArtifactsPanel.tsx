@@ -28,7 +28,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Eye, Loader2, PlusCircle, Sparkles, Undo2 } from "lucide-react";
-import { countOpenFindings, isLectorStale, reviewSeverity } from "./utils/draftReviewState";
+import { countOpenFindings, isLectorStale, lastFailedRunAfterSnapshot, reviewSeverity } from "./utils/draftReviewState";
+import { useAiRunStageLabel } from "./AiRunMeta";
 import { toast } from "sonner";
 import type { SectionId } from "./types";
 import { useSectionLabel } from "./utils/sectionLabel";
@@ -165,15 +166,29 @@ export function ArtifactsPanel({
 }: ArtifactsPanelProps) {
   void _setUnitPackageJson;
   const sectionLabel = useSectionLabel();
+  const stageLabel = useAiRunStageLabel();
 
   // Signal on the preview button: amber for unfinished quality steps, red for
   // a reported defect. The button stays clickable either way.
   const findings = (selected as any)?.findings ?? [];
   const draft = (selected as any)?.draft;
-  const reviewState = reviewSeverity(draft, findings);
+  const failedRun = lastFailedRunAfterSnapshot((selected as any)?.aiRuns, (selected as any)?.snapshot);
+  const reviewState = reviewSeverity(draft, findings, {
+    runs: (selected as any)?.aiRuns,
+    snapshot: (selected as any)?.snapshot,
+  });
   const openFindings = countOpenFindings(findings);
   const reviewHint = (() => {
     const status = String(draft?.status ?? "");
+    if (failedRun) {
+      const head = t("admin.contentStudio.artifacts.hintLastRunFailed", {
+        defaultValue: "The last AI run ({{stage}}) failed. The content shown is the previous state, not the result of that run.",
+        stage: stageLabel(failedRun.stage),
+      });
+      // The reason belongs next to the button, not only in the inspector.
+      const reason = failedRun.error.length > 260 ? `${failedRun.error.slice(0, 260)}…` : failedRun.error;
+      return reason ? `${head} ${t("admin.contentStudio.artifacts.hintReason", "Reason:")} ${reason}` : head;
+    }
     if (status === "qc_failed") return t("admin.contentStudio.artifacts.hintValidatorFailed", "The validator reported errors. Fix them and run the validator again before creating a preview.");
     if (status === "audit_failed") return t("admin.contentStudio.artifacts.hintLectorBlocked", "The Lector found language errors. Use \"Fix findings\", then run the Lector again.");
     if (openFindings > 0 && isLectorStale(draft, findings)) {

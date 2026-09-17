@@ -383,10 +383,21 @@ function applyGenderSplit(
  *
  * `enAlt` is no longer written (deprecated/stillgelegt).
  */
+/**
+ * "he/she/it has", "you/they are": the slash joins PRONOUNS of one verb form,
+ * not alternative meanings. Splitting turned "he/she/it has" into en="he" and
+ * the Lector rightly rejected it; the Fix stage could not repair it because
+ * this autofix re-split the corrected row on every Validator pass (Unit 2,
+ * 2026-09-17, two rounds wasted).
+ */
+const PRONOUN_SLASH_CHAIN =
+  /^(?:he|she|it|you|we|they|i|him|her|them|his|hers|its|their|your|my|our)\s*\/\s*(?:he|she|it|you|we|they|i|him|her|them|his|hers|its|their|your|my|our)\b/i;
+
 function collapseEnglishSlashAlternatives(
   entry: UnitPackageVocabularyEntry
 ): UnitPackageVocabularyEntry {
   if (!entry.en.includes("/")) return entry;
+  if (PRONOUN_SLASH_CHAIN.test(entry.en.trim())) return entry;
   const parts = splitBySlash(entry.en);
   if (parts.length < 2) return entry;
   const primary = parts[0];

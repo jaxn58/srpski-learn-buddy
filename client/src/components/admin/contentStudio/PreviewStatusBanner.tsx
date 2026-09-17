@@ -4,7 +4,7 @@ import { useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTimeEU, formatTimeEU } from "@/lib/utils";
 import {
   Loader2,
   CheckCircle2,
@@ -48,9 +48,21 @@ const STAGE_LABEL: Record<PreviewCreationStage, string> = {
   complete: "Complete",
 };
 
+/**
+ * Time of day (24h) for today's runs; "DD.MM.YYYY HH:mm" for anything older.
+ * A bare "12:44 PM" from a run in July looked like a result from this morning
+ * next to a fresh failure (Unit 2, 2026-09-17). Uses the project's EU
+ * formatters so the banner matches the rest of the admin UI.
+ */
 function formatTime(ts: number): string {
   try {
-    return new Date(ts).toLocaleTimeString();
+    const d = new Date(ts);
+    const now = new Date();
+    const sameDay =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+    return sameDay ? formatTimeEU(d) : formatDateTimeEU(d);
   } catch {
     return "";
   }

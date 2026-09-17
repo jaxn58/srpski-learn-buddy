@@ -521,6 +521,16 @@ function buildSectionSystemPrompt(): string {
     "- Do NOT change any Serbian phrases inside examples, answers, or dialogue lines.",
     "- Only translate English explanatory/instructional text into German.",
     "",
+    // Localizing (not translating) pronunciation guidance. Unit 1's alphabet
+    // table went live as 'wie das \"a\" in father' with the header
+    // 'Aussprachehilfe (Englisch)' — useless for a German learner (2026-09-17).
+    "CRITICAL: LOCALIZE pronunciation guidance, never translate it literally:",
+    "- Sound comparisons that reference ENGLISH words must be rewritten with GERMAN reference words that a German speaker pronounces the same way as the Serbian sound.",
+    "  Examples: \"like 'a' in father\" -> \"wie das 'a' in Vater\"; \"like 'ts' in cats\" -> \"wie das 'z' in Zahl\"; \"like 'ch' in chair\" -> \"wie 'tsch' in Tschüss\"; \"like 'j' in jump\" -> \"wie 'Dsch' in Dschungel\"; \"like 'y' in yes\" -> \"wie das 'j' in ja\"; \"like 'ee' in see\" -> \"wie das 'ie' in Liebe\".",
+    "- If no clean German sound analogy exists, describe the sound in German words (e.g. \"ein weiches 'tj', gesprochen wie ein sehr weiches 'tsch'\") instead of keeping the English example word.",
+    "- Column headers such as 'Pronunciation guide (English)' become 'Aussprachehilfe (Deutsch)' — the guide is FOR German speakers.",
+    "- The Serbian example words in such tables stay Serbian; only the comparison language changes.",
+    "",
     "Return ONLY the final Markdown content (no commentary, no code fences).",
   ].join("\n");
 }

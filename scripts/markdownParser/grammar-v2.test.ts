@@ -129,6 +129,79 @@ describe("analyzeGrammarV2", () => {
     expect(res.points).toBe(2);
     expect(res.errors.some((e) => e.includes("Negation with 'ne'") && e.includes("#### Pattern"))).toBe(true);
     expect(res.errors.some((e) => e.includes("The Verb 'biti'"))).toBe(false);
+    // Two primary points violate "exactly one"; reported as a warning.
+    expect(res.warnings.some((w) => w.includes("2 primary grammar points"))).toBe(true);
+  });
+
+  it("accepts a Recycle block without template blocks (Unit 2 regression, 2026-09-17)", () => {
+    const withRecycle = `${V2_GRAMMAR}
+### Recycle: The Verb 'biti' (to be)
+You already know this from Unit 1.
+*   Ja **sam** gost. (I am a guest.)
+*   Ti **si** konobar. (You are a waiter.)
+*   Kafa **je** topla. (The coffee is warm.)
+`;
+    const res = analyzeGrammarV2(withRecycle);
+    expect(res.points).toBe(2);
+    expect(res.errors).toEqual([]);
+    expect(res.warnings).toEqual([]);
+  });
+
+  it("warns when a Recycle block carries template blocks, errors when it is empty", () => {
+    const noisy = `${V2_GRAMMAR}\n### Recycle: biti\n\n#### The Rule\nSee Unit 1.\n`;
+    const resNoisy = analyzeGrammarV2(noisy);
+    expect(resNoisy.errors).toEqual([]);
+    expect(resNoisy.warnings.some((w) => w.includes("recycle point") && w.includes("without '####'"))).toBe(true);
+
+    const empty = `${V2_GRAMMAR}\n### Recycle: biti\n`;
+    const resEmpty = analyzeGrammarV2(empty);
+    expect(resEmpty.errors.some((e) => e.includes("recycle point") && e.includes("is empty"))).toBe(true);
+  });
+
+  it("rejects a grammar section that has only Recycle points", () => {
+    const onlyRecycle = `## 3. Grammar\n\n#### Why You Need This\nstray block\n\n### Recycle: biti\nYou already know this from Unit 1.\n*   Ja **sam** gost. (I am a guest.)\n`;
+    const res = analyzeGrammarV2(onlyRecycle);
+    expect(res.errors.some((e) => e.includes("only recycle/preview points"))).toBe(true);
+  });
+
+  it("accepts a Grammar Preview block for chunks (2026-09-17)", () => {
+    const withPreview = `${V2_GRAMMAR}
+### Grammar Preview
+These fixed phrases use forms you will learn later:
+*   **Jednu kafu, molim vas.** – \`jednu\` is a form of \`jedna\` (one). Used as a fixed phrase when ordering; the rule behind it comes in Unit 19.
+*   **Sa mlekom.** – \`mlekom\` is a form of \`mleko\` (milk). The rule behind it comes in a later unit.
+`;
+    const res = analyzeGrammarV2(withPreview);
+    expect(res.points).toBe(2);
+    expect(res.errors).toEqual([]);
+    expect(res.warnings).toEqual([]);
+  });
+
+  it("warns on template headings inside a Grammar Preview and errors when it is empty", () => {
+    const noisy = `${V2_GRAMMAR}\n### Grammar Preview\n\n#### The Rule\nnope\n`;
+    const resNoisy = analyzeGrammarV2(noisy);
+    expect(resNoisy.errors).toEqual([]);
+    expect(resNoisy.warnings.some((w) => w.includes("preview point") && w.includes("without '####'"))).toBe(true);
+
+    const empty = `${V2_GRAMMAR}\n### Grammar Preview\n`;
+    const resEmpty = analyzeGrammarV2(empty);
+    expect(resEmpty.errors.some((e) => e.includes("preview point") && e.includes("is empty"))).toBe(true);
+  });
+
+  it("accepts Recycle and Grammar Preview together", () => {
+    const both = `${V2_GRAMMAR}
+### Recycle: The Verb 'biti' (to be)
+You already know this from Unit 1.
+*   Ja **sam** gost. (I am a guest.)
+*   Kafa **je** topla. (The coffee is warm.)
+
+### Grammar Preview
+*   **Jednu kafu, molim vas.** – \`jednu\` is a form of \`jedna\` (one); the rule comes in Unit 19.
+`;
+    const res = analyzeGrammarV2(both);
+    expect(res.points).toBe(3);
+    expect(res.errors).toEqual([]);
+    expect(res.warnings).toEqual([]);
   });
 });
 

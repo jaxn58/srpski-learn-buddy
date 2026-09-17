@@ -753,6 +753,13 @@ export function upsertFounderNoteBlock(md: string, name: string, quote: string):
   return `${block}\n${next}`.trimStart();
 }
 
+/** True when the Overview already carries a founder/author note block. */
+export function hasFounderNoteBlock(markdown: string): boolean {
+  return /^(?:\s*>\s*){0,3}\s*#{0,4}\s*(?:\*{0,2}\s*)?A Note from the (?:Founder|Unit Author)\b/im.test(
+    String(markdown || "")
+  );
+}
+
 export async function ensureFounderNoteInMarkdownIfConfigured(
   ctx: ActionCtx,
   draft: any,
@@ -762,6 +769,16 @@ export async function ensureFounderNoteInMarkdownIfConfigured(
   const name = String(draft?.authorNoteName || "").trim();
   const quoteRaw = String(draft?.authorNoteQuote || "").trim();
   if (!name || !quoteRaw) return markdown;
+
+  // A note that is already present stays EXACTLY as it is. The quote is
+  // translated by an LLM, and a fresh translation words itself differently on
+  // every call: each Save/Validate replaced the note with a new variant, the
+  // content changed by a few bytes, and the Lector verdict was reported as
+  // outdated after every single step ("Lector outdated" loop, 2026-09-17).
+  // It also burned one AI call per save. To change the note's wording, edit
+  // it in the markdown, or remove the block so it is re-inserted from the
+  // configured quote.
+  if (hasFounderNoteBlock(markdown)) return markdown;
 
   const quoteEn = await translateShortToEnglishIfNeeded(ctx, quoteRaw, preferredProvider);
   const next = upsertFounderNoteBlock(markdown, name, quoteEn);
@@ -1037,10 +1054,12 @@ export async function languageRulesBlock(ctx: ActionCtx): Promise<string> {
 export function vocabularyProtectionBlock(): string {
   return [
     "",
-    "=== VOCABULARY PROTECTION (binding) ===",
+    "=== VOCABULARY TABLE (binding) ===",
     "- Never delete or rename a vocabulary entry whose Serbian word is used in the grammar section, dialogues, phrases, exercises or learning objectives of this unit.",
     "- Never reduce the vocabulary table to satisfy a word-count remark. Word count is not your concern; the author decides it.",
     "- You may correct a translation, a note or the gender of an entry at any time.",
+    "- When a finding says a Serbian word is MISSING from the vocabulary table, ADD a complete row for it in the fitting `###` category of \"## 2. Vocabulary\": Serbian in base form and audio-clean, the English translation, and a Notes entry if a form or usage needs one. Use the translation suggested in the finding unless it is wrong.",
+    "- When a finding says a word is first taught in a LATER unit, do NOT add it: replace it in the text with vocabulary of this or an earlier unit.",
     "",
   ].join("\n");
 }

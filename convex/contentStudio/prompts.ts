@@ -75,6 +75,18 @@ export function buildCuratedSectionsBlock(
   ].join("\n");
 }
 
+/** Compact Serbian-key list for Creator / Lector. ~4 tokens per word; 1,800 words ≈ 7k tokens. */
+export const KNOWN_VOCAB_KEY_CAP = 2000;
+
+export function formatKnownVocabularyKeys(
+  keys: string[],
+  cap: number = KNOWN_VOCAB_KEY_CAP
+): string {
+  if (keys.length === 0) return "(This is Unit 1 - no previous vocabulary)";
+  const shown = keys.slice(0, cap);
+  return shown.join(", ") + (keys.length > cap ? " ... (truncated)" : "");
+}
+
 export const getSpecialistUserPromptBase = (
   d: any,
   unitTitleOneLine: string,
@@ -98,12 +110,7 @@ export const getSpecialistUserPromptBase = (
   `═══════════════════════════════════════════════════════════════════════════`,
   `KNOWN VOCABULARY (${previousVocabKeys.length} words already taught in previous units)`,
   `═══════════════════════════════════════════════════════════════════════════`,
-  // Full known-vocabulary list up to a generous cap. 75 units x ~25 words is
-  // below 2,000 entries (~4k tokens), so the Creator normally sees everything
-  // and never re-teaches a word by accident.
-  previousVocabKeys.length > 0
-    ? previousVocabKeys.slice(0, 2000).join(", ") + (previousVocabKeys.length > 2000 ? " ... (truncated)" : "")
-    : "(This is Unit 1 - no previous vocabulary)",
+  formatKnownVocabularyKeys(previousVocabKeys),
   ``,
   `═══════════════════════════════════════════════════════════════════════════`,
   `REQUIRED SECTIONS (parser-validated structure)`,

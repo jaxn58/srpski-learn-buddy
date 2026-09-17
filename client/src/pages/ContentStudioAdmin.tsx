@@ -2094,11 +2094,16 @@ export default function ContentStudioAdmin() {
     draftId: string,
     initial?: { validatorOk: boolean; progressFrom?: number },
   ): Promise<boolean> => {
-    const MAX_ROUNDS = 3;
+    // Two separate budgets. Validator repairs (deterministic defects such as
+    // coverage gaps right after the Creator) must not eat the Lector's rounds:
+    // on 2026-09-17 two validator-fix rounds left the Lector a single round,
+    // so its one blocker ended the cycle unfixed.
+    const MAX_LECTOR_ROUNDS = 3;
+    const MAX_VALIDATOR_REPAIRS = 3;
     const base = initial?.progressFrom ?? 10;
     const span = 100 - base;
     const pct = (round: number, step: number) =>
-      Math.min(99, Math.round(base + (span * ((round - 1) + step)) / MAX_ROUNDS));
+      Math.min(99, Math.round(base + (span * ((round - 1) + step)) / MAX_LECTOR_ROUNDS));
 
     const countObjective = (report: any): number => {
       const audit = report?.audit ?? report;
@@ -2112,7 +2117,7 @@ export default function ContentStudioAdmin() {
         t("admin.contentStudio.page.progressCycleFix", {
           defaultValue: "Round {{round}}/{{max}}: fixing {{n}} finding(s)…",
           round,
-          max: MAX_ROUNDS,
+          max: MAX_LECTOR_ROUNDS,
           n,
         }),
       );
@@ -2129,40 +2134,55 @@ export default function ContentStudioAdmin() {
 
     let previousCount = Number.POSITIVE_INFINITY;
     let validatorOk: boolean | undefined = initial?.validatorOk;
+    let validatorRepairs = 0;
+    let lectorRound = 0;
 
-    for (let round = 1; round <= MAX_ROUNDS; round++) {
+    for (;;) {
       if (validatorOk === undefined) {
         setProgressMessage(
           t("admin.contentStudio.page.progressCycleValidate", {
             defaultValue: "Round {{round}}/{{max}}: validating…",
-            round,
-            max: MAX_ROUNDS,
+            round: Math.max(1, lectorRound),
+            max: MAX_LECTOR_ROUNDS,
           }),
         );
-        setProgressPercent(pct(round, 0));
+        setProgressPercent(pct(Math.max(1, lectorRound), 0));
         const valRes: any = await withAuthRetry(() => runValidate({ draftId }));
         validatorOk = Boolean(valRes?.ok);
       }
 
       if (!validatorOk) {
         // Deterministic defects first; the Lector would only repeat them.
-        if (round === MAX_ROUNDS) {
+        if (validatorRepairs >= MAX_VALIDATOR_REPAIRS) {
           toast.error(t("admin.contentStudio.toast.cycleValidatorFailed", "Stopped: the validator failed after the fix. Please look at the findings."));
           return false;
         }
-        await fix(round, countOpenFindings(selected?.findings as any));
+        validatorRepairs += 1;
+        await fix(Math.max(1, lectorRound), countOpenFindings(selected?.findings as any));
         validatorOk = undefined;
         continue;
       }
 
+      if (lectorRound >= MAX_LECTOR_ROUNDS) {
+        toast.warning(
+          t("admin.contentStudio.toast.cycleMaxRounds", {
+            defaultValue: "Stopped after {{max}} rounds, {{n}} finding(s) left.",
+            max: MAX_LECTOR_ROUNDS,
+            n: previousCount === Number.POSITIVE_INFINITY ? 0 : previousCount,
+          }),
+        );
+        return false;
+      }
+      lectorRound += 1;
+
       setProgressMessage(
         t("admin.contentStudio.page.progressCycleLector", {
           defaultValue: "Round {{round}}/{{max}}: Lector reviewing…",
-          round,
-          max: MAX_ROUNDS,
+          round: lectorRound,
+          max: MAX_LECTOR_ROUNDS,
         }),
       );
-      setProgressPercent(pct(round, 0.33));
+      setProgressPercent(pct(lectorRound, 0.33));
       const audit: any = await withAuthRetry(() => runAuditor({ draftId }));
       const open = countObjective(audit?.report);
 
@@ -2183,21 +2203,20 @@ export default function ContentStudioAdmin() {
       }
       previousCount = open;
 
-      if (round === MAX_ROUNDS) {
+      if (lectorRound >= MAX_LECTOR_ROUNDS) {
         toast.warning(
           t("admin.contentStudio.toast.cycleMaxRounds", {
             defaultValue: "Stopped after {{max}} rounds, {{n}} finding(s) left.",
-            max: MAX_ROUNDS,
+            max: MAX_LECTOR_ROUNDS,
             n: open,
           }),
         );
         return false;
       }
 
-      await fix(round, open);
+      await fix(lectorRound, open);
       validatorOk = undefined;
     }
-    return false;
   };
 
   const handleReviewUntilClean = async () => {

@@ -37,7 +37,7 @@ import { Loader2, CheckCircle, XCircle, Sparkles, RotateCcw, Wand2, X } from "lu
 import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
 import { useSectionLabel } from "./utils/sectionLabel";
-import { isLectorStale } from "./utils/draftReviewState";
+import { isLectorStale, lastFailedRunAfterSnapshot } from "./utils/draftReviewState";
 import { DraftStatusBadge } from "./StatusBadge";
 import {
   PreviewStatusBanner,
@@ -123,7 +123,17 @@ export function InspectorPanel(props: InspectorPanelProps) {
       {previewState && selectedDraftId && (
         <PreviewStatusBanner draftId={selectedDraftId} previewState={previewState} />
       )}
-      <ScrollArea className="flex-1 min-h-0">
+      {/*
+        Radix wraps the viewport content in a `display: table` div that sizes
+        itself to the widest UNBREAKABLE token instead of the panel width.
+        A Lector message containing a long path such as
+        "exercises.en[category=translation].questions[questionId=u2_ex1_q04]"
+        therefore widened every card past the 320px sidebar and the content
+        was clipped at the window edge (2026-09-17). Forcing the wrapper to
+        block layout pins the content to the viewport width, so normal
+        word-wrapping applies. This panel never scrolls horizontally.
+      */}
+      <ScrollArea className="flex-1 min-h-0 [&_[data-slot=scroll-area-viewport]>div]:!block">
         <div className="p-3 space-y-4">
           {activeStep === "generate" && <GenerateContent {...props} />}
           {activeStep === "review" && <ReviewContent {...props} />}
@@ -200,10 +210,32 @@ function ReviewContent(props: InspectorPanelProps) {
   const sectionLabel = useSectionLabel();
 
   const lectorStale = isLectorStale(selected?.draft, findings);
+  const failedRun = lastFailedRunAfterSnapshot(selected?.aiRuns, selected?.snapshot);
 
   return (
     <>
-      {lectorStale && (
+      {failedRun && (
+        <div className="rounded-md border border-destructive/60 bg-destructive/10 px-3 py-2 text-xs leading-relaxed space-y-1">
+          <div className="font-medium text-destructive">
+            {t("admin.contentStudio.inspector.lastRunFailedTitle", {
+              defaultValue: "{{stage}} failed at {{time}}",
+              stage: stageLabel(failedRun.stage),
+              time: formatAiRunTimestamp({ createdAt: failedRun.at }),
+            })}
+          </div>
+          <div>
+            {t(
+              "admin.contentStudio.inspector.lastRunFailedBody",
+              "The content below is the previous state; the run produced nothing. Start it again, or fix the cause first.",
+            )}
+          </div>
+          {failedRun.error && (
+            <div className="font-mono text-[11px] text-muted-foreground break-words">{failedRun.error}</div>
+          )}
+        </div>
+      )}
+
+      {lectorStale && !failedRun && (
         <div className="rounded-md border border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs leading-relaxed">
           {t(
             "admin.contentStudio.inspector.lectorStale",
@@ -362,7 +394,9 @@ function ReviewContent(props: InspectorPanelProps) {
                   )}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <span className="font-medium min-w-0 flex-1 break-words">{f.message}</span>
+                    {/* [overflow-wrap:anywhere]: also breaks long tokens the
+                        Lector embeds in the message (paths, questionIds). */}
+                    <span className="font-medium min-w-0 flex-1 [overflow-wrap:anywhere]">{f.message}</span>
                     <button
                       className="shrink-0 ml-1 text-muted-foreground hover:text-foreground"
                       onClick={() => onDismissFinding({ findingId: f._id, dismissed: !f.dismissed })}

@@ -10,7 +10,7 @@ import {
   languageRulesBlock,
 } from "./_shared";
 import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
-import { CS_PROMPT_KEYS } from "./prompts";
+import { CS_PROMPT_KEYS, formatKnownVocabularyKeys } from "./prompts";
 import type { Id } from "../_generated/dataModel";
 
 export const runAiAuditor = action({
@@ -87,15 +87,13 @@ export const runAiAuditor = action({
       referenceBlock ? `\n=== REFERENCE GUIDELINES (inspiration only; do NOT quote) ===\n${referenceBlock}\n` : ``,
       ``,
       `VOCABULARY ALREADY TAUGHT IN PREVIOUS UNITS (${previousUnitsVocab.length} words):`,
-      previousVocabKeys.length > 0
-        ? previousVocabKeys.slice(0, 200).join(", ") + (previousVocabKeys.length > 200 ? " ... (truncated)" : "")
-        : "(This is Unit 1 - no previous vocabulary)",
+      formatKnownVocabularyKeys(previousVocabKeys),
       ``,
       `IMPORTANT: Words from previous units are ALREADY KNOWN to the learner. They do NOT need to be re-introduced. Using them in exercises for REVIEW is encouraged.`,
       auditSkillBlock ? `\n${auditSkillBlock}\n` : ``,
     ].join("\n");
 
-    const payload = buildAuditPayload(pkg);
+    const payload = buildAuditPayload(pkg, previousVocabKeys);
     const userPrompt = [`AUDIT PAYLOAD JSON:`, JSON.stringify(payload)].join("\n");
 
     let providerUsed = "unknown";
@@ -258,6 +256,10 @@ export const runAiAuditor = action({
       // Also get ALL course vocabulary keys for comprehensive check
       const allVocabKeys = new Set(allCourseVocab.map((v: any) => String(v.serbian || "").toLowerCase()));
 
+      // Words the learner knows from EARLIER units (strictly < unitNumber).
+      const previousVocabKeySet = new Set(previousVocabKeys.map((k: string) => normalizeSerbianKey(k)));
+
+      const suppressedKnownVocab: Array<{ word: string; code: string }> = [];
       const filteredWarnings: any[] = [];
       for (const w of warnings) {
         const norm = normalizeIssue(w);
@@ -282,7 +284,42 @@ export const runAiAuditor = action({
           if (word && allVocabKeys.has(word)) continue; // already exists in course vocabulary
         }
         if (!outMsg.trim()) continue;
+
+        // Deterministic override, any code: when the finding claims a word is
+        // missing/untaught but the FIRST quoted word is in the unit vocabulary
+        // or taught in an earlier unit, the claim is factually wrong. Suppress
+        // it instead of sending the fixer after a non-defect. (The Lector
+        // flagged 'imam' as missing from vocabularyKeys although Unit 1
+        // teaches it, 2026-09-17.)
+        const claimsUntaught =
+          /\b(missing|untaught|not\s+(?:present|taught|included|listed|introduced)|has\s+no\s+(?:entry|row))\b/i.test(outMsg);
+        if (claimsUntaught) {
+          const firstQuoted = outMsg.match(/[`'"„‚']([a-zA-ZčćšžđČĆŠŽĐ]+(?:\s[a-zA-ZčćšžđČĆŠŽĐ]+)?)['"`""]/);
+          const subject = firstQuoted ? normalizeSerbianKey(firstQuoted[1]) : "";
+          if (subject && (unitVocabKeys.has(subject) || previousVocabKeySet.has(subject))) {
+            suppressedKnownVocab.push({ word: subject, code: outCode });
+            continue;
+          }
+        }
+
+        // Punctuation and capitalization are taste, never a meaning mismatch.
+        // The model used the blocking code for a missing comma in "The bill
+        // please" (2026-09-17); downgrade such findings to advisory.
+        if (
+          outCode === "TRANSLATION_MISMATCH" &&
+          /\b(punctuation|comma|capitali[sz]|full stop|period)\b/i.test(outMsg)
+        ) {
+          filteredWarnings.push({ ...w, code: "STYLE_SUGGESTION", message: outMsg, path: norm.path });
+          continue;
+        }
+
         filteredWarnings.push({ ...w, code: outCode, message: outMsg, path: norm.path });
+      }
+      if (suppressedKnownVocab.length > 0) {
+        console.log(
+          `[Lector] Suppressed ${suppressedKnownVocab.length} finding(s) about words that are already taught:`,
+          suppressedKnownVocab.map((s) => `${s.word} (${s.code})`).join(", ")
+        );
       }
       // Deduplicate warnings by (code + message + path) to reduce model spam.
       const seen = new Set<string>();

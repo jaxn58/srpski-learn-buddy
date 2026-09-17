@@ -17,7 +17,7 @@ import { collectMemoryRegressionIssuesFromEntries } from "./_validatorMemory";
 import { vocabularyBudgetOverrun } from "../../shared/contentStudio/vocabularyBudget";
 import {
   fillMissingUnitPackageFields,
-  syncVocabularyCoverageFromExercises,
+  checkVocabularyCoverage,
   isTaughtEarlier,
   normalizeSerbianKey,
   calculateExerciseVarietyScore,
@@ -73,9 +73,9 @@ export const runQcValidate = action({
     // Content Studio guardrail: ensure required template categories exist (even if creator/parser omitted them).
     const ensured = fillMissingUnitPackageFields(fixed, fixed);
 
-    // Content Studio guardrail: vocabulary coverage.
-    // If a Serbian word is used in exercises but missing in vocabulary, auto-add it from courseVocabulary (dictionary) or safe fallback.
-    const vocabSync = await syncVocabularyCoverageFromExercises(ctx, ensured as any);
+    // Content Studio guardrail: vocabulary coverage. Reports gaps as findings;
+    // the Fix stage writes the rows into the markdown (see checkVocabularyCoverage).
+    const vocabSync = await checkVocabularyCoverage(ctx, ensured as any);
     const ensuredWithVocab = vocabSync.pkg;
 
     // Final deduplication pass: remove any remaining vocabulary duplicates (case-insensitive)
@@ -207,6 +207,30 @@ export const runQcValidate = action({
       });
     }
 
+    // Coverage gaps: the word is used in the unit but has no row in the
+    // vocabulary table. Reported (not auto-inserted) so the Fix stage writes a
+    // proper row into the MARKDOWN — the author's source of truth. A
+    // suggested translation is included to make the fix mechanical.
+    for (const gap of vocabSync.missing ?? []) {
+      const key = normalizeSerbianKey(gap.serbian);
+      if (taughtFirstUnitByKey.get(key)) continue; // known from an earlier unit
+      continuityIssues.push({
+        level: "error",
+        path: ["vocabulary", "en"],
+        message: `Serbian word '${gap.serbian}' is used in this unit but missing from the vocabulary table. Add a row to "## 2. Vocabulary" (suggested translation: "${gap.suggestedEn}"), or remove the word from the unit.`,
+      });
+    }
+
+    // Words that belong to a LATER unit: using them here breaks the
+    // curriculum order. Reported as a defect the author has to resolve.
+    for (const later of vocabSync.taughtLater ?? []) {
+      continuityIssues.push({
+        level: "error",
+        path: ["vocabulary", "en"],
+        message: `Serbian word '${later.serbian}' is first taught in Unit ${later.laterUnit}. Do not use it in Unit ${unitNumber}: replace it with vocabulary of this or an earlier unit, or move the word to this unit in the curriculum.`,
+      });
+    }
+
     const languageIssues = collectMarkdownLanguageIssuesForFounderNote(ensuredWithVocab as any);
     const headingIssues = collectIncompleteHeadingIssues(ensuredWithVocab as any);
 
@@ -290,7 +314,10 @@ export const runQcValidate = action({
         ctx,
         String((draft.draft as any)?.inspirationRef?.notes || ""),
       );
-      const overrun = vocabularyBudgetOverrun(vocabEn.length, budget);
+      const finalVocabCount = Array.isArray((ensuredWithVocab as any)?.vocabulary?.en)
+        ? (ensuredWithVocab as any).vocabulary.en.length
+        : 0;
+      const overrun = vocabularyBudgetOverrun(finalVocabCount, budget);
       if (overrun) {
         findings.push({
           stage: "validator",

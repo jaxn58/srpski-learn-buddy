@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive, assertAdminSecret } from "./authz";
 import { upsertDailyActivityByUserId } from "./units";
 import { spacedRepetitionXp, levelFromXp } from "./gamification";
+import { learnerTrackLanguage, markUnitCompletedIfReady } from "./lib/unitProgress";
 
 // ============= COURSE VOCABULARY (Master Data) =============
 
@@ -685,10 +686,17 @@ export const recordVocabularyAnswer = mutation({
       });
     }
 
+    const marked = await markUnitCompletedIfReady(ctx, {
+      userId: user._id,
+      unitNumber: unitNum,
+      language: learnerTrackLanguage(user),
+    });
+
     return { 
       vocabularyProgressId: vocabProgressId,
       courseVocabularyId: courseVocabId,
       earnedXP,
+      unitCompleted: marked.unitCompleted,
     };
   },
 });
@@ -847,31 +855,52 @@ export const getVocabularyAudioUrl = query({
 export const findVocabularyBySerbian = query({
   args: { serbian: v.string() },
   handler: async (ctx, args) => {
-    const exact = await ctx.db
-      .query("courseVocabulary")
-      .withIndex("by_serbian", (q) => q.eq("serbian", args.serbian))
-      .collect();
-    if (exact.length > 0) return exact;
+    // Union of all spellings instead of "first match wins". The old version
+    // returned early on an exact match, so a lowercase ARCHIVED duplicate
+    // (left behind by earlier auto-add runs) hid the capitalized ACTIVE row:
+    // looking up "hvala" found only the archived row, callers filtered it out
+    // as inactive, and the word counted as untaught even though Unit 1
+    // teaches "Hvala" (2026-09-17).
+    const byId = new Map<string, Doc<"courseVocabulary">>();
+    const add = (rows: Array<Doc<"courseVocabulary">>) => {
+      for (const r of rows) byId.set(String(r._id), r);
+    };
+
+    add(
+      await ctx.db
+        .query("courseVocabulary")
+        .withIndex("by_serbian", (q) => q.eq("serbian", args.serbian))
+        .collect()
+    );
 
     const normalized = args.serbian.toLowerCase().trim();
-    if (!normalized) return [];
-    const normalizedHits = await ctx.db
-      .query("courseVocabulary")
-      .withIndex("by_serbian_normalized", (q) => q.eq("serbianNormalized", normalized))
-      .collect();
-    if (normalizedHits.length > 0) return normalizedHits;
+    if (normalized) {
+      add(
+        await ctx.db
+          .query("courseVocabulary")
+          .withIndex("by_serbian_normalized", (q) => q.eq("serbianNormalized", normalized))
+          .collect()
+      );
 
-    // Fallback: entries with missing serbianNormalized won't be found by the index.
-    // Try capitalized form via exact serbian index as last resort.
-    const capitalizedForm = normalized.charAt(0).toUpperCase() + normalized.slice(1);
-    if (capitalizedForm !== args.serbian) {
-      const capitalizedHits = await ctx.db
-        .query("courseVocabulary")
-        .withIndex("by_serbian", (q) => q.eq("serbian", capitalizedForm))
-        .collect();
-      return capitalizedHits;
+      // Rows written before `serbianNormalized` existed are not in that index.
+      const capitalizedForm = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+      if (capitalizedForm !== args.serbian) {
+        add(
+          await ctx.db
+            .query("courseVocabulary")
+            .withIndex("by_serbian", (q) => q.eq("serbian", capitalizedForm))
+            .collect()
+        );
+      }
     }
-    return [];
+
+    // Active rows first so callers taking [0] see the live entry.
+    return Array.from(byId.values()).sort((a, b) => {
+      const activeA = a.isActive !== false && a.releaseStatus !== "offline" ? 0 : 1;
+      const activeB = b.isActive !== false && b.releaseStatus !== "offline" ? 0 : 1;
+      if (activeA !== activeB) return activeA - activeB;
+      return (a.unitNumber ?? 9999) - (b.unitNumber ?? 9999);
+    });
   },
 });
 

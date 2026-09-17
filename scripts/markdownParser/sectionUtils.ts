@@ -473,7 +473,48 @@ export function analyzeGrammarV2(grammarContent: string): GrammarV2Analysis {
     errors.push("Grammar v2: no '### <grammar point>' heading found above the template blocks.");
   }
 
-  for (const point of points) {
+  // Two "### " headings are exempt from the six-block template:
+  //   - "### Recycle: <title>": short recap of grammar from earlier units
+  //     (one sentence plus a few examples). Unit 2 failed twice on 2026-09-17
+  //     because this check demanded the six blocks from a correct Recycle block.
+  //   - "### Grammar Preview": one bullet per chunk whose grammar is not
+  //     taught yet ("Jednu kafu" before the accusative), naming the later
+  //     unit. Added 2026-09-17 so learners see WHY a fixed phrase looks
+  //     different, without teaching the rule early.
+  // Only primary points carry the template.
+  const isRecycle = (title: string) => /^recycle\s*:/i.test(title);
+  const isPreview = (title: string) => /^grammar preview\b/i.test(title);
+  const primaryPoints = points.filter((p) => !isRecycle(p.title) && !isPreview(p.title));
+  const auxPoints = points.filter((p) => isRecycle(p.title) || isPreview(p.title));
+
+  for (const point of auxPoints) {
+    const label = isRecycle(point.title) ? "recycle point" : "preview point";
+    if (/^####\s+/m.test(point.body)) {
+      warnings.push(
+        `Grammar v2: ${label} '${point.title}' should be a short block without '####' template headings.`
+      );
+    }
+    if (!point.body.trim()) {
+      errors.push(
+        `Grammar v2: ${label} '${point.title}' is empty; ${
+          isRecycle(point.title)
+            ? "give one sentence and 3-4 example sentences."
+            : "give one bullet per chunk with the unit that teaches the rule."
+        }`
+      );
+    }
+  }
+
+  if (primaryPoints.length === 0 && points.length > 0) {
+    errors.push("Grammar v2: only recycle/preview points found; a unit needs exactly one primary grammar point with the six template blocks.");
+  }
+  if (primaryPoints.length > 1) {
+    warnings.push(
+      `Grammar v2: ${primaryPoints.length} primary grammar points found (${primaryPoints.map((p) => `'${p.title}'`).join(", ")}); the template asks for exactly one.`
+    );
+  }
+
+  for (const point of primaryPoints) {
     const missing = GRAMMAR_V2_BLOCKS.filter((b) => !blockHeader(b).test(point.body));
     if (missing.length > 0) {
       errors.push(`Grammar v2: point '${point.title}' is missing block(s): ${missing.map((m) => `#### ${m}`).join(", ")}.`);

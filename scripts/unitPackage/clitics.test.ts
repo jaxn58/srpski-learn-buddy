@@ -125,9 +125,10 @@ describe("collectLeadingCliticIssues", () => {
     expect(where).toContain("content.en.grammarMd");
     expect(where).toContain("content.en.dialoguesMd");
     expect(where).toContain("exercises.en.category=translation.questionId=q1.correctAnswer");
-    expect(where).toContain("exercises.en.category=dialogueCompletion.questionId=q2.options");
+    // Options are distractors and must NOT be checked ("B) Sam Alex." is a legitimate trap).
+    expect(where).not.toContain("exercises.en.category=dialogueCompletion.questionId=q2.options");
     expect(where).not.toContain("content.en.phrasesMd");
-    expect(issues).toHaveLength(4);
+    expect(issues).toHaveLength(3);
     expect(issues[0].message).toMatch(/cannot start a sentence/);
   });
 
@@ -166,6 +167,59 @@ describe("collectLeadingCliticIssues", () => {
     expect(where).not.toContain("exercises.en.category=fillInBlank.questionId=ok2.question");
     expect(issues).toHaveLength(2);
     expect(issues[0].message).toContain("sam gospodin Petrović.");
+  });
+
+  it("does not flag WRONG examples in Watch Out, but still checks the CORRECT part (Unit 2 regression)", () => {
+    const pkg = {
+      languages: ["en"],
+      content: {
+        en: {
+          grammarMd: [
+            "#### Watch Out",
+            "*   WRONG: Li imate kafu? → CORRECT: **Imate li** kafu? (The particle li attaches to the verb.)",
+            "*   WRONG: Ja ne imam. → CORRECT: Ja **nemam**. (The negative is a single verb.)",
+            "*   WRONG: Imate li kafu? → CORRECT: **Li imate** kafu? (a broken line: the CORRECT part is wrong)",
+          ].join("\n"),
+          phrasesMd: "",
+          dialoguesMd: "",
+        },
+      },
+      exercises: { en: [] },
+    };
+    const issues = collectLeadingCliticIssues(pkg);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain("Li imate kafu?");
+  });
+
+  it("leaves multiple-choice distractors with wrong word order alone (Unit 2 regression)", () => {
+    const pkg = {
+      languages: ["en"],
+      content: { en: { grammarMd: "", phrasesMd: "", dialoguesMd: "" } },
+      exercises: {
+        en: [
+          {
+            category: "multipleChoice",
+            questions: [
+              {
+                questionId: "u2_ex3_q01",
+                question: 'Choose the correct way to ask "Do you have milk?".',
+                options: ["A) Li imate mleko?", "B) Imate li mleko?", "C) Mleko imate li?"],
+                correctAnswer: "B) Imate li mleko?",
+              },
+              {
+                questionId: "bad",
+                question: "Broken item whose CORRECT answer starts with a clitic",
+                options: ["A) Li imate mleko?", "B) Imate li mleko?"],
+                correctAnswer: "A) Li imate mleko?",
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const issues = collectLeadingCliticIssues(pkg);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].path.join(".")).toBe("exercises.en.category=multipleChoice.questionId=bad.correctAnswer");
   });
 
   it("is silent on a correct unit", () => {

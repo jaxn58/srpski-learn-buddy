@@ -588,7 +588,21 @@ export function looksLikePersonalNameByContext(lemma: string, samples: string[])
         lastCharBefore === "?" ||
         lastCharBefore === "\n" ||
         // Table cell boundary (dialogues/phrases markdown) also counts as sentence start.
-        lastCharBefore === "|";
+        lastCharBefore === "|" ||
+        // Speaker label in dialogues and dialogue-completion stems:
+        // "A: Još nešto?" — the colon starts a new utterance. Without this,
+        // "još" counted as capitalized mid-sentence and was dropped as a
+        // personal name, which the Lector then reported as untaught
+        // vocabulary (Unit 2, 2026-09-17).
+        lastCharBefore === ":" ||
+        lastCharBefore === ";" ||
+        // Opening quotes / brackets.
+        lastCharBefore === '"' ||
+        lastCharBefore === "„" ||
+        lastCharBefore === "»" ||
+        lastCharBefore === "(" ||
+        lastCharBefore === "-" ||
+        lastCharBefore === "—";
 
       if (!isSentenceInitial) {
         sawCapitalMidSentence = true;
@@ -718,11 +732,30 @@ export async function classifyAndTranslateWords(
   return result;
 }
 
-export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: any): Promise<{
+/**
+ * Vocabulary coverage check.
+ *
+ * REPORTS gaps, it does not fill them (decision 2026-09-17). The previous
+ * version pushed rows straight into the unit package JSON. That JSON is
+ * derived from the markdown, and the markdown is what the author sees and
+ * what the Fix stage rewrites — so injected rows existed only in the JSON:
+ * every Validator run re-added the same 14 words, every Fix run lost them
+ * again (Unit 2 oscillated 45 → 31 → 46 → 33 → 47), and the Lector reported
+ * bare case forms like "šećera" as undidactic vocabulary that the author
+ * could not find anywhere in the text.
+ *
+ * Now the Validator turns `missing` into blocking findings, the Fix stage
+ * writes proper rows into the markdown (with note and category), and markdown
+ * and JSON stay identical.
+ */
+export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise<{
   pkg: any;
-  added: Array<{ serbian: string; en: string; fromUnit?: number }>;
+  /** Used in the unit but absent from its vocabulary table; must be added. */
+  missing: Array<{ serbian: string; suggestedEn: string }>;
   unresolvedNew: string[];
   alreadyTaughtUsed: Array<{ serbian: string; firstUnit: number; currentUnit: number }>;
+  /** Belongs to a LATER unit; must not be pulled forward into this one. */
+  taughtLater: Array<{ serbian: string; laterUnit: number }>;
   skippedProperNouns: Array<{ serbian: string; reason: "case_heuristic" | "ai_classifier" }>;
 }> {
   const out = pkg && typeof pkg === "object" ? { ...pkg } : {};
@@ -738,12 +771,14 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
   // its own. Without this, the token scan re-added chunk parts ("dan",
   // "zovem", "imam", "razumem") with invented glosses (2026-09-16).
   const coveredByChunk = new Set<string>();
-  for (const k of existingKeys) {
-    if (!k.includes(" ")) continue;
-    for (const part of k.split(/\s+/)) {
-      if (part.length >= 2) coveredByChunk.add(part);
+  const addChunkParts = (key: string) => {
+    if (!key.includes(" ")) return;
+    for (const part of key.split(/\s+/)) {
+      // One-letter parts count too: "u redu" covers "u" (2026-09-17).
+      if (part.length >= 2 || ONE_LETTER_SERBIAN_WORDS.has(part)) coveredByChunk.add(part);
     }
-  }
+  };
+  for (const k of existingKeys) addChunkParts(k);
 
   // Pre-collect original-case text samples so we can detect proper nouns
   // BEFORE spending an AI classifier call on them.
@@ -781,6 +816,48 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     console.warn("Name blacklist fetch failed, continuing without:", err);
   }
 
+  const unitNumber = typeof out.unitNumber === "number" ? out.unitNumber : 1;
+
+  // Course vocabulary of ALL units, once. Replaces one DB round-trip per
+  // candidate and gives us the three facts the old per-word lookup could not
+  // deliver: taught earlier, taught later, and part of an earlier unit's chunk.
+  const taughtEarlierByKey = new Map<string, number>();
+  const taughtLaterByKey = new Map<string, number>();
+  const sameUnitEnByKey = new Map<string, string>();
+  try {
+    const courseVocab = await ctx.runQuery(api.vocabulary.getAllCourseVocabulary, {});
+    for (const row of (courseVocab ?? []) as any[]) {
+      if (row?.releaseStatus === "offline") continue;
+      const key = normalizeSerbianKey(row?.serbian);
+      const rowUnit = Number(row?.unitNumber);
+      if (!key || !Number.isFinite(rowUnit)) continue;
+
+      if (rowUnit < unitNumber) {
+        const prev = taughtEarlierByKey.get(key);
+        if (prev === undefined || rowUnit < prev) taughtEarlierByKey.set(key, rowUnit);
+        // "Dobar dan" in Unit 1 covers "dobar" and "dan" here: the learner
+        // knows the phrase, so the parts need no row of their own.
+        addChunkParts(key);
+      } else if (rowUnit > unitNumber) {
+        const prev = taughtLaterByKey.get(key);
+        if (prev === undefined || rowUnit < prev) taughtLaterByKey.set(key, rowUnit);
+      } else {
+        // Currently published version of THIS unit. It does NOT cover
+        // anything: publishing replaces it, so a word that only exists there
+        // would end up untaught. Its English translation is kept as a
+        // suggestion so the gap can be reported without an AI call.
+        // ("imamo" slipped past the net this way and surfaced as a Lector
+        // finding instead of a deterministic error, 2026-09-17.)
+        if (!sameUnitEnByKey.has(key)) {
+          const en = String(row?.en ?? "").trim();
+          if (en) sameUnitEnByKey.set(key, en);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Course vocabulary fetch failed; coverage check falls back to unit-local data:", err);
+  }
+
   const isLikelyInflectedFormOfUnitVocab = (candidate: string): string | null => {
     const key = normalizeSerbianKey(candidate);
     if (!key || key.length < 3) return null;
@@ -795,6 +872,26 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     if (key.endsWith("om") && key.length > 3) {
       const baseO = key.slice(0, -2) + "o";
       if (existing.has(baseO)) return baseO;
+    }
+
+    // Genitive of a masculine noun: "šećera" -> "šećer", "računa" -> "račun".
+    // The bare case form used to be added as its own entry, which the Lector
+    // then reported as an unexplained genitive (Unit 2, 2026-09-17).
+    if (key.endsWith("a") && key.length > 3) {
+      const baseConsonant = key.slice(0, -1);
+      if (existing.has(baseConsonant)) return baseConsonant;
+    }
+
+    // Infinitive while the unit teaches the conjugated forms: "imati" next to
+    // ima / imamo / imate. The learner meets the paradigm, not the dictionary
+    // form, so the infinitive is covered by the forms in the table.
+    if (key.endsWith("ti") && key.length > 3) {
+      const stem = key.slice(0, -2);
+      if (stem.length >= 2) {
+        for (const k of existingKeys) {
+          if (k !== key && k.startsWith(stem)) return k;
+        }
+      }
     }
 
     // Heuristic fallback: if it shares a 3+ letter prefix with an existing unit vocab key, treat as an inflected form.
@@ -815,11 +912,10 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     .map((s) => String(s || "").trim())
     .filter((s) => looksLikeVocabularyItem(s));
 
-  const added: Array<{ serbian: string; en: string; fromUnit?: number }> = [];
+  const missing: Array<{ serbian: string; suggestedEn: string }> = [];
   const unresolvedNew: string[] = [];
   const alreadyTaughtUsed: Array<{ serbian: string; firstUnit: number; currentUnit: number }> = [];
-
-  const unitNumber = typeof out.unitNumber === "number" ? out.unitNumber : 1;
+  const taughtLater: Array<{ serbian: string; laterUnit: number }> = [];
 
   // Phase 1: Collect all candidates that need processing
   type CandidateInfo = {
@@ -882,28 +978,35 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     // If lemma is already in unit vocab, stop (it's covered).
     if (lemma !== key && existing.has(lemma)) continue;
 
-    // 1) Try DB dictionary (courseVocabulary) for exact Serbian string.
-    let found: any[] = [];
-    try {
-      found = await ctx.runQuery(api.vocabulary.findVocabularyBySerbian, { serbian: lemma });
-    } catch {
-      found = [];
-    }
+    // Part of a chunk the learner already knows ("dobar"/"dan" from Unit 1's
+    // "Dobar dan"). Filled from the course vocabulary above.
+    if (coveredByChunk.has(lemma)) continue;
 
-    // 2) Fallback list if DB doesn't have it.
-    const fallback = FALLBACK_VOCAB_PAIRS.find((p) => normalizeSerbianKey(p.serbian) === lemma);
-
-    const activeFound = Array.isArray(found) ? found.filter((e: any) => e?.isActive !== false && e?.releaseStatus !== "offline") : [];
-    const taughtEarlier = activeFound
-      .filter((e: any) => isTaughtEarlier(e, unitNumber))
-      .sort((a: any, b: any) => (a.unitNumber ?? 9999) - (b.unitNumber ?? 9999));
-    const firstTaught = taughtEarlier.length ? taughtEarlier[0] : null;
-
-    // If already taught in earlier unit: do NOT auto-add to this unit's vocabulary.
-    if (firstTaught) {
-      alreadyTaughtUsed.push({ serbian: lemma, firstUnit: Number(firstTaught.unitNumber), currentUnit: unitNumber });
+    // Taught in an earlier unit: usable for review, must NOT be listed again.
+    const earlierUnit = taughtEarlierByKey.get(lemma);
+    if (earlierUnit !== undefined) {
+      alreadyTaughtUsed.push({ serbian: lemma, firstUnit: earlierUnit, currentUnit: unitNumber });
       continue;
     }
+
+    // Belongs to a LATER unit. Adding it here would duplicate the word across
+    // two units and break the curriculum order, so report instead of adding.
+    const laterUnit = taughtLaterByKey.get(lemma);
+    if (laterUnit !== undefined) {
+      taughtLater.push({ serbian: lemma, laterUnit });
+      continue;
+    }
+
+    // Known from the OLD published version of this very unit: a real gap in
+    // the new table, reported directly with the old translation as suggestion.
+    const sameUnitEn = sameUnitEnByKey.get(lemma);
+    if (sameUnitEn) {
+      missing.push({ serbian: lemma, suggestedEn: sameUnitEn });
+      continue;
+    }
+
+    // Fallback list gives a safe translation without an AI call.
+    const fallback = FALLBACK_VOCAB_PAIRS.find((p) => normalizeSerbianKey(p.serbian) === lemma);
 
     // Collect for processing
     const fallbackEn = fallback ? fallback.en : "";
@@ -970,22 +1073,16 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
       continue;
     }
 
-    // `autoAdded` is internal bookkeeping only (flags this row for the superadmin
-    // cleanup panel) and must NEVER be written into noteEn/noteDe — those fields
-    // are learner-facing and must only ever contain actual linguistic notes.
-    vocabEn.push({
-      serbian: candidate.lemma,
-      en,
-      autoAdded: true,
-    });
-    existing.add(candidate.lemma);
-    added.push({ serbian: candidate.lemma, en, fromUnit: undefined });
+    // Report only. The suggested translation goes into the finding so the Fix
+    // stage can write a complete row into the MARKDOWN; nothing is injected
+    // into the package here (see the function comment).
+    missing.push({ serbian: candidate.lemma, suggestedEn: en });
   }
 
   // Deterministic dialect note: gde/gdje (Montenegro ijekavian vs Serbia ekavian)
   applyMontenegroVariantNotesToVocabulary(out);
 
-  return { pkg: out, added, unresolvedNew, alreadyTaughtUsed, skippedProperNouns };
+  return { pkg: out, missing, unresolvedNew, alreadyTaughtUsed, taughtLater, skippedProperNouns };
 }
 
 export function pad2(n: number): string {
@@ -1396,7 +1493,7 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
   upgradeDialogueCompletionQuestions(pkg);
 }
 
-export function buildAuditPayload(pkg: any): any {
+export function buildAuditPayload(pkg: any, knownFromPreviousUnits?: string[]): any {
   const contentEn = pkg?.content?.en ?? {};
   const cats: any[] = Array.isArray(pkg?.exercises?.en) ? pkg.exercises.en : [];
 
@@ -1436,6 +1533,13 @@ export function buildAuditPayload(pkg: any): any {
     // Provide FULL vocabulary keys so the auditor never misfires due to sampling.
     vocabularyKeys: Array.isArray(pkg?.vocabulary?.en)
       ? pkg.vocabulary.en.map((v: any) => String(v?.serbian || "").trim()).filter(Boolean)
+      : [],
+    // Words the learner already knows from earlier units. Inside the payload
+    // because the model checks payload fields and overlooks the same list in
+    // the system prompt: it reported "imam" as untaught although Unit 1
+    // teaches it (2026-09-17).
+    knownFromPreviousUnits: Array.isArray(knownFromPreviousUnits)
+      ? knownFromPreviousUnits.slice(0, 400)
       : [],
     // Enriched entries: the Lector checks translations and notes here, so it
     // must see every entry. The cap only guards against a runaway package;
