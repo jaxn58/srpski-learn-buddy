@@ -3,6 +3,7 @@ import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { assertLearnerAccountActive } from "./authz";
 import { loadBetaMaxUnits } from "./platform";
+import { isUnitUnlockedByModule, loadPlannedUnits } from "./lib/unitProgress";
 // TS2589 suppression applied – see scripts/add-ts-expect-errors.mjs
 
 /**
@@ -141,18 +142,12 @@ async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: number):
     .first();
 
   const completedUnits = progress?.completedUnits ?? [];
-  const currentUnit = progress?.currentUnit ?? 1;
-  
-  // Unit is unlocked if:
-  // 1. It's already completed
-  // 2. currentUnit points to this unit or higher (next unit to work on)
-  // 3. Previous unit is completed (unitNumber - 1 in completedUnits)
-  const isCompleted = completedUnits.includes(unitNumber);
-  const isCurrentOrNext = unitNumber <= currentUnit;
-  const previousUnitCompleted = unitNumber === 1 || completedUnits.includes(unitNumber - 1);
-  
-  const maxUnlockedUnit = Math.max(1, currentUnit, ...completedUnits);
-  const unlockedByProgress = isCompleted || isCurrentOrNext || previousUnitCompleted;
+  const planned = await loadPlannedUnits(ctx);
+  const unlockedByProgress =
+    completedUnits.includes(unitNumber) ||
+    (planned.length > 0
+      ? isUnitUnlockedByModule({ unitNumber, completedUnits, units: planned })
+      : unitNumber === 1 || completedUnits.includes(unitNumber - 1));
 
   if (!unlockedByProgress) {
     return false;

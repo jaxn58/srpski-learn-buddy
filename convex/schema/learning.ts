@@ -38,6 +38,16 @@ export const learningTables = {
 
     // Unit-level offline toggle (reversible). Hidden for students, manageable by admins.
     isOffline: v.optional(v.boolean()),
+
+    // standard | review | checkpoint | exam. Undefined = standard (legacy rows).
+    unitType: v.optional(
+      v.union(
+        v.literal("standard"),
+        v.literal("review"),
+        v.literal("checkpoint"),
+        v.literal("exam"),
+      ),
+    ),
   })
     .index("by_unit_lang", ["unitNumber", "language"]) // Composite Primary Key
     .index("by_module", ["moduleId"]) // Old Foreign Key Index (deprecated)
