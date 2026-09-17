@@ -67,7 +67,9 @@ async function fetchLandingData(convexUrl: string) {
   const [modules, unitsEn, vocab] = await Promise.all([
     client.query(api.modules.getAllModulesConsolidated, {}),
     client.query(api.units.getAllUnitsMetadata, { language: "en" }),
-    client.query(api.vocabulary.getAllCourseVocabulary, {}),
+    // Prerender assumes a non-privileged, logged-out visitor - never bake
+    // preview/offline content into the static landing page.
+    client.query(api.vocabulary.getAllCourseVocabulary, { learnerView: true }),
   ]);
 
   const counts = computeLandingCounts({ modules: modules as any, unitsEn: unitsEn as any, vocab: vocab as any });
