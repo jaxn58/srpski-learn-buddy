@@ -8,7 +8,10 @@ import type { Doc, Id } from "../_generated/dataModel";
 import {
   CS_PROMPT_KEYS,
   ALL_SECTION_IDS,
+  ALL_TRANSLATOR_PROMPT_KEYS,
 } from "./prompts";
+import { detectAuthorNoteLang } from "../../shared/contentStudio/authorNote";
+import { normalizeGuidelineScopeKey } from "../../shared/contentStudio/referenceScope";
 
 export const listDrafts = query({
   args: {},
@@ -591,6 +594,71 @@ export const getReferenceById = query({
         ? await Promise.all(pdfFiles.map(async (f) => (f?.storageId ? await ctx.storage.getUrl(String(f.storageId)) : null)))
         : [],
       downloadUrl: r.storageId ? await ctx.storage.getUrl(r.storageId) : (r.url ?? null),
+    };
+  },
+});
+
+export const getReferenceGuidelineCache = query({
+  args: {
+    referenceId: v.id("contentStudioReferences"),
+    chapter: v.optional(v.string()),
+    pages: v.optional(v.string()),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      scopeKey: v.string(),
+      guidelines: v.string(),
+      provider: v.optional(v.string()),
+      model: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const scopeKey = normalizeGuidelineScopeKey(args.chapter, args.pages);
+    const row = await ctx.db
+      .query("contentStudioReferenceGuidelineCache")
+      .withIndex("by_reference_scope", (q) =>
+        q.eq("referenceId", args.referenceId).eq("scopeKey", scopeKey),
+      )
+      .first();
+    if (!row) return null;
+    return {
+      scopeKey: row.scopeKey,
+      guidelines: row.guidelines,
+      provider: row.provider,
+      model: row.model,
+    };
+  },
+});
+
+export const getAuthorNoteForUnit = query({
+  args: { unitNumber: v.number() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      quote: v.string(),
+      language: v.union(v.literal("en"), v.literal("de")),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    if (!Number.isFinite(args.unitNumber) || args.unitNumber <= 0) return null;
+    const drafts = await ctx.db
+      .query("contentDrafts")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+    const withQuote = drafts
+      .filter((d) => String(d.authorNoteQuote || "").trim().length > 0)
+      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    const draft = withQuote[0];
+    if (!draft?.authorNoteQuote) return null;
+    const quote = String(draft.authorNoteQuote).trim();
+    return {
+      quote,
+      language: draft.authorNoteQuoteLang === "de" || draft.authorNoteQuoteLang === "en"
+        ? draft.authorNoteQuoteLang
+        : detectAuthorNoteLang(quote),
     };
   },
 });
@@ -1635,6 +1703,12 @@ export const getPromptPreview = query({
       sectionPrompts[sectionId] = { content: resolved.content, source: resolved.source };
     }
 
+    const translatorPrompts: Record<string, { content: string; source: string; key: string }> = {};
+    for (const key of ALL_TRANSLATOR_PROMPT_KEYS) {
+      const resolved = await resolveKey(key);
+      translatorPrompts[key] = { content: resolved.content, source: resolved.source, key };
+    }
+
     return {
       roles: {
         creator: { content: creator.content, source: creator.source, key: CS_PROMPT_KEYS.unitCreator },
@@ -1644,6 +1718,7 @@ export const getPromptPreview = query({
       skillsBlock: skillsBlock || null,
       referenceBlock: referenceBlock || null,
       sectionPrompts,
+      translatorPrompts,
       baseSystemPrompt: creator.content,
       source: { base: creator.source === "missing" ? "MISSING -- create in /admin/prompt" : "database (chatPrompts)" },
     };

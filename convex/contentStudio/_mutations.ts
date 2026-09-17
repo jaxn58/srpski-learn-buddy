@@ -4,6 +4,7 @@ import { requireSuperadmin } from "./_shared";
 import type { DraftStatus } from "./_shared";
 import {
   CS_PROMPT_KEYS,
+  ALL_TRANSLATOR_PROMPT_KEYS,
   ALL_SECTION_IDS,
 } from "./prompts";
 import { findEarlierUnitVocabulary, toVocabularyKey } from "../vocabulary";
@@ -37,6 +38,44 @@ import {
 } from "./_vocabularyProgressRemap";
 
 import type { MutationCtx } from "../_generated/server";
+import { detectAuthorNoteLang } from "../../shared/contentStudio/authorNote";
+import { normalizeGuidelineScopeKey } from "../../shared/contentStudio/referenceScope";
+
+type CurriculumUnitType = "standard" | "review" | "checkpoint" | "exam";
+
+async function plannedUnitTypeFor(
+  ctx: MutationCtx,
+  unitNumber: number,
+): Promise<CurriculumUnitType | undefined> {
+  const row = await ctx.db
+    .query("curriculumUnits")
+    .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+    .first();
+  return row?.unitType;
+}
+
+function publishedQuestionIdFromPreview(questionId: string): string {
+  const previewSuffixMatch = questionId.match(/^(.+?)_preview(?:_[a-z]{2})?_v\d+$/);
+  return previewSuffixMatch?.[1] ?? questionId;
+}
+
+async function purgeOrphanQuestionProgress(
+  ctx: MutationCtx,
+  unitNumber: number,
+  keptQuestionIds: Set<string>,
+): Promise<number> {
+  const rows = await ctx.db
+    .query("questionProgress")
+    .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
+    .collect();
+  let deleted = 0;
+  for (const row of rows) {
+    if (keptQuestionIds.has(row.questionId)) continue;
+    await ctx.db.delete(row._id);
+    deleted += 1;
+  }
+  return deleted;
+}
 
 /**
  * Auto-deduplicate active vocabulary within a unit after publish/promote.
@@ -214,6 +253,7 @@ export const createDraft = mutation({
       // quote is optional and only stored if the admin provided one at create time.
       authorNoteName: trimmedName || "Jacksenn",
       authorNoteQuote: trimmedQuote || undefined,
+      authorNoteQuoteLang: trimmedQuote ? detectAuthorNoteLang(trimmedQuote) : undefined,
     });
     return id;
   },
@@ -362,6 +402,7 @@ export const createDraftFromTemplate = mutation({
       // quote is optional and only stored if the admin provided one at create time.
       authorNoteName: trimmedName || "Jacksenn",
       authorNoteQuote: trimmedQuote || undefined,
+      authorNoteQuoteLang: trimmedQuote ? detectAuthorNoteLang(trimmedQuote) : undefined,
     });
     return id;
   },
@@ -427,7 +468,14 @@ export const updateDraftMeta = mutation({
       ...(typeof args.unitNumber === "number" ? { unitNumber: args.unitNumber } : {}),
       ...(typeof args.moduleNumber === "number" ? { moduleNumber: args.moduleNumber } : {}),
       ...(typeof args.authorNoteName === "string" ? { authorNoteName: args.authorNoteName } : {}),
-      ...(typeof args.authorNoteQuote === "string" ? { authorNoteQuote: args.authorNoteQuote } : {}),
+      ...(typeof args.authorNoteQuote === "string"
+        ? {
+            authorNoteQuote: args.authorNoteQuote,
+            authorNoteQuoteLang: args.authorNoteQuote.trim()
+              ? detectAuthorNoteLang(args.authorNoteQuote)
+              : undefined,
+          }
+        : {}),
       ...(args.inspirationRef ? { inspirationRef: args.inspirationRef } : {}),
       updatedAt: Date.now(),
     });
@@ -1304,6 +1352,50 @@ export const setReferenceGuidelines = mutation({
   },
 });
 
+export const upsertReferenceGuidelineCache = mutation({
+  args: {
+    referenceId: v.id("contentStudioReferences"),
+    chapter: v.optional(v.string()),
+    pages: v.optional(v.string()),
+    guidelines: v.string(),
+    provider: v.optional(v.string()),
+    model: v.optional(v.string()),
+  },
+  returns: v.object({ ok: v.literal(true), scopeKey: v.string() }),
+  handler: async (ctx, args) => {
+    await requireSuperadmin(ctx);
+    const ref = await ctx.db.get(args.referenceId);
+    if (!ref) throw new Error("Reference not found");
+    const scopeKey = normalizeGuidelineScopeKey(args.chapter, args.pages);
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("contentStudioReferenceGuidelineCache")
+      .withIndex("by_reference_scope", (q) =>
+        q.eq("referenceId", args.referenceId).eq("scopeKey", scopeKey),
+      )
+      .first();
+    const patch = {
+      chapter: args.chapter,
+      pages: args.pages,
+      guidelines: args.guidelines,
+      provider: args.provider,
+      model: args.model,
+      updatedAt: now,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert("contentStudioReferenceGuidelineCache", {
+        referenceId: args.referenceId,
+        scopeKey,
+        ...patch,
+        createdAt: now,
+      });
+    }
+    return { ok: true as const, scopeKey };
+  },
+});
+
 export const saveUnitPackageSnapshot = mutation({
   args: {
     draftId: v.id("contentDrafts"),
@@ -1840,6 +1932,8 @@ export const internalPublishUnitPackageToPreview = mutation({
         .first();
     }
 
+    const plannedUnitType = await plannedUnitTypeFor(ctx, unitNumber);
+
     // 1) Unit metadata (per language). NOTE: unitMetadata has no unitVersion; preview is gated via releaseStatus.
     for (const lang of languages) {
       const existing = await ctx.db
@@ -1858,6 +1952,7 @@ export const internalPublishUnitPackageToPreview = mutation({
         grammarFocus: [],
         vocabularyThemes: [],
         releaseStatus: "preview",
+        ...(plannedUnitType ? { unitType: plannedUnitType } : {}),
       };
       if (module?._id) {
         payload.moduleMetadataId = module._id;
@@ -2193,6 +2288,7 @@ export const upsertPublishedUnitGermanTranslation = mutation({
     const publishedMetaDe = (metaRowsDe as any[]).filter((m) => isPublishedStatus(m?.releaseStatus));
     publishedMetaDe.sort((a, b) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0));
     const existingMetaDe = publishedMetaDe[0] ?? null;
+    const plannedUnitType = await plannedUnitTypeFor(ctx, unitNumber);
     const metaPayload: any = {
       unitNumber,
       language: "de",
@@ -2207,6 +2303,7 @@ export const upsertPublishedUnitGermanTranslation = mutation({
       ...(typeof args.metadataDe.moduleId === "string" && args.metadataDe.moduleId.trim()
         ? { moduleId: args.metadataDe.moduleId.trim() }
         : {}),
+      ...(plannedUnitType ? { unitType: plannedUnitType } : {}),
     };
     if (existingMetaDe) {
       await ctx.db.patch(existingMetaDe._id, metaPayload);
@@ -2397,6 +2494,7 @@ export const upsertUnitGermanTranslationToPreview = mutation({
     //    translation run (Unit 1 collected four "de/preview" rows on
     //    2026-09-16). Published rows are never touched here; promotion is the
     //    only path that changes releaseStatus.
+    const plannedUnitTypeDe = await plannedUnitTypeFor(ctx, unitNumber);
     const metaPayloadDe: any = {
       unitNumber,
       language: "de",
@@ -2412,6 +2510,7 @@ export const upsertUnitGermanTranslationToPreview = mutation({
         ? { moduleId: args.metadataDe.moduleId.trim() }
         : {}),
       releaseStatus: "preview",
+      ...(plannedUnitTypeDe ? { unitType: plannedUnitTypeDe } : {}),
     };
     const existingPreviewMetaDe = (
       await ctx.db
@@ -2596,6 +2695,7 @@ export const promoteLanguagePreviewToPublished = mutation({
     let testsPromoted = 0;
     let vocabMerged = 0;
     let vocabRemoved = 0;
+    let questionProgressPurged = 0;
 
     // 1) unitMetadata: promote preview -> published for this language.
     //    unitMetadata is not versioned, so the invariant is ONE row per
@@ -2620,7 +2720,11 @@ export const promoteLanguagePreviewToPublished = mutation({
       // Older preview duplicates and the previous published row(s).
       await ctx.db.delete(m._id);
     }
-    await ctx.db.patch(winnerMeta._id, { releaseStatus: "published" });
+    const plannedUnitType = await plannedUnitTypeFor(ctx, unitNumber);
+    await ctx.db.patch(winnerMeta._id, {
+      releaseStatus: "published",
+      ...(plannedUnitType ? { unitType: plannedUnitType } : {}),
+    });
     metaPromoted = 1;
 
     // 2) unitContent: promote preview -> published for this language.
@@ -2661,19 +2765,20 @@ export const promoteLanguagePreviewToPublished = mutation({
       await ctx.db.patch(pub._id, { isActive: false, archivedAt: now });
     }
     // Promote preview tests: strip the preview suffix from questionId if present.
+    const keptQuestionIds = new Set<string>();
     for (const pt of previewTests) {
-      // Preview questionIds may have suffix like _preview_de_v2 — strip to base for published.
-      let qid = String(pt.questionId ?? "");
-      const previewSuffixMatch = qid.match(/^(.+?)_preview(?:_[a-z]{2})?_v\d+$/);
-      if (previewSuffixMatch) {
-        qid = previewSuffixMatch[1];
-      }
+      const qid = publishedQuestionIdFromPreview(String(pt.questionId ?? ""));
+      keptQuestionIds.add(qid);
       await ctx.db.patch(pt._id, {
         releaseStatus: "published",
         isActive: true,
         questionId: qid,
       });
       testsPromoted += 1;
+    }
+
+    if (mode !== "replace" && testsPromoted > 0) {
+      questionProgressPurged = await purgeOrphanQuestionProgress(ctx, unitNumber, keptQuestionIds);
     }
 
     // 4) courseVocabulary promotion.
@@ -2874,7 +2979,13 @@ export const promoteLanguagePreviewToPublished = mutation({
       language,
       mode,
       promoted: { metaPromoted, contentPromoted, testsPromoted, vocabMerged },
-      removed: vocabRemoved > 0 ? { vocabulary: vocabRemoved } : undefined,
+      removed:
+        vocabRemoved > 0 || questionProgressPurged > 0
+          ? {
+              ...(vocabRemoved > 0 ? { vocabulary: vocabRemoved } : {}),
+              ...(questionProgressPurged > 0 ? { questionProgress: questionProgressPurged } : {}),
+            }
+          : undefined,
       deduplicated: dedupResult.deduplicatedCount > 0 ? dedupResult : undefined,
       ...(progressReset ? { progressReset } : {}),
     };
@@ -3103,6 +3214,7 @@ export const checkMissingPrompts = internalMutation({
       CS_PROMPT_KEYS.findingFixer,
       CS_PROMPT_KEYS.lector,
       ...ALL_SECTION_IDS.map((id) => CS_PROMPT_KEYS.section(id)),
+      ...ALL_TRANSLATOR_PROMPT_KEYS,
     ];
 
     const results: Array<{ name: string; status: "found" | "missing" }> = [];
@@ -3286,6 +3398,8 @@ export const internalCreatePreviewUnitMetadata = mutation({
         .first();
     }
 
+    const plannedUnitType = await plannedUnitTypeFor(ctx, unitNumber);
+
     for (const lang of languages) {
       const existing = await ctx.db
         .query("unitMetadata")
@@ -3303,6 +3417,7 @@ export const internalCreatePreviewUnitMetadata = mutation({
         grammarFocus: [],
         vocabularyThemes: [],
         releaseStatus: "preview",
+        ...(plannedUnitType ? { unitType: plannedUnitType } : {}),
       };
       if (module?._id) {
         payload.moduleMetadataId = module._id;

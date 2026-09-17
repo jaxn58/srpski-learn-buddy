@@ -1,6 +1,7 @@
 import type { ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
-import { callAiJson, callAiText, parseJsonOrThrow, type Provider } from "./_shared";
+import { callAiJson, callAiText, parseJsonOrThrow, resolvePromptFromDb, type Provider } from "./_shared";
+import { CS_PROMPT_KEYS } from "./prompts";
 import {
   extractSerbianFromMarkdown,
   type VerifierInputItem,
@@ -10,6 +11,7 @@ import {
   CODE_DEFAULT_PROMPT_COGNATES,
   loadMergedPromptCognates,
 } from "./_translatorCognates";
+import { restoreOriginalAuthorQuote } from "../../shared/contentStudio/authorNote";
 
 /**
  * Shared translation primitives used by both:
@@ -97,6 +99,21 @@ export function pickFallbackProvider(primary: Provider | undefined): Provider | 
 
 function buildStageTryOrder(stage: "specialist" | "auditor") {
   return stage === "specialist" ? (["specialist", "auditor"] as const) : (["auditor", "specialist"] as const);
+}
+
+/**
+ * Quiz answers are compared 1:1 against `de`. Leading German definite articles
+ * are display sugar for gender, which already lives in the `gender` field.
+ * Strip them so a learner answering "Reisepass" is not marked wrong for
+ * omitting "der".
+ */
+const LEADING_GERMAN_DEFINITE_ARTICLE = /^(der|die|das|den|dem|des)\s+/i;
+
+export function stripLeadingGermanArticle(value: string): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return trimmed;
+  const stripped = trimmed.replace(LEADING_GERMAN_DEFINITE_ARTICLE, "").trim();
+  return stripped || trimmed;
 }
 
 function timeoutForStepMs(step: string): number {
@@ -388,7 +405,11 @@ export function composeTranslatorSystemPrompt(
   if (retryFeedback && retryFeedback.trim()) {
     parts.push(
       [
-        "IMPORTANT: A previous attempt had issues flagged by the verifier or quality guard. Address this feedback:",
+        "IMPORTANT: A previous attempt had issues flagged by the verifier or quality guard.",
+        "When a CRITICAL line includes «Suggested German» / \"MUST use Suggested German verbatim\", you MUST use that German wording verbatim for the flagged span.",
+        "Do not invent a different noun, article, or paraphrase of the suggestion.",
+        "Leave all other German text unchanged whenever possible; only fix the flagged spans.",
+        "Address this feedback:",
         retryFeedback.trim(),
       ].join("\n")
     );
@@ -397,24 +418,8 @@ export function composeTranslatorSystemPrompt(
 }
 
 // ---------------------------------------------------------------------------
-// Metadata translation (trilingual prompt)
+// Metadata translation (base prompt: chatPrompts cs_translator_metadata)
 // ---------------------------------------------------------------------------
-
-const META_SYSTEM_BASE = [
-  "You translate Serbian-language-course unit METADATA (title, description, topics, grammarFocus, vocabularyThemes) from English into German (de-DE) for German-speaking learners of Serbian.",
-  "",
-  "IMPORTANT ROLE OF THESE FIELDS:",
-  "- Unit metadata is LEARNER-FACING UI/INFORMATIONAL text. It is NOT the Serbian language the learner studies — it is the interface copy that tells the learner what the unit is about.",
-  "- These fields are authored and maintained in ENGLISH. The ENGLISH text is the PRIMARY and ONLY semantic source for the German translation.",
-  "- A Serbian context block may be provided for THEMATIC reference only (so you can align tone and domain vocabulary). It is NOT a translation source. Do NOT add, omit, or alter meaning based on the Serbian context. Do NOT drop descriptive sentences just because the Serbian side is shorter or is only a vocabulary list.",
-  "",
-  "TRANSLATION RULES:",
-  "- Translate EN → DE faithfully. Preserve the meaning, tone, and level of detail of the English original.",
-  "- Do NOT invent new items. Preserve array lengths and order from the English source.",
-  "- If a source field is empty, return an empty string (for strings) or empty array (for arrays).",
-  "",
-  "Return ONLY valid JSON with keys: titleDe, descriptionDe, topicsDe, grammarFocusDe, vocabularyThemesDe.",
-].join("\n");
 
 function buildMetaUserPayload(source: TranslationSourceEn, serbianContextBlock: string): string {
   const parts: string[] = [];
@@ -455,7 +460,8 @@ export async function runMetadataTranslation(
   const retry = args.retryFeedback
     ? `EN→DE translation issues flagged by the verifier. Fix these while keeping the English meaning intact:\n${args.retryFeedback}`
     : undefined;
-  const system = composeTranslatorSystemPrompt(META_SYSTEM_BASE, admin, retry);
+  const base = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorMetadata);
+  const system = composeTranslatorSystemPrompt(base, admin, retry);
   const step = args.retryFeedback ? "metadata:retry" : "metadata";
   const t0 = Date.now();
   const ai = await callJsonRobust(
@@ -495,45 +501,8 @@ export function buildMetadataDeFromAi(aiRaw: string, source: TranslationSourceEn
 }
 
 // ---------------------------------------------------------------------------
-// Section (markdown) translation (trilingual prompt)
+// Section (markdown) translation (base prompt: chatPrompts cs_translator_section)
 // ---------------------------------------------------------------------------
-
-function buildSectionSystemPrompt(): string {
-  return [
-    "You are translating ONE Serbian-course unit markdown section into German (de-DE) for German-speaking learners of Serbian.",
-    "",
-    "PRIMARY SEMANTIC SOURCE: the Serbian content embedded inside this markdown (vocabulary tables with Serbian columns, example phrases, dialogue lines, answers). This is the actual language the learner is studying.",
-    "BRIDGE/REFERENCE ONLY: the English explanations. They may contain imprecisions or oversimplifications.",
-    "",
-    "If an English explanation disagrees in meaning with the Serbian content shown in the same section, the German text MUST match the meaning of the Serbian content, not the English wording.",
-    "Example: if an English note says a Serbian phrase means 'apple juice' but the Serbian actually says 'sok od jabuke' (literally 'juice of apple'), the German must accurately describe what the Serbian expresses, not just re-translate the English note.",
-    "",
-    "CRITICAL: Preserve Markdown structure EXACTLY (do not reformat):",
-    "- Do NOT reorder headings/sections.",
-    "- Do NOT change tables: keep exact columns, pipes, separators, and one-row-per-line formatting.",
-    "- Do NOT wrap table rows across lines.",
-    "- Preserve blanks EXACTLY as '_____' (five underscores).",
-    "- Preserve lettered options formatting: A) ...  B) ...  C) ...  D) ...",
-    "- Preserve all IDs (e.g., questionId like u2_ex5_q01) exactly.",
-    "",
-    "CRITICAL: Do NOT translate Serbian content:",
-    "- In vocabulary tables: do NOT change the Serbian column values.",
-    "- Do NOT change any Serbian phrases inside examples, answers, or dialogue lines.",
-    "- Only translate English explanatory/instructional text into German.",
-    "",
-    // Localizing (not translating) pronunciation guidance. Unit 1's alphabet
-    // table went live as 'wie das \"a\" in father' with the header
-    // 'Aussprachehilfe (Englisch)' — useless for a German learner (2026-09-17).
-    "CRITICAL: LOCALIZE pronunciation guidance, never translate it literally:",
-    "- Sound comparisons that reference ENGLISH words must be rewritten with GERMAN reference words that a German speaker pronounces the same way as the Serbian sound.",
-    "  Examples: \"like 'a' in father\" -> \"wie das 'a' in Vater\"; \"like 'ts' in cats\" -> \"wie das 'z' in Zahl\"; \"like 'ch' in chair\" -> \"wie 'tsch' in Tschüss\"; \"like 'j' in jump\" -> \"wie 'Dsch' in Dschungel\"; \"like 'y' in yes\" -> \"wie das 'j' in ja\"; \"like 'ee' in see\" -> \"wie das 'ie' in Liebe\".",
-    "- If no clean German sound analogy exists, describe the sound in German words (e.g. \"ein weiches 'tj', gesprochen wie ein sehr weiches 'tsch'\") instead of keeping the English example word.",
-    "- Column headers such as 'Pronunciation guide (English)' become 'Aussprachehilfe (Deutsch)' — the guide is FOR German speakers.",
-    "- The Serbian example words in such tables stay Serbian; only the comparison language changes.",
-    "",
-    "Return ONLY the final Markdown content (no commentary, no code fences).",
-  ].join("\n");
-}
 
 export async function translateMarkdownSection(
   ctx: ActionCtx,
@@ -544,6 +513,7 @@ export async function translateMarkdownSection(
     ai: AiCallOptions;
     retryFeedback?: string;
     adminContext?: TranslatorAdminContext;
+    originalAuthorQuote?: string;
   }
 ): Promise<{ mdDe: string; log: StepLog }> {
   const input = String(args.markdownEn ?? "").replace(/\r\n/g, "\n").trim();
@@ -563,8 +533,9 @@ export async function translateMarkdownSection(
   if (!input) return { mdDe: "", log: emptyLog };
 
   const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const base = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorSection);
   const system = composeTranslatorSystemPrompt(
-    buildSectionSystemPrompt(),
+    base,
     admin,
     args.retryFeedback
   );
@@ -583,7 +554,10 @@ export async function translateMarkdownSection(
   );
   const durationMs = Date.now() - t0;
   const out = String(aiResult.raw ?? "").replace(/\r\n/g, "\n").trim();
-  const mdDe = out || input;
+  let mdDe = out || input;
+  if (args.contentType === "overview" && args.originalAuthorQuote) {
+    mdDe = restoreOriginalAuthorQuote(mdDe, args.originalAuthorQuote);
+  }
   const qualityIssues = checkSectionQuality(input, mdDe);
   return {
     mdDe,
@@ -606,40 +580,8 @@ export function buildContentDeForSection(
 }
 
 // ---------------------------------------------------------------------------
-// Vocabulary translation (trilingual prompt)
+// Vocabulary translation (base prompt: chatPrompts cs_translator_vocab)
 // ---------------------------------------------------------------------------
-
-function buildVocabSystemPrompt(retryFeedback?: string): string {
-  return [
-    "You translate Serbian vocabulary entries into German (de-DE) for German-speaking learners of Serbian.",
-    "The PRIMARY semantic source is the Serbian word/phrase in the 'sr' field — it is the actual language the learner studies.",
-    "English ('en') is a BRIDGE/REFERENCE only and may be imprecise, slangy, or lose nuance from the Serbian original.",
-    "Produce German translations that accurately convey the meaning and register of the Serbian original.",
-    "If Serbian and English differ in meaning, follow the SERBIAN meaning.",
-    "",
-    "OUTPUT RULES FOR 'de' — STRICT, NO EXCEPTIONS:",
-    "- 'de' must be EXACTLY ONE German equivalent: a single word, or at most one short fixed phrase (e.g. 'zu Fuß gehen').",
-    "- NEVER combine multiple meanings with 'und', 'oder', 'bzw', '/', ',' or ';' inside 'de'.",
-    "- If the Serbian word is polysemous (has multiple distinct German equivalents), pick the ONE that best fits the unit's learner context.",
-    "- For nouns, prefer including the definite article with gender ('der Mann', 'die Frau', 'das Kind') so the learner sees the grammatical gender.",
-    "",
-    "OUTPUT RULES FOR 'noteDe':",
-    "- Translate/adapt 'noteEn' into learner-friendly German. Describe the Serbian word, not just the English label.",
-    "- If the Serbian word has additional relevant German meanings that did NOT fit into 'de', explain them here (e.g. 'Je nach Kontext auch: dahin (Richtung).').",
-    "- If relevant grammatical info (gender, aspect, register) is missing from 'de', explain it here.",
-    "",
-    "Do NOT invent new entries. Do NOT change ids. Return ONLY valid JSON with key: items.",
-    "Each item must have: id, de, noteDe. Do NOT emit any 'deAlt' field.",
-    "If a source field is empty, return an empty string for that field.",
-    ...(retryFeedback && retryFeedback.trim()
-      ? [
-          "",
-          "IMPORTANT: A previous attempt had semantic issues vs. the Serbian original. Address this feedback:",
-          retryFeedback.trim(),
-        ]
-      : []),
-  ].join("\n");
-}
 
 export interface VocabTranslationResult {
   courseVocabularyId: any;
@@ -657,14 +599,17 @@ export async function translateVocabChunks(
     stepLogs: StepLog[];
     retryFeedback?: string;
     stepPrefix?: string;
+    adminContext?: TranslatorAdminContext;
   }
 ): Promise<VocabTranslationResult[]> {
   const out: VocabTranslationResult[] = [];
   const stepPrefix = args.stepPrefix ?? "vocab";
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const base = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVocab);
 
   for (let i = 0; i < args.items.length; i += VOCAB_CHUNK_SIZE) {
     const chunk = args.items.slice(i, i + VOCAB_CHUNK_SIZE);
-    const system = buildVocabSystemPrompt(args.retryFeedback);
+    const system = composeTranslatorSystemPrompt(base, admin, args.retryFeedback);
     const user = JSON.stringify({
       items: chunk.map((v: any) => ({
         id: String(v?._id ?? ""),
@@ -698,7 +643,8 @@ export async function translateVocabChunks(
       const id = String(src?._id ?? "").trim();
       const aiOut = byId.get(id);
       if (!aiOut) continue;
-      const de = typeof aiOut?.de === "string" ? String(aiOut.de).trim() : "";
+      const de =
+        typeof aiOut?.de === "string" ? stripLeadingGermanArticle(String(aiOut.de)) : "";
       const noteDe = typeof aiOut?.noteDe === "string" ? String(aiOut.noteDe).trim() : "";
       out.push({
         courseVocabularyId: src._id as any,
@@ -1077,68 +1023,7 @@ function buildPromptGuardRetryFeedback(issues: string[]): string {
   ].join("\n");
 }
 
-function buildTestsSystemPrompt(): string {
-  return [
-    "You translate interactive-test prompts (questions, hints, category instructions) into German (de-DE) for German-speaking learners of Serbian.",
-    "",
-    "FIELD ROLES — this is important:",
-    "- 'categoryInstructionsEn' is LEARNER-FACING UI GUIDANCE. Adapt it for the German learner track (see CATEGORY INSTRUCTIONS below). It is NOT Serbian content the learner studies.",
-    "- 'hintEn' is LEARNER-FACING HELP TEXT (UI). Translate it EN → DE directly and idiomatically.",
-    "- 'questionEn' is the prompt the learner sees. How you treat it DEPENDS ON questionType (rules below).",
-    "",
-    "RULES BY questionType:",
-    "",
-    "1) questionType == 'translation' (CRITICAL):",
-    "   - The EN question is a SOURCE-LANGUAGE prompt word/phrase (often a single English word like 'Monday' or 'today').",
-    "   - questionDe MUST be the German equivalent prompt (Montag, heute, …). The learner translates FROM German INTO Serbian.",
-    "   - Do NOT leave the English word unchanged (except true EN/DE cognates like 'August').",
-    "   - Single-word prompts are CORRECT and complete — do not expand them into full sentences or questions.",
-    "   - Example: 'Monday' → 'Montag'; 'today' → 'heute'; 'January' → 'Januar'.",
-    "",
-    "2) questionType == 'matching' (CRITICAL):",
-    "   - The EN question is typically '_____ = englishMeaning' (or similar). Translate the meaning side to German.",
-    "   - Example: '_____ = half' → '_____ = Hälfte' (or '_____ = halb' when time-context fits).",
-    "   - Keep blanks identical. Do not leave the English meaning.",
-    "",
-    "3) questionType == 'fillInBlank' (CRITICAL):",
-    "   - Keep the Serbian stem and blanks EXACTLY.",
-    "   - FILL-IN SOURCE CUE: short parentheses after the blank (e.g. '(milk)', '(apples)') MUST stay.",
-    "     Translate the cue EN→DE: '(milk)' → '(Milch)', '(apples)' → '(Äpfel)', '(cheese)' → '(Käse)'.",
-    "     The cue tells the learner which word to put into the blank — without it the exercise is unusable.",
-    "   - CONTEXT GLOSS: full-sentence parentheses that translate the whole Serbian line MUST stay.",
-    "     Translate the context EN→DE: '(I am Ana.)' → '(Ich bin Ana.)', '(You are from Serbia.)' → '(Du bist aus Serbien.)'.",
-    "     Example EN: 'Ja ____ Ana. (I am Ana.)' → DE: 'Ja ____ Ana. (Ich bin Ana.)'",
-    "     Without this context, beginner learners cannot understand the exercise.",
-    "",
-    "4) questionType == 'dialogue' | Serbian-stem multipleChoice (CRITICAL):",
-    "   - Keep the Serbian stem and blanks EXACTLY.",
-    "   - REMOVE trailing parenthetical learner glosses / translation help — do NOT translate them to German.",
-    "   - Example EN: 'Ana je _____. Ona radi u bolnici. (Ana is a _____. …)' → DE: 'Ana je _____. Ona radi u bolnici.'",
-    "",
-    "5) questionType == 'multipleChoice' with English/German UI prompt (no Serbian stem):",
-    "   - Translate the learner-facing question prompt EN → DE when it is English UI/prompt text.",
-    "   - Options/correctAnswer stay Serbian (untranslated).",
-    "",
-    "CATEGORY INSTRUCTIONS (CRITICAL for DE track):",
-    "- If the English instructions say 'from English to Serbian' / 'Translate the following words from English…', the German instructions MUST say the learner translates FROM GERMAN to Serbian (e.g. 'Übersetzen Sie die folgenden Wörter aus dem Deutschen ins Serbische.').",
-    "- If the English instructions say 'Match the English meaning…', the German instructions MUST say 'deutsche Bedeutung' (not 'englische').",
-    "- Never mention English/Englisch in categoryInstructionsDe for these adapted tracks.",
-    "",
-    "GLOBAL RULES:",
-    "- Serbian answers, options, and acceptableAlternatives stay UNTRANSLATED. Do NOT change questionId, order, or questionType.",
-    "- Preserve blanks EXACTLY as '_____' (five underscores) and keep the blank count identical to the English source.",
-    "- For Serbian-stem questions, the Serbian answer content is the semantic anchor; for translation/matching prompts, the EN→DE prompt translation is mandatory (see above).",
-    "",
-    "PARENTHESES — THREE KINDS:",
-    "- fillInBlank source cues (short word/phrase after the blank): KEEP and translate to German.",
-    "- fillInBlank context glosses (full-sentence meaning of the Serbian stem): KEEP and translate to German.",
-    "- Help glosses on dialogue / multipleChoice (full-sentence meaning, or parentheses containing blanks): STRIP from questionDe.",
-    "- dialogueCompletion / A:/B: stems: never append an English reference translation in parentheses.",
-    "",
-    "Return ONLY valid JSON with keys: categoryInstructionsDe, questions.",
-    "questions must be an array of { questionId, questionDe, hintDe }.",
-  ].join("\n");
-}
+// Base prompt: chatPrompts cs_translator_tests (no code fallback).
 
 async function translateTestsForCategoryOnce(
   ctx: ActionCtx,
@@ -1154,8 +1039,9 @@ async function translateTestsForCategoryOnce(
   }
 ): Promise<any[]> {
   const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const base = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorTests);
   const system = composeTranslatorSystemPrompt(
-    buildTestsSystemPrompt(),
+    base,
     admin,
     args.retryFeedback
   );
@@ -1467,7 +1353,7 @@ export function buildVerifierItems(params: {
     // coherently frames these Serbian answers. They must NOT be interpreted as
     // source text missing a German counterpart (that was the cause of the
     // "options missing" false-positive storm). The explicit "do NOT translate"
-    // header below, combined with the kind=='test' rule in VERIFIER_SYSTEM,
+    // header below, combined with the kind=='test' rule in the DE verifier,
     // makes this contract unmistakable to the reviewing model.
     const optionsSr =
       Array.isArray((src as any)?.options) && (src as any).options.length

@@ -1,5 +1,6 @@
 import type { ActionCtx } from "../_generated/server";
-import { callAiJson, parseJsonOrThrow, type Provider } from "./_shared";
+import { callAiJson, parseJsonOrThrow, resolvePromptFromDb, type Provider } from "./_shared";
+import { CS_PROMPT_KEYS } from "./prompts";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
   loadMergedPromptCognates,
@@ -109,7 +110,7 @@ export function runDeterministicVocabChecks(items: VerifierInputItem[]): Verifie
   const issues: VerifierIssue[] = [];
   // Word-boundary-aware matchers. We explicitly do NOT flag bare hyphens or
   // parentheses — those commonly appear in legitimate single-lemma entries
-  // like "zu Hause" or "der Mann (Plural: die Männer)".
+  // like "zu Hause" or "Mann (Plural: Männer)".
   const STACKED_WORDS = /\b(und|oder|bzw\.?|beziehungsweise|sowie)\b/i;
   const STACKED_PUNCT = /[\/;]|,\s*(?![a-zäöü])/; // slash, semicolon, or comma not part of a compound
   // Legitimate single-lemma connectors. A vocabulary entry whose entire
@@ -457,64 +458,7 @@ function batchItems(items: VerifierInputItem[], maxCharsPerBatch: number): Verif
   return batches;
 }
 
-const VERIFIER_SYSTEM = [
-  "You are a bilingual Serbian-German translation reviewer for a Serbian-language-learning course.",
-  "For each item, compare the German translation against the Serbian ORIGINAL (the English text is a bridge reference only; English may itself be imprecise).",
-  "Focus on SEMANTIC alignment between Serbian and German — not between English and German.",
-  "",
-  "Severity rubric:",
-  "- 'critical': the German clearly does NOT match the Serbian meaning (mistranslation, wrong subject/object, lost core info, contradicts the Serbian).",
-  "- 'warning': the German is understandable but loses nuance, register, grammatical detail, or adds/omits minor information relative to the Serbian.",
-  "- 'info': minor stylistic observation or a polish suggestion that would not confuse learners.",
-  "",
-  "Only report items that have a real issue. Do NOT report items where German correctly reflects the Serbian (even if the English phrasing was different).",
-  "When in doubt between warning and critical, choose warning. Reserve 'critical' for real meaning errors.",
-  "",
-  "SCOPE BY ITEM KIND (read the 'kind' field of each item):",
-  "- kind == 'vocabulary' | 'section': compare DE against the SERBIAN original. English is only a bridge. This is the zone where the learner meets the Serbian language.",
-  "- kind == 'test': this is an interactive test item. CRITICAL CONTRACT — read carefully:",
-  "  • The German fields to review are ONLY the question text and (if present) the hint. They appear in the 'german' payload as 'Question (DE): ...' and optionally 'Hint (DE): ...'.",
-  "  • The Serbian anchor for a test item describes the LEARNER-PRODUCED SERBIAN ANSWERS ('Expected Serbian answer', 'Answer choices (Serbian, stay untranslated)', 'Accepted Serbian variants'). These are deliberately Serbian-only by course design: the learner must answer in Serbian, so options, correctAnswer, and acceptableAlternatives ALWAYS stay Serbian in the German record too.",
-  "  • Therefore: do NOT emit 'missing_info' because 'options are not translated', 'German options are missing', 'correct answer is only in Serbian', etc. This is BY DESIGN and is NOT an issue. Any suggestion to translate options/correct-answer/alternatives into German is WRONG and must never be produced.",
-  "  • Do NOT request symmetric German counterparts for Serbian answer content. The asymmetry is intentional.",
-  "  • Your actual job for test items: verify that the German question (and hint, if present) is coherent with the learner-produced Serbian answers — i.e. the German prompt makes sense for those Serbian choices and the expected Serbian answer — and that it is a faithful rendering of the English question. Flag real mismatches of meaning, lost info in the question/hint, wrong register, or grammatical errors in the German prompt only.",
-  "  • PARENTHESES — TWO KINDS:",
-  "    (a) fillInBlank SOURCE CUES: short parentheses after the blank that tell the learner WHICH word to fill in (EN '(milk)', '(apples)'). On DE these MUST remain as German cues ('(Milch)', '(Äpfel)'). Omitting them is CRITICAL missing_info. Do NOT suggest removing them.",
-  "    (b) fillInBlank CONTEXT GLOSSES: full-sentence parentheses that translate the whole Serbian stem (EN '(I am Ana.)', '(You are from Serbia.)'). On DE these MUST remain as German context ('(Ich bin Ana.)', '(Du bist aus Serbien.)'). Omitting them is CRITICAL missing_info. Do NOT suggest removing them.",
-  "    (c) HELP GLOSSES on dialogue / multipleChoice: full-sentence translation of the Serbian stem in parentheses (e.g. '(Ana ist eine ___.)', '(Es ist jetzt ein Uhr.)'). That is CRITICAL — remove the help parentheses; keep only the Serbian stem/blank (plus any short fill-in cue from (a)).",
-  "  • TRANSLATION / MATCHING PROMPTS: For EN source prompts that are single words or short phrases (e.g. 'Monday', 'today', '_____ = half'), the German question MUST be the German equivalent ('Montag', 'heute', '_____ = Hälfte'). Leaving the English word is CRITICAL. Conversely: a correct single German word/phrase IS a valid complete prompt — do NOT flag it as 'not a question' or demand a full interrogative sentence.",
-  "- kind == 'metadata': this is learner-facing UI/INFORMATIONAL text (unit title, description, topic/grammar/vocabulary-theme lists). It is maintained in ENGLISH and translated to German purely for the interface — it is NOT Serbian the learner studies. Compare DE against the ENGLISH text. IGNORE any mismatch against the Serbian field: the Serbian field for a metadata item is either empty or only thematic context, NEVER a translation source. Do NOT emit 'semantic_mismatch' or 'missing_info' for metadata on the grounds that the Serbian side is shorter, is only a vocabulary list, or lacks a descriptive paragraph. Flag metadata ONLY for real EN↔DE issues: wrong translation of the English title/description, omitted or invented topics, lost grammar-focus entries, array-length changes, etc.",
-  "",
-  "HARD RULES — do NOT flag these (they are not issues):",
-  "1. German pronoun capitalization context: 'sie' (lowercase) = 'she'/'they'; 'Sie' (capitalized) = formal 'you' OR sentence-initial 'she/they'.",
-  "   - Both forms can be correct depending on context. Do NOT flag 'Sie' at the start of a German sentence, a heading, a bullet, or a table cell as 'wrong capitalization'.",
-  "   - In vocabulary tables/glossaries whose cell starts with a lowercase Serbian lemma (e.g., 'ona'), the matching German gloss is lowercase ('sie'). If already lowercase there, do NOT 'correct' it to capitalized. If capitalized as a standalone cell/heading (e.g., '| Ona | Sie |'), that is ALSO acceptable per German noun-capitalization conventions for isolated pronouns and is NOT a critical issue.",
-  "   - Same rule applies to 'er/Er' and 'es/Es'.",
-  "2. Acceptable near-synonyms in German are NOT issues. Examples:",
-  "   - Pasoš → 'Pass' OR 'Reisepass' (both fine).",
-  "   - avion → 'Flugzeug' OR 'Flieger'.",
-  "   - Only flag when the German word is a DIFFERENT concept, not a stylistic refinement.",
-  "3. Do NOT propose swaps between words that are both valid translations. Pick at most one and if both are acceptable, emit NO issue. Synonym preferences (Besprechung vs Treffen, Hälfte vs halb) are NOT critical issues when both are valid.",
-  "4. Register/formality differences that are idiomatic for a learning course (e.g., 'du' vs 'Sie' address in instructions) are NOT issues unless the Serbian explicitly uses a mismatching register.",
-  "5. Single-word or short-phrase German prompts for translation/matching exercises (e.g. 'Mittwoch', 'Januar', 'heute') are VALID. Do NOT flag them as incomplete questions.",
-  "6. SERBIAN-SPECIFIC GRAMMAR vs. GERMAN GRAMMAR — do NOT project Serbian grammatical form onto German. The German translation must be GRAMMATICALLY NATURAL GERMAN, even if that differs in form from the Serbian surface.",
-  "   - Serbian uses genitive (often singular) after cardinal numbers ≥ 5 and after quantity words like 'kilogram', 'litar', 'čaša', 'mnogo', 'malo'. Example: 'jedan kilogram krompira' (gen.sg), 'pet jabuka' (gen.pl).",
-  "   - The natural German rendering is: 'ein Kilogramm Kartoffeln', 'fünf Äpfel' (German plural after quantity). The singular 'ein Kilogramm Kartoffel' is UNGRAMMATICAL/awkward in German and must NOT be suggested.",
-  "   - RULE: If the German plural is the natural rendering of a Serbian quantity expression, it is CORRECT. Do NOT flag it as 'wrong number' based on the Serbian form. Do NOT suggest switching to German singular just because Serbian is morphologically singular.",
-  "   - Same principle applies to any other case where SR morphology (aspect, gender, case, number) has no 1:1 mirror in DE grammar: follow idiomatic German, not a mechanical projection of SR morphology.",
-  "",
-  "CONSISTENCY — STRICT: Your rulings must be internally consistent. If text X is acceptable, the equivalent text X in the next pass must also be acceptable. Do NOT oscillate between opposite recommendations on the same surface form.",
-  "  - Oscillation example to AVOID: pass 1 flags 'Ein Kilogramm Kartoffeln' (plural) and suggests 'Kartoffel' (singular); pass 2 then flags 'Ein Kilogramm Kartoffel' (singular) as awkward and suggests 'Kartoffeln' (plural). This is a forbidden oscillation — the correct behavior is: do NOT flag German plural after a quantity word at all (see rule 6).",
-  "  - If a previous pass's suggestion would merely swap a form to its opposite without a clear semantic gain, emit NO issue.",
-  "",
-  "Return ONLY valid JSON in this exact shape:",
-  "{",
-  '  "issues": [',
-  '    { "key": "<item key>", "severity": "critical|warning|info", "code": "semantic_mismatch|missing_info|wrong_register|grammatical|other", "issue": "<short description in English>", "suggestion": "<optional German rewrite or concrete fix>" }',
-  "  ]",
-  "}",
-  "If everything is fine, return { \"issues\": [] }.",
-].join("\n");
+// Base prompt: chatPrompts cs_translator_verifier (no code fallback).
 
 function buildVerifierUserPayload(items: VerifierInputItem[]): string {
   const payload = {
@@ -605,7 +549,7 @@ export async function verifySerbianGermanAlignment(
       const ai = await callAiJson(ctx, {
         stage: "auditor",
         preferredProvider: params.preferredProvider,
-        system: VERIFIER_SYSTEM,
+        system: await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVerifier),
         user: buildVerifierUserPayload(batch),
         maxTokens: 3000,
         timeoutMs: 90_000,
@@ -753,6 +697,10 @@ export function extractSerbianFromMarkdown(md: string): string {
  *
  * Accepts any VerifierIssue[] — the caller decides which severities to include
  * (auto-retry uses criticals only; manual retry can include warnings).
+ *
+ * When a suggestion is present, the line marks it as binding so the model must
+ * use that German wording verbatim for the flagged span (see also
+ * `applyDeterministicVerifierSuggestions`, which patches before any AI retry).
  */
 export function formatRetryFeedback(issues: VerifierIssue[]): {
   metadata: string;
@@ -769,7 +717,13 @@ export function formatRetryFeedback(issues: VerifierIssue[]): {
 
   for (const iss of issues) {
     const sevTag = iss.severity === "critical" ? "CRITICAL" : iss.severity === "warning" ? "WARNING" : "INFO";
-    const line = `- [${sevTag}] [${iss.itemLabel}] ${iss.issue}${iss.suggestion ? ` (Suggested German: ${iss.suggestion})` : ""}`;
+    const suggestion = typeof iss.suggestion === "string" ? iss.suggestion.trim() : "";
+    const suggestionPart = suggestion
+      ? isActionableGermanSuggestion(suggestion)
+        ? ` MUST use Suggested German verbatim: «${suggestion}»`
+        : ` (Suggested German: ${suggestion})`
+      : "";
+    const line = `- [${sevTag}] [${iss.itemLabel}] ${iss.issue}${suggestionPart}`;
     if (iss.itemKind === "metadata") {
       lines.metadata.push(line);
     } else if (iss.itemKind === "vocabulary") {
@@ -792,5 +746,230 @@ export function formatRetryFeedback(issues: VerifierIssue[]): {
     vocabulary: lines.vocabulary.join("\n"),
     test: lines.test.join("\n"),
     sectionByContentType,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic suggestion patches (before AI retry)
+// ---------------------------------------------------------------------------
+
+const ADVISORY_SUGGESTION =
+  /^(remove|translate|keep|add|consider|change|use|replace|do not|don't|please|prefer|rewrite)\b/i;
+const ADVISORY_PHRASE = /\b(german for|english for|instead of|for example|e\.g\.|i\.e\.)\b/i;
+
+/**
+ * True when the verifier suggestion is a concrete German rewrite we can apply
+ * (or force on the model), not instructional English advice.
+ */
+export function isActionableGermanSuggestion(suggestion: string | undefined | null): boolean {
+  const s = String(suggestion ?? "").trim();
+  if (!s) return false;
+  if (s.length > 120) return false;
+  if (ADVISORY_SUGGESTION.test(s)) return false;
+  if (ADVISORY_PHRASE.test(s)) return false;
+  if (!/[A-Za-zÄÖÜäöüß]/.test(s)) return false;
+  return true;
+}
+
+export function extractQuotedSpans(text: string): string[] {
+  const out: string[] = [];
+  const re = /"([^"\n]{2,80})"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(String(text || "")))) {
+    const span = m[1].trim();
+    if (span) out.push(span);
+  }
+  return out;
+}
+
+/** Same noun with the other common German indefinite-article forms. */
+export function articleGenderVariants(suggestion: string): string[] {
+  const m = String(suggestion || "")
+    .trim()
+    .match(/^(eine|einen|einem|einer|eines|ein)\s+(.+)$/i);
+  if (!m) return [];
+  const noun = m[2];
+  return ["ein", "eine", "einen", "einem", "einer", "eines"]
+    .map((a) => `${a} ${noun}`)
+    .filter((v) => v.toLowerCase() !== suggestion.trim().toLowerCase());
+}
+
+/**
+ * Replace a wrong German span with the suggestion when we can locate the
+ * wrong text. Returns null when no safe edit is possible.
+ */
+export function applySuggestionToGermanText(
+  german: string,
+  issueText: string,
+  suggestion: string
+): string | null {
+  const src = String(german ?? "");
+  const issue = String(issueText ?? "");
+  const fix = String(suggestion ?? "").trim();
+  if (!src || !fix) return null;
+
+  // 1) Gender/article variants of the suggestion (ein Milch → eine Milch).
+  for (const wrong of articleGenderVariants(fix)) {
+    if (src.includes(wrong)) {
+      return src.split(wrong).join(fix);
+    }
+  }
+
+  // 2) Explicit wrong forms from phrasing like: was translated as "ein Bier".
+  const translatedAs: string[] = [];
+  const translatedAsRe = /\b(?:translated as|currently|wrote|got)\s+"([^"\n]{2,80})"/gi;
+  let tm: RegExpExecArray | null;
+  while ((tm = translatedAsRe.exec(issue))) {
+    const span = tm[1].trim();
+    if (span && span !== fix) translatedAs.push(span);
+  }
+  for (const wrong of translatedAs) {
+    if (src.includes(wrong)) {
+      return src.split(wrong).join(fix);
+    }
+  }
+
+  // Serbian originals quoted as "Serbian source …" must never be overwritten.
+  const serbianSources = new Set<string>();
+  const srRe = /\bSerbian(?:\s+source)?\s+"([^"\n]{2,80})"/gi;
+  let sm: RegExpExecArray | null;
+  while ((sm = srRe.exec(issue))) {
+    const span = sm[1].trim();
+    if (span) serbianSources.add(span);
+  }
+
+  // 3) Other quoted wrong German. Skip quotes that are already part of the
+  // suggestion, Serbian sources, or look like Serbian orthography.
+  const looksSerbian = (q: string) =>
+    /[čćžšđČĆŽŠĐ]/.test(q) ||
+    /\b(je|su|sam|si|smo|ste|nije|mleko|jedno|jedan|jedna)\b/i.test(q);
+
+  const quotes = extractQuotedSpans(issue)
+    .filter((q) => {
+      if (!q || q === fix || q.length < 2) return false;
+      if (fix.toLowerCase().includes(q.toLowerCase())) return false;
+      if (serbianSources.has(q)) return false;
+      if (looksSerbian(q)) return false;
+      return true;
+    })
+    .sort((a, b) => b.length - a.length);
+  for (const wrong of quotes) {
+    if (src.includes(wrong)) {
+      return src.split(wrong).join(fix);
+    }
+  }
+
+  const trimmed = src.trim();
+  if (translatedAs.some((q) => q === trimmed) || quotes.some((q) => q === trimmed)) {
+    return fix;
+  }
+
+  return null;
+}
+
+const LEADING_DEFINITE_FOR_VOCAB = /^(der|die|das|den|dem|des)\s+/i;
+
+function stripDefiniteArticleForVocab(value: string): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return trimmed;
+  const stripped = trimmed.replace(LEADING_DEFINITE_FOR_VOCAB, "").trim();
+  return stripped || trimmed;
+}
+
+export type DeTranslationState = {
+  contentDe: any[];
+  testsDe: any[];
+  vocabularyDe: any[];
+};
+
+/**
+ * Apply actionable verifier suggestions in-place on the current DE state.
+ * Used before AI pass-2 / manual retry so concrete fixes (eine Milch, …) are
+ * written without regenerating a whole section or test category.
+ *
+ * Returns the patched state, the itemKeys that were fixed, and the issues that
+ * still need an AI retry.
+ */
+export function applyDeterministicVerifierSuggestions(params: {
+  issues: VerifierIssue[];
+  state: DeTranslationState;
+}): {
+  state: DeTranslationState;
+  patchedKeys: string[];
+  remainingIssues: VerifierIssue[];
+} {
+  const contentDe = Array.isArray(params.state.contentDe) ? params.state.contentDe.map((r) => ({ ...r })) : [];
+  const testsDe = Array.isArray(params.state.testsDe) ? params.state.testsDe.map((r) => ({ ...r })) : [];
+  const vocabularyDe = Array.isArray(params.state.vocabularyDe)
+    ? params.state.vocabularyDe.map((r) => ({ ...r }))
+    : [];
+
+  const patchedKeys: string[] = [];
+  const remainingIssues: VerifierIssue[] = [];
+
+  for (const iss of params.issues) {
+    const suggestion = typeof iss.suggestion === "string" ? iss.suggestion.trim() : "";
+    if (!isActionableGermanSuggestion(suggestion)) {
+      remainingIssues.push(iss);
+      continue;
+    }
+
+    let patched = false;
+
+    if (iss.itemKind === "vocabulary") {
+      const id = String(iss.itemKey).replace(/^vocab:/, "");
+      const idx = vocabularyDe.findIndex((v) => String(v?.courseVocabularyId ?? "") === id);
+      if (idx >= 0) {
+        vocabularyDe[idx] = {
+          ...vocabularyDe[idx],
+          de: stripDefiniteArticleForVocab(suggestion),
+        };
+        patched = true;
+      }
+    } else if (iss.itemKind === "test") {
+      const qid = String(iss.itemKey).replace(/^test:/, "");
+      const idx = testsDe.findIndex((t) => String(t?.questionId ?? "") === qid);
+      if (idx >= 0) {
+        const current = String(testsDe[idx]?.question ?? "");
+        const next = applySuggestionToGermanText(current, iss.issue, suggestion);
+        if (next != null && next !== current) {
+          testsDe[idx] = { ...testsDe[idx], question: next };
+          patched = true;
+        } else if (
+          current.trim().split(/\s+/).length <= 6 &&
+          suggestion.split(/\s+/).length <= 6 &&
+          current.trim().toLowerCase() !== suggestion.toLowerCase()
+        ) {
+          // Short prompt fields: replace the whole German question when the
+          // suggestion is itself a short concrete rewrite.
+          testsDe[idx] = { ...testsDe[idx], question: suggestion };
+          patched = true;
+        }
+      }
+    } else if (iss.itemKind === "section") {
+      const ctMatch = String(iss.itemKey).match(/^section:(.+)$/);
+      const contentType = ctMatch?.[1] ?? "";
+      const idx = contentDe.findIndex((r) => String(r?.contentType ?? "") === contentType);
+      if (idx >= 0) {
+        const current = String(contentDe[idx]?.content ?? "");
+        const next = applySuggestionToGermanText(current, iss.issue, suggestion);
+        if (next != null && next !== current) {
+          contentDe[idx] = { ...contentDe[idx], content: next };
+          patched = true;
+        }
+      }
+    }
+
+    if (patched) {
+      patchedKeys.push(iss.itemKey);
+    } else {
+      remainingIssues.push(iss);
+    }
+  }
+
+  return {
+    state: { contentDe, testsDe, vocabularyDe },
+    patchedKeys: [...new Set(patchedKeys)],
+    remainingIssues,
   };
 }

@@ -3,8 +3,13 @@ import {
   findAppendedForeignParentheticalIssues,
   findUntranslatedLearnerPromptIssues,
   composeTranslatorSystemPrompt,
+  stripLeadingGermanArticle,
   type TranslatorAdminContext,
 } from "../../convex/contentStudio/_translationCore";
+import {
+  ALL_TRANSLATOR_PROMPT_KEYS,
+  CS_PROMPT_KEYS,
+} from "../../convex/contentStudio/prompts";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
   mergePromptCognates,
@@ -132,6 +137,7 @@ describe("composeTranslatorSystemPrompt", () => {
     expect(iSkill).toBeGreaterThan(iBase);
     expect(iMem).toBeGreaterThan(iSkill);
     expect(iRetry).toBeGreaterThan(iMem);
+    expect(out).toContain("MUST use that German wording verbatim");
   });
 
   it("works with empty admin blocks", () => {
@@ -140,5 +146,37 @@ describe("composeTranslatorSystemPrompt", () => {
       memoryBlock: "",
     });
     expect(out).toBe("BASE ONLY");
+  });
+});
+
+describe("ALL_TRANSLATOR_PROMPT_KEYS", () => {
+  it("registers the five DB-only translator bases", () => {
+    expect(ALL_TRANSLATOR_PROMPT_KEYS).toEqual([
+      CS_PROMPT_KEYS.translatorMetadata,
+      CS_PROMPT_KEYS.translatorSection,
+      CS_PROMPT_KEYS.translatorVocab,
+      CS_PROMPT_KEYS.translatorTests,
+      CS_PROMPT_KEYS.translatorVerifier,
+    ]);
+  });
+});
+
+describe("stripLeadingGermanArticle", () => {
+  it("removes a leading definite article from a noun gloss", () => {
+    expect(stripLeadingGermanArticle("der Reisepass")).toBe("Reisepass");
+    expect(stripLeadingGermanArticle("die Frau")).toBe("Frau");
+    expect(stripLeadingGermanArticle("das Kind")).toBe("Kind");
+    expect(stripLeadingGermanArticle("Den Pass")).toBe("Pass");
+  });
+
+  it("leaves lemmas and phrases without a leading article unchanged", () => {
+    expect(stripLeadingGermanArticle("Reisepass")).toBe("Reisepass");
+    expect(stripLeadingGermanArticle("zu Fuß gehen")).toBe("zu Fuß gehen");
+    expect(stripLeadingGermanArticle("am Flughafen")).toBe("am Flughafen");
+    expect(stripLeadingGermanArticle("ein bisschen")).toBe("ein bisschen");
+  });
+
+  it("does not empty a field that is only an article", () => {
+    expect(stripLeadingGermanArticle("der")).toBe("der");
   });
 });

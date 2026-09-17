@@ -18,6 +18,7 @@ import {
   translateUnitMarkdownToEnglishIfNeeded,
 } from "./_shared";
 import { checkVocabularyCoverage } from "./_validatorHelpers";
+import { extractPageTexts, sliceReferenceSource } from "../../shared/contentStudio/referenceScope";
 import {
   getSpecialistUserPromptBase,
   buildCuratedSectionsBlock,
@@ -104,9 +105,31 @@ function sanitizeGuidelines(raw: string): string {
   return lines.slice(0, 25).join("\n").trim();
 }
 
-async function ensureReferenceGuidelines(ctx: any, refDoc: any, preferredProvider?: "gemini" | "openai") {
+async function ensureReferenceGuidelines(
+  ctx: any,
+  refDoc: any,
+  opts?: { chapter?: string; pages?: string; preferredProvider?: "gemini" | "openai" },
+) {
+  const preferredProvider = opts?.preferredProvider;
+  const chapter = String(opts?.chapter || "").trim() || undefined;
+  const pages = String(opts?.pages || "").trim() || undefined;
+  const cached = await ctx.runQuery(api.contentStudio.getReferenceGuidelineCache, {
+    referenceId: refDoc._id,
+    chapter,
+    pages,
+  });
+  if (cached?.guidelines) {
+    return {
+      guidelines: String(cached.guidelines),
+      provider: String(cached.provider || ""),
+      model: String(cached.model || ""),
+    };
+  }
+
   const existing = String(refDoc?.guidelines || "").trim();
-  if (existing) return { guidelines: existing, provider: String(refDoc?.guidelinesProvider || ""), model: String(refDoc?.guidelinesModel || "") };
+  if (existing && !chapter && !pages) {
+    return { guidelines: existing, provider: String(refDoc?.guidelinesProvider || ""), model: String(refDoc?.guidelinesModel || "") };
+  }
 
   const type = String(refDoc?.type || "");
   const url = String(refDoc?.downloadUrl || refDoc?.url || "").trim();
@@ -125,6 +148,7 @@ async function ensureReferenceGuidelines(ctx: any, refDoc: any, preferredProvide
   // Fetch PDF bytes (signed URL). Limit to reasonable file sizes (UI already restricts to 25MB).
   // Multi-PDF support: extract text from all PDFs (best-effort), then combine for summarization.
   const extractedParts: string[] = [];
+  const pageTexts: string[] = [];
   for (const pdfUrl of pdfUrls) {
     try {
       const res = await fetch(pdfUrl);
@@ -134,7 +158,10 @@ async function ensureReferenceGuidelines(ctx: any, refDoc: any, preferredProvide
       const parseFn: any = (pdfParse as any)?.default || (pdfParse as any);
       const parsed: any = await parseFn(buf);
       const txt = String(parsed?.text || "").trim();
-      if (txt) extractedParts.push(txt);
+      if (txt) {
+        extractedParts.push(txt);
+        pageTexts.push(...extractPageTexts(txt, typeof parsed?.numpages === "number" ? parsed.numpages : undefined));
+      }
     } catch {
       // ignore per-file parse errors
     }
@@ -149,10 +176,12 @@ async function ensureReferenceGuidelines(ctx: any, refDoc: any, preferredProvide
     return { guidelines: "", provider: "", model: "" };
   }
 
-  // Truncate input hard to avoid token blowups.
-  // IMPORTANT: Smaller cap reduces risk of verbatim overlap and token blowups.
-  const maxChars = 40000;
-  const sample = sourceText.length > maxChars ? `${sourceText.slice(0, maxChars)}\n[TRUNCATED]` : sourceText;
+  const sample = sliceReferenceSource({
+    text: sourceText,
+    chapter,
+    pages,
+    pageTexts: pageTexts.length > 0 ? pageTexts : undefined,
+  });
 
   const system = [
     `You are an expert instructional designer.`,
@@ -172,6 +201,8 @@ async function ensureReferenceGuidelines(ctx: any, refDoc: any, preferredProvide
 
   const user = [
     `REFERENCE MATERIAL (for inspiration only; do NOT quote):`,
+    chapter ? `Focus on chapter: ${chapter}` : "",
+    pages ? `Focus on pages: ${pages}` : "",
     sample,
     ``,
     `Write the guidelines now.`,
@@ -241,12 +272,22 @@ async function ensureReferenceGuidelines(ctx: any, refDoc: any, preferredProvide
   }
 
   if (guidelines) {
-    await ctx.runMutation(api.contentStudio.setReferenceGuidelines, {
+    await ctx.runMutation(api.contentStudio.upsertReferenceGuidelineCache, {
       referenceId: refDoc._id,
+      chapter,
+      pages,
       guidelines,
       provider,
       model,
     });
+    if (!chapter && !pages) {
+      await ctx.runMutation(api.contentStudio.setReferenceGuidelines, {
+        referenceId: refDoc._id,
+        guidelines,
+        provider,
+        model,
+      });
+    }
   }
 
   return { guidelines, provider, model };
@@ -365,7 +406,11 @@ export const runAiSpecialistGenerate = action({
     const refGuidelines = refDoc
       ? await (async () => {
           try {
-            const res = await ensureReferenceGuidelines(ctx, refDoc as any, (args.preferredProvider as any) || undefined);
+            const res = await ensureReferenceGuidelines(ctx, refDoc as any, {
+              chapter: String((d as any).inspirationRef?.chapter || "").trim() || undefined,
+              pages: String((d as any).inspirationRef?.pages || "").trim() || undefined,
+              preferredProvider: (args.preferredProvider as any) || undefined,
+            });
             return String(res?.guidelines || "").trim();
           } catch (e: any) {
             const msg = String(e?.message || e || "");

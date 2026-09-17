@@ -117,6 +117,31 @@ const PROMPT_CATEGORIES: PromptCategory[] = [
         label: "Section: Cultural Note",
         hint: "Section-specific editing prompt for the Cultural Note section.",
       },
+      {
+        key: "cs_translator_metadata",
+        label: "Translator: Metadata",
+        hint: "EN→DE system prompt for unit title, description, topics, grammar focus, vocabulary themes.",
+      },
+      {
+        key: "cs_translator_section",
+        label: "Translator: Section markdown",
+        hint: "EN→DE system prompt for one unit markdown section (overview, grammar, phrases, …).",
+      },
+      {
+        key: "cs_translator_vocab",
+        label: "Translator: Vocabulary",
+        hint: "SR/EN→DE system prompt for course vocabulary rows (de, noteDe).",
+      },
+      {
+        key: "cs_translator_tests",
+        label: "Translator: Interactive tests",
+        hint: "EN→DE system prompt for test questions, hints and category instructions.",
+      },
+      {
+        key: "cs_translator_verifier",
+        label: "Translator: DE verifier",
+        hint: "Reviewer prompt that checks German against Serbian after translation. Not the EN Lector.",
+      },
     ],
   },
   {

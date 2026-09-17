@@ -2274,6 +2274,8 @@
   "admin.contentStudio.promptPreview.roleLector": "Lektor",
   "admin.contentStudio.promptPreview.baseSystemPrompt": "Basis-System-Prompt",
   "admin.contentStudio.promptPreview.sectionPrompts": "Abschnitts-Prompts",
+  "admin.contentStudio.promptPreview.translatorPrompts": "Übersetzer-Prompts",
+  "admin.contentStudio.promptPreview.translatorCount": "{{n}} Prompts",
   "admin.contentStudio.promptPreview.sectionsCount": "{{n}} Abschnitte",
   "admin.contentStudio.promptPreview.activeSkills": "Aktiver Hausstil (Skills)",
   "admin.contentStudio.promptPreview.referenceGuidelines": "Referenz-Richtlinien",

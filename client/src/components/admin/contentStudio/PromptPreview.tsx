@@ -23,6 +23,7 @@ export interface PromptPreviewProps {
     skillsBlock: string | null;
     referenceBlock: string | null;
     sectionPrompts: Record<string, string | { content: string; source: string }>;
+    translatorPrompts?: Record<string, { content: string; source: string; key: string }>;
     source: { base: string };
   } | null | undefined;
 }
@@ -92,9 +93,12 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
     source: typeof val === "string" ? "missing" : val.source,
   }));
 
+  const translatorEntries = Object.values(promptPreview.translatorPrompts ?? {});
+
   const hasMissing =
     (roles && Object.values(roles).some((r) => r.source === "missing")) ||
-    sectionEntries.some((e) => e.source === "missing");
+    sectionEntries.some((e) => e.source === "missing") ||
+    translatorEntries.some((e) => e.source === "missing");
 
   return (
     <div className="space-y-4">
@@ -147,6 +151,35 @@ export function PromptPreview({ promptPreview }: PromptPreviewProps) {
           )}
         </CardContent>
       </Card>
+
+      {translatorEntries.length > 0 && (
+        <Card>
+          <CardContent className="pt-4 pb-2">
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+              <Layers className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {t("admin.contentStudio.promptPreview.translatorPrompts", "Translator prompts")}
+              </span>
+              <Badge variant="secondary" className="text-[10px] ml-auto">
+                {t("admin.contentStudio.promptPreview.translatorCount", {
+                  defaultValue: "{{n}} prompts",
+                  n: translatorEntries.length,
+                })}
+              </Badge>
+            </div>
+            {translatorEntries.map((entry) => (
+              <PromptStatusRow
+                key={entry.key}
+                icon={<span className="h-4 w-4" />}
+                label={entry.key.replace("cs_translator_", "")}
+                dbKey={entry.key}
+                source={entry.source}
+                charCount={entry.content.length}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {sectionEntries.length > 0 && (
         <Card>

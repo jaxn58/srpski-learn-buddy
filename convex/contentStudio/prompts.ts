@@ -12,6 +12,11 @@ export type ContentStudioPromptKey =
   | "cs_lector"
   | "cs_brief_assistant"
   | "cs_language_rules"
+  | "cs_translator_metadata"
+  | "cs_translator_section"
+  | "cs_translator_vocab"
+  | "cs_translator_tests"
+  | "cs_translator_verifier"
   | `cs_section_${string}`;
 
 export const CS_PROMPT_KEYS = {
@@ -25,8 +30,21 @@ export const CS_PROMPT_KEYS = {
    * appended to Creator, Section revise, Finding fixer and Lector when present.
    */
   languageRules: "cs_language_rules",
+  translatorMetadata: "cs_translator_metadata",
+  translatorSection: "cs_translator_section",
+  translatorVocab: "cs_translator_vocab",
+  translatorTests: "cs_translator_tests",
+  translatorVerifier: "cs_translator_verifier",
   section: (id: SectionId) => `cs_section_${id}` as const,
 } as const;
+
+export const ALL_TRANSLATOR_PROMPT_KEYS = [
+  CS_PROMPT_KEYS.translatorMetadata,
+  CS_PROMPT_KEYS.translatorSection,
+  CS_PROMPT_KEYS.translatorVocab,
+  CS_PROMPT_KEYS.translatorTests,
+  CS_PROMPT_KEYS.translatorVerifier,
+] as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ALL SECTION IDs that need a prompt in the DB (for validation/preview)
@@ -123,6 +141,14 @@ export const getSpecialistUserPromptBase = (
   `## 5. Interactive Test (Exercises)`,
   `Optional:`,
   `## 6. Cultural Note: <Title>`,
+  ``,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `AUTHOR NOTE`,
+  `═══════════════════════════════════════════════════════════════════════════`,
+  `Author name: ${String((d as any).authorNoteName || "Jacksenn").trim() || "Jacksenn"}`,
+  String((d as any).authorNoteQuote || "").trim()
+    ? `A handwritten author quote exists. Do NOT write "A Note from the Founder" and do NOT invent a personal anecdote or quote. The pipeline inserts the handwritten note.`
+    : `No handwritten quote. Under Overview write #### Why this unit matters with 2-3 English sentences about why this unit matters. Do NOT write "A Note from the Founder" and do NOT invent a personal quote.`,
   ``,
   creatorBriefBlock ? `${creatorBriefBlock}\n` : ``,
   curatedSectionsBlock ? `${curatedSectionsBlock}\n` : ``,

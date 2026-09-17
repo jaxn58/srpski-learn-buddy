@@ -11,6 +11,7 @@ import { MODEL_PRICING } from "../ai/modelPricing";
 import { CS_PROMPT_KEYS } from "./prompts";
 import { parseBriefText } from "../../shared/contentStudio/briefTemplate";
 import { resolveVocabularyBudget } from "../../shared/contentStudio/vocabularyBudget";
+import { hasWhyThisUnitMattersBlock, whyThisUnitMattersBlock } from "../../shared/contentStudio/authorNote";
 
 export type DraftStatus =
   | "draft"
@@ -760,6 +761,21 @@ export function hasFounderNoteBlock(markdown: string): boolean {
   );
 }
 
+export function upsertWhyThisUnitMattersBlock(md: string, description?: string): string {
+  const next = String(md || "").replace(/\r\n/g, "\n");
+  if (hasWhyThisUnitMattersBlock(next)) return next;
+
+  const block = whyThisUnitMattersBlock(description);
+  const overviewHeader = next.match(/^##\s+1\.\s+Overview\b.*$/m);
+  if (overviewHeader?.index != null) {
+    const insertAt = overviewHeader.index + overviewHeader[0].length;
+    const after = next.slice(insertAt);
+    const normalizedAfter = after.replace(/^\n+/, "\n\n");
+    return `${next.slice(0, insertAt)}\n\n${block}${normalizedAfter}`;
+  }
+  return `${block}\n${next}`.trimStart();
+}
+
 export async function ensureFounderNoteInMarkdownIfConfigured(
   ctx: ActionCtx,
   draft: any,
@@ -768,7 +784,16 @@ export async function ensureFounderNoteInMarkdownIfConfigured(
 ): Promise<string> {
   const name = String(draft?.authorNoteName || "").trim();
   const quoteRaw = String(draft?.authorNoteQuote || "").trim();
-  if (!name || !quoteRaw) return markdown;
+
+  if (!quoteRaw) {
+    const stripped = upsertFounderNoteBlock(markdown, "", "");
+    const next = upsertWhyThisUnitMattersBlock(stripped, draft?.description);
+    const structure = validateMarkdownStructure(next);
+    if (!structure.valid) {
+      throw new Error(`Why-this-unit-matters injection produced invalid Markdown structure: ${structure.errors.join("; ")}`);
+    }
+    return next;
+  }
 
   // A note that is already present stays EXACTLY as it is. The quote is
   // translated by an LLM, and a fresh translation words itself differently on
@@ -781,7 +806,7 @@ export async function ensureFounderNoteInMarkdownIfConfigured(
   if (hasFounderNoteBlock(markdown)) return markdown;
 
   const quoteEn = await translateShortToEnglishIfNeeded(ctx, quoteRaw, preferredProvider);
-  const next = upsertFounderNoteBlock(markdown, name, quoteEn);
+  const next = upsertFounderNoteBlock(markdown, name || "Jacksenn", quoteEn);
   const structure = validateMarkdownStructure(next);
   if (!structure.valid) {
     throw new Error(`Founder note injection produced invalid Markdown structure: ${structure.errors.join("; ")}`);

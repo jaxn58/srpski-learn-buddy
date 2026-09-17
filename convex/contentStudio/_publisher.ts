@@ -7,7 +7,9 @@ import { autofixUnitPackage } from "../../scripts/unitPackage/autofix";
 import {
   verifySerbianGermanAlignment,
   formatRetryFeedback,
+  applyDeterministicVerifierSuggestions,
   type VerifierReport,
+  type VerifierIssue,
 } from "./_verifier";
 import {
   buildSerbianContextBlock,
@@ -453,6 +455,9 @@ export const translatePublishedUnitEnToDe = action({
     const fallbackProvider = pickFallbackProvider(primaryProvider);
     const aiOpts: AiCallOptions = { primaryProvider, fallbackProvider };
     const serbianContextBlock = buildSerbianContextBlock(source as any);
+    const authorNote = await ctx.runQuery(api.contentStudio.getAuthorNoteForUnit, { unitNumber });
+    const originalAuthorQuote =
+      authorNote?.language === "de" ? authorNote.quote : undefined;
 
     // 1) Metadata (EN -> DE), trilingual prompt (SR primary).
     const metaAi = await runMetadataTranslation(ctx, {
@@ -473,6 +478,7 @@ export const translatePublishedUnitEnToDe = action({
         markdownEn: mdEn,
         unitNumber,
         ai: aiOpts,
+        originalAuthorQuote,
       });
       stepLogs.push(sectionLog);
       contentDe.push(buildContentDeForSection(row, mdDe, targetReleaseStatus, previewUnitVersion));
@@ -555,11 +561,27 @@ export const translatePublishedUnitEnToDe = action({
       };
     }
 
-    // Pass 2: auto-retry only critically-failed items, once, with feedback.
+    // Pass 2: first apply concrete Suggested-German patches in place, then
+    // AI-retry only the criticals that could not be patched deterministically.
     if (verifierReport && verifierReport.criticals.length > 0) {
       retryAttempted = true;
-      const feedback = formatRetryFeedback(verifierReport.criticals);
-      const retriedKeys = new Set<string>();
+
+      const det = applyDeterministicVerifierSuggestions({
+        issues: verifierReport.criticals,
+        state: { contentDe, testsDe, vocabularyDe: vocabDe },
+      });
+      contentDe = det.state.contentDe;
+      testsDe = det.state.testsDe;
+      vocabDe = det.state.vocabularyDe as VocabTranslationResult[];
+      if (det.patchedKeys.length > 0) {
+        console.log(
+          `[Translation Verifier pass2] Unit ${unitNumber}: deterministic patch applied to ${det.patchedKeys.join(", ")}`
+        );
+      }
+
+      const criticalsForAi: VerifierIssue[] = det.remainingIssues;
+      const feedback = formatRetryFeedback(criticalsForAi);
+      const retriedKeys = new Set<string>(det.patchedKeys);
 
       if (feedback.metadata) {
         try {
@@ -578,7 +600,7 @@ export const translatePublishedUnitEnToDe = action({
       }
 
       const criticalVocabIds = new Set(
-        verifierReport.criticals
+        criticalsForAi
           .filter((c) => c.itemKind === "vocabulary")
           .map((c) => c.itemKey.replace(/^vocab:/, ""))
       );
@@ -609,7 +631,7 @@ export const translatePublishedUnitEnToDe = action({
       }
 
       const criticalTestIds = new Set(
-        verifierReport.criticals
+        criticalsForAi
           .filter((c) => c.itemKind === "test")
           .map((c) => c.itemKey.replace(/^test:/, ""))
       );
@@ -637,9 +659,14 @@ export const translatePublishedUnitEnToDe = action({
             testsDe = testsDe.map((existing: any) => {
               if (String(existing.category ?? "") !== cat) return existing;
               const qid = String(existing.questionId ?? "");
+              // Keep deterministically patched questions; only replace AI-retry targets.
+              if (!criticalTestIds.has(qid)) return existing;
               return producedByQid.has(qid) ? producedByQid.get(qid) : existing;
             });
-            for (const q of bucket.questions) retriedKeys.add(`test:${String(q.questionId)}`);
+            for (const q of bucket.questions) {
+              const qid = String(q.questionId);
+              if (criticalTestIds.has(qid)) retriedKeys.add(`test:${qid}`);
+            }
           } catch (e: any) {
             console.warn(`[Translation Verifier pass2] tests retry (category=${cat}) failed:`, e?.message || e);
           }
@@ -658,6 +685,7 @@ export const translatePublishedUnitEnToDe = action({
               unitNumber,
               ai: aiOpts,
               retryFeedback: feedback.sectionByContentType[ct],
+              originalAuthorQuote,
             });
             stepLogs.push(sectionLog);
             contentDe = contentDe.map((existing) =>
@@ -877,21 +905,45 @@ export const retryDeTranslationForSelectedIssues = action({
     const fallbackProvider = pickFallbackProvider(primaryProvider);
     const aiOpts: AiCallOptions = { primaryProvider, fallbackProvider };
     const serbianContextBlock = buildSerbianContextBlock(source as any);
+    const authorNote = await ctx.runQuery(api.contentStudio.getAuthorNoteForUnit, { unitNumber });
+    const originalAuthorQuote =
+      authorNote?.language === "de" ? authorNote.quote : undefined;
 
-    // 4) Format retry feedback (groups issues by kind + adds severity tags).
-    const feedback = formatRetryFeedback(args.selectedIssues as any);
+    // 4) Deterministic patches first (concrete Suggested German), then AI for the rest.
+    const selectedAsIssues: VerifierIssue[] = args.selectedIssues.map((i) => ({
+      itemKey: i.itemKey,
+      itemLabel: i.itemLabel,
+      itemKind: i.itemKind,
+      severity: i.severity,
+      code: "manual_retry",
+      issue: i.issue,
+      suggestion: i.suggestion,
+    }));
+    const det = applyDeterministicVerifierSuggestions({
+      issues: selectedAsIssues,
+      state: {
+        contentDe: Array.isArray(currentDe.contentDe) ? currentDe.contentDe : [],
+        testsDe: Array.isArray(currentDe.testsDe) ? currentDe.testsDe : [],
+        vocabularyDe: Array.isArray(currentDe.vocabularyDe) ? currentDe.vocabularyDe : [],
+      },
+    });
+    if (det.patchedKeys.length > 0) {
+      console.log(
+        `[Manual Retry] Unit ${unitNumber}: deterministic patch applied to ${det.patchedKeys.join(", ")}`
+      );
+    }
+
+    const feedback = formatRetryFeedback(det.remainingIssues);
 
     // 5) Clone the current DE state so we can selectively replace items.
     let metadataDe: any = { ...(currentDe.metadataDe ?? {}) };
-    let contentDe: any[] = Array.isArray(currentDe.contentDe) ? currentDe.contentDe.slice() : [];
-    let testsDe: any[] = Array.isArray(currentDe.testsDe) ? currentDe.testsDe.slice() : [];
-    let vocabDe: VocabTranslationResult[] = Array.isArray(currentDe.vocabularyDe)
-      ? currentDe.vocabularyDe.slice()
-      : [];
-    const retriedKeys = new Set<string>();
+    let contentDe: any[] = det.state.contentDe.slice();
+    let testsDe: any[] = det.state.testsDe.slice();
+    let vocabDe: VocabTranslationResult[] = det.state.vocabularyDe.slice() as VocabTranslationResult[];
+    const retriedKeys = new Set<string>(det.patchedKeys);
 
     // ── Metadata retry ──────────────────────────────────────────────────────
-    const hasMetadataSelected = args.selectedIssues.some((i) => i.itemKind === "metadata");
+    const hasMetadataSelected = det.remainingIssues.some((i) => i.itemKind === "metadata");
     if (hasMetadataSelected && feedback.metadata) {
       try {
         const retryAi = await runMetadataTranslation(ctx, {
@@ -910,7 +962,7 @@ export const retryDeTranslationForSelectedIssues = action({
 
     // ── Vocabulary retry (per-id) ───────────────────────────────────────────
     const vocabIdsToRetry = new Set(
-      args.selectedIssues
+      det.remainingIssues
         .filter((i) => i.itemKind === "vocabulary")
         .map((i) => String(i.itemKey).replace(/^vocab:/, ""))
     );
@@ -942,7 +994,7 @@ export const retryDeTranslationForSelectedIssues = action({
 
     // ── Tests retry (by affected category, consistent with Pass 2) ──────────
     const testQidsToRetry = new Set(
-      args.selectedIssues
+      det.remainingIssues
         .filter((i) => i.itemKind === "test")
         .map((i) => String(i.itemKey).replace(/^test:/, ""))
     );
@@ -982,9 +1034,13 @@ export const retryDeTranslationForSelectedIssues = action({
           testsDe = testsDe.map((existing: any) => {
             if (String(existing.category ?? "") !== cat) return existing;
             const qid = String(existing.questionId ?? "");
+            if (!testQidsToRetry.has(qid)) return existing;
             return producedByQid.has(qid) ? producedByQid.get(qid) : existing;
           });
-          for (const q of bucket.questions) retriedKeys.add(`test:${String(q.questionId)}`);
+          for (const q of bucket.questions) {
+            const qid = String(q.questionId);
+            if (testQidsToRetry.has(qid)) retriedKeys.add(`test:${qid}`);
+          }
         } catch (e: any) {
           console.warn(`[Manual Retry] tests retry (category=${cat}) failed:`, e?.message || e);
         }
@@ -993,7 +1049,7 @@ export const retryDeTranslationForSelectedIssues = action({
 
     // ── Section retry (by contentType) ──────────────────────────────────────
     const sectionTypesToRetry = new Set<string>();
-    for (const i of args.selectedIssues) {
+    for (const i of det.remainingIssues) {
       if (i.itemKind !== "section") continue;
       const m = String(i.itemKey).match(/^section:(.+)$/);
       if (m && m[1]) sectionTypesToRetry.add(m[1]);
@@ -1010,6 +1066,7 @@ export const retryDeTranslationForSelectedIssues = action({
             unitNumber,
             ai: aiOpts,
             retryFeedback: fb,
+            originalAuthorQuote,
           });
           stepLogs.push(sectionLog);
           contentDe = contentDe.map((existing) =>

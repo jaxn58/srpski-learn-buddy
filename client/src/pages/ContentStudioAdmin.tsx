@@ -152,7 +152,6 @@ export default function ContentStudioAdmin() {
   const runSectionRevise = useAction(api.contentStudio.runSectionRevise);
   const addDialogue = useAction(api.contentStudio.addDialogue);
   const saveMarkdownSnapshot = useAction(api.contentStudio.saveMarkdownSnapshot);
-  const translateToEnglish = useAction(api.contentStudio._creator.translateToEnglish);
   const createDraftPreview = useAction(api.contentStudio.createDraftPreview);
   const takeUnitPreviewOfflineByUnitNumber = useAction(api.contentStudio.takeUnitPreviewOfflineByUnitNumber);
   const translatePublishedUnitEnToDe = useAction(api.contentStudio.translatePublishedUnitEnToDe);
@@ -1633,15 +1632,6 @@ export default function ContentStudioAdmin() {
     await runGenerateFlow(false);
   };
 
-  const looksGerman = (text: string): boolean => {
-    const s = String(text || "");
-    if (!s.trim()) return false;
-    if (/[äöüßÄÖÜ]/.test(s)) return true;
-    const hits = (s.toLowerCase().match(/\b(und|oder|wenn|nicht|aber|dann|weil|zum|zur|der|die|das|du|ihr|euch)\b/g) || [])
-      .length;
-    return hits >= 2;
-  };
-
   const upsertFounderNoteInMarkdown = (md: string, name: string, quote: string) => {
     const safeName = String(name || "").trim().replace(/^"+|"+$/g, "");
     const safeQuote = String(quote || "").trim();
@@ -1681,24 +1671,11 @@ export default function ContentStudioAdmin() {
   const handleFounderQuoteBlur = async () => {
     const name = String(draftAuthorNoteName || "").trim();
     const quoteRaw = String(draftAuthorNoteQuote || "").trim();
-    if (!name || !quoteRaw) return;
-
-    let quote = quoteRaw;
-    try {
-      if (looksGerman(quoteRaw)) {
-        const res = await translateToEnglish({ text: quoteRaw } as any);
-        const english = String((res as any)?.english || "").trim();
-        if (english) {
-          quote = english;
-          // Persist in UI state so future inserts are English
-          setDraftAuthorNoteQuote(english);
-        }
-      }
-    } catch {
-      // no hard-fail; just keep original text
+    if (!quoteRaw) {
+      maybeApplyFounderNoteToMarkdown(name, "");
+      return;
     }
-
-    maybeApplyFounderNoteToMarkdown(name, quote);
+    maybeApplyFounderNoteToMarkdown(name, quoteRaw);
   };
 
   const handleDeleteSelectedDraft = () => {

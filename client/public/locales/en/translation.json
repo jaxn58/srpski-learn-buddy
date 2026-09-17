@@ -2333,6 +2333,8 @@
   "admin.contentStudio.promptPreview.roleLector": "Lector",
   "admin.contentStudio.promptPreview.baseSystemPrompt": "Base system prompt",
   "admin.contentStudio.promptPreview.sectionPrompts": "Section prompts",
+  "admin.contentStudio.promptPreview.translatorPrompts": "Translator prompts",
+  "admin.contentStudio.promptPreview.translatorCount": "{{n}} prompts",
   "admin.contentStudio.promptPreview.sectionsCount": "{{n}} sections",
   "admin.contentStudio.promptPreview.activeSkills": "Active house style (skills)",
   "admin.contentStudio.promptPreview.referenceGuidelines": "Reference guidelines",

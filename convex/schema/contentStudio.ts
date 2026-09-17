@@ -151,6 +151,20 @@ export const contentStudioTables = {
     .index("by_reference", ["referenceId"])
     .index("by_reference_version", ["referenceId", "version"]),
 
+  // Distilled guidelines scoped to a chapter/page range of one reference.
+  // "all" is the whole-document fallback; chapter/pages come from the draft.
+  contentStudioReferenceGuidelineCache: defineTable({
+    referenceId: v.id("contentStudioReferences"),
+    scopeKey: v.string(),
+    chapter: v.optional(v.string()),
+    pages: v.optional(v.string()),
+    guidelines: v.string(),
+    provider: v.optional(v.string()),
+    model: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_reference_scope", ["referenceId", "scopeKey"]),
+
   contentDraftTemplates: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
@@ -274,6 +288,8 @@ export const contentStudioTables = {
     // Public unit author note (optional; intended to be inserted into Markdown)
     authorNoteName: v.optional(v.string()),
     authorNoteQuote: v.optional(v.string()),
+    // Language of the handwritten quote. EN track may translate; DE keeps original.
+    authorNoteQuoteLang: v.optional(v.union(v.literal("en"), v.literal("de"))),
 
     // Publish-Timeout-Fix: explicit state of the last preview-creation run so
     // admins can see progress and failures in the Content Studio UI without
