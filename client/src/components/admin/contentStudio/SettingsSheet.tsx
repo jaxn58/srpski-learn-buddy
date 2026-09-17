@@ -53,6 +53,11 @@ import {
   stageOrderedModels,
 } from "./constants";
 import { ModelTierBadge } from "./ModelTierBadge";
+import {
+  DEFAULT_VOCABULARY_BUDGET,
+  MAX_VOCABULARY_BUDGET,
+  MIN_VOCABULARY_BUDGET,
+} from "@shared/contentStudio/vocabularyBudget";
 
 export interface SettingsSheetProps {
   settingsOpen: boolean;
@@ -72,6 +77,9 @@ export interface SettingsSheetProps {
   setCfgAuditorModel: Dispatch<SetStateAction<string>>;
   cfgAuditorCustom: boolean;
   setCfgAuditorCustom: Dispatch<SetStateAction<boolean>>;
+  /** Vocabulary guideline per unit; kept as text so the field can be cleared. */
+  cfgVocabularyBudget: string;
+  setCfgVocabularyBudget: Dispatch<SetStateAction<string>>;
   onSaveModelConfig: () => void | Promise<void>;
 
   skillsStage: StageKey;
@@ -165,6 +173,8 @@ export function SettingsSheet(props: SettingsSheetProps) {
     setCfgAuditorModel,
     cfgAuditorCustom,
     setCfgAuditorCustom,
+    cfgVocabularyBudget,
+    setCfgVocabularyBudget,
     onSaveModelConfig,
     skillsStage,
     setSkillsStage,
@@ -479,6 +489,43 @@ export function SettingsSheet(props: SettingsSheetProps) {
                       "admin.contentStudio.settings.providerFallbackNote",
                       "Note: if the selected provider key is not configured, the system automatically falls back to the other provider (if available)."
                     )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>
+                    {tr("admin.contentStudio.settings.unitSizeTitle", "Unit size")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="cs-vocabulary-budget">
+                      {tr("admin.contentStudio.settings.vocabularyBudget", "Vocabulary guideline per unit")}
+                    </Label>
+                    <Input
+                      id="cs-vocabulary-budget"
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_VOCABULARY_BUDGET}
+                      max={MAX_VOCABULARY_BUDGET}
+                      className="max-w-[160px]"
+                      value={cfgVocabularyBudget}
+                      onChange={(e) => setCfgVocabularyBudget(e.target.value)}
+                      placeholder={String(DEFAULT_VOCABULARY_BUDGET)}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {tr(
+                        "admin.contentStudio.settings.vocabularyBudgetHelp",
+                        "How many new words a unit should introduce. This is a guideline, not a limit: words needed for grammar, dialogues or exercises are always listed, even above the guideline. You can override it for a single unit in its briefing.",
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button variant="secondary" onClick={onSaveModelConfig}>
+                      {tr("admin.contentStudio.settings.saveUnitSize", "Save")}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

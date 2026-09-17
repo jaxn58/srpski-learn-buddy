@@ -27,11 +27,21 @@ export interface CuratedSectionEntryShape {
   sourceSnapshotId?: string;
 }
 
+export interface PendingRevisionShape {
+  section: string;
+  instruction: string;
+  at?: number;
+}
+
 export interface CuratedSectionsPanelProps {
   curatedSections: CuratedSectionEntryShape[] | undefined;
   briefVersions: BriefVersionShape[] | undefined;
   moduleNumber?: number | string | null;
   unitNumber?: number | string | null;
+  /** Revisions saved before automatic adoption existed (or whose adoption failed). */
+  pendingRevisions?: PendingRevisionShape[];
+  onAdoptPending?: () => void;
+  adoptingPending?: boolean;
 }
 
 /**
@@ -64,6 +74,9 @@ export function CuratedSectionsPanel({
   briefVersions,
   moduleNumber,
   unitNumber,
+  pendingRevisions,
+  onAdoptPending,
+  adoptingPending,
 }: CuratedSectionsPanelProps) {
   const { t } = useTranslation();
   const sectionLabel = useSectionLabel();
@@ -92,27 +105,68 @@ export function CuratedSectionsPanel({
   };
 
   const adopted = SECTION_OPTIONS.filter((s) => bySection.has(s.value));
-
-  if (adopted.length === 0) return null;
+  const pending = (pendingRevisions ?? []).filter((p) => p.instruction?.trim());
 
   return (
-    <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+    <section className="space-y-3 rounded-lg border bg-card p-4 sm:p-5">
       <div className="flex items-center justify-between gap-2">
-        <Label className="font-semibold">
-          {t("admin.contentStudio.curated.title", "Curated sections (adopted from Markdown)")}
-        </Label>
-        <Badge variant="secondary" className="text-[10px] shrink-0">
-          {adopted.length}
-        </Badge>
+        <div>
+          <Label className="text-base font-semibold">
+            {t("admin.contentStudio.curated.title", "Sections anchored in the Briefing")}
+          </Label>
+          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
+            {t(
+              "admin.contentStudio.curated.subtitle",
+              "Sections you revised with an instruction (Review step, \"Edit section\"). The Creator keeps them in every future run instead of rewriting them.",
+            )}
+          </p>
+        </div>
+        {adopted.length > 0 && (
+          <Badge variant="secondary" className="text-xs shrink-0">
+            {adopted.length}
+          </Badge>
+        )}
       </div>
-      <p className="text-[11px] text-muted-foreground leading-relaxed">
-        <Trans
-          i18nKey="admin.contentStudio.curated.description"
-          defaults="Read-only. Each entry shows the author <em>instruction</em> that caused the section revision (the cause) and the resulting rendered Markdown (the effect). Both are anchored in the Briefing so a future Creator run can build on them. To change a section, revise it in the Generator and <em>Adopt into Briefing</em> again — or select an older briefing version above."
-          components={{ em: <span className="font-medium" /> }}
-        />
-      </p>
 
+      {pending.length > 0 && (
+        <div className="rounded-md border border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm space-y-2">
+          <div className="font-medium">
+            {t("admin.contentStudio.curated.pendingTitle", {
+              defaultValue: "{{n}} revised section(s) not yet in the Briefing",
+              n: pending.length,
+            })}
+          </div>
+          <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+            {pending.map((p) => (
+              <li key={p.section}>
+                <span className="text-foreground">{sectionLabel(p.section)}</span>: <span className="italic">{p.instruction}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "admin.contentStudio.curated.pendingHint",
+              "These were revised before automatic adoption existed. Adopt them now, otherwise the next Creator run discards them.",
+            )}
+          </p>
+          {onAdoptPending && (
+            <Button size="sm" onClick={onAdoptPending} disabled={adoptingPending}>
+              {t("admin.contentStudio.curated.adoptNow", "Adopt into Briefing now")}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {adopted.length === 0 && pending.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          {t(
+            "admin.contentStudio.curated.empty",
+            "Nothing anchored yet. Revise a section in the Review step and it appears here automatically.",
+          )}
+        </p>
+      )}
+
+      {adopted.length > 0 && (
       <Accordion type="multiple" className="w-full">
         {adopted.map((opt) => {
           const entry = bySection.get(opt.value)!;
@@ -235,6 +289,7 @@ export function CuratedSectionsPanel({
           );
         })}
       </Accordion>
-    </div>
+      )}
+    </section>
   );
 }

@@ -3,6 +3,7 @@ import { query, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { requireSuperadmin } from "./_shared";
 import { isPublishedStatus, isPreviewStatus } from "./_shared";
+import { DEFAULT_VOCABULARY_BUDGET } from "../../shared/contentStudio/vocabularyBudget";
 import type { Doc, Id } from "../_generated/dataModel";
 import {
   CS_PROMPT_KEYS,
@@ -421,7 +422,24 @@ export const getModelConfig = query({
     const cfg = await ctx.db.query("contentStudioConfig").order("desc").first();
     if (!cfg) return null;
     // Fixer stage removed: expose only Creator (specialist) + Lector (auditor).
-    return { specialist: cfg.specialist, auditor: cfg.auditor };
+    return {
+      specialist: cfg.specialist,
+      auditor: cfg.auditor,
+      vocabularyBudget: cfg.vocabularyBudget ?? DEFAULT_VOCABULARY_BUDGET,
+    };
+  },
+});
+
+/**
+ * Studio-wide vocabulary guideline, for AI stages that need it without an
+ * admin session (Creator prompt, Validator hint).
+ */
+export const getVocabularyBudgetSetting = internalQuery({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const cfg = await ctx.db.query("contentStudioConfig").order("desc").first();
+    return cfg?.vocabularyBudget ?? DEFAULT_VOCABULARY_BUDGET;
   },
 });
 

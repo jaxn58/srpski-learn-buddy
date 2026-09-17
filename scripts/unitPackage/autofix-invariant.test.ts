@@ -218,6 +218,29 @@ describe("autofixUnitPackage invariant: no template finding on autofix-touched p
     assertInvariant(pkg);
   });
 
+  it("does not split a slash inside brackets (qualifier, not two meanings)", () => {
+    // Regression: "you are (formal/plural)" used to become "you are (formal" +
+    // "AlsoMeaning: plural)" and sent Lector and fixer into an endless loop.
+    const pkg = makeBasePackage({
+      vocabulary: {
+        en: [
+          { serbian: "vi ste", en: "you are (formal/plural)" },
+          { serbian: "vi", en: "you (plural/formal)" },
+          { serbian: "kafa", en: "coffee (drink/beverage) / brew" },
+        ],
+      },
+    });
+    const { fixed } = autofixUnitPackage(pkg);
+    expect(fixed.vocabulary.en[0].en).toBe("you are (formal/plural)");
+    expect(fixed.vocabulary.en[0].noteEn ?? "").not.toMatch(/AlsoMeaning/);
+    expect(fixed.vocabulary.en[1].en).toBe("you (plural/formal)");
+    expect(fixed.vocabulary.en[1].noteEn ?? "").not.toMatch(/AlsoMeaning/);
+    // A slash OUTSIDE the brackets is still a real alternative.
+    expect(fixed.vocabulary.en[2].en).toBe("coffee (drink/beverage)");
+    expect(fixed.vocabulary.en[2].noteEn ?? "").toMatch(/AlsoMeaning: brew/);
+    assertInvariant(pkg);
+  });
+
   it("leaves canonical 'AlsoMeaning:' untouched and produces no finding", () => {
     const pkg = makeBasePackage({
       vocabulary: {

@@ -15,14 +15,35 @@ export interface DraftLike {
 export interface FindingLike {
   stage?: string;
   severity?: string;
+  code?: string;
   dismissed?: boolean;
 }
 
-/** Findings the author still has to act on. Info notes are not actionable. */
+/**
+ * Lector codes that describe a defect rather than a matter of taste. Only
+ * these gate the workflow: STYLE_SUGGESTION is endless by nature (there is
+ * always something to polish), so it is shown but never blocks a preview.
+ */
+export const OBJECTIVE_FINDING_CODES = [
+  "SERBIAN_ERROR",
+  "TRANSLATION_MISMATCH",
+  "CULTURAL_FACT_RISK",
+  "DIDACTIC_GAP",
+] as const;
+
+/** A finding the author has to act on (as opposed to may act on). */
+export function isObjectiveFinding(f: FindingLike): boolean {
+  if (f.dismissed) return false;
+  if (f.severity === "error") return true;
+  if (f.severity !== "warning") return false;
+  // Validator warnings are structural (parser/schema), always objective.
+  if (f.stage === "validator") return true;
+  return (OBJECTIVE_FINDING_CODES as readonly string[]).includes(String(f.code ?? ""));
+}
+
+/** Findings the author still has to act on. Style and info notes excluded. */
 export function countOpenFindings(findings: FindingLike[] | undefined): number {
-  return (findings ?? []).filter(
-    (f) => (f.severity === "error" || f.severity === "warning") && !f.dismissed,
-  ).length;
+  return (findings ?? []).filter(isObjectiveFinding).length;
 }
 
 /**

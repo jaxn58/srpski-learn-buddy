@@ -29,7 +29,7 @@ import { BriefVersionsPanel, type BriefVersionShape } from "./BriefVersionsPanel
 import { CuratedSectionsPanel, type CuratedSectionEntryShape } from "./CuratedSectionsPanel";
 import { useTranslation } from "react-i18next";
 import { BriefWorkflow } from "./BriefWorkflow";
-import { DraftExtras } from "./DraftExtras";
+import { AuthorNoteField, DraftExtras } from "./DraftExtras";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "./utils/briefVersionLabel";
 
 export interface DraftEditPanelCreateParams {
@@ -105,6 +105,10 @@ export interface DraftEditPanelProps {
   onSaveDraftSkillsAndReference: () => void;
   /** Save unit settings and immediately run Creator -> Validator -> Lector. */
   onSaveAndGenerate: () => Promise<void>;
+  /** Section revisions not yet adopted into the Briefing (legacy or failed auto-adoption). */
+  pendingSectionRevisions?: Array<{ section: string; instruction: string; at?: number }>;
+  onAdoptPendingSections?: () => void;
+  adoptingPendingSections?: boolean;
   hasUnsavedChanges: boolean;
   metaAutosaveStatus: "idle" | "saving" | "error";
   metaAutosavedAt: number | null;
@@ -364,11 +368,16 @@ function CreateForm({
               auditorSkills={auditorSkills}
               specialistSkillIds={specialistSkillIds} setSpecialistSkillIds={setSpecialistSkillIds}
               auditorSkillIds={auditorSkillIds} setAuditorSkillIds={setAuditorSkillIds}
-              authorNoteName={authorNoteName} setAuthorNoteName={setAuthorNoteName}
-              authorNoteQuote={authorNoteQuote} setAuthorNoteQuote={setAuthorNoteQuote}
               idPrefix="create"
             />
           </>
+        }
+        belowResult={
+          <AuthorNoteField
+            authorNoteName={authorNoteName} setAuthorNoteName={setAuthorNoteName}
+            authorNoteQuote={authorNoteQuote} setAuthorNoteQuote={setAuthorNoteQuote}
+            idPrefix="create"
+          />
         }
       />
     </div>
@@ -402,6 +411,9 @@ function EditForm(props: EditFormProps) {
     draftAuditorSkillIds, setDraftAuditorSkillIds,
     onSaveDraftSkillsAndReference,
     onSaveAndGenerate,
+    pendingSectionRevisions,
+    onAdoptPendingSections,
+    adoptingPendingSections,
     hasUnsavedChanges, metaAutosaveStatus, metaAutosavedAt,
     briefVersions, briefVersionBusy,
     onSelectBriefVersion, onSaveBriefMilestone, onRenameBriefVersion, onDeleteBriefVersion,
@@ -518,13 +530,6 @@ function EditForm(props: EditFormProps) {
               </AccordionItem>
             </Accordion>
 
-            <CuratedSectionsPanel
-              curatedSections={curatedSections}
-              briefVersions={briefVersions}
-              moduleNumber={draftModuleNumber}
-              unitNumber={draftUnitNumber}
-            />
-
             <DraftExtras
               refs={refs}
               refId={draftRefId} setRefId={setDraftRefId}
@@ -535,11 +540,31 @@ function EditForm(props: EditFormProps) {
               auditorSkills={auditorSkills}
               specialistSkillIds={draftSpecialistSkillIds} setSpecialistSkillIds={setDraftSpecialistSkillIds}
               auditorSkillIds={draftAuditorSkillIds} setAuditorSkillIds={setDraftAuditorSkillIds}
+              disabled={isBusy}
+              idPrefix="edit"
+            />
+          </>
+        }
+        belowResult={
+          <>
+            <AuthorNoteField
               authorNoteName={draftAuthorNoteName} setAuthorNoteName={setDraftAuthorNoteName}
               authorNoteQuote={draftAuthorNoteQuote} setAuthorNoteQuote={setDraftAuthorNoteQuote}
               onAuthorQuoteBlur={onFounderQuoteBlur}
               disabled={isBusy}
               idPrefix="edit"
+            />
+            {/* Sections the author revised and thereby anchored in the Briefing.
+                Renders nothing until the first revision, so it costs no attention
+                in the normal flow but is visible when it matters. */}
+            <CuratedSectionsPanel
+              curatedSections={curatedSections}
+              briefVersions={briefVersions}
+              moduleNumber={draftModuleNumber}
+              unitNumber={draftUnitNumber}
+              pendingRevisions={props.pendingSectionRevisions}
+              onAdoptPending={props.onAdoptPendingSections}
+              adoptingPending={props.adoptingPendingSections}
             />
           </>
         }

@@ -328,6 +328,13 @@ export function applyMontenegroVariantNotesToVocabulary(pkg: any): { changed: nu
   return { changed };
 }
 
+/**
+ * One-letter Serbian words that are genuine vocabulary: i (and), a (but/and),
+ * u (in), o (about), s (with, short form of "sa"). Everything else of length 1
+ * is markup residue or an abbreviation.
+ */
+const ONE_LETTER_SERBIAN_WORDS = new Set(["i", "a", "u", "o", "s"]);
+
 export function collectSerbianCandidatesFromExercises(pkg: any): string[] {
   const cats: any[] = Array.isArray(pkg?.exercises?.en) ? pkg.exercises.en : [];
   const out: string[] = [];
@@ -375,7 +382,58 @@ export function collectSerbianCandidatesFromContent(pkg: any): string[] {
     }
   }
 
+  out.push(...collectSerbianCandidatesFromGrammar(String(content.grammarMd || "")));
+
   return Array.from(new Set(out.filter(Boolean)));
+}
+
+/**
+ * Serbian candidates from the grammar section: the forms the unit explicitly
+ * teaches. Covers the two places where grammar introduces new words:
+ *   - Pattern tables, where the Serbian forms are bold ("| ja | **sam** | I am |")
+ *   - Example bullets, where Serbian precedes the English gloss in parentheses
+ *
+ * Without this, a form that only lives in the grammar section (e.g. "nisi")
+ * was invisible to the coverage net: when the Fix stage dropped it from the
+ * vocabulary table to satisfy a word-count finding, nothing brought it back
+ * and the next Lector run reported it as untaught (2026-09-16).
+ */
+export function collectSerbianCandidatesFromGrammar(grammarMd: string): string[] {
+  const md = String(grammarMd || "");
+  if (!md.trim()) return [];
+
+  const out: string[] = [];
+  for (const rawLine of md.replace(/\r\n/g, "\n").split("\n")) {
+    const line = rawLine.trim();
+
+    if (line.startsWith("|")) {
+      // Bold cells in a grammar table are the Serbian forms; the remaining
+      // cells are pronouns and English glosses we must not harvest.
+      const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+      if (cells.some((c) => /^:?-{3,}:?$/.test(c))) continue;
+      for (const cell of cells) {
+        const bold = cell.match(/^\*\*(.+)\*\*$/);
+        if (bold) out.push(...tokenizeSerbianText(bold[1]));
+      }
+      continue;
+    }
+
+    const example = serbianOfGrammarExampleLine(line);
+    if (example) out.push(...tokenizeSerbianText(example));
+  }
+
+  return out;
+}
+
+/**
+ * Serbian part of an example bullet: "*   Ja **sam** Ana. (I am Ana.)".
+ * Returns null for anything that is not an example with an English gloss, so
+ * prose lines of the explanation are never mistaken for Serbian.
+ */
+function serbianOfGrammarExampleLine(line: string): string | null {
+  const m = line.match(/^(?:[-*]|\d+\.)\s+(.*?)\s*\((?:[^()]*)\)[.\s]*$/);
+  if (!m) return null;
+  return m[1].replace(/\*\*|`/g, "").trim() || null;
 }
 
 function extractSerbianColumnFromMdTables(markdown: string): string[] {
@@ -414,7 +472,7 @@ function tokenizeSerbianText(text: string): string[] {
     .replace(/[.?!,:;()\[\]"'…–—\/\\]/g, " ")
     .split(/\s+/)
     .map(w => w.trim().toLowerCase())
-    .filter(w => w.length >= 2);
+    .filter(w => w.length >= 2 || ONE_LETTER_SERBIAN_WORDS.has(w));
 }
 
 /**
@@ -675,6 +733,18 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
   const existing = new Set(vocabEn.map((v: any) => normalizeSerbianKey(v?.serbian)));
   const existingKeys = Array.from(existing.values());
 
+  // Words that are part of a multi-word entry (chunk) count as covered: the
+  // learner sees "Dobar dan" translated as a whole, so "dan" needs no row of
+  // its own. Without this, the token scan re-added chunk parts ("dan",
+  // "zovem", "imam", "razumem") with invented glosses (2026-09-16).
+  const coveredByChunk = new Set<string>();
+  for (const k of existingKeys) {
+    if (!k.includes(" ")) continue;
+    for (const part of k.split(/\s+/)) {
+      if (part.length >= 2) coveredByChunk.add(part);
+    }
+  }
+
   // Pre-collect original-case text samples so we can detect proper nouns
   // BEFORE spending an AI classifier call on them.
   const originalTextSamples = collectOriginalSerbianTextSamples(out);
@@ -729,8 +799,13 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
 
     // Heuristic fallback: if it shares a 3+ letter prefix with an existing unit vocab key, treat as an inflected form.
     // Example: "mlijekom" -> "mlijeko".
-    const prefix = key.slice(0, Math.min(3, key.length));
-    const match = existingKeys.find((k) => k.startsWith(prefix) || prefix.startsWith(k.slice(0, Math.min(3, k.length))));
+    // Only for words long enough for a prefix to mean something: short
+    // function words and verb forms (nisi/nisam, ste/sam, si/se) share three
+    // letters without being forms of each other, and "nisi" was silently
+    // dropped from the vocabulary as an "inflection of nisam" (2026-09-16).
+    if (key.length < 6) return null;
+    const prefix = key.slice(0, 3);
+    const match = existingKeys.find((k) => k.length >= 6 && (k.startsWith(prefix) || prefix.startsWith(k.slice(0, 3))));
     return match || null;
   };
 
@@ -761,7 +836,12 @@ export async function syncVocabularyCoverageFromExercises(ctx: ActionCtx, pkg: a
     // Do not treat multi-word phrases as vocabulary items; those belong to Phrases/Dialogue, not vocabulary table.
     if (key.includes(" ")) continue;
     // Ignore very short tokens. (We allow 2-letter words like "od/sa".)
-    if (key.length < 2) continue;
+    // Exception: the one-letter function words are real vocabulary a beginner
+    // needs. "i" (and) appears in Unit 1 dialogues and used to fall through
+    // this guard, so nothing restored it after a Fix run dropped it.
+    if (key.length < 2 && !ONE_LETTER_SERBIAN_WORDS.has(key)) continue;
+    // Part of a chunk that is already in the table ("dan" in "Dobar dan").
+    if (coveredByChunk.has(key)) continue;
 
     // Admin-confirmed name blacklist: if this token was previously deleted as
     // a personal name, never re-add it regardless of any other signal.
@@ -1357,9 +1437,11 @@ export function buildAuditPayload(pkg: any): any {
     vocabularyKeys: Array.isArray(pkg?.vocabulary?.en)
       ? pkg.vocabulary.en.map((v: any) => String(v?.serbian || "").trim()).filter(Boolean)
       : [],
-    // Keep a small sample of enriched entries for context (optional)
+    // Enriched entries: the Lector checks translations and notes here, so it
+    // must see every entry. The cap only guards against a runaway package;
+    // a micro-unit stays well below it (<= 35 by curriculum rule).
     vocabularySample: Array.isArray(pkg?.vocabulary?.en)
-      ? pkg.vocabulary.en.slice(0, 20).map((v: any) => ({
+      ? pkg.vocabulary.en.slice(0, 80).map((v: any) => ({
           serbian: String(v?.serbian || ""),
           en: String(v?.en || ""),
           noteEn: typeof v?.noteEn === "string" ? truncateForAudit(v.noteEn, 200) : undefined,

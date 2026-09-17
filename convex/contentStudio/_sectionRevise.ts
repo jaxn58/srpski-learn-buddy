@@ -224,12 +224,31 @@ export const runSectionRevise = action({
       status: "success",
     });
 
+    // Adopt the revision into the Briefing right away (decision 2026-09-16).
+    // The instruction the author just gave IS the curation decision; asking
+    // for a second click after a preview only lost edits (the alphabet block
+    // of Unit 1 would have vanished on the next Creator run). Future Creator
+    // runs build on curated sections; "Refuse & revert" removes one again.
+    let adoptedIntoBriefing = false;
+    try {
+      // Explicit annotation breaks the api-type cycle (action -> mutation -> api).
+      const adopted: { ok: boolean } = await ctx.runMutation(
+        api.contentStudio.adoptSectionsIntoBrief,
+        { draftId: args.draftId },
+      );
+      adoptedIntoBriefing = adopted?.ok === true;
+    } catch (e: any) {
+      // Not fatal: the revision is saved and stays "pending"; the Rendered tab
+      // still offers the manual "Adopt changes into Briefing" button.
+      console.warn("Section revise: automatic adoption into the Briefing failed:", e?.message || e);
+    }
+
     // Do NOT nest runQcValidate here: the combined wall-clock of section AI +
     // optional translation/founder-note + full QC often exceeds the client
     // WebSocket lifetime ("Connection lost while action was in flight"), even
     // when the snapshot was already saved. The UI runs Validator as a separate
     // action after this returns.
-    return { ok: true, needsValidation: true as const };
+    return { ok: true, needsValidation: true as const, adoptedIntoBriefing };
   },
 });
 

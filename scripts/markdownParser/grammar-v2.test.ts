@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { analyzeGrammarV2, validateSection } from "./sectionUtils";
-import { validateMarkdownStructure } from "./parser";
+import { parseMarkdownToUnitPackage, validateMarkdownStructure } from "./parser";
+import { validateUnitPackageDeep } from "../unitPackage/schema";
 
 /**
  * Grammar v2 (didactic template) validation.
@@ -153,6 +154,13 @@ describe("validateMarkdownStructure keeps published units valid", () => {
       const res = validateMarkdownStructure(md);
       const v2Errors = res.errors.filter((e) => e.startsWith("Grammar v2"));
       expect(v2Errors).toEqual([]);
+    });
+
+    it(`raises no enclitic word-order error for ${name}`, () => {
+      const md = readFileSync(join(__dirname, "__fixtures__", name), "utf8");
+      const pkg = parseMarkdownToUnitPackage(md);
+      const clitic = validateUnitPackageDeep(pkg as any).filter((i) => /Enclitic/.test(i.message));
+      expect(clitic).toEqual([]);
     });
   }
 });

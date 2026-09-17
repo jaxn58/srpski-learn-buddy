@@ -40,12 +40,6 @@ export interface DraftExtrasProps {
   auditorSkillIds: string[];
   setAuditorSkillIds: (v: string[]) => void;
 
-  authorNoteName: string;
-  setAuthorNoteName: (v: string) => void;
-  authorNoteQuote: string;
-  setAuthorNoteQuote: (v: string) => void;
-  onAuthorQuoteBlur?: () => void;
-
   disabled?: boolean;
   idPrefix: string;
 }
@@ -57,7 +51,6 @@ export function DraftExtras(props: DraftExtrasProps) {
   const {
     refs, refId, setRefId, refChapter, setRefChapter, refPages, setRefPages, refNotes, setRefNotes,
     specialistSkills, auditorSkills, specialistSkillIds, setSpecialistSkillIds, auditorSkillIds, setAuditorSkillIds,
-    authorNoteName, setAuthorNoteName, authorNoteQuote, setAuthorNoteQuote, onAuthorQuoteBlur,
     disabled, idPrefix,
   } = props;
 
@@ -67,8 +60,6 @@ export function DraftExtras(props: DraftExtrasProps) {
   if (specialistSkillIds.length + auditorSkillIds.length > 0) {
     summaryParts.push(t(`${I18N}.summarySkills`, { defaultValue: "{{count}} skill(s)", count: specialistSkillIds.length + auditorSkillIds.length }));
   }
-  if (authorNoteQuote.trim()) summaryParts.push(t(`${I18N}.summaryAuthorNote`, "author note"));
-
   const toggle = (list: string[], set: (v: string[]) => void, id: string, checked: boolean) =>
     set(checked ? [...list, id] : list.filter((x) => x !== id));
 
@@ -79,7 +70,7 @@ export function DraftExtras(props: DraftExtrasProps) {
           <div className="flex flex-col items-start gap-0.5 text-left">
             <span className="text-sm font-semibold">{t(`${I18N}.title`, "More options")}</span>
             <span className="text-xs text-muted-foreground font-normal">
-              {summaryParts.length > 0 ? summaryParts.join(" · ") : t(`${I18N}.subtitle`, "Reference material, house-style skills, author note. Not needed for a normal unit.")}
+              {summaryParts.length > 0 ? summaryParts.join(" · ") : t(`${I18N}.subtitle`, "Reference material and house-style skills. Not needed for a normal unit.")}
             </span>
           </div>
         </AccordionTrigger>
@@ -152,34 +143,56 @@ export function DraftExtras(props: DraftExtrasProps) {
             </div>
           </section>
 
-          {/* Author note */}
-          <section className="space-y-3">
-            <div>
-              <Label className="text-sm font-semibold">{t(`${I18N}.authorNote.title`, "Author note (optional)")}</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">{t(`${I18N}.authorNote.help`, "A short personal note shown at the top of the unit in your voice. German is fine; it is translated for the English track. Leave the quote empty and the unit gets a neutral introduction instead.")}</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,220px)_1fr]">
-              <div className="space-y-1.5">
-                <Label htmlFor={`${idPrefix}-author-name`} className="text-sm">{t(`${I18N}.authorNote.name`, "Name")}</Label>
-                <Input id={`${idPrefix}-author-name`} value={authorNoteName} onChange={(e) => setAuthorNoteName(e.target.value)} disabled={disabled} className="h-10 text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor={`${idPrefix}-author-quote`} className="text-sm">{t(`${I18N}.authorNote.quote`, "Note (2-3 sentences)")}</Label>
-                <Textarea
-                  id={`${idPrefix}-author-quote`}
-                  value={authorNoteQuote}
-                  onChange={(e) => setAuthorNoteQuote(e.target.value)}
-                  onBlur={onAuthorQuoteBlur}
-                  rows={3}
-                  disabled={disabled}
-                  className="text-sm leading-relaxed"
-                />
-              </div>
-            </div>
-          </section>
         </AccordionContent>
       </AccordionItem>
     </Accordion>
+  );
+}
+
+/**
+ * The author's personal note at the top of the unit. Lives in the main flow
+ * (not in the expert view): authors should see it every time, because a unit
+ * without a note gets a generated founder story otherwise.
+ */
+export interface AuthorNoteFieldProps {
+  authorNoteName: string;
+  setAuthorNoteName: (v: string) => void;
+  authorNoteQuote: string;
+  setAuthorNoteQuote: (v: string) => void;
+  onAuthorQuoteBlur?: () => void;
+  disabled?: boolean;
+  idPrefix: string;
+}
+
+export function AuthorNoteField({
+  authorNoteName, setAuthorNoteName, authorNoteQuote, setAuthorNoteQuote, onAuthorQuoteBlur, disabled, idPrefix,
+}: AuthorNoteFieldProps) {
+  const { t } = useTranslation();
+  return (
+    <section className="rounded-lg border bg-card p-4 sm:p-5 space-y-3">
+      <div>
+        <Label className="text-base font-semibold">{t(`${I18N}.authorNote.title`, "Author note (optional)")}</Label>
+        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{t(`${I18N}.authorNote.help`, "A short personal note shown at the top of the unit in your voice. German is fine; it is translated for the English track. Leave the quote empty and the unit gets a neutral introduction instead.")}</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,220px)_1fr]">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-author-name`} className="text-sm">{t(`${I18N}.authorNote.name`, "Name")}</Label>
+          <Input id={`${idPrefix}-author-name`} value={authorNoteName} onChange={(e) => setAuthorNoteName(e.target.value)} disabled={disabled} className="h-10 text-sm" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-author-quote`} className="text-sm">{t(`${I18N}.authorNote.quote`, "Note (2-3 sentences)")}</Label>
+          <Textarea
+            id={`${idPrefix}-author-quote`}
+            value={authorNoteQuote}
+            onChange={(e) => setAuthorNoteQuote(e.target.value)}
+            onBlur={onAuthorQuoteBlur}
+            rows={3}
+            disabled={disabled}
+            className="text-sm leading-relaxed"
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 

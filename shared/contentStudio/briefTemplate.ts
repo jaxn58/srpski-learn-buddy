@@ -74,7 +74,8 @@ export type BriefFieldId =
   | "scenes"
   | "listening"
   | "cultural"
-  | "exerciseFocus";
+  | "exerciseFocus"
+  | "vocabularyBudget";
 
 export interface BriefFieldDef {
   id: BriefFieldId;
@@ -216,6 +217,13 @@ export const BRIEF_FIELDS: BriefFieldDef[] = [
     rows: 3,
     help: "Which exercise categories carry the grammar target; what the others test.",
     placeholder: "Exercise 2 and 3 test sam/si/nisam/nisi; Exercise 1 greetings; Exercise 4 key nouns; Exercise 5 the dialogue scenes.",
+  },
+  {
+    id: "vocabularyBudget",
+    label: "Vocabulary budget",
+    kind: "text",
+    help: "Guideline for this unit only; empty uses the studio setting. Words needed for grammar, dialogues or exercises are always included, even above the budget.",
+    placeholder: "35",
   },
 ];
 

@@ -305,11 +305,35 @@ function sanitizeSerbianForAudio(raw: string): { cleaned: string; removed: strin
   return { cleaned: s, removed };
 }
 
+/**
+ * Split "A / B" alternatives on slashes, but ONLY on slashes outside brackets.
+ * "you are (formal/plural)" is one translation with a qualifier, not two
+ * meanings; splitting it produced "you are (formal" + "plural)" and sent the
+ * Lector and the fixer into an endless loop over a bracket the Creator had
+ * written correctly.
+ */
 function splitBySlash(raw: string): string[] {
-  // Split on " / " or "/" if used as separator. Keep simple and safe.
   const s = String(raw ?? "");
   if (!s.includes("/")) return [s];
-  return s.split("/").map((p) => normalizeWhitespace(p)).filter(Boolean);
+
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of s) {
+    if (ch === "(" || ch === "[" || ch === "{") depth++;
+    else if (ch === ")" || ch === "]" || ch === "}") depth = Math.max(0, depth - 1);
+
+    if (ch === "/" && depth === 0) {
+      parts.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  parts.push(current);
+
+  const cleaned = parts.map((p) => normalizeWhitespace(p)).filter(Boolean);
+  return cleaned.length > 0 ? cleaned : [s];
 }
 
 function appendNote(existing: string | undefined, extra: string): string {

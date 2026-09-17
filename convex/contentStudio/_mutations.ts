@@ -8,6 +8,21 @@ import {
 } from "./prompts";
 import { findEarlierUnitVocabulary, toVocabularyKey } from "../vocabulary";
 import { makeValidatorMemoryFingerprint } from "./_validatorMemory";
+import { clampVocabularyBudget } from "../../shared/contentStudio/vocabularyBudget";
+
+/**
+ * Validator Memory auto-capture switched off (decision 2026-09-16).
+ *
+ * Two months of operation produced 57 candidates and zero curated entries:
+ * Lector findings are one-off observations, not generalisable rules, and
+ * turning them into prompt guidance is expert work nobody performs. Recurring
+ * errors now go into deterministic checks with tests (see
+ * scripts/unitPackage/clitics.ts); norm and style rules live in the versioned
+ * cs_language_rules prompt. Existing active entries (currently none) would
+ * still be honoured by the AI stages. Full removal of the module is planned
+ * after the Unit 1/2 pilot.
+ */
+const VALIDATOR_MEMORY_AUTO_CAPTURE = false;
 import {
   isSerbianStemExerciseType,
   stripTrailingParentheticalGlosses,
@@ -854,10 +869,15 @@ export const upsertModelConfig = mutation({
   args: {
     specialist: v.object({ provider: v.union(v.literal("gemini"), v.literal("openai")), model: v.string() }),
     auditor: v.object({ provider: v.union(v.literal("gemini"), v.literal("openai")), model: v.string() }),
+    vocabularyBudget: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await requireSuperadmin(ctx);
     const now = Date.now();
+    const budget =
+      args.vocabularyBudget === undefined
+        ? undefined
+        : clampVocabularyBudget(args.vocabularyBudget);
     const existing = await ctx.db.query("contentStudioConfig").order("desc").first();
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -865,6 +885,8 @@ export const upsertModelConfig = mutation({
         // Backward-compat: keep field in DB, but we no longer expose/use it.
         qcFixOnly: args.auditor,
         auditor: args.auditor,
+        // Keep the stored value when the caller does not send one.
+        vocabularyBudget: budget ?? existing.vocabularyBudget,
         updatedAt: now,
         updatedBy: user._id,
       });
@@ -874,6 +896,7 @@ export const upsertModelConfig = mutation({
       specialist: args.specialist,
       qcFixOnly: args.auditor,
       auditor: args.auditor,
+      vocabularyBudget: budget,
       updatedAt: now,
       updatedBy: user._id,
     });
@@ -1438,7 +1461,7 @@ export const saveUnitPackageSnapshot = mutation({
         args.status === "audit_failed";
       const isFixSave = args.status === "draft";
 
-      if (isFixSave && existing.length > 0) {
+      if (VALIDATOR_MEMORY_AUTO_CAPTURE && isFixSave && existing.length > 0) {
         const snapshotEntries = existing
           .filter((f) => f.dismissed !== true && f.severity !== "info")
           .map((f) => ({
@@ -1504,7 +1527,7 @@ export const saveUnitPackageSnapshot = mutation({
           }
         }
 
-        if (resolvedByFingerprint.size > 0) {
+        if (VALIDATOR_MEMORY_AUTO_CAPTURE && resolvedByFingerprint.size > 0) {
           const sourceUnitNumber =
             typeof draftDoc?.unitNumber === "number" ? draftDoc.unitNumber : undefined;
 
@@ -1591,7 +1614,23 @@ export const saveUnitPackageSnapshot = mutation({
       lastSnapshotId: snapId,
       updatedAt: now,
     };
-    if (args.markAudited) patch.lastAuditedSnapshotId = snapId;
+    if (args.markAudited) {
+      patch.lastAuditedSnapshotId = snapId;
+    } else if (draftForBriefLink?.lastAuditedSnapshotId) {
+      // A save that does not change the content (e.g. "Save markdown" right
+      // after a clean Lector run, or a Validator pass that only re-parsed)
+      // must not invalidate the Lector's verdict. The verdict is about the
+      // content, not about the snapshot row, so it carries over whenever the
+      // new snapshot is byte-identical to the audited one (2026-09-16).
+      const audited = await ctx.db.get(draftForBriefLink.lastAuditedSnapshotId);
+      if (
+        audited &&
+        audited.markdownSource === args.markdownSource &&
+        audited.unitPackageJson === args.unitPackageJson
+      ) {
+        patch.lastAuditedSnapshotId = snapId;
+      }
+    }
     if (args.status) patch.status = args.status as DraftStatus;
     // Validator Memory auto-capture bookkeeping: store the pre-Fix snapshot
     // (Fix save) or clear it once consumed by the comparison (Validator save).
@@ -2351,8 +2390,14 @@ export const upsertUnitGermanTranslationToPreview = mutation({
     const unitVersion = Number(args.unitVersion) || 1;
     const now = Date.now();
 
-    // 1) unitMetadata (DE) — insert a new PREVIEW row (do not patch published rows)
-    await ctx.db.insert("unitMetadata", {
+    // 1) unitMetadata (DE) — upsert the PREVIEW row for this unit/language.
+    //    unitMetadata is not versioned (no isActive/archivedAt), so there must
+    //    be at most one preview row per unit and language. The previous
+    //    implementation inserted unconditionally and left one extra row per
+    //    translation run (Unit 1 collected four "de/preview" rows on
+    //    2026-09-16). Published rows are never touched here; promotion is the
+    //    only path that changes releaseStatus.
+    const metaPayloadDe: any = {
       unitNumber,
       language: "de",
       title: String(args.metadataDe.title ?? "").trim(),
@@ -2367,7 +2412,20 @@ export const upsertUnitGermanTranslationToPreview = mutation({
         ? { moduleId: args.metadataDe.moduleId.trim() }
         : {}),
       releaseStatus: "preview",
-    } as any);
+    };
+    const existingPreviewMetaDe = (
+      await ctx.db
+        .query("unitMetadata")
+        .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", "de"))
+        .collect()
+    )
+      .filter((m: any) => m?.releaseStatus === "preview")
+      .sort((a: any, b: any) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0))[0];
+    if (existingPreviewMetaDe) {
+      await ctx.db.patch(existingPreviewMetaDe._id, metaPayloadDe);
+    } else {
+      await ctx.db.insert("unitMetadata", metaPayloadDe);
+    }
 
     // 2) unitContent (DE) — archive previous DE preview rows per type, then insert new preview version.
     let contentInserted = 0;
@@ -2540,18 +2598,30 @@ export const promoteLanguagePreviewToPublished = mutation({
     let vocabRemoved = 0;
 
     // 1) unitMetadata: promote preview -> published for this language.
-    const metaRows = await ctx.db
+    //    unitMetadata is not versioned, so the invariant is ONE row per
+    //    unit/language/status. The previous code flipped every preview row and
+    //    kept the old published row, which left stale titles behind (Unit 3
+    //    ended up with six published DE rows and two different titles). Now:
+    //    the newest preview row becomes the published row, everything else
+    //    for this unit/language is removed.
+    const metaRows = (await ctx.db
       .query("unitMetadata")
       .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", language))
-      .collect();
-    for (const m of metaRows as any[]) {
-      if (m.releaseStatus !== "preview") continue;
-      await ctx.db.patch(m._id, { releaseStatus: "published" });
-      metaPromoted += 1;
-    }
-    if (metaPromoted === 0) {
+      .collect()) as any[];
+    const previewMeta = metaRows
+      .filter((m) => m.releaseStatus === "preview")
+      .sort((a, b) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0));
+    if (previewMeta.length === 0) {
       throw new Error(`No preview metadata found for Unit ${unitNumber} language="${language}".`);
     }
+    const winnerMeta = previewMeta[0];
+    for (const m of metaRows) {
+      if (m._id === winnerMeta._id) continue;
+      // Older preview duplicates and the previous published row(s).
+      await ctx.db.delete(m._id);
+    }
+    await ctx.db.patch(winnerMeta._id, { releaseStatus: "published" });
+    metaPromoted = 1;
 
     // 2) unitContent: promote preview -> published for this language.
     //    Also archive any existing published rows of the same contentType to avoid duplicates.
@@ -3757,6 +3827,84 @@ export const seedTranslatorDialogueCompletionSkill = internalMutation({
 });
 
 /**
+ * Maintenance: remove duplicate unitMetadata rows.
+ *
+ * unitMetadata is not versioned; the invariant is one row per
+ * unit/language/releaseStatus. Two historical code paths violated it (the DE
+ * preview upsert inserted blindly, promotion kept the old published row), so
+ * Dev accumulated 22 rows for 4 units in September 2026. For every duplicate
+ * group the NEWEST row survives; older rows are deleted.
+ *
+ * Run with dryRun=true first: it reports what would be deleted and changes
+ * nothing. Both code paths are fixed, so this is a one-off per deployment.
+ * Never run against production without explicit approval.
+ */
+export const internalDedupeUnitMetadata = internalMutation({
+  args: { dryRun: v.optional(v.boolean()) },
+  returns: v.object({
+    dryRun: v.boolean(),
+    scanned: v.number(),
+    groups: v.number(),
+    duplicateGroups: v.array(
+      v.object({
+        unitNumber: v.number(),
+        language: v.string(),
+        releaseStatus: v.string(),
+        kept: v.string(),
+        keptTitle: v.string(),
+        deleted: v.array(v.string()),
+      }),
+    ),
+    deletedCount: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun !== false;
+    const rows = (await ctx.db.query("unitMetadata").collect()) as any[];
+    const byKey = new Map<string, any[]>();
+    for (const r of rows) {
+      const key = `${r.unitNumber}|${r.language}|${r.releaseStatus ?? "published"}`;
+      const list = byKey.get(key) ?? [];
+      list.push(r);
+      byKey.set(key, list);
+    }
+
+    const duplicateGroups: Array<{
+      unitNumber: number;
+      language: string;
+      releaseStatus: string;
+      kept: string;
+      keptTitle: string;
+      deleted: string[];
+    }> = [];
+    let deletedCount = 0;
+
+    for (const [, list] of byKey) {
+      if (list.length < 2) continue;
+      list.sort((a, b) => (b?._creationTime ?? 0) - (a?._creationTime ?? 0));
+      const [winner, ...losers] = list;
+      duplicateGroups.push({
+        unitNumber: Number(winner.unitNumber),
+        language: String(winner.language),
+        releaseStatus: String(winner.releaseStatus ?? "published"),
+        kept: String(winner._id),
+        keptTitle: String(winner.title ?? ""),
+        deleted: losers.map((l) => String(l._id)),
+      });
+      if (!dryRun) {
+        for (const l of losers) {
+          await ctx.db.delete(l._id);
+          deletedCount += 1;
+        }
+      } else {
+        deletedCount += losers.length;
+      }
+    }
+
+    return { dryRun, scanned: rows.length, groups: byKey.size, duplicateGroups, deletedCount };
+  },
+});
+
+/**
  * One-time backfill: set scope.applyInTranslator=false where the field is missing.
  */
 export const backfillValidatorMemoryApplyInTranslator = internalMutation({
@@ -3780,4 +3928,5 @@ export const backfillValidatorMemoryApplyInTranslator = internalMutation({
     return { scanned: all.length, patched };
   },
 });
+
 

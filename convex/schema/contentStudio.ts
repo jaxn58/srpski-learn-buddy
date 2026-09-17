@@ -57,6 +57,13 @@ export const contentStudioTables = {
       provider: v.union(v.literal("gemini"), v.literal("openai")),
       model: v.string(),
     }),
+    /**
+     * Studio-wide guideline for vocabulary entries per unit. A briefing may
+     * override it per unit; missing means DEFAULT_VOCABULARY_BUDGET.
+     * See shared/contentStudio/vocabularyBudget.ts for why this is a
+     * guideline and never a hard limit.
+     */
+    vocabularyBudget: v.optional(v.number()),
     updatedAt: v.number(),
     updatedBy: v.id("users"),
   }).index("by_updated_at", ["updatedAt"]),

@@ -9,6 +9,8 @@ import { validateMarkdownStructure } from "../../scripts/markdownParser/parser";
 import { buildReasoningParams, effectiveMaxTokens, type ReasoningEffort } from "./_modelCapabilities";
 import { MODEL_PRICING } from "../ai/modelPricing";
 import { CS_PROMPT_KEYS } from "./prompts";
+import { parseBriefText } from "../../shared/contentStudio/briefTemplate";
+import { resolveVocabularyBudget } from "../../shared/contentStudio/vocabularyBudget";
 
 export type DraftStatus =
   | "draft"
@@ -1023,4 +1025,61 @@ export async function resolveOptionalPromptFromDb(
 export async function languageRulesBlock(ctx: ActionCtx): Promise<string> {
   const rules = await resolveOptionalPromptFromDb(ctx, CS_PROMPT_KEYS.languageRules);
   return rules ? `\n=== SERBIAN LANGUAGE RULES (binding for all Serbian text) ===\n${rules}\n` : "";
+}
+
+/**
+ * Guard for the Fix stage. It never learns the vocabulary budget (a word-count
+ * finding must not become a repair job), but it does get an explicit ban on
+ * removing entries: in September 2026 a Fix run deleted "ti", "nisi" and "i"
+ * to satisfy a count finding, and the next Lector run reported the resulting
+ * holes as untaught language.
+ */
+export function vocabularyProtectionBlock(): string {
+  return [
+    "",
+    "=== VOCABULARY PROTECTION (binding) ===",
+    "- Never delete or rename a vocabulary entry whose Serbian word is used in the grammar section, dialogues, phrases, exercises or learning objectives of this unit.",
+    "- Never reduce the vocabulary table to satisfy a word-count remark. Word count is not your concern; the author decides it.",
+    "- You may correct a translation, a note or the gender of an entry at any time.",
+    "",
+  ].join("\n");
+}
+
+/**
+ * Vocabulary guideline for the current unit, injected into the Creator
+ * prompt. The number comes from the briefing field "Vocabulary budget" if
+ * present, otherwise from the studio setting.
+ *
+ * The wording matters: completeness outranks the number. A hard cap made the
+ * pipeline delete words the unit was teaching (2026-09-16), so the budget is
+ * phrased as a target with an explicit exception for words the content needs.
+ */
+export async function resolveVocabularyBudgetForDraft(
+  ctx: ActionCtx,
+  creatorBriefText?: string | null,
+): Promise<number> {
+  const settings: number = await ctx.runQuery(
+    internal.contentStudio.getVocabularyBudgetSetting,
+    {},
+  );
+  const briefValue = creatorBriefText
+    ? parseBriefText(String(creatorBriefText)).fields.vocabularyBudget
+    : undefined;
+  return resolveVocabularyBudget({ brief: briefValue, settings }).budget;
+}
+
+export async function vocabularyBudgetBlock(
+  ctx: ActionCtx,
+  creatorBriefText?: string | null,
+): Promise<string> {
+  const budget = await resolveVocabularyBudgetForDraft(ctx, creatorBriefText);
+
+  return [
+    "",
+    "=== VOCABULARY BUDGET (target, not a cap) ===",
+    `- Aim for about ${budget} vocabulary entries in this unit.`,
+    "- Completeness outranks this number: every Serbian word used in the grammar section, dialogues, phrases or exercises MUST appear in the vocabulary table, even if the unit ends up above the target.",
+    "- Never drop or omit a word that the unit teaches or uses in order to reach the target. Reduce content instead (fewer new nouns, shorter dialogues) if you need to come down.",
+    "",
+  ].join("\n");
 }

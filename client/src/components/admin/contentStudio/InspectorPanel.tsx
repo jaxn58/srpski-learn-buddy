@@ -33,7 +33,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { Loader2, CheckCircle, XCircle, Sparkles, RotateCcw, X } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Sparkles, RotateCcw, Wand2, X } from "lucide-react";
 import type { SectionId } from "./types";
 import { SECTION_OPTIONS } from "./constants";
 import { useSectionLabel } from "./utils/sectionLabel";
@@ -79,8 +79,11 @@ export interface InspectorPanelProps {
   expandInstruction: string;
   setExpandInstruction: (v: string) => void;
   canRunLector: boolean;
+  runningReviewCycle: boolean;
   onRunRevise: () => void;
   onRunAuditor: () => void;
+  /** Lector -> Fix -> Validator, up to three rounds (defects only). */
+  onReviewUntilClean: () => void;
   onSectionRevise: () => void;
   onDismissFinding: (params: { findingId: any; dismissed: boolean }) => void;
 
@@ -189,6 +192,7 @@ function ReviewContent(props: InspectorPanelProps) {
     runningRevise, runningLector, runningSectionRevise,
     fixHumanNotes, setFixHumanNotes, expandSection, setExpandSection,
     expandInstruction, setExpandInstruction, canRunLector,
+    runningReviewCycle, onReviewUntilClean,
     onRunRevise, onRunAuditor, onSectionRevise, onDismissFinding, selected,
   } = props;
   const { t } = useTranslation();
@@ -320,6 +324,23 @@ function ReviewContent(props: InspectorPanelProps) {
         {runningLector ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
         {t("admin.contentStudio.inspector.runLector", "Run Lector")}
       </Button>
+
+      {/* One click instead of Lector -> Fix -> Lector by hand. */}
+      <Button
+        size="sm"
+        className="w-full"
+        onClick={onReviewUntilClean}
+        disabled={isBusy || !canRunLector}
+      >
+        {runningReviewCycle ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Wand2 className="mr-2 h-3 w-3" />}
+        {t("admin.contentStudio.inspector.reviewUntilClean", "Review until clean")}
+      </Button>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        {t(
+          "admin.contentStudio.inspector.reviewUntilCleanHint",
+          "Runs Lector, fix and validator up to three times. It only fixes defects; style suggestions stay untouched.",
+        )}
+      </p>
 
       {/* Findings List */}
       {findings.length > 0 && (

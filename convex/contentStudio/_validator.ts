@@ -11,8 +11,10 @@ import {
   ensureFounderNoteInMarkdownIfConfigured,
   collectMarkdownLanguageIssuesForFounderNote,
   collectIncompleteHeadingIssues,
+  resolveVocabularyBudgetForDraft,
 } from "./_shared";
 import { collectMemoryRegressionIssuesFromEntries } from "./_validatorMemory";
+import { vocabularyBudgetOverrun } from "../../shared/contentStudio/vocabularyBudget";
 import {
   fillMissingUnitPackageFields,
   syncVocabularyCoverageFromExercises,
@@ -280,6 +282,26 @@ export const runQcValidate = action({
       });
     }
 
+    // Vocabulary budget: a guideline the author owns. Reported as info so it
+    // is visible without blocking the workflow and without ever reaching the
+    // Fix stage, which used to delete taught words to hit the number.
+    {
+      const budget = await resolveVocabularyBudgetForDraft(
+        ctx,
+        String((draft.draft as any)?.inspirationRef?.notes || ""),
+      );
+      const overrun = vocabularyBudgetOverrun(vocabEn.length, budget);
+      if (overrun) {
+        findings.push({
+          stage: "validator",
+          severity: "info",
+          code: "vocabulary_budget",
+          message: `This unit introduces ${overrun.count} vocabulary entries, ${overrun.over} above your guideline of ${overrun.budget}. Nothing is wrong with the unit: every word used in grammar, dialogues or exercises has to be listed. Raise the guideline for this unit in the briefing, or narrow the unit's content.`,
+          path: "vocabulary.en",
+        });
+      }
+    }
+
     // Non-blocking informational findings about proper nouns (personal names)
     // that were skipped so they don't end up as vocabulary entries.
     for (const skipped of (vocabSync.skippedProperNouns ?? []).slice(0, 30)) {
@@ -391,6 +413,14 @@ export const saveMarkdownSnapshot = action({
       );
     }
 
+    // Nothing changed: keep the current snapshot, its validation result and the
+    // Lector's verdict. A new snapshot here would reset the status to "draft"
+    // and flag the Lector as outdated for content that is byte-identical.
+    const previousMarkdown = String(current.snapshot?.markdownSource ?? "").replace(/\r\n/g, "\n").trim();
+    if (current.snapshot && previousMarkdown === markdown) {
+      return { ok: true, unchanged: true };
+    }
+
     await ctx.runMutation(api.contentStudio.saveUnitPackageSnapshot, {
       draftId: args.draftId,
       unitPackageJson: JSON.stringify(baseParsed.data),
@@ -401,6 +431,6 @@ export const saveMarkdownSnapshot = action({
       findings: [],
     });
 
-    return { ok: true };
+    return { ok: true, unchanged: false };
   },
 });

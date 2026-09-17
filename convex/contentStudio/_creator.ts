@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, buildStageSkillBlock, usageForRunLog } from "./_shared";
+import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, vocabularyBudgetBlock, vocabularyProtectionBlock, buildStageSkillBlock, usageForRunLog } from "./_shared";
 import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
@@ -438,11 +438,18 @@ export const runAiSpecialistGenerate = action({
       { limit: 40 }
     );
 
+    // Vocabulary guideline: per-unit value from the briefing wins over the
+    // studio setting. Stated as a guideline with explicit precedence for
+    // completeness, because a hard cap made earlier runs drop words the unit
+    // was teaching (see shared/contentStudio/vocabularyBudget.ts).
+    const budgetBlock = await vocabularyBudgetBlock(ctx, creatorBrief);
+
     // Replace [LANGUAGE] placeholder if present
     const rulesBlock = await languageRulesBlock(ctx);
     const system = [
       baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
       rulesBlock,
+      budgetBlock,
       skillBlock ? `\n${skillBlock}\n` : ``,
       memoryBlock ? `\n${memoryBlock}\n` : ``,
       referenceBlock ? `\n${referenceBlock}\n` : ``,
@@ -643,6 +650,12 @@ export const runAiCreatorRevise = action({
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
     maxTokens: v.optional(v.number()),
     humanNotes: v.optional(v.string()),
+    /**
+     * Skip STYLE_SUGGESTION findings. Used by the automatic review cycle:
+     * style remarks are endless and, when handed to the fixer, it rewrites
+     * house style (e.g. the "we" form of the Learning Objectives).
+     */
+    objectiveFindingsOnly: v.optional(v.boolean()),
   },
   // @ts-ignore TS7023 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
@@ -655,9 +668,12 @@ export const runAiCreatorRevise = action({
 
     // Get findings (errors/warnings) – exclude dismissed ones from the Fix prompt
     const findings = current.findings || [];
-    const issues = findings.filter((f: any) =>
-      (f.severity === "error" || f.severity === "warning") && !f.dismissed
-    );
+    const issues = findings.filter((f: any) => {
+      if (f.dismissed) return false;
+      if (f.severity !== "error" && f.severity !== "warning") return false;
+      if (args.objectiveFindingsOnly && f.stage === "auditor" && String(f.code) === "STYLE_SUGGESTION") return false;
+      return true;
+    });
     const humanNotes = String(args.humanNotes || "").trim();
 
     // Only re-append auditor findings that were NOT sent to the fixer.
@@ -711,6 +727,7 @@ export const runAiCreatorRevise = action({
     const system = [
       baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
       fixerRulesBlock,
+      vocabularyProtectionBlock(),
       skillBlock ? `\n${skillBlock}\n` : ``,
       `\nCONTEXT:`,
       `Unit ${d.unitNumber}: ${d.title}`,

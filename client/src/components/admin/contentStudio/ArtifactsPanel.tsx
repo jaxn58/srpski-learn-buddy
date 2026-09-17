@@ -437,13 +437,9 @@ export function ArtifactsPanel({
                     </div>
                   ) : (
                     <div className="rounded border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground leading-relaxed">
-                      {t("admin.contentStudio.artifacts.noPendingPrefix", "No section changes pending. Revise a section in the")}{" "}
-                      <strong>{t("admin.contentStudio.artifacts.editContent", "Edit content")}</strong>{" "}
-                      {t("admin.contentStudio.artifacts.noPendingMiddle", "panel; the revised section will appear highlighted here with an")}{" "}
-                      <strong>{t("admin.contentStudio.artifacts.adoptChanges", "Adopt changes into Briefing")}</strong>{" "}
                       {t(
-                        "admin.contentStudio.artifacts.noPendingSuffix",
-                        "button, so a future full Creator regeneration builds upon your approved edits instead of discarding them.",
+                        "admin.contentStudio.artifacts.autoAdoptHint",
+                        "Sections you revise with an instruction are adopted into the Briefing automatically, so a future Creator run builds on them. Sections marked \"In Briefing\" below can be reverted with \"Refuse & revert\".",
                       )}
                     </div>
                   ))}
@@ -494,7 +490,7 @@ export function ArtifactsPanel({
                                   {t("admin.contentStudio.artifacts.inBriefing", "In Briefing")}
                                 </Badge>
                               )}
-                              {pending && onRefuseChanges && (
+                              {(pending || curated) && onRefuseChanges && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -502,7 +498,7 @@ export function ArtifactsPanel({
                                   disabled={refusingSection === block.id}
                                   title={t(
                                     "admin.contentStudio.artifacts.refuseTitle",
-                                    "Revert this section to the version it had before this revise (one step back). The Briefing is not affected.",
+                                    "Revert this section to the version it had before the revise (one step back) and remove it from the Briefing.",
                                   )}
                                   onClick={() => onRefuseChanges(block.id)}
                                 >

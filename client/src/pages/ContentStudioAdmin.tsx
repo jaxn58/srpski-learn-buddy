@@ -40,6 +40,11 @@ import { DraftStatusBadge } from "@/components/admin/contentStudio/StatusBadge";
 import type { Mode, Provider, StageKey, SectionId, NextStepKey, StepId, SettingsTab, StudioView } from "@/components/admin/contentStudio/types";
 import { isKnownModel, stageOrderedModels } from "@/components/admin/contentStudio/constants";
 import { useSectionLabel } from "@/components/admin/contentStudio/utils/sectionLabel";
+import { countOpenFindings, OBJECTIVE_FINDING_CODES } from "@/components/admin/contentStudio/utils/draftReviewState";
+import {
+  DEFAULT_VOCABULARY_BUDGET,
+  parseVocabularyBudget,
+} from "@shared/contentStudio/vocabularyBudget";
 import { buildSideBySideDiffRows } from "@/components/admin/contentStudio/utils/diffAlgorithm";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "@/components/admin/contentStudio/utils/briefVersionLabel";
 import {
@@ -273,6 +278,8 @@ export default function ContentStudioAdmin() {
   const [runningLector, setRunningLector] = useState(false);
   const [creatingPreview, setCreatingPreview] = useState(false);
   const [runningRevise, setRunningRevise] = useState(false);
+  /** Automatic Lector -> Fix -> Validator cycle (see handleReviewUntilClean). */
+  const [runningReviewCycle, setRunningReviewCycle] = useState(false);
   const [runningCreateValidate, setRunningCreateValidate] = useState(false);
   // Guardrail: full Creator rebuild would discard curated snapshot; hold the
   // pending intent until the user confirms the overwrite in a dialog.
@@ -326,14 +333,6 @@ export default function ContentStudioAdmin() {
     "all" | "draft" | "qc_failed" | "qc_passed" | "audit_failed" | "ready_to_publish" | "published"
   >("all");
 
-  // Batch operations (multi-select drafts)
-  const [batchSelectedDraftIds, setBatchSelectedDraftIds] = useState<string[]>([]);
-  const [batchRunning, setBatchRunning] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; label: string } | null>(null);
-  const [batchResults, setBatchResults] = useState<
-    Array<{ draftId: string; action: string; status: "success" | "failed"; message?: string }>
-  >([]);
-
   // Task progress tracking
   const [taskStartTime, setTaskStartTime] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -347,6 +346,10 @@ export default function ContentStudioAdmin() {
   const [cfgAuditorModel, setCfgAuditorModel] = useState<string>("gemini-2.5-flash");
   const [cfgSpecialistCustom, setCfgSpecialistCustom] = useState(false);
   const [cfgAuditorCustom, setCfgAuditorCustom] = useState(false);
+  /** Vocabulary guideline per unit; text so the field can be emptied while typing. */
+  const [cfgVocabularyBudget, setCfgVocabularyBudget] = useState<string>(
+    String(DEFAULT_VOCABULARY_BUDGET),
+  );
 
   // Draft: specialist skills + reference
   const [draftRefId, setDraftRefId] = useState<string>("");
@@ -453,6 +456,7 @@ export default function ContentStudioAdmin() {
     runningLector ||
     creatingPreview ||
     runningRevise ||
+    runningReviewCycle ||
     runningCreateValidate ||
     runningSectionRevise ||
     runningTranslateDe;
@@ -462,6 +466,7 @@ export default function ContentStudioAdmin() {
     if (runningValidator) return t("admin.contentStudio.page.taskValidatorChecking", "Validator is checking structure...");
     if (runningLector) return t("admin.contentStudio.page.taskLectorReviewing", "Lector is reviewing content...");
     if (runningRevise) return t("admin.contentStudio.page.taskApplyingRevisions", "Applying revisions...");
+    if (runningReviewCycle) return progressMessage || t("admin.contentStudio.page.taskReviewCycle", "Reviewing until clean...");
     if (runningCreateValidate) return t("admin.contentStudio.page.taskCreatorValidator", "Running Creator + Validator...");
     if (runningSectionRevise) return t("admin.contentStudio.page.taskApplyingChanges", "Applying changes...");
     if (creatingPreview) return t("admin.contentStudio.page.taskCreatingPreview", "Creating preview...");
@@ -528,28 +533,6 @@ export default function ContentStudioAdmin() {
     });
   }, [drafts, draftsSearch, draftsStatusFilter]);
 
-  const toggleBatchSelectDraft = (draftId: string, checked: boolean) => {
-    const id = String(draftId || "");
-    if (!id) return;
-    setBatchSelectedDraftIds((prev) => {
-      const set = new Set(prev);
-      if (checked) set.add(id);
-      else set.delete(id);
-      return Array.from(set);
-    });
-  };
-
-  const clearBatchSelection = () => {
-    setBatchSelectedDraftIds([]);
-    setBatchResults([]);
-    setBatchProgress(null);
-  };
-
-  const selectAllFilteredDrafts = () => {
-    const ids = filteredDrafts.map((d: any) => String(d?._id)).filter(Boolean);
-    setBatchSelectedDraftIds((prev) => Array.from(new Set([...prev, ...ids])));
-  };
-
   const activeStep: StepId = useMemo(() => {
     if (!selectedDraftId || !selected?.draft) return "generate";
     if (nextStepKey === "creator") return "generate";
@@ -565,11 +548,9 @@ export default function ContentStudioAdmin() {
 
   const [activeInspectorStep, setActiveInspectorStep] = useState<InspectorStep>("generate");
 
-  // Open findings (errors and warnings, not dismissed). Info-level notes from
-  // the validator are not something the author has to look at.
-  const openFindingsCount = (selected?.findings ?? []).filter(
-    (f: any) => (f.severity === "error" || f.severity === "warning") && !f.dismissed
-  ).length;
+  // Findings the author has to act on: defects only. Style suggestions and
+  // info notes are shown but never gate the workflow.
+  const openFindingsCount = countOpenFindings(selected?.findings ?? []);
 
   useEffect(() => {
     const computed: InspectorStep = (() => {
@@ -897,6 +878,7 @@ export default function ContentStudioAdmin() {
     setCfgAuditorModel(modelConfig.auditor.model);
     setCfgSpecialistCustom(!isKnownModel(modelConfig.specialist.provider, modelConfig.specialist.model));
     setCfgAuditorCustom(!isKnownModel(modelConfig.auditor.provider, modelConfig.auditor.model));
+    setCfgVocabularyBudget(String(modelConfig.vocabularyBudget ?? DEFAULT_VOCABULARY_BUDGET));
   }, [modelConfig]);
 
   // If provider changes and current model doesn't exist in that provider, fallback to the recommended first option.
@@ -1160,6 +1142,7 @@ export default function ContentStudioAdmin() {
       await upsertModelConfig({
         specialist: { provider: cfgSpecialistProvider, model: cfgSpecialistModel.trim() },
         auditor: { provider: cfgAuditorProvider, model: cfgAuditorModel.trim() },
+        vocabularyBudget: parseVocabularyBudget(cfgVocabularyBudget),
       });
       toast.success(t("admin.contentStudio.toast.modelConfigSaved"));
     } catch (e: any) {
@@ -1776,8 +1759,12 @@ export default function ContentStudioAdmin() {
     try {
       const md = markdownText.trim();
       if (!md) throw new Error(t("admin.contentStudio.error.emptyMarkdown"));
-      await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md, skipTranslation: true } as any);
-      toast.success(t("admin.contentStudio.toast.markdownSnapshotSaved", "Markdown draft saved. Run Validator next."));
+      const res: any = await saveMarkdownSnapshot({ draftId: selectedDraftId, markdown: md, skipTranslation: true } as any);
+      if (res?.unchanged) {
+        toast.info(t("admin.contentStudio.toast.markdownUnchanged", "No changes to save. The current version and its checks remain valid."));
+      } else {
+        toast.success(t("admin.contentStudio.toast.markdownSnapshotSaved", "Markdown draft saved. Run Validator next."));
+      }
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.markdownSnapshotSaveFailed", "Failed to save markdown draft"));
     }
@@ -1800,7 +1787,7 @@ export default function ContentStudioAdmin() {
       // Step 2: QC Validate (parses Markdown → JSON snapshot)
       toast.info(t("admin.contentStudio.toast.validatorRunning"));
       setRunningValidator(true);
-      const valRes = await runValidate({ draftId: selectedDraftId });
+      const valRes = await withAuthRetry(() => runValidate({ draftId: selectedDraftId }));
       setRunningValidator(false);
       if (!valRes.ok) {
         toast.error(
@@ -1969,11 +1956,14 @@ export default function ContentStudioAdmin() {
       toast.info(t("admin.contentStudio.toast.validating"));
       setProgressPercent(60);
       setProgressMessage(t("admin.contentStudio.page.progressValidatorAutofix", "Validator: validating + autofix…"));
-      const valRes = await runValidate({ draftId: targetDraftId });
+      const valRes = await withAuthRetry(() => runValidate({ draftId: targetDraftId }));
       
-      // Step 2b: Auto-Recovery for truncated Grammar
-      // If validator found truncated Grammar, fix it automatically with section-based regeneration
-      if (!valRes.ok && (valRes.report as any)?.deepIssues) {
+      let validatorOk = Boolean(valRes?.ok);
+
+      // Step 2b: Auto-Recovery for truncated Grammar. A cut-off Grammar
+      // section is a generation accident, not a content defect: regenerate
+      // the section instead of asking the Fix stage to patch a fragment.
+      if (!validatorOk && (valRes.report as any)?.deepIssues) {
         const issues = (valRes.report as any).deepIssues || [];
         const hasTruncatedGrammar = issues.some((i: any) => 
           i.message?.includes("Grammar section appears truncated") ||
@@ -1982,7 +1972,7 @@ export default function ContentStudioAdmin() {
         
         if (hasTruncatedGrammar) {
           toast.info(t("admin.contentStudio.toast.autoFixingGrammar"));
-          setProgressPercent(70);
+          setProgressPercent(62);
           setProgressMessage(
             t("admin.contentStudio.page.progressAutofixGrammar", "Auto-fix: regenerating Grammar section…")
           );
@@ -1992,48 +1982,22 @@ export default function ContentStudioAdmin() {
             instruction: "Complete the Grammar section with proper subsections (###) and detailed examples. Include at least 3 examples with Serbian + English translations for each grammar concept."
           });
           
-          // Re-validate after fix
           toast.info(t("admin.contentStudio.toast.revalidatingAfterFix"));
-          setProgressPercent(75);
+          setProgressPercent(64);
           setProgressMessage(
             t("admin.contentStudio.page.progressRevalidating", "Validator: re-validating after fix…")
           );
-          const revalidateRes = await runValidate({ draftId: targetDraftId });
-          if (!revalidateRes.ok) {
-            toast.error(t("admin.contentStudio.toast.validationStillFailedAfterAutofix"));
-            setProgressPercent(75);
-            setProgressMessage(
-              t("admin.contentStudio.page.progressValidationFailedAfterAutofix", "Validation failed after auto-fix.")
-            );
-            return;
-          }
-        } else {
-          toast.error(t("admin.contentStudio.toast.validationFailedCheckFindings"));
-          setProgressPercent(65);
-          setProgressMessage(t("admin.contentStudio.page.progressValidationFailed", "Validation failed."));
-          return;
+          const revalidateRes = await withAuthRetry(() => runValidate({ draftId: targetDraftId }));
+          validatorOk = Boolean(revalidateRes?.ok);
         }
-      } else if (!valRes.ok) {
-        toast.error(t("admin.contentStudio.toast.validationFailedCheckFindings"));
-        setProgressPercent(65);
-        setProgressMessage(t("admin.contentStudio.page.progressValidationFailed", "Validation failed."));
-        return;
       }
-      
-      // Step 3: Lector
-      toast.info(t("admin.contentStudio.toast.runningLector"));
-      setProgressPercent(85);
-      setProgressMessage(t("admin.contentStudio.page.progressLectorReviewing", "Lector: reviewing content…"));
-      const lecRes = await runAuditor({ draftId: targetDraftId });
-      
-      if (lecRes.ok) {
-        toast.success(t("admin.contentStudio.toast.doneReady"));
-        setProgressPercent(100);
+
+      // Step 3: review loop (Validator -> Lector -> Fix, up to three rounds).
+      // Remaining validator defects go to the Fix stage inside the loop, so
+      // the author only sees what three rounds could not resolve.
+      const clean = await runReviewCycle(targetDraftId, { validatorOk, progressFrom: 65 });
+      if (clean) {
         setProgressMessage(t("admin.contentStudio.page.progressDoneReadyPreview", "Done. Ready for preview."));
-      } else {
-        toast.warning(t("admin.contentStudio.toast.lectorFoundIssues"));
-        setProgressPercent(92);
-        setProgressMessage(t("admin.contentStudio.page.progressLectorFoundIssues", "Lector found issues."));
       }
     } catch (e: any) {
       toast.error(e?.message || t("admin.contentStudio.toast.generationFailed"));
@@ -2056,108 +2020,6 @@ export default function ContentStudioAdmin() {
     if (!pending) return;
     if (pending.mode === "single") await runSpecialistFlow(true);
     else await runGenerateFlow(true);
-  };
-
-  const runBatch = async (action: "generate" | "validate" | "preview") => {
-    const ids = Array.from(new Set(batchSelectedDraftIds.map(String))).filter(Boolean);
-    if (ids.length === 0) {
-      toast.error(t("admin.contentStudio.toast.noDraftsSelected", "No units selected"));
-      return;
-    }
-    if (isBusy) {
-      toast.error(t("admin.contentStudio.toast.anotherTaskRunning"));
-      return;
-    }
-    setBatchRunning(true);
-    setBatchResults([]);
-    setBatchProgress({ current: 0, total: ids.length, label: `Starting batch ${action}…` });
-    const results: Array<{ draftId: string; action: string; status: "success" | "failed"; message?: string }> = [];
-    const pushResult = (r: { draftId: string; action: string; status: "success" | "failed"; message?: string }) => {
-      results.push(r);
-      setBatchResults([...results]);
-    };
-    try {
-      for (let i = 0; i < ids.length; i++) {
-        const draftId = ids[i] as any;
-        setBatchProgress({ current: i + 1, total: ids.length, label: `${action} ${i + 1}/${ids.length}` });
-
-        try {
-          if (action === "validate") {
-            const res = await runValidate({ draftId });
-            if (res?.ok) {
-              pushResult({ draftId: String(draftId), action, status: "success" });
-            } else {
-              pushResult({ draftId: String(draftId), action, status: "failed", message: "Validator failed (see findings)" });
-            }
-            continue;
-          }
-
-          if (action === "preview") {
-            await createDraftPreview({ draftId } as any);
-            await setDraftStatus({ draftId, status: "ready_to_publish" });
-            pushResult({ draftId: String(draftId), action, status: "success" });
-            continue;
-          }
-
-          // action === "generate" (Creator -> Validator -> Lector)
-          // Guardrail: never silently overwrite a curated snapshot in batch mode.
-          const specRes: any = await runSpecialist({ draftId } as any);
-          if (specRes?.needsConfirm) {
-            pushResult({
-              draftId: String(draftId),
-              action,
-              status: "failed",
-              message: "Skipped: unit has curated content (not overwritten)",
-            });
-            continue;
-          }
-
-          const valRes = await runValidate({ draftId } as any);
-          if (!valRes?.ok && (valRes as any)?.report?.deepIssues) {
-            const issues = (valRes as any).report.deepIssues || [];
-            const hasTruncatedGrammar = issues.some((iss: any) =>
-              String(iss?.message || "").includes("Grammar section appears truncated") ||
-              String(iss?.message || "").includes("Grammar section appears to be cut off")
-            );
-            if (hasTruncatedGrammar) {
-              await runSectionRevise({
-                draftId,
-                sectionId: "grammar",
-                instruction:
-                  "Complete the Grammar section with proper subsections (###) and detailed examples. Include at least 3 examples with Serbian + English translations for each grammar concept.",
-              } as any);
-              const revalidateRes = await runValidate({ draftId } as any);
-              if (!revalidateRes?.ok) {
-                pushResult({ draftId: String(draftId), action, status: "failed", message: "Validation failed after auto-fix" });
-                continue;
-              }
-            } else {
-              pushResult({ draftId: String(draftId), action, status: "failed", message: "Validation failed" });
-              continue;
-            }
-          } else if (!valRes?.ok) {
-            pushResult({ draftId: String(draftId), action, status: "failed", message: "Validation failed" });
-            continue;
-          }
-
-          const lecRes = await runAuditor({ draftId } as any);
-          if (lecRes?.ok) {
-            pushResult({ draftId: String(draftId), action, status: "success" });
-          } else {
-            pushResult({ draftId: String(draftId), action, status: "failed", message: "Lector found issues (see findings)" });
-          }
-        } catch (e: any) {
-          pushResult({ draftId: String(draftId), action, status: "failed", message: e?.message || String(e) });
-        }
-      }
-
-      const fails = results.filter((r) => r.status === "failed").length;
-      const successes = results.filter((r) => r.status === "success").length;
-      toast.success(t("admin.contentStudio.toast.batchFinished", { action, ok: successes, failed: fails }));
-    } finally {
-      setBatchRunning(false);
-      setBatchProgress(null);
-    }
   };
 
   const handleRunRevise = async () => {
@@ -2198,6 +2060,159 @@ export default function ContentStudioAdmin() {
     }
   };
 
+  /**
+   * Chained actions (revise -> validate -> lector) can hit the moment where the
+   * Clerk token has expired and the refreshed one is not attached yet; the
+   * server then sees no identity and answers "Unauthorized". Wait briefly for
+   * the refresh and retry once. Authorization is still enforced server-side.
+   */
+  const withAuthRetry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (e: any) {
+      if (!/unauthorized/i.test(String(e?.message ?? e))) throw e;
+      await new Promise((r) => setTimeout(r, 1500));
+      return await fn();
+    }
+  };
+
+  /**
+   * Automatic review cycle: Lector -> Fix -> Validator -> Lector, at most
+   * three rounds. Stops as soon as no objective findings remain, or when a
+   * round makes no progress (same or higher count), so it never chases the
+   * endless stream of style suggestions.
+   */
+  /**
+   * Validator -> Lector -> Fix loop, up to MAX_ROUNDS. Each round starts with
+   * the deterministic Validator (cheap, catches parser/clitic/coverage
+   * defects), then the Lector. Anything objective that is still open goes to
+   * the Fix stage and the next round re-validates. Returns true when the unit
+   * ended clean. Shared by "Review until clean" and by the generate flow, so
+   * the author sees only what three rounds could not resolve.
+   */
+  const runReviewCycle = async (
+    draftId: string,
+    initial?: { validatorOk: boolean; progressFrom?: number },
+  ): Promise<boolean> => {
+    const MAX_ROUNDS = 3;
+    const base = initial?.progressFrom ?? 10;
+    const span = 100 - base;
+    const pct = (round: number, step: number) =>
+      Math.min(99, Math.round(base + (span * ((round - 1) + step)) / MAX_ROUNDS));
+
+    const countObjective = (report: any): number => {
+      const audit = report?.audit ?? report;
+      const list = [...(audit?.blockers ?? []), ...(audit?.warnings ?? [])];
+      return list.filter((f: any) =>
+        (OBJECTIVE_FINDING_CODES as readonly string[]).includes(String(f?.code ?? "")),
+      ).length;
+    };
+    const fix = async (round: number, n: number) => {
+      setProgressMessage(
+        t("admin.contentStudio.page.progressCycleFix", {
+          defaultValue: "Round {{round}}/{{max}}: fixing {{n}} finding(s)…",
+          round,
+          max: MAX_ROUNDS,
+          n,
+        }),
+      );
+      setProgressPercent(pct(round, 0.66));
+      await withAuthRetry(() =>
+        runRevise({
+          draftId,
+          preferredProvider: cfgSpecialistProvider,
+          maxTokens: 12000,
+          objectiveFindingsOnly: true,
+        }),
+      );
+    };
+
+    let previousCount = Number.POSITIVE_INFINITY;
+    let validatorOk: boolean | undefined = initial?.validatorOk;
+
+    for (let round = 1; round <= MAX_ROUNDS; round++) {
+      if (validatorOk === undefined) {
+        setProgressMessage(
+          t("admin.contentStudio.page.progressCycleValidate", {
+            defaultValue: "Round {{round}}/{{max}}: validating…",
+            round,
+            max: MAX_ROUNDS,
+          }),
+        );
+        setProgressPercent(pct(round, 0));
+        const valRes: any = await withAuthRetry(() => runValidate({ draftId }));
+        validatorOk = Boolean(valRes?.ok);
+      }
+
+      if (!validatorOk) {
+        // Deterministic defects first; the Lector would only repeat them.
+        if (round === MAX_ROUNDS) {
+          toast.error(t("admin.contentStudio.toast.cycleValidatorFailed", "Stopped: the validator failed after the fix. Please look at the findings."));
+          return false;
+        }
+        await fix(round, countOpenFindings(selected?.findings as any));
+        validatorOk = undefined;
+        continue;
+      }
+
+      setProgressMessage(
+        t("admin.contentStudio.page.progressCycleLector", {
+          defaultValue: "Round {{round}}/{{max}}: Lector reviewing…",
+          round,
+          max: MAX_ROUNDS,
+        }),
+      );
+      setProgressPercent(pct(round, 0.33));
+      const audit: any = await withAuthRetry(() => runAuditor({ draftId }));
+      const open = countObjective(audit?.report);
+
+      if (open === 0) {
+        toast.success(t("admin.contentStudio.toast.cycleClean", "No defects left. Style suggestions, if any, are advisory."));
+        setProgressPercent(100);
+        setProgressMessage(t("admin.contentStudio.page.progressCycleDone", "Review finished."));
+        return true;
+      }
+      if (open >= previousCount) {
+        toast.warning(
+          t("admin.contentStudio.toast.cycleNoProgress", {
+            defaultValue: "Stopped: the last round did not reduce the findings ({{n}} left). Please look at them yourself.",
+            n: open,
+          }),
+        );
+        return false;
+      }
+      previousCount = open;
+
+      if (round === MAX_ROUNDS) {
+        toast.warning(
+          t("admin.contentStudio.toast.cycleMaxRounds", {
+            defaultValue: "Stopped after {{max}} rounds, {{n}} finding(s) left.",
+            max: MAX_ROUNDS,
+            n: open,
+          }),
+        );
+        return false;
+      }
+
+      await fix(round, open);
+      validatorOk = undefined;
+    }
+    return false;
+  };
+
+  const handleReviewUntilClean = async () => {
+    if (!selectedDraftId) return;
+    setRunningReviewCycle(true);
+    setProgressPercent(10);
+    try {
+      await runReviewCycle(selectedDraftId);
+    } catch (e: any) {
+      toast.error(e?.message || t("admin.contentStudio.toast.cycleFailed", "Automatic review failed."));
+    } finally {
+      setRunningReviewCycle(false);
+    }
+  };
+
   const handleSectionRevise = async () => {
     if (!selectedDraftId) return;
     if (!expandInstruction.trim()) {
@@ -2216,7 +2231,14 @@ export default function ContentStudioAdmin() {
         instruction: expandInstruction.trim(),
       });
       if (res?.ok) {
-        toast.success(t("admin.contentStudio.toast.sectionUpdated", { section: sectionLabel }));
+        toast.success(
+          (res as any)?.adoptedIntoBriefing
+            ? t("admin.contentStudio.toast.sectionUpdatedAndAdopted", {
+                defaultValue: "{{section}} updated and adopted into the Briefing.",
+                section: sectionLabel,
+              })
+            : t("admin.contentStudio.toast.sectionUpdated", { section: sectionLabel }),
+        );
         setExpandInstruction(""); // Clear after success
         setProgressPercent(80);
         setProgressMessage(t("admin.contentStudio.page.progressSectionUpdatedValidating", "Section updated. Validating…"));
@@ -2227,7 +2249,7 @@ export default function ContentStudioAdmin() {
         setRunningValidator(true);
         try {
           toast.info(t("admin.contentStudio.toast.validating"));
-          const valRes = await runValidate({ draftId: selectedDraftId });
+          const valRes = await withAuthRetry(() => runValidate({ draftId: selectedDraftId }));
           if (valRes?.ok) {
             toast.success(t("admin.contentStudio.toast.validatorPassed"));
             setProgressPercent(100);
@@ -2626,6 +2648,8 @@ export default function ContentStudioAdmin() {
         setCfgAuditorModel={setCfgAuditorModel}
         cfgAuditorCustom={cfgAuditorCustom}
         setCfgAuditorCustom={setCfgAuditorCustom}
+        cfgVocabularyBudget={cfgVocabularyBudget}
+        setCfgVocabularyBudget={setCfgVocabularyBudget}
         onSaveModelConfig={handleSaveModelConfig}
         skillsStage={skillsStage}
         setSkillsStage={setSkillsStage}
@@ -2881,6 +2905,9 @@ export default function ContentStudioAdmin() {
             setDraftAuditorSkillIds={setDraftAuditorSkillIds}
             onSaveDraftSkillsAndReference={() => { void handleSaveDraftSkillsAndReference(); }}
             onSaveAndGenerate={handleSaveAndGenerate}
+            pendingSectionRevisions={pendingSectionRevisions ?? []}
+            onAdoptPendingSections={handleAdoptChanges}
+            adoptingPendingSections={adoptingChanges}
             hasUnsavedChanges={hasUnsavedChanges}
             metaAutosaveStatus={metaAutosaveStatus}
             metaAutosavedAt={metaAutosavedAt}
@@ -2970,6 +2997,8 @@ export default function ContentStudioAdmin() {
             expandInstruction={expandInstruction}
             setExpandInstruction={setExpandInstruction}
             canRunLector={canRunLector}
+            runningReviewCycle={runningReviewCycle}
+            onReviewUntilClean={handleReviewUntilClean}
             onRunRevise={handleRunRevise}
             onRunAuditor={handleRunAuditor}
             onSectionRevise={handleSectionRevise}
@@ -3100,6 +3129,16 @@ export default function ContentStudioAdmin() {
                           onClick={() => setActiveInspectorStep(step)}
                         >
                           {stepLabels[step]}
+                          {/* Unfinished quality step: visible even from step 3. */}
+                          {step === "review" && openFindingsCount > 0 && (
+                            <span
+                              className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle"
+                              title={t("admin.contentStudio.page.openFindingsDot", {
+                                defaultValue: "{{n}} open finding(s)",
+                                n: openFindingsCount,
+                              })}
+                            />
+                          )}
                         </button>
                       </Fragment>
                     );

@@ -53,8 +53,10 @@ export interface BriefWorkflowProps {
   /** Secondary action: create mode = create unit only; edit mode = save only. */
   onSecondary: () => void | Promise<void>;
   actionBusy?: boolean;
-  /** Rendered inside the expert view (versions, reference, skills, author note, templates). */
+  /** Rendered inside the expert view (versions, reference, skills, templates). */
   expertChildren?: ReactNode;
+  /** Rendered in the main flow below the last card, above the expert switch (author note). */
+  belowResult?: ReactNode;
 }
 
 const I18N = "admin.contentStudio.workflow";
@@ -65,7 +67,7 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
     collides, collisionMessage, numbersValid,
     title, setTitle, description, setDescription,
     brief, setBrief, disabled, idPrefix,
-    onPrimary, onSecondary, actionBusy, expertChildren,
+    onPrimary, onSecondary, actionBusy, expertChildren, belowResult,
   } = props;
   const { t } = useTranslation();
   const [expert, setExpert] = useState(false);
@@ -274,6 +276,8 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
           </span>
         </div>
       )}
+
+      {belowResult}
 
       {/* Expert view: everything structural, off by default */}
       <div className="space-y-4">

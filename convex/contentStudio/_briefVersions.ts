@@ -396,18 +396,23 @@ export const refuseSectionRevision = mutation({
     snapshotId: v.id("contentDraftSnapshots"),
   }),
   handler: async (ctx, args) => {
-    await requireSuperadmin(ctx);
+    const user = await requireSuperadmin(ctx);
     const draft = await ctx.db.get(args.draftId);
     if (!draft) throw new Error("Draft not found");
     if (!draft.lastSnapshotId) {
       throw new Error("Draft has no snapshot yet.");
     }
 
+    // A revision can be refused while still pending OR after it was adopted
+    // into the Briefing (adoption is automatic since 2026-09-16). In the second
+    // case the curated entry's source snapshot is the revise snapshot.
     const pending = await computePendingSectionRevisions(ctx, draft);
-    const target = pending.find((p) => p.section === args.section);
-    if (!target) {
+    const pendingTarget = pending.find((p) => p.section === args.section);
+    const curatedTarget = getCuratedSections(draft).find((c) => c.section === args.section);
+    const targetSnapshotId = pendingTarget?.snapshotId ?? curatedTarget?.sourceSnapshotId;
+    if (!targetSnapshotId) {
       throw new Error(
-        `Section '${SECTION_LABELS[args.section] || args.section}' has no pending revision to refuse.`,
+        `Section '${SECTION_LABELS[args.section] || args.section}' has no revision to refuse.`,
       );
     }
 
@@ -417,14 +422,14 @@ export const refuseSectionRevision = mutation({
     }
 
     // Same bounded, newest-first scan as computePendingSectionRevisions, so the
-    // position of the pending revise's snapshot within it is meaningful.
+    // position of the revise's snapshot within it is meaningful.
     const recent = await ctx.db
       .query("contentDraftSnapshots")
       .withIndex("by_draft", (q) => q.eq("draftId", args.draftId))
       .order("desc")
       .take(200);
 
-    const targetIdx = recent.findIndex((s) => String(s._id) === String(target.snapshotId));
+    const targetIdx = recent.findIndex((s) => String(s._id) === String(targetSnapshotId));
     if (targetIdx === -1) {
       throw new Error("Pending revision snapshot not found in recent history.");
     }
@@ -493,6 +498,26 @@ export const refuseSectionRevision = mutation({
       .withIndex("by_draft", (q) => q.eq("draftId", args.draftId))
       .collect();
     for (const f of existingFindings) await ctx.db.delete(f._id);
+
+    // Refusing an adopted revision also takes it out of the Briefing, recorded
+    // as a new Briefing version so the history shows the removal.
+    if (curatedTarget) {
+      const nextCurated = getCuratedSections(draft).filter((c) => c.section !== args.section);
+      const briefVersionId = await ctx.db.insert("contentDraftBriefVersions", {
+        draftId: args.draftId,
+        notes: draft.inspirationRef?.notes,
+        curatedSections: nextCurated,
+        label: undefined,
+        parentVersionId: (draft as unknown as { activeBriefVersionId?: Id<"contentDraftBriefVersions"> })
+          .activeBriefVersionId,
+        createdAt: now,
+        createdBy: user._id,
+      });
+      await ctx.db.patch(args.draftId, {
+        curatedSections: nextCurated,
+        activeBriefVersionId: briefVersionId,
+      } as Partial<Doc<"contentDrafts">>);
+    }
 
     await ctx.db.patch(args.draftId, {
       lastSnapshotId: snapshotId,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { collectLeadingCliticIssues } from "./clitics";
 
 export const SupportedLanguageSchema = z.enum(["en", "de", "sr", "es", "fr"]);
 export type SupportedLanguage = z.infer<typeof SupportedLanguageSchema>;
@@ -330,6 +331,13 @@ export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
         }
       }
     }
+  }
+
+  // Serbian word order: an enclitic (sam, si, se, li, ...) in first position is
+  // a language error the learner would copy. Deterministic, independent of
+  // what the AI stages do (see clitics.ts for the rationale and exclusions).
+  for (const c of collectLeadingCliticIssues(pkg as any)) {
+    issues.push({ level: "error", path: c.path, message: c.message });
   }
 
   return issues;
