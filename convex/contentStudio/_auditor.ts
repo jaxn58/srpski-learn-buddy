@@ -10,6 +10,8 @@ import {
   languageRulesBlock,
   vocabularyFormRule,
   truncateForAudit,
+  createAiCallTimer,
+  LONG_AI_CALL_TIMEOUT_MS,
 } from "./_shared";
 import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
 import { buildSectionQaOverrideBlock } from "../../shared/contentStudio/sectionQaOverrides";
@@ -120,6 +122,7 @@ export const runAiAuditor = action({
     let hasThinkingTokens = false;
     let estimatedCostUsdTotal = 0;
     let hasAnyCost = false;
+    const aiTimer = createAiCallTimer();
 
     const addUsage = (usage: any, estimatedCostUsd: any) => {
       if (usage && typeof usage === "object") {
@@ -152,13 +155,16 @@ export const runAiAuditor = action({
       const maxTokensRaw = typeof args.maxTokens === "number" ? args.maxTokens : 3500;
       const maxTokens = Math.max(1000, Math.min(6000, Math.floor(maxTokensRaw)));
 
-      const { provider, model, raw, usage, estimatedCostUsd } = await callAiJson(ctx, {
-        stage: "auditor",
-        preferredProvider: (args.preferredProvider as any) || undefined,
-        system,
-        user: userPrompt,
-        maxTokens,
-      });
+      const { provider, model, raw, usage, estimatedCostUsd } = await aiTimer.measure(() =>
+        callAiJson(ctx, {
+          stage: "auditor",
+          preferredProvider: (args.preferredProvider as any) || undefined,
+          system,
+          user: userPrompt,
+          maxTokens,
+          timeoutMs: LONG_AI_CALL_TIMEOUT_MS,
+        })
+      );
       providerUsed = provider;
       modelUsed = model;
       addUsage(usage, estimatedCostUsd);
@@ -187,13 +193,15 @@ export const runAiAuditor = action({
           rawPreview,
         ].join("\n");
 
-        const repaired = await callAiJson(ctx, {
-          stage: "auditor",
-          preferredProvider: (args.preferredProvider as any) || undefined,
-          system: repairSystem,
-          user: repairUser,
-          maxTokens: 1800,
-        });
+        const repaired = await aiTimer.measure(() =>
+          callAiJson(ctx, {
+            stage: "auditor",
+            preferredProvider: (args.preferredProvider as any) || undefined,
+            system: repairSystem,
+            user: repairUser,
+            maxTokens: 1800,
+          })
+        );
         providerUsed = repaired.provider;
         modelUsed = repaired.model;
         addUsage(repaired.usage, repaired.estimatedCostUsd);
@@ -404,6 +412,7 @@ export const runAiAuditor = action({
         totalTokens: hasAnyTokens ? (totalTokens || inputTokens + outputTokens) : undefined,
         thinkingTokens: hasThinkingTokens ? thinkingTokens : undefined,
         estimatedCostUsd: hasAnyCost ? estimatedCostUsdTotal : undefined,
+        longestAiCallMs: aiTimer.longestMs(),
         status: "success",
       });
 
@@ -421,6 +430,7 @@ export const runAiAuditor = action({
         totalTokens: hasAnyTokens ? (totalTokens || inputTokens + outputTokens) : undefined,
         thinkingTokens: hasThinkingTokens ? thinkingTokens : undefined,
         estimatedCostUsd: hasAnyCost ? estimatedCostUsdTotal : undefined,
+        longestAiCallMs: aiTimer.longestMs(),
         status: "failed",
         error,
       });

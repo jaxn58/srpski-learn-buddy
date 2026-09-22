@@ -4,6 +4,8 @@ import {
   findUntranslatedLearnerPromptIssues,
   composeTranslatorSystemPrompt,
   stripLeadingGermanArticle,
+  checkSectionQuality,
+  checkMontenegroNoteCarriedOver,
   type TranslatorAdminContext,
 } from "../../convex/contentStudio/_translationCore";
 import { collectDraftSkillIds, closeTruncatedJson, mergeSkillsById } from "../../convex/contentStudio/_shared";
@@ -185,18 +187,21 @@ describe("collectCognateCandidatesFromIssues", () => {
 });
 
 describe("composeTranslatorSystemPrompt", () => {
-  it("orders base → skills → memory → retry", () => {
+  it("orders base → rules → skills → memory → retry", () => {
     const admin: TranslatorAdminContext = {
+      rulesBlock: "=== SERBIAN LANGUAGE RULES ===\nEkavian only.",
       skillBlock: "TRANSLATOR SKILLS:\n--- SKILL: Dialogue ---\nKeep Serbian.",
       memoryBlock: "TRANSLATOR MEMORY:\n- [rule] Do not append EN",
     };
     const out = composeTranslatorSystemPrompt("BASE PROMPT HERE", admin, "retry: fix q01");
     const iBase = out.indexOf("BASE PROMPT HERE");
+    const iRules = out.indexOf("SERBIAN LANGUAGE RULES");
     const iSkill = out.indexOf("TRANSLATOR SKILLS");
     const iMem = out.indexOf("TRANSLATOR MEMORY");
     const iRetry = out.indexOf("retry: fix q01");
     expect(iBase).toBeGreaterThanOrEqual(0);
-    expect(iSkill).toBeGreaterThan(iBase);
+    expect(iRules).toBeGreaterThan(iBase);
+    expect(iSkill).toBeGreaterThan(iRules);
     expect(iMem).toBeGreaterThan(iSkill);
     expect(iRetry).toBeGreaterThan(iMem);
     expect(out).toContain("MUST use that German wording verbatim");
@@ -204,10 +209,115 @@ describe("composeTranslatorSystemPrompt", () => {
 
   it("works with empty admin blocks", () => {
     const out = composeTranslatorSystemPrompt("BASE ONLY", {
+      rulesBlock: "",
       skillBlock: "",
       memoryBlock: "",
     });
     expect(out).toBe("BASE ONLY");
+  });
+});
+
+describe("checkSectionQuality — Serbian column identity (EN vs DE)", () => {
+  it("passes when the Serbian column of a dialogue table is untouched", () => {
+    const mdEn = [
+      "### A. Dialogue 1: Arrival",
+      "| Role | Serbian | English |",
+      "| :--- | :--- | :--- |",
+      "| **Alex** | Zdravo! Ja sam Alex. | Hello! I am Alex. |",
+    ].join("\n");
+    const mdDe = [
+      "### A. Dialogue 1: Ankunft",
+      "| Role | Serbian | German |",
+      "| :--- | :--- | :--- |",
+      "| **Alex** | Zdravo! Ja sam Alex. | Hallo! Ich bin Alex. |",
+    ].join("\n");
+    expect(checkSectionQuality(mdEn, mdDe)).toEqual([]);
+  });
+
+  it("flags a Serbian cell that the DE pass altered", () => {
+    const mdEn = [
+      "| Role | Serbian | English |",
+      "| :--- | :--- | :--- |",
+      "| **Alex** | Zdravo! Ja sam Alex. | Hello! I am Alex. |",
+    ].join("\n");
+    const mdDe = [
+      "| Role | Serbian | German |",
+      "| :--- | :--- | :--- |",
+      "| **Alex** | Zdravo! Ja se zovem Alex. | Hallo! Ich bin Alex. |",
+    ].join("\n");
+    const issues = checkSectionQuality(mdEn, mdDe);
+    expect(issues.some((i) => i.includes("Serbian column changed in row 1"))).toBe(true);
+  });
+
+  it("flags a Serbian cell in a grammar Pattern table", () => {
+    const mdEn = [
+      "#### Pattern",
+      "| Person | Serbian | English |",
+      "| :--- | :--- | :--- |",
+      "| ja | **sam** | I am |",
+      "| ti | **si** | you are |",
+    ].join("\n");
+    const mdDe = [
+      "#### Muster",
+      "| Person | Serbian | German |",
+      "| :--- | :--- | :--- |",
+      "| ja | **sam** | ich bin |",
+      "| ti | **jesi** | du bist |",
+    ].join("\n");
+    const issues = checkSectionQuality(mdEn, mdDe);
+    expect(issues.some((i) => i.includes("Serbian column changed in row 2"))).toBe(true);
+    expect(issues.some((i) => i.includes("row 1"))).toBe(false);
+  });
+
+  it("does not fire on tables without a literal Serbian header", () => {
+    const mdEn = [
+      "| English Meaning | Serbian Word |",
+      "| :--- | :--- |",
+      "| apple | jabuka |",
+    ].join("\n");
+    const mdDe = [
+      "| Deutsche Bedeutung | Serbian Word |",
+      "| :--- | :--- |",
+      "| Apfel | jabuka |",
+    ].join("\n");
+    expect(checkSectionQuality(mdEn, mdDe)).toEqual([]);
+  });
+});
+
+describe("checkMontenegroNoteCarriedOver", () => {
+  it("passes when the structured line survives unchanged", () => {
+    expect(
+      checkMontenegroNoteCarriedOver({
+        courseVocabularyId: "v1",
+        noteEn: "Chunk: fixed phrase, grammar explained later\nIn Montenegro: ne razumijem.",
+        noteDe: "Feste Wendung, Grammatik später erklärt.\nIn Montenegro: ne razumijem.",
+      })
+    ).toBeNull();
+  });
+
+  it("passes when the source note has no Montenegro line", () => {
+    expect(
+      checkMontenegroNoteCarriedOver({ courseVocabularyId: "v2", noteEn: "Gender: feminine", noteDe: "Geschlecht: weiblich" })
+    ).toBeNull();
+  });
+
+  it("flags a missing Montenegro line in noteDe", () => {
+    const issue = checkMontenegroNoteCarriedOver({
+      courseVocabularyId: "v3",
+      noteEn: "Gender: neuter\nIn Montenegro: mlijeko.",
+      noteDe: "Geschlecht: sächlich.",
+    });
+    expect(issue).toContain("v3");
+    expect(issue).toContain("In Montenegro: mlijeko.");
+  });
+
+  it("flags a Montenegro line that was translated instead of copied", () => {
+    const issue = checkMontenegroNoteCarriedOver({
+      courseVocabularyId: "v4",
+      noteEn: "In Montenegro: gdje.",
+      noteDe: "In Montenegro: dort.",
+    });
+    expect(issue).toContain("v4");
   });
 });
 

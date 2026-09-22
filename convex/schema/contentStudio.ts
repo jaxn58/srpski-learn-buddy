@@ -398,6 +398,9 @@ export const contentStudioTables = {
     // Billed as output by the providers; not included in outputTokens.
     thinkingTokens: v.optional(v.number()),
     estimatedCostUsd: v.optional(v.number()),
+    // Longest single AI request of this run in ms (the request timeout applies
+    // per request). For an aborted request: the time until the abort.
+    longestAiCallMs: v.optional(v.number()),
     status: v.union(v.literal("success"), v.literal("failed")),
     error: v.optional(v.string()),
     createdAt: v.number(),

@@ -23,8 +23,6 @@ import {
   normalizeSerbianKey,
   calculateExerciseVarietyScore,
   stripAlreadyTaughtVocabFromMarkdown,
-  appendMontenegroNotesToMarkdown,
-  applyMontenegroVariantNotesToVocabulary,
 } from "./_validatorHelpers";
 import { UnitPackageSchema, validateUnitPackageDeep, type ValidationIssue } from "../../scripts/unitPackage/schema";
 import { validateUnitPackageTemplateRules } from "../../scripts/unitPackage/templateRules";
@@ -292,6 +290,19 @@ export const runQcValidate = action({
       });
     }
 
+    // Ijekavian (Montenegrin) form used directly in the unit text. The
+    // teaching norm is Ekavian: this is a language error at its source, not
+    // a missing-vocabulary gap. The Fix stage must replace the surface with
+    // the Ekavian form; the variant may still be added as a Notes line on
+    // the Ekavian entry via the Montenegrin-pronunciation skill, if checked.
+    for (const dialect of vocabSync.nonStandardDialectForms ?? []) {
+      continuityIssues.push({
+        level: "error",
+        path: ["content", "en"],
+        message: `Serbian word '${dialect.surface}' is the Ijekavian (Montenegrin) form of '${dialect.ekavianForm}'. The teaching norm is Ekavian: replace '${dialect.surface}' with '${dialect.ekavianForm}' everywhere it is used in this unit's text. Do not add '${dialect.surface}' as its own vocabulary row. If the Montenegrin variant should be mentioned to the learner, that happens only via the Montenegrin-pronunciation skill, as a Notes line on '${dialect.ekavianForm}', never in a Serbian cell, dialogue, example or exercise answer.`,
+      });
+    }
+
     const languageIssues = collectMarkdownLanguageIssuesForFounderNote(ensuredWithVocab as any);
     const headingIssues = collectIncompleteHeadingIssues(ensuredWithVocab as any);
 
@@ -441,17 +452,6 @@ export const runQcValidate = action({
       }
     }
 
-    if (typeof nextMarkdownSource === "string" && nextMarkdownSource.trim()) {
-      const { markdown: withDialectNotes, changed: dialectNoteRows } = appendMontenegroNotesToMarkdown(
-        nextMarkdownSource,
-        (ensuredWithVocab as any)?.vocabulary?.en ?? [],
-      );
-      if (dialectNoteRows > 0) {
-        console.log(`[Validator] Appended Montenegro notes to ${dialectNoteRows} vocabulary row(s) in markdown`);
-        nextMarkdownSource = withDialectNotes;
-      }
-    }
-
     await ctx.runMutation(api.contentStudio.saveUnitPackageSnapshot, {
       draftId: args.draftId,
       unitPackageJson: JSON.stringify(ensuredWithVocab),
@@ -512,12 +512,6 @@ export const saveMarkdownSnapshot = action({
     });
 
     const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);
-    applyMontenegroVariantNotesToVocabulary(parsedUnitPackage as any);
-    const dialectSync = appendMontenegroNotesToMarkdown(
-      markdown,
-      (parsedUnitPackage as any)?.vocabulary?.en ?? [],
-    );
-    markdown = dialectSync.markdown;
     const baseParsed = UnitPackageSchema.safeParse(parsedUnitPackage);
     if (!baseParsed.success) {
       const first = baseParsed.error.issues?.[0];

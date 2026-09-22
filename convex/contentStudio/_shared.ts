@@ -264,6 +264,39 @@ export function extractUsageFromAiResponse(data: any): AiUsage | null {
  * every caller (creator, revise, section revise, auditor) logs the same shape,
  * including thinking tokens.
  */
+/**
+ * Request timeout for Creator, Fixer and Lector. Measured on Dev (Unit 1,
+ * 2026-09-23): the same Fix request (about 10k input, 4.6k output tokens)
+ * took 16 s to 47 s depending on provider latency, the Lector up to 45 s,
+ * and single outliers exceeded the 90 s default. 180 s covers roughly four
+ * times the slowest measured request; each run is its own action, far below
+ * the Convex action limit of 10 minutes.
+ */
+export const LONG_AI_CALL_TIMEOUT_MS = 180_000;
+
+/**
+ * Measures AI requests inside one run. The request timeout applies to each
+ * request on its own, so the run log stores the longest single request.
+ * A failed or aborted request is measured too (time until the failure).
+ */
+export function createAiCallTimer() {
+  let longestMs: number | undefined;
+  return {
+    async measure<T>(call: () => Promise<T>): Promise<T> {
+      const startedAt = Date.now();
+      try {
+        return await call();
+      } finally {
+        const elapsed = Date.now() - startedAt;
+        if (longestMs === undefined || elapsed > longestMs) longestMs = elapsed;
+      }
+    },
+    longestMs(): number | undefined {
+      return longestMs;
+    },
+  };
+}
+
 export function usageForRunLog(usage: AiUsage | null | undefined): {
   inputTokens?: number;
   outputTokens?: number;
@@ -1191,24 +1224,18 @@ export async function resolvePromptFromDb(
   throw new Error(`[Content Studio] Required prompt "${key}" not found in chatPrompts table. Please create it via /admin/prompt.`);
 }
 
-/** Like resolvePromptFromDb, but returns "" when the prompt does not exist yet. */
-export async function resolveOptionalPromptFromDb(
-  ctx: ActionCtx,
-  key: string,
-): Promise<string> {
-  const doc: any = await ctx.runQuery(internal.admin.internalGetChatPromptByName, { name: key });
-  return typeof doc?.content === "string" ? doc.content.trim() : "";
-}
-
 /**
- * Shared Serbian language rules (clitic placement, Ekavian norm, script, ...)
- * maintained once in the DB prompt `cs_language_rules` and appended to the
- * system prompt of every stage that writes or checks Serbian (Creator,
- * Section revise, Finding fixer, Lector). Returns "" when not configured.
+ * Shared Serbian language rules (clitic placement, Ekavian norm, script, ...).
+ * Single source of truth in the DB prompt `cs_language_rules`, appended to the
+ * system prompt of EVERY stage that writes, checks, translates or classifies
+ * Serbian: Brief Assistant, Creator, Section revise, Finding fixer, Lector,
+ * Validator classifier, Add-dialogue, Translator (all sub-stages), Verifier.
+ * Mandatory like every other Content Studio prompt: throws if missing, so a
+ * stage never silently runs without the norm.
  */
 export async function languageRulesBlock(ctx: ActionCtx): Promise<string> {
-  const rules = await resolveOptionalPromptFromDb(ctx, CS_PROMPT_KEYS.languageRules);
-  return rules ? `\n=== SERBIAN LANGUAGE RULES (binding for all Serbian text) ===\n${rules}\n` : "";
+  const rules = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.languageRules);
+  return `\n=== SERBIAN LANGUAGE RULES (binding for all Serbian text) ===\n${rules}\n`;
 }
 
 /**

@@ -17,7 +17,7 @@
 import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiJson, parseJsonOrThrow, resolvePromptFromDb } from "./_shared";
+import { requireSuperadminAction, callAiJson, parseJsonOrThrow, resolvePromptFromDb, languageRulesBlock } from "./_shared";
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
   BRIEF_FIELDS,
@@ -157,7 +157,9 @@ export const runBriefAssistant = action({
       unitNumber: args.unitNumber,
       moduleNumber: args.moduleNumber,
     });
-    const system = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.briefAssistant);
+    const system =
+      (await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.briefAssistant)) +
+      (await languageRulesBlock(ctx));
 
     const fieldSpec = BRIEF_FIELDS.map((f) => ({
       id: f.id,

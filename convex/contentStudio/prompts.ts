@@ -12,6 +12,8 @@ export type ContentStudioPromptKey =
   | "cs_lector"
   | "cs_brief_assistant"
   | "cs_language_rules"
+  | "cs_validator_classifier"
+  | "cs_add_dialogue"
   | "cs_translator_metadata"
   | "cs_translator_section"
   | "cs_translator_vocab"
@@ -26,10 +28,16 @@ export const CS_PROMPT_KEYS = {
   /** Turns a free-text unit description plus the course context into a structured briefing. */
   briefAssistant: "cs_brief_assistant",
   /**
-   * Shared Serbian language rules (clitics, Ekavian norm, script). Optional:
-   * appended to Creator, Section revise, Finding fixer and Lector when present.
+   * Shared Serbian language rules (clitics, Ekavian norm, script). Mandatory:
+   * appended to every stage that writes, checks, translates or classifies
+   * Serbian (Brief Assistant, Creator, Section revise, Finding fixer, Lector,
+   * Validator classifier, Add-dialogue, Translator, Verifier).
    */
   languageRules: "cs_language_rules",
+  /** Validator's word classifier (Serbian/English/proper-noun/unknown + lemma anchoring). */
+  validatorClassifier: "cs_validator_classifier",
+  /** Ad-hoc dialogue generator used by the "Add dialogue" studio action. */
+  addDialogue: "cs_add_dialogue",
   translatorMetadata: "cs_translator_metadata",
   translatorSection: "cs_translator_section",
   translatorVocab: "cs_translator_vocab",

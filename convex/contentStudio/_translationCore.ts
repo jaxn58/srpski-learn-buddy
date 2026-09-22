@@ -4,6 +4,7 @@ import {
   callAiJson,
   callAiText,
   formatSkillPromptBlock,
+  languageRulesBlock,
   loadDraftSelectedSkills,
   mergeSkillsById,
   parseJsonOrThrow,
@@ -23,6 +24,7 @@ import {
   parseUntranslatedPromptGuardFailures,
 } from "./_translatorCognates";
 import { restoreOriginalAuthorQuote } from "../../shared/contentStudio/authorNote";
+import { extractStructuredMontenegroNote } from "./_validatorHelpers";
 
 /**
  * Shared translation primitives used by both:
@@ -207,7 +209,62 @@ export function checkSectionQuality(mdEn: string, mdDe: string): string[] {
     issues.push(`Table row count mismatch: EN=${enRows}, DE=${deRows}`);
   }
 
+  // Serbian-column identity: any table with a literal "Serbian" header
+  // (dialogue tables, grammar Pattern tables) must keep that column
+  // byte-identical between EN and DE, row for row. Serbian is the language
+  // being taught; the DE pass may translate the English column next to it,
+  // never the Serbian one. Row-count mismatches are already caught above,
+  // so this only compares content when the row counts line up.
+  const enSerbianCells = extractSerbianColumnCells(mdEn);
+  const deSerbianCells = extractSerbianColumnCells(mdDe);
+  if (enSerbianCells.length > 0 && enSerbianCells.length === deSerbianCells.length) {
+    for (let i = 0; i < enSerbianCells.length; i++) {
+      if (enSerbianCells[i] !== deSerbianCells[i]) {
+        issues.push(
+          `Serbian column changed in row ${i + 1}: EN="${enSerbianCells[i]}" DE="${deSerbianCells[i]}"`
+        );
+      }
+    }
+  }
+
   return issues;
+}
+
+/**
+ * Collect the cell values of the column literally headed "Serbian" from
+ * every Markdown table in a section (dialogue tables, grammar Pattern
+ * tables). Returns them in document order across all such tables.
+ */
+function extractSerbianColumnCells(md: string): string[] {
+  const lines = String(md || "").replace(/\r\n/g, "\n").split("\n");
+  const cells: string[] = [];
+  let serbianIdx: number | null = null;
+
+  const isTableRow = (line: string) => {
+    const t = line.trim();
+    return t.startsWith("|") && t.endsWith("|");
+  };
+  const isTableSeparator = (line: string) => /^\|[\s:|-]+\|$/.test(line.trim());
+  const splitCells = (line: string) => line.trim().slice(1, -1).split("|").map((c) => c.trim());
+
+  for (const line of lines) {
+    if (!isTableRow(line)) {
+      serbianIdx = null;
+      continue;
+    }
+    if (isTableSeparator(line)) continue;
+
+    const rowCells = splitCells(line);
+    const headerIdx = rowCells.findIndex((c) => /^serbian$/i.test(c));
+    if (headerIdx >= 0) {
+      serbianIdx = headerIdx;
+      continue;
+    }
+    if (serbianIdx != null && rowCells[serbianIdx] !== undefined) {
+      cells.push(rowCells[serbianIdx]);
+    }
+  }
+  return cells;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,11 +414,14 @@ export function buildSerbianContextBlock(source: TranslationSourceEn): string {
 export type TranslatorAdminContext = {
   skillBlock: string;
   memoryBlock: string;
+  rulesBlock: string;
 };
 
 /**
- * Load admin-managed translator rules (active skills + memory).
- * Empty blocks when none configured — translator then behaves like the base prompt only.
+ * Load admin-managed translator rules (active skills + memory + the shared
+ * Serbian language rules). The rules block is mandatory (throws if the DB
+ * prompt `cs_language_rules` is missing) so the translator never runs
+ * without the same norm as Creator, Lector and Fixer.
  */
 export async function loadTranslatorAdminContext(
   ctx: ActionCtx,
@@ -377,7 +437,7 @@ export async function loadTranslatorAdminContext(
           .then((ids) => loadDraftSelectedSkills(ctx, { specialistSkillIds: ids }))
       : Promise.resolve([]);
 
-  const [translatorSkills, draftSkills, memoryEntries] = await Promise.all([
+  const [translatorSkills, draftSkills, memoryEntries, rulesBlock] = await Promise.all([
     ctx.runQuery(internal.contentStudio.listActiveSkillsByStageInternal, {
       stage: "translator",
     }),
@@ -386,6 +446,7 @@ export async function loadTranslatorAdminContext(
       scope: "translator",
       limit: 60,
     }),
+    languageRulesBlock(ctx),
   ]);
 
   const contentBlock = formatSkillPromptBlock(
@@ -406,11 +467,11 @@ export async function loadTranslatorAdminContext(
       "TRANSLATOR MEMORY (admin-managed rules — apply during EN→DE translation):",
   });
 
-  return { skillBlock, memoryBlock };
+  return { skillBlock, memoryBlock, rulesBlock };
 }
 
 /**
- * Final system prompt order: base → admin skills → admin memory → retry feedback.
+ * Final system prompt order: base → shared Serbian rules → admin skills → admin memory → retry feedback.
  */
 export function composeTranslatorSystemPrompt(
   basePrompt: string,
@@ -418,6 +479,7 @@ export function composeTranslatorSystemPrompt(
   retryFeedback?: string
 ): string {
   const parts = [String(basePrompt || "").trim()];
+  if (admin.rulesBlock.trim()) parts.push(admin.rulesBlock.trim());
   if (admin.skillBlock.trim()) parts.push(admin.skillBlock.trim());
   if (admin.memoryBlock.trim()) parts.push(admin.memoryBlock.trim());
   if (retryFeedback && retryFeedback.trim()) {
@@ -610,6 +672,30 @@ export interface VocabTranslationResult {
 
 export const VOCAB_CHUNK_SIZE = 25;
 
+/**
+ * Deterministic guard: when the Serbian source note carries the
+ * Montenegrin-pronunciation skill's structured line ("In Montenegro:
+ * <form>."), the German note produced by this translation run must carry
+ * the exact same line, unchanged -- it names a Serbian word, never
+ * translated, only copied. Returns a soft quality-issue message when the
+ * line is missing or altered; null when the source has no such line, or it
+ * survived unchanged into noteDe.
+ */
+export function checkMontenegroNoteCarriedOver(params: {
+  courseVocabularyId: string;
+  noteEn: string;
+  noteDe: string;
+}): string | null {
+  const sourceLine = extractStructuredMontenegroNote(params.noteEn);
+  if (!sourceLine) return null;
+  const targetLine = extractStructuredMontenegroNote(params.noteDe);
+  if (targetLine === sourceLine) return null;
+  return (
+    `vocab:${params.courseVocabularyId}: noteEn has "${sourceLine}" but noteDe is missing it or has a different line. ` +
+    `Copy it into noteDe unchanged (do not translate the Serbian word inside it).`
+  );
+}
+
 export async function translateVocabChunks(
   ctx: ActionCtx,
   args: {
@@ -659,6 +745,7 @@ export async function translateVocabChunks(
       if (!id) continue;
       byId.set(id, it);
     }
+    const dialectIssues: string[] = [];
     for (const src of chunk) {
       const id = String(src?._id ?? "").trim();
       const aiOut = byId.get(id);
@@ -666,10 +753,32 @@ export async function translateVocabChunks(
       const de =
         typeof aiOut?.de === "string" ? stripLeadingGermanArticle(String(aiOut.de)) : "";
       const noteDe = typeof aiOut?.noteDe === "string" ? String(aiOut.noteDe).trim() : "";
+      const dialectIssue = checkMontenegroNoteCarriedOver({
+        courseVocabularyId: id,
+        noteEn: typeof src?.noteEn === "string" ? src.noteEn : "",
+        noteDe,
+      });
+      if (dialectIssue) dialectIssues.push(dialectIssue);
       out.push({
         courseVocabularyId: src._id as any,
         ...(de ? { de } : {}),
         ...(noteDe ? { noteDe } : {}),
+      });
+    }
+    if (dialectIssues.length > 0) {
+      // Soft report only, same pattern as the test-translation quality guard:
+      // never blocks the run, always visible on the translation report.
+      args.stepLogs.push({
+        step: `${stepName}:montenegro-note`,
+        provider: "",
+        model: "",
+        durationMs: 0,
+        inputTokens: null,
+        outputTokens: null,
+        thinkingTokens: null,
+        totalTokens: null,
+        estimatedCostUsd: null,
+        qualityIssues: dialectIssues,
       });
     }
   }

@@ -3,6 +3,7 @@ import {
   callAiJson,
   closeTruncatedJson,
   extractCompleteJsonObjects,
+  languageRulesBlock,
   parseJsonOrThrow,
   resolvePromptFromDb,
   type Provider,
@@ -874,7 +875,9 @@ export async function verifySerbianGermanAlignment(
   for (const it of usable) itemByKey.set(it.key, it);
 
   let failedJsonBatches = 0;
-  const baseSystem = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVerifier);
+  const baseSystem =
+    (await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVerifier)) +
+    (await languageRulesBlock(ctx));
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex]!;

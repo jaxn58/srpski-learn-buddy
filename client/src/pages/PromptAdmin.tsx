@@ -85,7 +85,17 @@ const PROMPT_CATEGORIES: PromptCategory[] = [
       {
         key: "cs_language_rules",
         label: "Serbian Language Rules (shared)",
-        hint: "Optional shared block of binding Serbian rules (clitic placement, Ekavian norm, script). Appended automatically to Creator, Section revise, Finding fixer and Lector.",
+        hint: "Mandatory shared block of binding Serbian rules (clitic placement, Ekavian norm, script). Appended automatically to every stage that writes, checks, translates or classifies Serbian: Brief Assistant, Creator, Section revise, Finding fixer, Lector, Validator classifier, Add-dialogue, Translator, Verifier.",
+      },
+      {
+        key: "cs_validator_classifier",
+        label: "Validator: Word classifier",
+        hint: "System prompt the Validator uses to classify an unrecognized Serbian word (Serbian/English/proper noun/unknown) and anchor inflected forms to a known lemma.",
+      },
+      {
+        key: "cs_add_dialogue",
+        label: "Add Dialogue (ad-hoc)",
+        hint: "System prompt for the studio's 'Add dialogue' action that generates one extra dialogue for an existing draft.",
       },
       {
         key: "cs_section_overview",

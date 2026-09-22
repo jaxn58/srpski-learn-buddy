@@ -44,6 +44,7 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 - **System-Prompts (Instruktionen) sind ENGLISCH**: Alle technischen Anweisungen an die KI (z.B. im Admin-Bereich oder Content Studio) werden auf Englisch verfasst. Dies garantiert die höchste Präzision der KI-Modelle.
 - **English-First Content Workflow**: Im Content Studio werden neue Lerneinheiten (Units) grundsätzlich zuerst auf Englisch generiert. Nach Freigabe der englischen Basisversion erfolgt die Übersetzung ins Deutsche als zweite, gleichwertige Zielsprache. Beide Sprachen (EN und DE) werden als Learner-Tracks ausgeliefert.
 - **Ausgabesprache steuern**: Die Zielsprache der KI-Antworten (z.B. "Erkläre auf Deutsch") wird innerhalb der englischen Instruktionen als Parameter oder spezifische Anweisung übergeben.
+- **Serbische Basisnorm (verbindlich)**: Jeder KI-Aufruf im Content Studio, der Serbisch schreibt, prüft, übersetzt oder klassifiziert (Brief Assistant, Creator, Section Revise, Finding Fixer, Lector, Validator-Klassifikator, Add-Dialogue, Translator, Verifier), lädt den gemeinsamen Pflicht-Prompt `cs_language_rules` (Ekavisch, volle Diakritika, Klitika-Regeln). Beispiele innerhalb aller Content-Studio-Prompts sind selbst ekavisch mit vollen Diakritika (č, ć, đ, š, ž) zu schreiben – kein ASCII-Ersatz, keine Ijekavismen als Beispiel. Die montenegrinische Ijekavisch-Variante wird ausschließlich über den am Draft angehakten Skill "Montenegrin pronunciation." erzeugt (Notes-Zeile `In Montenegro: <Form>.`), nie automatisch vom Code.
 
 ## Architektur & Datenbank
 

@@ -10,6 +10,7 @@ import {
   translateUnitMarkdownToEnglishIfNeeded,
   ensureFounderNoteInMarkdownIfConfigured,
   usageForRunLog,
+  createAiCallTimer,
 } from "./_shared";
 import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
 import {
@@ -113,13 +114,16 @@ export const runSectionRevise = action({
     // v2 grammar sections (rule, pattern table, examples, watch-out, quick
     // check) run to ~1,500 output tokens; leave headroom for thinking models.
     const maxTokens = args.maxTokens ?? 6000;
-    const { provider, model, raw, usage, estimatedCostUsd } = await callAiText(ctx, {
-      stage: "specialist",
-      preferredProvider: (args.preferredProvider as any) || undefined,
-      system: systemPrompt,
-      user: userPrompt,
-      maxTokens,
-    });
+    const aiTimer = createAiCallTimer();
+    const { provider, model, raw, usage, estimatedCostUsd } = await aiTimer.measure(() =>
+      callAiText(ctx, {
+        stage: "specialist",
+        preferredProvider: (args.preferredProvider as any) || undefined,
+        system: systemPrompt,
+        user: userPrompt,
+        maxTokens,
+      })
+    );
 
     let revisedSection = String(raw || "").trim();
     if (!revisedSection) {
@@ -132,6 +136,7 @@ export const runSectionRevise = action({
         outputSummary: `revised chars=0`,
         ...usageForRunLog(usage),
         estimatedCostUsd: typeof estimatedCostUsd === "number" ? estimatedCostUsd : undefined,
+        longestAiCallMs: aiTimer.longestMs(),
         status: "failed",
         error: "AI returned empty content for section revision",
       });
@@ -164,6 +169,7 @@ export const runSectionRevise = action({
         outputSummary: `revised chars=${revisedSection.length}`,
         ...usageForRunLog(usage),
         estimatedCostUsd: typeof estimatedCostUsd === "number" ? estimatedCostUsd : undefined,
+        longestAiCallMs: aiTimer.longestMs(),
         status: "failed",
         error: `section validation failed: ${details}`,
       });
@@ -220,6 +226,7 @@ export const runSectionRevise = action({
       outputSummary: `revised chars=${revisedSection.length}`,
       ...usageForRunLog(usage),
       estimatedCostUsd: typeof estimatedCostUsd === "number" ? estimatedCostUsd : undefined,
+      longestAiCallMs: aiTimer.longestMs(),
       status: "success",
     });
 
@@ -272,15 +279,12 @@ export const addDialogue = action({
 
     // 2. Extract Vocabulary for context
     const vocabSection = extractSection(markdown, "vocabulary") || "";
-    
+
     // 3. Generate Dialogue
-    const system = `You are a dialogue generator for a Serbian learning app.
-Rules:
-- Write a short dialogue (4-8 lines) in Serbian with English translation.
-- Use the provided vocabulary if possible.
-- Format: | Role | Serbian | English |
-- Roles: **Person A**, **Person B**, or specific roles like **Waiter**, **Guest**.
-- Output ONLY the markdown table.`;
+    const basePrompt = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.addDialogue);
+    const rulesBlock = await languageRulesBlock(ctx);
+    const skillBlock = await buildStageSkillBlock(ctx, current.draft as any, "specialist");
+    const system = [basePrompt, rulesBlock, skillBlock].filter(Boolean).join("\n");
 
     const user = `Topic: ${args.topic}
     
@@ -289,13 +293,16 @@ ${vocabSection}
 
 Generate dialogue table:`;
 
-    const { provider, model, raw, usage, estimatedCostUsd } = await callAiText(ctx, {
-      stage: "specialist",
-      preferredProvider: (args.preferredProvider as any) || undefined,
-      system,
-      user,
-      maxTokens: 1000,
-    });
+    const aiTimer = createAiCallTimer();
+    const { provider, model, raw, usage, estimatedCostUsd } = await aiTimer.measure(() =>
+      callAiText(ctx, {
+        stage: "specialist",
+        preferredProvider: (args.preferredProvider as any) || undefined,
+        system,
+        user,
+        maxTokens: 1000,
+      })
+    );
 
     const newDialogue = String(raw || "").trim();
 
@@ -339,6 +346,7 @@ Generate dialogue table:`;
       inputSummary: `add dialogue topic=${args.topic}`,
       ...usageForRunLog(usage),
       estimatedCostUsd: typeof estimatedCostUsd === "number" ? estimatedCostUsd : undefined,
+      longestAiCallMs: aiTimer.longestMs(),
       status: "success",
     });
 

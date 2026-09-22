@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, vocabularyBudgetBlock, vocabularyProtectionBlock, buildStageSkillBlock, usageForRunLog, truncateForAudit } from "./_shared";
+import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, vocabularyBudgetBlock, vocabularyProtectionBlock, buildStageSkillBlock, usageForRunLog, truncateForAudit, createAiCallTimer, LONG_AI_CALL_TIMEOUT_MS } from "./_shared";
 import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
@@ -514,6 +514,7 @@ export const runAiSpecialistGenerate = action({
     );
 
     const startedAt = Date.now();
+    const aiTimer = createAiCallTimer();
     let providerUsed = "unknown";
     let modelUsed = "unknown";
     let lastUsage: any = null;
@@ -536,14 +537,17 @@ export const runAiSpecialistGenerate = action({
               `If you are running out of space, shorten dialogues and wording, but keep the structure complete.`,
             ].join("\n")
           : "";
-        const { provider, model, raw, usage, estimatedCostUsd } = await callAiText(ctx, {
-          stage: "specialist",
-          preferredProvider: (args.preferredProvider as any) || undefined,
-          system,
-          user: userPromptBase + extra,
-          // Give the creator room; markdown is less brittle than JSON but can still truncate.
-          maxTokens,
-        });
+        const { provider, model, raw, usage, estimatedCostUsd } = await aiTimer.measure(() =>
+          callAiText(ctx, {
+            stage: "specialist",
+            preferredProvider: (args.preferredProvider as any) || undefined,
+            system,
+            user: userPromptBase + extra,
+            // Give the creator room; markdown is less brittle than JSON but can still truncate.
+            maxTokens,
+            timeoutMs: LONG_AI_CALL_TIMEOUT_MS,
+          })
+        );
         providerUsed = provider;
         modelUsed = model;
         lastUsage = usage;
@@ -668,6 +672,7 @@ export const runAiSpecialistGenerate = action({
         outputSummary: `generated markdownChars=${markdown.length} vocabMissing=${vocabMissing} unresolvedNew=${vocabUnresolved}`,
         ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
+        longestAiCallMs: aiTimer.longestMs(),
         status: "success",
       });
     } catch (e: any) {
@@ -680,6 +685,7 @@ export const runAiSpecialistGenerate = action({
         inputSummary: `module=${d.moduleNumber}, unit=${d.unitNumber}`,
         ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
+        longestAiCallMs: aiTimer.longestMs(),
         status: "failed",
         error,
       });
@@ -820,19 +826,23 @@ export const runAiCreatorRevise = action({
     const maxTokensRaw = typeof args.maxTokens === "number" ? args.maxTokens : 14000;
     const maxTokens = Math.max(2000, Math.min(16000, Math.floor(maxTokensRaw)));
 
+    const aiTimer = createAiCallTimer();
     let providerUsed = "unknown";
     let modelUsed = "unknown";
     let lastUsage: any = null;
     let lastEstimatedCostUsd: number | null = null;
 
     try {
-      const { provider, model, raw, usage, estimatedCostUsd } = await callAiText(ctx, {
-        stage: "specialist",
-        preferredProvider: (args.preferredProvider as any) || undefined,
-        system,
-        user: userPrompt,
-        maxTokens,
-      });
+      const { provider, model, raw, usage, estimatedCostUsd } = await aiTimer.measure(() =>
+        callAiText(ctx, {
+          stage: "specialist",
+          preferredProvider: (args.preferredProvider as any) || undefined,
+          system,
+          user: userPrompt,
+          maxTokens,
+          timeoutMs: LONG_AI_CALL_TIMEOUT_MS,
+        })
+      );
       providerUsed = provider;
       modelUsed = model;
       lastUsage = usage;
@@ -861,13 +871,16 @@ export const runAiCreatorRevise = action({
           ``,
           `TASK: Revise the markdown to fix the findings. Return the ENTIRE corrected Markdown from the very first line to the very last line. Do not cut it short.`,
         ].join("\n");
-        const retryResult = await callAiText(ctx, {
-          stage: "specialist",
-          preferredProvider: (args.preferredProvider as any) || undefined,
-          system,
-          user: retryUserPrompt,
-          maxTokens,
-        });
+        const retryResult = await aiTimer.measure(() =>
+          callAiText(ctx, {
+            stage: "specialist",
+            preferredProvider: (args.preferredProvider as any) || undefined,
+            system,
+            user: retryUserPrompt,
+            maxTokens,
+            timeoutMs: LONG_AI_CALL_TIMEOUT_MS,
+          })
+        );
         markdown = String(retryResult.raw || "").trim();
         // Update usage tracking to the retry run
         lastUsage = retryResult.usage;
@@ -910,6 +923,7 @@ export const runAiCreatorRevise = action({
         outputSummary: `revised markdownChars=${markdown.length}`,
         ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
+        longestAiCallMs: aiTimer.longestMs(),
         status: "success",
       });
 
@@ -945,6 +959,7 @@ export const runAiCreatorRevise = action({
         inputSummary: `revise findings=${issues.length}`,
         ...usageForRunLog(lastUsage),
         estimatedCostUsd: typeof lastEstimatedCostUsd === "number" ? lastEstimatedCostUsd : undefined,
+        longestAiCallMs: aiTimer.longestMs(),
         status: "failed",
         error,
       });
