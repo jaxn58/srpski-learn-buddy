@@ -31,10 +31,7 @@ import {
   buildCorrectionRecipesBlock,
   findMemoryForFindingsFromEntries,
 } from "./_validatorMemory";
-import {
-  buildSectionQaOverrideBlock,
-  shouldSuppressQaFinding,
-} from "../../shared/contentStudio/sectionQaOverrides";
+import { buildSectionQaOverrideBlock } from "../../shared/contentStudio/sectionQaOverrides";
 
 function normalizeForOverlap(s: string): string[] {
   const raw = String(s || "");
@@ -726,16 +723,6 @@ export const runAiCreatorRevise = action({
       if (f.dismissed) return false;
       if (f.severity !== "error" && f.severity !== "warning") return false;
       if (args.objectiveFindingsOnly && f.stage === "auditor" && String(f.code) === "STYLE_SUGGESTION") return false;
-      if (
-        shouldSuppressQaFinding({
-          message: String(f.message || ""),
-          path: typeof f.path === "string" ? f.path : undefined,
-          severity: String(f.severity || ""),
-          overrides: sectionQaOverrides,
-        })
-      ) {
-        return false;
-      }
       return true;
     });
     const humanNotes = String(args.humanNotes || "").trim();

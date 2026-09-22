@@ -10,10 +10,7 @@ import {
   languageRulesBlock,
 } from "./_shared";
 import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
-import {
-  buildSectionQaOverrideBlock,
-  shouldSuppressQaFinding,
-} from "../../shared/contentStudio/sectionQaOverrides";
+import { buildSectionQaOverrideBlock } from "../../shared/contentStudio/sectionQaOverrides";
 import { CS_PROMPT_KEYS, formatKnownVocabularyKeys } from "./prompts";
 import type { Id } from "../_generated/dataModel";
 
@@ -97,6 +94,13 @@ export const runAiAuditor = action({
       formatKnownVocabularyKeys(previousVocabKeys),
       ``,
       `IMPORTANT: Words from previous units are ALREADY KNOWN to the learner. They do NOT need to be re-introduced. Using them in exercises for REVIEW is encouraged.`,
+      ``,
+      `INFLECTED FORMS (binding — you know Serbian morphology):`,
+      `A case form, vocative, gender form or plural of a lemma that is already in THIS unit's vocabulary is covered. A lemma counts even when it is only one word inside a multi-word entry ("kartica" inside "SIM kartica"). The same is true of VOCABULARY ALREADY TAUGHT.`,
+      `Do not report that surface as missing, untaught, or in need of its own vocabulary row. "kartico", "karticu" and "karticom" are forms of "kartica", not new words.`,
+      `If the vocabulary table lists the inflected surface as its own headword, report one DIDACTIC_GAP: remove that row and keep the dictionary form. The surface stays in the dialogues and exercises. Notes on the lemma may mention the form. That is how the form is booked — not as a second entry.`,
+      ``,
+      `QUESTION COUNT: Do not report how many questions an exercise category has. The validator owns that rule. It uses the foundation maximum, or the explicit count in an author section instruction when that count is higher. A section instruction is applied there, before any finding exists.`,
       auditSkillBlock ? `\n${auditSkillBlock}\n` : ``,
       buildSectionQaOverrideBlock(sectionQaOverrides),
     ].join("\n");
@@ -340,17 +344,7 @@ export const runAiAuditor = action({
 
       // Split by code: objective language defects block, the rest is advisory.
       blockers = deduped.filter((w: any) => BLOCKING_CODES.has(String(w?.code || "")));
-      warnings = deduped
-        .filter((w: any) => !BLOCKING_CODES.has(String(w?.code || "")))
-        .filter(
-          (w: any) =>
-            !shouldSuppressQaFinding({
-              message: String(w?.message || ""),
-              path: typeof w?.path === "string" ? w.path : undefined,
-              severity: "warning",
-              overrides: sectionQaOverrides,
-            }),
-        );
+      warnings = deduped.filter((w: any) => !BLOCKING_CODES.has(String(w?.code || "")));
 
       // Normalize audit object so UI shows the post-processed blocker/warning sets.
       const normalizedAudit = {

@@ -118,75 +118,24 @@ function extractParentheticalGlossesFromText(text: string): string[] {
   return out;
 }
 
-const GLOSS_TOPIC_RE =
-  /context gloss|help gloss|learner gloss|parenthetical|in parentheses|full-sentence context|understand the (?:meaning of the )?sentence|understand the exercise/i;
-const DEMANDS_ADD_GLOSS_RE =
-  /missing|omit|omits|without this context|without this gloss|add the|include the/i;
-const DEMANDS_REMOVE_GLOSS_RE =
-  /remove|unwanted|strip|leftover|still has parenthetical/i;
-
 /**
- * Drop AI verifier issues that contradict the exercise-gloss contract:
- * - multipleChoice / dialogue: sentence-level help glosses are stripped on DE
- * - fillInBlank: German context glosses must stay
- *
- * Deterministic codes (test_missing_context_gloss, test_unwanted_parenthetical_gloss,
- * fill-in cue codes) are never dropped.
+ * Parenthetical glosses are judged by the deterministic checker before the
+ * AI call. The AI sees the stem only, so it cannot demand or reject a gloss
+ * that the contract already decided.
  */
-export function dropAiIssuesThatBreakExerciseGlossContract(
-  issues: VerifierIssue[],
-  items: VerifierInputItem[]
-): { kept: VerifierIssue[]; dropped: VerifierIssue[] } {
-  const byKey = new Map(items.map((it) => [it.key, it]));
-  const kept: VerifierIssue[] = [];
-  const dropped: VerifierIssue[] = [];
-  for (const issue of issues) {
-    if (shouldDropAiGlossContractIssue(issue, byKey.get(issue.itemKey))) {
-      dropped.push(issue);
-    } else {
-      kept.push(issue);
-    }
-  }
-  return { kept, dropped };
+export function textForSemanticVerification(text: string): string {
+  return String(text || "")
+    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +([.?!])/g, "$1")
+    .trim();
 }
 
-function shouldDropAiGlossContractIssue(
-  issue: VerifierIssue,
-  item: VerifierInputItem | undefined
-): boolean {
-  if (!item || issue.itemKind !== "test") return false;
-  if (
-    issue.code === "test_missing_context_gloss" ||
-    issue.code === "test_untranslated_context_gloss" ||
-    issue.code === "test_missing_fill_in_cue" ||
-    issue.code === "test_untranslated_fill_in_cue" ||
-    issue.code === "test_unwanted_parenthetical_gloss"
-  ) {
-    return false;
-  }
-
+function semanticSide(item: VerifierInputItem, side: string): string {
+  if (item.kind !== "test") return side;
   const qType = String(item.questionType ?? "").trim();
-  const isMcOrDialogue = qType === "multipleChoice" || qType === "dialogue";
-  const isFillIn = qType === "fillInBlank";
-  if (!isMcOrDialogue && !isFillIn) return false;
-
-  const blob = `${issue.issue} ${issue.suggestion ?? ""}`;
-  const suggestionHelp = extractParentheticalGlossesFromText(issue.suggestion ?? "").filter(
-    isHelpTranslationGloss
-  );
-  const aboutGloss = GLOSS_TOPIC_RE.test(blob) || suggestionHelp.length > 0;
-  if (!aboutGloss) return false;
-
-  const deQ = extractVerifierQuestion(item.german, "DE") || String(item.german || "").trim();
-  const deHelp = extractParentheticalGlossesFromText(deQ).filter(isHelpTranslationGloss);
-
-  if (isMcOrDialogue && deHelp.length === 0 && (DEMANDS_ADD_GLOSS_RE.test(blob) || suggestionHelp.length > 0)) {
-    return true;
-  }
-  if (isFillIn && deHelp.length > 0 && DEMANDS_REMOVE_GLOSS_RE.test(blob)) {
-    return true;
-  }
-  return false;
+  if (qType !== "multipleChoice" && qType !== "dialogue" && qType !== "fillInBlank") return side;
+  return textForSemanticVerification(side);
 }
 
 /** Same row counter as `checkSectionQuality` — header + data rows, not separator lines. */
@@ -827,9 +776,8 @@ function buildVerifierUserPayload(items: VerifierInputItem[]): string {
   const contract = [
     "TEST GLOSS CONTRACT (binding for kind=test; do not contradict):",
     "- Each test item includes questionType.",
-    "- fillInBlank: if English has a full-sentence context gloss in parentheses, German must keep that gloss in German. Do not report it as unwanted.",
-    "- multipleChoice / dialogue: German must keep the Serbian stem/blank only. Do not report missing_info for a missing sentence-level parenthetical gloss; those are stripped on the DE track by design.",
-    "- Short fill-in source cues like (Milch) are not sentence-level glosses.",
+    "- Parenthetical glosses are removed from this payload. The deterministic checker already applied the gloss contract (fill-in keeps a German context gloss; multiple choice and dialogue do not). Do not report a missing, extra, or unwanted gloss.",
+    "- Short fill-in source cues like (Milch) are not sentence-level glosses and are also absent here.",
     "- vocabulary section: the Serbian table column stays Serbian on DE. Do not report missing_info for lemmas that are still present in the German table's Serbian column.",
     "OUTPUT: return ONLY a JSON object {\"issues\":[...]} with no markdown.",
     "Each issue: {key, severity, code, issue, suggestion?}. Keep issue text under 200 characters.",
@@ -843,8 +791,8 @@ function buildVerifierUserPayload(items: VerifierInputItem[]): string {
       label: it.label,
       ...(it.kind === "test" && it.questionType ? { questionType: it.questionType } : {}),
       serbian: truncate(it.serbian, 4000),
-      english: truncate(it.english, 4000),
-      german: truncate(it.german, 4000),
+      english: truncate(semanticSide(it, it.english), 4000),
+      german: truncate(semanticSide(it, it.german), 4000),
     })),
   };
   return `${contract}${JSON.stringify(payload)}`;
@@ -1028,14 +976,7 @@ export async function verifySerbianGermanAlignment(
       `Deterministic checks still apply.`;
   }
 
-  const glossContract = dropAiIssuesThatBreakExerciseGlossContract(aiIssues, usable);
-  if (glossContract.dropped.length > 0) {
-    console.log(
-      `[verifier] dropped ${glossContract.dropped.length} AI issue(s) that contradict the exercise gloss contract: ` +
-        glossContract.dropped.map((d) => `${d.itemKey}/${d.code}`).join("; ")
-    );
-  }
-  const vocabMissing = dropAiMissingInfoThatRepeatsVocabularySerbian(glossContract.kept, usable);
+  const vocabMissing = dropAiMissingInfoThatRepeatsVocabularySerbian(aiIssues, usable);
   if (vocabMissing.dropped.length > 0) {
     console.log(
       `[verifier] dropped ${vocabMissing.dropped.length} AI missing_info issue(s) that repeat the vocabulary Serbian column: ` +

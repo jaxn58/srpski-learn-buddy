@@ -1223,6 +1223,7 @@ export function vocabularyProtectionBlock(): string {
     "",
     "=== VOCABULARY TABLE (binding) ===",
     "- Never delete or rename a vocabulary entry whose Serbian word is used in the grammar section, dialogues, phrases, exercises or learning objectives of this unit.",
+    "- Exception: an inflected surface (case, vocative, gender, number) is not its own entry when its dictionary form is already in the table, including as one word inside a multi-word row. Do not add \"kartico\" when \"kartica\" or \"SIM kartica\" is already listed. If that surface row exists, remove it and keep the dictionary form. The surface stays in the text. You may mention the form in the lemma's Notes.",
     "- Never reduce the vocabulary table to satisfy a word-count remark. Word count is not your concern; the author decides it.",
     "- You may correct a translation, a note or the gender of an entry at any time.",
     "- When a finding says a Serbian word is MISSING from the vocabulary table, ADD a complete row for it in the fitting `###` category of \"## 2. Vocabulary\": Serbian in base form and audio-clean, the English translation, and a Notes entry if a form or usage needs one. Use the translation suggested in the finding unless it is wrong.",

@@ -15,13 +15,12 @@ import {
 } from "./_shared";
 import { collectMemoryRegressionIssuesFromEntries } from "./_validatorMemory";
 import { vocabularyBudgetOverrun } from "../../shared/contentStudio/vocabularyBudget";
-import { shouldSuppressQaFinding } from "../../shared/contentStudio/sectionQaOverrides";
+import { collectExerciseCountIssues } from "../../shared/contentStudio/sectionQaOverrides";
 import {
   fillMissingUnitPackageFields,
   checkVocabularyCoverage,
   isTaughtEarlier,
   normalizeSerbianKey,
-  resolveKnownInflectedBase,
   calculateExerciseVarietyScore,
   stripAlreadyTaughtVocabFromMarkdown,
   appendMontenegroNotesToMarkdown,
@@ -194,8 +193,7 @@ export const runQcValidate = action({
     for (let i = 0; i < vocabEn.length; i++) {
       const serbian = String(vocabEn[i]?.serbian || "").trim();
       const key = normalizeSerbianKey(serbian);
-      const taughtBase = resolveKnownInflectedBase(key, taughtFirstUnitByKey);
-      const firstUnit = taughtBase ? taughtFirstUnitByKey.get(taughtBase) : undefined;
+      const firstUnit = taughtFirstUnitByKey.get(key);
       if (firstUnit) {
         autoRemovedVocab.push({ serbian, firstUnit });
         continue; // Skip - auto-removed
@@ -238,8 +236,7 @@ export const runQcValidate = action({
     // Rule C: any truly new word used in exercises must be present in unit vocabulary; if we couldn't auto-add safely, block.
     for (const serbian of vocabSync.unresolvedNew ?? []) {
       const key = normalizeSerbianKey(serbian);
-      const taughtBase = resolveKnownInflectedBase(key, taughtFirstUnitByKey);
-      if (taughtBase) continue; // already taught earlier => allowed to be used without listing
+      if (taughtFirstUnitByKey.has(key)) continue;
       if (recycleOnly) {
         recycleSceneFindings.push({
           stage: "validator",
@@ -263,7 +260,7 @@ export const runQcValidate = action({
     // suggested translation is included to make the fix mechanical.
     for (const gap of vocabSync.missing ?? []) {
       const key = normalizeSerbianKey(gap.serbian);
-      if (resolveKnownInflectedBase(key, taughtFirstUnitByKey)) continue;
+      if (taughtFirstUnitByKey.has(key)) continue;
       if (recycleOnly) {
         recycleSceneFindings.push({
           stage: "validator",
@@ -330,16 +327,9 @@ export const runQcValidate = action({
       ...languageIssues,
       ...headingIssues,
       ...memoryRegressionIssues,
+      ...collectExerciseCountIssues(ensuredWithVocab as any, sectionQaOverrides),
       ...(varietyIssue ? [varietyIssue] : []),
-    ].filter((issue) => {
-      if (issue.level === "error") return true;
-      return !shouldSuppressQaFinding({
-        message: issue.message,
-        path: issue.path?.length ? issue.path.join(".") : undefined,
-        severity: issue.level,
-        overrides: sectionQaOverrides,
-      });
-    });
+    ];
 
     const reportBase = buildValidationReport({
       deepIssues,
@@ -364,20 +354,6 @@ export const runQcValidate = action({
         message: i.message,
         path: i.path?.length ? i.path.join(".") : undefined,
       });
-    }
-
-    if (sectionQaOverrides.length > 0) {
-      const kept = findings.filter(
-        (f) =>
-          !shouldSuppressQaFinding({
-            message: f.message,
-            path: f.path,
-            severity: f.severity,
-            overrides: sectionQaOverrides,
-          }),
-      );
-      findings.length = 0;
-      findings.push(...kept);
     }
 
     for (const info of recycleSceneFindings) {

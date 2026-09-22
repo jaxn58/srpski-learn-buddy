@@ -113,20 +113,38 @@ export function exercisesOverrideAsksForMoreThanFoundation(
   return requested !== null && requested > foundationMax;
 }
 
-export function shouldSuppressQaFinding(args: {
-  message: string;
-  path?: string;
-  severity?: string;
-  overrides: SectionQaOverride[];
-}): boolean {
-  if (args.severity === "error") return false;
-  const overrides = normalizeSectionQaOverrides(args.overrides);
-  if (overrides.length === 0) return false;
+/**
+ * The question-count rule itself. Foundation is 6. An exercises instruction
+ * with an explicit higher number is the limit for this unit, so the warning
+ * is never created and then discarded.
+ */
+export function exerciseQuestionLimit(
+  overrides: SectionQaOverride[],
+  foundationMax: number = FOUNDATION_MAX_QUESTIONS_PER_CATEGORY,
+): number {
+  const requested = requestedExerciseQuestionCount(overrides);
+  if (requested !== null && requested > foundationMax) return requested;
+  return foundationMax;
+}
 
-  const message = String(args.message || "");
-  const path = String(args.path || "");
-  if (!isExerciseCountFinding(message, path)) return false;
-  return exercisesOverrideAsksForMoreThanFoundation(overrides);
+export function collectExerciseCountIssues(
+  pkg: { exercises?: { en?: Array<{ category?: string; questions?: unknown[] }> } },
+  overrides: SectionQaOverride[],
+): Array<{ level: "warning"; path: string[]; message: string }> {
+  const limit = exerciseQuestionLimit(overrides);
+  const cats = Array.isArray(pkg?.exercises?.en) ? pkg.exercises.en : [];
+  const issues: Array<{ level: "warning"; path: string[]; message: string }> = [];
+  for (const cat of cats) {
+    const count = Array.isArray(cat?.questions) ? cat.questions.length : 0;
+    if (count <= limit) continue;
+    const name = String(cat?.category || "exercise").trim() || "exercise";
+    issues.push({
+      level: "warning",
+      path: ["exercises", "en"],
+      message: `Exercise category '${name}' has ${count} questions, exceeding the maximum of ${limit} for this unit.`,
+    });
+  }
+  return issues;
 }
 
 function parseRequestedCount(instruction: string): number | null {
@@ -145,14 +163,4 @@ function parseRequestedCount(instruction: string): number | null {
     }
   }
   return max;
-}
-
-function isExerciseCountFinding(message: string, path: string): boolean {
-  const onExercises = /exercises/i.test(path) || /exercise category/i.test(message);
-  if (!onExercises) return false;
-  return (
-    /exceeding the recommended maximum/i.test(message) ||
-    /recommended maximum of \d+ items per category/i.test(message) ||
-    /micro-units/i.test(message)
-  );
 }

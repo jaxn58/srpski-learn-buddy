@@ -14,7 +14,8 @@ import {
   exercisesOverrideAsksForMoreThanFoundation,
   normalizeSectionQaOverrides,
   requestedExerciseQuestionCount,
-  shouldSuppressQaFinding,
+  collectExerciseCountIssues,
+  exerciseQuestionLimit,
 } from "../../shared/contentStudio/sectionQaOverrides";
 
 describe("parseVocabularyBudget", () => {
@@ -142,32 +143,19 @@ describe("section QA overrides", () => {
     expect(requestedExerciseQuestionCount([exercises8])).toBe(8);
   });
 
-  it("suppresses the foundation question-count warning only when asked", () => {
-    const countWarning =
-      "Exercise category 'translation' has 8 questions, exceeding the recommended maximum of 6 items per category for micro-units.";
-    expect(
-      shouldSuppressQaFinding({
-        message: countWarning,
-        path: "exercises.en[category=translation]",
-        severity: "warning",
-        overrides: [exercises8],
-      }),
-    ).toBe(true);
-    expect(
-      shouldSuppressQaFinding({
-        message: countWarning,
-        path: "exercises.en[category=translation]",
-        severity: "warning",
-        overrides: [],
-      }),
-    ).toBe(false);
-    expect(exercisesOverrideAsksForMoreThanFoundation([exercises8])).toBe(true);
+  it("raises the question limit only for an explicit higher count", () => {
+    const eight = (n: number) => ({
+      exercises: { en: [{ category: "translation", questions: Array.from({ length: n }, () => ({})) }] },
+    });
+    expect(exerciseQuestionLimit([exercises8])).toBe(8);
+    expect(exerciseQuestionLimit([])).toBe(6);
+    expect(collectExerciseCountIssues(eight(8), [exercises8])).toEqual([]);
+    expect(collectExerciseCountIssues(eight(8), [])).toHaveLength(1);
+    expect(collectExerciseCountIssues(eight(9), [exercises8])).toHaveLength(1);
     expect(buildSectionQaOverrideBlock([exercises8])).toContain("8 questions");
   });
 
-  it("never softens the foundation without an explicit higher count", () => {
-    const countWarning =
-      "Exercise category 'translation' has 8 questions, exceeding the recommended maximum of 6 items per category for micro-units.";
+  it("keeps the foundation maximum when the instruction names no higher count", () => {
     const vague = {
       id: "2",
       sectionId: "exercises",
@@ -180,40 +168,15 @@ describe("section QA overrides", () => {
       instruction: "Shorten the examples.",
       createdAt: 3,
     };
+    const eight = {
+      exercises: { en: [{ category: "translation", questions: Array.from({ length: 8 }, () => ({})) }] },
+    };
     expect(requestedExerciseQuestionCount([vague])).toBeNull();
     expect(exercisesOverrideAsksForMoreThanFoundation([vague])).toBe(false);
-    expect(
-      shouldSuppressQaFinding({
-        message: countWarning,
-        path: "exercises.en[category=translation]",
-        severity: "warning",
-        overrides: [vague],
-      }),
-    ).toBe(false);
-    expect(
-      shouldSuppressQaFinding({
-        message: countWarning,
-        path: "exercises.en[category=translation]",
-        severity: "warning",
-        overrides: [grammarOnly],
-      }),
-    ).toBe(false);
-    expect(
-      shouldSuppressQaFinding({
-        message: countWarning,
-        path: "exercises.en[category=translation]",
-        severity: "error",
-        overrides: [exercises8],
-      }),
-    ).toBe(false);
-    expect(
-      shouldSuppressQaFinding({
-        message: "Serbian word 'sira' is used in this unit but missing from the vocabulary table.",
-        path: "vocabulary",
-        severity: "warning",
-        overrides: [exercises8],
-      }),
-    ).toBe(false);
+    expect(exerciseQuestionLimit([vague])).toBe(6);
+    expect(exerciseQuestionLimit([grammarOnly])).toBe(6);
+    expect(collectExerciseCountIssues(eight, [vague])).toHaveLength(1);
+    expect(collectExerciseCountIssues(eight, [grammarOnly])).toHaveLength(1);
   });
 
   it("reads the instruction already stored on briefing and pending revise", () => {

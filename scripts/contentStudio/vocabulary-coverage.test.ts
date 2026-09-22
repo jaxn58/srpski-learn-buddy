@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  bookKnownLemma,
   collectSerbianCandidatesFromGrammar,
   collectSerbianCandidatesFromContent,
-  resolveKnownInflectedBase,
+  dictionaryHeadword,
+  expandLemmaKeys,
+  resolveClassifierAnchor,
 } from "../../convex/contentStudio/_validatorHelpers";
 
 const PATTERN_TABLE = [
@@ -101,46 +104,31 @@ describe("collectSerbianCandidatesFromContent", () => {
   });
 });
 
-describe("resolveKnownInflectedBase", () => {
-  const known = (keys: string[]) => new Set(keys);
-
-  it("maps masculine genitive sira to earlier-taught sir", () => {
-    expect(resolveKnownInflectedBase("sira", known(["sir"]))).toBe("sir");
+describe("classifier lemma anchor", () => {
+  it("expands a phrase so kartica is a known lemma inside SIM kartica", () => {
+    const lemmas = expandLemmaKeys(["SIM kartica"]);
+    expect(lemmas.has("sim kartica")).toBe(true);
+    expect(lemmas.has("kartica")).toBe(true);
   });
 
-  it("maps šećera to šećer and kafu to kafa", () => {
-    expect(resolveKnownInflectedBase("šećera", known(["šećer"]))).toBe("šećer");
-    expect(resolveKnownInflectedBase("kafu", known(["kafa"]))).toBe("kafa");
-    expect(resolveKnownInflectedBase("mlijekom", known(["mlijeko"]))).toBe("mlijeko");
+  it("anchors kartico only when the classifier named the known lemma kartica", () => {
+    const known = expandLemmaKeys(["SIM kartica"]);
+    expect(resolveClassifierAnchor("kartico", "kartica", known)).toBe("kartica");
+    expect(resolveClassifierAnchor("karticu", "kartica", known)).toBe("kartica");
+    expect(resolveClassifierAnchor("karticom", "kartica", known)).toBe("kartica");
+    expect(resolveClassifierAnchor("kartico", "kartica", new Set())).toBeNull();
+    expect(resolveClassifierAnchor("mlijeko", "mlijeko", known)).toBeNull();
   });
 
-  it("maps adjective gender and plural dinars to the taught lemma", () => {
-    expect(resolveKnownInflectedBase("dobra", known(["dobar"]))).toBe("dobar");
-    expect(resolveKnownInflectedBase("dobro", known(["dobar"]))).toBe("dobar");
-    expect(resolveKnownInflectedBase("dinare", known(["dinar"]))).toBe("dinar");
-    expect(resolveKnownInflectedBase("dinare", known(["dinara"]))).toBe("dinara");
-    expect(resolveKnownInflectedBase("jedna", known(["jedan"]))).toBe("jedan");
+  it("books the lemma on this unit before an earlier unit", () => {
+    const unit = expandLemmaKeys(["SIM kartica"]);
+    const earlier = expandLemmaKeys(["kartica"]);
+    expect(bookKnownLemma("kartica", { unit, earlier, later: new Set() })).toBe("unit");
+    expect(bookKnownLemma("kartica", { unit: new Set(), earlier, later: new Set() })).toBe("earlier");
   });
 
-  it("covers genitive of a longer noun already in the table", () => {
-    expect(resolveKnownInflectedBase("aerodroma", known(["aerodrom"]))).toBe("aerodrom");
-    expect(resolveKnownInflectedBase("restorana", known(["restoran"]))).toBe("restoran");
-  });
-
-  it("returns the surface when it is already the known lemma", () => {
-    expect(resolveKnownInflectedBase("sir", known(["sir"]))).toBe("sir");
-  });
-
-  it("does not invent a lemma when the base is not known", () => {
-    expect(resolveKnownInflectedBase("sira", known([]))).toBeNull();
-    expect(resolveKnownInflectedBase("kafa", known([]))).toBeNull();
-  });
-
-  it("does not treat a feminine nominative as an inflection of an unrelated word", () => {
-    expect(resolveKnownInflectedBase("kafa", known(["voda"]))).toBeNull();
-  });
-
-  it("does not treat stola (table) as an inflection of sto (one hundred)", () => {
-    expect(resolveKnownInflectedBase("stola", known(["sto"]))).toBeNull();
+  it("names the dictionary form when the surface is new", () => {
+    expect(dictionaryHeadword("kartico", "kartica")).toBe("kartica");
+    expect(dictionaryHeadword("kartica", "kartica")).toBeNull();
   });
 });

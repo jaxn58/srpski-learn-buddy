@@ -26,6 +26,7 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 
 ### Code-Qualität
 - **Keine 'Quick & Dirty' Lösungen** - Lösungen sollten immer durchdacht und analytisch angegangen werden. Es geht immer darum, eine solide und widerstandsfähige Lösung zu finden.
+- **Fehler an der Ursache lösen.** Ein Fehler wird dort gesucht und behoben, wo er entsteht. Die Auswirkungen werden nicht nachträglich umgebogen: kein Sonderfall am Befund, kein Filter, der das Symptom schluckt, kein zweiter Pfad, der den falschen Zustand nur für diesen einen Fall verdeckt. Solches inkonsistente Gebastel ist verboten. Erst die Entstehung verstehen, dann dort korrigieren, damit derselbe Fehler nicht an der nächsten Stelle wieder auftaucht.
 - Alle Inhalte für die App sollen **dynamisch** sein und nicht hardcoded aus der Datenbank gezogen werden. Vorschläge können gemacht werden, wenn es Probleme gibt.
 
 ### Dateien & Änderungen
@@ -349,6 +350,7 @@ damit das Safety-Net greift.
 - ❌ Keine Eigeninitiative bei Dateien oder Design-Änderungen ohne Rückfrage
 - ❌ Keinen verwaisten Code oder verwaiste Dateien nach Ersatz/Rücknahme einer Änderung liegen lassen
 - ❌ Keine Quick & Dirty Lösungen
+- ❌ Fehler nicht an den Auswirkungen umbiegen. Kein inkonsistentes Gebastel (Sonderfall, Filter, Zweitpfad), das das Symptom verdeckt. Ursache finden und dort beheben.
 - ❌ Keine Emojis im Agent Fenster
 - ❌ Keine hardcoded Inhalte - alles dynamisch aus der Datenbank
 - ❌ Keine Mischung von EN- und DE-Inhalten in derselben Ansicht desselben Learner-Tracks (Learner waehlt EN oder DE, UI muss dann durchgaengig in dieser Sprache bleiben)

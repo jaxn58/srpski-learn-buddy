@@ -149,91 +149,72 @@ export function normalizeSerbianKey(s: unknown): string {
   return toVocabularyKey(stripped);
 }
 
-/**
- * If `surface` is a common beginner inflection of a key already in `known`,
- * return that base key. Returns the surface itself when it is already known.
- * Returns null when no known base exists — this must not invent lemmas
- * (`kafa` must not collapse to `kaf`, `stola` must not collapse to `sto`).
- *
- * Deterministic only: case endings, adjective gender, and a known-base check.
- * Never invents a stem that is not already in `known`.
- */
-const BEGINNER_CASE_SUFFIXES = [
-  "ima",
-  "ama",
-  "oga",
-  "ome",
-  "omu",
-  "om",
-  "em",
-  "og",
-  "oj",
-  "im",
-  "ih",
-  "u",
-  "a",
-  "e",
-  "o",
-  "i",
-] as const;
-
-function adjectiveAgreementLemmas(word: string): string[] {
-  const out: string[] = [];
-  if (word.length <= 3) return out;
-  if (word.endsWith("ar")) {
-    const stem = word.slice(0, -2);
-    out.push(stem + "ra", stem + "ro", stem + "ri", stem + "ru", stem + "re");
-  }
-  if (/r[aeiou]$/.test(word)) {
-    out.push(word.slice(0, -2) + "ar");
-  }
-  if (word.endsWith("an")) {
-    const stem = word.slice(0, -2);
-    out.push(stem + "na", stem + "no", stem + "ni", stem + "nu", stem + "ne");
-  }
-  if (/n[aeiou]$/.test(word)) {
-    out.push(word.slice(0, -2) + "an");
+/** Full vocabulary keys plus the single words inside multi-word entries. */
+export function expandLemmaKeys(keys: Iterable<string>): Set<string> {
+  const out = new Set<string>();
+  for (const raw of keys) {
+    const key = normalizeSerbianKey(raw);
+    if (!key) continue;
+    out.add(key);
+    if (!key.includes(" ")) continue;
+    for (const part of key.split(/\s+/)) {
+      if (part.length >= 2 || ONE_LETTER_SERBIAN_WORDS.has(part)) out.add(part);
+    }
   }
   return out;
 }
 
-export function resolveKnownInflectedBase(
+/**
+ * The classifier named a dictionary form for this surface. Accept it only
+ * when that form is already a known lemma. This is the model's judgment,
+ * not an ending rule: "kartico" anchors to "kartica" only because the model
+ * said so and "kartica" is in the known set.
+ */
+export function resolveClassifierAnchor(
   surface: string,
-  known: { has(key: string): boolean },
+  reportedLemma: string | undefined,
+  knownLemmas: { has(key: string): boolean },
 ): string | null {
   const key = normalizeSerbianKey(surface);
-  if (!key || key.length < 3) return null;
-  if (known.has(key)) return key;
+  const lemma = normalizeSerbianKey(reportedLemma ?? "");
+  if (!key || !lemma || lemma === key) return null;
+  if (!knownLemmas.has(lemma)) return null;
+  return lemma;
+}
 
-  if (key.endsWith("u") && key.length > 3) {
-    const baseA = key.slice(0, -1) + "a";
-    if (known.has(baseA)) return baseA;
-  }
-  if (key.endsWith("om") && key.length > 3) {
-    const baseO = key.slice(0, -2) + "o";
-    if (known.has(baseO)) return baseO;
-  }
-  if (key.endsWith("a") && key.length > 3) {
-    const base = key.slice(0, -1);
-    if (known.has(base)) return base;
-  }
-  if (key.endsWith("e") && key.length > 3) {
-    const base = key.slice(0, -1);
-    if (known.has(base)) return base;
-    const baseA = `${base}a`;
-    if (known.has(baseA)) return baseA;
-  }
+export type LemmaBooking = "unit" | "earlier" | "later";
 
-  for (const alt of adjectiveAgreementLemmas(key)) {
-    if (known.has(alt)) return alt;
-  }
-
-  for (const suf of BEGINNER_CASE_SUFFIXES) {
-    if (!key.endsWith(suf) || key.length - suf.length < 4) continue;
-    const stem = key.slice(0, -suf.length);
-    if (known.has(stem)) return stem;
-  }
+/** Where a known lemma already lives. This unit wins over earlier and later units. */
+export function bookKnownLemma(
+  lemma: string,
+  where: {
+    unit: { has(key: string): boolean };
+    earlier: { has(key: string): boolean };
+    later: { has(key: string): boolean };
+  },
+): LemmaBooking | null {
+  const key = normalizeSerbianKey(lemma);
+  if (!key) return null;
+  if (where.unit.has(key)) return "unit";
+  if (where.earlier.has(key)) return "earlier";
+  if (where.later.has(key)) return "later";
   return null;
+}
+
+/**
+ * Dictionary headword the classifier named for a surface that is not itself
+ * the headword ("kartico" → "kartica"). Used only when that headword is not
+ * already known, so the vocabulary row is the base form.
+ */
+export function dictionaryHeadword(
+  surface: string,
+  reportedLemma: string | undefined,
+): string | null {
+  const key = normalizeSerbianKey(surface);
+  const lemma = normalizeSerbianKey(reportedLemma ?? "");
+  if (!key || !lemma || lemma === key) return null;
+  if (lemma.includes(" ") || !looksLikeVocabularyItem(lemma)) return null;
+  return lemma;
 }
 
 function normalizeTextForVariety(s: unknown): string {
@@ -916,30 +897,59 @@ export function isTaughtEarlier(entry: any, currentUnitNumber: number): boolean 
   return true;
 }
 
+export type SerbianWordClassification = {
+  isSerbian: boolean;
+  translation?: string;
+  isProperNoun?: boolean;
+  /** Dictionary form named by the model, when the surface is not that form. */
+  lemma?: string;
+};
+
 /**
- * Classify and translate words - determines if each word is Serbian or English,
- * and provides English translation for Serbian words.
- * Returns a Map of word -> { isSerbian: boolean, translation?: string }
+ * Classify and translate words. Known lemmas are the dictionary forms already
+ * in this unit (including words inside a multi-word entry) and in other units.
+ * An inflection of one of those lemmas is anchored to the lemma; it is not a
+ * new vocabulary headword.
  */
 export async function classifyAndTranslateWords(
   ctx: ActionCtx,
   words: string[],
-): Promise<Map<string, { isSerbian: boolean; translation?: string; isProperNoun?: boolean }>> {
+  knownLemmas: string[] = [],
+): Promise<Map<string, SerbianWordClassification>> {
   const cleanWords = words
     .map(w => String(w || "").trim())
     .filter(w => w.length > 0);
   
   if (cleanWords.length === 0) return new Map();
 
+  const knownList = Array.from(expandLemmaKeys(knownLemmas)).slice(0, 2000);
+  const knownBlock = knownList.length
+    ? [
+        ``,
+        `KNOWN LEMMAS (dictionary forms already taught or listed in this unit, including single words inside a phrase):`,
+        knownList.join(", "),
+        ``,
+        `Judge every word against KNOWN LEMMAS first.`,
+        `A case form, vocative, gender form, plural or other inflection of a known lemma is NOT a new word.`,
+        `Return { "lang": "inflection", "lemma": "<lemma copied from KNOWN LEMMAS>" }.`,
+        `Example: known lemma "kartica" (also when the table only has "SIM kartica"), word "kartico" → { "lang": "inflection", "lemma": "kartica" }.`,
+        `The same applies to "karticu" and "karticom".`,
+        `Never translate that surface as its own vocabulary headword.`,
+        `An infinitive is an inflection of the conjugated forms in KNOWN LEMMAS ("imati" when "ima" is listed). Copy one listed form as the lemma.`,
+      ].join("\n")
+    : "";
+
   const system = [
-    `You are a language classifier and Serbian-English translator.`,
-    `For each word, classify it into one of four categories.`,
+    `You are a language classifier and Serbian-English translator. You know Serbian morphology.`,
+    `For each word, classify it into one of five categories.`,
     ``,
     `Return a JSON object where each key is a word and the value is ONE of:`,
-    `- Serbian vocabulary word: { "lang": "sr", "en": "<English translation>" }`,
+    `- Inflection of a KNOWN LEMMA: { "lang": "inflection", "lemma": "<known lemma>" }`,
+    `- Serbian vocabulary word: { "lang": "sr", "en": "<English translation>", "lemma": "<dictionary form>" }`,
     `- English / grammar term / other language: { "lang": "en" }`,
     `- Personal name of a human (first name, given name, nickname): { "lang": "proper_noun" }`,
     `- Not a real word in any language (typo, gibberish, misspelling): { "lang": "unknown" }`,
+    knownBlock,
     ``,
     `IMPORTANT — unknown category:`,
     `- Use "unknown" for strings that do NOT exist as actual words in Serbian, English, or any other language.`,
@@ -966,6 +976,7 @@ export async function classifyAndTranslateWords(
     `- "čema" → { "lang": "unknown" } (not a real Serbian word)`,
     `- "prsto" → { "lang": "unknown" } (misspelling, not a real word)`,
     ``,
+    `When lang is "sr" and the word you see is not the dictionary form, set "lemma" to the dictionary form (nominative singular for nouns, masculine nominative for adjectives, infinitive for verbs). The English translation belongs to that dictionary form, not to the ending.`,
     `Keep translations short (1-3 words).`,
   ].join("\n");
 
@@ -978,7 +989,8 @@ export async function classifyAndTranslateWords(
     maxTokens: 2000,
   });
 
-  const result = new Map<string, { isSerbian: boolean; translation?: string; isProperNoun?: boolean }>();
+  const result = new Map<string, SerbianWordClassification>();
+  const knownSet = expandLemmaKeys(knownList);
 
   try {
     const cleanedRaw = String(raw || "")
@@ -992,15 +1004,25 @@ export async function classifyAndTranslateWords(
       for (const [word, info] of Object.entries(parsed)) {
         const data = info as any;
         const lang = String(data?.lang || "").toLowerCase();
-        if (lang === "sr" && data?.en) {
-          result.set(word.toLowerCase(), { isSerbian: true, translation: String(data.en).trim() });
+        const key = normalizeSerbianKey(word);
+        if (!key) continue;
+        const lemmaRaw = typeof data?.lemma === "string" ? normalizeSerbianKey(data.lemma) : "";
+        const lemma = lemmaRaw && lemmaRaw !== key ? lemmaRaw : undefined;
+        if (lang === "inflection" && lemma && knownSet.has(lemma)) {
+          result.set(key, { isSerbian: true, lemma });
+        } else if (lang === "sr" && data?.en) {
+          result.set(key, {
+            isSerbian: true,
+            translation: String(data.en).trim(),
+            lemma,
+          });
         } else if (lang === "proper_noun") {
-          result.set(word.toLowerCase(), { isSerbian: false, isProperNoun: true });
+          result.set(key, { isSerbian: false, isProperNoun: true });
         } else {
           if (lang === "unknown") {
             console.log(`Classifier rejected '${word}' — not a real word in any language`);
           }
-          result.set(word.toLowerCase(), { isSerbian: false });
+          result.set(key, { isSerbian: false });
         }
       }
     }
@@ -1137,37 +1159,6 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
     console.warn("Course vocabulary fetch failed; coverage check falls back to unit-local data:", err);
   }
 
-  const isLikelyInflectedFormOfUnitVocab = (candidate: string): string | null => {
-    const key = normalizeSerbianKey(candidate);
-    if (!key || key.length < 3) return null;
-
-    const knownBase = resolveKnownInflectedBase(key, existing);
-    if (knownBase) return knownBase;
-
-    // Infinitive while the unit teaches the conjugated forms: "imati" next to
-    // ima / imamo / imate. The learner meets the paradigm, not the dictionary
-    // form, so the infinitive is covered by the forms in the table.
-    if (key.endsWith("ti") && key.length > 3) {
-      const stem = key.slice(0, -2);
-      if (stem.length >= 2) {
-        for (const k of existingKeys) {
-          if (k !== key && k.startsWith(stem)) return k;
-        }
-      }
-    }
-
-    // Heuristic fallback: if it shares a 3+ letter prefix with an existing unit vocab key, treat as an inflected form.
-    // Example: "mlijekom" -> "mlijeko".
-    // Only for words long enough for a prefix to mean something: short
-    // function words and verb forms (nisi/nisam, ste/sam, si/se) share three
-    // letters without being forms of each other, and "nisi" was silently
-    // dropped from the vocabulary as an "inflection of nisam" (2026-09-16).
-    if (key.length < 6) return null;
-    const prefix = key.slice(0, 3);
-    const match = existingKeys.find((k) => k.length >= 6 && (k.startsWith(prefix) || prefix.startsWith(k.slice(0, 3))));
-    return match || null;
-  };
-
   const exerciseCandidates = collectSerbianCandidatesFromExercises(out);
   const contentCandidates = collectSerbianCandidatesFromContent(out);
   const candidates = [...exerciseCandidates, ...contentCandidates]
@@ -1181,6 +1172,8 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
 
   // Phase 1: Collect all candidates that need processing
   type CandidateInfo = {
+    /** Token as it appears in the unit. The classifier sees this, not a guessed headword. */
+    surface: string;
     lemma: string;
     fallbackEn: string;
     needsAiTranslation: boolean;
@@ -1227,45 +1220,10 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
       // "weak" signal: don't skip — let AI classifier decide below.
     }
 
-    // If it's likely an inflected form of an existing unit vocab word, don't block or auto-add.
-    if (isLikelyInflectedFormOfUnitVocab(key)) continue;
-
-    // Inflected form of a word taught earlier (sira → sir in Unit 3). Exact-key
-    // lookup used to miss these and block review units in a loop: Fix added the
-    // lemma, Validator stripped it as already-taught, the next run flagged the
-    // surface form again.
-    const earlierBase = resolveKnownInflectedBase(key, taughtEarlierByKey);
-    if (earlierBase) {
-      alreadyTaughtUsed.push({
-        serbian: key,
-        firstUnit: taughtEarlierByKey.get(earlierBase) as number,
-        currentUnit: unitNumber,
-      });
-      continue;
-    }
-
-    const laterBase = resolveKnownInflectedBase(key, taughtLaterByKey);
-    if (laterBase) {
-      taughtLater.push({
-        serbian: key,
-        laterUnit: taughtLaterByKey.get(laterBase) as number,
-      });
-      continue;
-    }
-
-    // If it looks like an inflected form, prefer adding the lemma (base form), not the inflected surface form.
-    let lemma = key;
-    if (key.endsWith("u") && key.length > 3) {
-      lemma = key.slice(0, -1) + "a";
-    } else if (key.endsWith("om") && key.length > 3) {
-      lemma = key.slice(0, -2) + "o";
-    }
-    // If lemma is already in unit vocab, stop (it's covered).
-    if (lemma !== key && existing.has(lemma)) continue;
-
-    // Part of a chunk the learner already knows ("dobar"/"dan" from Unit 1's
-    // "Dobar dan"). Filled from the course vocabulary above.
-    if (coveredByChunk.has(lemma)) continue;
+    // Exact key only. Inflection ("kartico", "sira") is decided by the
+    // Serbian classifier below, which sees the known lemmas. Ending rules
+    // must not guess a headword before that.
+    const lemma = key;
 
     // Taught in an earlier unit: usable for review, must NOT be listed again.
     const earlierUnit = taughtEarlierByKey.get(lemma);
@@ -1282,53 +1240,103 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
       continue;
     }
 
-    // Known from the OLD published version of this very unit: a real gap in
-    // the new table, reported directly with the old translation as suggestion.
-    const sameUnitEn = sameUnitEnByKey.get(lemma);
-    if (sameUnitEn) {
-      missing.push({ serbian: lemma, suggestedEn: sameUnitEn });
-      continue;
-    }
-
     // Fallback list gives a safe translation without an AI call.
+    // A same-unit published translation is NOT applied here: the surface may
+    // be an inflection ("kartico") of a lemma already in the table, and the
+    // classifier has to anchor it before anyone proposes a new row.
     const fallback = FALLBACK_VOCAB_PAIRS.find((p) => normalizeSerbianKey(p.serbian) === lemma);
 
-    // Collect for processing
     const fallbackEn = fallback ? fallback.en : "";
     candidatesToProcess.push({
+      surface: key,
       lemma,
       fallbackEn,
       needsAiTranslation: !fallbackEn,
     });
   }
 
+  const unitLemmas = expandLemmaKeys(existingKeys);
+  const earlierLemmas = expandLemmaKeys(taughtEarlierByKey.keys());
+  const laterLemmas = expandLemmaKeys(taughtLaterByKey.keys());
+  const knownLemmas: string[] = [];
+  const seenKnown = new Set<string>();
+  for (const lemmaKey of [...unitLemmas, ...earlierLemmas, ...laterLemmas]) {
+    if (seenKnown.has(lemmaKey)) continue;
+    seenKnown.add(lemmaKey);
+    knownLemmas.push(lemmaKey);
+  }
+  const lemmaWhere = { unit: unitLemmas, earlier: earlierLemmas, later: laterLemmas };
+  const unitOf = (lemmaKey: string, full: Map<string, number>): number | undefined => {
+    const direct = full.get(lemmaKey);
+    if (direct !== undefined) return direct;
+    for (const [phrase, phraseUnit] of full) {
+      if (!phrase.includes(" ")) continue;
+      if (phrase.split(/\s+/).includes(lemmaKey)) return phraseUnit;
+    }
+    return undefined;
+  };
+
   // Phase 2: Classify and translate all words that need AI processing (single API call)
   const wordsNeedingClassification = candidatesToProcess
     .filter(c => c.needsAiTranslation)
-    .map(c => c.lemma);
+    .map(c => c.surface);
 
-  let classificationResults = new Map<
-    string,
-    { isSerbian: boolean; translation?: string; isProperNoun?: boolean }
-  >();
+  let classificationResults = new Map<string, SerbianWordClassification>();
   if (wordsNeedingClassification.length > 0) {
     try {
-      classificationResults = await classifyAndTranslateWords(ctx, wordsNeedingClassification);
+      classificationResults = await classifyAndTranslateWords(ctx, wordsNeedingClassification, knownLemmas);
       const serbianCount = Array.from(classificationResults.values()).filter(v => v.isSerbian).length;
-      console.log(`Classified ${classificationResults.size} words: ${serbianCount} Serbian, ${classificationResults.size - serbianCount} English/other`);
+      const anchoredCount = Array.from(classificationResults.values()).filter(v => v.lemma).length;
+      console.log(`Classified ${classificationResults.size} words: ${serbianCount} Serbian, ${anchoredCount} with a dictionary form, ${classificationResults.size - serbianCount} English/other`);
     } catch (err) {
       console.warn("Classification failed:", err);
     }
   }
 
-  // Phase 3: Process all candidates with translations (skip English words + proper nouns)
+  // Phase 3: Anchor inflections the classifier recognized, then report only
+  // real gaps. A new row is the dictionary form, never the case ending.
   for (const candidate of candidatesToProcess) {
+    const surfaceKey = normalizeSerbianKey(candidate.surface);
+    const classification = classificationResults.get(surfaceKey);
+
+    if (classification?.lemma) {
+      const anchor = resolveClassifierAnchor(candidate.surface, classification.lemma, seenKnown);
+      const head = anchor ?? dictionaryHeadword(candidate.surface, classification.lemma);
+      if (head) {
+        const booking = bookKnownLemma(head, lemmaWhere);
+        if (booking === "unit") {
+          console.log(`Anchored '${candidate.surface}' to '${head}', already in this unit`);
+          continue;
+        }
+        if (booking === "earlier") {
+          const firstUnit = unitOf(head, taughtEarlierByKey);
+          if (firstUnit !== undefined) {
+            alreadyTaughtUsed.push({ serbian: head, firstUnit, currentUnit: unitNumber });
+            console.log(`Anchored '${candidate.surface}' to '${head}', taught in Unit ${firstUnit}`);
+            continue;
+          }
+        }
+        if (booking === "later") {
+          const laterUnit = unitOf(head, taughtLaterByKey);
+          if (laterUnit !== undefined) {
+            taughtLater.push({ serbian: head, laterUnit });
+            continue;
+          }
+        }
+        if (anchor) {
+          // Named a known lemma but the booking sets did not contain it.
+          // Still not a new headword.
+          console.log(`Anchored '${candidate.surface}' to known lemma '${head}'`);
+          continue;
+        }
+        candidate.lemma = head;
+      }
+    }
+
     let en = candidate.fallbackEn;
 
     // If no fallback, use classification result
     if (!en) {
-      const classification = classificationResults.get(candidate.lemma.toLowerCase());
-
       // Skip proper nouns (personal names) explicitly so we can report them.
       // Allowlist takes precedence: if an admin confirmed a word is regular
       // vocabulary, override the classifier and keep processing.
@@ -1350,7 +1358,7 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
         continue;
       }
 
-      en = classification?.translation || "";
+      en = classification?.translation || sameUnitEnByKey.get(candidate.lemma) || "";
     }
 
     if (!en) {
