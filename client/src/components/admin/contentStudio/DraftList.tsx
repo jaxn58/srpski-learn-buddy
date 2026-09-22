@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -132,39 +131,39 @@ export function DraftList({
     // audit snapshot (drafts audited before that bookkeeping show nothing).
     const lectorStale = isLectorStale(d);
     return (
-      <div key={d._id} className="group flex items-stretch gap-1.5">
+      <div key={d._id} className="group flex min-w-0 items-stretch gap-1.5">
         <button
           type="button"
           onClick={() => onSelectDraft(d._id)}
           className={cn(
-            "flex-1 min-w-0 text-left rounded-md border px-2.5 py-1.5 transition-colors",
+            "min-w-0 flex-1 overflow-hidden text-left rounded-md border px-2.5 py-1.5 transition-colors",
             isSelected
-              ? "border-primary/40 bg-primary/8 ring-1 ring-primary/20"
+              ? "border-primary/50 bg-primary/8"
               : "hover:bg-muted/50 border-transparent hover:border-border"
           )}
         >
           {/* Row 1: Unit#, Status */}
-          <div className="flex items-center justify-between gap-1.5 mb-0.5">
-            <span className="text-[10px] font-bold tabular-nums text-foreground">
+          <div className="mb-0.5 flex min-w-0 items-center justify-between gap-1.5">
+            <span className="shrink-0 text-[10px] font-bold tabular-nums text-foreground">
               U{d.unitNumber}
             </span>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex min-w-0 items-center justify-end gap-1">
               {lectorStale && (
                 <span
-                  className="text-[9px] text-amber-600 dark:text-amber-400"
+                  className="truncate text-[9px] text-amber-600 dark:text-amber-400"
                   title={t("admin.contentStudio.unitList.lectorStaleHint", "Content changed after the last Lector run")}
                 >
                   {t("admin.contentStudio.unitList.lectorStaleShort", "Lector outdated")}
                 </span>
               )}
-              <span className={cn("inline-block h-1.5 w-1.5 rounded-full shrink-0", statusDot)} />
-              <span className="text-[9px] text-muted-foreground tabular-nums">
+              <span className={cn("inline-block h-1.5 w-1.5 shrink-0 rounded-full", statusDot)} />
+              <span className="truncate text-[9px] text-muted-foreground">
                 {statusShort[status] ?? status}
               </span>
             </div>
           </div>
           {/* Row 2: Title */}
-          <div className="text-[11px] font-medium leading-snug line-clamp-2 text-foreground/90">
+          <div className="line-clamp-2 break-words text-[11px] font-medium leading-snug text-foreground/90">
             {String(d.title || t("admin.contentStudio.unitList.untitled", "Untitled")).trim()}
           </div>
           {/* Row 3: Active Brief Version (selected draft only) */}
@@ -196,7 +195,7 @@ export function DraftList({
 
   return (
     <>
-      <Card className="h-fit">
+      <Card className="min-w-0 w-full overflow-x-hidden">
         <CardHeader className="gap-3">
           <div className="flex items-center justify-between gap-2">
             <CardTitle>{t("admin.contentStudio.unitList.title", "Units in progress")}</CardTitle>
@@ -242,8 +241,7 @@ export function DraftList({
           </div>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="max-h-[560px] pr-1">
-            <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
               {drafts === undefined ? (
                 <div className="text-sm text-muted-foreground">{t("admin.contentStudio.unitList.loading", "Loading units…")}</div>
               ) : filteredDrafts.length === 0 ? (
@@ -276,7 +274,7 @@ export function DraftList({
                         </Badge>
                       </button>
                       {!collapsed && (
-                        <div className="ml-2 space-y-1 border-l pl-2">
+                        <div className="ml-2 min-w-0 space-y-1 border-l pl-2">
                           {g.drafts.map((d: any) => renderDraftRow(d))}
                         </div>
                       )}
@@ -285,7 +283,6 @@ export function DraftList({
                 })
               )}
             </div>
-          </ScrollArea>
         </CardContent>
       </Card>
 

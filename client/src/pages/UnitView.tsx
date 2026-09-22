@@ -208,6 +208,11 @@ export default function UnitView() {
     }
   }, []);
   const displayLanguage = forcedLanguage || user?.learningLanguage || (i18n.language === "de" ? "de" : "en");
+  const contentLng = displayLanguage === "de" ? "de" : "en";
+  const tUnit = (key: string, defaultValue?: string) =>
+    defaultValue === undefined
+      ? t(key, { lng: contentLng })
+      : t(key, { lng: contentLng, defaultValue });
 
   // ContentStudio Preview toggle:
   //   /unit/3?view=published  -> superadmin sees the LIVE (published) content
@@ -641,20 +646,20 @@ export default function UnitView() {
       <AnimatedItem>
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="grid w-full grid-cols-3 sm:grid-cols-3 md:grid-cols-6 h-auto">
-            <TabsTrigger value="overview" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.overview")}</span></TabsTrigger>
-            <TabsTrigger value="vocabulary" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.vocabulary")}</span></TabsTrigger>
-            <TabsTrigger value="grammar" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.grammar")}</span></TabsTrigger>
-            <TabsTrigger value="phrases" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.phrases")}</span></TabsTrigger>
-            <TabsTrigger value="dialogues" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.dialogues")}</span></TabsTrigger>
-            <TabsTrigger value="test" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><PenTool className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{t("unit.tab.exercises")}</span></TabsTrigger>
+            <TabsTrigger value="overview" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.overview")}</span></TabsTrigger>
+            <TabsTrigger value="vocabulary" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.vocabulary")}</span></TabsTrigger>
+            <TabsTrigger value="grammar" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.grammar")}</span></TabsTrigger>
+            <TabsTrigger value="phrases" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.phrases")}</span></TabsTrigger>
+            <TabsTrigger value="dialogues" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.dialogues")}</span></TabsTrigger>
+            <TabsTrigger value="test" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><PenTool className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.exercises")}</span></TabsTrigger>
           </TabsList>
 
             {/* 1. Overview */}
             <TabsContent value="overview" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>{t("unit.section.overview.title")}</CardTitle>
-                  <CardDescription>{t("unit.section.overview.desc")}</CardDescription>
+                  <CardTitle>{tUnit("unit.section.overview.title")}</CardTitle>
+                  <CardDescription>{tUnit("unit.section.overview.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.overview ? (
@@ -670,8 +675,8 @@ export default function UnitView() {
             <TabsContent value="vocabulary" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>{t("unit.section.vocabulary.title")}</CardTitle>
-                  <CardDescription>{t("unit.section.vocabulary.desc")}</CardDescription>
+                  <CardTitle>{tUnit("unit.section.vocabulary.title")}</CardTitle>
+                  <CardDescription>{tUnit("unit.section.vocabulary.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {vocabularyWithProgress === undefined ? (
@@ -687,6 +692,7 @@ export default function UnitView() {
                           <div key={group.title}>
                             <h3 className="text-lg font-semibold mb-4">{group.title}</h3>
                             <VocabularyDictionaryTable
+                              contentLanguage={contentLng}
                               rows={group.rows}
                               onPlayAudio={({ vocabularyId, serbianWord, unitNumber, audioStorageId }) =>
                                 play({ vocabularyId, serbianWord, unitNumber, audioStorageId })
@@ -699,6 +705,7 @@ export default function UnitView() {
                       </div>
                     ) : (
                       <VocabularyDictionaryTable
+                        contentLanguage={contentLng}
                         rows={vocabularyRows}
                         onPlayAudio={({ vocabularyId, serbianWord, unitNumber, audioStorageId }) =>
                           play({ vocabularyId, serbianWord, unitNumber, audioStorageId })
@@ -708,13 +715,13 @@ export default function UnitView() {
                       />
                     )
                   ) : content?.vocabulary ? (
-                    <MarkdownContent content={content.vocabulary} />
+                    <MarkdownContent content={content.vocabulary.replace(/^##\s+[^\n]+\n+/, "")} />
                   ) : (
                     <p className="text-center py-8 text-muted-foreground">No vocabulary loaded.</p>
                   )}
                   <div className="mt-6 flex justify-end">
                     <Link href={`/vocabulary?unit=${unitNumber}`}>
-                      <Button>{t("unit.practiceInVocabTrainer")}</Button>
+                      <Button>{tUnit("unit.practiceInVocabTrainer")}</Button>
                     </Link>
                   </div>
                 </CardContent>
@@ -725,13 +732,13 @@ export default function UnitView() {
             <TabsContent value="grammar" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>{t("unit.section.grammar.title")}</CardTitle>
-                  <CardDescription>{t("unit.section.grammar.desc")}</CardDescription>
+                  <CardTitle>{tUnit("unit.section.grammar.title")}</CardTitle>
+                  <CardDescription>{tUnit("unit.section.grammar.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.grammar ? (
                     <>
-                      <MarkdownContent content={content.grammar} />
+                      <MarkdownContent content={content.grammar.replace(/^##\s+[^\n]+\n+/, "")} />
                       <div
                         role="button"
                         tabIndex={0}
@@ -741,8 +748,8 @@ export default function UnitView() {
                       >
                         <Brain className="h-5 w-5 text-primary shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{t("unit.askBuddy.grammar.title", "Need more help?")}</p>
-                          <p className="text-xs text-muted-foreground">{t("unit.askBuddy.grammar.desc", "Ask Learn Buddy to explain this grammar topic in detail.")}</p>
+                          <p className="text-sm font-medium">{tUnit("unit.askBuddy.grammar.title", "Need more help?")}</p>
+                          <p className="text-xs text-muted-foreground">{tUnit("unit.askBuddy.grammar.desc", "Ask Learn Buddy to explain this grammar topic in detail.")}</p>
                         </div>
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
@@ -758,14 +765,14 @@ export default function UnitView() {
             <TabsContent value="phrases" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>{t("unit.section.phrases.title")}</CardTitle>
-                  <CardDescription>{t("unit.section.phrases.desc")}</CardDescription>
+                  <CardTitle>{tUnit("unit.section.phrases.title")}</CardTitle>
+                  <CardDescription>{tUnit("unit.section.phrases.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.phrases ? (
                     <>
                       <UnitContentAudioMarkdown
-                        content={content.phrases}
+                        content={content.phrases.replace(/^##\s+[^\n]+\n+/, "")}
                         unitNumber={unitNumber}
                         language={displayLanguage}
                         contentType="phrases"
@@ -779,8 +786,8 @@ export default function UnitView() {
                       >
                         <Brain className="h-5 w-5 text-primary shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{t("unit.askBuddy.phrases.title", "Want to practice?")}</p>
-                          <p className="text-xs text-muted-foreground">{t("unit.askBuddy.phrases.desc", "Practice these phrases with Learn Buddy in a conversation.")}</p>
+                          <p className="text-sm font-medium">{tUnit("unit.askBuddy.phrases.title", "Want to practice?")}</p>
+                          <p className="text-xs text-muted-foreground">{tUnit("unit.askBuddy.phrases.desc", "Practice these phrases with Learn Buddy in a conversation.")}</p>
                         </div>
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
@@ -796,8 +803,8 @@ export default function UnitView() {
             <TabsContent value="dialogues" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>{t("unit.section.dialogues.title")}</CardTitle>
-                  <CardDescription>{t("unit.section.dialogues.desc")}</CardDescription>
+                  <CardTitle>{tUnit("unit.section.dialogues.title")}</CardTitle>
+                  <CardDescription>{tUnit("unit.section.dialogues.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.dialogues ? (
@@ -817,8 +824,8 @@ export default function UnitView() {
                       >
                         <Brain className="h-5 w-5 text-primary shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{t("unit.askBuddy.dialogues.title", "Want to practice?")}</p>
-                          <p className="text-xs text-muted-foreground">{t("unit.askBuddy.dialogues.desc", "Practice these dialogues with Learn Buddy in a role-play conversation.")}</p>
+                          <p className="text-sm font-medium">{tUnit("unit.askBuddy.dialogues.title", "Want to practice?")}</p>
+                          <p className="text-xs text-muted-foreground">{tUnit("unit.askBuddy.dialogues.desc", "Practice these dialogues with Learn Buddy in a role-play conversation.")}</p>
                         </div>
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
@@ -834,8 +841,8 @@ export default function UnitView() {
             <TabsContent value="test" className="mt-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>{t("unit.section.exercises.title")}</CardTitle>
-                  <CardDescription>{t("unit.section.exercises.desc")}</CardDescription>
+                  <CardTitle>{tUnit("unit.section.exercises.title")}</CardTitle>
+                  <CardDescription>{tUnit("unit.section.exercises.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <InteractiveTest

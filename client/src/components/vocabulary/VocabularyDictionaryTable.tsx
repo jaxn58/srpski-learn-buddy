@@ -23,6 +23,7 @@ export function VocabularyDictionaryTable({
   onPlayAudio,
   playingAudioId,
   loadingAudioId,
+  contentLanguage,
 }: {
   rows: VocabularyDictionaryRow[];
   onPlayAudio: (args: {
@@ -33,8 +34,15 @@ export function VocabularyDictionaryTable({
   }) => void;
   playingAudioId: string | null;
   loadingAudioId: string | null;
+  contentLanguage?: string;
 }) {
-  const { t } = useTranslation();
+  const { t: tUi } = useTranslation();
+  const lng = contentLanguage === "de" ? "de" : contentLanguage === "en" ? "en" : undefined;
+  const t = (key: string, defaultValue?: string) =>
+    tUi(key, {
+      ...(lng ? { lng } : {}),
+      ...(defaultValue === undefined ? {} : { defaultValue }),
+    });
   const { openBuddyModal } = useBuddyModal();
   if (!rows.length) return null;
 

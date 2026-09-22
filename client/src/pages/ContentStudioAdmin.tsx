@@ -2935,23 +2935,23 @@ export default function ContentStudioAdmin() {
         );
 
         return (
-          <div className="flex flex-col lg:flex-row gap-0 h-[calc(100vh-8rem)] border rounded-lg overflow-hidden bg-background">
+          <div className="flex flex-col lg:flex-row items-start gap-0 border rounded-lg bg-background">
             {/* Mobile Sidebar Sheet */}
             <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
               <SheetContent side="left" className="w-[300px] p-0 lg:hidden">
-                <div className="flex flex-col h-full overflow-hidden pt-8">
+                <div className="flex flex-col h-full overflow-x-hidden overflow-y-auto pt-8">
                   {draftListContent}
                 </div>
               </SheetContent>
             </Sheet>
 
             {/* Zone 1: Sidebar (desktop only) */}
-            <div className="hidden lg:flex w-[260px] shrink-0 border-r flex-col overflow-hidden">
+            <div className="hidden lg:block w-[260px] shrink-0 border-r overflow-x-hidden">
               {draftListContent}
             </div>
 
             {/* Zone 2: Draft Edit Panel */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <div className="flex-1 flex flex-col min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
               {editPanelContent}
             </div>
           </div>
@@ -3034,11 +3034,11 @@ export default function ContentStudioAdmin() {
         ) : null;
 
         return (
-        <div className="flex flex-col lg:flex-row gap-0 h-[calc(100vh-8rem)] border rounded-lg overflow-hidden bg-background">
+        <div className="flex flex-col lg:flex-row items-start gap-0 border rounded-lg bg-background">
           {/* Mobile Sidebar Sheet */}
           <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
             <SheetContent side="left" className="w-[300px] p-0 lg:hidden">
-              <div className="flex flex-col h-full overflow-hidden pt-8">
+              <div className="flex flex-col h-full overflow-x-hidden overflow-y-auto pt-8">
                 {draftListContent}
               </div>
             </SheetContent>
@@ -3054,12 +3054,12 @@ export default function ContentStudioAdmin() {
           </Sheet>
 
           {/* Zone 1: Sidebar (desktop only) */}
-          <div className="hidden lg:flex w-[260px] shrink-0 border-r flex-col overflow-hidden">
+          <div className="hidden lg:block w-[260px] shrink-0 border-r overflow-x-hidden">
             {draftListContent}
           </div>
 
           {/* Zone 2: Central Workspace */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <div className="flex-1 flex flex-col min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-hidden">
             {!selectedDraftId || !selected?.draft ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm">
                 <span>{t("admin.contentStudio.page.selectUnitHint", "Select a unit from the sidebar to start generating.")}</span>
@@ -3227,7 +3227,7 @@ export default function ContentStudioAdmin() {
 
           {/* Zone 3: Inspector (desktop only) */}
           {inspectorContent && (
-            <div className="hidden lg:flex w-[320px] shrink-0 border-l flex-col overflow-hidden">
+            <div className="hidden lg:flex w-[320px] shrink-0 border-l flex-col lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-hidden">
               {inspectorContent}
             </div>
           )}

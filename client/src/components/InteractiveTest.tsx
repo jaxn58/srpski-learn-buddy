@@ -58,6 +58,12 @@ type UnitContentSections = {
 
 export function InteractiveTest({ unitNumber, language, preferPublished }: InteractiveTestProps) {
   const { t } = useTranslation();
+  const contentLng = language === "de" ? "de" : "en";
+  const tUnit = (key: string, defaultValue?: string) =>
+    t(key, {
+      lng: contentLng,
+      ...(defaultValue === undefined ? {} : { defaultValue }),
+    });
   const questions = useQuery(api.units.getUnitInteractiveTest, {
     unitNumber,
     language,
@@ -344,7 +350,7 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
             {/* Category Title */}
             <div>
               <h2 className="text-xl sm:text-2xl font-bold mb-2">
-                {t(`unit.exerciseCategory.${category}`, category.replace(/([A-Z])/g, ' $1').trim())}
+                {tUnit(`unit.exerciseCategory.${category}`, category.replace(/([A-Z])/g, " $1").trim())}
               </h2>
               {instructions && (
                 <p className="text-base font-semibold text-gray-900 mb-4">
@@ -356,12 +362,12 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
             {/* Questions (Vocabulary-like table with Mastery/Mistakes columns) */}
             <div className="rounded-lg border bg-card overflow-hidden">
               <div className="grid grid-cols-[1fr] sm:grid-cols-[1fr_140px_120px] items-center gap-3 border-b bg-muted/25 px-4 py-2 text-xs font-medium text-muted-foreground">
-                <div title="Question & answer">{t("unit.tab.exercises")}</div>
+                <div title="Question & answer">{tUnit("unit.tab.exercises")}</div>
                 <div className="hidden sm:block text-center" title="Progress toward mastery (3 correct)">
-                  {t("unit.vocabTable.mastery")}
+                  {tUnit("unit.vocabTable.mastery")}
                 </div>
                 <div className="hidden sm:block text-center" title="Incorrect attempts">
-                  {t("unit.vocabTable.mistakes")}
+                  {tUnit("unit.vocabTable.mistakes")}
                 </div>
               </div>
 
