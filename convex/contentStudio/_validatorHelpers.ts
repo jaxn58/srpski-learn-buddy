@@ -930,12 +930,14 @@ export async function classifyAndTranslateWords(
         knownList.join(", "),
         ``,
         `Judge every word against KNOWN LEMMAS first.`,
-        `A case form, vocative, gender form, plural or other inflection of a known lemma is NOT a new word.`,
-        `Return { "lang": "inflection", "lemma": "<lemma copied from KNOWN LEMMAS>" }.`,
+        `A case form, vocative, gender form, plural, conjugated form or infinitive of a known lemma is NOT a new word.`,
+        `Return { "lang": "inflection", "lemma": "<one string copied from KNOWN LEMMAS>" }.`,
+        `Copy the listed string even when the dictionary infinitive is spelled differently. Never answer lang "sr" for that word.`,
         `Example: known lemma "kartica" (also when the table only has "SIM kartica"), word "kartico" → { "lang": "inflection", "lemma": "kartica" }.`,
         `The same applies to "karticu" and "karticom".`,
-        `Never translate that surface as its own vocabulary headword.`,
-        `An infinitive is an inflection of the conjugated forms in KNOWN LEMMAS ("imati" when "ima" is listed). Copy one listed form as the lemma.`,
+        `Example: known "ima" or "imati", word "imati" or "imamo" → lemma is the listed string.`,
+        `Example: known "hoću" or "hoće", word "hteti", "hoćeš" or "neću" → { "lang": "inflection", "lemma": "hoću" } (whichever of those forms is actually listed). "hteti" is that verb's infinitive, not a new headword.`,
+        `"želeti" / "želim" is a different verb from "hteti" / "hoću". Never anchor one onto the other.`,
       ].join("\n")
     : "";
 
@@ -976,7 +978,9 @@ export async function classifyAndTranslateWords(
     `- "čema" → { "lang": "unknown" } (not a real Serbian word)`,
     `- "prsto" → { "lang": "unknown" } (misspelling, not a real word)`,
     ``,
-    `When lang is "sr" and the word you see is not the dictionary form, set "lemma" to the dictionary form (nominative singular for nouns, masculine nominative for adjectives, infinitive for verbs). The English translation belongs to that dictionary form, not to the ending.`,
+    `Use lang "sr" only when NO form of that lexeme is in KNOWN LEMMAS.`,
+    `When lang is "sr" and the word you see is not the dictionary form, set "lemma" to the dictionary form (nominative singular for nouns, masculine nominative for adjectives, infinitive for verbs). The English translation belongs to that dictionary form: an infinitive is "to want", not "I want".`,
+    `Do not put an infinitive in "lemma" when any form of that same verb is already in KNOWN LEMMAS. That answer is lang "inflection" and the lemma is the listed form.`,
     `Keep translations short (1-3 words).`,
   ].join("\n");
 
