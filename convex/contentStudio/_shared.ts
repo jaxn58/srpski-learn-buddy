@@ -1218,15 +1218,31 @@ export async function languageRulesBlock(ctx: ActionCtx): Promise<string> {
  * to satisfy a count finding, and the next Lector run reported the resulting
  * holes as untaught language.
  */
+/**
+ * One rule for every part of speech. Classifier, Lector and Fixer all use this
+ * text so a form is never kept or dropped by a word-specific exception.
+ */
+export function vocabularyFormRule(): string {
+  return [
+    `VOCABULARY FORMS (binding for every word):`,
+    `Serbian, as a learner must acquire it, decides together with this unit's briefing and draft. Follow both.`,
+    `A form is its own vocabulary row when the learner must know that form: the briefing or the draft teaches it, or the form is not predictable from a lemma the learner already has. The English gloss is the meaning of the form in that row.`,
+    `A predictable inflection of a lemma that is already listed or already taught (regular case, gender, number, or a regular personal ending, including when the lemma is only one word inside a phrase) is not a second row. Book it on that lemma. The surface stays in the sentence. A note on the lemma may mention the form.`,
+    `When that predictable inflection appears and its lemma is not listed yet, the new row is the dictionary form: nominative singular for nouns, masculine nominative for adjectives, infinitive for verbs. The gloss matches that dictionary form.`,
+    `Two forms the learner must both learn stay two rows. Different lexemes stay separate. Never gloss one form with the meaning of another.`,
+    `A predictable inflection stored as its own row, while the lemma is the item the learner is acquiring, is a gap: remove that row and keep the lemma. A form the learner must know stays, even when another form of the same word is already listed. This is the only exception to never-delete.`,
+  ].join("\n");
+}
+
 export function vocabularyProtectionBlock(): string {
   return [
     "",
     "=== VOCABULARY TABLE (binding) ===",
-    "- Never delete or rename a vocabulary entry whose Serbian word is used in the grammar section, dialogues, phrases, exercises or learning objectives of this unit.",
-    "- Exception: an inflected surface (case, vocative, gender, number, or the infinitive of a verb whose conjugated form is already listed) is not its own entry when that form is already in the table, including as one word inside a multi-word row. Do not add \"kartico\" when \"kartica\" or \"SIM kartica\" is already listed. Do not add \"hteti\" when \"hoću\" or \"hoće\" is already listed; \"želeti\" / \"želim\" is a different verb and is not a substitute. If that surface row exists, remove it and keep the listed form. The surface stays in the text. You may mention the form in the lemma's Notes.",
+    vocabularyFormRule(),
+    "- Never delete or rename a vocabulary entry whose Serbian word is used in the grammar section, dialogues, phrases, exercises or learning objectives of this unit, except the predictable-inflection case in VOCABULARY FORMS.",
     "- Never reduce the vocabulary table to satisfy a word-count remark. Word count is not your concern; the author decides it.",
     "- You may correct a translation, a note or the gender of an entry at any time.",
-    "- When a finding says a Serbian word is MISSING from the vocabulary table, ADD a complete row for it in the fitting `###` category of \"## 2. Vocabulary\": Serbian in base form and audio-clean, the English translation, and a Notes entry if a form or usage needs one. Use the translation suggested in the finding unless it is wrong.",
+    "- When a finding says a Serbian word is MISSING from the vocabulary table, ADD a complete row for the form the learner must learn, in the fitting `###` category of \"## 2. Vocabulary\": audio-clean Serbian, the English gloss of that form, and a Notes entry if another form needs one. Use the translation suggested in the finding only when it matches that form.",
     "- When a finding says a word is first taught in a LATER unit, do NOT add it: replace it in the text with vocabulary of this or an earlier unit.",
     "",
   ].join("\n");

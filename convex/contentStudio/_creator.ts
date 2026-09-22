@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, vocabularyBudgetBlock, vocabularyProtectionBlock, buildStageSkillBlock, usageForRunLog } from "./_shared";
+import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, vocabularyBudgetBlock, vocabularyProtectionBlock, buildStageSkillBlock, usageForRunLog, truncateForAudit } from "./_shared";
 import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
@@ -628,7 +628,11 @@ export const runAiSpecialistGenerate = action({
       let vocabUnresolved = 0;
       let vocabSkippedProperNouns = 0;
       try {
-        const vocabSync = await checkVocabularyCoverage(ctx, pkg);
+        const vocabSync = await checkVocabularyCoverage(
+          ctx,
+          pkg,
+          String((d as any)?.inspirationRef?.notes || ""),
+        );
         pkg = vocabSync.pkg;
         vocabMissing = Array.isArray(vocabSync.missing) ? vocabSync.missing.length : 0;
         vocabUnresolved = Array.isArray(vocabSync.unresolvedNew) ? vocabSync.unresolvedNew.length : 0;
@@ -792,6 +796,9 @@ export const runAiCreatorRevise = action({
       `\nCONTEXT:`,
       `Unit ${d.unitNumber}: ${d.title}`,
       `Description: ${d.description}`,
+      String((d as any)?.inspirationRef?.notes || "").trim()
+        ? `UNIT BRIEFING:\n${truncateForAudit(String((d as any).inspirationRef.notes).trim(), 4000)}`
+        : ``,
     ].join("\n");
 
     const userPrompt = [

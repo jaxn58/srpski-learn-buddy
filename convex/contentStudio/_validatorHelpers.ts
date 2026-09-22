@@ -1,6 +1,6 @@
 import { ActionCtx } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { callAiText, truncateForAudit } from "./_shared";
+import { callAiText, truncateForAudit, vocabularyFormRule } from "./_shared";
 import { toVocabularyKey } from "../vocabulary";
 
 export const REQUIRED_TEMPLATE_EXERCISE_CATEGORIES: Array<{
@@ -906,15 +906,15 @@ export type SerbianWordClassification = {
 };
 
 /**
- * Classify and translate words. Known lemmas are the dictionary forms already
- * in this unit (including words inside a multi-word entry) and in other units.
- * An inflection of one of those lemmas is anchored to the lemma; it is not a
- * new vocabulary headword.
+ * Classify and translate words. Known lemmas are forms already taught or
+ * listed. The briefing is the same text the author wrote for this unit.
+ * Whether a form is its own row is vocabularyFormRule(), not a per-word list.
  */
 export async function classifyAndTranslateWords(
   ctx: ActionCtx,
   words: string[],
   knownLemmas: string[] = [],
+  briefing = "",
 ): Promise<Map<string, SerbianWordClassification>> {
   const cleanWords = words
     .map(w => String(w || "").trim())
@@ -926,18 +926,10 @@ export async function classifyAndTranslateWords(
   const knownBlock = knownList.length
     ? [
         ``,
-        `KNOWN LEMMAS (dictionary forms already taught or listed in this unit, including single words inside a phrase):`,
+        `KNOWN LEMMAS (forms already taught or listed in this unit, including a single word inside a phrase):`,
         knownList.join(", "),
         ``,
-        `Judge every word against KNOWN LEMMAS first.`,
-        `A case form, vocative, gender form, plural, conjugated form or infinitive of a known lemma is NOT a new word.`,
-        `Return { "lang": "inflection", "lemma": "<one string copied from KNOWN LEMMAS>" }.`,
-        `Copy the listed string even when the dictionary infinitive is spelled differently. Never answer lang "sr" for that word.`,
-        `Example: known lemma "kartica" (also when the table only has "SIM kartica"), word "kartico" → { "lang": "inflection", "lemma": "kartica" }.`,
-        `The same applies to "karticu" and "karticom".`,
-        `Example: known "ima" or "imati", word "imati" or "imamo" → lemma is the listed string.`,
-        `Example: known "hoću" or "hoće", word "hteti", "hoćeš" or "neću" → { "lang": "inflection", "lemma": "hoću" } (whichever of those forms is actually listed). "hteti" is that verb's infinitive, not a new headword.`,
-        `"želeti" / "želim" is a different verb from "hteti" / "hoću". Never anchor one onto the other.`,
+        `Apply VOCABULARY FORMS to this list before you call anything a new word.`,
       ].join("\n")
     : "";
 
@@ -946,8 +938,9 @@ export async function classifyAndTranslateWords(
     `For each word, classify it into one of five categories.`,
     ``,
     `Return a JSON object where each key is a word and the value is ONE of:`,
-    `- Inflection of a KNOWN LEMMA: { "lang": "inflection", "lemma": "<known lemma>" }`,
-    `- Serbian vocabulary word: { "lang": "sr", "en": "<English translation>", "lemma": "<dictionary form>" }`,
+    `- Predictable inflection of a KNOWN LEMMA: { "lang": "inflection", "lemma": "<known lemma>" }`,
+    `- Form the learner must know: { "lang": "sr", "en": "<gloss of this form>" }`,
+    `- Predictable inflection whose dictionary form is not in KNOWN LEMMAS: { "lang": "sr", "en": "<gloss of the dictionary form>", "lemma": "<dictionary form>" }`,
     `- English / grammar term / other language: { "lang": "en" }`,
     `- Personal name of a human (first name, given name, nickname): { "lang": "proper_noun" }`,
     `- Not a real word in any language (typo, gibberish, misspelling): { "lang": "unknown" }`,
@@ -978,9 +971,10 @@ export async function classifyAndTranslateWords(
     `- "čema" → { "lang": "unknown" } (not a real Serbian word)`,
     `- "prsto" → { "lang": "unknown" } (misspelling, not a real word)`,
     ``,
-    `Use lang "sr" only when NO form of that lexeme is in KNOWN LEMMAS.`,
-    `When lang is "sr" and the word you see is not the dictionary form, set "lemma" to the dictionary form (nominative singular for nouns, masculine nominative for adjectives, infinitive for verbs). The English translation belongs to that dictionary form: an infinitive is "to want", not "I want".`,
-    `Do not put an infinitive in "lemma" when any form of that same verb is already in KNOWN LEMMAS. That answer is lang "inflection" and the lemma is the listed form.`,
+    vocabularyFormRule(),
+    briefing.trim()
+      ? [``, `UNIT BRIEFING (follow this together with the rule above):`, truncateForAudit(briefing.trim(), 4000)].join("\n")
+      : ``,
     `Keep translations short (1-3 words).`,
   ].join("\n");
 
@@ -1053,7 +1047,11 @@ export async function classifyAndTranslateWords(
  * writes proper rows into the markdown (with note and category), and markdown
  * and JSON stay identical.
  */
-export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise<{
+export async function checkVocabularyCoverage(
+  ctx: ActionCtx,
+  pkg: any,
+  briefing = "",
+): Promise<{
   pkg: any;
   /** Used in the unit but absent from its vocabulary table; must be added. */
   missing: Array<{ serbian: string; suggestedEn: string }>;
@@ -1288,7 +1286,7 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
   let classificationResults = new Map<string, SerbianWordClassification>();
   if (wordsNeedingClassification.length > 0) {
     try {
-      classificationResults = await classifyAndTranslateWords(ctx, wordsNeedingClassification, knownLemmas);
+      classificationResults = await classifyAndTranslateWords(ctx, wordsNeedingClassification, knownLemmas, briefing);
       const serbianCount = Array.from(classificationResults.values()).filter(v => v.isSerbian).length;
       const anchoredCount = Array.from(classificationResults.values()).filter(v => v.lemma).length;
       console.log(`Classified ${classificationResults.size} words: ${serbianCount} Serbian, ${anchoredCount} with a dictionary form, ${classificationResults.size - serbianCount} English/other`);
@@ -1297,8 +1295,8 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
     }
   }
 
-  // Phase 3: Anchor inflections the classifier recognized, then report only
-  // real gaps. A new row is the dictionary form, never the case ending.
+  // Phase 3: Book a predictable inflection on the lemma the classifier named.
+  // A form the learner must know stays the surface and is reported as its own row.
   for (const candidate of candidatesToProcess) {
     const surfaceKey = normalizeSerbianKey(candidate.surface);
     const classification = classificationResults.get(surfaceKey);

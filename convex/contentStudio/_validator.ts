@@ -78,7 +78,11 @@ export const runQcValidate = action({
 
     // Content Studio guardrail: vocabulary coverage. Reports gaps as findings;
     // the Fix stage writes the rows into the markdown (see checkVocabularyCoverage).
-    const vocabSync = await checkVocabularyCoverage(ctx, ensured as any);
+    const vocabSync = await checkVocabularyCoverage(
+      ctx,
+      ensured as any,
+      String((draft.draft as any)?.inspirationRef?.notes || ""),
+    );
     const ensuredWithVocab = vocabSync.pkg;
 
     // Final deduplication pass: remove any remaining vocabulary duplicates (case-insensitive)

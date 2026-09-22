@@ -8,6 +8,8 @@ import {
   buildStageSkillBlock,
   resolvePromptFromDb,
   languageRulesBlock,
+  vocabularyFormRule,
+  truncateForAudit,
 } from "./_shared";
 import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
 import { buildSectionQaOverrideBlock } from "../../shared/contentStudio/sectionQaOverrides";
@@ -95,11 +97,10 @@ export const runAiAuditor = action({
       ``,
       `IMPORTANT: Words from previous units are ALREADY KNOWN to the learner. They do NOT need to be re-introduced. Using them in exercises for REVIEW is encouraged.`,
       ``,
-      `INFLECTED FORMS (binding — you know Serbian morphology):`,
-      `A case form, vocative, gender form or plural of a lemma that is already in THIS unit's vocabulary is covered. A lemma counts even when it is only one word inside a multi-word entry ("kartica" inside "SIM kartica"). The same is true of VOCABULARY ALREADY TAUGHT.`,
-      `Do not report that surface as missing, untaught, or in need of its own vocabulary row. "kartico", "karticu" and "karticom" are forms of "kartica", not new words.`,
-      `The same applies to an infinitive whose conjugated form is already listed. "hteti" is the infinitive of "hoću" / "hoće", not a new word, when one of those forms is in this unit or in VOCABULARY ALREADY TAUGHT. Copy the listed form. "želeti" / "želim" is a different verb; do not merge it with "hteti".`,
-      `If the vocabulary table lists the inflected surface as its own headword, report one DIDACTIC_GAP: remove that row and keep the dictionary form. The surface stays in the dialogues and exercises. Notes on the lemma may mention the form. That is how the form is booked — not as a second entry.`,
+      vocabularyFormRule(),
+      String((current.draft as any)?.inspirationRef?.notes || "").trim()
+        ? `\nUNIT BRIEFING (follow this together with VOCABULARY FORMS):\n${truncateForAudit(String((current.draft as any).inspirationRef.notes).trim(), 4000)}\n`
+        : ``,
       ``,
       `QUESTION COUNT: Do not report how many questions an exercise category has. The validator owns that rule. It uses the foundation maximum, or the explicit count in an author section instruction when that count is higher. A section instruction is applied there, before any finding exists.`,
       auditSkillBlock ? `\n${auditSkillBlock}\n` : ``,
