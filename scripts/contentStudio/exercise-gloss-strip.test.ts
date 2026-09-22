@@ -9,8 +9,10 @@ import {
   isHelpTranslationGloss,
 } from "../../convex/contentStudio/_translationCore";
 import {
+  dropAiIssuesThatBreakExerciseGlossContract,
   runDeterministicTestGlossChecks,
   type VerifierInputItem,
+  type VerifierIssue,
 } from "../../convex/contentStudio/_verifier";
 
 describe("isFillInSourceCue / isHelpTranslationGloss", () => {
@@ -286,6 +288,122 @@ describe("runDeterministicTestGlossChecks", () => {
       },
     ];
     expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);
+  });
+});
+
+describe("dropAiIssuesThatBreakExerciseGlossContract", () => {
+  const mcItem: VerifierInputItem = {
+    key: "test:u1_ex3_q04",
+    kind: "test",
+    label: "test u1_ex3_q04",
+    questionType: "multipleChoice",
+    serbian: "Expected Serbian answer: nisam",
+    english: "Question (EN): Ja _____ putnik. (I am not a traveler.)",
+    german: "Question (DE): Ja _____ putnik.",
+  };
+
+  const fillItem: VerifierInputItem = {
+    key: "test:u1_ex2_q01",
+    kind: "test",
+    label: "test u1_ex2_q01",
+    questionType: "fillInBlank",
+    serbian: "Expected Serbian answer: sam",
+    english: "Question (EN): Ja ____ Ana. (I am Ana.)",
+    german: "Question (DE): Ja ____ Ana. (Ich bin Ana.)",
+  };
+
+  it("drops the Unit-1 MC missing-gloss critical", () => {
+    const issues: VerifierIssue[] = [
+      {
+        itemKey: "test:u1_ex3_q04",
+        itemLabel: "test u1_ex3_q04",
+        itemKind: "test",
+        severity: "critical",
+        code: "missing_info",
+        issue:
+          "The German question is missing the context gloss ('I am not a traveler.') which helps the learner understand the meaning of the sentence.",
+        suggestion: "Ja _____ putnik. (Ich bin kein Reisender)",
+      },
+    ];
+    const { kept, dropped } = dropAiIssuesThatBreakExerciseGlossContract(issues, [mcItem]);
+    expect(dropped).toHaveLength(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("keeps a real MC semantic mismatch that is not about glosses", () => {
+    const issues: VerifierIssue[] = [
+      {
+        itemKey: "test:u1_ex3_q04",
+        itemLabel: "test u1_ex3_q04",
+        itemKind: "test",
+        severity: "critical",
+        code: "semantic_mismatch",
+        issue: "German frames the opposite polarity: the Serbian answer is 'nisam' (I am not).",
+        suggestion: "Keep the Serbian stem; the options already encode the negation.",
+      },
+    ];
+    const { kept, dropped } = dropAiIssuesThatBreakExerciseGlossContract(issues, [mcItem]);
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+
+  it("keeps a real fill-in missing context gloss from the AI", () => {
+    const missingFill: VerifierInputItem = {
+      ...fillItem,
+      german: "Question (DE): Ja ____ Ana.",
+    };
+    const issues: VerifierIssue[] = [
+      {
+        itemKey: "test:u1_ex2_q01",
+        itemLabel: "test u1_ex2_q01",
+        itemKind: "test",
+        severity: "critical",
+        code: "missing_info",
+        issue: "The German question omits the fill-in context gloss (I am Ana.).",
+        suggestion: "Ja ____ Ana. (Ich bin Ana.)",
+      },
+    ];
+    const { kept, dropped } = dropAiIssuesThatBreakExerciseGlossContract(issues, [missingFill]);
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+
+  it("drops an AI request to strip a German fill-in context gloss", () => {
+    const issues: VerifierIssue[] = [
+      {
+        itemKey: "test:u1_ex2_q01",
+        itemLabel: "test u1_ex2_q01",
+        itemKind: "test",
+        severity: "critical",
+        code: "unwanted",
+        issue: "Remove the leftover parenthetical help gloss on the German question.",
+        suggestion: "Ja ____ Ana.",
+      },
+    ];
+    const { kept, dropped } = dropAiIssuesThatBreakExerciseGlossContract(issues, [fillItem]);
+    expect(dropped).toHaveLength(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("never drops deterministic gloss codes", () => {
+    const issues: VerifierIssue[] = [
+      {
+        itemKey: "test:u1_ex3_q04",
+        itemLabel: "test u1_ex3_q04",
+        itemKind: "test",
+        severity: "critical",
+        code: "test_unwanted_parenthetical_gloss",
+        issue: "German exercise prompt still has parenthetical translation help.",
+        suggestion: "Remove the parenthetical help",
+      },
+    ];
+    const withGloss: VerifierInputItem = {
+      ...mcItem,
+      german: "Question (DE): Ja _____ putnik. (Ich bin kein Reisender)",
+    };
+    const { kept, dropped } = dropAiIssuesThatBreakExerciseGlossContract(issues, [withGloss]);
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
   });
 });
 
