@@ -61,38 +61,62 @@ export function mergePromptCognates(
   return out;
 }
 
+/** Short EN=DE identity terms belong in the cognate dialog; sentences do not. */
+export function isLikelyCognateCandidateTerm(term: string): boolean {
+  const t = normalizeCognateTerm(term);
+  if (!t) return false;
+  if (/[.!?…]/.test(t)) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  return words.length >= 1 && words.length <= 3;
+}
+
+function extractCandidateTerm(raw: string): string {
+  const n = normalizeCognateTerm(
+    String(raw || "")
+      .replace(/^[\s(]+/, "")
+      .replace(/[\s)]+$/, "")
+      .replace(/_+/g, " ")
+      .replace(/^\s*=\s*/g, "")
+      .replace(/\s*=\s*$/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+  return isLikelyCognateCandidateTerm(n) ? n : "";
+}
+
 /**
- * Extract learner-prompt words flagged by quality-guard / verifier texts.
+ * Extract EN=DE identity terms from quality-guard / verifier texts.
  * Examples:
  *  - learner prompt is still English "orange".
+ *  - fill-in source cue is still English "(park)".
  *  - German question prompt is still English ("_____ = orange").
  */
 export function parseUntranslatedPromptGuardFailures(message: string): string[] {
   const out: string[] = [];
   const text = String(message || "");
-  for (const m of text.matchAll(/learner prompt is still English "([^"]+)"/gi)) {
-    const n = normalizeCognateTerm(
-      String(m[1] ?? "")
-        .replace(/_+/g, " ")
-        .replace(/^\s*=\s*/g, "")
-        .replace(/\s*=\s*$/g, "")
-        .replace(/\s+/g, " ")
-        .trim()
-    );
-    if (n) out.push(n);
-  }
-  for (const m of text.matchAll(/still English\s*\(\s*"([^"]+)"\s*\)/gi)) {
-    const n = normalizeCognateTerm(
-      String(m[1] ?? "")
-        .replace(/_+/g, " ")
-        .replace(/^\s*=\s*/g, "")
-        .replace(/\s*=\s*$/g, "")
-        .replace(/\s+/g, " ")
-        .trim()
-    );
-    if (n) out.push(n);
+  const patterns = [
+    /fill-in source cue is still English "\(([^)]+)\)"/gi,
+    /learner prompt is still English "([^"]+)"/gi,
+    /still English\s*\(\s*"([^"]+)"\s*\)/gi,
+    /still English "\(([^)]+)\)"/gi,
+  ];
+  for (const re of patterns) {
+    for (const m of text.matchAll(re)) {
+      const n = extractCandidateTerm(m[1] ?? "");
+      if (n) out.push(n);
+    }
   }
   return [...new Set(out)];
+}
+
+export function collectCognateCandidatesFromIssues(issues: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const issue of issues) {
+    for (const term of parseUntranslatedPromptGuardFailures(issue)) {
+      out.add(term);
+    }
+  }
+  return [...out].sort();
 }
 
 export const listAdminTranslatorCognates = query({

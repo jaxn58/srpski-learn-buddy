@@ -27,6 +27,7 @@ import {
   type AiCallOptions,
   type VocabTranslationResult,
 } from "./_translationCore";
+import { collectCognateCandidatesFromIssues } from "./_translatorCognates";
 
 // Publish-Timeout-Fix: split preview-creation chain, orchestrated here.
 // The old monolith `internalPublishUnitPackageToPreview` remained as a
@@ -528,6 +529,9 @@ export const translatePublishedUnitEnToDe = action({
     }
 
     // ── SR↔DE Verifier (Pass 1) ─────────────────────────────────────────────
+    const pendingCognates = collectCognateCandidatesFromIssues(
+      stepLogs.flatMap((s) => s.qualityIssues)
+    );
     const verifierItemsPass1 = buildVerifierItems({
       source: source as any,
       serbianContextBlock,
@@ -545,6 +549,7 @@ export const translatePublishedUnitEnToDe = action({
         items: verifierItemsPass1,
         preferredProvider: primaryProvider,
         pass: "pass1",
+        extraCognates: pendingCognates,
       });
       console.log(
         `[Translation Verifier pass1] Unit ${unitNumber}: ${verifierReport.itemsChecked} items checked, ` +
@@ -731,6 +736,9 @@ export const translatePublishedUnitEnToDe = action({
             items: pass2Items,
             preferredProvider: primaryProvider,
             pass: "pass2",
+            extraCognates: collectCognateCandidatesFromIssues(
+              stepLogs.flatMap((s) => s.qualityIssues)
+            ),
           });
           console.log(
             `[Translation Verifier pass2] Unit ${unitNumber}: ${verifierReportPass2.itemsChecked} items re-checked, ` +
@@ -783,6 +791,9 @@ export const translatePublishedUnitEnToDe = action({
         }
       : null;
 
+    const cognateCandidates = collectCognateCandidatesFromIssues(
+      stepLogs.flatMap((s) => s.qualityIssues)
+    );
     const translationStats = {
       totalDurationMs: Date.now() - actionStartMs,
       totalInputTokens: sumNullable(stepLogs.map((s) => s.inputTokens)) ?? 0,
@@ -791,6 +802,7 @@ export const translatePublishedUnitEnToDe = action({
       totalCostUsd: sumNullable(stepLogs.map((s) => s.estimatedCostUsd)),
       stepCount: stepLogs.length,
       qualityIssueCount: stepLogs.reduce((sum, s) => sum + s.qualityIssues.length, 0),
+      cognateCandidates,
       steps: stepLogs,
       verifier: verifierSummary,
     };
@@ -1147,6 +1159,9 @@ export const retryDeTranslationForSelectedIssues = action({
         items,
         preferredProvider: primaryProvider,
         pass: "pass2",
+        extraCognates: collectCognateCandidatesFromIssues(
+          stepLogs.flatMap((s) => s.qualityIssues)
+        ),
       });
       console.log(
         `[Manual Retry Verifier] Unit ${unitNumber}: ${verifierReport.itemsChecked} items re-checked, ` +
@@ -1175,6 +1190,9 @@ export const retryDeTranslationForSelectedIssues = action({
       totalCostUsd: sumNullable(stepLogs.map((s) => s.estimatedCostUsd)),
       stepCount: stepLogs.length,
       qualityIssueCount: stepLogs.reduce((sum, s) => sum + s.qualityIssues.length, 0),
+      cognateCandidates: collectCognateCandidatesFromIssues(
+        stepLogs.flatMap((s) => s.qualityIssues)
+      ),
       steps: stepLogs,
       verifier: verifierSummary,
     };

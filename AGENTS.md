@@ -31,6 +31,7 @@ Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übunge
 ### Dateien & Änderungen
 - **Keine Eigeninitiative beim Anlegen von Dateien oder beim Ändern von Dateien**. Alles muss immer in Rückfrage mit dem Benutzer geschehen.
 - Keine Eigeninitiative beim Design - immer konsistent mit bestehenden Komponenten.
+- **Kein verwaister Code, keine verwaisten Dateien.** Wird eine Änderung ersetzt, zurückgenommen oder als falsch erkannt, muss der Restmüll in **derselben** Änderung weg: ungenutzte Felder, Mutations, UI, i18n-Keys, Imports, Tests und Dateien, die nur für den verworfenen Ansatz existierten. Nicht „für später“ liegen lassen. Die App darf durch Fehlversuche nicht anschwellen.
 
 ### Kommunikation
 -Alle Agents sind ausschließlich Maschinen und keine Menschen, die irgendetwas empfinden. Also erwarte ich, dass eventuelle Beleidigungen meinerseits aus Frust, hier auf nicht fruchtbaren Boden fallen und ich wünsche keine Belehrungen von irgendwelchen Modellen (KI-Modellen). Sie werden bezahlt und haben zu funktionieren.
@@ -346,6 +347,7 @@ damit das Safety-Net greift.
 - ❌ **KEIN automatisches Deployment - IMMER erst fragen: "Soll ich jetzt auf Production deployen?"**
 - ❌ **NIEMALS NIEMALS NIEMALS echte Secrets, API Keys oder Passwörter in Dateien schreiben, die ins Git-Repository kommen!**
 - ❌ Keine Eigeninitiative bei Dateien oder Design-Änderungen ohne Rückfrage
+- ❌ Keinen verwaisten Code oder verwaiste Dateien nach Ersatz/Rücknahme einer Änderung liegen lassen
 - ❌ Keine Quick & Dirty Lösungen
 - ❌ Keine Emojis im Agent Fenster
 - ❌ Keine hardcoded Inhalte - alles dynamisch aus der Datenbank

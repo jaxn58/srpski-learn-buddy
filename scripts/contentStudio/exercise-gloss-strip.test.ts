@@ -258,6 +258,23 @@ describe("runDeterministicTestGlossChecks", () => {
     expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);
   });
 
+  it("flags park as untranslated cue unless it is a known cognate", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u4_ex2_q06",
+        kind: "test",
+        label: "test u4_ex2_q06",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: park",
+        english: "Question (EN): Gde je _____? (park)",
+        german: "Question (DE): Gde je _____? (park)",
+      },
+    ];
+    const flagged = runDeterministicTestGlossChecks(items);
+    expect(flagged.some((i) => i.code === "test_untranslated_fill_in_cue")).toBe(true);
+    expect(runDeterministicTestGlossChecks(items, new Set(["park"]))).toHaveLength(0);
+  });
+
   it("flags missing fill-in context gloss on DE", () => {
     const items: VerifierInputItem[] = [
       {

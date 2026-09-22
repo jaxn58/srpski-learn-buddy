@@ -203,7 +203,8 @@ function ReviewContent(props: InspectorPanelProps) {
     fixHumanNotes, setFixHumanNotes, expandSection, setExpandSection,
     expandInstruction, setExpandInstruction, canRunLector,
     runningReviewCycle, onReviewUntilClean,
-    onRunRevise, onRunAuditor, onSectionRevise, onDismissFinding, selected,
+    onRunRevise, onRunAuditor, onSectionRevise,
+    onDismissFinding, selected,
   } = props;
   const { t } = useTranslation();
   const stageLabel = useAiRunStageLabel();

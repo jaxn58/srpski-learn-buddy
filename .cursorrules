@@ -4,6 +4,7 @@
 - XP System: 1st=5 XP, 2nd=10 XP, 3rd=20 XP (Mastered, total 35 XP/Item), danach=0 XP. Single Source of Truth: convex/gamification.ts
 - NIEMALS Eigeninitiative beim Design - immer konsistent mit bestehenden Komponenten
 - Keine Eigeninitiative beim Anlegen von Dateien oder beim Ändern von Dateien. Alles muss immer in Rückfrage mit dem Benutzer geschehen.
+- Wird eine Änderung ersetzt oder als falsch erkannt: Restmüll in derselben Änderung entfernen (verwaiste Dateien, Felder, Mutations, UI, i18n, Imports). Nicht liegen lassen.
 - Keine 'Quick & Dirty' Lösungen.
 - Verwende keine Emojis im Agent Fenster
 - Die Inhalte für unsere App sollen dynamisch sein und nicht hardcoded aus der Datenbank gezogen werden. Du kannst mir ja Vorschläge machen, wenn es da irgendwo Probleme gibt.

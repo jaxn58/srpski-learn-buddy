@@ -149,6 +149,93 @@ export function normalizeSerbianKey(s: unknown): string {
   return toVocabularyKey(stripped);
 }
 
+/**
+ * If `surface` is a common beginner inflection of a key already in `known`,
+ * return that base key. Returns the surface itself when it is already known.
+ * Returns null when no known base exists — this must not invent lemmas
+ * (`kafa` must not collapse to `kaf`, `stola` must not collapse to `sto`).
+ *
+ * Deterministic only: case endings, adjective gender, and a known-base check.
+ * Never invents a stem that is not already in `known`.
+ */
+const BEGINNER_CASE_SUFFIXES = [
+  "ima",
+  "ama",
+  "oga",
+  "ome",
+  "omu",
+  "om",
+  "em",
+  "og",
+  "oj",
+  "im",
+  "ih",
+  "u",
+  "a",
+  "e",
+  "o",
+  "i",
+] as const;
+
+function adjectiveAgreementLemmas(word: string): string[] {
+  const out: string[] = [];
+  if (word.length <= 3) return out;
+  if (word.endsWith("ar")) {
+    const stem = word.slice(0, -2);
+    out.push(stem + "ra", stem + "ro", stem + "ri", stem + "ru", stem + "re");
+  }
+  if (/r[aeiou]$/.test(word)) {
+    out.push(word.slice(0, -2) + "ar");
+  }
+  if (word.endsWith("an")) {
+    const stem = word.slice(0, -2);
+    out.push(stem + "na", stem + "no", stem + "ni", stem + "nu", stem + "ne");
+  }
+  if (/n[aeiou]$/.test(word)) {
+    out.push(word.slice(0, -2) + "an");
+  }
+  return out;
+}
+
+export function resolveKnownInflectedBase(
+  surface: string,
+  known: { has(key: string): boolean },
+): string | null {
+  const key = normalizeSerbianKey(surface);
+  if (!key || key.length < 3) return null;
+  if (known.has(key)) return key;
+
+  if (key.endsWith("u") && key.length > 3) {
+    const baseA = key.slice(0, -1) + "a";
+    if (known.has(baseA)) return baseA;
+  }
+  if (key.endsWith("om") && key.length > 3) {
+    const baseO = key.slice(0, -2) + "o";
+    if (known.has(baseO)) return baseO;
+  }
+  if (key.endsWith("a") && key.length > 3) {
+    const base = key.slice(0, -1);
+    if (known.has(base)) return base;
+  }
+  if (key.endsWith("e") && key.length > 3) {
+    const base = key.slice(0, -1);
+    if (known.has(base)) return base;
+    const baseA = `${base}a`;
+    if (known.has(baseA)) return baseA;
+  }
+
+  for (const alt of adjectiveAgreementLemmas(key)) {
+    if (known.has(alt)) return alt;
+  }
+
+  for (const suf of BEGINNER_CASE_SUFFIXES) {
+    if (!key.endsWith(suf) || key.length - suf.length < 4) continue;
+    const stem = key.slice(0, -suf.length);
+    if (known.has(stem)) return stem;
+  }
+  return null;
+}
+
 function normalizeTextForVariety(s: unknown): string {
   return String(s ?? "")
     .replace(/\r\n/g, "\n")
@@ -1054,25 +1141,8 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
     const key = normalizeSerbianKey(candidate);
     if (!key || key.length < 3) return null;
 
-    // Deterministic: common beginner accusative feminine a->u (kafa->kafu, voda->vodu, jedna->jednu, etc.)
-    if (key.endsWith("u")) {
-      const baseA = key.slice(0, -1) + "a";
-      if (existing.has(baseA)) return baseA;
-    }
-
-    // Deterministic: common instrumental "-om" -> base "-o" (mlijekom -> mlijeko)
-    if (key.endsWith("om") && key.length > 3) {
-      const baseO = key.slice(0, -2) + "o";
-      if (existing.has(baseO)) return baseO;
-    }
-
-    // Genitive of a masculine noun: "šećera" -> "šećer", "računa" -> "račun".
-    // The bare case form used to be added as its own entry, which the Lector
-    // then reported as an unexplained genitive (Unit 2, 2026-09-17).
-    if (key.endsWith("a") && key.length > 3) {
-      const baseConsonant = key.slice(0, -1);
-      if (existing.has(baseConsonant)) return baseConsonant;
-    }
+    const knownBase = resolveKnownInflectedBase(key, existing);
+    if (knownBase) return knownBase;
 
     // Infinitive while the unit teaches the conjugated forms: "imati" next to
     // ima / imamo / imate. The learner meets the paradigm, not the dictionary
@@ -1159,6 +1229,29 @@ export async function checkVocabularyCoverage(ctx: ActionCtx, pkg: any): Promise
 
     // If it's likely an inflected form of an existing unit vocab word, don't block or auto-add.
     if (isLikelyInflectedFormOfUnitVocab(key)) continue;
+
+    // Inflected form of a word taught earlier (sira → sir in Unit 3). Exact-key
+    // lookup used to miss these and block review units in a loop: Fix added the
+    // lemma, Validator stripped it as already-taught, the next run flagged the
+    // surface form again.
+    const earlierBase = resolveKnownInflectedBase(key, taughtEarlierByKey);
+    if (earlierBase) {
+      alreadyTaughtUsed.push({
+        serbian: key,
+        firstUnit: taughtEarlierByKey.get(earlierBase) as number,
+        currentUnit: unitNumber,
+      });
+      continue;
+    }
+
+    const laterBase = resolveKnownInflectedBase(key, taughtLaterByKey);
+    if (laterBase) {
+      taughtLater.push({
+        serbian: key,
+        laterUnit: taughtLaterByKey.get(laterBase) as number,
+      });
+      continue;
+    }
 
     // If it looks like an inflected form, prefer adding the lemma (base form), not the inflected surface form.
     let lemma = key;

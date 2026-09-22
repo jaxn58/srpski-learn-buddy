@@ -36,9 +36,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import {
+  collectCognateCandidatesFromResult,
   isTranslatorQualityGuardError,
   isUntranslatedLearnerPromptIssue,
   parseUntranslatedPromptGuardFailures,
+  partitionTranslatorQualityIssues,
+  shortVerifierErrorMessage,
 } from "@/components/admin/contentStudio/utils/parseTranslatorGuardError";
 import { VocabularyCleanupPanel } from "@/components/admin/VocabularyCleanupPanel";
 import { BetaUnitsLimitCard } from "@/components/admin/BetaUnitsLimitCard";
@@ -662,6 +665,10 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
           `Retry done — ${retriedKeys.size} item(s) re-translated (remaining: ${remainCrit} critical, ${remainWarn} warning).`
         );
       }
+      const cognates = collectCognateCandidatesFromResult(result);
+      if (cognates.length > 0) {
+        setCognateAcceptPrompt({ terms: cognates, errorMessage: "" });
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Retry failed.");
     } finally {
@@ -702,6 +709,10 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       toast.success(`DE translation for Unit ${selectedUnit} written to preview.`);
       setTranslateConfirm("");
       onTranslationComplete?.(selectedUnit);
+      const cognates = collectCognateCandidatesFromResult(result);
+      if (cognates.length > 0) {
+        setCognateAcceptPrompt({ terms: cognates, errorMessage: "" });
+      }
     } catch (e: any) {
       const message = String(e?.message ?? e ?? "");
       const terms = parseUntranslatedPromptGuardFailures(message);
@@ -716,14 +727,12 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   };
 
   const handleAcceptCognatesAndRetryTranslate = async () => {
-    if (!cognateAcceptPrompt || selectedUnit == null) return;
+    if (!cognateAcceptPrompt) return;
     try {
       await acceptCognateTerms(cognateAcceptPrompt.terms);
       setCognateAcceptPrompt(null);
-      toast.info("Starte Übersetzung erneut…");
-      await handleTranslate();
     } catch (e: any) {
-      toast.error(e?.message || "Cognates speichern / Retry fehlgeschlagen.");
+      toast.error(e?.message || "Cognates speichern fehlgeschlagen.");
     }
   };
 
@@ -1176,15 +1185,31 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                       </span>
                     )}
                   </div>
-                  {translateReport.qualityIssueCount === 0 ? (
+                  {(() => {
+                    const partitioned = partitionTranslatorQualityIssues(
+                      translateReport.steps.flatMap((s) => s.qualityIssues),
+                      savedCognateTerms
+                    );
+                    if (partitioned.other.length === 0 && partitioned.pendingCognate.length === 0) {
+                      return (
                     <div className="text-green-700 dark:text-green-400 font-medium">
-                      No structural issues detected.
+                      No open quality issues.
                     </div>
-                  ) : (
+                      );
+                    }
+                    if (partitioned.other.length === 0) {
+                      return (
+                    <div className="text-muted-foreground font-medium">
+                      {partitioned.pendingCognate.length} cognate candidate(s) — accept if EN=DE is correct.
+                    </div>
+                      );
+                    }
+                    return (
                     <div className="text-amber-700 dark:text-amber-400 font-medium">
-                      {translateReport.qualityIssueCount} structural issue(s) detected — review before publishing.
+                      {partitioned.other.length} quality issue(s) detected — review before publishing.
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* SR <-> DE Verifier block */}
@@ -1338,8 +1363,8 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  Der Guard markiert diese Prompt(s) als unübersetzt. Wenn sie im Deutschen
-                  korrekt identisch bleiben, akzeptieren und erneut übersetzen.
+                  Die DE-Vorschau ist bereits geschrieben. Wenn diese Wörter im Deutschen
+                  korrekt gleich bleiben (z. B. park, hotel), merken — ohne neuen Lauf.
                 </p>
                 <ul className="list-disc pl-5 font-mono text-foreground">
                   {(cognateAcceptPrompt?.terms ?? []).map((t) => (
@@ -1358,7 +1383,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                 void handleAcceptCognatesAndRetryTranslate();
               }}
             >
-              {cognateAcceptBusy ? "Speichert…" : "Passt so — speichern & erneut übersetzen"}
+              {cognateAcceptBusy ? "Speichert…" : "Passt so — merken"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2299,7 +2324,7 @@ function VerifierReportPanel({
 
       {hasError && (
         <div className="text-amber-700 dark:text-amber-400">
-          Verifier run failed: {pass1.error}
+          Verifier run failed: {shortVerifierErrorMessage(pass1.error)}
         </div>
       )}
 

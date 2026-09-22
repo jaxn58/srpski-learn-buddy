@@ -15,11 +15,13 @@ import {
 } from "./_shared";
 import { collectMemoryRegressionIssuesFromEntries } from "./_validatorMemory";
 import { vocabularyBudgetOverrun } from "../../shared/contentStudio/vocabularyBudget";
+import { shouldSuppressQaFinding } from "../../shared/contentStudio/sectionQaOverrides";
 import {
   fillMissingUnitPackageFields,
   checkVocabularyCoverage,
   isTaughtEarlier,
   normalizeSerbianKey,
+  resolveKnownInflectedBase,
   calculateExerciseVarietyScore,
   stripAlreadyTaughtVocabFromMarkdown,
   appendMontenegroNotesToMarkdown,
@@ -174,6 +176,16 @@ export const runQcValidate = action({
       }
     }
 
+    // Surface forms the coverage net already identified as review vocabulary
+    // (sira from earlier-taught sir). Without this, Fix can add the inflected
+    // row and the next Validator pass would keep it as "new" vocabulary.
+    for (const dup of vocabSync.alreadyTaughtUsed ?? []) {
+      const k = normalizeSerbianKey(dup.serbian);
+      if (k && !taughtFirstUnitByKey.has(k)) {
+        taughtFirstUnitByKey.set(k, Number(dup.firstUnit));
+      }
+    }
+
     // Deterministic enforcement (no manual work): remove already-taught entries from unit vocabulary.
     // This enforces the rule and reduces Creator revision workload.
     // We do NOT report these as errors since they are auto-fixed.
@@ -182,7 +194,8 @@ export const runQcValidate = action({
     for (let i = 0; i < vocabEn.length; i++) {
       const serbian = String(vocabEn[i]?.serbian || "").trim();
       const key = normalizeSerbianKey(serbian);
-      const firstUnit = taughtFirstUnitByKey.get(key);
+      const taughtBase = resolveKnownInflectedBase(key, taughtFirstUnitByKey);
+      const firstUnit = taughtBase ? taughtFirstUnitByKey.get(taughtBase) : undefined;
       if (firstUnit) {
         autoRemovedVocab.push({ serbian, firstUnit });
         continue; // Skip - auto-removed
@@ -197,11 +210,46 @@ export const runQcValidate = action({
         autoRemovedVocab.map(v => `${v.serbian} (Unit ${v.firstUnit})`).join(", "));
     }
 
+    let planned: { unit?: { unitType?: string } } | null = null;
+    try {
+      planned = await ctx.runQuery(api.curriculum.getUnitPlan, { unitNumber });
+    } catch (err) {
+      console.warn("[Validator] getUnitPlan failed; recycle-unit detection falls back to title:", err);
+    }
+    const plannedType = planned?.unit?.unitType;
+    const titleLooksRecycle = /\b(review|checkpoint|exam|recap)\b/i.test(
+      String((draft.draft as any)?.title || ""),
+    );
+    const recycleOnly =
+      plannedType === "review" ||
+      plannedType === "checkpoint" ||
+      plannedType === "exam" ||
+      titleLooksRecycle;
+    const recycleSceneFindings: Array<{
+      stage: "validator";
+      severity: "info";
+      code: "review_scene_vocab";
+      message: string;
+      path: string;
+    }> = [];
+    const recycleSceneMessage = (word: string) =>
+      `'${word}' is not in earlier units. This ${plannedType ?? "review"} unit must not list new vocabulary. Replace it with a recycled word, or leave it as scene context.`;
+
     // Rule C: any truly new word used in exercises must be present in unit vocabulary; if we couldn't auto-add safely, block.
     for (const serbian of vocabSync.unresolvedNew ?? []) {
       const key = normalizeSerbianKey(serbian);
-      const firstUnit = taughtFirstUnitByKey.get(key);
-      if (firstUnit) continue; // already taught earlier => allowed to be used without listing
+      const taughtBase = resolveKnownInflectedBase(key, taughtFirstUnitByKey);
+      if (taughtBase) continue; // already taught earlier => allowed to be used without listing
+      if (recycleOnly) {
+        recycleSceneFindings.push({
+          stage: "validator",
+          severity: "info",
+          code: "review_scene_vocab",
+          message: recycleSceneMessage(serbian),
+          path: "exercises.en",
+        });
+        continue;
+      }
       continuityIssues.push({
         level: "error",
         path: ["exercises", "en"],
@@ -215,7 +263,17 @@ export const runQcValidate = action({
     // suggested translation is included to make the fix mechanical.
     for (const gap of vocabSync.missing ?? []) {
       const key = normalizeSerbianKey(gap.serbian);
-      if (taughtFirstUnitByKey.get(key)) continue; // known from an earlier unit
+      if (resolveKnownInflectedBase(key, taughtFirstUnitByKey)) continue;
+      if (recycleOnly) {
+        recycleSceneFindings.push({
+          stage: "validator",
+          severity: "info",
+          code: "review_scene_vocab",
+          message: recycleSceneMessage(gap.serbian),
+          path: "vocabulary.en",
+        });
+        continue;
+      }
       continuityIssues.push({
         level: "error",
         path: ["vocabulary", "en"],
@@ -263,6 +321,9 @@ export const runQcValidate = action({
       ensuredWithVocab as any
     );
 
+    const sectionQaOverrides = await ctx.runQuery(internal.contentStudio.internalGetSectionQaOverrides, {
+      draftId: args.draftId,
+    });
     const templateIssues = [
       ...templateIssuesBase,
       ...continuityIssues,
@@ -270,7 +331,15 @@ export const runQcValidate = action({
       ...headingIssues,
       ...memoryRegressionIssues,
       ...(varietyIssue ? [varietyIssue] : []),
-    ];
+    ].filter((issue) => {
+      if (issue.level === "error") return true;
+      return !shouldSuppressQaFinding({
+        message: issue.message,
+        path: issue.path?.length ? issue.path.join(".") : undefined,
+        severity: issue.level,
+        overrides: sectionQaOverrides,
+      });
+    });
 
     const reportBase = buildValidationReport({
       deepIssues,
@@ -295,6 +364,24 @@ export const runQcValidate = action({
         message: i.message,
         path: i.path?.length ? i.path.join(".") : undefined,
       });
+    }
+
+    if (sectionQaOverrides.length > 0) {
+      const kept = findings.filter(
+        (f) =>
+          !shouldSuppressQaFinding({
+            message: f.message,
+            path: f.path,
+            severity: f.severity,
+            overrides: sectionQaOverrides,
+          }),
+      );
+      findings.length = 0;
+      findings.push(...kept);
+    }
+
+    for (const info of recycleSceneFindings) {
+      findings.push(info);
     }
 
     // Non-blocking informational findings about review words used in exercises.

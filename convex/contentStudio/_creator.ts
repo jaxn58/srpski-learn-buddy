@@ -31,6 +31,10 @@ import {
   buildCorrectionRecipesBlock,
   findMemoryForFindingsFromEntries,
 } from "./_validatorMemory";
+import {
+  buildSectionQaOverrideBlock,
+  shouldSuppressQaFinding,
+} from "../../shared/contentStudio/sectionQaOverrides";
 
 function normalizeForOverlap(s: string): string[] {
   const raw = String(s || "");
@@ -715,10 +719,23 @@ export const runAiCreatorRevise = action({
 
     // Get findings (errors/warnings) – exclude dismissed ones from the Fix prompt
     const findings = current.findings || [];
+    const sectionQaOverrides = await ctx.runQuery(internal.contentStudio.internalGetSectionQaOverrides, {
+      draftId: args.draftId,
+    });
     const issues = findings.filter((f: any) => {
       if (f.dismissed) return false;
       if (f.severity !== "error" && f.severity !== "warning") return false;
       if (args.objectiveFindingsOnly && f.stage === "auditor" && String(f.code) === "STYLE_SUGGESTION") return false;
+      if (
+        shouldSuppressQaFinding({
+          message: String(f.message || ""),
+          path: typeof f.path === "string" ? f.path : undefined,
+          severity: String(f.severity || ""),
+          overrides: sectionQaOverrides,
+        })
+      ) {
+        return false;
+      }
       return true;
     });
     const humanNotes = String(args.humanNotes || "").trim();
@@ -754,6 +771,7 @@ export const runAiCreatorRevise = action({
     const notesBlock = humanNotes 
       ? `HUMAN REVIEW NOTES:\n${humanNotes}`
       : "";
+    const sectionOverrideBlock = buildSectionQaOverrideBlock(sectionQaOverrides);
 
     // Validator-Memory: pull "correction recipes" curated from past fixes that
     // match any of the current findings. The AI sees the exact guidance, and -
@@ -796,6 +814,8 @@ export const runAiCreatorRevise = action({
       findingsBlock,
       ``,
       notesBlock,
+      ``,
+      sectionOverrideBlock,
       ``,
       recipesBlock,
       ``,

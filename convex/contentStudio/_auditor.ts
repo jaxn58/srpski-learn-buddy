@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action } from "../_generated/server";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import {
   requireSuperadminAction,
   parseJsonOrThrow,
@@ -10,6 +10,10 @@ import {
   languageRulesBlock,
 } from "./_shared";
 import { buildAuditPayload, normalizeSerbianKey } from "./_validatorHelpers";
+import {
+  buildSectionQaOverrideBlock,
+  shouldSuppressQaFinding,
+} from "../../shared/contentStudio/sectionQaOverrides";
 import { CS_PROMPT_KEYS, formatKnownVocabularyKeys } from "./prompts";
 import type { Id } from "../_generated/dataModel";
 
@@ -22,6 +26,9 @@ export const runAiAuditor = action({
   handler: async (ctx, args) => {
     await requireSuperadminAction(ctx);
     const current = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
+    const sectionQaOverrides = await ctx.runQuery(internal.contentStudio.internalGetSectionQaOverrides, {
+      draftId: args.draftId,
+    });
     const snapshot = current.snapshot;
     if (!snapshot) throw new Error("Draft has no snapshot to audit");
 
@@ -91,6 +98,7 @@ export const runAiAuditor = action({
       ``,
       `IMPORTANT: Words from previous units are ALREADY KNOWN to the learner. They do NOT need to be re-introduced. Using them in exercises for REVIEW is encouraged.`,
       auditSkillBlock ? `\n${auditSkillBlock}\n` : ``,
+      buildSectionQaOverrideBlock(sectionQaOverrides),
     ].join("\n");
 
     const payload = buildAuditPayload(pkg, previousVocabKeys);
@@ -332,7 +340,17 @@ export const runAiAuditor = action({
 
       // Split by code: objective language defects block, the rest is advisory.
       blockers = deduped.filter((w: any) => BLOCKING_CODES.has(String(w?.code || "")));
-      warnings = deduped.filter((w: any) => !BLOCKING_CODES.has(String(w?.code || "")));
+      warnings = deduped
+        .filter((w: any) => !BLOCKING_CODES.has(String(w?.code || "")))
+        .filter(
+          (w: any) =>
+            !shouldSuppressQaFinding({
+              message: String(w?.message || ""),
+              path: typeof w?.path === "string" ? w.path : undefined,
+              severity: "warning",
+              overrides: sectionQaOverrides,
+            }),
+        );
 
       // Normalize audit object so UI shows the post-processed blocker/warning sets.
       const normalizedAudit = {

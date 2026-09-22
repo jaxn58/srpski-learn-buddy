@@ -48,7 +48,7 @@ import {
 import { buildSideBySideDiffRows } from "@/components/admin/contentStudio/utils/diffAlgorithm";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "@/components/admin/contentStudio/utils/briefVersionLabel";
 import {
-  isTranslatorQualityGuardError,
+  collectCognateCandidatesFromResult,
   parseUntranslatedPromptGuardFailures,
 } from "@/components/admin/contentStudio/utils/parseTranslatorGuardError";
 import {
@@ -161,42 +161,39 @@ export default function ContentStudioAdmin() {
   type CognateAcceptPrompt = {
     terms: string[];
     errorMessage: string;
-    retry: () => Promise<void>;
   };
   const [cognateAcceptPrompt, setCognateAcceptPrompt] = useState<CognateAcceptPrompt | null>(null);
   const [cognateAcceptBusy, setCognateAcceptBusy] = useState(false);
 
-  const offerCognateAcceptOrToast = (err: any, retry: () => Promise<void>) => {
-    const message = String(err?.message || err || "");
-    const terms = parseUntranslatedPromptGuardFailures(message);
-    if (isTranslatorQualityGuardError(message) && terms.length > 0) {
-      setCognateAcceptPrompt({ terms, errorMessage: message, retry });
-      return;
-    }
-    toast.error(message || t("admin.contentStudio.toast.translationFailed", "Translation failed."));
+  const offerCognateAccept = (terms: string[], detail?: string) => {
+    const unique = [...new Set(terms.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+    if (unique.length === 0) return;
+    setCognateAcceptPrompt({ terms: unique, errorMessage: detail ?? "" });
   };
 
-  const handleAcceptCognatesAndRetry = async () => {
+  const offerCognateAcceptFromResult = (res: unknown) => {
+    offerCognateAccept(collectCognateCandidatesFromResult(res));
+  };
+
+  const handleAcceptCognates = async () => {
     if (!cognateAcceptPrompt) return;
     setCognateAcceptBusy(true);
     try {
       const res = await addTranslatorCognates({
         terms: cognateAcceptPrompt.terms,
-        note: "Akzeptiert nach Quality-Guard-Fail (EN=DE Cognate)",
+        note: "Akzeptiert nach Quality-Guard (EN=DE Cognate)",
       });
       const label = [...res.added, ...res.alreadyPresent].join(", ");
       toast.success(
         t("admin.contentStudio.toast.cognatesAccepted", {
-          defaultValue: "Cognate(s) accepted: {{terms}}. Restarting translation…",
+          defaultValue: "Cognate(s) saved: {{terms}}. DE preview stays as written.",
           terms: label,
         })
       );
-      const retry = cognateAcceptPrompt.retry;
       setCognateAcceptPrompt(null);
-      await retry();
     } catch (e: any) {
       toast.error(
-        e?.message || t("admin.contentStudio.toast.cognatesSaveFailed", "Failed to save cognates / retry translation.")
+        e?.message || t("admin.contentStudio.toast.cognatesSaveFailed", "Failed to save cognates.")
       );
     } finally {
       setCognateAcceptBusy(false);
@@ -2470,11 +2467,18 @@ export default function ContentStudioAdmin() {
         );
       }
       showVerifierToast(res);
+      offerCognateAcceptFromResult(res);
       window.open(`/unit/${unitNum}?lang=de`, "_blank", "noopener,noreferrer");
       setTranslateDeOpen(false);
       setRecentlyTranslatedUnits((prev) => new Map<number, number>(prev).set(unitNum, Date.now()));
     } catch (e: any) {
-      offerCognateAcceptOrToast(e, () => handleTranslatePublishedToGerman());
+      const message = String(e?.message || e || "");
+      const terms = parseUntranslatedPromptGuardFailures(message);
+      if (terms.length > 0) {
+        offerCognateAccept(terms, message);
+      } else {
+        toast.error(message || t("admin.contentStudio.toast.translationFailed", "Translation failed."));
+      }
     } finally {
       setRunningTranslateDe(false);
     }
@@ -2539,6 +2543,7 @@ export default function ContentStudioAdmin() {
         );
       }
       showVerifierToast(res);
+      offerCognateAcceptFromResult(res);
       setTranslateDeResult({
         unitNumber: unitNum,
         previewVersion: typeof previewV === "number" ? previewV : null,
@@ -2548,7 +2553,13 @@ export default function ContentStudioAdmin() {
       setTranslateAnyOpen(false);
       setRecentlyTranslatedUnits((prev) => new Map<number, number>(prev).set(unitNum, Date.now()));
     } catch (e: any) {
-      offerCognateAcceptOrToast(e, () => handleTranslateAnyUnitToGerman());
+      const message = String(e?.message || e || "");
+      const terms = parseUntranslatedPromptGuardFailures(message);
+      if (terms.length > 0) {
+        offerCognateAccept(terms, message);
+      } else {
+        toast.error(message || t("admin.contentStudio.toast.translationFailed", "Translation failed."));
+      }
     } finally {
       setRunningTranslateDe(false);
     }
@@ -2582,9 +2593,16 @@ export default function ContentStudioAdmin() {
         })
       );
       showVerifierToast(publishRes);
+      offerCognateAcceptFromResult(publishRes);
       setTranslateDeResult(null);
     } catch (e: any) {
-      offerCognateAcceptOrToast(e, () => handlePublishDeTranslationLive());
+      const message = String(e?.message || e || "");
+      const terms = parseUntranslatedPromptGuardFailures(message);
+      if (terms.length > 0) {
+        offerCognateAccept(terms, message);
+      } else {
+        toast.error(message || t("admin.contentStudio.toast.translationFailed", "Translation failed."));
+      }
     } finally {
       setRunningTranslateDe(false);
     }
@@ -3233,7 +3251,7 @@ export default function ContentStudioAdmin() {
                 <p>
                   {t(
                     "admin.contentStudio.page.cognateDialogBody",
-                    "The translator guard flagged the following prompt(s) as still English. If they are legitimately identical in German (e.g. orange, hotel), you can accept them as cognates and restart the translation."
+                    "The DE preview is already written. If these words are correctly identical in German (e.g. park, hotel), accept them so the next translation does not flag them again."
                   )}
                 </p>
                 <ul className="list-disc pl-5 font-mono text-foreground">
@@ -3257,12 +3275,12 @@ export default function ContentStudioAdmin() {
               disabled={cognateAcceptBusy}
               onClick={(e) => {
                 e.preventDefault();
-                void handleAcceptCognatesAndRetry();
+                void handleAcceptCognates();
               }}
             >
               {cognateAcceptBusy
                 ? t("admin.contentStudio.page.saving", "Saving…")
-                : t("admin.contentStudio.page.cognateAcceptAndRetry", "Accept, save & translate again")}
+                : t("admin.contentStudio.page.cognateAcceptAndRetry", "Accept & remember")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

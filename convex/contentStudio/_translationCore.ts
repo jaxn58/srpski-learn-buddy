@@ -18,7 +18,9 @@ import {
 import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
+  collectCognateCandidatesFromIssues,
   loadMergedPromptCognates,
+  parseUntranslatedPromptGuardFailures,
 } from "./_translatorCognates";
 import { restoreOriginalAuthorQuote } from "../../shared/contentStudio/authorNote";
 
@@ -1248,34 +1250,32 @@ export async function translateTestsForCategory(
   }
 
   if (qualityIssues.length > 0) {
-    // Soft-fail for EN=DE cognate candidates only: keep the translated category,
-    // surface issues on the translation report so the admin can accept them as
-    // cognates (or selectively retry). Hard-fail everything else (glosses, framing).
-    const onlyUntranslatedPrompts = qualityIssues.every((i) =>
-      i.includes("learner prompt is still English")
+    // Never hard-stop: persist the category, surface issues on the report,
+    // and collect short EN=DE identity terms for the admin cognate dialog.
+    const cognateCandidates = collectCognateCandidatesFromIssues(qualityIssues);
+    const onlyCognates =
+      cognateCandidates.length > 0 &&
+      qualityIssues.every((issue) => parseUntranslatedPromptGuardFailures(issue).length > 0);
+    console.warn(
+      `[translateTests] category=${args.category}: ${qualityIssues.length} quality issue(s); continuing (soft)` +
+        (cognateCandidates.length ? ` cognateCandidates=${cognateCandidates.join(",")}` : "") +
+        "."
     );
-    if (onlyUntranslatedPrompts) {
-      console.warn(
-        `[translateTests] category=${args.category}: ${qualityIssues.length} cognate-candidate issue(s); continuing (soft).`
-      );
-      args.stepLogs.push({
-        step: `tests:${args.category}:cognate-candidates`,
-        provider: "",
-        model: "",
-        durationMs: 0,
-        inputTokens: null,
-        outputTokens: null,
-        thinkingTokens: null,
-        totalTokens: null,
-        estimatedCostUsd: null,
-        qualityIssues,
-      });
-      return produced;
-    }
-    throw new Error(
-      `Test translation quality guard failed (category=${args.category}): ` +
-        `${qualityIssues.slice(0, 5).join(" | ")}`
-    );
+    args.stepLogs.push({
+      step: onlyCognates
+        ? `tests:${args.category}:cognate-candidates`
+        : `tests:${args.category}:quality-issues`,
+      provider: "",
+      model: "",
+      durationMs: 0,
+      inputTokens: null,
+      outputTokens: null,
+      thinkingTokens: null,
+      totalTokens: null,
+      estimatedCostUsd: null,
+      qualityIssues,
+    });
+    return produced;
   }
 
   return produced;

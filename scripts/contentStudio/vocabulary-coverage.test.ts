@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   collectSerbianCandidatesFromGrammar,
   collectSerbianCandidatesFromContent,
+  resolveKnownInflectedBase,
 } from "../../convex/contentStudio/_validatorHelpers";
 
 const PATTERN_TABLE = [
@@ -97,5 +98,49 @@ describe("collectSerbianCandidatesFromContent", () => {
     expect(words).toContain("izvolite");
     // From grammar: the regression that started this check.
     expect(words).toContain("nisi");
+  });
+});
+
+describe("resolveKnownInflectedBase", () => {
+  const known = (keys: string[]) => new Set(keys);
+
+  it("maps masculine genitive sira to earlier-taught sir", () => {
+    expect(resolveKnownInflectedBase("sira", known(["sir"]))).toBe("sir");
+  });
+
+  it("maps šećera to šećer and kafu to kafa", () => {
+    expect(resolveKnownInflectedBase("šećera", known(["šećer"]))).toBe("šećer");
+    expect(resolveKnownInflectedBase("kafu", known(["kafa"]))).toBe("kafa");
+    expect(resolveKnownInflectedBase("mlijekom", known(["mlijeko"]))).toBe("mlijeko");
+  });
+
+  it("maps adjective gender and plural dinars to the taught lemma", () => {
+    expect(resolveKnownInflectedBase("dobra", known(["dobar"]))).toBe("dobar");
+    expect(resolveKnownInflectedBase("dobro", known(["dobar"]))).toBe("dobar");
+    expect(resolveKnownInflectedBase("dinare", known(["dinar"]))).toBe("dinar");
+    expect(resolveKnownInflectedBase("dinare", known(["dinara"]))).toBe("dinara");
+    expect(resolveKnownInflectedBase("jedna", known(["jedan"]))).toBe("jedan");
+  });
+
+  it("covers genitive of a longer noun already in the table", () => {
+    expect(resolveKnownInflectedBase("aerodroma", known(["aerodrom"]))).toBe("aerodrom");
+    expect(resolveKnownInflectedBase("restorana", known(["restoran"]))).toBe("restoran");
+  });
+
+  it("returns the surface when it is already the known lemma", () => {
+    expect(resolveKnownInflectedBase("sir", known(["sir"]))).toBe("sir");
+  });
+
+  it("does not invent a lemma when the base is not known", () => {
+    expect(resolveKnownInflectedBase("sira", known([]))).toBeNull();
+    expect(resolveKnownInflectedBase("kafa", known([]))).toBeNull();
+  });
+
+  it("does not treat a feminine nominative as an inflection of an unrelated word", () => {
+    expect(resolveKnownInflectedBase("kafa", known(["voda"]))).toBeNull();
+  });
+
+  it("does not treat stola (table) as an inflection of sto (one hundred)", () => {
+    expect(resolveKnownInflectedBase("stola", known(["sto"]))).toBeNull();
   });
 });

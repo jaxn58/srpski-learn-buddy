@@ -6,13 +6,21 @@ import {
   stripLeadingGermanArticle,
   type TranslatorAdminContext,
 } from "../../convex/contentStudio/_translationCore";
-import { collectDraftSkillIds, mergeSkillsById } from "../../convex/contentStudio/_shared";
+import { collectDraftSkillIds, closeTruncatedJson, mergeSkillsById } from "../../convex/contentStudio/_shared";
+import {
+  dropAiMissingInfoThatRepeatsVocabularySerbian,
+  extractMentionedLemmaTokens,
+  parseVerifierIssuesJson,
+  type VerifierInputItem,
+  type VerifierIssue,
+} from "../../convex/contentStudio/_verifier";
 import {
   ALL_TRANSLATOR_PROMPT_KEYS,
   CS_PROMPT_KEYS,
 } from "../../convex/contentStudio/prompts";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
+  collectCognateCandidatesFromIssues,
   mergePromptCognates,
   parseUntranslatedPromptGuardFailures,
 } from "../../convex/contentStudio/_translatorCognates";
@@ -121,6 +129,59 @@ describe("parseUntranslatedPromptGuardFailures", () => {
     const msg = 'German question prompt is still English ("_____ = orange").';
     expect(parseUntranslatedPromptGuardFailures(msg)).toEqual(["orange"]);
   });
+
+  it("extracts fill-in source cue cognates like park", () => {
+    const msg =
+      'Test translation quality guard failed (category=fillInBlank): questionId=u4_ex2_q06: fill-in source cue is still English "(park)". Translate it to German inside the parentheses (e.g. milk→Milch, apples→Äpfel).';
+    expect(parseUntranslatedPromptGuardFailures(msg)).toEqual(["park"]);
+  });
+
+  it("does not treat full-sentence context glosses as cognates", () => {
+    const msg =
+      'questionId=u1_ex2_q01: fill-in context gloss is still English "(I am Ana.)". Translate it to German';
+    expect(parseUntranslatedPromptGuardFailures(msg)).toEqual([]);
+  });
+});
+
+describe("closeTruncatedJson / parseVerifierIssuesJson", () => {
+  it("closes a truncated issues array mid-string", () => {
+    const raw =
+      `{"issues":[{"key":"vocab:abc","severity":"warning","code":"semantic_mismatch","issue":"The German 'Es ist nahe' for 'To je blizu' (It is near) is grammatically`;
+    const closed = closeTruncatedJson(raw);
+    expect(closed).toBeTruthy();
+    const parsed = JSON.parse(closed!);
+    expect(parsed.issues).toHaveLength(1);
+    expect(parsed.issues[0].key).toBe("vocab:abc");
+  });
+
+  it("salvages complete issue objects when the last one is truncated", () => {
+    const raw =
+      `{"issues":[` +
+      `{"key":"vocab:one","severity":"warning","code":"semantic_mismatch","issue":"ok one","suggestion":"x"},` +
+      `{"key":"vocab:two","severity":"warning","code":"semantic_mismatch","issue":"The German "`;
+    const parsed = parseVerifierIssuesJson(raw);
+    expect(parsed.issues.some((i: any) => i.key === "vocab:one")).toBe(true);
+  });
+
+  it("parses a valid verifier payload", () => {
+    const parsed = parseVerifierIssuesJson(
+      JSON.stringify({ issues: [{ key: "test:q1", severity: "info", code: "other", issue: "fine" }] })
+    );
+    expect(parsed.issues).toHaveLength(1);
+    expect(parsed.issues[0].key).toBe("test:q1");
+  });
+});
+
+describe("collectCognateCandidatesFromIssues", () => {
+  it("collects short EN=DE identity terms and ignores leftover-help issues", () => {
+    expect(
+      collectCognateCandidatesFromIssues([
+        'questionId=u4_ex2_q06: fill-in source cue is still English "(park)".',
+        "questionId=u4_ex3_q01: exercise prompt still has parenthetical help (Where is the station?).",
+        'questionId=u5_ex4_q01 (matching): learner prompt is still English "hotel".',
+      ])
+    ).toEqual(["hotel", "park"]);
+  });
 });
 
 describe("composeTranslatorSystemPrompt", () => {
@@ -179,6 +240,171 @@ describe("stripLeadingGermanArticle", () => {
 
   it("does not empty a field that is only an article", () => {
     expect(stripLeadingGermanArticle("der")).toBe("der");
+  });
+});
+
+describe("dropAiMissingInfoThatRepeatsVocabularySerbian", () => {
+  const vocabMdEn = [
+    "## Vocabulary",
+    "",
+    "| Serbian | English |",
+    "| :--- | :--- |",
+    "| platiti | to pay |",
+    "| burek | burek |",
+    "| kifla | croissant |",
+    "| kesa | bag |",
+    "| vi | you (pl.) |",
+    "| oni | they |",
+    "| jeste | yes / you are |",
+    "| super | super |",
+    "| to je sve | that's all |",
+    "| to je osamdeset | that's eighty |",
+    "| park | park |",
+  ].join("\n");
+
+  const vocabMdDe = [
+    "## Vokabeln",
+    "",
+    "| Serbian | German |",
+    "| :--- | :--- |",
+    "| platiti | bezahlen |",
+    "| burek | Burek |",
+    "| kifla | Kipferl |",
+    "| kesa | Tüte |",
+    "| vi | ihr |",
+    "| oni | sie |",
+    "| jeste | ja |",
+    "| super | super |",
+    "| to je sve | das ist alles |",
+    "| to je osamdeset | das sind achtzig |",
+    "| park | Park |",
+  ].join("\n");
+
+  const vocabItem: VerifierInputItem = {
+    key: "section:vocabulary",
+    kind: "section",
+    label: "section: vocabulary",
+    serbian: "platiti\nburek\nkifla\nkesa\nvi\noni\njeste\nsuper\nto je sve\nto je osamdeset\npark",
+    english: vocabMdEn,
+    german: vocabMdDe,
+  };
+
+  const missingInfoIssue: VerifierIssue = {
+    itemKey: "section:vocabulary",
+    itemLabel: "section: vocabulary",
+    itemKind: "section",
+    severity: "critical",
+    code: "missing_info",
+    issue:
+      "The German vocabulary section is missing Serbian entries: platiti, burek, kifla, kesa, vi, oni, jeste, super, to je sve, to je osamdeset. Add them to the German output.",
+    suggestion: "Add platiti, burek, kifla, kesa, vi, oni, jeste, super, to je sve, to je osamdeset to the German table.",
+  };
+
+  it("extracts the Unit-4 lemma list including multi-word phrases", () => {
+    const tokens = extractMentionedLemmaTokens(missingInfoIssue.issue);
+    expect(tokens).toEqual(
+      expect.arrayContaining([
+        "platiti",
+        "burek",
+        "kifla",
+        "kesa",
+        "vi",
+        "oni",
+        "jeste",
+        "super",
+        "to je sve",
+        "to je osamdeset",
+      ])
+    );
+  });
+
+  it("drops the vocabulary-section missing_info false positive when lemmas stay in DE", () => {
+    const { kept, dropped } = dropAiMissingInfoThatRepeatsVocabularySerbian(
+      [missingInfoIssue],
+      [vocabItem]
+    );
+    expect(dropped).toHaveLength(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("drops a token-less missing_info about Serbian entries when EN/DE row counts match", () => {
+    const vague: VerifierIssue = {
+      ...missingInfoIssue,
+      issue: "The German vocabulary section is missing Serbian entries from the source.",
+      suggestion: undefined,
+    };
+    const { kept, dropped } = dropAiMissingInfoThatRepeatsVocabularySerbian([vague], [vocabItem]);
+    expect(dropped).toHaveLength(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("keeps missing_info about leftover English that is not a Serbian-column lemma", () => {
+    const leftover: VerifierIssue = {
+      ...missingInfoIssue,
+      issue: "German still has the English gloss \"to pay\" instead of bezahlen.",
+      suggestion: "bezahlen",
+    };
+    const { kept, dropped } = dropAiMissingInfoThatRepeatsVocabularySerbian(
+      [leftover],
+      [vocabItem]
+    );
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+
+  it("keeps missing_info when a named lemma is absent from the DE table", () => {
+    const deMissingKifla = vocabMdDe
+      .split("\n")
+      .filter((line) => !line.includes("| kifla |"))
+      .join("\n");
+    const item: VerifierInputItem = {
+      ...vocabItem,
+      german: deMissingKifla,
+      serbian: vocabItem.serbian.replace("kifla\n", ""),
+    };
+    const { kept, dropped } = dropAiMissingInfoThatRepeatsVocabularySerbian(
+      [missingInfoIssue],
+      [item]
+    );
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+
+  it("keeps a real semantic mismatch on the vocabulary section", () => {
+    const semantic: VerifierIssue = {
+      ...missingInfoIssue,
+      code: "semantic_mismatch",
+      issue: "German 'Tüte' does not match Serbian 'kifla' (croissant).",
+      suggestion: "Kipferl",
+    };
+    const { kept, dropped } = dropAiMissingInfoThatRepeatsVocabularySerbian(
+      [semantic],
+      [vocabItem]
+    );
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+
+  it("does not drop missing_info on a non-vocabulary section", () => {
+    const grammarItem: VerifierInputItem = {
+      key: "section:grammar",
+      kind: "section",
+      label: "section: grammar",
+      serbian: "platiti",
+      english: "## Grammar\n\nPay with platiti.",
+      german: "## Grammatik\n\nBezahlen.",
+    };
+    const grammarIssue: VerifierIssue = {
+      ...missingInfoIssue,
+      itemKey: "section:grammar",
+      itemLabel: "section: grammar",
+    };
+    const { kept, dropped } = dropAiMissingInfoThatRepeatsVocabularySerbian(
+      [grammarIssue],
+      [grammarItem]
+    );
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
   });
 });
 

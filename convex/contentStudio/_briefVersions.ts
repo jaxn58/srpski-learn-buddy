@@ -33,8 +33,9 @@
  * by a refusal.
  */
 import { v } from "convex/values";
-import { mutation, query, type QueryCtx } from "../_generated/server";
+import { mutation, query, internalQuery, type QueryCtx } from "../_generated/server";
 import { requireSuperadmin } from "./_shared";
+import { collectSectionQaOverridesFromExisting } from "../../shared/contentStudio/sectionQaOverrides";
 import { extractSection, replaceSection, SECTION_LABELS, type SectionId } from "../../scripts/markdownParser/sectionUtils";
 import { validateMarkdownStructure, parseMarkdownToUnitPackage } from "../../scripts/markdownParser/parser";
 import { UnitPackageSchema } from "../../scripts/unitPackage/schema";
@@ -342,6 +343,31 @@ export const nameBriefVersion = mutation({
     if (!version) throw new Error("Brief version not found");
     await ctx.db.patch(args.versionId, { label: args.label.trim() || undefined });
     return { ok: true };
+  },
+});
+
+const sectionQaOverrideValidator = v.object({
+  id: v.string(),
+  sectionId: v.string(),
+  instruction: v.string(),
+  createdAt: v.number(),
+});
+
+export const internalGetSectionQaOverrides = internalQuery({
+  args: { draftId: v.id("contentDrafts") },
+  returns: v.array(sectionQaOverrideValidator),
+  handler: async (ctx, args) => {
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft) return [];
+    const pending = await computePendingSectionRevisions(ctx, draft);
+    return collectSectionQaOverridesFromExisting({
+      curatedSections: getCuratedSections(draft),
+      pendingRevisions: pending.map((p) => ({
+        section: p.section,
+        instruction: p.instruction,
+        at: p.at,
+      })),
+    });
   },
 });
 

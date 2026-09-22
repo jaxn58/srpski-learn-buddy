@@ -1,9 +1,17 @@
 import type { ActionCtx } from "../_generated/server";
-import { callAiJson, parseJsonOrThrow, resolvePromptFromDb, type Provider } from "./_shared";
+import {
+  callAiJson,
+  closeTruncatedJson,
+  extractCompleteJsonObjects,
+  parseJsonOrThrow,
+  resolvePromptFromDb,
+  type Provider,
+} from "./_shared";
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
   loadMergedPromptCognates,
+  normalizeCognateTerm,
 } from "./_translatorCognates";
 
 /**
@@ -89,7 +97,7 @@ export interface VerifierReport {
   outputTokens: number | null;
   thinkingTokens: number | null;
   estimatedCostUsd: number | null;
-  /** Raw AI error if the verifier call failed; in that case issues is empty. */
+  /** Short AI error if a verifier batch failed. Deterministic issues may still be present. */
   error?: string;
   /** Label so the client can distinguish pass 1 vs pass 2 verifier runs. */
   pass: "pass1" | "pass2";
@@ -181,6 +189,236 @@ function shouldDropAiGlossContractIssue(
   return false;
 }
 
+/** Same row counter as `checkSectionQuality` — header + data rows, not separator lines. */
+function countTableDataRows(markdown: string): number {
+  return (String(markdown || "").match(/^\|(?![-: |]+\|)/gm) ?? []).length;
+}
+
+function extractSerbianColumnCells(markdown: string): string[] {
+  const results: string[] = [];
+  let serbianColIdx = -1;
+
+  for (const line of String(markdown || "").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|")) {
+      serbianColIdx = -1;
+      continue;
+    }
+    const cells = trimmed
+      .split("|")
+      .slice(1, -1)
+      .map((c) => c.trim());
+    if (cells.length < 2) continue;
+    if (cells.every((c) => /^[-:\s]+$/.test(c))) continue;
+
+    const headerIdx = cells.findIndex((c) => /^serbian$/i.test(c.replace(/\*+/g, "").trim()));
+    if (headerIdx >= 0) {
+      serbianColIdx = headerIdx;
+      continue;
+    }
+
+    const idx = serbianColIdx >= 0 ? serbianColIdx : 0;
+    const cell = String(cells[idx] ?? "")
+      .replace(/\*+/g, "")
+      .trim();
+    if (cell) results.push(cell);
+  }
+  return results;
+}
+
+const LEMMA_INSTRUCTION_TAILS =
+  /\s+(?:to|in|from|into)\s+the\s+(?:german|english|source|output|table|section)\b.*$/i;
+const LEMMA_INSTRUCTION_HEADS =
+  /^(?:please\s+)?(?:add|include|omit|missing|keep|entries?|lemmas?|items?|words?)\s*:?\s*/i;
+const LEMMA_WHOLE_STOP = new Set([
+  "german",
+  "serbian",
+  "english",
+  "vocabulary",
+  "section",
+  "table",
+  "column",
+  "translation",
+  "output",
+  "entries",
+  "entry",
+  "lemmas",
+  "lemma",
+  "items",
+  "item",
+  "words",
+  "word",
+  "source",
+  "text",
+  "information",
+  "content",
+]);
+const LEMMA_EN_STOP = new Set([
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "of",
+  "to",
+  "in",
+  "on",
+  "for",
+  "is",
+  "are",
+  "was",
+  "were",
+  "this",
+  "that",
+  "these",
+  "those",
+  "it",
+  "they",
+  "we",
+  "you",
+  "from",
+  "with",
+  "into",
+  "than",
+  "also",
+  "still",
+  "already",
+  "several",
+  "present",
+  "missing",
+  "add",
+  "include",
+]);
+
+function stripLemmaInstructionAffixes(raw: string): string {
+  return String(raw || "")
+    .replace(LEMMA_INSTRUCTION_TAILS, "")
+    .replace(LEMMA_INSTRUCTION_HEADS, "")
+    .replace(/^[`'«"“]+|[`'»"”]+$/g, "")
+    .trim();
+}
+
+function isLemmaLikeToken(raw: string): boolean {
+  const s = stripLemmaInstructionAffixes(raw);
+  if (!s || s.length > 60) return false;
+  if (LEMMA_WHOLE_STOP.has(s.toLowerCase())) return false;
+  if (!/^[\p{L}][\p{L}'’-]{0,40}(?:\s+[\p{L}][\p{L}'’-]{0,40}){0,3}$/u.test(s)) return false;
+  const words = s.split(/\s+/);
+  if (words.every((w) => LEMMA_EN_STOP.has(w.toLowerCase()) || LEMMA_WHOLE_STOP.has(w.toLowerCase()))) {
+    return false;
+  }
+  return true;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function textContainsLemma(haystack: string, lemma: string): boolean {
+  const n = String(lemma || "").trim();
+  if (!n) return false;
+  const escaped = escapeRegExp(n).replace(/\s+/g, "\\s+");
+  return new RegExp(`(?:^|[^\\p{L}])${escaped}(?:$|[^\\p{L}])`, "iu").test(String(haystack || ""));
+}
+
+/**
+ * Pull quoted spans and comma lists out of a verifier issue/suggestion.
+ * Used only to decide whether a vocabulary-section `missing_info` names
+ * lemmas that are already in the DE Serbian column.
+ */
+export function extractMentionedLemmaTokens(text: string): string[] {
+  const found = new Set<string>();
+  const add = (raw: string) => {
+    const s = stripLemmaInstructionAffixes(raw);
+    if (isLemmaLikeToken(s)) found.add(s);
+  };
+
+  for (const m of String(text || "").matchAll(/["'`«“]([^"'`»”\n]{1,60})["'`»”]/g)) {
+    add(String(m[1] ?? ""));
+  }
+
+  for (const sentence of String(text || "").split(/[.\n]/)) {
+    const afterColon = sentence.includes(":")
+      ? sentence.slice(sentence.lastIndexOf(":") + 1)
+      : sentence;
+    const parts = afterColon
+      .replace(/\s+(?:and|und|or|oder)\s+/gi, ", ")
+      .split(",")
+      .map((p) => stripLemmaInstructionAffixes(p))
+      .filter(Boolean);
+    const lemmas = parts.filter(isLemmaLikeToken);
+    if (lemmas.length >= 2) {
+      for (const lemma of lemmas) add(lemma);
+    }
+  }
+
+  return [...found];
+}
+
+function isVocabularySectionKey(key: string): boolean {
+  return key.trim().toLowerCase() === "section:vocabulary";
+}
+
+function isPreservedSerbianLemma(token: string, item: VerifierInputItem): boolean {
+  const deCells = extractSerbianColumnCells(item.german).join("\n");
+  if (textContainsLemma(deCells, token)) return true;
+  // Token was in the EN Serbian extract and still appears somewhere in DE.
+  if (textContainsLemma(item.serbian, token) && textContainsLemma(item.german, token)) {
+    return true;
+  }
+  return false;
+}
+
+function shouldDropVocabSectionMissingInfo(
+  issue: VerifierIssue,
+  item: VerifierInputItem | undefined
+): boolean {
+  if (!item || issue.itemKind !== "section" || item.kind !== "section") return false;
+  if (!isVocabularySectionKey(issue.itemKey) && !isVocabularySectionKey(item.key)) return false;
+  if (issue.code !== "missing_info") return false;
+
+  const enRows = countTableDataRows(item.english);
+  const deRows = countTableDataRows(item.german);
+  const rowsMatch = enRows > 0 && enRows === deRows;
+
+  const blob = `${issue.issue} ${issue.suggestion ?? ""}`;
+  const mentioned = extractMentionedLemmaTokens(blob);
+  const preserved = mentioned.filter((token) => isPreservedSerbianLemma(token, item));
+
+  if (mentioned.length > 0 && preserved.length === mentioned.length) return true;
+  const aboutSerbianColumn =
+    /missing serbian|serbian (?:entr(?:y|ies)|lemmas?|words?|column)|add them to the german|add these (?:lemmas?|entr(?:y|ies)|words?)/i.test(
+      blob
+    );
+  if (rowsMatch && mentioned.length === 0 && aboutSerbianColumn) return true;
+  return false;
+}
+
+/**
+ * Drop AI `missing_info` on `section:vocabulary` when the model asks to add
+ * Serbian lemmas that already sit in the DE table's Serbian column, or when
+ * the EN/DE table row counts already match and no missing lemma is named.
+ *
+ * Real row loss stays visible via `checkSectionQuality` and via this filter
+ * keeping issues whose named tokens are absent from DE.
+ */
+export function dropAiMissingInfoThatRepeatsVocabularySerbian(
+  issues: VerifierIssue[],
+  items: VerifierInputItem[]
+): { kept: VerifierIssue[]; dropped: VerifierIssue[] } {
+  const byKey = new Map(items.map((it) => [it.key, it]));
+  const kept: VerifierIssue[] = [];
+  const dropped: VerifierIssue[] = [];
+  for (const issue of issues) {
+    if (shouldDropVocabSectionMissingInfo(issue, byKey.get(issue.itemKey))) {
+      dropped.push(issue);
+    } else {
+      kept.push(issue);
+    }
+  }
+  return { kept, dropped };
+}
+
 /**
  * Deterministic sanity checks that don't require an AI call.
  *
@@ -258,7 +496,10 @@ export function runDeterministicVocabChecks(items: VerifierInputItem[]): Verifie
  * - fillInBlank SOURCE CUES (short word after blank, e.g. "(milk)") → must stay as German
  * - HELP glosses on dialogue / multipleChoice → critical unwanted
  */
-export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): VerifierIssue[] {
+export function runDeterministicTestGlossChecks(
+  items: VerifierInputItem[],
+  cognates: Set<string> = new Set(CODE_DEFAULT_PROMPT_COGNATES)
+): VerifierIssue[] {
   const issues: VerifierIssue[] = [];
 
   const looksLikeSerbianStem = (q: string) => {
@@ -317,7 +558,7 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
         for (let i = 0; i < enCues.length; i++) {
           const enG = enCues[i]!;
           const deG = deCues[i] ?? "";
-          if (norm(enG) === norm(deG) && !CODE_DEFAULT_PROMPT_COGNATES.includes(norm(enG))) {
+          if (norm(enG) === norm(deG) && !cognates.has(norm(enG))) {
             issues.push({
               itemKey: it.key,
               itemLabel: it.label,
@@ -354,7 +595,7 @@ export function runDeterministicTestGlossChecks(items: VerifierInputItem[]): Ver
         for (let i = 0; i < enContext.length; i++) {
           const enG = enContext[i]!;
           const deG = deContext[i] ?? "";
-          if (norm(enG) === norm(deG) && !CODE_DEFAULT_PROMPT_COGNATES.includes(norm(enG))) {
+          if (norm(enG) === norm(deG) && !cognates.has(norm(enG))) {
             issues.push({
               itemKey: it.key,
               itemLabel: it.label,
@@ -511,13 +752,24 @@ function isNonIssueCommentary(issue: VerifierIssue): boolean {
  * character budget so we don't blow the context window. Markdown sections are
  * much larger than vocabulary items, so we let batching per-kind handle size.
  */
-function batchItems(items: VerifierInputItem[], maxCharsPerBatch: number): VerifierInputItem[][] {
+const VERIFIER_BATCH_CHARS = 10_000;
+const VERIFIER_BATCH_MAX_ITEMS = 8;
+const VERIFIER_MAX_TOKENS = 4000;
+
+function batchItems(
+  items: VerifierInputItem[],
+  maxCharsPerBatch: number,
+  maxItemsPerBatch: number = VERIFIER_BATCH_MAX_ITEMS
+): VerifierInputItem[][] {
   const batches: VerifierInputItem[][] = [];
   let current: VerifierInputItem[] = [];
   let currentChars = 0;
   for (const it of items) {
     const size = (it.serbian?.length || 0) + (it.english?.length || 0) + (it.german?.length || 0);
-    if (current.length > 0 && currentChars + size > maxCharsPerBatch) {
+    const overflow =
+      current.length > 0 &&
+      (current.length >= maxItemsPerBatch || currentChars + size > maxCharsPerBatch);
+    if (overflow) {
       batches.push(current);
       current = [];
       currentChars = 0;
@@ -529,6 +781,46 @@ function batchItems(items: VerifierInputItem[], maxCharsPerBatch: number): Verif
   return batches;
 }
 
+function isVerifierIssueShape(value: unknown): value is { key: string; issue: string } {
+  if (!value || typeof value !== "object") return false;
+  const o = value as { key?: unknown; issue?: unknown };
+  return typeof o.key === "string" && o.key.trim() !== "" && typeof o.issue === "string" && o.issue.trim() !== "";
+}
+
+/** Recover `{ issues: [...] }` from truncated or slightly broken verifier JSON. */
+export function parseVerifierIssuesJson(raw: string): { issues: any[] } {
+  try {
+    const parsed = parseJsonOrThrow(raw);
+    if (parsed && Array.isArray(parsed.issues)) return { issues: parsed.issues };
+    if (Array.isArray(parsed)) return { issues: parsed };
+  } catch {
+    // salvage below
+  }
+
+  const closed = closeTruncatedJson(raw);
+  if (closed) {
+    try {
+      const parsed = JSON.parse(closed);
+      if (parsed && Array.isArray(parsed.issues)) return { issues: parsed.issues };
+      if (Array.isArray(parsed)) return { issues: parsed };
+    } catch {
+      // salvage complete objects
+    }
+  }
+
+  const issues = extractCompleteJsonObjects(raw).filter(isVerifierIssueShape);
+  if (issues.length > 0) return { issues };
+  throw new Error("Invalid JSON from AI: could not salvage verifier issues.");
+}
+
+function shortVerifierError(message: string): string {
+  return String(message || "")
+    .replace(/\s*Preview:\s*[\s\S]*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+}
+
 // Base prompt: chatPrompts cs_translator_verifier (no code fallback).
 
 function buildVerifierUserPayload(items: VerifierInputItem[]): string {
@@ -538,6 +830,10 @@ function buildVerifierUserPayload(items: VerifierInputItem[]): string {
     "- fillInBlank: if English has a full-sentence context gloss in parentheses, German must keep that gloss in German. Do not report it as unwanted.",
     "- multipleChoice / dialogue: German must keep the Serbian stem/blank only. Do not report missing_info for a missing sentence-level parenthetical gloss; those are stripped on the DE track by design.",
     "- Short fill-in source cues like (Milch) are not sentence-level glosses.",
+    "- vocabulary section: the Serbian table column stays Serbian on DE. Do not report missing_info for lemmas that are still present in the German table's Serbian column.",
+    "OUTPUT: return ONLY a JSON object {\"issues\":[...]} with no markdown.",
+    "Each issue: {key, severity, code, issue, suggestion?}. Keep issue text under 200 characters.",
+    "Omit items with no problem. Do not put unescaped double quotes inside issue/suggestion strings.",
     "",
   ].join("\n");
   const payload = {
@@ -560,6 +856,7 @@ export async function verifySerbianGermanAlignment(
     items: VerifierInputItem[];
     preferredProvider?: Provider;
     pass: "pass1" | "pass2";
+    extraCognates?: string[];
   }
 ): Promise<VerifierReport> {
   const t0 = Date.now();
@@ -601,14 +898,18 @@ export async function verifySerbianGermanAlignment(
     return empty;
   }
 
-  const batches = batchItems(usable, 28_000);
+  const batches = batchItems(usable, VERIFIER_BATCH_CHARS, VERIFIER_BATCH_MAX_ITEMS);
 
   // Run deterministic checks first — no AI call required, and the results
   // show up alongside AI-detected issues for the admin to select for retry.
   const cognates = await loadMergedPromptCognates(ctx);
+  for (const term of params.extraCognates ?? []) {
+    const n = normalizeCognateTerm(term);
+    if (n) cognates.add(n);
+  }
   const deterministicIssues = [
     ...runDeterministicVocabChecks(usable),
-    ...runDeterministicTestGlossChecks(usable),
+    ...runDeterministicTestGlossChecks(usable, cognates),
     ...runDeterministicTestPromptChecks(usable, cognates),
   ];
 
@@ -624,33 +925,52 @@ export async function verifySerbianGermanAlignment(
   const itemByKey = new Map<string, VerifierInputItem>();
   for (const it of usable) itemByKey.set(it.key, it);
 
-  for (const batch of batches) {
-    try {
-      const ai = await callAiJson(ctx, {
-        stage: "auditor",
-        preferredProvider: params.preferredProvider,
-        system: await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVerifier),
-        user: buildVerifierUserPayload(batch),
-        maxTokens: 3000,
-        timeoutMs: 90_000,
-        reasoningEffort: "low",
-      });
-      provider = ai.provider;
-      model = ai.model;
-      if (ai.usage?.inputTokens != null) sumInput += ai.usage.inputTokens;
-      if (ai.usage?.outputTokens != null) sumOutput += ai.usage.outputTokens;
-      if (ai.usage?.thinkingTokens != null) sumThinking += ai.usage.thinkingTokens;
-      if (ai.estimatedCostUsd != null && sumCost != null) sumCost += ai.estimatedCostUsd;
-      else sumCost = sumCost != null && ai.estimatedCostUsd == null ? sumCost : sumCost;
+  let failedJsonBatches = 0;
+  const baseSystem = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVerifier);
 
-      let parsed: any;
-      try {
-        parsed = parseJsonOrThrow(ai.raw);
-      } catch (e: any) {
-        callError = `Verifier returned invalid JSON: ${e?.message || String(e)}`;
-        continue;
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex]!;
+    try {
+      let parsed: { issues: any[] } | null = null;
+      for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
+        const user =
+          attempt === 0
+            ? buildVerifierUserPayload(batch)
+            : [
+                buildVerifierUserPayload(batch),
+                "",
+                "RETRY: previous output was invalid JSON. Return ONLY {\"issues\":[...]} with short issue texts and escaped quotes.",
+              ].join("\n");
+        const ai = await callAiJson(ctx, {
+          stage: "auditor",
+          preferredProvider: params.preferredProvider,
+          system: baseSystem,
+          user,
+          maxTokens: VERIFIER_MAX_TOKENS,
+          timeoutMs: 90_000,
+          reasoningEffort: "low",
+        });
+        provider = ai.provider;
+        model = ai.model;
+        if (ai.usage?.inputTokens != null) sumInput += ai.usage.inputTokens;
+        if (ai.usage?.outputTokens != null) sumOutput += ai.usage.outputTokens;
+        if (ai.usage?.thinkingTokens != null) sumThinking += ai.usage.thinkingTokens;
+        if (ai.estimatedCostUsd != null && sumCost != null) sumCost += ai.estimatedCostUsd;
+        else sumCost = sumCost != null && ai.estimatedCostUsd == null ? sumCost : sumCost;
+
+        try {
+          parsed = parseVerifierIssuesJson(ai.raw);
+        } catch (e: any) {
+          if (attempt === 1) {
+            failedJsonBatches += 1;
+            console.warn(
+              `[verifier] batch ${batchIndex + 1}/${batches.length} invalid JSON after retry: ${shortVerifierError(e?.message || e)}`
+            );
+          }
+        }
       }
-      const rawIssues: any[] = Array.isArray(parsed?.issues) ? parsed.issues : [];
+      if (!parsed) continue;
+      const rawIssues: any[] = Array.isArray(parsed.issues) ? parsed.issues : [];
       const droppedAsNonIssue: Array<{ key: string; text: string }> = [];
       for (const raw of rawIssues) {
         const key = String(raw?.key ?? "").trim();
@@ -695,9 +1015,17 @@ export async function verifySerbianGermanAlignment(
         );
       }
     } catch (e: any) {
-      callError = `Verifier call failed: ${String(e?.message || e).slice(0, 400)}`;
-      // Continue with next batch; partial results are still useful.
+      failedJsonBatches += 1;
+      console.warn(
+        `[verifier] batch ${batchIndex + 1}/${batches.length} call failed: ${shortVerifierError(e?.message || e)}`
+      );
     }
+  }
+
+  if (failedJsonBatches > 0) {
+    callError =
+      `AI verifier JSON invalid on ${failedJsonBatches} of ${batches.length} batch(es). ` +
+      `Deterministic checks still apply.`;
   }
 
   const glossContract = dropAiIssuesThatBreakExerciseGlossContract(aiIssues, usable);
@@ -707,7 +1035,14 @@ export async function verifySerbianGermanAlignment(
         glossContract.dropped.map((d) => `${d.itemKey}/${d.code}`).join("; ")
     );
   }
-  const allIssues: VerifierIssue[] = [...deterministicIssues, ...glossContract.kept];
+  const vocabMissing = dropAiMissingInfoThatRepeatsVocabularySerbian(glossContract.kept, usable);
+  if (vocabMissing.dropped.length > 0) {
+    console.log(
+      `[verifier] dropped ${vocabMissing.dropped.length} AI missing_info issue(s) that repeat the vocabulary Serbian column: ` +
+        vocabMissing.dropped.map((d) => `${d.itemKey}/${d.code}`).join("; ")
+    );
+  }
+  const allIssues: VerifierIssue[] = [...deterministicIssues, ...vocabMissing.kept];
 
   const criticals = allIssues.filter((i) => i.severity === "critical");
   const warnings = allIssues.filter((i) => i.severity === "warning");

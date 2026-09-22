@@ -543,6 +543,88 @@ export function extractFirstJsonObject(input: string): string | null {
   return null;
 }
 
+/**
+ * Close a truncated JSON object/array (cut mid-string or missing brackets)
+ * so JSON.parse can recover the complete prefix.
+ */
+export function closeTruncatedJson(input: string): string | null {
+  const text = String(input ?? "")
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  const start = text.indexOf("{");
+  const startArr = text.indexOf("[");
+  const from =
+    start >= 0 && (startArr < 0 || start < startArr)
+      ? start
+      : startArr >= 0
+        ? startArr
+        : -1;
+  if (from < 0) return null;
+
+  let s = text.slice(from);
+  const stack: Array<"{" | "["> = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") stack.push("{");
+    else if (ch === "[") stack.push("[");
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+
+  let out = s;
+  if (inString) {
+    if (out.endsWith("\\") && !out.endsWith("\\\\")) out = out.slice(0, -1);
+    out += '"';
+  }
+  out = out.replace(/,\s*$/, "");
+  while (stack.length > 0) {
+    out += stack.pop() === "{" ? "}" : "]";
+  }
+  try {
+    JSON.parse(out);
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/** Parse every complete `{...}` object in a (possibly truncated) blob. */
+export function extractCompleteJsonObjects(input: string): any[] {
+  const s = String(input ?? "");
+  const out: any[] = [];
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] !== "{") continue;
+    const extracted = extractFirstJsonObject(s.slice(i));
+    if (!extracted) continue;
+    try {
+      out.push(JSON.parse(extracted));
+      i += extracted.length - 1;
+    } catch {
+      // skip malformed object
+    }
+  }
+  return out;
+}
+
 export function parseJsonOrThrow(raw: string): any {
   const text = String(raw ?? "");
   try {
