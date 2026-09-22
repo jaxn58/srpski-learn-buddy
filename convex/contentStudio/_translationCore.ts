@@ -1,6 +1,15 @@
 import type { ActionCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
-import { callAiJson, callAiText, parseJsonOrThrow, resolvePromptFromDb, type Provider } from "./_shared";
+import {
+  callAiJson,
+  callAiText,
+  formatSkillPromptBlock,
+  loadDraftSelectedSkills,
+  mergeSkillsById,
+  parseJsonOrThrow,
+  resolvePromptFromDb,
+  type Provider,
+} from "./_shared";
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
   extractSerbianFromMarkdown,
@@ -353,33 +362,40 @@ export type TranslatorAdminContext = {
  * Empty blocks when none configured — translator then behaves like the base prompt only.
  */
 export async function loadTranslatorAdminContext(
-  ctx: ActionCtx
+  ctx: ActionCtx,
+  opts?: { draft?: any; unitNumber?: number }
 ): Promise<TranslatorAdminContext> {
-  const [skills, memoryEntries] = await Promise.all([
+  const draftSkillsPromise = opts?.draft
+    ? loadDraftSelectedSkills(ctx, opts.draft)
+    : typeof opts?.unitNumber === "number"
+      ? ctx
+          .runQuery(internal.contentStudio.getSelectedContentSkillIdsForUnit, {
+            unitNumber: opts.unitNumber,
+          })
+          .then((ids) => loadDraftSelectedSkills(ctx, { specialistSkillIds: ids }))
+      : Promise.resolve([]);
+
+  const [translatorSkills, draftSkills, memoryEntries] = await Promise.all([
     ctx.runQuery(internal.contentStudio.listActiveSkillsByStageInternal, {
       stage: "translator",
     }),
+    draftSkillsPromise,
     ctx.runQuery(internal.contentStudio.getActiveValidatorMemoryForScope, {
       scope: "translator",
       limit: 60,
     }),
   ]);
 
-  const skillLines: string[] = [];
-  for (const sk of skills as Array<{ name: string; prompt: string }>) {
-    const name = String(sk?.name ?? "").trim();
-    const prompt = String(sk?.prompt ?? "").trim();
-    if (!prompt) continue;
-    skillLines.push(`--- SKILL: ${name || "unnamed"} ---`);
-    skillLines.push(prompt);
-    skillLines.push("");
-  }
-  const skillBlock =
-    skillLines.length > 0
-      ? ["TRANSLATOR SKILLS (admin-managed — apply during EN→DE translation):", ...skillLines]
-          .join("\n")
-          .trim()
-      : "";
+  const contentBlock = formatSkillPromptBlock(
+    "DRAFT SKILLS (checked on this unit — apply across Creator, Fix, Lector, and Translator):",
+    draftSkills
+  );
+  const translatorOnly = mergeSkillsById(translatorSkills as Array<{ _id: string; name: string; prompt: string }>);
+  const translatorBlock = formatSkillPromptBlock(
+    "TRANSLATOR SKILLS (EN→DE only):",
+    translatorOnly
+  );
+  const skillBlock = [contentBlock, translatorBlock].filter(Boolean).join("\n\n");
 
   const memoryBlock = buildValidatorMemoryBlockFromEntries(memoryEntries as any, {
     limit: 40,
@@ -454,9 +470,10 @@ export async function runMetadataTranslation(
     stepLogs: StepLog[];
     retryFeedback?: string;
     adminContext?: TranslatorAdminContext;
+    unitNumber?: number;
   }
 ): Promise<{ raw: string; provider: string; model: string }> {
-  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx, { unitNumber: args.unitNumber }));
   const retry = args.retryFeedback
     ? `EN→DE translation issues flagged by the verifier. Fix these while keeping the English meaning intact:\n${args.retryFeedback}`
     : undefined;
@@ -532,7 +549,7 @@ export async function translateMarkdownSection(
   };
   if (!input) return { mdDe: "", log: emptyLog };
 
-  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx, { unitNumber: args.unitNumber }));
   const base = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorSection);
   const system = composeTranslatorSystemPrompt(
     base,
@@ -600,11 +617,12 @@ export async function translateVocabChunks(
     retryFeedback?: string;
     stepPrefix?: string;
     adminContext?: TranslatorAdminContext;
+    unitNumber?: number;
   }
 ): Promise<VocabTranslationResult[]> {
   const out: VocabTranslationResult[] = [];
   const stepPrefix = args.stepPrefix ?? "vocab";
-  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx, { unitNumber: args.unitNumber }));
   const base = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVocab);
 
   for (let i = 0; i < args.items.length; i += VOCAB_CHUNK_SIZE) {
@@ -1036,9 +1054,10 @@ async function translateTestsForCategoryOnce(
     retryFeedback?: string;
     stepName: string;
     adminContext?: TranslatorAdminContext;
+    unitNumber?: number;
   }
 ): Promise<any[]> {
-  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx, { unitNumber: args.unitNumber }));
   const base = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorTests);
   const system = composeTranslatorSystemPrompt(
     base,
@@ -1159,10 +1178,11 @@ export async function translateTestsForCategory(
     stepLogs: StepLog[];
     retryFeedback?: string;
     adminContext?: TranslatorAdminContext;
+    unitNumber?: number;
   }
 ): Promise<any[]> {
   const baseStep = args.retryFeedback ? `tests:${args.category}:retry` : `tests:${args.category}`;
-  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx));
+  const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx, { unitNumber: args.unitNumber }));
   const cognates = await loadMergedPromptCognates(ctx);
 
   let produced = await translateTestsForCategoryOnce(ctx, {

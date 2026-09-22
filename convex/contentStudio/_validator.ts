@@ -22,6 +22,8 @@ import {
   normalizeSerbianKey,
   calculateExerciseVarietyScore,
   stripAlreadyTaughtVocabFromMarkdown,
+  appendMontenegroNotesToMarkdown,
+  applyMontenegroVariantNotesToVocabulary,
 } from "./_validatorHelpers";
 import { UnitPackageSchema, validateUnitPackageDeep, type ValidationIssue } from "../../scripts/unitPackage/schema";
 import { validateUnitPackageTemplateRules } from "../../scripts/unitPackage/templateRules";
@@ -372,6 +374,17 @@ export const runQcValidate = action({
       }
     }
 
+    if (typeof nextMarkdownSource === "string" && nextMarkdownSource.trim()) {
+      const { markdown: withDialectNotes, changed: dialectNoteRows } = appendMontenegroNotesToMarkdown(
+        nextMarkdownSource,
+        (ensuredWithVocab as any)?.vocabulary?.en ?? [],
+      );
+      if (dialectNoteRows > 0) {
+        console.log(`[Validator] Appended Montenegro notes to ${dialectNoteRows} vocabulary row(s) in markdown`);
+        nextMarkdownSource = withDialectNotes;
+      }
+    }
+
     await ctx.runMutation(api.contentStudio.saveUnitPackageSnapshot, {
       draftId: args.draftId,
       unitPackageJson: JSON.stringify(ensuredWithVocab),
@@ -432,6 +445,12 @@ export const saveMarkdownSnapshot = action({
     });
 
     const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);
+    applyMontenegroVariantNotesToVocabulary(parsedUnitPackage as any);
+    const dialectSync = appendMontenegroNotesToMarkdown(
+      markdown,
+      (parsedUnitPackage as any)?.vocabulary?.en ?? [],
+    );
+    markdown = dialectSync.markdown;
     const baseParsed = UnitPackageSchema.safeParse(parsedUnitPackage);
     if (!baseParsed.success) {
       const first = baseParsed.error.issues?.[0];

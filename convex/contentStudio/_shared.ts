@@ -1019,20 +1019,80 @@ export async function translateUnitMarkdownToEnglishIfNeeded(
   return out;
 }
 
-export async function buildStageSkillBlock(ctx: ActionCtx, draft: any, stage: SkillStage): Promise<string> {
-  const ids: Array<Id<"contentStudioSkills">> =
-    stage === "specialist" ? (draft.specialistSkillIds ?? []) : (draft.auditorSkillIds ?? []);
-  if (!Array.isArray(ids) || ids.length === 0) return "";
-  const skills = await ctx.runQuery(api.contentStudio.getSkillsByIds, { ids });
-  if (!skills || skills.length === 0) return "";
-  const lines: string[] = [];
-  lines.push(`${stage.toUpperCase()} SKILLS (apply globally for this stage):`);
-  for (const sk of skills as any[]) {
-    lines.push(`- Skill: ${sk.name}`);
-    lines.push(String(sk.prompt));
+export type PromptSkill = {
+  _id: string;
+  name: string;
+  prompt: string;
+};
+
+export function collectDraftSkillIds(draft: any): Array<Id<"contentStudioSkills">> {
+  const raw = [
+    ...((draft?.specialistSkillIds ?? []) as Array<Id<"contentStudioSkills">>),
+    ...((draft?.auditorSkillIds ?? []) as Array<Id<"contentStudioSkills">>),
+  ];
+  const seen = new Set<string>();
+  const out: Array<Id<"contentStudioSkills">> = [];
+  for (const id of raw) {
+    const key = String(id ?? "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(id);
+  }
+  return out;
+}
+
+export function mergeSkillsById(skills: Array<Partial<PromptSkill> | null | undefined>): PromptSkill[] {
+  const seen = new Set<string>();
+  const out: PromptSkill[] = [];
+  for (const sk of skills) {
+    if (!sk) continue;
+    const id = String(sk._id ?? "").trim();
+    const prompt = String(sk.prompt ?? "").trim();
+    if (!id || !prompt || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      _id: id,
+      name: String(sk.name ?? "").trim() || "unnamed",
+      prompt,
+    });
+  }
+  return out;
+}
+
+export function formatSkillPromptBlock(heading: string, skills: PromptSkill[]): string {
+  if (skills.length === 0) return "";
+  const lines = [heading];
+  for (const sk of skills) {
+    lines.push(`--- SKILL: ${sk.name} ---`);
+    lines.push(sk.prompt);
     lines.push("");
   }
   return lines.join("\n").trim();
+}
+
+/** Skills explicitly checked on this draft, then used by every AI stage of the run. */
+export async function loadDraftSelectedSkills(ctx: ActionCtx, draft: any): Promise<PromptSkill[]> {
+  const ids = collectDraftSkillIds(draft);
+  if (ids.length === 0) return [];
+  const rows = (await ctx.runQuery(api.contentStudio.getSkillsByIds, { ids })) as Array<{
+    _id: string;
+    name?: string;
+    prompt?: string;
+    isActive?: boolean;
+  }>;
+  return mergeSkillsById(
+    rows
+      .filter((sk) => sk?.isActive !== false)
+      .map((sk) => ({ _id: String(sk._id), name: String(sk.name ?? ""), prompt: String(sk.prompt ?? "") }))
+  );
+}
+
+export async function buildStageSkillBlock(ctx: ActionCtx, draft: any, _stage: SkillStage): Promise<string> {
+  const skills = await loadDraftSelectedSkills(ctx, draft);
+  return formatSkillPromptBlock(
+    "DRAFT SKILLS (checked on this unit — apply across Creator, Fix, Lector, and Translator):",
+    skills
+  );
 }
 
 /**

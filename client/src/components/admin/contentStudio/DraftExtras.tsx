@@ -121,7 +121,7 @@ export function DraftExtras(props: DraftExtrasProps) {
           <section className="space-y-3">
             <div>
               <Label className="text-sm font-semibold">{t(`${I18N}.skills.title`, "House style (skills)")}</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">{t(`${I18N}.skills.help`, "Optional style instructions for the Creator and the Lector, e.g. character names or tone. Structural rules live in the base prompts, not here.")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t(`${I18N}.skills.help`, "Check a skill to apply it to this unit only. A checked skill then runs through Creator, Fix, Lector and Translator. Unchecked skills stay unused, so you can keep optional skills in the library.")}</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <SkillList

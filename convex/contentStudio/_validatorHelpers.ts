@@ -299,23 +299,87 @@ const IJEKAVIAN_TO_EKAVIAN: Record<string, string> = {
   lijevo: "levo",
 };
 
+const HAS_MONTENEGRO_NOTE_RE = /montenegro:|variant.*montenegro/i;
+const STRUCTURED_MONTENEGRO_NOTE_RE = /^(montenegro:|variant\s*\(\s*serbia\s*\):)/i;
+
+export function hasMontenegroVariantNote(note: unknown): boolean {
+  return HAS_MONTENEGRO_NOTE_RE.test(typeof note === "string" ? note : "");
+}
+
+/**
+ * Structured Montenegro / Serbia-variant line already stored in a note.
+ * Splits on newlines or `;` so a Chunk note and a dialect note can coexist.
+ */
+export function extractStructuredMontenegroNote(note: unknown): string | null {
+  const raw = typeof note === "string" ? note : "";
+  if (!raw.trim()) return null;
+  const parts = raw.split(/\n|;/).map((p) => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    if (STRUCTURED_MONTENEGRO_NOTE_RE.test(part)) return part;
+  }
+  return null;
+}
+
+/**
+ * Build the dialect note for a Serbian cell.
+ * Matches the full cell first, then individual tokens, so phrases like
+ * "ne razumem" become "Montenegro: ne razumijem (ijekavian)."
+ * Does not invent forms that are missing from the lookup.
+ */
+export function resolveMontenegroVariantNote(serbian: unknown): string | null {
+  const key = normalizeSerbianKey(serbian);
+  if (!key) return null;
+
+  if (EKAVIAN_TO_IJEKAVIAN[key]) {
+    return `Montenegro: ${EKAVIAN_TO_IJEKAVIAN[key]} (ijekavian).`;
+  }
+  if (IJEKAVIAN_TO_EKAVIAN[key]) {
+    return `Variant (Serbia): ${IJEKAVIAN_TO_EKAVIAN[key]} (ekavian).`;
+  }
+
+  const tokens = key.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return null;
+
+  let sawEkavian = false;
+  let sawIjekavian = false;
+  const montenegroTokens: string[] = [];
+  const serbiaTokens: string[] = [];
+
+  for (const token of tokens) {
+    const toIje = EKAVIAN_TO_IJEKAVIAN[token];
+    const toEka = IJEKAVIAN_TO_EKAVIAN[token];
+    if (toIje) {
+      sawEkavian = true;
+      montenegroTokens.push(toIje);
+      serbiaTokens.push(token);
+    } else if (toEka) {
+      sawIjekavian = true;
+      montenegroTokens.push(token);
+      serbiaTokens.push(toEka);
+    } else {
+      montenegroTokens.push(token);
+      serbiaTokens.push(token);
+    }
+  }
+
+  if (sawEkavian) {
+    return `Montenegro: ${montenegroTokens.join(" ")} (ijekavian).`;
+  }
+  if (sawIjekavian) {
+    return `Variant (Serbia): ${serbiaTokens.join(" ")} (ekavian).`;
+  }
+  return null;
+}
+
 export function applyMontenegroVariantNotesToVocabulary(pkg: any): { changed: number } {
   const vocabEn: any[] = Array.isArray(pkg?.vocabulary?.en) ? pkg.vocabulary.en : [];
   let changed = 0;
 
   for (const v of vocabEn) {
-    const key = normalizeSerbianKey(v?.serbian);
     const prev = typeof v?.noteEn === "string" ? v.noteEn : "";
-    // Skip if already has Montenegro note
-    if (/montenegro:|variant.*montenegro/i.test(prev)) continue;
+    if (hasMontenegroVariantNote(prev)) continue;
 
-    let note: string | null = null;
-    if (EKAVIAN_TO_IJEKAVIAN[key]) {
-      note = `Montenegro: ${EKAVIAN_TO_IJEKAVIAN[key]} (ijekavian).`;
-    } else if (IJEKAVIAN_TO_EKAVIAN[key]) {
-      note = `Variant (Serbia): ${IJEKAVIAN_TO_EKAVIAN[key]} (ekavian).`;
-    }
-
+    const note = resolveMontenegroVariantNote(v?.serbian);
     if (!note) continue;
 
     const next = appendNoteEn(prev, note);
@@ -326,6 +390,134 @@ export function applyMontenegroVariantNotesToVocabulary(pkg: any): { changed: nu
   }
 
   return { changed };
+}
+
+function isMarkdownTableSeparator(line: string): boolean {
+  return /^\|[\s:|-]+\|$/.test(line.trim());
+}
+
+function isMarkdownTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|");
+}
+
+function splitMarkdownTableCells(line: string): string[] {
+  const trimmed = line.trim();
+  return trimmed.slice(1, -1).split("|").map((c) => c.trim());
+}
+
+function joinMarkdownTableCells(cells: string[]): string {
+  return `| ${cells.join(" | ")} |`;
+}
+
+/**
+ * Write Montenegro / Serbia-variant notes from vocabulary.en back into the
+ * Markdown "## 2. Vocabulary" table so a later re-parse does not drop them.
+ * Existing Notes (Chunk, Gender, AlsoMeaning, …) are kept; the dialect line
+ * is appended with "; ".
+ */
+export function appendMontenegroNotesToMarkdown(
+  markdown: string,
+  vocabEn: Array<{ serbian?: unknown; noteEn?: unknown }>,
+): { markdown: string; changed: number } {
+  const noteByKey = new Map<string, string>();
+  for (const entry of vocabEn) {
+    const key = normalizeSerbianKey(entry?.serbian);
+    if (!key) continue;
+    const note =
+      extractStructuredMontenegroNote(entry?.noteEn) ??
+      resolveMontenegroVariantNote(entry?.serbian);
+    if (note) noteByKey.set(key, note);
+  }
+  if (noteByKey.size === 0) return { markdown, changed: 0 };
+
+  const normalized = String(markdown || "").replace(/\r\n/g, "\n");
+  const vocabHeaderMatch = normalized.match(/^##\s+2\.\s+Vocabulary\b/m);
+  if (!vocabHeaderMatch || vocabHeaderMatch.index == null) {
+    return { markdown: normalized, changed: 0 };
+  }
+
+  const vocabStart = vocabHeaderMatch.index;
+  const nextSectionMatch = normalized.slice(vocabStart + vocabHeaderMatch[0].length).match(/\n##\s+\d+\./);
+  const vocabEnd = nextSectionMatch?.index != null
+    ? vocabStart + vocabHeaderMatch[0].length + nextSectionMatch.index
+    : normalized.length;
+
+  const before = normalized.slice(0, vocabStart);
+  const vocabSection = normalized.slice(vocabStart, vocabEnd);
+  const after = normalized.slice(vocabEnd);
+  const lines = vocabSection.split("\n");
+  const nextLines: string[] = [];
+  let changed = 0;
+  let notesIdx: number | null = null;
+
+  for (const line of lines) {
+    if (!isMarkdownTableRow(line)) {
+      if (/^\s*#/.test(line)) notesIdx = null;
+      nextLines.push(line);
+      continue;
+    }
+    if (isMarkdownTableSeparator(line)) {
+      if (notesIdx != null) {
+        const sepCells = splitMarkdownTableCells(line);
+        while (sepCells.length <= notesIdx) sepCells.push("---");
+        nextLines.push(joinMarkdownTableCells(sepCells));
+      } else {
+        nextLines.push(line);
+      }
+      continue;
+    }
+
+    const cells = splitMarkdownTableCells(line);
+    if (cells.length < 2) {
+      nextLines.push(line);
+      continue;
+    }
+
+    const serbianHeaderIdx = cells.findIndex((c) => /serbian/i.test(c));
+    const englishHeaderIdx = cells.findIndex((c) => /english/i.test(c));
+    if (serbianHeaderIdx >= 0 && englishHeaderIdx >= 0) {
+      const headerNotesIdx = cells.findIndex((c) => /^notes?$/i.test(c));
+      notesIdx = headerNotesIdx >= 0 ? headerNotesIdx : cells.length;
+      if (headerNotesIdx < 0) {
+        cells.push("Notes");
+        nextLines.push(joinMarkdownTableCells(cells));
+        continue;
+      }
+      nextLines.push(line);
+      continue;
+    }
+
+    if (notesIdx == null) {
+      nextLines.push(line);
+      continue;
+    }
+
+    const serbianKey = normalizeSerbianKey(cells[0]);
+    const dialectNote = noteByKey.get(serbianKey);
+    if (!dialectNote) {
+      nextLines.push(line);
+      continue;
+    }
+
+    while (cells.length <= notesIdx) cells.push("");
+    const currentNotes = cells[notesIdx] ?? "";
+    if (hasMontenegroVariantNote(currentNotes)) {
+      nextLines.push(line);
+      continue;
+    }
+
+    cells[notesIdx] = currentNotes.trim()
+      ? `${currentNotes.trim()}; ${dialectNote}`
+      : dialectNote;
+    nextLines.push(joinMarkdownTableCells(cells));
+    changed += 1;
+  }
+
+  return {
+    markdown: before + nextLines.join("\n") + after,
+    changed,
+  };
 }
 
 /**

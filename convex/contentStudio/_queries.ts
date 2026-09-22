@@ -514,6 +514,30 @@ export const listActiveSkillsByStageInternal = internalQuery({
   },
 });
 
+/** Latest draft for a unit: skill IDs checked on Creator and/or Lector. */
+export const getSelectedContentSkillIdsForUnit = internalQuery({
+  args: { unitNumber: v.number() },
+  returns: v.array(v.id("contentStudioSkills")),
+  handler: async (ctx, args) => {
+    const drafts = await ctx.db
+      .query("contentDrafts")
+      .withIndex("by_unit", (q) => q.eq("unitNumber", args.unitNumber))
+      .collect();
+    if (drafts.length === 0) return [];
+    drafts.sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
+    const draft = drafts[0];
+    const seen = new Set<string>();
+    const out: Array<Id<"contentStudioSkills">> = [];
+    for (const id of [...(draft.specialistSkillIds ?? []), ...(draft.auditorSkillIds ?? [])]) {
+      const key = String(id);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(id);
+    }
+    return out;
+  },
+});
+
 // listSectionSkills removed -- section prompts are now managed exclusively
 // via chatPrompts (cs_section_*) in the Prompt Administration.
 
@@ -1675,11 +1699,14 @@ export const getPromptPreview = query({
     if (args.draftId) {
       const d: any = await ctx.db.get(args.draftId);
       if (d) {
-        const specialistSkillIds = Array.isArray(d.specialistSkillIds) ? d.specialistSkillIds : [];
-        if (specialistSkillIds.length > 0) {
-          const skillDocs = await Promise.all(
-            specialistSkillIds.map((id: any) => ctx.db.get(id))
-          );
+        const skillIds = Array.from(
+          new Set([
+            ...(Array.isArray(d.specialistSkillIds) ? d.specialistSkillIds : []),
+            ...(Array.isArray(d.auditorSkillIds) ? d.auditorSkillIds : []),
+          ].map((id: any) => String(id)).filter(Boolean))
+        );
+        if (skillIds.length > 0) {
+          const skillDocs = await Promise.all(skillIds.map((id) => ctx.db.get(id as any)));
           const activeSkills = skillDocs.filter((s: any) => s?.isActive && s?.prompt);
           if (activeSkills.length > 0) {
             skillsBlock = activeSkills.map((s: any) => `--- SKILL: ${s.name} ---\n${s.prompt}`).join("\n\n");

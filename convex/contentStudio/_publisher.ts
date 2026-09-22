@@ -22,6 +22,7 @@ import {
   buildVerifierItems,
   pickPrimaryProvider,
   pickFallbackProvider,
+  loadTranslatorAdminContext,
   type StepLog,
   type AiCallOptions,
   type VocabTranslationResult,
@@ -458,6 +459,7 @@ export const translatePublishedUnitEnToDe = action({
     const authorNote = await ctx.runQuery(api.contentStudio.getAuthorNoteForUnit, { unitNumber });
     const originalAuthorQuote =
       authorNote?.language === "de" ? authorNote.quote : undefined;
+    const adminContext = await loadTranslatorAdminContext(ctx, { unitNumber });
 
     // 1) Metadata (EN -> DE), trilingual prompt (SR primary).
     const metaAi = await runMetadataTranslation(ctx, {
@@ -465,6 +467,8 @@ export const translatePublishedUnitEnToDe = action({
       serbianContextBlock,
       ai: aiOpts,
       stepLogs,
+      adminContext,
+      unitNumber,
     });
     let metadataDe: any = buildMetadataDeFromAi(metaAi.raw, source as any);
 
@@ -479,6 +483,7 @@ export const translatePublishedUnitEnToDe = action({
         unitNumber,
         ai: aiOpts,
         originalAuthorQuote,
+        adminContext,
       });
       stepLogs.push(sectionLog);
       contentDe.push(buildContentDeForSection(row, mdDe, targetReleaseStatus, previewUnitVersion));
@@ -490,6 +495,8 @@ export const translatePublishedUnitEnToDe = action({
       items: vocabItems,
       ai: aiOpts,
       stepLogs,
+      adminContext,
+      unitNumber,
     });
 
     // 4) Interactive tests grouped by category.
@@ -514,6 +521,8 @@ export const translatePublishedUnitEnToDe = action({
         targetReleaseStatus,
         ai: aiOpts,
         stepLogs,
+        adminContext,
+        unitNumber,
       });
       testsDe.push(...produced);
     }
@@ -591,6 +600,8 @@ export const translatePublishedUnitEnToDe = action({
             ai: aiOpts,
             stepLogs,
             retryFeedback: feedback.metadata,
+            adminContext,
+            unitNumber,
           });
           metadataDe = buildMetadataDeFromAi(retryAi.raw, source as any);
           retriedKeys.add("metadata:main");
@@ -616,6 +627,8 @@ export const translatePublishedUnitEnToDe = action({
               stepLogs,
               retryFeedback: feedback.vocabulary,
               stepPrefix: "vocab:retry",
+              adminContext,
+              unitNumber,
             });
             const retriedById = new Map<string, VocabTranslationResult>();
             for (const r of retriedVocab) retriedById.set(String(r.courseVocabularyId ?? ""), r);
@@ -653,6 +666,8 @@ export const translatePublishedUnitEnToDe = action({
               ai: aiOpts,
               stepLogs,
               retryFeedback: feedback.test,
+              adminContext,
+              unitNumber,
             });
             const producedByQid = new Map<string, any>();
             for (const p of produced) producedByQid.set(String(p.questionId ?? ""), p);
@@ -686,6 +701,7 @@ export const translatePublishedUnitEnToDe = action({
               ai: aiOpts,
               retryFeedback: feedback.sectionByContentType[ct],
               originalAuthorQuote,
+              adminContext,
             });
             stepLogs.push(sectionLog);
             contentDe = contentDe.map((existing) =>
@@ -908,6 +924,7 @@ export const retryDeTranslationForSelectedIssues = action({
     const authorNote = await ctx.runQuery(api.contentStudio.getAuthorNoteForUnit, { unitNumber });
     const originalAuthorQuote =
       authorNote?.language === "de" ? authorNote.quote : undefined;
+    const adminContext = await loadTranslatorAdminContext(ctx, { unitNumber });
 
     // 4) Deterministic patches first (concrete Suggested German), then AI for the rest.
     const selectedAsIssues: VerifierIssue[] = args.selectedIssues.map((i) => ({
@@ -952,6 +969,8 @@ export const retryDeTranslationForSelectedIssues = action({
           ai: aiOpts,
           stepLogs,
           retryFeedback: feedback.metadata,
+          adminContext,
+          unitNumber,
         });
         metadataDe = buildMetadataDeFromAi(retryAi.raw, source as any);
         retriedKeys.add("metadata:main");
@@ -978,6 +997,8 @@ export const retryDeTranslationForSelectedIssues = action({
             stepLogs,
             retryFeedback: feedback.vocabulary,
             stepPrefix: "vocab:manualRetry",
+            adminContext,
+            unitNumber,
           });
           const retriedById = new Map<string, VocabTranslationResult>();
           for (const r of retried) retriedById.set(String(r.courseVocabularyId ?? ""), r);
@@ -1028,6 +1049,8 @@ export const retryDeTranslationForSelectedIssues = action({
             ai: aiOpts,
             stepLogs,
             retryFeedback: feedback.test,
+            adminContext,
+            unitNumber,
           });
           const producedByQid = new Map<string, any>();
           for (const p of produced) producedByQid.set(String(p.questionId ?? ""), p);
@@ -1067,6 +1090,7 @@ export const retryDeTranslationForSelectedIssues = action({
             ai: aiOpts,
             retryFeedback: fb,
             originalAuthorQuote,
+            adminContext,
           });
           stepLogs.push(sectionLog);
           contentDe = contentDe.map((existing) =>

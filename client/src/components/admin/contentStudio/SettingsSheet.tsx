@@ -1022,7 +1022,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
                     <div className="text-xs text-muted-foreground">
                       {tr(
                         "admin.contentStudio.settings.skillsLibraryHelp",
-                        "These skills influence a specific AI role globally (Creator / Lector / EN→DE translator)."
+                        "The library only stores skills. They apply to a unit after you check them on the draft. A checked skill then follows the whole run (Creator, Lector, Translator). Translator-only skills stay DE-specific."
                       )}
                     </div>
                     <Label>{tr("admin.contentStudio.settings.role", "Role")}</Label>

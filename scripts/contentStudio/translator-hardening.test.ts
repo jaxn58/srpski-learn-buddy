@@ -6,6 +6,7 @@ import {
   stripLeadingGermanArticle,
   type TranslatorAdminContext,
 } from "../../convex/contentStudio/_translationCore";
+import { collectDraftSkillIds, mergeSkillsById } from "../../convex/contentStudio/_shared";
 import {
   ALL_TRANSLATOR_PROMPT_KEYS,
   CS_PROMPT_KEYS,
@@ -178,5 +179,31 @@ describe("stripLeadingGermanArticle", () => {
 
   it("does not empty a field that is only an article", () => {
     expect(stripLeadingGermanArticle("der")).toBe("der");
+  });
+});
+
+describe("draft skill selection", () => {
+  it("unions Creator and Lector checkboxes and drops duplicates", () => {
+    expect(
+      collectDraftSkillIds({
+        specialistSkillIds: ["skillA", "skillB"],
+        auditorSkillIds: ["skillB", "skillC"],
+      })
+    ).toEqual(["skillA", "skillB", "skillC"]);
+  });
+
+  it("returns no skills when nothing is checked on the draft", () => {
+    expect(collectDraftSkillIds({ specialistSkillIds: [], auditorSkillIds: [] })).toEqual([]);
+    expect(collectDraftSkillIds({})).toEqual([]);
+  });
+
+  it("drops empty prompts when merging skill docs", () => {
+    expect(
+      mergeSkillsById([
+        { _id: "a", name: "Montenegro", prompt: "Add gdje to Notes." },
+        { _id: "a", name: "dup", prompt: "ignored" },
+        { _id: "b", name: "empty", prompt: "  " },
+      ])
+    ).toEqual([{ _id: "a", name: "Montenegro", prompt: "Add gdje to Notes." }]);
   });
 });
