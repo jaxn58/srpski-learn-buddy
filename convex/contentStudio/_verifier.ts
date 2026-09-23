@@ -132,10 +132,45 @@ export function textForSemanticVerification(text: string): string {
     .trim();
 }
 
+/** Fill-in, dialogue, and a multiple-choice stem that is itself Serbian stay Serbian on the DE track. */
+export function serbianExerciseStemStays(questionType: string, question: string): boolean {
+  const qType = String(questionType || "").trim();
+  if (qType === "fillInBlank" || qType === "dialogue") return true;
+  if (qType !== "multipleChoice") return false;
+  const stem = textForSemanticVerification(question);
+  if (/^(?:A|B)\s*:/i.test(stem)) return true;
+  if (/_+/.test(stem)) return true;
+  if (/[čćšžđČĆŠŽĐ]/.test(stem)) return true;
+  if (/\b(je|sam|si|su|ona|on|mi|vi|kako|odakle|zove|radi|predaje)\b/i.test(stem)) return true;
+  return false;
+}
+
+/**
+ * For a Serbian exercise stem the only German text is the learner gloss (and
+ * an optional hint). The stem itself is not a translation, so it is not sent
+ * as the German question.
+ */
+export function verifierSideForSerbianStem(side: string, lang: "EN" | "DE"): string {
+  const question = extractVerifierQuestion(side, lang);
+  const hint = String(side.match(new RegExp(`Hint \\(${lang}\\):\\s*([\\s\\S]*)$`))?.[1] ?? "").trim();
+  const glosses = extractParentheticalGlossesFromText(question);
+  const lines = [
+    "The exercise stem stays Serbian on the English and the German track. Do not translate it and do not report it.",
+    glosses.length
+      ? `Learner gloss (${lang}): ${glosses.join(" | ")}`
+      : `Learner gloss (${lang}): none`,
+  ];
+  if (hint) lines.push(`Hint (${lang}): ${hint}`);
+  return lines.join("\n");
+}
+
 function semanticSide(item: VerifierInputItem, side: string): string {
   if (item.kind !== "test") return side;
   const qType = String(item.questionType ?? "").trim();
   if (qType !== "multipleChoice" && qType !== "dialogue" && qType !== "fillInBlank") return side;
+  const lang = /^\s*Question \(DE\)/m.test(side) ? "DE" : "EN";
+  const question = extractVerifierQuestion(side, lang);
+  if (serbianExerciseStemStays(qType, question)) return verifierSideForSerbianStem(side, lang);
   return textForSemanticVerification(side);
 }
 
@@ -777,7 +812,8 @@ function buildVerifierUserPayload(items: VerifierInputItem[]): string {
   const contract = [
     "TEST GLOSS CONTRACT (binding for kind=test; do not contradict):",
     "- Each test item includes questionType.",
-    "- Parenthetical glosses are removed from this payload. The deterministic checker already applied the gloss contract (fill-in keeps a German context gloss; multiple choice and dialogue do not). Do not report a missing, extra, or unwanted gloss.",
+    "- A fill-in, a dialogue, or a multiple-choice item whose stem is Serbian is sent as learner glosses only. That stem stays Serbian on purpose. Do not report semantic_mismatch because the question is Serbian, and do not suggest a German sentence in its place. Judge only whether the German learner gloss means the same as the English gloss.",
+    "- Parenthetical glosses on other test items are removed from this payload. The deterministic checker already applied the gloss contract (fill-in keeps a German context gloss; multiple choice and dialogue do not). Do not report a missing, extra, or unwanted gloss.",
     "- Short fill-in source cues like (Milch) are not sentence-level glosses and are also absent here.",
     "- vocabulary section: the Serbian table column stays Serbian on DE. Do not report missing_info for lemmas that are still present in the German table's Serbian column.",
     "OUTPUT: return ONLY a JSON object {\"issues\":[...]} with no markdown.",

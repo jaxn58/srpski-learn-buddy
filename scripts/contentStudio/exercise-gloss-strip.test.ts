@@ -11,6 +11,8 @@ import {
 import {
   runDeterministicTestGlossChecks,
   textForSemanticVerification,
+  verifierSideForSerbianStem,
+  serbianExerciseStemStays,
   type VerifierInputItem,
 } from "../../convex/contentStudio/_verifier";
 
@@ -304,6 +306,23 @@ describe("runDeterministicTestGlossChecks", () => {
       },
     ];
     expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);
+  });
+});
+
+describe("verifierSideForSerbianStem", () => {
+  it("sends the German gloss only, not the Serbian fill-in stem", () => {
+    const de = verifierSideForSerbianStem(
+      "Question (DE): On _____ pivo. (Er will Bier.)",
+      "DE"
+    );
+    expect(de).toContain("Learner gloss (DE): Er will Bier.");
+    expect(de).not.toContain("On _____ pivo");
+    expect(de).toContain("stem stays Serbian");
+  });
+
+  it("treats every fill-in as a Serbian stem and an English multiple-choice prompt as translatable", () => {
+    expect(serbianExerciseStemStays("fillInBlank", "On _____ pivo. (He wants beer.)")).toBe(true);
+    expect(serbianExerciseStemStays("multipleChoice", "You meet someone in the morning. What do you say?")).toBe(false);
   });
 });
 

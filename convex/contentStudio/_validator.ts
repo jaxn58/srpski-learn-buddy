@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import {
@@ -76,11 +76,21 @@ export const runQcValidate = action({
 
     // Content Studio guardrail: vocabulary coverage. Reports gaps as findings;
     // the Fix stage writes the rows into the markdown (see checkVocabularyCoverage).
-    const vocabSync = await checkVocabularyCoverage(
-      ctx,
-      ensured as any,
-      String((draft.draft as any)?.inspirationRef?.notes || ""),
-    );
+    // If the check cannot run (e.g. the AI provider answers 503), the Validator
+    // stops before saving anything: snapshot, status and findings stay as they were.
+    let vocabSync: Awaited<ReturnType<typeof checkVocabularyCoverage>>;
+    try {
+      vocabSync = await checkVocabularyCoverage(
+        ctx,
+        ensured as any,
+        String((draft.draft as any)?.inspirationRef?.notes || ""),
+      );
+    } catch (err) {
+      console.error("[Validator] Vocabulary check could not run:", err);
+      throw new ConvexError(
+        `Vocabulary check could not run: ${String((err as Error)?.message || err).slice(0, 300)} Nothing was changed. Please run the Validator again.`
+      );
+    }
     const ensuredWithVocab = vocabSync.pkg;
 
     // Final deduplication pass: remove any remaining vocabulary duplicates (case-insensitive)

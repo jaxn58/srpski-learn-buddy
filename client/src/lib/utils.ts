@@ -1,8 +1,19 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { ConvexError } from "convex/values";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+/**
+ * Message of a failed Convex call. Production redacts plain server errors to
+ * "Server Error"; only a ConvexError keeps its message, in `data`.
+ */
+export function errorMessageOf(error: unknown): string | undefined {
+  if (error instanceof ConvexError && typeof error.data === "string") return error.data;
+  if (error instanceof Error && error.message) return error.message;
+  return undefined;
 }
 
 type DateInput = Date | number | string;

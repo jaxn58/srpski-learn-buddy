@@ -18,7 +18,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
+import { cn, errorMessageOf } from "@/lib/utils";
 import { Sparkles, Loader2, Settings, Plus, LayoutList, PanelLeft, PanelRight, Volume2, Brain, FolderTree } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -1797,7 +1797,7 @@ export default function ContentStudioAdmin() {
         window.open(`/unit/${unitNumber}`, "_blank");
       }
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.saveAndPreviewFailed", "Save & create preview failed."));
+      toast.error(errorMessageOf(e) || t("admin.contentStudio.toast.saveAndPreviewFailed", "Save & create preview failed."));
     } finally {
       setCreatingPreview(false);
       setRunningValidator(false);
@@ -1904,7 +1904,7 @@ export default function ContentStudioAdmin() {
           : t("admin.contentStudio.page.progressValidatorFailed", "Validator failed.")
       );
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.validatorFailed"));
+      toast.error(errorMessageOf(e) || t("admin.contentStudio.toast.validatorFailed"));
     }
     finally {
       setRunningValidator(false);
@@ -1974,7 +1974,7 @@ export default function ContentStudioAdmin() {
         setProgressMessage(t("admin.contentStudio.page.progressDoneReadyPreview", "Done. Ready for preview."));
       }
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.generationFailed"));
+      toast.error(errorMessageOf(e) || t("admin.contentStudio.toast.generationFailed"));
       setProgressPercent(0);
       setProgressMessage(t("admin.contentStudio.page.progressGenerationFailed", "Generation failed."));
     } finally {
@@ -2012,7 +2012,7 @@ export default function ContentStudioAdmin() {
         setFixHumanNotes("");
       }
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.revisionFailed"));
+      toast.error(errorMessageOf(e) || t("admin.contentStudio.toast.revisionFailed"));
     } finally {
       setRunningRevise(false);
     }
@@ -2200,7 +2200,7 @@ export default function ContentStudioAdmin() {
     try {
       await runReviewCycle(selectedDraftId);
     } catch (e: any) {
-      toast.error(e?.message || t("admin.contentStudio.toast.cycleFailed", "Automatic review failed."));
+      toast.error(errorMessageOf(e) || t("admin.contentStudio.toast.cycleFailed", "Automatic review failed."));
     } finally {
       setRunningReviewCycle(false);
     }
@@ -2257,7 +2257,7 @@ export default function ContentStudioAdmin() {
             );
           }
         } catch (valErr: any) {
-          toast.error(valErr?.message || t("admin.contentStudio.toast.validatorFailed"));
+          toast.error(errorMessageOf(valErr) || t("admin.contentStudio.toast.validatorFailed"));
           setProgressPercent(85);
           setProgressMessage(
             t("admin.contentStudio.page.progressSectionUpdatedValidationError", "Section updated; validation failed to run.")

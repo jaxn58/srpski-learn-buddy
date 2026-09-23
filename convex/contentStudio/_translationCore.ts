@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import {
   callAiJson,
   callAiText,
+  extractStructuredMontenegroNote,
   formatSkillPromptBlock,
   languageRulesBlock,
   loadDraftSelectedSkills,
@@ -24,7 +25,6 @@ import {
   parseUntranslatedPromptGuardFailures,
 } from "./_translatorCognates";
 import { restoreOriginalAuthorQuote } from "../../shared/contentStudio/authorNote";
-import { extractStructuredMontenegroNote } from "./_validatorHelpers";
 
 /**
  * Shared translation primitives used by both:
@@ -130,6 +130,7 @@ export function stripLeadingGermanArticle(value: string): string {
 }
 
 function timeoutForStepMs(step: string): number {
+  if (step.startsWith("validator:")) return 90_000;
   if (step.startsWith("section:")) return 120_000;
   if (step.startsWith("tests:")) return 60_000;
   if (step.startsWith("vocab:")) return 60_000;
