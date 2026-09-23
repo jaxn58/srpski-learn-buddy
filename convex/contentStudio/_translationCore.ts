@@ -22,7 +22,6 @@ import {
   CODE_DEFAULT_PROMPT_COGNATES,
   collectCognateCandidatesFromIssues,
   loadMergedPromptCognates,
-  parseUntranslatedPromptGuardFailures,
 } from "./_translatorCognates";
 import { restoreOriginalAuthorQuote } from "../../shared/contentStudio/authorNote";
 
@@ -1360,21 +1359,16 @@ export async function translateTestsForCategory(
   }
 
   if (qualityIssues.length > 0) {
-    // Never hard-stop: persist the category, surface issues on the report,
-    // and collect short EN=DE identity terms for the admin cognate dialog.
-    const cognateCandidates = collectCognateCandidatesFromIssues(qualityIssues);
-    const onlyCognates =
-      cognateCandidates.length > 0 &&
-      qualityIssues.every((issue) => parseUntranslatedPromptGuardFailures(issue).length > 0);
+    // Never hard-stop: persist the category and surface the issues. Whether an
+    // identical EN/DE word is a real cognate is decided later, after a German check.
+    const untranslatedTerms = collectCognateCandidatesFromIssues(qualityIssues);
     console.warn(
       `[translateTests] category=${args.category}: ${qualityIssues.length} quality issue(s); continuing (soft)` +
-        (cognateCandidates.length ? ` cognateCandidates=${cognateCandidates.join(",")}` : "") +
+        (untranslatedTerms.length ? ` untranslated=${untranslatedTerms.join(",")}` : "") +
         "."
     );
     args.stepLogs.push({
-      step: onlyCognates
-        ? `tests:${args.category}:cognate-candidates`
-        : `tests:${args.category}:quality-issues`,
+      step: `tests:${args.category}:quality-issues`,
       provider: "",
       model: "",
       durationMs: 0,

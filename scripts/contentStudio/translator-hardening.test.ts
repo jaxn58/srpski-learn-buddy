@@ -25,6 +25,7 @@ import {
   collectCognateCandidatesFromIssues,
   mergePromptCognates,
   parseUntranslatedPromptGuardFailures,
+  selectConfirmedCognates,
 } from "../../convex/contentStudio/_translatorCognates";
 
 describe("findAppendedForeignParentheticalIssues", () => {
@@ -171,6 +172,13 @@ describe("closeTruncatedJson / parseVerifierIssuesJson", () => {
     );
     expect(parsed.issues).toHaveLength(1);
     expect(parsed.issues[0].key).toBe("test:q1");
+  });
+});
+
+describe("selectConfirmedCognates", () => {
+  it("keeps only requested terms the German check named", () => {
+    expect(selectConfirmedCognates(["sad", "park"], ["park", "hotel"])).toEqual(["park"]);
+    expect(selectConfirmedCognates(["sad"], [])).toEqual([]);
   });
 });
 

@@ -50,10 +50,9 @@ function extractCandidateTerm(raw: string): string {
 export function collectCognateCandidatesFromResult(res: unknown): string[] {
   const stats = (res as { translationStats?: { cognateCandidates?: unknown; steps?: Array<{ qualityIssues?: string[] }> } } | null)
     ?.translationStats;
-  const fromStats = Array.isArray(stats?.cognateCandidates)
-    ? stats.cognateCandidates.map((t) => extractCandidateTerm(String(t))).filter(Boolean)
-    : [];
-  if (fromStats.length > 0) return [...new Set(fromStats)];
+  if (Array.isArray(stats?.cognateCandidates)) {
+    return [...new Set(stats.cognateCandidates.map((t) => extractCandidateTerm(String(t))).filter(Boolean))];
+  }
   const issues = (stats?.steps ?? []).flatMap((s) => s.qualityIssues ?? []);
   return parseUntranslatedPromptGuardFailures(issues.join("\n"));
 }
@@ -68,8 +67,10 @@ export function isUntranslatedLearnerPromptIssue(code: string | undefined): bool
 
 export function partitionTranslatorQualityIssues(
   issues: readonly string[],
-  savedCognates: Set<string>
+  savedCognates: Set<string>,
+  confirmedCognates?: Set<string>
 ): { pendingCognate: string[]; acceptedCognate: string[]; other: string[] } {
+  const confirmed = confirmedCognates ?? new Set<string>();
   const pendingCognate: string[] = [];
   const acceptedCognate: string[] = [];
   const other: string[] = [];
@@ -80,9 +81,15 @@ export function partitionTranslatorQualityIssues(
       continue;
     }
     if (terms.every((t) => savedCognates.has(t))) acceptedCognate.push(issue);
-    else pendingCognate.push(issue);
+    else if (terms.every((t) => confirmed.has(t))) pendingCognate.push(issue);
+    else other.push(issue);
   }
   return { pendingCognate, acceptedCognate, other };
+}
+
+/** Terms from an issue that the German check confirmed as real cognates. */
+export function confirmedCognateTermsInIssue(issue: string, confirmed: Set<string>): string[] {
+  return parseUntranslatedPromptGuardFailures(issue).filter((t) => confirmed.has(t));
 }
 
 export function shortVerifierErrorMessage(message: string): string {

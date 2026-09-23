@@ -13,7 +13,7 @@ import {
   type ActionCtx,
 } from "../_generated/server";
 import { internal } from "../_generated/api";
-import { requireSuperadmin } from "./_shared";
+import { callAiText, requireSuperadmin } from "./_shared";
 
 /** Built-in cognates (lowercased). Keep conservative. */
 export const CODE_DEFAULT_PROMPT_COGNATES: readonly string[] = [
@@ -117,6 +117,54 @@ export function collectCognateCandidatesFromIssues(issues: readonly string[]): s
     }
   }
   return [...out].sort();
+}
+
+/**
+ * Keep only the terms the German check named, and only if they were actually
+ * requested. The model cannot add a word that was not in the untranslated list.
+ */
+export function selectConfirmedCognates(requested: readonly string[], namedByModel: readonly string[]): string[] {
+  const allowed = new Set(requested.map((t) => normalizeCognateTerm(t)).filter(Boolean));
+  const out = new Set<string>();
+  for (const term of namedByModel) {
+    const n = normalizeCognateTerm(term);
+    if (n && allowed.has(n)) out.add(n);
+  }
+  return [...out].sort();
+}
+
+/**
+ * An untranslated EN=DE word is not a cognate. It becomes a save-button
+ * candidate only when German uses the same spelling for the same meaning
+ * (park/Park). False friends (sad/traurig) stay translation errors.
+ * If the check cannot run, no button is offered.
+ */
+export async function confirmGermanCognates(ctx: ActionCtx, terms: readonly string[]): Promise<string[]> {
+  const requested = [...new Set(terms.map((t) => normalizeCognateTerm(t)).filter((t) => isLikelyCognateCandidateTerm(t)))];
+  if (requested.length === 0) return [];
+  const system = [
+    "You know German and English.",
+    "A term is a cognate only when German uses the same spelling, ignoring capitalization, and the same meaning.",
+    "Examples that ARE cognates: park/Park, hotel/Hotel, taxi/Taxi, orange/Orange.",
+    "Examples that are NOT cognates: sad (German: traurig), gift (German Gift means poison), fast (German fast means almost), also (German also means so), boot (German Boot means boat).",
+    "Return ONLY JSON: {\"cognates\":[\"term\"]}. Copy terms from the input. If none qualify, return {\"cognates\":[]}.",
+  ].join("\n");
+  try {
+    const { raw } = await callAiText(ctx, {
+      stage: "auditor",
+      system,
+      user: JSON.stringify({ terms: requested }),
+      maxTokens: 400,
+      timeoutMs: 30_000,
+    });
+    const cleaned = String(raw || "").replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+    const parsed = JSON.parse(cleaned) as { cognates?: unknown };
+    const named = Array.isArray(parsed?.cognates) ? parsed.cognates.map((t) => String(t)) : [];
+    return selectConfirmedCognates(requested, named);
+  } catch (err) {
+    console.warn("[cognates] German cognate check failed; no save button offered:", err);
+    return [];
+  }
 }
 
 export const listAdminTranslatorCognates = query({

@@ -39,6 +39,7 @@ import {
   collectCognateCandidatesFromResult,
   isTranslatorQualityGuardError,
   isUntranslatedLearnerPromptIssue,
+  confirmedCognateTermsInIssue,
   parseUntranslatedPromptGuardFailures,
   partitionTranslatorQualityIssues,
   shortVerifierErrorMessage,
@@ -263,6 +264,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     totalCostUsd: number | null;
     stepCount: number;
     qualityIssueCount: number;
+    cognateCandidates?: string[];
     steps: Array<{
       step: string;
       provider: string;
@@ -1186,9 +1188,13 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                     )}
                   </div>
                   {(() => {
+                    const confirmedCognates = new Set(
+                      (translateReport.cognateCandidates ?? []).map((t) => t.trim().toLowerCase())
+                    );
                     const partitioned = partitionTranslatorQualityIssues(
                       translateReport.steps.flatMap((s) => s.qualityIssues),
-                      savedCognateTerms
+                      savedCognateTerms,
+                      confirmedCognates
                     );
                     if (partitioned.other.length === 0 && partitioned.pendingCognate.length === 0) {
                       return (
@@ -1229,6 +1235,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                     onAcceptCognate={(terms) => void acceptCognateTerms(terms)}
                     cognateAcceptBusy={cognateAcceptBusy}
                     savedCognateTerms={savedCognateTerms}
+                    confirmedCognates={
+                      new Set((translateReport.cognateCandidates ?? []).map((t) => t.trim().toLowerCase()))
+                    }
                   />
                 )}
 
@@ -1259,7 +1268,10 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                             {s.step}
                           </div>
                           {s.qualityIssues.map((issue, j) => {
-                            const terms = parseUntranslatedPromptGuardFailures(issue);
+                            const terms = confirmedCognateTermsInIssue(
+                              issue,
+                              new Set((translateReport.cognateCandidates ?? []).map((t) => t.trim().toLowerCase()))
+                            );
                             const already =
                               terms.length > 0 && terms.every((t) => savedCognateTerms.has(t));
                             return (
@@ -2231,6 +2243,7 @@ function VerifierReportPanel({
   onAcceptCognate,
   cognateAcceptBusy,
   savedCognateTerms,
+  confirmedCognates,
 }: {
   verifier: {
     pass1: VerifierReportClient;
@@ -2252,6 +2265,7 @@ function VerifierReportPanel({
   onAcceptCognate: (terms: string[]) => void;
   cognateAcceptBusy: boolean;
   savedCognateTerms: Set<string>;
+  confirmedCognates: Set<string>;
 }) {
   const { pass1, pass2, retryAttempted, finalCriticalCount, finalWarningCount } = verifier;
 
@@ -2355,6 +2369,7 @@ function VerifierReportPanel({
           onAcceptCognate={onAcceptCognate}
           cognateAcceptBusy={cognateAcceptBusy}
           savedCognateTerms={savedCognateTerms}
+          confirmedCognates={confirmedCognates}
         />
       )}
       {allWarnings.length > 0 && (
@@ -2367,6 +2382,7 @@ function VerifierReportPanel({
           onAcceptCognate={onAcceptCognate}
           cognateAcceptBusy={cognateAcceptBusy}
           savedCognateTerms={savedCognateTerms}
+          confirmedCognates={confirmedCognates}
         />
       )}
       {allInfos.length > 0 && (
@@ -2381,6 +2397,7 @@ function VerifierReportPanel({
           onAcceptCognate={onAcceptCognate}
           cognateAcceptBusy={cognateAcceptBusy}
           savedCognateTerms={savedCognateTerms}
+          confirmedCognates={confirmedCognates}
         />
       )}
 
@@ -2478,6 +2495,7 @@ function VerifierIssueList({
   onAcceptCognate,
   cognateAcceptBusy,
   savedCognateTerms,
+  confirmedCognates,
 }: {
   title: string;
   issues: VerifierIssueClient[];
@@ -2489,6 +2507,7 @@ function VerifierIssueList({
   onAcceptCognate: (terms: string[]) => void;
   cognateAcceptBusy: boolean;
   savedCognateTerms: Set<string>;
+  confirmedCognates: Set<string>;
 }) {
   const borderCls =
     tone === "critical"
@@ -2551,8 +2570,9 @@ function VerifierIssueList({
                   </div>
                 )}
                 {isUntranslatedLearnerPromptIssue(iss.code) && (() => {
-                  const terms = parseUntranslatedPromptGuardFailures(
-                    `${iss.issue} ${iss.suggestion || ""}`
+                  const terms = confirmedCognateTermsInIssue(
+                    `${iss.issue} ${iss.suggestion || ""}`,
+                    confirmedCognates
                   );
                   if (terms.length === 0) return null;
                   const already = terms.every((t) => savedCognateTerms.has(t));

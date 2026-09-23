@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { action } from "../_generated/server";
+import { action, type ActionCtx } from "../_generated/server";
 import { api } from "../_generated/api";
 import { requireSuperadminAction, parseJsonOrThrow } from "./_shared";
 import { UnitPackageSchema } from "../../scripts/unitPackage/schema";
@@ -27,7 +27,14 @@ import {
   type AiCallOptions,
   type VocabTranslationResult,
 } from "./_translationCore";
-import { collectCognateCandidatesFromIssues } from "./_translatorCognates";
+import { collectCognateCandidatesFromIssues, confirmGermanCognates } from "./_translatorCognates";
+
+async function germanCognateCandidates(ctx: ActionCtx, stepLogs: StepLog[]): Promise<string[]> {
+  return confirmGermanCognates(
+    ctx,
+    collectCognateCandidatesFromIssues(stepLogs.flatMap((s) => s.qualityIssues))
+  );
+}
 
 // Publish-Timeout-Fix: split preview-creation chain, orchestrated here.
 // The old monolith `internalPublishUnitPackageToPreview` remained as a
@@ -529,9 +536,7 @@ export const translatePublishedUnitEnToDe = action({
     }
 
     // ── SR↔DE Verifier (Pass 1) ─────────────────────────────────────────────
-    const pendingCognates = collectCognateCandidatesFromIssues(
-      stepLogs.flatMap((s) => s.qualityIssues)
-    );
+    const pendingCognates = await germanCognateCandidates(ctx, stepLogs);
     const verifierItemsPass1 = buildVerifierItems({
       source: source as any,
       serbianContextBlock,
@@ -791,9 +796,7 @@ export const translatePublishedUnitEnToDe = action({
         }
       : null;
 
-    const cognateCandidates = collectCognateCandidatesFromIssues(
-      stepLogs.flatMap((s) => s.qualityIssues)
-    );
+    const cognateCandidates = await germanCognateCandidates(ctx, stepLogs);
     const translationStats = {
       totalDurationMs: Date.now() - actionStartMs,
       totalInputTokens: sumNullable(stepLogs.map((s) => s.inputTokens)) ?? 0,
@@ -1159,9 +1162,7 @@ export const retryDeTranslationForSelectedIssues = action({
         items,
         preferredProvider: primaryProvider,
         pass: "pass2",
-        extraCognates: collectCognateCandidatesFromIssues(
-          stepLogs.flatMap((s) => s.qualityIssues)
-        ),
+        extraCognates: await germanCognateCandidates(ctx, stepLogs),
       });
       console.log(
         `[Manual Retry Verifier] Unit ${unitNumber}: ${verifierReport.itemsChecked} items re-checked, ` +
@@ -1190,9 +1191,7 @@ export const retryDeTranslationForSelectedIssues = action({
       totalCostUsd: sumNullable(stepLogs.map((s) => s.estimatedCostUsd)),
       stepCount: stepLogs.length,
       qualityIssueCount: stepLogs.reduce((sum, s) => sum + s.qualityIssues.length, 0),
-      cognateCandidates: collectCognateCandidatesFromIssues(
-        stepLogs.flatMap((s) => s.qualityIssues)
-      ),
+      cognateCandidates: await germanCognateCandidates(ctx, stepLogs),
       steps: stepLogs,
       verifier: verifierSummary,
     };
