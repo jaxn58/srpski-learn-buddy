@@ -4,6 +4,7 @@ import {
   findUnwantedExerciseGlossIssues,
   findMissingOrUntranslatedFillInCueIssues,
   findMissingFillInContextGlossIssues,
+  collectTestQualityIssues,
   isSerbianStemExerciseType,
   isFillInSourceCue,
   isHelpTranslationGloss,
@@ -139,6 +140,22 @@ describe("findMissingOrUntranslatedFillInCueIssues", () => {
     ]);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toContain("still English");
+  });
+
+  it("does not report a matching prompt that is already German", () => {
+    const issues = collectTestQualityIssues(
+      [
+        {
+          questionId: "u5_ex4_q01",
+          questionType: "matching",
+          questionEn: "_____ = fresh",
+          questionDe: "_____ = frisch",
+          correctAnswer: "sveže",
+        },
+      ],
+      new Set()
+    );
+    expect(issues).toHaveLength(0);
   });
 
   it("does not flag a cue that names the Serbian answer", () => {

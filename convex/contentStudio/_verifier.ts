@@ -104,6 +104,11 @@ export interface VerifierReport {
   error?: string;
   /** Label so the client can distinguish pass 1 vs pass 2 verifier runs. */
   pass: "pass1" | "pass2";
+  /**
+   * Item keys this pass actually checked. A key listed here and absent from
+   * `issues` is clean. Callers must drop earlier findings for these keys.
+   */
+  checkedItemKeys: string[];
 }
 
 function extractVerifierQuestion(side: string, lang: "EN" | "DE"): string {
@@ -857,6 +862,7 @@ export async function verifySerbianGermanAlignment(
     thinkingTokens: null,
     estimatedCostUsd: null,
     pass: params.pass,
+    checkedItemKeys: [],
   };
 
   if (params.items.length === 0) {
@@ -1041,6 +1047,7 @@ export async function verifySerbianGermanAlignment(
     estimatedCostUsd: sumCost && sumCost > 0 ? sumCost : null,
     ...(callError ? { error: callError } : {}),
     pass: params.pass,
+    checkedItemKeys: usable.map((it) => it.key),
   };
 }
 

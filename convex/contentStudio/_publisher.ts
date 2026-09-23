@@ -23,17 +23,118 @@ import {
   pickPrimaryProvider,
   pickFallbackProvider,
   loadTranslatorAdminContext,
+  collectTestQualityIssues,
+  checkSectionQuality,
+  checkMontenegroNoteCarriedOver,
   type StepLog,
   type AiCallOptions,
   type VocabTranslationResult,
 } from "./_translationCore";
-import { collectCognateCandidatesFromIssues, confirmGermanCognates } from "./_translatorCognates";
+import {
+  collectCognateCandidatesFromIssues,
+  confirmGermanCognates,
+  loadMergedPromptCognates,
+} from "./_translatorCognates";
 
 async function germanCognateCandidates(ctx: ActionCtx, stepLogs: StepLog[]): Promise<string[]> {
   return confirmGermanCognates(
     ctx,
     collectCognateCandidatesFromIssues(stepLogs.flatMap((s) => s.qualityIssues))
   );
+}
+
+function emptyQualityStep(step: string, qualityIssues: string[]): StepLog {
+  return {
+    step,
+    provider: "",
+    model: "",
+    durationMs: 0,
+    inputTokens: null,
+    outputTokens: null,
+    thinkingTokens: null,
+    totalTokens: null,
+    estimatedCostUsd: null,
+    qualityIssues,
+  };
+}
+
+/**
+ * The only quality findings in the report. They are created here, after every
+ * repair, from the text that is saved. Earlier steps do not carry findings.
+ */
+async function appendSavedTextQualityIssues(
+  ctx: ActionCtx,
+  args: {
+    stepLogs: StepLog[];
+    testsEn: any[];
+    testsDe: any[];
+    contentEn: any[];
+    contentDe: any[];
+    vocabEn: any[];
+    vocabDe: Array<{ courseVocabularyId?: unknown; noteDe?: string }>;
+  }
+): Promise<void> {
+  const cognates = await loadMergedPromptCognates(ctx);
+  const deByQid = new Map<string, any>();
+  for (const row of args.testsDe) deByQid.set(String(row?.questionId ?? ""), row);
+  const instructions = new Set<string>();
+  const pairs = [];
+  for (const src of args.testsEn) {
+    const qid = String(src?.questionId ?? "");
+    const de = deByQid.get(qid);
+    if (!de) continue;
+    const instruction = String(de?.categoryInstructions ?? "");
+    if (instruction) instructions.add(instruction);
+    pairs.push({
+      questionId: qid,
+      questionType: String(src?.questionType ?? de?.questionType ?? ""),
+      questionEn: String(src?.question ?? ""),
+      questionDe: String(de?.question ?? ""),
+      correctAnswer: String(src?.correctAnswer ?? ""),
+      category: String(src?.category ?? de?.category ?? ""),
+    });
+  }
+  const testIssues = collectTestQualityIssues(pairs, cognates, [...instructions]);
+  if (testIssues.length > 0) {
+    args.stepLogs.push(emptyQualityStep("saved-text:tests", testIssues));
+  }
+
+  const enByType = new Map<string, string>();
+  for (const row of args.contentEn) {
+    enByType.set(String(row?.contentType ?? ""), String(row?.content ?? ""));
+  }
+  const sectionIssues: string[] = [];
+  for (const row of args.contentDe) {
+    const contentType = String(row?.contentType ?? "");
+    const en = enByType.get(contentType);
+    const de = String(row?.content ?? "");
+    if (en == null || !contentType) continue;
+    for (const issue of checkSectionQuality(en, de)) {
+      sectionIssues.push(`section:${contentType}: ${issue}`);
+    }
+  }
+  if (sectionIssues.length > 0) {
+    args.stepLogs.push(emptyQualityStep("saved-text:sections", sectionIssues));
+  }
+
+  const deNoteById = new Map<string, string>();
+  for (const row of args.vocabDe) {
+    deNoteById.set(String(row.courseVocabularyId ?? ""), String(row.noteDe ?? ""));
+  }
+  const noteIssues: string[] = [];
+  for (const src of args.vocabEn) {
+    const id = String(src?._id ?? "");
+    if (!id || !deNoteById.has(id)) continue;
+    const issue = checkMontenegroNoteCarriedOver({
+      courseVocabularyId: id,
+      noteEn: typeof src?.noteEn === "string" ? src.noteEn : "",
+      noteDe: deNoteById.get(id) ?? "",
+    });
+    if (issue) noteIssues.push(issue);
+  }
+  if (noteIssues.length > 0) {
+    args.stepLogs.push(emptyQualityStep("saved-text:montenegro-notes", noteIssues));
+  }
 }
 
 // Publish-Timeout-Fix: split preview-creation chain, orchestrated here.
@@ -546,8 +647,8 @@ export const translatePublishedUnitEnToDe = action({
       testsDe,
     });
     let verifierReport: VerifierReport | null = null;
-    let verifierReportPass2: VerifierReport | null = null;
     let retryAttempted = false;
+    let savedTextWasRepaired = false;
 
     try {
       verifierReport = await verifySerbianGermanAlignment(ctx, {
@@ -577,6 +678,7 @@ export const translatePublishedUnitEnToDe = action({
         estimatedCostUsd: null,
         error: String(e?.message || e).slice(0, 400),
         pass: "pass1",
+        checkedItemKeys: [],
       };
     }
 
@@ -726,32 +828,50 @@ export const translatePublishedUnitEnToDe = action({
         }
       }
 
-      if (retriedKeys.size > 0) {
-        const pass2Items = buildVerifierItems({
-          source: source as any,
-          serbianContextBlock,
-          metadataDe,
-          contentDe,
-          vocabDe,
-          testsDe,
-          restrictKeys: retriedKeys,
+      savedTextWasRepaired = retriedKeys.size > 0;
+    }
+
+    // The repair pass replaces text. The first check described the old text
+    // and is not the report. One new check of the whole saved unit is.
+    if (savedTextWasRepaired) {
+      const savedItems = buildVerifierItems({
+        source: source as any,
+        serbianContextBlock,
+        metadataDe,
+        contentDe,
+        vocabDe,
+        testsDe,
+      });
+      try {
+        verifierReport = await verifySerbianGermanAlignment(ctx, {
+          items: savedItems,
+          preferredProvider: primaryProvider,
+          pass: "pass1",
         });
-        try {
-          verifierReportPass2 = await verifySerbianGermanAlignment(ctx, {
-            items: pass2Items,
-            preferredProvider: primaryProvider,
-            pass: "pass2",
-            extraCognates: collectCognateCandidatesFromIssues(
-              stepLogs.flatMap((s) => s.qualityIssues)
-            ),
-          });
-          console.log(
-            `[Translation Verifier pass2] Unit ${unitNumber}: ${verifierReportPass2.itemsChecked} items re-checked, ` +
-            `${verifierReportPass2.criticals.length} critical, ${verifierReportPass2.warnings.length} warning(s).`
-          );
-        } catch (e: any) {
-          console.warn(`[Translation Verifier pass2] Unit ${unitNumber} verify failed:`, e?.message || e);
-        }
+        console.log(
+          `[Translation Verifier] Unit ${unitNumber}: saved text checked, ` +
+            `${verifierReport.itemsChecked} items, ` +
+            `${verifierReport.criticals.length} critical, ${verifierReport.warnings.length} warning(s).`
+        );
+      } catch (e: any) {
+        console.warn(`[Translation Verifier] Unit ${unitNumber} saved-text check failed:`, e?.message || e);
+        verifierReport = {
+          itemsChecked: savedItems.length,
+          issues: [],
+          criticals: [],
+          warnings: [],
+          infos: [],
+          durationMs: 0,
+          provider: null,
+          model: null,
+          inputTokens: null,
+          outputTokens: null,
+          thinkingTokens: null,
+          estimatedCostUsd: null,
+          error: String(e?.message || e).slice(0, 400),
+          pass: "pass1",
+          checkedItemKeys: [],
+        };
       }
     }
 
@@ -776,26 +896,25 @@ export const translatePublishedUnitEnToDe = action({
           });
 
     // ── Stats + return ───────────────────────────────────────────────────────
-    const finalCriticals = verifierReportPass2
-      ? [
-          ...((verifierReport?.criticals ?? []).filter(
-            (c) => !verifierReportPass2!.issues.some((p2) => p2.itemKey === c.itemKey)
-          )),
-          ...verifierReportPass2.criticals,
-        ]
-      : (verifierReport?.criticals ?? []);
-
     const verifierSummary = verifierReport
       ? {
           pass1: verifierReport,
-          pass2: verifierReportPass2,
+          pass2: null,
           retryAttempted,
-          finalCriticalCount: finalCriticals.length,
-          finalWarningCount:
-            (verifierReport?.warnings.length ?? 0) + (verifierReportPass2?.warnings.length ?? 0),
+          finalCriticalCount: verifierReport.criticals.length,
+          finalWarningCount: verifierReport.warnings.length,
         }
       : null;
 
+    await appendSavedTextQualityIssues(ctx, {
+      stepLogs,
+      testsEn: (source.testsEn ?? []) as any[],
+      testsDe,
+      contentEn: (source.contentEn ?? []) as any[],
+      contentDe,
+      vocabEn: (source.vocabEn ?? []) as any[],
+      vocabDe,
+    });
     const cognateCandidates = await germanCognateCandidates(ctx, stepLogs);
     const translationStats = {
       totalDurationMs: Date.now() - actionStartMs,
@@ -1146,7 +1265,8 @@ export const retryDeTranslationForSelectedIssues = action({
             vocabularyDe: vocabDe as any,
           });
 
-    // 7) Re-verify ONLY the retried items (pass2 scope).
+    // The retried items are already in the saved unit. The report is one
+    // check of that unit, not a remainder of the previous findings.
     let verifierReport: VerifierReport | null = null;
     try {
       const items = buildVerifierItems({
@@ -1156,33 +1276,40 @@ export const retryDeTranslationForSelectedIssues = action({
         contentDe,
         vocabDe,
         testsDe,
-        restrictKeys: retriedKeys,
       });
       verifierReport = await verifySerbianGermanAlignment(ctx, {
         items,
         preferredProvider: primaryProvider,
-        pass: "pass2",
-        extraCognates: await germanCognateCandidates(ctx, stepLogs),
+        pass: "pass1",
       });
       console.log(
-        `[Manual Retry Verifier] Unit ${unitNumber}: ${verifierReport.itemsChecked} items re-checked, ` +
+        `[Manual Retry Verifier] Unit ${unitNumber}: saved text checked, ` +
+        `${verifierReport.itemsChecked} items, ` +
         `${verifierReport.criticals.length} critical, ${verifierReport.warnings.length} warning(s).`
       );
     } catch (e: any) {
       console.warn(`[Manual Retry Verifier] Unit ${unitNumber} verify failed:`, e?.message || e);
     }
 
-    // 8) Report in the same shape the UI already renders (pass2-only).
     const verifierSummary = verifierReport
       ? {
-          pass1: null,
-          pass2: verifierReport,
+          pass1: verifierReport,
+          pass2: null,
           retryAttempted: true,
           finalCriticalCount: verifierReport.criticals.length,
           finalWarningCount: verifierReport.warnings.length,
         }
       : null;
 
+    await appendSavedTextQualityIssues(ctx, {
+      stepLogs,
+      testsEn: (source.testsEn ?? []) as any[],
+      testsDe,
+      contentEn: (source.contentEn ?? []) as any[],
+      contentDe,
+      vocabEn: (source.vocabEn ?? []) as any[],
+      vocabDe,
+    });
     const translationStats = {
       totalDurationMs: Date.now() - actionStartMs,
       totalInputTokens: sumNullable(stepLogs.map((s) => s.inputTokens)) ?? 0,

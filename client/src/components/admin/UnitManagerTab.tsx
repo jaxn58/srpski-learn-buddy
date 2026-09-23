@@ -500,90 +500,6 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
   };
   const clearAllSelectedIssues = () => setSelectedIssueKeys(new Set());
 
-  // Merge a retry verifier pass into the existing report:
-  //  - retried keys from the FIRST report are dropped (they were re-translated)
-  //  - new issues from the retry verifier replace them
-  //  - non-retried issues stay so the admin can still see (or re-try) them
-  const mergeRetryIntoReport = (
-    retriedKeys: Set<string>,
-    retryVerifierReport: VerifierReportClient | null
-  ) => {
-    setTranslateReport((prev) => {
-      if (!prev) return prev;
-      const pv = prev.verifier;
-      if (!pv) return prev;
-
-      const dropRetried = (arr: VerifierIssueClient[]) =>
-        arr.filter((i) => !retriedKeys.has(i.itemKey));
-
-      const newCriticals = retryVerifierReport?.criticals ?? [];
-      const newWarnings = retryVerifierReport?.warnings ?? [];
-      const newInfos = retryVerifierReport?.infos ?? [];
-
-      const mergedPass1: VerifierReportClient = {
-        ...pv.pass1,
-        criticals: dropRetried(pv.pass1.criticals),
-        warnings: dropRetried(pv.pass1.warnings),
-        infos: dropRetried(pv.pass1.infos),
-        issues: dropRetried(pv.pass1.issues),
-      };
-      const basePass2: VerifierReportClient | null = pv.pass2
-        ? {
-            ...pv.pass2,
-            criticals: dropRetried(pv.pass2.criticals),
-            warnings: dropRetried(pv.pass2.warnings),
-            infos: dropRetried(pv.pass2.infos),
-            issues: dropRetried(pv.pass2.issues),
-          }
-        : null;
-
-      const mergedPass2: VerifierReportClient | null =
-        basePass2 || retryVerifierReport
-          ? {
-              itemsChecked:
-                (basePass2?.itemsChecked ?? 0) + (retryVerifierReport?.itemsChecked ?? 0),
-              durationMs:
-                (basePass2?.durationMs ?? 0) + (retryVerifierReport?.durationMs ?? 0),
-              provider: retryVerifierReport?.provider ?? basePass2?.provider ?? null,
-              model: retryVerifierReport?.model ?? basePass2?.model ?? null,
-              inputTokens:
-                (basePass2?.inputTokens ?? 0) + (retryVerifierReport?.inputTokens ?? 0),
-              outputTokens:
-                (basePass2?.outputTokens ?? 0) + (retryVerifierReport?.outputTokens ?? 0),
-              thinkingTokens:
-                (basePass2?.thinkingTokens ?? 0) + (retryVerifierReport?.thinkingTokens ?? 0),
-              estimatedCostUsd:
-                (basePass2?.estimatedCostUsd ?? 0) +
-                (retryVerifierReport?.estimatedCostUsd ?? 0),
-              criticals: [...(basePass2?.criticals ?? []), ...newCriticals],
-              warnings: [...(basePass2?.warnings ?? []), ...newWarnings],
-              infos: [...(basePass2?.infos ?? []), ...newInfos],
-              issues: [
-                ...(basePass2?.issues ?? []),
-                ...(retryVerifierReport?.issues ?? []),
-              ],
-              pass: "pass2",
-            }
-          : null;
-
-      const finalCriticalCount =
-        mergedPass1.criticals.length + (mergedPass2?.criticals.length ?? 0);
-      const finalWarningCount =
-        mergedPass1.warnings.length + (mergedPass2?.warnings.length ?? 0);
-
-      return {
-        ...prev,
-        verifier: {
-          pass1: mergedPass1,
-          pass2: mergedPass2,
-          retryAttempted: true,
-          finalCriticalCount,
-          finalWarningCount,
-        },
-      };
-    });
-  };
-
   const handleRunRetry = async () => {
     if (!selectedUnit) return;
     if (!translateReport?.verifier) return;
@@ -646,19 +562,46 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       const retriedKeys = new Set<string>(
         Array.isArray(result?.retriedKeys) ? result.retriedKeys.map(String) : []
       );
-      const retryVerifier: VerifierReportClient | null =
-        result?.translationStats?.verifier?.pass2 ?? null;
+      const savedCheck: VerifierReportClient | null =
+        result?.translationStats?.verifier?.pass1 ?? null;
+      const savedQualitySteps = (
+        Array.isArray(result?.translationStats?.steps) ? result.translationStats.steps : []
+      ).filter(
+        (step: { qualityIssues?: string[] }) => (step.qualityIssues?.length ?? 0) > 0
+      );
 
-      mergeRetryIntoReport(retriedKeys, retryVerifier);
+      setTranslateReport((prev) => {
+        if (!prev || !savedCheck) return prev;
+        const steps = [
+          ...prev.steps.map((step) => ({ ...step, qualityIssues: [] as string[] })),
+          ...savedQualitySteps,
+        ];
+        return {
+          ...prev,
+          steps,
+          qualityIssueCount: steps.reduce((sum, step) => sum + step.qualityIssues.length, 0),
+          cognateCandidates:
+            result?.translationStats?.cognateCandidates ?? prev.cognateCandidates,
+          verifier: {
+            pass1: savedCheck,
+            pass2: null,
+            retryAttempted: true,
+            finalCriticalCount: savedCheck.criticals.length,
+            finalWarningCount: savedCheck.warnings.length,
+          },
+        };
+      });
       setRetryHistory((prev) => [
         ...prev,
         { retriedKeys: Array.from(retriedKeys), timestamp: Date.now() },
       ]);
       setSelectedIssueKeys(new Set());
 
-      const remainCrit = retryVerifier?.criticals.length ?? 0;
-      const remainWarn = retryVerifier?.warnings.length ?? 0;
-      if (remainCrit === 0 && remainWarn === 0) {
+      const remainCrit = savedCheck?.criticals.length ?? 0;
+      const remainWarn = savedCheck?.warnings.length ?? 0;
+      if (!savedCheck) {
+        toast.error("The repair was saved, but the check of the saved text failed.");
+      } else if (remainCrit === 0 && remainWarn === 0) {
         toast.success(
           `Retry done — ${retriedKeys.size} item(s) re-translated, no remaining issues.`
         );
@@ -2267,25 +2210,13 @@ function VerifierReportPanel({
   savedCognateTerms: Set<string>;
   confirmedCognates: Set<string>;
 }) {
-  const { pass1, pass2, retryAttempted, finalCriticalCount, finalWarningCount } = verifier;
+  const { pass1, retryAttempted } = verifier;
 
-  // Dedup issues across pass1 + pass2 by itemKey (prefer highest-severity entry).
-  // Needed because merged retry passes can yield duplicates if a key was re-verified.
-  const severityRank = { critical: 0, warning: 1, info: 2 } as const;
-  const dedupByKey = (arr: VerifierIssueClient[]): VerifierIssueClient[] => {
-    const map = new Map<string, VerifierIssueClient>();
-    for (const iss of arr) {
-      const prev = map.get(iss.itemKey);
-      if (!prev || severityRank[iss.severity] < severityRank[prev.severity]) {
-        map.set(iss.itemKey, iss);
-      }
-    }
-    return Array.from(map.values());
-  };
-
-  const finalCriticals = dedupByKey([...pass1.criticals, ...(pass2?.criticals ?? [])]);
-  const allWarnings = dedupByKey([...pass1.warnings, ...(pass2?.warnings ?? [])]);
-  const allInfos = dedupByKey([...pass1.infos, ...(pass2?.infos ?? [])]);
+  const finalCriticals = pass1.criticals;
+  const allWarnings = pass1.warnings;
+  const allInfos = pass1.infos;
+  const finalCriticalCount = finalCriticals.length;
+  const finalWarningCount = allWarnings.length;
 
   const allRetryableKeys = [
     ...finalCriticals.map((i) => i.itemKey),
@@ -2332,7 +2263,6 @@ function VerifierReportPanel({
         )}
         <span className="text-muted-foreground">
           Checked {pass1.itemsChecked} item(s)
-          {pass2 ? ` · Pass 2 re-checked ${pass2.itemsChecked}` : ""}
         </span>
       </div>
 
@@ -2344,11 +2274,7 @@ function VerifierReportPanel({
 
       {retryAttempted && (
         <div className="text-muted-foreground">
-          Auto-retry: 1 additional translation pass was executed for items with critical
-          issues.
-          {finalCriticalCount === 0
-            ? " All critical issues resolved after retry."
-            : ` ${finalCriticalCount} critical issue(s) still remain after retry — pick items below to re-translate.`}
+          A repair pass ran before this check. Every finding below is from the saved text.
         </div>
       )}
 

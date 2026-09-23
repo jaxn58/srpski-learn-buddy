@@ -20,7 +20,6 @@ import {
 import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
-  collectCognateCandidatesFromIssues,
   cueNamesSerbianForm,
   loadMergedPromptCognates,
 } from "./_translatorCognates";
@@ -640,10 +639,9 @@ export async function translateMarkdownSection(
   if (args.contentType === "overview" && args.originalAuthorQuote) {
     mdDe = restoreOriginalAuthorQuote(mdDe, args.originalAuthorQuote);
   }
-  const qualityIssues = checkSectionQuality(input, mdDe);
   return {
     mdDe,
-    log: makeStepLog(stepName, aiResult, durationMs, qualityIssues),
+    log: makeStepLog(stepName, aiResult, durationMs),
   };
 }
 
@@ -746,7 +744,6 @@ export async function translateVocabChunks(
       if (!id) continue;
       byId.set(id, it);
     }
-    const dialectIssues: string[] = [];
     for (const src of chunk) {
       const id = String(src?._id ?? "").trim();
       const aiOut = byId.get(id);
@@ -754,32 +751,10 @@ export async function translateVocabChunks(
       const de =
         typeof aiOut?.de === "string" ? stripLeadingGermanArticle(String(aiOut.de)) : "";
       const noteDe = typeof aiOut?.noteDe === "string" ? String(aiOut.noteDe).trim() : "";
-      const dialectIssue = checkMontenegroNoteCarriedOver({
-        courseVocabularyId: id,
-        noteEn: typeof src?.noteEn === "string" ? src.noteEn : "",
-        noteDe,
-      });
-      if (dialectIssue) dialectIssues.push(dialectIssue);
       out.push({
         courseVocabularyId: src._id as any,
         ...(de ? { de } : {}),
         ...(noteDe ? { noteDe } : {}),
-      });
-    }
-    if (dialectIssues.length > 0) {
-      // Soft report only, same pattern as the test-translation quality guard:
-      // never blocks the run, always visible on the translation report.
-      args.stepLogs.push({
-        step: `${stepName}:montenegro-note`,
-        provider: "",
-        model: "",
-        durationMs: 0,
-        inputTokens: null,
-        outputTokens: null,
-        thinkingTokens: null,
-        totalTokens: null,
-        estimatedCostUsd: null,
-        qualityIssues: dialectIssues,
       });
     }
   }
@@ -1144,6 +1119,33 @@ export function findEnglishFramingInstructionIssues(categoryInstructionsDe: stri
   return [];
 }
 
+/** Quality findings that still apply to the German text about to be saved. */
+export function collectTestQualityIssues(
+  pairs: Array<{
+    questionId: string;
+    questionType: string;
+    questionEn: string;
+    questionDe: string;
+    correctAnswer?: string;
+    category?: string;
+  }>,
+  cognates: Set<string>,
+  categoryInstructionsDe: readonly string[] = []
+): string[] {
+  const withCategory = pairs.map((pair) => ({
+    ...pair,
+    category: pair.category ?? "",
+  }));
+  return [
+    ...findUnwantedExerciseGlossIssues(withCategory),
+    ...findMissingOrUntranslatedFillInCueIssues(withCategory, cognates),
+    ...findMissingFillInContextGlossIssues(withCategory, cognates),
+    ...findAppendedForeignParentheticalIssues(withCategory),
+    ...findUntranslatedLearnerPromptIssues(pairs, cognates),
+    ...categoryInstructionsDe.flatMap((text) => findEnglishFramingInstructionIssues(text)),
+  ];
+}
+
 function buildPromptGuardRetryFeedback(issues: string[]): string {
   return [
     "CRITICAL: German-track interactive tests must not keep English as the learner's source language.",
@@ -1363,27 +1365,10 @@ export async function translateTestsForCategory(
   }
 
   if (qualityIssues.length > 0) {
-    // Never hard-stop: persist the category and surface the issues. Whether an
-    // identical EN/DE word is a real cognate is decided later, after a German check.
-    const untranslatedTerms = collectCognateCandidatesFromIssues(qualityIssues);
     console.warn(
-      `[translateTests] category=${args.category}: ${qualityIssues.length} quality issue(s); continuing (soft)` +
-        (untranslatedTerms.length ? ` untranslated=${untranslatedTerms.join(",")}` : "") +
-        "."
+      `[translateTests] category=${args.category}: ${qualityIssues.length} quality issue(s) remain after the translation retry. ` +
+        `They are not reported here; the saved text is checked once, after every repair.`
     );
-    args.stepLogs.push({
-      step: `tests:${args.category}:quality-issues`,
-      provider: "",
-      model: "",
-      durationMs: 0,
-      inputTokens: null,
-      outputTokens: null,
-      thinkingTokens: null,
-      totalTokens: null,
-      estimatedCostUsd: null,
-      qualityIssues,
-    });
-    return produced;
   }
 
   return produced;
