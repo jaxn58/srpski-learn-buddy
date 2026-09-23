@@ -61,6 +61,51 @@ export function mergePromptCognates(
   return out;
 }
 
+function foldLexeme(s: string): string {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/č|ć/g, "c")
+    .replace(/š/g, "s")
+    .replace(/ž/g, "z")
+    .replace(/đ/g, "dj")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Citation form plus a short Serbian ending (Sadu, parku, Novom). */
+function sameLexeme(a: string, b: string): boolean {
+  if (a === b) return a.length >= 2;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (short.length < 3 || !long.startsWith(short)) return false;
+  const extra = long.slice(short.length);
+  return extra.length > 0 && extra.length <= 4 && /^[aeioumnj]+$/.test(extra);
+}
+
+/**
+ * The parenthesis names the Serbian form the learner must produce
+ * ("Sad" for "Sadu", "park" for "park"). It is not an English gloss.
+ * A real English gloss does not share that stem ("milk" / "mleko").
+ */
+export function cueNamesSerbianForm(cue: string, serbianForm: string): boolean {
+  const cueWords = foldLexeme(cue).split(" ").filter((w) => w.length >= 2);
+  const formWords = foldLexeme(serbianForm).split(" ").filter((w) => w.length >= 2);
+  if (cueWords.length === 0 || formWords.length === 0) return false;
+  return cueWords.every((c) => formWords.some((f) => sameLexeme(c, f)));
+}
+
+/** Values after the verifier's Serbian-answer labels, without the English header. */
+export function serbianFormsFromAnchor(serbianField: string): string {
+  const bits: string[] = [];
+  for (const line of String(serbianField || "").split("\n")) {
+    if (!/Expected Serbian answer|Answer choices|Accepted Serbian variants/i.test(line)) continue;
+    const value = line.match(/:\s*(.+)$/)?.[1]?.trim();
+    if (value) bits.push(value);
+  }
+  return bits.join(" ");
+}
+
 /** Short EN=DE identity terms belong in the cognate dialog; sentences do not. */
 export function isLikelyCognateCandidateTerm(term: string): boolean {
   const t = normalizeCognateTerm(term);

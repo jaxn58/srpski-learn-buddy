@@ -11,8 +11,10 @@ import {
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
+  cueNamesSerbianForm,
   loadMergedPromptCognates,
   normalizeCognateTerm,
+  serbianFormsFromAnchor,
 } from "./_translatorCognates";
 
 /**
@@ -526,7 +528,6 @@ export function runDeterministicTestGlossChecks(
     // fillInBlank: EN source cues must appear as German cues on DE.
     if ((!qType || qType === "fillInBlank") && enCues.length > 0) {
       if (deCues.length < enCues.length) {
-        const stemWithBlank = stem || deQ;
         issues.push({
           itemKey: it.key,
           itemLabel: it.label,
@@ -537,13 +538,14 @@ export function runDeterministicTestGlossChecks(
             `The German question omits the fill-in source cue ` +
             `${enCues.map((g) => `(${g})`).join(" ")} which is present in the English source. ` +
             `Without this cue, the learner does not know which word to fill in.`,
-          suggestion: `${stemWithBlank} (German for: ${enCues.join(", ")})`,
         });
       } else {
+        const serbianForms = serbianFormsFromAnchor(it.serbian);
         for (let i = 0; i < enCues.length; i++) {
           const enG = enCues[i]!;
           const deG = deCues[i] ?? "";
           if (norm(enG) === norm(deG) && !cognates.has(norm(enG))) {
+            if (cueNamesSerbianForm(enG, serbianForms)) continue;
             issues.push({
               itemKey: it.key,
               itemLabel: it.label,
@@ -553,7 +555,6 @@ export function runDeterministicTestGlossChecks(
               issue:
                 `Fill-in source cue is still English "(${enG})". ` +
                 `Translate it to German inside the parentheses (e.g. milk→Milch).`,
-              suggestion: `${stem || deQ} (German for "${enG}")`,
             });
           }
         }
@@ -563,7 +564,6 @@ export function runDeterministicTestGlossChecks(
     // fillInBlank: EN context glosses (full-sentence) must appear as German on DE.
     if ((!qType || qType === "fillInBlank") && enContext.length > 0) {
       if (deContext.length < enContext.length) {
-        const stemWithBlank = stem || deQ;
         issues.push({
           itemKey: it.key,
           itemLabel: it.label,
@@ -574,7 +574,6 @@ export function runDeterministicTestGlossChecks(
             `The German question omits the fill-in context gloss ` +
             `${enContext.map((g) => `(${g})`).join(" ")} which is present in the English source. ` +
             `Without this context, the learner cannot understand the exercise.`,
-          suggestion: `${stemWithBlank} (German for: ${enContext.join("; ")})`,
         });
       } else {
         for (let i = 0; i < enContext.length; i++) {
@@ -590,7 +589,6 @@ export function runDeterministicTestGlossChecks(
               issue:
                 `Fill-in context gloss is still English "(${enG})". ` +
                 `Translate it to German inside the parentheses (e.g. "I am Ana." → "Ich bin Ana.").`,
-              suggestion: `${stem || deQ} (German for "${enG}")`,
             });
           }
         }

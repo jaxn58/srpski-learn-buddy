@@ -21,6 +21,7 @@ import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
   collectCognateCandidatesFromIssues,
+  cueNamesSerbianForm,
   loadMergedPromptCognates,
 } from "./_translatorCognates";
 import { restoreOriginalAuthorQuote } from "../../shared/contentStudio/authorNote";
@@ -896,6 +897,7 @@ export function findMissingOrUntranslatedFillInCueIssues(
     questionType: string;
     questionEn: string;
     questionDe: string;
+    correctAnswer?: string;
   }>,
   cognates: Set<string> = new Set(CODE_DEFAULT_PROMPT_COGNATES)
 ): string[] {
@@ -920,6 +922,7 @@ export function findMissingOrUntranslatedFillInCueIssues(
       const enNorm = normalizeGlossCompare(enG);
       const deNorm = normalizeGlossCompare(deG);
       if (deNorm && enNorm === deNorm && !cognates.has(enNorm)) {
+        if (cueNamesSerbianForm(enG, String(p.correctAnswer ?? ""))) continue;
         issues.push(
           `questionId=${p.questionId}: fill-in source cue is still English "(${enG})". ` +
             `Translate it to German inside the parentheses (e.g. milk→Milch, apples→Äpfel).`
@@ -1312,6 +1315,7 @@ export async function translateTestsForCategory(
         category: args.category,
         questionEn: String(src.question ?? ""),
         questionDe: String(de?.question ?? ""),
+        correctAnswer: String(src.correctAnswer ?? ""),
       };
     });
 

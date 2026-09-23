@@ -134,10 +134,24 @@ describe("findMissingOrUntranslatedFillInCueIssues", () => {
         questionType: "fillInBlank",
         questionEn: "Molim vas, jedan litar ___. (milk)",
         questionDe: "Molim vas, jedan litar ___. (milk)",
+        correctAnswer: "mleka",
       },
     ]);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toContain("still English");
+  });
+
+  it("does not flag a cue that names the Serbian answer", () => {
+    const issues = findMissingOrUntranslatedFillInCueIssues([
+      {
+        questionId: "u4_ex2_q06",
+        questionType: "fillInBlank",
+        questionEn: "Mi smo u Novom ____. (Sad)",
+        questionDe: "Mi smo u Novom ____. (Sad)",
+        correctAnswer: "Sadu",
+      },
+    ]);
+    expect(issues).toHaveLength(0);
   });
 
   it("passes when cue is German", () => {
@@ -259,8 +273,8 @@ describe("runDeterministicTestGlossChecks", () => {
     expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);
   });
 
-  it("flags park as untranslated cue unless it is a known cognate", () => {
-    const items: VerifierInputItem[] = [
+  it("does not flag a cue that is the Serbian answer", () => {
+    const park: VerifierInputItem[] = [
       {
         key: "test:u4_ex2_q06",
         kind: "test",
@@ -271,9 +285,43 @@ describe("runDeterministicTestGlossChecks", () => {
         german: "Question (DE): Gde je _____? (park)",
       },
     ];
-    const flagged = runDeterministicTestGlossChecks(items);
+    const city: VerifierInputItem[] = [
+      {
+        key: "test:u4_ex2_q06",
+        kind: "test",
+        label: "test u4_ex2_q06",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: Sadu",
+        english: "Question (EN): Mi smo u Novom ____. (Sad)",
+        german: "Question (DE): Mi smo u Novom ____. (Sad)",
+      },
+    ];
+    expect(runDeterministicTestGlossChecks(park)).toHaveLength(0);
+    expect(runDeterministicTestGlossChecks(city)).toHaveLength(0);
+  });
+
+  it("flags an English cue that does not name the Serbian answer", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u5_ex2_q01",
+        kind: "test",
+        label: "test u5_ex2_q01",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: mleka",
+        english: "Question (EN): Molim vas, jedan litar ___. (milk)",
+        german: "Question (DE): Molim vas, jedan litar ___. (Milch)",
+      },
+    ];
+    const stillEnglish: VerifierInputItem[] = [
+      {
+        ...items[0]!,
+        german: "Question (DE): Molim vas, jedan litar ___. (milk)",
+      },
+    ];
+    expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);
+    const flagged = runDeterministicTestGlossChecks(stillEnglish);
     expect(flagged.some((i) => i.code === "test_untranslated_fill_in_cue")).toBe(true);
-    expect(runDeterministicTestGlossChecks(items, new Set(["park"]))).toHaveLength(0);
+    expect(flagged[0]?.suggestion).toBeUndefined();
   });
 
   it("flags missing fill-in context gloss on DE", () => {
