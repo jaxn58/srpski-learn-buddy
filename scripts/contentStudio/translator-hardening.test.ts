@@ -11,10 +11,14 @@ import {
 import { collectDraftSkillIds, closeTruncatedJson, mergeSkillsById } from "../../convex/contentStudio/_shared";
 import {
   dropAiMissingInfoThatRepeatsVocabularySerbian,
+  dropNonActionableVerifierIssues,
   extractMentionedLemmaTokens,
+  extractSerbianFromMarkdown,
+  mergeRepairVerifierReport,
   parseVerifierIssuesJson,
   type VerifierInputItem,
   type VerifierIssue,
+  type VerifierReport,
 } from "../../convex/contentStudio/_verifier";
 import {
   ALL_TRANSLATOR_PROMPT_KEYS,
@@ -523,6 +527,243 @@ describe("dropAiMissingInfoThatRepeatsVocabularySerbian", () => {
     );
     expect(dropped).toHaveLength(0);
     expect(kept).toHaveLength(1);
+  });
+});
+
+describe("verifier convergence filters", () => {
+  const phrasesEn = [
+    "| Serbian | English |",
+    "| :--- | :--- |",
+    "| Gde je kuhinja? | Where is the kitchen? |",
+    "| Koliko je sati? | What time is it? |",
+    "| Oblačiš se? | Are you getting dressed? |",
+  ].join("\n");
+  const phrasesDe = [
+    "| Serbian | German |",
+    "| :--- | :--- |",
+    "| Gde je kuhinja? | Wo ist die Küche? |",
+    "| Koliko je sati? | Wie spät ist es? |",
+    "| Oblačiš se? | Ziehst du dich an? |",
+  ].join("\n");
+  const phrasesItem: VerifierInputItem = {
+    key: "section:phrases",
+    kind: "section",
+    label: "section: phrases",
+    serbian: "",
+    english: phrasesEn,
+    german: phrasesDe,
+  };
+
+  it("puts diacritic-free Serbian column cells into the verifier anchor", () => {
+    const anchor = extractSerbianFromMarkdown(phrasesEn);
+    expect(anchor).toContain("Gde je kuhinja?");
+    expect(anchor).toContain("Koliko je sati?");
+    expect(anchor).toContain("Oblačiš se?");
+  });
+
+  it("drops a phrases missing_info that only asks to fill the serbian field", () => {
+    const issue: VerifierIssue = {
+      itemKey: "section:phrases",
+      itemLabel: "section: phrases",
+      itemKind: "section",
+      severity: "critical",
+      code: "missing_info",
+      issue:
+        "The German table contains Serbian phrases that are missing from the 'serbian' field of the item.",
+      suggestion: "Add 'Gde je kuhinja?', 'Koliko je sati?', 'Boles je no trgu.' to the 'serbian' field.",
+    };
+    const { kept, dropped } = dropNonActionableVerifierIssues([issue], [phrasesItem]);
+    expect(dropped).toHaveLength(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("drops missing_info whose quotes already sit in the Serbian column", () => {
+    const issue: VerifierIssue = {
+      itemKey: "section:phrases",
+      itemLabel: "section: phrases",
+      itemKind: "section",
+      severity: "critical",
+      code: "missing_info",
+      issue: "German table is missing Serbian phrases.",
+      suggestion: "Add 'Gde je kuhinja?' and 'Koliko je sati?'.",
+    };
+    const { kept, dropped } = dropNonActionableVerifierIssues([issue], [phrasesItem]);
+    expect(dropped).toHaveLength(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("keeps a real semantic mismatch on a phrases section", () => {
+    const issue: VerifierIssue = {
+      itemKey: "section:phrases",
+      itemLabel: "section: phrases",
+      itemKind: "section",
+      severity: "critical",
+      code: "semantic_mismatch",
+      issue: "German 'Wo ist das Bad?' does not mean Serbian 'Gde je kuhinja?'.",
+      suggestion: "Wo ist die Küche?",
+    };
+    const { kept, dropped } = dropNonActionableVerifierIssues([issue], [phrasesItem]);
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+
+  it("drops an AI demand to remove a multiple-choice help gloss", () => {
+    const item: VerifierInputItem = {
+      key: "test:test_u12_ex3_q01_preview_v4",
+      kind: "test",
+      label: "test test_u12_ex3_q01_preview_v4",
+      questionType: "multipleChoice",
+      serbian: "Expected Serbian answer: Zdravo.",
+      english: "Question (EN): Zdravo. (Hello.)",
+      german: "Question (DE): Zdravo. (Hallo.)",
+    };
+    const issue: VerifierIssue = {
+      itemKey: item.key,
+      itemLabel: item.label,
+      itemKind: "test",
+      severity: "critical",
+      code: "other",
+      issue:
+        "Help glosses on multipleChoice items must be removed. Only the Serbian stem/blank should remain.",
+      suggestion: "Remove the German question text entirely, as this is a multiple-choice item with a Serbian stem.",
+    };
+    const { kept, dropped } = dropNonActionableVerifierIssues([issue], [item]);
+    expect(dropped).toHaveLength(1);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("keeps a gloss whose German meaning does not match", () => {
+    const item: VerifierInputItem = {
+      key: "test:q1",
+      kind: "test",
+      label: "test q1",
+      questionType: "multipleChoice",
+      serbian: "Expected Serbian answer: Zdravo.",
+      english: "Question (EN): Zdravo.",
+      german: "Question (DE): Zdravo.",
+    };
+    const issue: VerifierIssue = {
+      itemKey: item.key,
+      itemLabel: item.label,
+      itemKind: "test",
+      severity: "critical",
+      code: "semantic_mismatch",
+      issue: "German gloss 'Auf Wiedersehen' does not mean the same as English gloss 'Hello'.",
+      suggestion: "Hallo",
+    };
+    const { kept, dropped } = dropNonActionableVerifierIssues([issue], [item]);
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+});
+
+function reportFrom(issues: VerifierIssue[]): VerifierReport {
+  return {
+    itemsChecked: 3,
+    issues,
+    criticals: issues.filter((issue) => issue.severity === "critical"),
+    warnings: [],
+    infos: [],
+    durationMs: 0,
+    provider: null,
+    model: null,
+    inputTokens: null,
+    outputTokens: null,
+    thinkingTokens: null,
+    estimatedCostUsd: null,
+    pass: "pass1",
+    checkedItemKeys: ["section:phrases", "test:q1", "section:dialogues"],
+  };
+}
+
+describe("mergeRepairVerifierReport", () => {
+  const items: VerifierInputItem[] = [
+    {
+      key: "section:phrases",
+      kind: "section",
+      label: "section: phrases",
+      serbian: "Gde je kuhinja?",
+      english: "Gde je kuhinja?",
+      german: "Wo ist die Küche?",
+    },
+    {
+      key: "test:q1",
+      kind: "test",
+      label: "test q1",
+      questionType: "translation",
+      serbian: "ponedeljak",
+      english: "Question (EN): Monday",
+      german: "Question (DE): Montag",
+    },
+  ];
+
+  it("keeps a previous AI finding on an item the repair did not change and drops a new one", () => {
+    const previous: VerifierIssue = {
+      itemKey: "test:q1",
+      itemLabel: "test q1",
+      itemKind: "test",
+      severity: "critical",
+      code: "semantic_mismatch",
+      issue: "German 'Dienstag' does not mean 'ponedeljak'.",
+      suggestion: "Montag",
+    };
+    const invented: VerifierIssue = {
+      itemKey: "test:q1",
+      itemLabel: "test q1",
+      itemKind: "test",
+      severity: "critical",
+      code: "other",
+      issue: "Help glosses on multipleChoice items must be removed.",
+      suggestion: "Remove the German question text entirely.",
+    };
+    const repaired: VerifierIssue = {
+      itemKey: "section:phrases",
+      itemLabel: "section: phrases",
+      itemKind: "section",
+      severity: "critical",
+      code: "semantic_mismatch",
+      issue: "German 'Bad' does not mean 'kuhinja'.",
+      suggestion: "Küche",
+    };
+    const merged = mergeRepairVerifierReport(
+      reportFrom([previous]),
+      reportFrom([invented, repaired]),
+      new Set(["section:phrases"]),
+      items
+    );
+    expect(merged.issues.map((issue) => issue.issue)).toEqual([
+      "German 'Bad' does not mean 'kuhinja'.",
+      "German 'Dienstag' does not mean 'ponedeljak'.",
+    ]);
+  });
+
+  it("does not carry a serbian-field false positive forward", () => {
+    const stale: VerifierIssue = {
+      itemKey: "section:dialogues",
+      itemLabel: "section: dialogues",
+      itemKind: "section",
+      severity: "critical",
+      code: "missing_info",
+      issue: "Serbian dialogue lines are missing from the 'serbian' field.",
+      suggestion: "Add 'Gde je moja soba?' to the 'serbian' field.",
+    };
+    const merged = mergeRepairVerifierReport(
+      reportFrom([stale]),
+      reportFrom([]),
+      new Set(["section:phrases"]),
+      [
+        ...items,
+        {
+          key: "section:dialogues",
+          kind: "section",
+          label: "section: dialogues",
+          serbian: "Gde je moja soba?",
+          english: "| Serbian | English |\n| Gde je moja soba? | Where is my room? |",
+          german: "| Serbian | German |\n| Gde je moja soba? | Wo ist mein Zimmer? |",
+        },
+      ]
+    );
+    expect(merged.criticals).toHaveLength(0);
   });
 });
 

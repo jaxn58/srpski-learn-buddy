@@ -361,6 +361,105 @@ function isPreservedSerbianLemma(token: string, item: VerifierInputItem): boolea
   return false;
 }
 
+const DETERMINISTIC_VERIFIER_CODES = new Set([
+  "vocab_stacked_meanings",
+  "test_missing_fill_in_cue",
+  "test_untranslated_fill_in_cue",
+  "test_missing_context_gloss",
+  "test_untranslated_context_gloss",
+  "test_unwanted_parenthetical_gloss",
+  "test_untranslated_learner_prompt",
+]);
+
+/**
+ * The model sometimes asks to add Serbian that is already in the DE table
+ * into the verifier's `serbian` field. That field is rebuilt from the English
+ * source on every run. The translator cannot edit it, so the finding cannot
+ * converge.
+ */
+function complainsAboutSerbianAnchorField(issue: VerifierIssue): boolean {
+  if (issue.itemKind !== "section") return false;
+  const blob = `${issue.issue} ${issue.suggestion ?? ""}`;
+  return /serbian[''"`]?\s+field/i.test(blob);
+}
+
+function extractContentQuotes(text: string): string[] {
+  const out: string[] = [];
+  const re = /['"«“]([^'"»”\n]{2,80})['"»”]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(String(text || "")))) {
+    const span = m[1].replace(/\s+/g, " ").trim();
+    if (span) out.push(span);
+  }
+  return out;
+}
+
+function headedSerbianColumnText(markdown: string): string {
+  return extractHeadedSerbianColumnCells(markdown).join("\n");
+}
+
+function columnContainsSpan(columnText: string, span: string): boolean {
+  const needle = span.replace(/\s+/g, " ").trim();
+  if (!needle) return false;
+  return columnText.split("\n").some((cell) => {
+    const hay = cell.replace(/\s+/g, " ").trim();
+    return hay === needle || hay.includes(needle);
+  });
+}
+
+/**
+ * Phrases and dialogue lines are often full sentences. The lemma tokenizer
+ * drops them because of ? and . The quotes are still the Serbian column.
+ */
+function quotesAlreadyInSerbianColumn(
+  issue: VerifierIssue,
+  item: VerifierInputItem | undefined
+): boolean {
+  if (!item || issue.itemKind !== "section" || item.kind !== "section") return false;
+  if (issue.code !== "missing_info") return false;
+  const spans = extractContentQuotes(`${issue.issue} ${issue.suggestion ?? ""}`);
+  if (spans.length === 0) return false;
+  const columns = [headedSerbianColumnText(item.german), headedSerbianColumnText(item.english)]
+    .filter(Boolean)
+    .join("\n");
+  if (!columns.trim()) return false;
+  return spans.every((span) => columnContainsSpan(columns, span));
+}
+
+const SERBIAN_STEM_EXERCISE_TYPES = new Set(["multipleChoice", "dialogue", "fillInBlank"]);
+
+/**
+ * Gloss policy for Serbian-stem exercises belongs to the deterministic
+ * checker. An AI finding that only restates "remove the gloss / remove the
+ * German question" is not a new translation defect, and retrying it
+ * regenerates the whole test category.
+ */
+function isAiGlossPolicyComplaint(
+  issue: VerifierIssue,
+  item: VerifierInputItem | undefined
+): boolean {
+  if (DETERMINISTIC_VERIFIER_CODES.has(issue.code)) return false;
+  if (!item || issue.itemKind !== "test" || item.kind !== "test") return false;
+  const qType = String(item.questionType ?? "").trim();
+  if (!SERBIAN_STEM_EXERCISE_TYPES.has(qType)) return false;
+  const blob = `${issue.issue} ${issue.suggestion ?? ""}`;
+  const demandsRemoval =
+    /help gloss/i.test(blob) ||
+    (/parenthetical/i.test(blob) && /gloss|remove/i.test(blob)) ||
+    /remove the german question/i.test(blob) ||
+    /only the serbian stem/i.test(blob) ||
+    (/must be removed/i.test(blob) && /gloss|question/i.test(blob));
+  if (!demandsRemoval) return false;
+  if (
+    issue.code === "semantic_mismatch" &&
+    /\b(does not mean|wrong meaning|not the same meaning|meaning mismatch)\b/i.test(blob) &&
+    !/must be removed|remove the german question/i.test(blob)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function shouldDropVocabSectionMissingInfo(
   issue: VerifierIssue,
   item: VerifierInputItem | undefined
@@ -407,6 +506,31 @@ export function dropAiMissingInfoThatRepeatsVocabularySerbian(
     } else {
       kept.push(issue);
     }
+  }
+  return { kept, dropped };
+}
+
+/**
+ * AI findings that a retry cannot settle: the Serbian anchor field is not
+ * stored German, and gloss removal on Serbian-stem exercises is already a
+ * deterministic check. Real semantic mismatches stay.
+ */
+export function dropNonActionableVerifierIssues(
+  issues: VerifierIssue[],
+  items: VerifierInputItem[]
+): { kept: VerifierIssue[]; dropped: VerifierIssue[] } {
+  const byKey = new Map(items.map((it) => [it.key, it]));
+  const kept: VerifierIssue[] = [];
+  const dropped: VerifierIssue[] = [];
+  for (const issue of issues) {
+    const item = byKey.get(issue.itemKey);
+    const drop =
+      shouldDropVocabSectionMissingInfo(issue, item) ||
+      complainsAboutSerbianAnchorField(issue) ||
+      quotesAlreadyInSerbianColumn(issue, item) ||
+      isAiGlossPolicyComplaint(issue, item);
+    if (drop) dropped.push(issue);
+    else kept.push(issue);
   }
   return { kept, dropped };
 }
@@ -818,7 +942,7 @@ function buildVerifierUserPayload(items: VerifierInputItem[]): string {
     "- A fill-in, a dialogue, or a multiple-choice item whose stem is Serbian is sent as learner glosses only. That stem stays Serbian on purpose. Do not report semantic_mismatch because the question is Serbian, and do not suggest a German sentence in its place. Judge only whether the German learner gloss means the same as the English gloss.",
     "- Parenthetical glosses on other test items are removed from this payload. The deterministic checker already applied the gloss contract (fill-in keeps a German context gloss; multiple choice and dialogue do not). Do not report a missing, extra, or unwanted gloss.",
     "- Short fill-in source cues like (Milch) are not sentence-level glosses and are also absent here.",
-    "- vocabulary section: the Serbian table column stays Serbian on DE. Do not report missing_info for lemmas that are still present in the German table's Serbian column.",
+    "- Sections with a Serbian table column (vocabulary, phrases, dialogues, grammar) keep that column in Serbian on DE. Those cells are already in the serbian field. Do not report missing_info for them, and do not ask to add Serbian text to the serbian field.",
     "OUTPUT: return ONLY a JSON object {\"issues\":[...]} with no markdown.",
     "Each issue: {key, severity, code, issue, suggestion?}. Keep issue text under 200 characters.",
     "Omit items with no problem. Do not put unescaped double quotes inside issue/suggestion strings.",
@@ -1019,14 +1143,14 @@ export async function verifySerbianGermanAlignment(
       `Deterministic checks still apply.`;
   }
 
-  const vocabMissing = dropAiMissingInfoThatRepeatsVocabularySerbian(aiIssues, usable);
-  if (vocabMissing.dropped.length > 0) {
+  const actionable = dropNonActionableVerifierIssues(aiIssues, usable);
+  if (actionable.dropped.length > 0) {
     console.log(
-      `[verifier] dropped ${vocabMissing.dropped.length} AI missing_info issue(s) that repeat the vocabulary Serbian column: ` +
-        vocabMissing.dropped.map((d) => `${d.itemKey}/${d.code}`).join("; ")
+      `[verifier] dropped ${actionable.dropped.length} non-actionable AI issue(s): ` +
+        actionable.dropped.map((d) => `${d.itemKey}/${d.code}`).join("; ")
     );
   }
-  const allIssues: VerifierIssue[] = [...deterministicIssues, ...vocabMissing.kept];
+  const allIssues: VerifierIssue[] = [...deterministicIssues, ...actionable.kept];
 
   const criticals = allIssues.filter((i) => i.severity === "critical");
   const warnings = allIssues.filter((i) => i.severity === "warning");
@@ -1051,30 +1175,89 @@ export async function verifySerbianGermanAlignment(
   };
 }
 
+function cleanTableCell(cell: string): string {
+  return String(cell || "")
+    .replace(/\*+/g, "")
+    .replace(/`/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Cells under a literal "Serbian" header. Unlike the diacritic heuristic,
+ * this keeps phrases such as "Gde je kuhinja?" that have no č/ć/đ/š/ž.
+ */
+export function extractHeadedSerbianColumnCells(markdown: string): string[] {
+  const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
+  const cells: string[] = [];
+  let serbianIdx: number | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) {
+      serbianIdx = null;
+      continue;
+    }
+    if (/^\|[\s:|-]+\|$/.test(trimmed)) continue;
+    const rowCells = trimmed
+      .slice(1, -1)
+      .split("|")
+      .map((c) => cleanTableCell(c));
+    const headerIdx = rowCells.findIndex((c) => /^serbian$/i.test(c));
+    if (headerIdx >= 0) {
+      serbianIdx = headerIdx;
+      continue;
+    }
+    if (serbianIdx != null && rowCells[serbianIdx]) {
+      cells.push(rowCells[serbianIdx]);
+    }
+  }
+  return cells;
+}
+
 /**
  * Extracts Serbian content lines from a Markdown section.
- * Used to build a focused Serbian anchor for the verifier — passing the
- * full markdown is noisy; pulling only embedded SR (Cyrillic + common
- * Latin-transliterated words + table cells) is more precise.
+ * Headed Serbian columns come first, in full, so the verifier anchor matches
+ * the column the German table is required to keep. Prose Serbian (Cyrillic,
+ * diacritics) is appended after that. The payload truncates at 4000 chars;
+ * column cells are preferred over the old 80-line diacritic sample.
  */
 export function extractSerbianFromMarkdown(md: string): string {
   const text = String(md ?? "").replace(/\r\n/g, "\n");
   if (!text.trim()) return "";
 
   const lines = text.split("\n");
-  const out: string[] = [];
+  const prose: string[] = [];
 
   const latinSrPattern =
     /\b(Zdravo|Hvala|Molim|Dobar|Dobra|Dobro|Jutro|Veče|Kako|Šta|Ko|Koji|Koja|Koje|Ja sam|Vi ste|Ti si|On je|Ona je|Oni su|ne|da|ali|molim|Moje ime|Moj|Moja|Moje|volim|hoću|mogu|imam|sok|voda|hleb|mleko|knjiga|škola|studentski|sada|juče|sutra|danas|dobro došli)\b/;
 
+  let inHeadedSerbianTable = false;
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed) continue;
+    if (!trimmed) {
+      inHeadedSerbianTable = false;
+      continue;
+    }
     if (trimmed.startsWith("#")) continue;
     if (trimmed.startsWith("|---") || /^\|[\s:|-]+\|/.test(trimmed)) continue;
 
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const rowCells = trimmed
+        .slice(1, -1)
+        .split("|")
+        .map((c) => cleanTableCell(c));
+      if (rowCells.some((c) => /^serbian$/i.test(c))) {
+        inHeadedSerbianTable = true;
+        continue;
+      }
+      if (inHeadedSerbianTable) continue;
+    } else {
+      inHeadedSerbianTable = false;
+    }
+
     if (/\p{Script=Cyrillic}/u.test(trimmed)) {
-      out.push(trimmed);
+      prose.push(trimmed);
       continue;
     }
 
@@ -1084,19 +1267,90 @@ export function extractSerbianFromMarkdown(md: string): string {
         (c) => /\p{Script=Cyrillic}/u.test(c) || latinSrPattern.test(c) || /[čćžšđČĆŽŠĐ]/.test(c)
       );
       if (srCells.length > 0) {
-        out.push(srCells.join(" | "));
+        prose.push(srCells.join(" | "));
         continue;
       }
     }
 
     if (/[čćžšđČĆŽŠĐ]/.test(trimmed) && !/[äöüßÄÖÜ]/.test(trimmed)) {
       if (latinSrPattern.test(trimmed) || /\b(je|su|sam|si|smo|ste|nije)\b/.test(trimmed)) {
-        out.push(trimmed);
+        prose.push(trimmed);
       }
     }
   }
 
-  return out.slice(0, 80).join("\n");
+  const combined: string[] = [];
+  const seen = new Set<string>();
+  for (const line of [...extractHeadedSerbianColumnCells(text), ...prose]) {
+    const t = line.trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    combined.push(t);
+  }
+
+  const MAX_ANCHOR_CHARS = 4000;
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of combined) {
+    const next = used + line.length + (kept.length > 0 ? 1 : 0);
+    if (kept.length > 0 && next > MAX_ANCHOR_CHARS) break;
+    kept.push(line);
+    used = next;
+  }
+  return kept.join("\n");
+}
+
+function issueIdentity(issue: VerifierIssue): string {
+  return `${issue.itemKey}\n${issue.code}\n${issue.severity}\n${issue.issue}`;
+}
+
+/**
+ * After a repair, the saved-text check replaces findings on items that were
+ * rewritten. Items the repair did not touch keep the previous AI findings.
+ * A fresh model sample must not introduce a new critical on unchanged text.
+ * Deterministic findings always come from the saved text.
+ */
+export function mergeRepairVerifierReport(
+  before: VerifierReport,
+  saved: VerifierReport,
+  retriedKeys: ReadonlySet<string>,
+  items: VerifierInputItem[]
+): VerifierReport {
+  const filteredBefore = dropNonActionableVerifierIssues(before.issues, items).kept;
+  const isDeterministic = (issue: VerifierIssue) => DETERMINISTIC_VERIFIER_CODES.has(issue.code);
+  const savedDeterministic = saved.issues.filter(isDeterministic);
+  const savedAiOnRetried = saved.issues.filter(
+    (issue) => !isDeterministic(issue) && retriedKeys.has(issue.itemKey)
+  );
+  const beforeAiOnUntouched = filteredBefore.filter(
+    (issue) => !isDeterministic(issue) && !retriedKeys.has(issue.itemKey)
+  );
+  const suppressed = saved.issues.filter(
+    (issue) => !isDeterministic(issue) && !retriedKeys.has(issue.itemKey)
+  );
+  if (suppressed.length > 0) {
+    console.log(
+      `[verifier] suppressed ${suppressed.length} new AI issue(s) on items this repair did not change: ` +
+        suppressed.map((d) => `${d.itemKey}/${d.code}`).join("; ")
+    );
+  }
+
+  const seen = new Set<string>();
+  const issues: VerifierIssue[] = [];
+  for (const issue of [...savedDeterministic, ...savedAiOnRetried, ...beforeAiOnUntouched]) {
+    const id = issueIdentity(issue);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    issues.push(issue);
+  }
+
+  return {
+    ...saved,
+    issues,
+    criticals: issues.filter((issue) => issue.severity === "critical"),
+    warnings: issues.filter((issue) => issue.severity === "warning"),
+    infos: issues.filter((issue) => issue.severity === "info"),
+  };
 }
 
 /**

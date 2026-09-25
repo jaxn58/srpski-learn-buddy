@@ -531,6 +531,15 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       issue: iss.issue,
       suggestion: iss.suggestion,
     }));
+    const priorIssues = allIssues.map((iss) => ({
+      itemKey: iss.itemKey,
+      itemKind: iss.itemKind,
+      itemLabel: iss.itemLabel,
+      severity: iss.severity,
+      code: iss.code,
+      issue: iss.issue,
+      suggestion: iss.suggestion,
+    }));
 
     if (payloadIssues.length === 0) {
       toast.error("No valid issues selected.");
@@ -550,6 +559,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
         unitNumber: selectedUnit,
         confirm: confirmStr,
         selectedIssues: payloadIssues,
+        priorIssues,
         preferredProvider: translateProvider,
         targetReleaseStatus: retryTargetReleaseStatus,
         previewUnitVersion:

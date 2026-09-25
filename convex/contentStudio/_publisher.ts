@@ -8,6 +8,7 @@ import {
   verifySerbianGermanAlignment,
   formatRetryFeedback,
   applyDeterministicVerifierSuggestions,
+  mergeRepairVerifierReport,
   type VerifierReport,
   type VerifierIssue,
 } from "./_verifier";
@@ -649,6 +650,7 @@ export const translatePublishedUnitEnToDe = action({
     let verifierReport: VerifierReport | null = null;
     let retryAttempted = false;
     let savedTextWasRepaired = false;
+    let retriedKeys = new Set<string>();
 
     try {
       verifierReport = await verifySerbianGermanAlignment(ctx, {
@@ -702,7 +704,7 @@ export const translatePublishedUnitEnToDe = action({
 
       const criticalsForAi: VerifierIssue[] = det.remainingIssues;
       const feedback = formatRetryFeedback(criticalsForAi);
-      const retriedKeys = new Set<string>(det.patchedKeys);
+      retriedKeys = new Set<string>(det.patchedKeys);
 
       if (feedback.metadata) {
         try {
@@ -831,9 +833,10 @@ export const translatePublishedUnitEnToDe = action({
       savedTextWasRepaired = retriedKeys.size > 0;
     }
 
-    // The repair pass replaces text. The first check described the old text
-    // and is not the report. One new check of the whole saved unit is.
-    if (savedTextWasRepaired) {
+    // The repair rewrites some items. Recheck the saved unit, then keep
+    // earlier AI findings only for items this repair did not change.
+    if (savedTextWasRepaired && verifierReport) {
+      const reportBeforeRepair = verifierReport;
       const savedItems = buildVerifierItems({
         source: source as any,
         serbianContextBlock,
@@ -843,11 +846,17 @@ export const translatePublishedUnitEnToDe = action({
         testsDe,
       });
       try {
-        verifierReport = await verifySerbianGermanAlignment(ctx, {
+        const savedReport = await verifySerbianGermanAlignment(ctx, {
           items: savedItems,
           preferredProvider: primaryProvider,
           pass: "pass1",
         });
+        verifierReport = mergeRepairVerifierReport(
+          reportBeforeRepair,
+          savedReport,
+          retriedKeys,
+          savedItems
+        );
         console.log(
           `[Translation Verifier] Unit ${unitNumber}: saved text checked, ` +
             `${verifierReport.itemsChecked} items, ` +
@@ -995,6 +1004,27 @@ export const retryDeTranslationForSelectedIssues = action({
         issue: v.string(),
         suggestion: v.optional(v.string()),
       })
+    ),
+    // Findings already shown for this unit. After the retry, AI findings on
+    // items that were not rewritten are carried forward instead of replaced
+    // by a fresh sample. Optional so older clients still run.
+    priorIssues: v.optional(
+      v.array(
+        v.object({
+          itemKey: v.string(),
+          itemKind: v.union(
+            v.literal("metadata"),
+            v.literal("vocabulary"),
+            v.literal("test"),
+            v.literal("section")
+          ),
+          itemLabel: v.string(),
+          severity: v.union(v.literal("critical"), v.literal("warning"), v.literal("info")),
+          code: v.string(),
+          issue: v.string(),
+          suggestion: v.optional(v.string()),
+        })
+      )
     ),
     preferredProvider: v.optional(v.union(v.literal("gemini"), v.literal("openai"))),
     targetReleaseStatus: v.union(v.literal("preview"), v.literal("published")),
@@ -1265,8 +1295,8 @@ export const retryDeTranslationForSelectedIssues = action({
             vocabularyDe: vocabDe as any,
           });
 
-    // The retried items are already in the saved unit. The report is one
-    // check of that unit, not a remainder of the previous findings.
+    // Recheck the saved unit. AI findings on items this retry did not rewrite
+    // stay as they were; a new sample must not add criticals there.
     let verifierReport: VerifierReport | null = null;
     try {
       const items = buildVerifierItems({
@@ -1277,11 +1307,40 @@ export const retryDeTranslationForSelectedIssues = action({
         vocabDe,
         testsDe,
       });
-      verifierReport = await verifySerbianGermanAlignment(ctx, {
+      const savedReport = await verifySerbianGermanAlignment(ctx, {
         items,
         preferredProvider: primaryProvider,
         pass: "pass1",
       });
+      const priorIssues = Array.isArray(args.priorIssues) ? args.priorIssues : [];
+      const beforeReport: VerifierReport = {
+        itemsChecked: items.length,
+        issues: priorIssues.map((issue) => ({
+          itemKey: issue.itemKey,
+          itemLabel: issue.itemLabel,
+          itemKind: issue.itemKind,
+          severity: issue.severity,
+          code: issue.code,
+          issue: issue.issue,
+          suggestion: issue.suggestion,
+        })),
+        criticals: [],
+        warnings: [],
+        infos: [],
+        durationMs: 0,
+        provider: null,
+        model: null,
+        inputTokens: null,
+        outputTokens: null,
+        thinkingTokens: null,
+        estimatedCostUsd: null,
+        pass: "pass1",
+        checkedItemKeys: [],
+      };
+      verifierReport =
+        priorIssues.length > 0
+          ? mergeRepairVerifierReport(beforeReport, savedReport, retriedKeys, items)
+          : savedReport;
       console.log(
         `[Manual Retry Verifier] Unit ${unitNumber}: saved text checked, ` +
         `${verifierReport.itemsChecked} items, ` +
