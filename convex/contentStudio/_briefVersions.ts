@@ -34,7 +34,7 @@
  */
 import { v } from "convex/values";
 import { mutation, query, internalQuery, type QueryCtx } from "../_generated/server";
-import { requireSuperadmin } from "./_shared";
+import { noteDraftSnapshotInserted, requireSuperadmin } from "./_shared";
 import { collectSectionQaOverridesFromExisting } from "../../shared/contentStudio/sectionQaOverrides";
 import { extractSection, replaceSection, SECTION_LABELS, type SectionId } from "../../scripts/markdownParser/sectionUtils";
 import { validateMarkdownStructure, parseMarkdownToUnitPackage } from "../../scripts/markdownParser/parser";
@@ -515,6 +515,7 @@ export const refuseSectionRevision = mutation({
       sectionRevisionRefusedSection: args.section,
       createdAt: now,
     });
+    await noteDraftSnapshotInserted(ctx, args.draftId);
 
     // Content changed (a section was rolled back) — clear findings the same
     // way runSectionRevise does, so stale issues from the now-discarded

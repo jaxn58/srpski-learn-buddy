@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, internalMutation, query } from "../_generated/server";
-import { requireSuperadmin } from "./_shared";
+import { noteDraftSnapshotInserted, requireSuperadmin } from "./_shared";
 import type { DraftStatus } from "./_shared";
 import {
   CS_PROMPT_KEYS,
@@ -1466,6 +1466,7 @@ export const saveUnitPackageSnapshot = mutation({
       sectionRevisionInstruction: args.sectionRevisionInstruction,
       createdAt: now,
     });
+    await noteDraftSnapshotInserted(ctx, args.draftId);
 
     // Validator Memory auto-capture bookkeeping (set inside the replaceFindings
     // block below, consumed by the final draft patch at the end of this handler).
@@ -4046,11 +4047,68 @@ export const backfillValidatorMemoryApplyInTranslator = internalMutation({
   },
 });
 
+/**
+ * Count snapshots per draft without reading a whole unit package in the
+ * metrics query. Each step stays on a few documents so it stays under the
+ * 16MB byte limit, then schedules the next step.
+ */
+export const backfillDraftSnapshotCounts = internalMutation({
+  args: {
+    draftCursor: v.optional(v.union(v.string(), v.null())),
+    draftId: v.optional(v.id("contentDrafts")),
+    snapCursor: v.optional(v.union(v.string(), v.null())),
+    runningCount: v.optional(v.number()),
+  },
+  returns: v.object({
+    done: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    if (!args.draftId) {
+      const page = await ctx.db.query("contentDrafts").paginate({
+        cursor: args.draftCursor ?? null,
+        numItems: 1,
+      });
+      const draft = page.page[0];
+      if (!draft) return { done: true };
+      if (typeof draft.snapshotCount === "number") {
+        if (page.isDone) return { done: true };
+        await ctx.scheduler.runAfter(0, internal.contentStudio._mutations.backfillDraftSnapshotCounts, {
+          draftCursor: page.continueCursor,
+        });
+        return { done: false };
+      }
+      await ctx.scheduler.runAfter(0, internal.contentStudio._mutations.backfillDraftSnapshotCounts, {
+        draftId: draft._id,
+        draftCursor: page.isDone ? null : page.continueCursor,
+        snapCursor: null,
+        runningCount: 0,
+      });
+      return { done: false };
+    }
 
+    const snaps = await ctx.db
+      .query("contentDraftSnapshots")
+      .withIndex("by_draft", (q) => q.eq("draftId", args.draftId!))
+      .paginate({
+        cursor: args.snapCursor ?? null,
+        numItems: 4,
+      });
+    const runningCount = (args.runningCount ?? 0) + snaps.page.length;
+    if (!snaps.isDone) {
+      await ctx.scheduler.runAfter(0, internal.contentStudio._mutations.backfillDraftSnapshotCounts, {
+        draftId: args.draftId,
+        draftCursor: args.draftCursor ?? null,
+        snapCursor: snaps.continueCursor,
+        runningCount,
+      });
+      return { done: false };
+    }
 
-
-
-
-
-
-
+    await ctx.db.patch(args.draftId, { snapshotCount: runningCount });
+    if (!args.draftCursor) return { done: true };
+    await ctx.scheduler.runAfter(0, internal.contentStudio._mutations.backfillDraftSnapshotCounts, {
+      draftCursor: args.draftCursor,
+    });
+    return { done: false };
+  },
+});

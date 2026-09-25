@@ -221,15 +221,6 @@ export const getStudioMetrics = query({
     await requireSuperadmin(ctx);
 
     const drafts = await ctx.db.query("contentDrafts").order("desc").take(200);
-    const draftIdSet = new Set(drafts.map((d: any) => String(d._id)));
-
-    const snaps = await ctx.db.query("contentDraftSnapshots").order("desc").take(2000);
-    const snapCounts = new Map<string, number>();
-    for (const s of snaps as any[]) {
-      const did = String(s?.draftId || "");
-      if (!did || !draftIdSet.has(did)) continue;
-      snapCounts.set(did, (snapCounts.get(did) ?? 0) + 1);
-    }
 
     const statuses: Record<string, number> = {
       draft: 0,
@@ -258,10 +249,11 @@ export const getStudioMetrics = query({
 
     const revisions: number[] = [];
     for (const d of drafts as any[]) {
-      const c = snapCounts.get(String(d._id)) ?? 0;
-      if (c > 0) revisions.push(Math.max(0, c - 1));
+      const c = d?.snapshotCount;
+      if (typeof c !== "number" || c <= 0) continue;
+      revisions.push(Math.max(0, c - 1));
     }
-    const avgRevisions = revisions.length ? revisions.reduce((a, b) => a + b, 0) / revisions.length : 0;
+    const avgRevisions = revisions.length ? revisions.reduce((a, b) => a + b, 0) / revisions.length : null;
 
     return {
       windowDrafts: drafts.length,

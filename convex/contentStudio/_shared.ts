@@ -40,6 +40,20 @@ export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   return user;
 }
 
+/**
+ * After a snapshot insert, advance the draft's stored count.
+ * A missing count means the backfill has not finished this draft yet.
+ * Setting it to 1 here would hide the older snapshots.
+ */
+export async function noteDraftSnapshotInserted(
+  ctx: MutationCtx,
+  draftId: Id<"contentDrafts">
+): Promise<void> {
+  const draft = await ctx.db.get(draftId);
+  if (!draft || typeof draft.snapshotCount !== "number") return;
+  await ctx.db.patch(draftId, { snapshotCount: draft.snapshotCount + 1 });
+}
+
 export async function requireSuperadmin(ctx: QueryCtx | MutationCtx): Promise<Doc<"users">> {
   const user = await getCurrentUser(ctx);
   if (!user || user.role !== "superadmin") {

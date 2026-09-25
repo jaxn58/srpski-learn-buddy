@@ -262,6 +262,10 @@ export const contentStudioTables = {
     createdAt: v.number(),
     updatedAt: v.number(),
     lastSnapshotId: v.optional(v.id("contentDraftSnapshots")),
+    // Count of contentDraftSnapshots. Metrics read this instead of the
+    // snapshot documents: those hold full unit packages and exceed the 16MB
+    // per-query byte limit when scanned in bulk.
+    snapshotCount: v.optional(v.number()),
     // Snapshot the Lector last judged. When it differs from lastSnapshotId the
     // content changed after the audit, so the "Lector passed" verdict is stale.
     lastAuditedSnapshotId: v.optional(v.id("contentDraftSnapshots")),
