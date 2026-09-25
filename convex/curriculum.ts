@@ -264,16 +264,6 @@ export const getUnitPlan = query({
 const CEFR_LADDER = ["A1.1", "A1.2", "A2.1", "A2.2", "B1"] as const;
 type CefrLevel = (typeof CEFR_LADDER)[number];
 
-const levelCoverageValidator = v.object({
-  level: v.string(),
-  covered: v.array(v.string()),
-  missing: v.array(v.string()),
-  status: v.union(v.literal("open"), v.literal("nearly_complete"), v.literal("complete")),
-  note: v.string(),
-  computedAt: v.number(),
-  unitNumber: v.number(),
-});
-
 /**
  * Level of every module, chronologically: an explicitly set level wins; an
  * unset module takes the level after the previous module's level (capped at
@@ -330,12 +320,6 @@ export const getUnitContext = query({
     cefrLevel: curriculumCefrLevelValidator,
     levelSource: v.union(v.literal("module"), v.literal("position")),
     moduleTitleEn: v.optional(v.string()),
-    /** Last coverage judgement stored on the module (null until the first briefing run). */
-    moduleCoverage: v.union(v.null(), levelCoverageValidator),
-    /** Next free module number, for the "create next module" shortcut. */
-    nextModuleNumber: v.number(),
-    /** Level the next module would get automatically. */
-    nextModuleLevel: curriculumCefrLevelValidator,
     previouslyTaught: v.array(taughtUnitValidator),
     plannedHint: v.union(
       v.null(),
@@ -370,11 +354,6 @@ export const getUnitContext = query({
     const resolved = levels.get(args.moduleNumber) ?? { level: CEFR_LADDER[0], source: "position" as const };
     const cefrLevel: CefrLevel = resolved.level;
     const levelSource = resolved.source;
-
-    const maxModuleNumber = Math.max(0, ...modules.map((m) => m.moduleNumber ?? 0), args.moduleNumber);
-    const nextModuleNumber = maxModuleNumber + 1;
-    const nextLevels = resolveModuleLevels([...levelInput, { moduleNumber: nextModuleNumber, cefrLevel: undefined }]);
-    const nextModuleLevel: CefrLevel = nextLevels.get(nextModuleNumber)?.level ?? cefrLevel;
 
     // 2. What earlier units already taught. Newest briefing per unit wins,
     //    then published metadata, then the plan.
@@ -432,9 +411,6 @@ export const getUnitContext = query({
       cefrLevel,
       levelSource,
       moduleTitleEn: moduleRow?.titleEn ?? undefined,
-      moduleCoverage: (moduleRow as any)?.levelCoverage ?? null,
-      nextModuleNumber,
-      nextModuleLevel,
       previouslyTaught,
       plannedHint,
       nextPlannedHints,
@@ -471,5 +447,113 @@ export const listCurriculumUnits = query({
         strand: u.strand,
         titleEn: u.titleEn,
       }));
+  },
+});
+
+
+function isPublishedForLearners(row: { releaseStatus?: string; isOffline?: boolean }): boolean {
+  if (row.isOffline === true) return false;
+  if (row.releaseStatus === "offline" || row.releaseStatus === "preview") return false;
+  return row.releaseStatus === undefined || row.releaseStatus === "published";
+}
+
+/**
+ * For each module, the learning goals of its level and whether a learner can
+ * open the unit that introduces each goal. A briefing does not count.
+ * Preview is not visible to learners.
+ */
+export const getModuleLearningOffer = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      moduleNumber: v.number(),
+      level: curriculumCefrLevelValidator,
+      items: v.array(
+        v.object({
+          canDoId: v.string(),
+          statementEn: v.string(),
+          statementDe: v.optional(v.string()),
+          unitNumber: v.number(),
+          unitTitleEn: v.string(),
+          unitTitleDe: v.optional(v.string()),
+          offeredEn: v.boolean(),
+          offeredDe: v.boolean(),
+        }),
+      ),
+    }),
+  ),
+  handler: async (ctx) => {
+    await requireSuperadmin(ctx);
+
+    const moduleRows = await ctx.db.query("moduleMetadata").collect();
+    const modules: Array<{ moduleNumber: number; cefrLevel?: string }> = [];
+    for (const row of moduleRows) {
+      if (typeof row.moduleNumber !== "number") continue;
+      const existing = modules.find((module) => module.moduleNumber === row.moduleNumber);
+      if (!existing) {
+        modules.push({
+          moduleNumber: row.moduleNumber,
+          ...(row.cefrLevel ? { cefrLevel: row.cefrLevel } : {}),
+        });
+        continue;
+      }
+      if (!existing.cefrLevel && row.cefrLevel) existing.cefrLevel = row.cefrLevel;
+    }
+    const levels = resolveModuleLevels(modules);
+
+    const planUnits = await ctx.db
+      .query("curriculumUnits")
+      .withIndex("by_active_unit", (q) => q.eq("isActive", true))
+      .collect();
+    const unitByNumber = new Map(planUnits.map((unit) => [unit.unitNumber, unit]));
+
+    const canDos = (
+      await Promise.all(
+        CEFR_LADDER.map((level) =>
+          ctx.db
+            .query("curriculumCanDo")
+            .withIndex("by_level", (q) => q.eq("cefrLevel", level))
+            .collect(),
+        ),
+      )
+    )
+      .flat()
+      .filter((row) => row.isActive);
+
+    const metadata = await ctx.db.query("unitMetadata").collect();
+    const offered = new Set<string>();
+    for (const row of metadata) {
+      if (!isPublishedForLearners(row)) continue;
+      if (row.language !== "en" && row.language !== "de") continue;
+      offered.add(`${row.unitNumber}:${row.language}`);
+    }
+
+    return modules
+      .map((module) => {
+        const level = levels.get(module.moduleNumber)?.level;
+        if (!level) return null;
+        const items = canDos
+          .filter((canDo) => canDo.cefrLevel === level)
+          .map((canDo) => {
+            const unitNumber = canDo.targetUnits[0];
+            const plan = unitNumber === undefined ? undefined : unitByNumber.get(unitNumber);
+            if (unitNumber === undefined || !plan || plan.moduleNumber !== module.moduleNumber) return null;
+            return {
+              canDoId: canDo.canDoId,
+              statementEn: canDo.statementEn,
+              ...(canDo.statementDe ? { statementDe: canDo.statementDe } : {}),
+              unitNumber,
+              unitTitleEn: plan.titleEn,
+              ...(plan.titleDe ? { unitTitleDe: plan.titleDe } : {}),
+              offeredEn: offered.has(`${unitNumber}:en`),
+              offeredDe: offered.has(`${unitNumber}:de`),
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null)
+          .sort((a, b) => a.unitNumber - b.unitNumber || a.canDoId.localeCompare(b.canDoId));
+        return { moduleNumber: module.moduleNumber, level, items };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      .sort((a, b) => a.moduleNumber - b.moduleNumber);
   },
 });

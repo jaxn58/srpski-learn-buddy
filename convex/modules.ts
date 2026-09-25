@@ -102,36 +102,6 @@ const cefrLevelValidator = v.union(
   v.literal("B1"),
 );
 
-/**
- * Stores the Briefing Assistant's judgement of how far a module's level is
- * covered. Called from the assistant action after each run; not exposed to
- * clients.
- */
-export const setModuleLevelCoverage = internalMutation({
-  args: {
-    moduleNumber: v.number(),
-    coverage: v.object({
-      level: v.string(),
-      covered: v.array(v.string()),
-      missing: v.array(v.string()),
-      status: v.union(v.literal("open"), v.literal("nearly_complete"), v.literal("complete")),
-      note: v.string(),
-      computedAt: v.number(),
-      unitNumber: v.number(),
-    }),
-  },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    const moduleRow = await ctx.db
-      .query("moduleMetadata")
-      .filter((q) => q.eq(q.field("moduleNumber"), args.moduleNumber))
-      .first();
-    if (!moduleRow) return false;
-    await ctx.db.patch(moduleRow._id, { levelCoverage: args.coverage });
-    return true;
-  },
-});
-
 // Insert module metadata (migration tooling only).
 // SECURITY: was a public mutation allowing anyone to write module metadata.
 // Now internal -- run via `npx convex run`.

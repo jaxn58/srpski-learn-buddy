@@ -33,8 +33,6 @@ export interface BriefAssistantProps {
   onApply: (briefText: string) => void;
   /** Title/description suggestions from the assistant (only applied by the parent when its fields are empty). */
   onSuggestMeta?: (meta: { title?: string; description?: string }) => void;
-  /** The assistant's judgement of how far the module's level is covered after this unit. */
-  onCoverage?: (coverage: LevelCoverageShape) => void;
   disabled?: boolean;
   /** Hide the internal title/subtitle row when the parent already labels the input. */
   hideHeader?: boolean;
@@ -42,17 +40,9 @@ export interface BriefAssistantProps {
 
 type Question = { id: string; question: string; kind: "text" | "choice"; options?: string[]; fieldId?: string };
 
-export type LevelCoverageShape = {
-  level: string;
-  covered: string[];
-  missing: string[];
-  status: "open" | "nearly_complete" | "complete";
-  note: string;
-};
-
 const I18N = "admin.contentStudio.assistant";
 
-export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply, onSuggestMeta, onCoverage, disabled, hideHeader = false }: BriefAssistantProps) {
+export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply, onSuggestMeta, disabled, hideHeader = false }: BriefAssistantProps) {
   const { t } = useTranslation();
   const unitNo = Number(unitNumber);
   const moduleNo = Number(moduleNumber);
@@ -97,7 +87,6 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
       if (onSuggestMeta && (res.titleSuggestion || res.descriptionSuggestion)) {
         onSuggestMeta({ title: res.titleSuggestion, description: res.descriptionSuggestion });
       }
-      if (onCoverage && res.levelCoverage) onCoverage(res.levelCoverage as LevelCoverageShape);
       toast.success(
         res.questions.length > 0 && !withAnswers
           ? t(`${I18N}.toastDraftedWithQuestions`, { defaultValue: "Brief drafted. {{count}} follow-up question(s).", count: res.questions.length })

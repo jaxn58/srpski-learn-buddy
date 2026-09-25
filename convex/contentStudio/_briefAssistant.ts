@@ -16,7 +16,7 @@
  */
 import { v } from "convex/values";
 import { action } from "../_generated/server";
-import { api, internal } from "../_generated/api";
+import { api } from "../_generated/api";
 import { requireSuperadminAction, callAiJson, parseJsonOrThrow, resolvePromptFromDb, languageRulesBlock } from "./_shared";
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
@@ -65,30 +65,6 @@ function sanitizeFields(raw: unknown): BriefFields {
   return out;
 }
 
-type LevelCoverage = {
-  level: string;
-  covered: string[];
-  missing: string[];
-  status: "open" | "nearly_complete" | "complete";
-  note: string;
-};
-
-function sanitizeCoverage(raw: unknown, expectedLevel: string): LevelCoverage | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  const strList = (v: unknown) =>
-    Array.isArray(v) ? v.map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 30) : [];
-  const status = String(r.status ?? "").trim();
-  if (status !== "open" && status !== "nearly_complete" && status !== "complete") return null;
-  return {
-    level: String(r.level ?? expectedLevel).trim() || expectedLevel,
-    covered: strList(r.covered),
-    missing: strList(r.missing),
-    status,
-    note: String(r.note ?? "").trim().slice(0, 600),
-  };
-}
-
 function sanitizeQuestions(raw: unknown): Array<{ id: string; question: string; kind: "text" | "choice"; options?: string[]; fieldId?: string }> {
   if (!Array.isArray(raw)) return [];
   const out: Array<{ id: string; question: string; kind: "text" | "choice"; options?: string[]; fieldId?: string }> = [];
@@ -133,16 +109,6 @@ export const runBriefAssistant = action({
     titleSuggestion: v.optional(v.string()),
     /** Suggested one-sentence unit description (English, max ~120 chars). */
     descriptionSuggestion: v.optional(v.string()),
-    /** How far the module's level is covered once this unit exists (also stored on the module). */
-    levelCoverage: v.optional(
-      v.object({
-        level: v.string(),
-        covered: v.array(v.string()),
-        missing: v.array(v.string()),
-        status: v.union(v.literal("open"), v.literal("nearly_complete"), v.literal("complete")),
-        note: v.string(),
-      }),
-    ),
     provider: v.string(),
     model: v.string(),
     inputTokens: v.optional(v.number()),
@@ -219,16 +185,6 @@ export const runBriefAssistant = action({
     const titleSuggestion = String(parsed?.titleSuggestion ?? "").trim().slice(0, 120) || undefined;
     const descriptionSuggestion = String(parsed?.descriptionSuggestion ?? "").trim().slice(0, 160) || undefined;
 
-    // Level coverage judgement: sanitize, then persist on the module so the
-    // module manager and the next unit can show it.
-    const levelCoverage = sanitizeCoverage(parsed?.levelCoverage, String(context.cefrLevel));
-    if (levelCoverage) {
-      await ctx.runMutation(internal.modules.setModuleLevelCoverage, {
-        moduleNumber: args.moduleNumber,
-        coverage: { ...levelCoverage, computedAt: Date.now(), unitNumber: args.unitNumber },
-      });
-    }
-
     return {
       fields: fields as Record<string, string>,
       questions,
@@ -236,7 +192,6 @@ export const runBriefAssistant = action({
       summary,
       titleSuggestion,
       descriptionSuggestion,
-      levelCoverage: levelCoverage ?? undefined,
       provider,
       model,
       inputTokens: usage?.inputTokens,

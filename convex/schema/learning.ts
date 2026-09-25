@@ -72,21 +72,6 @@ export const learningTables = {
     cefrLevel: v.optional(
       v.union(v.literal("A1.1"), v.literal("A1.2"), v.literal("A2.1"), v.literal("A2.2"), v.literal("B1")),
     ),
-    // Last judgement of the Briefing Assistant on how much of the module's
-    // level is already covered by its units. Written after each briefing run;
-    // shown in the module manager and as a hint when a new unit is started in
-    // a module whose level is complete.
-    levelCoverage: v.optional(
-      v.object({
-        level: v.string(),
-        covered: v.array(v.string()),
-        missing: v.array(v.string()),
-        status: v.union(v.literal("open"), v.literal("nearly_complete"), v.literal("complete")),
-        note: v.string(),
-        computedAt: v.number(),
-        unitNumber: v.number(),
-      }),
-    ),
 
     // Old structure (deprecated - kept for backward compatibility during migration)
     moduleId: v.optional(v.string()), // "foundation", "daily-life", etc. - DEPRECATED

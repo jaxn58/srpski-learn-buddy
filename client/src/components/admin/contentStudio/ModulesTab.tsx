@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../../convex/_generated/dataModel";
@@ -24,7 +23,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FolderTree, Languages, Loader2, Pencil, Trash2 } from "lucide-react";
+
+type LearningOfferItem = {
+  canDoId: string;
+  statementEn: string;
+  statementDe?: string;
+  unitNumber: number;
+  unitTitleEn: string;
+  unitTitleDe?: string;
+  offeredEn: boolean;
+  offeredDe: boolean;
+};
+
+type ModuleLearningOffer = {
+  moduleNumber: number;
+  level: string;
+  items: LearningOfferItem[];
+};
 
 function slugify(input: string) {
   return input
@@ -62,6 +85,13 @@ export function ModulesTab() {
   const { t } = useTranslation();
   const dbModules = useQuery(api.modules.getAllModulesConsolidated) as Doc<"moduleMetadata">[] | undefined;
   const unitCounts = useQuery(api.modules.getModuleUnitCounts);
+  const learningOffer = useQuery(api.curriculum.getModuleLearningOffer);
+  const offerByModule = useMemo(() => {
+    const map = new Map<number, ModuleLearningOffer>();
+    for (const row of learningOffer ?? []) map.set(row.moduleNumber, row);
+    return map;
+  }, [learningOffer]);
+  const [offerModule, setOfferModule] = useState<number | null>(null);
 
   const createModuleMutation = useMutation(api.modules.createModule);
   const updateModuleMutation = useMutation(api.modules.updateModuleMetadata);
@@ -418,7 +448,10 @@ export function ModulesTab() {
                         <ModuleLevelCell
                           level={resolvedLevels.get(m.moduleNumber ?? -1)}
                           explicit={!!(m as any).cefrLevel}
-                          coverage={(m as any).levelCoverage}
+                          offer={typeof m.moduleNumber === "number" ? offerByModule.get(m.moduleNumber) : undefined}
+                          onOpen={() => {
+                            if (typeof m.moduleNumber === "number") setOfferModule(m.moduleNumber);
+                          }}
                         />
                       </TableCell>
                       <TableCell className="text-right">{unitCounts === undefined ? "—" : unitCount}</TableCell>
@@ -598,6 +631,14 @@ export function ModulesTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <LearningOfferDialog
+        open={offerModule !== null}
+        onOpenChange={(open) => {
+          if (!open) setOfferModule(null);
+        }}
+        offer={offerModule === null ? undefined : offerByModule.get(offerModule)}
+      />
     </div>
   );
 }
@@ -628,31 +669,102 @@ function resolveModuleLevelsClient(modules: Array<{ moduleNumber?: number; cefrL
   return out;
 }
 
+function offerGapCount(items: LearningOfferItem[]): number {
+  return items.filter((item) => !item.offeredEn || !item.offeredDe).length;
+}
+
 function ModuleLevelCell({
-  level, explicit, coverage,
-}: { level?: CefrLevel; explicit: boolean; coverage?: { covered: string[]; missing: string[]; status: "open" | "nearly_complete" | "complete" } }) {
+  level, explicit, offer, onOpen,
+}: { level?: CefrLevel; explicit: boolean; offer?: ModuleLearningOffer; onOpen: () => void }) {
   const { t } = useTranslation();
   if (!level) return <span className="text-muted-foreground">—</span>;
-  const total = coverage ? coverage.covered.length + coverage.missing.length : 0;
+  const gap = offer && offer.items.length > 0 ? offerGapCount(offer.items) : null;
   return (
-    <div className="flex flex-col gap-1 min-w-0">
+    <div className="flex flex-col items-start gap-1 min-w-0">
       <span className="text-sm">
         {level}
         {!explicit && <span className="text-xs text-muted-foreground"> · {t("admin.contentStudio.modules.levelAutoShort", "auto")}</span>}
       </span>
-      {coverage && (
-        <Badge
-          variant={coverage.status === "complete" ? "default" : "outline"}
-          className={coverage.status === "complete" ? "w-fit text-xs bg-emerald-600 hover:bg-emerald-600" : "w-fit text-xs font-normal"}
-        >
-          {coverage.status === "complete"
-            ? t("admin.contentStudio.modules.coverageComplete", "complete")
-            : total > 0
-              ? t("admin.contentStudio.modules.coverageProgress", { defaultValue: "{{done}}/{{total}} covered", done: coverage.covered.length, total })
-              : t("admin.contentStudio.modules.coverageOpen", "in progress")}
-        </Badge>
+      {gap !== null && (
+        <Button variant="outline" size="sm" className="h-auto px-2 py-0.5 text-xs font-normal" onClick={onOpen}>
+          {gap > 0
+            ? t("admin.contentStudio.modules.offerGap", {
+                defaultValue: "{{n}} learning goals are not published for learners",
+                n: gap,
+              })
+            : t("admin.contentStudio.modules.offerReady", "Published for learners in English and German")}
+        </Button>
       )}
     </div>
+  );
+}
+
+function trackLabel(offered: boolean, t: TFunction): string {
+  return offered
+    ? t("admin.contentStudio.modules.offerTrackYes", "published")
+    : t("admin.contentStudio.modules.offerTrackNo", "not published");
+}
+
+function LearningOfferDialog({
+  open, onOpenChange, offer,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  offer?: ModuleLearningOffer;
+}) {
+  const { t, i18n } = useTranslation();
+  const germanUi = i18n.language.startsWith("de");
+  const items = [...(offer?.items ?? [])].sort((a, b) => {
+    const aGap = !a.offeredEn || !a.offeredDe ? 0 : 1;
+    const bGap = !b.offeredEn || !b.offeredDe ? 0 : 1;
+    if (aGap !== bGap) return aGap - bGap;
+    return a.unitNumber - b.unitNumber || a.canDoId.localeCompare(b.canDoId);
+  });
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {t("admin.contentStudio.modules.offerTitle", {
+              defaultValue: "{{level}}: what learners can study",
+              level: offer?.level ?? "",
+            })}
+          </DialogTitle>
+          <DialogDescription>
+            {t(
+              "admin.contentStudio.modules.offerDescription",
+              "Each learning goal is available when the unit that introduces it is published for learners. A briefing alone does not count. Preview is not visible to learners.",
+            )}
+          </DialogDescription>
+        </DialogHeader>
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("admin.contentStudio.modules.offerNone", "No learning goals are stored for this level.")}
+          </p>
+        ) : (
+          <ul className="divide-y rounded-md border">
+            {items.map((item) => {
+              const statement = germanUi && item.statementDe ? item.statementDe : item.statementEn;
+              const title = germanUi && item.unitTitleDe ? item.unitTitleDe : item.unitTitleEn;
+              return (
+                <li key={item.canDoId} className="space-y-1 px-3 py-2">
+                  <p className="text-sm">{statement}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("admin.contentStudio.modules.offerUnit", {
+                      defaultValue: "Unit {{n}} · {{title}}. English: {{en}}. German: {{de}}.",
+                      n: item.unitNumber,
+                      title,
+                      en: trackLabel(item.offeredEn, t),
+                      de: trackLabel(item.offeredDe, t),
+                    })}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

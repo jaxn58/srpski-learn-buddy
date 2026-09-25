@@ -10,9 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { Loader2, Wand2 } from "lucide-react";
 import { ModuleSelect } from "./ModuleSelect";
-import { BriefAssistant, type LevelCoverageShape } from "./BriefAssistant";
+import { BriefAssistant } from "./BriefAssistant";
 import { BriefBuilder } from "./BriefBuilder";
-import { CreateModuleDialog } from "./CreateModuleDialog";
 import { parseBriefText } from "@shared/contentStudio/briefTemplate";
 
 /**
@@ -72,8 +71,6 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
   const { t } = useTranslation();
   const [expert, setExpert] = useState(false);
   const [suggestion, setSuggestion] = useState<{ title?: string; description?: string }>({});
-  const [coverage, setCoverage] = useState<LevelCoverageShape | null>(null);
-  const [createModuleOpen, setCreateModuleOpen] = useState(false);
 
   const unitNo = Number(unitNumber);
   const moduleNo = Number(moduleNumber);
@@ -92,24 +89,6 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
     return parsed.recognized ? String(parsed.fields.grammarIn ?? "").trim() : "";
   })();
   const taughtCount = context?.previouslyTaught.length ?? 0;
-
-  // Stored judgement from earlier runs in this module (before this unit has a briefing).
-  const storedCoverage = context?.moduleCoverage ?? null;
-  const moduleAlreadyComplete =
-    !hasBrief && !!storedCoverage && storedCoverage.status === "complete" && storedCoverage.unitNumber !== unitNo;
-
-  const coverageLine = (c: { level: string; covered: string[]; missing: string[] }) => {
-    const total = c.covered.length + c.missing.length;
-    return total > 0
-      ? t(`${I18N}.coverageLine`, { defaultValue: "Level {{level}}: {{done}} of {{total}} core points covered", level: c.level, done: c.covered.length, total })
-      : t(`${I18N}.coverageLineNoCount`, { defaultValue: "Level {{level}}", level: c.level });
-  };
-
-  const nextModuleCta = context && (
-    <Button variant="outline" size="sm" onClick={() => setCreateModuleOpen(true)} disabled={disabled}>
-      {t(`${I18N}.createNextModule`, { defaultValue: "Create module {{n}} ({{level}})", n: context.nextModuleNumber, level: levelLabel(context.nextModuleLevel) })}
-    </Button>
-  );
 
   return (
     <div className="space-y-6">
@@ -152,18 +131,6 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
         )}
       </div>
 
-      {moduleAlreadyComplete && storedCoverage && context && (
-        <div className="rounded-lg border border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm space-y-2">
-          <div className="font-medium">
-            {t(`${I18N}.moduleCompleteTitle`, { defaultValue: "Module {{module}} already covers level {{level}} completely.", module: moduleNumber, level: storedCoverage.level })}
-          </div>
-          <p className="text-muted-foreground leading-relaxed">
-            {t(`${I18N}.moduleCompleteHint`, "You can still add a unit here (it will revise and deepen rather than introduce new grammar). For new material, continue in the next module.")}
-          </p>
-          <div className="flex flex-wrap items-center gap-3">{nextModuleCta}</div>
-        </div>
-      )}
-
       <Separator />
 
       {/* The one thing the author has to do */}
@@ -182,7 +149,6 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
             if (meta.title && !title.trim()) setTitle(meta.title);
             if (meta.description && !description.trim()) setDescription(meta.description);
           }}
-          onCoverage={setCoverage}
           disabled={disabled || !numbersValid}
           hideHeader
         />
@@ -200,32 +166,6 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
               <span className="font-medium">{t(`${I18N}.grammarLine`, "Grammar in this unit")}: </span>
               <span className="text-muted-foreground">{chosenGrammar}</span>
             </p>
-          )}
-          {coverage && (
-            <div
-              className={cn(
-                "rounded-md border px-3 py-2 text-sm space-y-1.5",
-                coverage.status === "complete" && "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30",
-              )}
-            >
-              <div className="font-medium">
-                {coverageLine(coverage)}
-                {coverage.status === "complete" && ` · ${t(`${I18N}.coverageComplete`, "complete")}`}
-                {coverage.status === "nearly_complete" && ` · ${t(`${I18N}.coverageNearly`, "nearly complete")}`}
-              </div>
-              {coverage.note && <p className="text-muted-foreground leading-relaxed">{coverage.note}</p>}
-              {coverage.missing.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {t(`${I18N}.coverageMissing`, "Still open")}: {coverage.missing.join(", ")}
-                </p>
-              )}
-              {coverage.status === "complete" && (
-                <div className="flex flex-wrap items-center gap-3 pt-1">
-                  <span className="text-xs text-muted-foreground">{t(`${I18N}.coverageNextHint`, "Further new material belongs in the next module.")}</span>
-                  {nextModuleCta}
-                </div>
-              )}
-            </div>
           )}
           <div className="grid gap-4">
             <MetaField
@@ -327,17 +267,6 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
         )}
       </div>
 
-      {context && (
-        <CreateModuleDialog
-          open={createModuleOpen}
-          onOpenChange={setCreateModuleOpen}
-          suggestedModuleNumber={context.nextModuleNumber}
-          onCreated={(m) => {
-            setCreateModuleOpen(false);
-            if (typeof m.moduleNumber === "number") setModuleNumber(String(m.moduleNumber));
-          }}
-        />
-      )}
     </div>
   );
 }
