@@ -640,7 +640,9 @@ export function TopNavigation() {
                                   {(unitsByModuleSlugForQuickSwitch[selectedModuleSlug] || []).map(
                                     (u) => {
                                       const locked =
-                                        !isAdmin && isBetaTester && u.unitNumber > (accessInfo?.maxUnits ?? 1);
+                                        !isAdmin &&
+                                        Boolean(accessInfo?.isBeta) &&
+                                        u.unitNumber > (accessInfo?.maxUnits ?? 0);
                                       return (
                                         <SelectItem
                                           key={u.unitNumber}

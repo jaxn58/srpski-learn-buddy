@@ -52,13 +52,13 @@ export default function Units() {
   const progress = useQuery(api.progress.getUserProgress);
   const masteredUnits = useQuery(api.progress.getMasteredUnits, user ? undefined : "skip");
 
-  const isBetaTester = Boolean(user?.isBetaTester);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const completedUnits = progress?.completedUnits || [];
 
   // Beta unit access is governed by the admin-tunable beta unit limit.
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
-  const betaMaxUnits = accessInfo?.maxUnits ?? 1;
+  const isBetaLimited = Boolean(accessInfo?.isBeta);
+  const betaMaxUnits = accessInfo?.maxUnits ?? 0;
 
   // Load modules from database (new consolidated structure)
   const dbModules = useQuery(api.modules.getAllModulesConsolidated);
@@ -217,7 +217,7 @@ export default function Units() {
               !openModules.includes(module.number);
             const isModuleLocked =
               isModuleLockedByCurriculum ||
-              (!isAdmin && isBetaTester && moduleMinUnit > betaMaxUnits);
+              (!isAdmin && isBetaLimited && moduleMinUnit > betaMaxUnits);
             
             // Get module title and description based on language
             const moduleTitle = i18n.language === "de" ? module.titleGerman : module.titleEnglish;
@@ -311,7 +311,7 @@ export default function Units() {
                           {moduleUnits.map((unit) => {
                             const locked =
                               isModuleLocked ||
-                              (!isAdmin && isBetaTester && unit.number > betaMaxUnits);
+                              (!isAdmin && isBetaLimited && unit.number > betaMaxUnits);
                             const isCurrent = progress?.currentUnit === unit.number;
                             const isCompleted = completedUnits.includes(unit.number);
                             const isMastered = masteredUnits?.includes(unit.number);

@@ -352,7 +352,6 @@ export default function Dashboard() {
 
   const totalUnits = isBeta ? 1 : allUnitNumbers.length || 0;
   const sortedUnits = allUnitNumbers;
-  const isBetaTester = !!user?.isBetaTester;
 
   const completedBadgeClass =
     "bg-[color:var(--brand-blue)] text-[color:var(--brand-blue-foreground)] border-[color:var(--brand-blue)] shadow-sm";
@@ -865,7 +864,7 @@ export default function Dashboard() {
                     const isLockedByCurriculum = !isAdmin && lockedByCurriculum.has(unitNum);
                     const isLocked =
                       isLockedByCurriculum ||
-                      (isBetaTester && unitNum > (accessibleUnits?.maxUnits ?? 1));
+                      (isBeta && unitNum > (accessibleUnits?.maxUnits ?? 0));
                     const notStarted = !isCompleted && !isCurrent && !isLocked;
 
                     if (isLocked) {

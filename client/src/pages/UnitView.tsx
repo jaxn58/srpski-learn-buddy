@@ -450,23 +450,31 @@ export default function UnitView() {
   const progress = useQuery(api.progress.getUserProgress);
   const masteryStatus = useQuery(api.progress.getUnitMasteryStatus, { unitNumber });
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
+  const unitCatalog = useQuery(api.units.getAllUnitsMetadata, { language: contentLng });
   const [isScrolled, setIsScrolled] = React.useState(false);
 
   // Derived values
-  const isLoading = unitMetadata === undefined || content === undefined;
+  const isLoading =
+    unitMetadata === undefined ||
+    content === undefined ||
+    unitCatalog === undefined ||
+    (!!user && accessInfo === undefined);
   const isCompleted = progress?.completedUnits?.includes(unitNumber) || false;
   const isMastered = masteryStatus?.isMastered ?? false;
   // Beta unit access is governed by the admin-tunable beta unit limit.
-  const betaMaxUnits = accessInfo?.maxUnits ?? 1;
-  const isLocked = Boolean(user?.isBetaTester) && unitNumber > betaMaxUnits;
+  const isStaff = user?.role === "admin" || user?.role === "superadmin";
+  const betaCap = accessInfo?.isBeta ? accessInfo.maxUnits : null;
+  const isLocked = !isStaff && betaCap !== null && unitNumber > betaCap;
 
-  // During beta we only expose units up to the beta limit, so hide Next once
-  // a beta user reaches the last accessible unit.
-  const nextUnit = user?.role === "admin" || user?.role === "superadmin"
-    ? unitNumber + 1
-    : user?.isBetaTester
-      ? (unitNumber < betaMaxUnits ? unitNumber + 1 : null)
-      : unitNumber + 1;
+  const publishedUnitNumbers = new Set(
+    (unitCatalog ?? [])
+      .map((unit) => Number(unit.unitNumber))
+      .filter((n) => Number.isFinite(n))
+  );
+  const nextCandidate = unitNumber + 1;
+  const nextExists = publishedUnitNumbers.has(nextCandidate);
+  const nextWithinCap = betaCap === null || nextCandidate <= betaCap;
+  const nextUnit = nextExists && nextWithinCap ? nextCandidate : null;
   const prevUnit = unitNumber > 1 ? unitNumber - 1 : null;
 
   // Track scroll state for breadcrumb styling
