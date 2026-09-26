@@ -82,6 +82,7 @@ type DbModuleForQuickSwitch = {
   slug?: string | null;
   moduleNumber?: number | null;
   titleEn?: string | null;
+  titleDe?: string | null;
 };
 
 type DbUnitMetadataForQuickSwitch = {
@@ -144,7 +145,7 @@ function MobileAdminGroup({ group, location, activeClass, closeMobile }: {
 
 export function TopNavigation() {
   const { user, logout } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [location, setLocation] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { theme, toggleTheme, switchable } = useTheme();
@@ -172,7 +173,8 @@ export function TopNavigation() {
     | DbModuleForQuickSwitch[]
     | undefined;
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
-  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: "en" }) as
+  const quickSwitchLanguage = i18n.language?.toLowerCase().startsWith("de") ? "de" : "en";
+  const dbUnitsEn = useQuery(api.units.getAllUnitsMetadata, { language: quickSwitchLanguage }) as
     | DbUnitMetadataForQuickSwitch[]
     | undefined;
 
@@ -231,12 +233,12 @@ export function TopNavigation() {
       .map((m) => ({
         slug: m.slug || "",
         number: m.moduleNumber || 0,
-        title: m.titleEn || "",
+        title: (quickSwitchLanguage === "de" ? m.titleDe || m.titleEn : m.titleEn) || "",
         _id: m._id,
       }))
       .filter((m) => Boolean(m.slug))
       .sort((a, b) => a.number - b.number);
-  }, [dbModules]);
+  }, [dbModules, quickSwitchLanguage]);
 
   const unitsByModuleSlugForQuickSwitch = useMemo(() => {
     const result: Record<string, Array<{ unitNumber: number; title: string }>> = {};

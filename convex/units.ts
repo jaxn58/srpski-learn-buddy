@@ -130,26 +130,15 @@ export async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: n
     return true;
   }
 
-  // Offline units are hidden for students
-  if (await isUnitOffline(ctx, unitNumber)) {
-    return false;
+  // Staff QA and admin-assigned tiers can read every published unit.
+  // The unit list already exposes them; hiding the section text looks like deleted content.
+  if (user.featureTierOverride) {
+    const totalUnits = await getTotalUnitsCount(ctx);
+    return unitNumber <= totalUnits;
   }
 
-  // Fetch user progress to see which units are unlocked
-  const progress = await ctx.db
-    .query("userProgress")
-    .withIndex("by_user", (q) => q.eq("userId", user._id))
-    .first();
-
-  const completedUnits = progress?.completedUnits ?? [];
-  const planned = await loadPlannedUnits(ctx);
-  const unlockedByProgress =
-    completedUnits.includes(unitNumber) ||
-    (planned.length > 0
-      ? isUnitUnlockedByModule({ unitNumber, completedUnits, units: planned })
-      : unitNumber === 1 || completedUnits.includes(unitNumber - 1));
-
-  if (!unlockedByProgress) {
+  // Offline units are hidden for students
+  if (await isUnitOffline(ctx, unitNumber)) {
     return false;
   }
 
@@ -185,7 +174,19 @@ export async function checkUnitAccess(ctx: QueryCtx | MutationCtx, unitNumber: n
     return unitNumber <= betaMaxUnits;
   }
 
-  return unlockedByProgress;
+  // No course access: only unit 1 and units already reached by progress.
+  const progress = await ctx.db
+    .query("userProgress")
+    .withIndex("by_user", (q) => q.eq("userId", user._id))
+    .first();
+  const completedUnits = progress?.completedUnits ?? [];
+  const planned = await loadPlannedUnits(ctx);
+  return (
+    completedUnits.includes(unitNumber) ||
+    (planned.length > 0
+      ? isUnitUnlockedByModule({ unitNumber, completedUnits, units: planned })
+      : unitNumber === 1 || completedUnits.includes(unitNumber - 1))
+  );
 }
 
 // Get unit metadata for a specific language
