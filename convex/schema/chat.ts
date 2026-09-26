@@ -25,6 +25,12 @@ export const chatTables = {
     archived: v.optional(v.boolean()), // optional for backward compatibility
     archivedAt: v.optional(v.number()),
     folderId: v.optional(v.id("chatFolders")),
+    // Missing means "both": course/culture knowledge and personal documents.
+    searchScope: v.optional(v.union(
+      v.literal("both"),
+      v.literal("documents"),
+      v.literal("knowledge"),
+    )),
   })
     .index("by_user", ["userId"])
     .index("by_user_archived", ["userId", "archived"])
@@ -43,6 +49,12 @@ export const chatTables = {
     attachmentMimeType: v.optional(v.string()),
     attachmentSizeBytes: v.optional(v.number()),
     responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
+    // Scope actually used for this assistant reply. Missing on older messages.
+    searchScope: v.optional(v.union(
+      v.literal("both"),
+      v.literal("documents"),
+      v.literal("knowledge"),
+    )),
   })
     .index("by_session", ["sessionId"])
     .index("by_user", ["userId"]),

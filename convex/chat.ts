@@ -19,12 +19,18 @@ import {
 import { streamingComponent } from "./streaming";
 import type { StreamId } from "@convex-dev/persistent-text-streaming";
 import { resolveModelConfig, generateChatResponse, streamChatResponse, streamAgenticResponse, streamMultimodalResponse, type StreamChatResult } from "./ai/chatConfig";
-import { embedText } from "./ai/embeddings";
+import { embedText, filterByMinVectorScore, type ChatSearchScope } from "./ai/embeddings";
 import { deleteMessageAttachmentBlobs } from "./lib/storageHelpers";
 import { guessMimeFromFileName } from "./lib/attachmentMime";
 
 // Central default system prompts by language (Emergency Fallback)
 const EMERGENCY_FALLBACK_PROMPT = "You are a helpful Serbian language learning assistant. Please explain Serbian grammar and vocabulary clearly.";
+
+const searchScopeValidator = v.union(
+  v.literal("both"),
+  v.literal("documents"),
+  v.literal("knowledge"),
+);
 
 function getSystemPrompt(language: string = "en"): string {
   // If we ever need code fallbacks again, they go here. 
@@ -283,6 +289,26 @@ export const getSessions = query({
       .take(50);
 
     return sessions;
+  },
+});
+
+export const setSearchScope = mutation({
+  args: {
+    sessionId: v.id("chatSessions"),
+    searchScope: searchScopeValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== user._id) {
+      throw new Error("Session not found");
+    }
+
+    await ctx.db.patch(args.sessionId, { searchScope: args.searchScope });
+    return null;
   },
 });
 
@@ -932,6 +958,7 @@ export const finalizeStreamedMessage = internalMutation({
     messageId: v.id("chatMessages"),
     content: v.string(),
     responseMode: v.optional(v.union(v.literal("compact"), v.literal("detailed"))),
+    searchScope: v.optional(searchScopeValidator),
     ragUsed: v.optional(v.boolean()),
     hasImageAttachment: v.optional(v.boolean()),
     hasFileAttachment: v.optional(v.boolean()),
@@ -942,7 +969,10 @@ export const finalizeStreamedMessage = internalMutation({
     inputCharEstimate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.messageId, { content: args.content });
+    await ctx.db.patch(args.messageId, {
+      content: args.content,
+      ...(args.searchScope !== undefined ? { searchScope: args.searchScope } : {}),
+    });
 
     if (!args.content || args.content.trim().length === 0) {
       return;
@@ -1386,6 +1416,7 @@ export const getStreamContext = internalQuery({
       learningLanguage,
       chatLimitProfile,
       userName: user.name || null,
+      searchScope: (session.searchScope ?? "both") as ChatSearchScope,
     };
   },
 });
@@ -1398,8 +1429,13 @@ export const semanticSearch = internalAction({
     query: v.string(),
     language: v.string(),
     userId: v.optional(v.id("users")),
+    searchScope: v.optional(searchScopeValidator),
   },
   handler: async (ctx, args): Promise<string> => {
+    const searchScope: ChatSearchScope = args.searchScope ?? "both";
+    const includeKnowledge = searchScope !== "documents";
+    const includeDocuments = searchScope !== "knowledge";
+
     let queryEmbedding: number[];
     try {
       queryEmbedding = await embedText(args.query);
@@ -1408,50 +1444,60 @@ export const semanticSearch = internalAction({
       return "";
     }
 
-    // --- Admin/Unit knowledge base ---
-    const kbResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
-      vector: queryEmbedding,
-      limit: 5,
-      filter: (q: any) => q.eq("language", args.language),
-    });
-
     const chunks: string[] = [];
-    for (const r of kbResults) {
-      const doc = await ctx.runQuery(internal.chat.getKnowledgeChunk, { id: r._id });
-      if (doc) chunks.push(doc.content);
-    }
+    if (includeKnowledge) {
+      const kbResults = filterByMinVectorScore(
+        await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+          vector: queryEmbedding,
+          limit: 5,
+          filter: (q: any) => q.eq("language", args.language),
+        }),
+        "knowledge",
+      );
 
-    if (chunks.length < 3 && args.language !== "en") {
-      const enResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
-        vector: queryEmbedding,
-        limit: 5 - chunks.length,
-        filter: (q: any) => q.eq("language", "en"),
-      });
-
-      const existingContent = new Set(chunks);
-      for (const r of enResults) {
+      for (const r of kbResults) {
         const doc = await ctx.runQuery(internal.chat.getKnowledgeChunk, { id: r._id });
-        if (doc && !existingContent.has(doc.content)) {
-          chunks.push(doc.content);
+        if (doc) chunks.push(doc.content);
+      }
+
+      if (chunks.length < 3 && args.language !== "en") {
+        const enResults = filterByMinVectorScore(
+          await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+            vector: queryEmbedding,
+            limit: 5 - chunks.length,
+            filter: (q: any) => q.eq("language", "en"),
+          }),
+          "knowledge-en",
+        );
+
+        const existingContent = new Set(chunks);
+        for (const r of enResults) {
+          const doc = await ctx.runQuery(internal.chat.getKnowledgeChunk, { id: r._id });
+          if (doc && !existingContent.has(doc.content)) {
+            chunks.push(doc.content);
+          }
         }
       }
     }
-    // --- User's personal documents (Knowledge Rack) ---
+
     const userDocChunks: string[] = [];
-    if (args.userId) {
+    if (includeDocuments && args.userId) {
       const hasDocuments = await ctx.runQuery(
         internal.chat.hasReadyUserDocuments,
         { userId: args.userId },
       );
       if (hasDocuments) {
-        const userResults = await ctx.vectorSearch(
-          "userDocumentChunks",
-          "by_user_embedding",
-          {
-            vector: queryEmbedding,
-            limit: 3,
-            filter: (q: any) => q.eq("userId", args.userId),
-          },
+        const userResults = filterByMinVectorScore(
+          await ctx.vectorSearch(
+            "userDocumentChunks",
+            "by_user_embedding",
+            {
+              vector: queryEmbedding,
+              limit: 3,
+              filter: (q: any) => q.eq("userId", args.userId),
+            },
+          ),
+          "user documents",
         );
         for (const r of userResults) {
           const doc = await ctx.runQuery(internal.chat.getUserDocChunk, {
@@ -1896,6 +1942,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         query: streamContext.lastUserMessage,
         language: streamContext.learningLanguage,
         userId: streamContext.userId,
+        searchScope: streamContext.searchScope,
       });
       if (semanticContext) {
         if (semanticContext.includes("[USER'S PERSONAL DOCUMENTS]")) {
@@ -2019,7 +2066,8 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         try {
           streamResult = await streamAgenticResponse(
             config, aiMessages, append,
-            ctx, streamContext.userId, streamContext.learningLanguage
+            ctx, streamContext.userId, streamContext.learningLanguage,
+            streamContext.searchScope,
           );
         } catch (e) {
           console.warn("[streamChat] Agentic RAG failed, falling back to standard:", e);
@@ -2043,6 +2091,7 @@ export const streamChatMessage = httpAction(async (ctx, request) => {
         messageId,
         content: fullText || "I'm sorry, I couldn't generate a response.",
         responseMode: body.responseMode,
+        searchScope: streamContext.searchScope,
         ragUsed,
         hasImageAttachment: hasImage,
         hasFileAttachment: hasFile,

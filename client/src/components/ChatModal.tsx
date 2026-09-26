@@ -25,6 +25,12 @@ import { useChatStream } from "@/hooks/useChatStream";
 import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
 import { EnergyPill } from "@/components/chat/EnergyPill";
 import { ChatResponseModeToggle } from "@/components/chat/ChatResponseModeToggle";
+import {
+  ChatSearchScopeButton,
+  ChatSearchScopeCaption,
+  ChatSearchScopeChip,
+  type ChatSearchScope,
+} from "@/components/chat/ChatSearchScope";
 import { ChatMessageFeedback, getChatFeedbackPrompt } from "@/components/chat/ChatMessageFeedback";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -84,6 +90,9 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const prefillHandledRef = useRef(false);
   const skipAutoSelectRef = useRef(false);
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
+  const hasReadyDocuments = useQuery(api.documents.hasReadyUserDocuments);
+  const setSearchScopeMutation = useMutation(api.chat.setSearchScope);
+  const searchScopeResetKey = useRef<string | null>(null);
   const featureAccess = useFeatureAccess();
   const canUploadDocuments = canUseChatAttachments(featureAccess);
   const { exportSession, exportingSessionId } = useChatPdfExport();
@@ -209,6 +218,33 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
   const currentSession = sessions?.find(
     (s) => (s._id as unknown as string) === currentSessionId
   );
+  const searchScope: ChatSearchScope = currentSession?.searchScope ?? "both";
+
+  useEffect(() => {
+    if (!currentSessionId || hasReadyDocuments !== false) {
+      if (hasReadyDocuments !== false) searchScopeResetKey.current = null;
+      return;
+    }
+    const scope = currentSession?.searchScope;
+    if (!scope || scope === "both") return;
+    const key = `${currentSessionId}:${scope}`;
+    if (searchScopeResetKey.current === key) return;
+    searchScopeResetKey.current = key;
+    void setSearchScopeMutation({
+      sessionId: currentSessionId as Id<"chatSessions">,
+      searchScope: "both",
+    });
+  }, [currentSessionId, hasReadyDocuments, currentSession?.searchScope, setSearchScopeMutation]);
+
+  const handleSearchScope = (scope: ChatSearchScope) => {
+    if (!currentSessionId) return;
+    void setSearchScopeMutation({
+      sessionId: currentSessionId as Id<"chatSessions">,
+      searchScope: scope,
+    }).catch(() => {
+      toast.error(t("chat.searchScope.failed"));
+    });
+  };
 
   const sessionFeedback = useQuery(
     api.chat.getSessionFeedback,
@@ -656,13 +692,30 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
               <MessageSquarePlus className="h-4 w-4 sm:h-3 sm:w-3 sm:mr-1.5 shrink-0" />
               <span className="hidden sm:inline">{t('chat.modal.newChat')}</span>
             </Button>
+            {currentSessionId && currentSession && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 sm:hidden shrink-0"
+                disabled={exportingSessionId === currentSessionId}
+                onClick={() =>
+                  void exportSession(
+                    currentSessionId as Id<"chatSessions">,
+                    currentSession.title
+                  )
+                }
+                aria-label={t('chat.modal.exportPdf')}
+              >
+                <FileDown className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </DialogHeader>
 
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* Tool row: PDF export */}
+          {/* Tool row: PDF export — desktop only; mobile uses the header icon */}
           {currentSessionId && currentSession && (
-            <div className="flex justify-end px-3 sm:px-4 pt-2">
+            <div className="hidden sm:flex justify-end px-3 sm:px-4 pt-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -830,6 +883,9 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                         </>
                       )}
                     </div>
+                    {msg.role === "assistant" && !isStreamingMsg ? (
+                      <ChatSearchScopeCaption scope={msg.searchScope} />
+                    ) : null}
                     {msg.role === "assistant" && msg._id && !isStreamingMsg && currentSessionId ? (
                       <ChatMessageFeedback
                         formattedTime={formatMessageTime(msg._creationTime || msg.createdAt || Date.now())}
@@ -880,26 +936,35 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
           {/* Input Area -- hidden while mode-selection (pendingPrefill) is active */}
           {!pendingPrefill && (
             <div className="border-t p-3 sm:p-4 bg-muted/30 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-              {attachedFile && (
-                <div className="flex items-center gap-2 px-2 pb-2">
-                  <ChatPendingAttachment
-                    fileName={attachedFile.fileName}
-                    fileType={attachedFile.fileType}
-                    previewUrl={attachedFile.previewUrl}
-                    onRemove={clearAttachedFile}
+              {(attachedFile || searchScope !== "both") && (
+                <div className="flex items-center gap-2 px-2 pb-2 flex-wrap">
+                  {attachedFile && (
+                    <>
+                      <ChatPendingAttachment
+                        fileName={attachedFile.fileName}
+                        fileType={attachedFile.fileType}
+                        previewUrl={attachedFile.previewUrl}
+                        onRemove={clearAttachedFile}
+                      />
+                      {(() => {
+                        const analysisCost = formatEnergyRange(upcomingEnergyEstimate);
+                        return analysisCost ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
+                            <Zap className="h-3 w-3 shrink-0" />
+                            {t('chat.attachHint.analysisCost', {
+                              cost: analysisCost,
+                              defaultValue: '≈ {{cost}} Energy to analyze',
+                            })}
+                          </span>
+                        ) : null;
+                      })()}
+                    </>
+                  )}
+                  <ChatSearchScopeChip
+                    value={searchScope}
+                    onReset={() => handleSearchScope("both")}
+                    disabled={isSending}
                   />
-                  {(() => {
-                    const analysisCost = formatEnergyRange(upcomingEnergyEstimate);
-                    return analysisCost ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
-                        <Zap className="h-3 w-3 shrink-0" />
-                        {t('chat.attachHint.analysisCost', {
-                          cost: analysisCost,
-                          defaultValue: '≈ {{cost}} Energy to analyze',
-                        })}
-                      </span>
-                    ) : null;
-                  })()}
                 </div>
               )}
               <input
@@ -909,23 +974,21 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                 accept=".pdf,.txt,.md,.jpg,.jpeg,.png,.webp"
                 onChange={handleFileAttach}
               />
-              <div className="flex gap-2 items-center">
-                <Input
-                  ref={inputRef}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  onFocus={handleInputFocus}
-                  placeholder={t('chat.placeholder')}
-                  className="flex-1 rounded-full text-sm"
-                  disabled={isSending}
-                />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+              <div className="order-1 sm:order-2 flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
                 <ChatResponseModeToggle
                   value={responseMode}
                   onChange={setResponseMode}
                   disabled={isSending}
                 />
                 <EnergyPill className="shrink-0" />
+                {hasReadyDocuments && (
+                  <ChatSearchScopeButton
+                    value={searchScope}
+                    onChange={handleSearchScope}
+                    disabled={isSending}
+                  />
+                )}
                 {canUploadDocuments && (
                   <Tooltip
                     onOpenChange={(open) => {
@@ -1009,12 +1072,24 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     </TooltipContent>
                   </Tooltip>
                 )}
+              </div>
+              <div className="order-2 sm:order-1 sm:contents flex items-center gap-2 min-w-0">
+                <Input
+                  ref={inputRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  onFocus={handleInputFocus}
+                  placeholder={t('chat.placeholder')}
+                  className="flex-1 min-w-0 rounded-full h-11 sm:h-9 text-sm"
+                  disabled={isSending}
+                />
                 {activeStreamId ? (
                   <Button
                     onClick={handleStopStreaming}
                     size="icon"
                     variant="destructive"
-                    className="rounded-full h-10 w-10 shrink-0"
+                    className="rounded-full h-11 w-11 sm:h-10 sm:w-10 shrink-0 sm:order-3"
                     aria-label={t('chat.modal.stop')}
                     title={t('chat.modal.stop')}
                   >
@@ -1025,7 +1100,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     onClick={handleSend}
                     disabled={(!message.trim() && !attachedFile) || isSending || energyBlocksSend}
                     size="icon"
-                    className="rounded-full h-10 w-10 shrink-0"
+                    className="rounded-full h-11 w-11 sm:h-10 sm:w-10 shrink-0 sm:order-3"
                     title={energyBlocksSend
                       ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
                         ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
@@ -1038,6 +1113,7 @@ export function ChatModal({ isOpen, onClose, prefillText, unitNumber }: ChatModa
                     <Send className="h-4 w-4" />
                   </Button>
                 )}
+              </div>
               </div>
               {energyBlocksSend && (
                 <p className="text-[11px] text-destructive text-center mt-2 px-4">

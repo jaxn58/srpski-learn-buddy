@@ -92,7 +92,7 @@ export function ChatResponseModeToggle({
                 disabled={disabled}
                 onClick={() => onChange(mode)}
                 className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded-full transition-all",
+                  "flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-full transition-all",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                   active
                     ? "bg-background text-primary shadow-sm"

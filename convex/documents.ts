@@ -515,6 +515,26 @@ export const getUserDocuments = query({
   },
 });
 
+export const hasReadyUserDocuments = query({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return false;
+
+    const access = await getFeatureAccessForUser(ctx, user._id);
+    if (!access.features.knowledgeRack) return false;
+
+    const doc = await ctx.db
+      .query("userDocuments")
+      .withIndex("by_user_status", (q) =>
+        q.eq("userId", user._id).eq("status", "ready"),
+      )
+      .first();
+    return doc !== null;
+  },
+});
+
 // @ts-ignore TS2589
 export const listUserDocuments = query({
   args: {

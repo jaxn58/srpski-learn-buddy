@@ -79,7 +79,7 @@ export function EnergyPill({ className }: EnergyPillProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="h-5 px-1.5 text-[10px] font-semibold rounded-full"
+            className="h-8 px-2 text-[11px] font-semibold rounded-full sm:h-5 sm:px-1.5 sm:text-[10px]"
           >
             {t("energy.topUpChatCta")}
           </Button>

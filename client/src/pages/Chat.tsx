@@ -31,6 +31,12 @@ import { useChatStream } from "@/hooks/useChatStream";
 import { ChatAttachmentPreview, ChatPendingAttachment } from "@/components/chat/ChatAttachmentPreview";
 import { EnergyPill } from "@/components/chat/EnergyPill";
 import { ChatResponseModeToggle } from "@/components/chat/ChatResponseModeToggle";
+import {
+  ChatSearchScopeButton,
+  ChatSearchScopeCaption,
+  ChatSearchScopeChip,
+  type ChatSearchScope,
+} from "@/components/chat/ChatSearchScope";
 import { ChatMessageFeedback, getChatFeedbackPrompt } from "@/components/chat/ChatMessageFeedback";
 import { useChatPdfExport } from "@/hooks/useChatPdfExport";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -67,6 +73,9 @@ export default function Chat() {
   const attachPreviewUrlRef = useRef<string | null>(null);
   const isMobile = useIsMobile();
   const sessions = useQuery(api.chat.getSessions) as ChatSession[] | undefined;
+  const hasReadyDocuments = useQuery(api.documents.hasReadyUserDocuments);
+  const setSearchScopeMutation = useMutation(api.chat.setSearchScope);
+  const searchScopeResetKey = useRef<string | null>(null);
   const uiLang = (typeof navigator !== "undefined" && navigator.language?.startsWith("de")) ? "de" : "en";
   
   const formatMessageTime = (timestamp: number) => {
@@ -590,6 +599,33 @@ export default function Chat() {
     }, 350);
   };
 
+  useEffect(() => {
+    if (!currentSessionId || hasReadyDocuments !== false) {
+      if (hasReadyDocuments !== false) searchScopeResetKey.current = null;
+      return;
+    }
+    const scope = sessions?.find(
+      (s) => (s._id as unknown as string) === currentSessionId
+    )?.searchScope;
+    if (!scope || scope === "both") return;
+    const key = `${currentSessionId}:${scope}`;
+    if (searchScopeResetKey.current === key) return;
+    searchScopeResetKey.current = key;
+    void setSearchScopeMutation({
+      sessionId: currentSessionId as Id<"chatSessions">,
+      searchScope: "both",
+    });
+  }, [currentSessionId, hasReadyDocuments, sessions, setSearchScopeMutation]);
+
+  const handleSearchScope = (scope: ChatSearchScope) => {
+    if (!currentSessionId) return;
+    void setSearchScopeMutation({
+      sessionId: currentSessionId as Id<"chatSessions">,
+      searchScope: scope,
+    }).catch(() => {
+      toast.error(t("chat.searchScope.failed"));
+    });
+  };
 
   if (authLoading) {
     return (
@@ -613,6 +649,7 @@ export default function Chat() {
   const currentSession = sessions?.find(
     (s) => (s._id as unknown as string) === currentSessionId
   );
+  const searchScope: ChatSearchScope = currentSession?.searchScope ?? "both";
 
   return (
     <AnimatedPage className="flex flex-col flex-1 min-h-0">
@@ -698,7 +735,7 @@ export default function Chat() {
               <button
                 type="button"
                 onClick={dismissBetaBanner}
-                className="shrink-0 p-1.5 font-semibold underline underline-offset-2 hover:no-underline ml-1 text-xs min-h-[44px] min-w-[44px] flex items-center"
+                className="relative shrink-0 px-1 py-0.5 font-semibold underline underline-offset-2 hover:no-underline ml-1 text-xs before:absolute before:-inset-3"
               >
                 {t('chat.beta.bannerDismiss')}
               </button>
@@ -712,12 +749,12 @@ export default function Chat() {
           >
             {messages.length === 0 && (() => {
               return (
-                <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
-                  <div className="h-20 w-20 rounded-full bg-serbian-red flex items-center justify-center">
-                    <Brain className="h-12 w-12 text-white" />
+                <div className="flex flex-col items-center justify-center h-full text-center space-y-4 sm:space-y-6">
+                  <div className="h-14 w-14 sm:h-20 sm:w-20 rounded-full bg-serbian-red flex items-center justify-center">
+                    <Brain className="h-8 w-8 sm:h-12 sm:w-12 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold mb-2">{t('chat.welcome.title')}</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold mb-1 sm:mb-2">{t('chat.welcome.title')}</h2>
                     <p className="text-muted-foreground mb-2">{t('chat.welcome.subtitle')}</p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl w-full">
@@ -809,6 +846,9 @@ export default function Chat() {
                         </>
                       )}
                     </div>
+                    {msg.role === "assistant" && !isStreamingMsg ? (
+                      <ChatSearchScopeCaption scope={msg.searchScope} />
+                    ) : null}
                     {msg.role === "assistant" && msg._id && !isStreamingMsg && currentSessionId ? (
                       <ChatMessageFeedback
                         formattedTime={formatMessageTime(msg._creationTime || msg.createdAt || Date.now())}
@@ -842,8 +882,10 @@ export default function Chat() {
 
           {/* Input Area */}
           <div className="p-3 sm:p-4 bg-muted/20 rounded-none sm:rounded-b-xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            {attachedFile && (
-              <div className="flex items-center gap-2 px-2 pb-2">
+            {(attachedFile || searchScope !== "both") && (
+              <div className="flex items-center gap-2 px-2 pb-2 flex-wrap">
+                {attachedFile && (
+                <>
                 <ChatPendingAttachment
                   fileName={attachedFile.fileName}
                   fileType={attachedFile.fileType}
@@ -862,6 +904,13 @@ export default function Chat() {
                     </span>
                   ) : null;
                 })()}
+                </>
+                )}
+                <ChatSearchScopeChip
+                  value={searchScope}
+                  onReset={() => handleSearchScope("both")}
+                  disabled={isSending || !currentSessionId}
+                />
               </div>
             )}
             <input
@@ -871,134 +920,144 @@ export default function Chat() {
               accept=".pdf,.txt,.md,.jpg,.jpeg,.png,.webp"
               onChange={handleFileAttach}
             />
-            <div className="flex gap-2 items-center">
-              <Input
-                ref={inputRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                onFocus={handleInputFocus}
-                placeholder={
-                  currentSessionId
-                    ? t('chat.placeholder')
-                    : t('chat.noSessionPlaceholder', 'Please start a new chat first')
-                }
-                className="flex-1 rounded-full"
-                disabled={isSending || !currentSessionId}
-              />
-              <ChatResponseModeToggle
-                value={responseMode}
-                onChange={setResponseMode}
-                disabled={isSending || !currentSessionId}
-              />
-              {/* AI Energy pill (always visible for metered users) */}
-              <EnergyPill />
-              {canUploadDocuments && (
-              <Tooltip
-                onOpenChange={(open) => {
-                  if (open) setAttachQuotaNow(Date.now());
-                }}
-              >
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading || isSending || !currentSessionId || !!attachedFile}
-                    size="icon"
-                    variant="ghost"
-                    className="rounded-full h-10 w-10 shrink-0"
-                    aria-label={t('chat.attachHint.title', 'Supported files')}
-                  >
-                    {isUploading
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Paperclip className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" align="end" collisionPadding={12} className="max-w-[240px] px-2.5 py-1.5">
-                  <div className="text-[11px] leading-snug space-y-px">
-                    <div className="font-semibold">{t('chat.attachHint.title', 'Supported files')}</div>
-                    <div className="opacity-80">{t('chat.attachHint.images', 'JPG / PNG / WebP — max. 3 MB')}</div>
-                    <div className="opacity-80">{t('chat.attachHint.pdf', 'PDF — max. 3 MB')}</div>
-                    <div className="opacity-80">{t('chat.attachHint.text', 'TXT / MD — max. 50 KB')}</div>
-                    {(() => {
-                      const analysisCost = formatEnergyRange(attachEnergyEstimate);
-                      return analysisCost ? (
-                        <div className="flex items-center gap-1 pt-0.5 tabular-nums">
-                          <Zap className="h-3 w-3 shrink-0" />
-                          {t('chat.attachHint.energy', {
-                            cost: analysisCost,
-                            defaultValue: 'Analysis from ≈ {{cost}} Energy',
-                          })}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+              <div className="order-1 sm:order-2 flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
+                <ChatResponseModeToggle
+                  value={responseMode}
+                  onChange={setResponseMode}
+                  disabled={isSending || !currentSessionId}
+                />
+                <EnergyPill className="shrink-0" />
+                {hasReadyDocuments && (
+                  <ChatSearchScopeButton
+                    value={searchScope}
+                    onChange={handleSearchScope}
+                    disabled={isSending || !currentSessionId}
+                  />
+                )}
+                {canUploadDocuments && (
+                <Tooltip
+                  onOpenChange={(open) => {
+                    if (open) setAttachQuotaNow(Date.now());
+                  }}
+                >
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading || isSending || !currentSessionId || !!attachedFile}
+                      size="icon"
+                      variant="ghost"
+                      className="rounded-full h-10 w-10 shrink-0"
+                      aria-label={t('chat.attachHint.title', 'Supported files')}
+                    >
+                      {isUploading
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <Paperclip className="h-4 w-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="end" collisionPadding={12} className="max-w-[240px] px-2.5 py-1.5">
+                    <div className="text-[11px] leading-snug space-y-px">
+                      <div className="font-semibold">{t('chat.attachHint.title', 'Supported files')}</div>
+                      <div className="opacity-80">{t('chat.attachHint.images', 'JPG / PNG / WebP — max. 3 MB')}</div>
+                      <div className="opacity-80">{t('chat.attachHint.pdf', 'PDF — max. 3 MB')}</div>
+                      <div className="opacity-80">{t('chat.attachHint.text', 'TXT / MD — max. 50 KB')}</div>
+                      {(() => {
+                        const analysisCost = formatEnergyRange(attachEnergyEstimate);
+                        return analysisCost ? (
+                          <div className="flex items-center gap-1 pt-0.5 tabular-nums">
+                            <Zap className="h-3 w-3 shrink-0" />
+                            {t('chat.attachHint.energy', {
+                              cost: analysisCost,
+                              defaultValue: 'Analysis from ≈ {{cost}} Energy',
+                            })}
+                          </div>
+                        ) : null;
+                      })()}
+                      <div className="my-1 border-t border-background/20" />
+                      {attachQuota?.unlimited ? (
+                        <div className="opacity-80">{t('chat.attachHint.storageUnlimited', 'Storage: unlimited')}</div>
+                      ) : attachQuota?.remainingFormatted != null && attachQuota.quotaFormatted != null ? (
+                        <div className="opacity-80">
+                          {attachQuota.remainingBytes === 0
+                            ? t('chat.attachHint.storageExhausted', {
+                                used: attachQuota.usedFormatted,
+                                quota: attachQuota.quotaFormatted,
+                                defaultValue: 'Storage full ({{used}} of {{quota}})',
+                              })
+                            : t('chat.attachHint.storage', {
+                                remaining: attachQuota.remainingFormatted,
+                                quota: attachQuota.quotaFormatted,
+                                defaultValue: 'Storage: {{remaining}} of {{quota}} left',
+                              })}
                         </div>
-                      ) : null;
-                    })()}
-                    <div className="my-1 border-t border-background/20" />
-                    {attachQuota?.unlimited ? (
-                      <div className="opacity-80">{t('chat.attachHint.storageUnlimited', 'Storage: unlimited')}</div>
-                    ) : attachQuota?.remainingFormatted != null && attachQuota.quotaFormatted != null ? (
-                      <div className="opacity-80">
-                        {attachQuota.remainingBytes === 0
-                          ? t('chat.attachHint.storageExhausted', {
-                              used: attachQuota.usedFormatted,
-                              quota: attachQuota.quotaFormatted,
-                              defaultValue: 'Storage full ({{used}} of {{quota}})',
-                            })
-                          : t('chat.attachHint.storage', {
-                              remaining: attachQuota.remainingFormatted,
-                              quota: attachQuota.quotaFormatted,
-                              defaultValue: 'Storage: {{remaining}} of {{quota}} left',
-                            })}
-                      </div>
-                    ) : (
-                      <div className="opacity-60">{t('chat.attachHint.storageLoading', 'Storage: …')}</div>
-                    )}
-                    {attachQuota ? (
-                      <div className="opacity-80">
-                        {attachQuota.dailyRemaining === 0
-                          ? t('chat.attachHint.dailyExhausted', {
-                              limit: attachQuota.dailyLimit,
-                              defaultValue: 'Today: upload limit reached ({{limit}}/day)',
-                            })
-                          : t('chat.attachHint.daily', {
-                              remaining: attachQuota.dailyRemaining,
-                              limit: attachQuota.dailyLimit,
-                              defaultValue: 'Today: {{remaining}} of {{limit}} uploads left',
-                            })}
-                      </div>
-                    ) : (
-                      <div className="opacity-60">{t('chat.attachHint.dailyLoading', 'Today: …')}</div>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-              )}
-              {activeStreamId ? (
-                <Button
-                  onClick={handleStopStreaming}
-                  size="icon"
-                  variant="destructive"
-                  className="rounded-full h-10 w-10"
-                  title={t('chat.stopGenerating', 'Stop generating')}
-                >
-                  <Square className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSend}
-                  disabled={(!message.trim() && !attachedFile) || isSending || !currentSessionId || energyBlocksSend}
-                  size="icon"
-                  className="rounded-full h-10 w-10"
-                  title={energyBlocksSend
-                    ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
-                      ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
-                      : t('chat.energy.notEnough', {
-                          cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
-                          available: upcomingEnergyEstimate?.available ?? 0,
-                        })
-                    : undefined}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              )}
+                      ) : (
+                        <div className="opacity-60">{t('chat.attachHint.storageLoading', 'Storage: …')}</div>
+                      )}
+                      {attachQuota ? (
+                        <div className="opacity-80">
+                          {attachQuota.dailyRemaining === 0
+                            ? t('chat.attachHint.dailyExhausted', {
+                                limit: attachQuota.dailyLimit,
+                                defaultValue: 'Today: upload limit reached ({{limit}}/day)',
+                              })
+                            : t('chat.attachHint.daily', {
+                                remaining: attachQuota.dailyRemaining,
+                                limit: attachQuota.dailyLimit,
+                                defaultValue: 'Today: {{remaining}} of {{limit}} uploads left',
+                              })}
+                        </div>
+                      ) : (
+                        <div className="opacity-60">{t('chat.attachHint.dailyLoading', 'Today: …')}</div>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+                )}
+              </div>
+              <div className="order-2 sm:order-1 sm:contents flex items-center gap-2 min-w-0">
+                <Input
+                  ref={inputRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  onFocus={handleInputFocus}
+                  placeholder={
+                    currentSessionId
+                      ? t('chat.placeholder')
+                      : t('chat.noSessionPlaceholder', 'Please start a new chat first')
+                  }
+                  className="flex-1 min-w-0 rounded-full h-11 sm:h-9"
+                  disabled={isSending || !currentSessionId}
+                />
+                {activeStreamId ? (
+                  <Button
+                    onClick={handleStopStreaming}
+                    size="icon"
+                    variant="destructive"
+                    className="rounded-full h-11 w-11 sm:h-10 sm:w-10 shrink-0 sm:order-3"
+                    title={t('chat.stopGenerating', 'Stop generating')}
+                  >
+                    <Square className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleSend}
+                    disabled={(!message.trim() && !attachedFile) || isSending || !currentSessionId || energyBlocksSend}
+                    size="icon"
+                    className="rounded-full h-11 w-11 sm:h-10 sm:w-10 shrink-0 sm:order-3"
+                    title={energyBlocksSend
+                      ? (upcomingEnergyEstimate?.debtBalance ?? 0) > 0
+                        ? t('chat.energy.debtBlocked', { amount: upcomingEnergyEstimate?.debtBalance ?? 0 })
+                        : t('chat.energy.notEnough', {
+                            cost: upcomingEnergyEstimate?.costMax ?? upcomingEnergyEstimate?.cost ?? 0,
+                            available: upcomingEnergyEstimate?.available ?? 0,
+                          })
+                      : undefined}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
             {!currentSessionId && (
               <div className="text-center mt-2">

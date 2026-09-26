@@ -6,6 +6,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { Id } from "../_generated/dataModel";
 import type { TokenUsage } from "../energy";
 import { buildChatTools } from "./chatTools";
+import type { ChatSearchScope } from "./embeddings";
 
 export type ChatAiConfig = {
   primaryProvider: string;
@@ -494,10 +495,11 @@ export async function generateAgenticResponse(
   messages: AiMessage[],
   ctx: ActionCtx,
   userId: Id<"users"> | undefined,
-  learningLanguage: string
+  learningLanguage: string,
+  searchScope: ChatSearchScope = "both"
 ): Promise<string> {
   const model = getAiSdkModel(config.primaryProvider, config.primaryModel);
-  const tools = buildChatTools(ctx, userId, learningLanguage);
+  const tools = buildChatTools(ctx, userId, learningLanguage, searchScope);
 
   try {
     const result = await generateText({
@@ -544,10 +546,11 @@ export async function streamAgenticResponse(
   onChunk: (delta: string) => Promise<void>,
   ctx: ActionCtx,
   userId: Id<"users"> | undefined,
-  learningLanguage: string
+  learningLanguage: string,
+  searchScope: ChatSearchScope = "both"
 ): Promise<StreamChatResult> {
   const model = getAiSdkModel(config.primaryProvider, config.primaryModel);
-  const tools = buildChatTools(ctx, userId, learningLanguage);
+  const tools = buildChatTools(ctx, userId, learningLanguage, searchScope);
 
   try {
     const result = streamText({

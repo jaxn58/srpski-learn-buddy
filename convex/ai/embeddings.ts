@@ -10,6 +10,26 @@
 
 const EMBEDDING_DIMENSIONS = 768;
 
+/** Cosine similarity cutoff for chat RAG. Convex scores range from -1 to 1. */
+export const MIN_VECTOR_SCORE = 0.5;
+
+export type ChatSearchScope = "both" | "documents" | "knowledge";
+
+export function filterByMinVectorScore<T extends { _score: number }>(
+  results: T[],
+  label: string,
+): T[] {
+  if (results.length === 0) return results;
+  const kept = results.filter((result) => result._score >= MIN_VECTOR_SCORE);
+  if (kept.length === 0) {
+    const topScore = results.reduce((max, result) => Math.max(max, result._score), -1);
+    console.warn(
+      `[vectorScore] All ${label} hits below ${MIN_VECTOR_SCORE}; top score ${topScore.toFixed(3)}`,
+    );
+  }
+  return kept;
+}
+
 const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";
 const GEMINI_EMBEDDINGS_URL =
   "https://generativelanguage.googleapis.com/v1beta/openai/embeddings";

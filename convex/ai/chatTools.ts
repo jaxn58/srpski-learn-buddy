@@ -10,7 +10,7 @@ import { z } from "zod";
 import type { ActionCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
-import { embedText } from "./embeddings";
+import { embedText, filterByMinVectorScore, type ChatSearchScope } from "./embeddings";
 
 /**
  * Build the tool set for a given user context.
@@ -19,9 +19,10 @@ import { embedText } from "./embeddings";
 export function buildChatTools(
   ctx: ActionCtx,
   userId: Id<"users"> | undefined,
-  learningLanguage: string
+  learningLanguage: string,
+  searchScope: ChatSearchScope = "both"
 ) {
-  return {
+  const knowledgeTools = {
     searchKnowledge: tool({
       description:
         "Search the cultural, practical, and language knowledge base for relevant information. Use for questions about Serbian culture, holidays, food, practical life (banking, renting, healthcare), geography, history, or immigration.",
@@ -35,11 +36,14 @@ export function buildChatTools(
       execute: async ({ query }) => {
         try {
           const embedding = await embedText(query);
-          const results = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
-            vector: embedding,
-            limit: 3,
-            filter: (q: any) => q.eq("language", learningLanguage),
-          });
+          const results = filterByMinVectorScore(
+            await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+              vector: embedding,
+              limit: 3,
+              filter: (q: any) => q.eq("language", learningLanguage),
+            }),
+            "knowledge",
+          );
 
           const chunks: string[] = [];
           for (const r of results) {
@@ -49,11 +53,14 @@ export function buildChatTools(
 
           // Fallback: supplement with English if few results in user language
           if (chunks.length < 3 && learningLanguage !== "en") {
-            const enResults = await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
-              vector: embedding,
-              limit: 3 - chunks.length,
-              filter: (q: any) => q.eq("language", "en"),
-            });
+            const enResults = filterByMinVectorScore(
+              await ctx.vectorSearch("knowledgeChunks", "by_embedding", {
+                vector: embedding,
+                limit: 3 - chunks.length,
+                filter: (q: any) => q.eq("language", "en"),
+              }),
+              "knowledge-en",
+            );
             const seen = new Set(chunks);
             for (const r of enResults) {
               const doc = await ctx.runQuery(internal.chat.getKnowledgeChunk, { id: r._id });
@@ -134,7 +141,9 @@ export function buildChatTools(
         }
       },
     }),
+  };
 
+  const documentTools = {
     searchUserDocuments: tool({
       description:
         "Search the user's uploaded personal documents (PDFs, notes). Use when the user refers to their uploaded materials or asks about content from their documents.",
@@ -145,11 +154,14 @@ export function buildChatTools(
         if (!userId) return "User not identified \u2014 cannot search documents.";
         try {
           const embedding = await embedText(query);
-          const results = await ctx.vectorSearch("userDocumentChunks", "by_user_embedding", {
-            vector: embedding,
-            limit: 3,
-            filter: (q: any) => q.eq("userId", userId),
-          });
+          const results = filterByMinVectorScore(
+            await ctx.vectorSearch("userDocumentChunks", "by_user_embedding", {
+              vector: embedding,
+              limit: 3,
+              filter: (q: any) => q.eq("userId", userId),
+            }),
+            "user documents",
+          );
 
           const chunks: string[] = [];
           for (const r of results) {
@@ -166,4 +178,8 @@ export function buildChatTools(
       },
     }),
   };
+
+  if (searchScope === "documents") return documentTools;
+  if (searchScope === "knowledge") return knowledgeTools;
+  return { ...knowledgeTools, ...documentTools };
 }
