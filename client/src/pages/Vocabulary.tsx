@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { GamificationModal } from "@/components/GamificationModal";
 import { BuddyHelpHint } from "@/components/BuddyHelpHint";
+import { gradeVocabularyAnswer } from "@/lib/vocabQuizAnswer";
 import { whenAudioCanPlayThrough } from "@/lib/whenAudioCanPlayThrough";
 import { cumulativeSpacedRepetitionXp } from "../../../convex/gamification";
 
@@ -783,25 +784,21 @@ export default function Vocabulary() {
     const currentIndexSnapshot = currentIndex;
     const filteredVocabLengthSnapshot = filteredVocab.length;
     
-    // Each vocabulary entry has exactly ONE primary translation per language
-    // (in 'de' and 'en'). Alternative meanings live in 'noteDe' / 'noteEn' and
-    // are NOT accepted as correct quiz answers. No cross-language fallback.
+    // One primary translation per learner language. Further senses live in the
+    // note (`AlsoMeaning` / `Auch` / `Bedeutet auch`) and count as correct.
+    // Usage text in the same note does not. No cross-language fallback.
     const correctTranslationForWord = translationForLanguage(wordToAnswer, userLanguage);
     if (!correctTranslationForWord) {
       return;
     }
 
-    const normalizeQuizAnswer = (s: string) =>
-      s.trim().toLowerCase().replace(/[.,!?;:'"()\[\]{}\-\u2013\u2014\u2026\u00a1\u00bf]/g, "").replace(/\s+/g, " ").trim();
-
-    const normalizeWithoutCase = (s: string) =>
-      s.trim().replace(/[.,!?;:'"()\[\]{}\-–—…¡¿]/g, "").replace(/\s+/g, " ").trim();
-
-    const userAnswerNorm = normalizeQuizAnswer(userAnswer);
-    const correctTranslation = normalizeQuizAnswer(correctTranslationForWord);
-    const correct = userAnswerNorm === correctTranslation;
-
-    const caseMismatch = correct && normalizeWithoutCase(userAnswer) !== normalizeWithoutCase(correctTranslationForWord);
+    const grade = gradeVocabularyAnswer({
+      userAnswer,
+      primaryTranslation: correctTranslationForWord,
+      note: noteForLanguage(wordToAnswer, userLanguage),
+    });
+    const correct = grade.correct;
+    const caseMismatch = grade.caseMismatch;
 
     // Computed once here so every consumer (state, localStorage, DB save,
     // and handleQuizComplete on the last word) agrees on the exact same
@@ -814,7 +811,7 @@ export default function Vocabulary() {
     setScore(newScore);
     // Store the current word and translation before showing answer (to prevent them from changing)
     setAnsweredWord(wordToAnswer);
-    setCurrentCorrectTranslation(correctTranslationForWord);
+    setCurrentCorrectTranslation(grade.matchedForm ?? correctTranslationForWord);
     setShowAnswer(true);
 
     // Save answer to vocabulary tracking in quiz mode
