@@ -687,51 +687,6 @@ export const makeAllUsersBetaTesters = internalMutation({
   },
 });
 
-// Update streak
-export const updateStreak = mutation({
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTimestamp = today.getTime();
-
-    const lastActive = user.lastActiveDate;
-    let newStreak = user.currentStreak;
-    let longestStreak = user.longestStreak;
-
-    if (lastActive) {
-      const lastActiveDate = new Date(lastActive);
-      lastActiveDate.setHours(0, 0, 0, 0);
-      const daysDiff = Math.floor((todayTimestamp - lastActiveDate.getTime()) / (1000 * 60 * 60 * 24));
-
-      if (daysDiff === 1) {
-        // Consecutive day - increment streak
-        newStreak += 1;
-        if (newStreak > longestStreak) {
-          longestStreak = newStreak;
-        }
-      } else if (daysDiff > 1) {
-        // Streak broken
-        newStreak = 1;
-      }
-      // daysDiff === 0 means same day, don't change streak
-    } else {
-      // First activity ever
-      newStreak = 1;
-    }
-
-    await ctx.db.patch(user._id, {
-      currentStreak: newStreak,
-      longestStreak,
-      lastActiveDate: Date.now(),
-    });
-
-    return { currentStreak: newStreak, longestStreak };
-  },
-});
-
 // Internal mutation to update XP by Clerk ID (called from action)
 export const internalUpdateXPByClerkId = internalMutation({
   args: {

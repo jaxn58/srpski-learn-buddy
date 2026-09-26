@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useConvex, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { XP_PER_LEVEL } from "../../../convex/gamification";
+import { XP_PER_LEVEL, WEEKLY_XP_TARGET } from "../../../convex/gamification";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -395,10 +395,24 @@ export default function Leaderboards() {
                     <div className="h-10 rounded-lg bg-muted/30 animate-pulse" />
                   </div>
                 ) : entries.length === 0 && !self ? (
-                  <div className="py-6 text-sm text-muted-foreground">{t("leaderboards.empty")}</div>
+                  <div className="py-6 text-sm text-muted-foreground">
+                    <div>{t("leaderboards.empty")}</div>
+                    {b.period === "7d" ? (
+                      <div className="mt-4 flex items-center gap-2 text-[11px]">
+                        <div className="h-px flex-1 bg-border" />
+                        <span>{t("leaderboards.weeklyGoalLine", { xp: WEEKLY_XP_TARGET })}</span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
                   <div className="space-y-2">
-                    {entries.map((e) => (
+                    {entries.flatMap((e, index) => {
+                      const showGoalLine =
+                        b.period === "7d" &&
+                        e.xp < WEEKLY_XP_TARGET &&
+                        (index === 0 || entries[index - 1].xp >= WEEKLY_XP_TARGET);
+                      const row = (
                       <div
                         key={`${b.period}-${e.rank}-${e.nickname}`}
                         className={cn(
@@ -446,7 +460,27 @@ export default function Leaderboards() {
                           {xpLabel(e.xp)}
                         </div>
                       </div>
-                    ))}
+                      );
+                      const goalLine = (
+                        <div
+                          key={`${b.period}-weekly-goal`}
+                          className="flex items-center gap-2 py-1 text-[11px] text-muted-foreground"
+                        >
+                          <div className="h-px flex-1 bg-border" />
+                          <span>{t("leaderboards.weeklyGoalLine", { xp: WEEKLY_XP_TARGET })}</span>
+                          <div className="h-px flex-1 bg-border" />
+                        </div>
+                      );
+                      const goalAfter =
+                        b.period === "7d" &&
+                        index === entries.length - 1 &&
+                        e.xp >= WEEKLY_XP_TARGET;
+                      return showGoalLine
+                        ? [goalLine, row]
+                        : goalAfter
+                          ? [row, goalLine]
+                          : [row];
+                    })}
                     {self && user && !self.isInTopTen ? (
                       <div
                         className={cn(

@@ -2,7 +2,16 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { upsertDailyActivityByUserId } from "./units";
 import { assertLearnerAccountActive } from "./authz";
-import { spacedRepetitionXp, cumulativeSpacedRepetitionXp, levelFromXp } from "./gamification";
+import {
+  spacedRepetitionXp,
+  cumulativeSpacedRepetitionXp,
+  levelFromXp,
+  WEEKLY_XP_TARGET,
+  WEEKLY_ACTIVE_DAYS_TARGET,
+  consecutiveGoalWeeks,
+  utcDayStart,
+} from "./gamification";
+import { awardDueBadgesForUser } from "./badges";
 import {
   evaluateUserUnitCompletion,
   learnerTrackLanguage,
@@ -601,6 +610,9 @@ export const submitCategoryResult = mutation({
       totalXP: newTotalXP,
       level: levelFromXp(newTotalXP),
     });
+    if (totalXP > 0) {
+      await awardDueBadgesForUser(ctx, user._id);
+    }
 
     // Daily activity aggregation (for 7/30-day leaderboards + analytics)
     if (totalXP > 0) {
@@ -653,6 +665,7 @@ export const getDashboardStats = query({
   args: {
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     todayStart: v.optional(v.number()),
+    now: v.optional(v.number()),
   },
   // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
   handler: async (ctx, args) => {
@@ -736,8 +749,8 @@ export const getDashboardStats = query({
     };
     const weeklyGoal = {
       windowDays: 7,
-      activeDaysTarget: 3,
-      xpTarget: 150,
+      activeDaysTarget: WEEKLY_ACTIVE_DAYS_TARGET,
+      xpTarget: WEEKLY_XP_TARGET,
     };
 
     // Active Days (for streaks): look back up to 10 years to avoid missing legacy rows.
@@ -769,6 +782,29 @@ export const getDashboardStats = query({
         activeDaysCurrentStreak += 1;
       }
     }
+
+    const goalDays = new Map<number, { xp: number; active: boolean }>();
+    for (const activity of dailyActivitiesAll) {
+      const day = utcDayStart(activity.activityDate);
+      const prev = goalDays.get(day) ?? { xp: 0, active: false };
+      const xp = prev.xp + (activity.xpEarned ?? 0);
+      goalDays.set(day, { xp, active: prev.active || xp > 0 });
+    }
+    for (const message of chatMessagesAll) {
+      const day = utcDayStart(message._creationTime);
+      const prev = goalDays.get(day) ?? { xp: 0, active: false };
+      goalDays.set(day, { xp: prev.xp, active: true });
+    }
+    const goalWeekStreak = consecutiveGoalWeeks({
+      now: args.now ?? todayStart,
+      days: Array.from(goalDays.entries()).map(([dayStart, value]) => ({
+        dayStart,
+        xp: value.xp,
+        active: value.active,
+      })),
+      xpTarget: WEEKLY_XP_TARGET,
+      activeDaysTarget: WEEKLY_ACTIVE_DAYS_TARGET,
+    });
 
     let activeDaysLongestStreak = 0;
     if (activeDaysSorted.length > 0) {
@@ -830,6 +866,7 @@ export const getDashboardStats = query({
       totalXP: user.totalXP || 0,
       level: user.level || 1,
       currentStreak: user.currentStreak || 0,
+      goalWeekStreak,
       activeDaysCurrentStreak,
       activeDaysLongestStreak,
       activeDays30d,

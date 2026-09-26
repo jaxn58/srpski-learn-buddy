@@ -3,6 +3,7 @@ import { mutation, query, internalMutation, QueryCtx, MutationCtx } from "./_gen
 import { upsertDailyActivityByUserId, checkUnitAccess } from "./units";
 import { assertLearnerAccountActive } from "./authz";
 import { spacedRepetitionXp, levelFromXp } from "./gamification";
+import { awardDueBadgesForUser } from "./badges";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -172,6 +173,7 @@ export const submitResult = mutation({
           level: newLevel,
           lastActiveDate: Date.now(),
         });
+        await awardDueBadgesForUser(ctx, user._id);
         
         console.log('[Convex] submitResult: Successfully updated user XP:', {
           xpEarned,
@@ -498,6 +500,9 @@ export const recordExerciseQuestionAnswer = mutation({
         });
       }
 
+      if (earnedXP > 0) {
+        await awardDueBadgesForUser(ctx, user._id);
+      }
       return { _id: existing._id, earnedXP: earnedXP || 0 };
     } else {
       // Create new entry
@@ -539,7 +544,10 @@ export const recordExerciseQuestionAnswer = mutation({
           newLevel,
         });
       }
-      
+
+      if (earnedXP > 0) {
+        await awardDueBadgesForUser(ctx, user._id);
+      }
       return { _id: insertedId, earnedXP: earnedXP || 0 };
     }
   },

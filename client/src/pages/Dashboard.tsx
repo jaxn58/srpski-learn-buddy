@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../../convex/_generated/api";
+import { WEEKLY_XP_TARGET } from "../../../convex/gamification";
 
 type DashboardLibraryFolder = NonNullable<
   FunctionReturnType<typeof api.chatLibrary.listFolders>
@@ -358,7 +359,7 @@ export default function Dashboard() {
   const masteredBadgeClass = "bg-amber-500 text-white border-amber-500 hover:bg-amber-500/90 shadow-sm";
 
   const weeklyXp = dashboardStats?.weeklyProgress?.xpSum ?? 0;
-  const weeklyXpTarget = dashboardStats?.weeklyGoal?.xpTarget ?? 150;
+  const weeklyXpTarget = dashboardStats?.weeklyGoal?.xpTarget ?? WEEKLY_XP_TARGET;
   const weeklyXpPercent = weeklyXpTarget > 0 ? Math.min(100, Math.round((weeklyXp / weeklyXpTarget) * 100)) : 0;
   const streakDays = dashboardStats?.activeDaysCurrentStreak ?? 0;
 
@@ -1000,11 +1001,20 @@ export default function Dashboard() {
                       <p className="text-xs text-muted-foreground mt-1">
                         {t("dashboard.community.leaderboard.emptyDesc")}
                       </p>
+                      <div className="mt-3 flex w-full items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="h-px flex-1 bg-border" />
+                        <span>{t("dashboard.community.leaderboard.goalLine", { xp: WEEKLY_XP_TARGET })}</span>
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
                     </div>
                   ) : (
                     <>
                       <ul className="space-y-1 flex-1">
-                        {leaderboardTop5.entries.map((entry: DashboardLeaderboardEntry) => (
+                        {leaderboardTop5.entries.flatMap((entry: DashboardLeaderboardEntry, index) => {
+                          const showGoalLine =
+                            entry.xp < WEEKLY_XP_TARGET &&
+                            (index === 0 || leaderboardTop5.entries[index - 1].xp >= WEEKLY_XP_TARGET);
+                          const row = (
                           <li
                             key={`${entry.rank}-${entry.nickname}`}
                             className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${
@@ -1030,7 +1040,21 @@ export default function Dashboard() {
                               {entry.xp.toLocaleString()} XP
                             </span>
                           </li>
-                        ))}
+                          );
+                          const goalLine = (
+                            <li
+                              key="weekly-goal"
+                              className="flex items-center gap-2 py-1 text-[11px] text-muted-foreground"
+                            >
+                              <span className="h-px flex-1 bg-border" />
+                              <span>{t("dashboard.community.leaderboard.goalLine", { xp: WEEKLY_XP_TARGET })}</span>
+                              <span className="h-px flex-1 bg-border" />
+                            </li>
+                          );
+                          const goalAfter =
+                            index === leaderboardTop5.entries.length - 1 && entry.xp >= WEEKLY_XP_TARGET;
+                          return showGoalLine ? [goalLine, row] : goalAfter ? [row, goalLine] : [row];
+                        })}
                       </ul>
                       {leaderboardTop5.self && !leaderboardTop5.self.isInTopTen && (
                         <div className="mt-2 pt-2 border-t border-dashed border-border">

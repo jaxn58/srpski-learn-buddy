@@ -1,7 +1,12 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { XP_PER_LEVEL } from "../../../convex/gamification";
+import {
+  XP_PER_LEVEL,
+  WEEKLY_XP_TARGET,
+  MODULE_COMPLETION_BADGES,
+  WEEK_STREAK_BADGES,
+} from "../../../convex/gamification";
 import { Link } from "wouter";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
@@ -44,14 +49,18 @@ import { Switch } from "@/components/ui/switch";
 import { formatDateEU, formatDateShortEU, formatMonthYearShortEU } from "@/lib/utils";
 import { GamificationModal } from "@/components/GamificationModal";
 
-type AchievementTone = "units" | "streak" | "xp" | "level" | "misc";
+type AchievementTone = "units" | "xp" | "misc";
 type AchievementIconComponent = React.ComponentType<{ className?: string }>;
 
 const getAchievementTone = (badgeId: string): AchievementTone => {
-  if (badgeId.startsWith("streak_")) return "streak";
   if (badgeId.startsWith("xp_")) return "xp";
-  if (badgeId.startsWith("level_")) return "level";
-  if (badgeId === "first_steps" || badgeId === "unit_complete" || badgeId === "five_units" || badgeId === "ten_units")
+  if (
+    badgeId === "first_steps" ||
+    badgeId === "unit_complete" ||
+    badgeId === "five_units" ||
+    badgeId === "ten_units" ||
+    badgeId.startsWith("module_")
+  )
     return "units";
   return "misc";
 };
@@ -59,19 +68,16 @@ const getAchievementTone = (badgeId: string): AchievementTone => {
 const getAchievementIcon = (badgeId: string): AchievementIconComponent => {
   if (badgeId === "first_steps") return Footprints;
   if (badgeId === "unit_complete") return CheckCircle2;
-  if (badgeId === "five_units") return Flag;
+  if (badgeId === "five_units" || badgeId.startsWith("module_")) return Flag;
   if (badgeId === "ten_units") return Trophy;
-  if (badgeId.startsWith("streak_")) return Flame;
+  if (badgeId.startsWith("weeks_")) return Calendar;
   if (badgeId.startsWith("xp_")) return Zap;
-  if (badgeId.startsWith("level_")) return Star;
   return Award;
 };
 
 const achievementToneEmblemClass = (tone: AchievementTone) => {
   if (tone === "units") return "bg-serbian-blue";
-  if (tone === "streak") return "bg-serbian-red";
   if (tone === "xp") return "bg-gradient-to-br from-amber-400 to-amber-600";
-  if (tone === "level") return "bg-gradient-to-br from-purple-500 to-indigo-600";
   return "bg-gradient-to-br from-slate-500 to-slate-700";
 };
 
@@ -79,10 +85,13 @@ export default function Progress() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   const todayStart = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
-  const stats = useQuery(api.progress.getDashboardStats, { todayStart });
+  const now = useMemo(() => Date.now(), []);
+  const stats = useQuery(api.progress.getDashboardStats, { todayStart, now });
   const backfillDailyActivity = useMutation(api.progress.backfillDailyActivityForCurrentUser);
 
   const userBadges = useQuery(api.badges.getUserBadges);
+  const checkAndAwardBadges = useMutation(api.badges.checkAndAwardBadges);
+  const didAwardBadgesRef = useRef(false);
   const accessInfo = useQuery(api.subscriptions.getAccessibleUnits);
 
   // Load modules and units from database
@@ -96,16 +105,42 @@ export default function Progress() {
 
   // Memoize modules list to prevent duplicate renders - MUST be before early returns
   const modulesList = useMemo(() => {
-    if (!dbModules || dbModules.length === 0) return [];
-    return dbModules.map((module: any) => ({
-      id: module.slug || "",
-      number: module.moduleNumber || 0,
-      titleEnglish: module.titleEn || "",
-      titleGerman: module.titleDe || "",
-      units: (dbUnitsEn || [])
-        .filter((unit: any) => unit.moduleId === module.slug)
-        .map((unit: any) => unit.unitNumber),
-    }));
+    if (!dbModules || dbModules.length === 0 || !dbUnitsEn) return [];
+    const units = dbUnitsEn as Array<{
+      unitNumber?: number;
+      moduleMetadataId?: string;
+      moduleId?: string;
+    }>;
+    return dbModules
+      .map((module: {
+        _id?: string;
+        slug?: string;
+        moduleNumber?: number;
+        titleEn?: string;
+        titleDe?: string;
+        descriptionEn?: string;
+        descriptionDe?: string;
+      }) => {
+        const unitNumbers = units
+          .filter((unit) => {
+            if (unit.moduleMetadataId && module._id) {
+              return String(unit.moduleMetadataId) === String(module._id);
+            }
+            return Boolean(unit.moduleId && module.slug && unit.moduleId === module.slug);
+          })
+          .map((unit) => unit.unitNumber)
+          .filter((unitNumber): unitNumber is number => typeof unitNumber === "number");
+        return {
+          id: module.slug || String(module._id || ""),
+          number: module.moduleNumber || 0,
+          titleEnglish: module.titleEn || "",
+          titleGerman: module.titleDe || "",
+          descriptionEnglish: module.descriptionEn || "",
+          descriptionGerman: module.descriptionDe || "",
+          units: Array.from(new Set(unitNumbers)),
+        };
+      })
+      .filter((module) => module.units.length > 0);
   }, [dbModules, dbUnitsEn]);
 
   const isLoading = stats === undefined;
@@ -117,6 +152,14 @@ export default function Progress() {
       window.location.href = "/";
     }
   }, [user]);
+
+  // Catch up badges the learner already earned. Awarding used to run only when
+  // a unit was newly marked complete, so XP thresholds could sit full but locked.
+  useEffect(() => {
+    if (!user || didAwardBadgesRef.current) return;
+    didAwardBadgesRef.current = true;
+    void checkAndAwardBadges({}).catch(() => {});
+  }, [user, checkAndAwardBadges]);
 
   const completedUnits: number[] = stats?.completedUnits || [];
   const currentUnitNumber = useMemo(() => {
@@ -301,7 +344,7 @@ export default function Progress() {
   const xpToNextLevel = XP_PER_LEVEL - xpIntoLevel;
   const levelProgress = Math.min(100, (xpIntoLevel / XP_PER_LEVEL) * 100);
 
-  const weeklyGoal = stats?.weeklyGoal ?? { windowDays: 7, activeDaysTarget: 3, xpTarget: 150 };
+  const weeklyGoal = stats?.weeklyGoal ?? { windowDays: 7, activeDaysTarget: 3, xpTarget: WEEKLY_XP_TARGET };
   const weeklyProgress = stats?.weeklyProgress ?? { windowDays: 7, activeDays: 0, xpSum: 0 };
   const weeklyXpRemaining = Math.max(0, (weeklyGoal.xpTarget ?? 0) - (weeklyProgress.xpSum ?? 0));
   const weeklyDaysRemaining = Math.max(0, (weeklyGoal.activeDaysTarget ?? 0) - (weeklyProgress.activeDays ?? 0));
@@ -873,25 +916,43 @@ export default function Progress() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {(modulesList as Array<{ id: string; number: number; units: number[]; titleGerman?: string; titleEnglish?: string }>).map((module: { id: string; number: number; units: number[]; titleGerman?: string; titleEnglish?: string }) => {
+                  {(modulesList as Array<{
+                    id: string;
+                    number: number;
+                    units: number[];
+                    titleGerman?: string;
+                    titleEnglish?: string;
+                    descriptionGerman?: string;
+                    descriptionEnglish?: string;
+                  }>).map((module) => {
                     const completed = module.units.filter((unitNum: number) => completedUnits.includes(unitNum)).length;
                     const total = module.units.length;
                     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-                    const moduleTitle = i18n.language === "de" ? module.titleGerman : module.titleEnglish;
+                    const moduleTitle =
+                      i18n.language === "de"
+                        ? module.titleGerman || module.titleEnglish
+                        : module.titleEnglish || module.titleGerman;
+                    const moduleDescription =
+                      i18n.language === "de"
+                        ? module.descriptionGerman || module.descriptionEnglish
+                        : module.descriptionEnglish || module.descriptionGerman;
 
                     return (
                       <div key={`module-${module.number}-${module.id}`} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Badge variant="outline" className="text-sm bg-slate-50">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Badge variant="outline" className="text-sm bg-slate-50 shrink-0">
                               {t("units.module", { number: module.number })}
                             </Badge>
                             <span className="font-semibold text-slate-700">{moduleTitle}</span>
                           </div>
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-sm text-muted-foreground shrink-0">
                             {t("progress.lessonsCompleted", { completed, total })}
                           </span>
                         </div>
+                        {moduleDescription ? (
+                          <p className="text-sm text-muted-foreground">{moduleDescription}</p>
+                        ) : null}
                         <ProgressBar value={percentage} className="h-2" />
                       </div>
                     );
@@ -925,9 +986,20 @@ export default function Progress() {
                     { id: "unit_complete", title: t("progress.badge.unit_complete.title"), description: t("progress.badge.unit_complete.desc"), requirement: t("progress.badge.unit_complete.req"), progressText: `${Math.min(completedUnits.length, 1)}/1` },
                     { id: "five_units", title: t("progress.badge.five_units.title"), description: t("progress.badge.five_units.desc"), requirement: t("progress.badge.five_units.req"), progressText: `${Math.min(completedUnits.length, 5)}/5` },
                     { id: "ten_units", title: t("progress.badge.ten_units.title"), description: t("progress.badge.ten_units.desc"), requirement: t("progress.badge.ten_units.req"), progressText: `${Math.min(completedUnits.length, 10)}/10` },
-                    { id: "streak_3", title: t("progress.badge.streak_3.title"), description: t("progress.badge.streak_3.desc"), requirement: t("progress.badge.streak_3.req"), progressText: `${Math.min(stats?.currentStreak || 0, 3)}/3` },
-                    { id: "streak_7", title: t("progress.badge.streak_7.title"), description: t("progress.badge.streak_7.desc"), requirement: t("progress.badge.streak_7.req"), progressText: `${Math.min(stats?.currentStreak || 0, 7)}/7` },
-                    { id: "streak_30", title: t("progress.badge.streak_30.title"), description: t("progress.badge.streak_30.desc"), requirement: t("progress.badge.streak_30.req"), progressText: `${Math.min(stats?.currentStreak || 0, 30)}/30` },
+                    ...MODULE_COMPLETION_BADGES.map((badge) => ({
+                      id: badge.id,
+                      title: t(`progress.badge.${badge.id}.title`),
+                      description: t(`progress.badge.${badge.id}.desc`),
+                      requirement: t(`progress.badge.${badge.id}.req`),
+                      progressText: `${Math.min(completedUnits.length, badge.units)}/${badge.units}`,
+                    })),
+                    ...WEEK_STREAK_BADGES.map((badge) => ({
+                      id: badge.id,
+                      title: t(`progress.badge.${badge.id}.title`),
+                      description: t(`progress.badge.${badge.id}.desc`),
+                      requirement: t(`progress.badge.${badge.id}.req`),
+                      progressText: `${Math.min(stats?.goalWeekStreak ?? 0, badge.weeks)}/${badge.weeks}`,
+                    })),
                     { id: "xp_100", title: t("progress.badge.xp_100.title"), description: t("progress.badge.xp_100.desc"), requirement: t("progress.badge.xp_100.req"), progressText: `${Math.min(totalXP, 100)}/100` },
                     { id: "xp_500", title: t("progress.badge.xp_500.title"), description: t("progress.badge.xp_500.desc"), requirement: t("progress.badge.xp_500.req"), progressText: `${Math.min(totalXP, 500)}/500` },
                     { id: "xp_1000", title: t("progress.badge.xp_1000.title"), description: t("progress.badge.xp_1000.desc"), requirement: t("progress.badge.xp_1000.req"), progressText: `${Math.min(totalXP, 1000)}/1000` },
@@ -936,11 +1008,6 @@ export default function Progress() {
                     { id: "xp_10000", title: t("progress.badge.xp_10000.title"), description: t("progress.badge.xp_10000.desc"), requirement: t("progress.badge.xp_10000.req"), progressText: `${Math.min(totalXP, 10000)}/10000` },
                     { id: "xp_20000", title: t("progress.badge.xp_20000.title"), description: t("progress.badge.xp_20000.desc"), requirement: t("progress.badge.xp_20000.req"), progressText: `${Math.min(totalXP, 20000)}/20000` },
                     { id: "xp_50000", title: t("progress.badge.xp_50000.title"), description: t("progress.badge.xp_50000.desc"), requirement: t("progress.badge.xp_50000.req"), progressText: `${Math.min(totalXP, 50000)}/50000` },
-                    { id: "level_5", title: t("progress.badge.level_5.title"), description: t("progress.badge.level_5.desc"), requirement: t("progress.badge.level_5.req"), progressText: `${Math.min(currentLevel, 5)}/5` },
-                    { id: "level_10", title: t("progress.badge.level_10.title"), description: t("progress.badge.level_10.desc"), requirement: t("progress.badge.level_10.req"), progressText: `${Math.min(currentLevel, 10)}/10` },
-                    { id: "level_15", title: t("progress.badge.level_15.title"), description: t("progress.badge.level_15.desc"), requirement: t("progress.badge.level_15.req"), progressText: `${Math.min(currentLevel, 15)}/15` },
-                    { id: "level_20", title: t("progress.badge.level_20.title"), description: t("progress.badge.level_20.desc"), requirement: t("progress.badge.level_20.req"), progressText: `${Math.min(currentLevel, 20)}/20` },
-                    { id: "level_25", title: t("progress.badge.level_25.title"), description: t("progress.badge.level_25.desc"), requirement: t("progress.badge.level_25.req"), progressText: `${Math.min(currentLevel, 25)}/25` },
                   ];
 
                   return (

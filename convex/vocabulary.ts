@@ -5,6 +5,7 @@ import { assertLearnerAccountActive, assertAdminSecret } from "./authz";
 import { upsertDailyActivityByUserId } from "./units";
 import { spacedRepetitionXp, levelFromXp } from "./gamification";
 import { learnerTrackLanguage, markUnitCompletedIfReady } from "./lib/unitProgress";
+import { awardDueBadgesForUser } from "./badges";
 
 // ============= COURSE VOCABULARY (Master Data) =============
 
@@ -708,6 +709,7 @@ export const recordVocabularyAnswer = mutation({
         xpEarned: earnedXP,
         exercisesCompleted: 1,
       });
+      await awardDueBadgesForUser(ctx, user._id);
     }
 
     const marked = await markUnitCompletedIfReady(ctx, {

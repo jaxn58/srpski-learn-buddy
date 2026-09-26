@@ -1308,10 +1308,9 @@ async function buildUnitContextBlock(
         ? userProgress.completedUnits.sort((a, b) => a - b).join(", ")
         : "none";
       const xp = user?.totalXP ?? 0;
-      const streak = user?.currentStreak ?? 0;
       sections.push(
         "",
-        `[USER PROFILE] Unit ${userProgress.currentUnit} | Completed: ${completedStr} | XP: ${xp} | Streak: ${streak} days`
+        `[USER PROFILE] Unit ${userProgress.currentUnit} | Completed: ${completedStr} | XP: ${xp}`
       );
     }
 
@@ -1651,7 +1650,6 @@ export const getUserProgressForTools = internalQuery({
 
     const user = await ctx.db.get(args.userId);
     const xp = user?.totalXP ?? 0;
-    const streak = user?.currentStreak ?? 0;
 
     const vocabProgress = await ctx.db
       .query("vocabularyProgress")
@@ -1676,7 +1674,7 @@ export const getUserProgressForTools = internalQuery({
 
     let result = `Current Unit: ${progress.currentUnit}\n`;
     result += `Completed Units: ${completedStr}\n`;
-    result += `XP: ${xp} | Streak: ${streak} days\n`;
+    result += `XP: ${xp}\n`;
     if (weakWordsStr) {
       result += `Weak vocabulary: ${weakWordsStr}`;
     }

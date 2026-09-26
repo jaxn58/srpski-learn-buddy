@@ -2,6 +2,15 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { assertLearnerAccountActive } from "./authz";
 import type { Id } from "./_generated/dataModel";
+import {
+  MODULE_COMPLETION_BADGES,
+  WEEK_STREAK_BADGES,
+  WEEKLY_ACTIVE_DAYS_TARGET,
+  WEEKLY_XP_TARGET,
+  consecutiveGoalWeeks,
+  utcDayStart,
+  utcWeekStart,
+} from "./gamification";
 
 // Helper to get the current user
 async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
@@ -16,6 +25,49 @@ async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     assertLearnerAccountActive(user);
   }
   return user;
+}
+
+/** Monday–Sunday weeks, current week plus eight before it, matching the weekly goal. */
+async function loadGoalWeekStreak(ctx: QueryCtx | MutationCtx, userId: Id<"users">): Promise<number> {
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const windowStart = utcWeekStart(utcDayStart(now)) - 8 * 7 * dayMs;
+
+  const activities = await ctx.db
+    .query("dailyActivity")
+    .withIndex("by_user_date", (q) => q.eq("userId", userId).gte("activityDate", windowStart))
+    .collect();
+
+  const chats = await ctx.db
+    .query("chatMessages")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .filter((q) => q.eq(q.field("role"), "user"))
+    .filter((q) => q.gte(q.field("_creationTime"), windowStart))
+    .collect();
+
+  const byDay = new Map<number, { xp: number; active: boolean }>();
+  for (const activity of activities) {
+    const day = utcDayStart(activity.activityDate);
+    const prev = byDay.get(day) ?? { xp: 0, active: false };
+    const xp = prev.xp + (activity.xpEarned ?? 0);
+    byDay.set(day, { xp, active: prev.active || xp > 0 });
+  }
+  for (const message of chats) {
+    const day = utcDayStart(message._creationTime);
+    const prev = byDay.get(day) ?? { xp: 0, active: false };
+    byDay.set(day, { xp: prev.xp, active: true });
+  }
+
+  return consecutiveGoalWeeks({
+    now,
+    days: Array.from(byDay.entries()).map(([dayStart, value]) => ({
+      dayStart,
+      xp: value.xp,
+      active: value.active,
+    })),
+    xpTarget: WEEKLY_XP_TARGET,
+    activeDaysTarget: WEEKLY_ACTIVE_DAYS_TARGET,
+  });
 }
 
 // Get user's badges
@@ -50,24 +102,42 @@ export async function awardDueBadgesForUser(
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .first();
 
-  const completions = await ctx.db
+  const anyCompletion = await ctx.db
     .query("exerciseCompletions")
     .withIndex("by_user", (q) => q.eq("userId", userId))
-    .collect();
+    .first();
 
-  const badges = [
-    { id: "first_steps", condition: () => completions.length >= 1 },
-    { id: "unit_complete", condition: () => (progress?.completedUnits.length ?? 0) >= 1 },
-    { id: "five_units", condition: () => (progress?.completedUnits.length ?? 0) >= 5 },
-    { id: "ten_units", condition: () => (progress?.completedUnits.length ?? 0) >= 10 },
-    { id: "streak_3", condition: () => (user.currentStreak ?? 0) >= 3 },
-    { id: "streak_7", condition: () => (user.currentStreak ?? 0) >= 7 },
-    { id: "streak_30", condition: () => (user.currentStreak ?? 0) >= 30 },
-    { id: "xp_100", condition: () => (user.totalXP ?? 0) >= 100 },
-    { id: "xp_500", condition: () => (user.totalXP ?? 0) >= 500 },
-    { id: "xp_1000", condition: () => (user.totalXP ?? 0) >= 1000 },
-    { id: "level_5", condition: () => (user.level ?? 0) >= 5 },
-    { id: "level_10", condition: () => (user.level ?? 0) >= 10 },
+  const totalXp = user.totalXP ?? 0;
+  const completedUnits = progress?.completedUnits.length ?? 0;
+  const goalWeekStreak = await loadGoalWeekStreak(ctx, userId);
+  const xpBadges = [
+    { id: "xp_100", minXp: 100 },
+    { id: "xp_500", minXp: 500 },
+    { id: "xp_1000", minXp: 1000 },
+    { id: "xp_2000", minXp: 2000 },
+    { id: "xp_5000", minXp: 5000 },
+    { id: "xp_10000", minXp: 10000 },
+    { id: "xp_20000", minXp: 20000 },
+    { id: "xp_50000", minXp: 50000 },
+  ] as const;
+
+  const badges: Array<{ id: string; condition: () => boolean }> = [
+    { id: "first_steps", condition: () => anyCompletion !== null },
+    { id: "unit_complete", condition: () => completedUnits >= 1 },
+    { id: "five_units", condition: () => completedUnits >= 5 },
+    { id: "ten_units", condition: () => completedUnits >= 10 },
+    ...MODULE_COMPLETION_BADGES.map((badge) => ({
+      id: badge.id,
+      condition: () => completedUnits >= badge.units,
+    })),
+    ...WEEK_STREAK_BADGES.map((badge) => ({
+      id: badge.id,
+      condition: () => goalWeekStreak >= badge.weeks,
+    })),
+    ...xpBadges.map((badge) => ({
+      id: badge.id,
+      condition: () => totalXp >= badge.minXp,
+    })),
   ];
 
   for (const badge of badges) {
@@ -111,6 +181,8 @@ export const awardBadge = mutation({
 
 // Check and award badges based on achievements
 export const checkAndAwardBadges = mutation({
+  args: {},
+  returns: v.array(v.string()),
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
