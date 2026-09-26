@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { StackedMarkdownTable } from "@/components/MarkdownContent";
 
 /**
  * Chat-only Markdown renderer.
@@ -59,10 +60,13 @@ const chatMarkdownComponents = {
       {children}
     </pre>
   ),
-  table: ({ node, ...props }: any) => (
-    <div className="overflow-x-auto mb-1.5 sm:mb-2">
-      <table className="w-full border-collapse border border-border" {...props} />
-    </div>
+  table: ({ node, children }: any) => (
+    <>
+      <div className="mb-1.5 hidden overflow-x-auto sm:mb-2 md:block">
+        <table className="w-full border-collapse border border-border">{children}</table>
+      </div>
+      <StackedMarkdownTable node={node} className="my-1.5" />
+    </>
   ),
   thead: ({ node, ...props }: any) => <thead className="bg-muted/50" {...props} />,
   tbody: ({ node, ...props }: any) => <tbody {...props} />,

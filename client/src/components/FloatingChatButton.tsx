@@ -20,11 +20,11 @@ export function FloatingChatButton() {
 
   return (
     <>
-      <div className="fixed bottom-6 right-4 sm:right-12 z-50">
+      <div className="fixed right-4 z-50 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-12">
         <Button
           onClick={() => setIsOpen(true)}
           size="lg"
-          className="h-14 px-6 rounded-full shadow-2xl bg-serbian-red hover:bg-serbian-red/90 text-white font-semibold gap-3 transition-all hover:scale-105"
+          className="h-11 w-11 gap-3 rounded-full bg-serbian-red p-0 font-semibold text-white shadow-2xl transition-all hover:scale-105 hover:bg-serbian-red/90 sm:h-14 sm:w-auto sm:px-6"
         >
           <Brain className="text-white" style={{ width: '28px', height: '28px' }} />
           <span 

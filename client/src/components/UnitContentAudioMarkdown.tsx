@@ -1,9 +1,11 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Loader2, Volume2 } from "lucide-react";
 import { useUnitContentAudioPlayback } from "@/hooks/useUnitContentAudioPlayback";
+import { formCaption, isCompactForm, isGlossHeader, isNoteHeader } from "@/components/MarkdownContent";
 
 type ContentType = "phrases" | "dialogues";
 
@@ -172,8 +174,89 @@ function AudioTable({
     : tableChildren.filter((c: any) => c?.type === "element" && c.tagName === "tr");
   const bodyRows: any[] = bodyContainerChildren.filter((c: any) => c?.type === "element" && c.tagName === "tr");
 
+  const anchorIdx = hasSerbian ? serbianIdx : 0;
+
   return (
-    <div className="overflow-x-auto my-6 rounded-lg border border-border shadow-sm">
+    <>
+    <div className="my-4 divide-y overflow-hidden rounded-lg border border-border bg-card md:hidden">
+      {bodyRows.map((rowNode, rowIdx) => {
+        const cells: any[] = Array.isArray(rowNode?.children)
+          ? rowNode.children.filter(
+              (c: any) => c?.type === "element" && (c.tagName === "td" || c.tagName === "th")
+            )
+          : [];
+        const anchor = cells[anchorIdx];
+        const anchorText = anchor ? cleanSerbianForTts(mdastToPlainText(anchor)) : "";
+        const anchorHash = hasSerbian && anchorText
+          ? fnv1a32Hex(`${AUDIO_VERSION_TAG}::${DEFAULT_VOICE_KEY}::${anchorText}`)
+          : null;
+        const rest = cells
+          .map((cellNode, cellIdx) => ({ cellNode, cellIdx, header: headers[cellIdx] ?? "" }))
+          .filter((entry) => entry.cellIdx !== anchorIdx);
+        const formEntries = rest.filter((entry) => {
+          const text = mdastToPlainText(entry.cellNode).replace(/\s+/g, " ").trim();
+          return !isGlossHeader(entry.header) && !isNoteHeader(entry.header) && isCompactForm(text);
+        });
+        const useGrid = formEntries.length >= 2;
+        const stacked = rest.filter((entry) => !useGrid || !formEntries.some((form) => form.cellIdx === entry.cellIdx));
+
+        return (
+          <div key={rowIdx} className="px-3 py-3">
+            <div className="flex items-start gap-1">
+              {hasSerbian && anchorText ? (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="mt-0.5 size-11 shrink-0"
+                  onClick={() =>
+                    play({
+                      unitNumber,
+                      language,
+                      contentType,
+                      textSr: anchorText,
+                    })
+                  }
+                  disabled={!!loadingTextHash}
+                  aria-label={loadingTextHash ? "Generating audio" : "Play pronunciation"}
+                >
+                  {anchorHash && loadingTextHash === anchorHash ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Volume2 className={`h-4 w-4 ${anchorHash && playingTextHash === anchorHash ? "text-primary" : "text-muted-foreground"}`} />
+                  )}
+                </Button>
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-semibold leading-snug text-foreground">
+                  {anchor ? renderHastInline(anchor.children ?? []) : null}
+                </div>
+                {useGrid ? (
+                  <div className={`mt-2 grid gap-x-4 ${formEntries.length >= 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+                    {formEntries.map((entry) => {
+                      const caption = formCaption(entry.header);
+                      return (
+                        <div key={entry.cellIdx} className="min-w-0">
+                          <div className="text-[15px] font-semibold leading-tight text-foreground">
+                            {renderHastInline(entry.cellNode.children ?? [])}
+                          </div>
+                          {caption ? <div className="text-xs leading-4 text-muted-foreground">{caption}</div> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {stacked.map((entry) => (
+                  <div key={entry.cellIdx} className="text-sm leading-5 text-muted-foreground">
+                    {renderHastInline(entry.cellNode.children ?? [])}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    <div className="my-6 hidden overflow-x-auto rounded-lg border border-border shadow-sm md:block">
       <table className="min-w-full divide-y divide-border">
         <thead className="bg-gradient-to-r from-serbian-blue/10 to-serbian-blue/5">
           <tr>
@@ -187,7 +270,7 @@ function AudioTable({
             ))}
           </tr>
         </thead>
-        <tbody className="bg-card divide-y divide-border/50">
+        <tbody className="divide-y divide-border/50 bg-card">
           {bodyRows.map((rowNode, rowIdx) => {
             const cells: any[] = Array.isArray(rowNode?.children)
               ? rowNode.children.filter(
@@ -195,7 +278,7 @@ function AudioTable({
                 )
               : [];
             return (
-              <tr key={rowIdx} className="hover:bg-muted/3 transition-colors duration-150">
+              <tr key={rowIdx} className="transition-colors duration-150 hover:bg-muted/3">
                 {cells.map((cellNode, cellIdx) => {
                   const rawText = mdastToPlainText(cellNode);
                   const cellText = cleanSerbianForTts(rawText);
@@ -208,7 +291,7 @@ function AudioTable({
                   const showSpinner = !!cellHash && loadingTextHash === cellHash;
 
                   return (
-                    <td key={cellIdx} className="px-4 md:px-6 py-3 md:py-4 text-sm text-foreground align-top">
+                    <td key={cellIdx} className="px-4 py-3 align-top text-sm text-foreground md:px-6 md:py-4">
                       {hasAudioText ? (
                         <div className="flex items-start gap-2">
                           <Button
@@ -247,10 +330,12 @@ function AudioTable({
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
 export function UnitContentAudioMarkdown({ content, unitNumber, language, contentType }: Props) {
+  const { t } = useTranslation();
   const { play, stop, loadingTextHash, playingTextHash } = useUnitContentAudioPlayback();
 
   const allLines = React.useMemo(() => extractSerbianLinesFromMarkdownTables(content), [content]);
@@ -264,15 +349,16 @@ export function UnitContentAudioMarkdown({ content, unitNumber, language, conten
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex">
         <Button
           variant="outline"
           size="sm"
+          className="h-11 w-full md:h-8 md:w-auto"
           onClick={playAll}
           disabled={allLines.length === 0 || !!loadingTextHash}
-          title={allLines.length === 0 ? "No playable Serbian lines detected" : "Play all Serbian lines"}
+          title={t("unit.playAll")}
         >
-          Play all
+          {t("unit.playAll")}
         </Button>
       </div>
 
@@ -293,19 +379,18 @@ export function UnitContentAudioMarkdown({ content, unitNumber, language, conten
             ),
             // Keep typography consistent with existing MarkdownContent
             h1: ({ children }) => (
-              <h1 className="text-3xl font-bold mt-10 mb-4 text-foreground border-b pb-2 first:mt-0">{children}</h1>
+              <h1 className="mt-10 mb-4 border-b pb-2 text-3xl font-bold text-foreground first:mt-0 max-md:mt-6 max-md:mb-2.5 max-md:text-2xl">{children}</h1>
             ),
-            h2: ({ children }) => <h2 className="text-2xl font-bold mt-8 mb-3 text-foreground first:mt-0">{children}</h2>,
-            h3: ({ children }) => <h3 className="text-xl font-semibold mt-7 mb-2 text-foreground first:mt-0">{children}</h3>,
-            h4: ({ children }) => <h4 className="text-lg font-semibold mt-6 mb-2 text-foreground first:mt-0">{children}</h4>,
-            h5: ({ children }) => <h5 className="text-[17px] font-semibold mt-5 mb-2 text-foreground first:mt-0">{children}</h5>,
-            p: ({ children }) => <p className="mb-4 leading-7 text-foreground">{children}</p>,
-            // Use list-outside so bullets align correctly when list items contain block elements (e.g. <p>).
-            ul: ({ children }) => <ul className="list-disc list-outside mb-4 space-y-2 pl-6">{children}</ul>,
-            ol: ({ children }) => <ol className="list-decimal list-outside mb-4 space-y-2 pl-6">{children}</ol>,
+            h2: ({ children }) => <h2 className="mt-8 mb-3 text-2xl font-bold text-foreground first:mt-0 max-md:mt-5 max-md:mb-2 max-md:text-lg">{children}</h2>,
+            h3: ({ children }) => <h3 className="mt-7 mb-2 text-xl font-semibold text-foreground first:mt-0 max-md:mt-4 max-md:mb-1.5 max-md:text-base">{children}</h3>,
+            h4: ({ children }) => <h4 className="mt-6 mb-2 text-lg font-semibold text-foreground first:mt-0 max-md:mt-4 max-md:mb-1.5 max-md:text-[15px]">{children}</h4>,
+            h5: ({ children }) => <h5 className="mt-5 mb-2 text-[17px] font-semibold text-foreground first:mt-0 max-md:mt-3 max-md:mb-1.5 max-md:text-sm">{children}</h5>,
+            p: ({ children }) => <p className="mb-4 text-foreground leading-7 max-md:mb-2.5 max-md:text-[15px] max-md:leading-[1.4]">{children}</p>,
+            ul: ({ children }) => <ul className="mb-4 list-disc list-outside space-y-2 pl-6 max-md:mb-2.5 max-md:space-y-1">{children}</ul>,
+            ol: ({ children }) => <ol className="mb-4 list-decimal list-outside space-y-2 pl-6 max-md:mb-2.5 max-md:space-y-1">{children}</ol>,
             li: ({ children }) =>
               extractTextFromReactNode(children).trim().length === 0 ? null : (
-                <li className="leading-7 text-foreground">{children}</li>
+                <li className="text-foreground leading-7 max-md:text-[15px] max-md:leading-5">{children}</li>
               ),
             strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
             em: ({ children }) => <em className="italic text-foreground">{children}</em>,

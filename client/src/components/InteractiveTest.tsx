@@ -331,11 +331,15 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
   });
 
   return (
-    <div className="space-y-12 w-full">
+    <div className="w-full space-y-8 sm:space-y-12">
       {/* Test Introduction */}
       {testIntro?.testIntroduction && sanitizeTestIntroduction(testIntro.testIntroduction) && (
         <div className="mb-8">
-          <MarkdownContent content={sanitizeTestIntroduction(testIntro.testIntroduction)} className="text-gray-700" />
+          <MarkdownContent
+            content={sanitizeTestIntroduction(testIntro.testIntroduction)}
+            className="text-gray-700"
+            compactOnMobile
+          />
         </div>
       )}
 
@@ -426,7 +430,7 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
                         {q.options?.map((option, optIdx) => (
                           <div
                             key={optIdx}
-                            className={`flex items-center space-x-2 ${
+                            className={`flex items-start gap-2 ${
                               isSubmitted && option === q.correctAnswer
                                 ? "text-green-600 font-medium"
                                 : isSubmitted && answers[q.questionId] === option && option !== q.correctAnswer
@@ -435,7 +439,7 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
                             }`}
                           >
                             <RadioGroupItem value={option} id={`${q.questionId}-${optIdx}`} />
-                            <Label htmlFor={`${q.questionId}-${optIdx}`} className="cursor-pointer">
+                            <Label htmlFor={`${q.questionId}-${optIdx}`} className="min-w-0 flex-1 cursor-pointer">
                               {option}
                             </Label>
                           </div>
@@ -481,6 +485,11 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
 
                           {/* Input */}
                           {renderAnswerInput()}
+
+                          <div className="flex items-center gap-3 sm:hidden">
+                            <MasteryIndicator correctCount={correctAttempts} mastered={isMastered} />
+                            {incorrectAttempts > 0 && <MistakesIndicator count={incorrectAttempts} />}
+                          </div>
 
                           {/* Hint */}
                           {q.hint && !isSubmitted && (
@@ -538,13 +547,13 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
             </div>
 
             {/* Category Action Buttons */}
-            <div className="flex flex-wrap gap-3 pt-4 items-center">
+            <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:flex-wrap sm:items-center">
               {!isCategoryChecked ? (
                 <>
                   <Button 
                     onClick={() => checkCategoryAnswers(category)} 
                     disabled={!allAnswered}
-                    className="bg-primary hover:bg-primary/90"
+                    className="h-11 w-full bg-primary hover:bg-primary/90 sm:h-9 sm:w-auto"
                   >
                     Check Answers
                   </Button>
@@ -572,6 +581,7 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
                   <Button 
                     onClick={() => resetCategory(category)} 
                     variant="outline"
+                    className="h-11 w-full sm:h-9 sm:w-auto"
                   >
                     Reset
                   </Button>

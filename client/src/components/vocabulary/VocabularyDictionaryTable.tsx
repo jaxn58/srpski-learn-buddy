@@ -78,7 +78,7 @@ export function VocabularyDictionaryTable({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="mt-0.5"
+              className="mt-0.5 max-md:size-11"
               onClick={() =>
                 onPlayAudio({
                   vocabularyId: row.id,
@@ -126,7 +126,7 @@ export function VocabularyDictionaryTable({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="mt-0.5"
+              className="mt-0.5 max-md:size-11"
               aria-label={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
               title={t("unit.vocabTable.askBuddy", "Ask Learn Buddy")}
               onClick={() =>

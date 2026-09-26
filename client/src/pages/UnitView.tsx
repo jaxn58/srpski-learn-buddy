@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { BookOpen, CheckCircle2, Brain, Lightbulb, Lock, Star, MessageSquare, Mic, PenTool, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Link, useParams } from "wouter";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { UnitContentAudioMarkdown } from "@/components/UnitContentAudioMarkdown";
@@ -184,6 +185,44 @@ function extractVocabularyGroupsFromMarkdown(markdown: string): VocabularyGroup[
   }
 
   return groups;
+}
+
+function UnitStepButtons({
+  prevUnit,
+  nextUnit,
+}: {
+  prevUnit: number | null;
+  nextUnit: number | null;
+}) {
+  const { t } = useTranslation();
+  if (prevUnit == null && nextUnit == null) return null;
+
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {prevUnit != null && (
+        <Link href={`/unit/${prevUnit}`}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-11 px-2 text-xs md:h-8 md:px-3 md:text-sm"
+          >
+            {t("unit.previousUnit", { number: prevUnit })}
+          </Button>
+        </Link>
+      )}
+      {nextUnit != null && (
+        <Link href={`/unit/${nextUnit}`}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-11 px-2 text-xs md:h-8 md:px-3 md:text-sm"
+          >
+            {t("unit.nextUnit", { number: nextUnit })}
+          </Button>
+        </Link>
+      )}
+    </div>
+  );
 }
 
 export default function UnitView() {
@@ -487,12 +526,17 @@ export default function UnitView() {
 
   return (
     <AnimatedPage className="md:[&_[data-slot=card-header]]:px-9 md:[&_[data-slot=card-content]]:px-9 md:[&_[data-slot=card-footer]]:px-9">
-      <header className={`sticky top-16 z-40 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 pt-4 pb-2 mb-6 transition-all duration-200 ${
-        isScrolled 
-          ? 'bg-gradient-to-b from-background/95 via-background/90 to-background/0 backdrop-blur supports-[backdrop-filter]:backdrop-blur' 
-          : ''
-      }`}>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+      <header
+        className={cn(
+          "sticky top-16 z-40 -mx-4 -mt-4 px-4 md:-mx-6 md:-mt-6 md:px-6 lg:-mx-8 lg:-mt-8 lg:px-8 transition-all duration-200",
+          "max-md:mb-0 max-md:flex max-md:h-16 max-md:items-center max-md:bg-background",
+          "md:mb-6 md:pt-4 md:pb-2",
+          isScrolled
+            ? "md:bg-gradient-to-b md:from-background/95 md:via-background/90 md:to-background/0 md:backdrop-blur supports-[backdrop-filter]:md:backdrop-blur"
+            : "md:bg-transparent"
+        )}
+      >
+        <div className="hidden md:flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center text-xs md:text-sm text-muted-foreground">
             <Link href="/dashboard" className="hover:text-foreground transition-colors">
               {t("sidebar.dashboard")}
@@ -521,22 +565,22 @@ export default function UnitView() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            {prevUnit && (
-              <Link href={`/unit/${prevUnit}`}>
-                <Button variant="outline" size="sm">
-                  {t("unit.previous")}
-                </Button>
-              </Link>
-            )}
-            {nextUnit && (
-              <Link href={`/unit/${nextUnit}`}>
-                <Button variant="outline" size="sm">
-                  {t("unit.next")}
-                </Button>
-              </Link>
-            )}
-          </div>
+          <UnitStepButtons prevUnit={prevUnit} nextUnit={nextUnit} />
+        </div>
+
+        <div className="flex w-full min-w-0 items-center gap-2 md:hidden">
+          <Link
+            href={moduleSlug ? `/units#module-${moduleSlug}` : "/dashboard"}
+            className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground"
+            aria-label={moduleTitle || t("sidebar.dashboard")}
+          >
+            <ChevronLeft className="h-4 w-4 shrink-0" />
+            <span className="max-w-[6.5rem] truncate">{moduleTitle || t("sidebar.dashboard")}</span>
+          </Link>
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+            {unitMetadata.title}
+          </p>
+          <UnitStepButtons prevUnit={prevUnit} nextUnit={nextUnit} />
         </div>
       </header>
 
@@ -608,7 +652,7 @@ export default function UnitView() {
       )}
 
       {/* Header Card */}
-      <AnimatedItem>
+      <AnimatedItem className="hidden md:block">
         <Card className="mb-6">
           <CardHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
@@ -643,27 +687,59 @@ export default function UnitView() {
       </AnimatedItem>
 
       {/* New 6-Tab Structure */}
-      <AnimatedItem>
+      <AnimatedItem className="max-md:!transform-none">
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-3 md:grid-cols-6 h-auto">
-            <TabsTrigger value="overview" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.overview")}</span></TabsTrigger>
-            <TabsTrigger value="vocabulary" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.vocabulary")}</span></TabsTrigger>
-            <TabsTrigger value="grammar" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.grammar")}</span></TabsTrigger>
-            <TabsTrigger value="phrases" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.phrases")}</span></TabsTrigger>
-            <TabsTrigger value="dialogues" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.dialogues")}</span></TabsTrigger>
-            <TabsTrigger value="test" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><PenTool className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="truncate">{tUnit("unit.tab.exercises")}</span></TabsTrigger>
+          <TabsList className="sticky top-32 z-30 h-auto w-full justify-start gap-1 overflow-x-auto bg-background py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-md:-mx-4 max-md:w-[calc(100%+2rem)] max-md:rounded-none max-md:px-4 md:static md:z-auto md:mx-0 md:w-full md:grid md:grid-cols-6 md:justify-center md:overflow-visible md:rounded-lg md:bg-muted md:px-[3px] md:py-[3px]">
+            <TabsTrigger value="overview" className="max-md:flex-none max-md:shrink-0 gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="whitespace-nowrap md:truncate">{tUnit("unit.tab.overview")}</span></TabsTrigger>
+            <TabsTrigger value="vocabulary" className="max-md:flex-none max-md:shrink-0 gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="whitespace-nowrap md:truncate">{tUnit("unit.tab.vocabulary")}</span></TabsTrigger>
+            <TabsTrigger value="grammar" className="max-md:flex-none max-md:shrink-0 gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="whitespace-nowrap md:truncate">{tUnit("unit.tab.grammar")}</span></TabsTrigger>
+            <TabsTrigger value="phrases" className="max-md:flex-none max-md:shrink-0 gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="whitespace-nowrap md:truncate">{tUnit("unit.tab.phrases")}</span></TabsTrigger>
+            <TabsTrigger value="dialogues" className="max-md:flex-none max-md:shrink-0 gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="whitespace-nowrap md:truncate">{tUnit("unit.tab.dialogues")}</span></TabsTrigger>
+            <TabsTrigger value="test" className="max-md:flex-none max-md:shrink-0 gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"><PenTool className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0"/> <span className="whitespace-nowrap md:truncate">{tUnit("unit.tab.exercises")}</span></TabsTrigger>
           </TabsList>
+
+          <div className="mt-3 space-y-2 md:hidden">
+            {unitDescription && (
+              <p className="text-sm leading-snug text-muted-foreground">{unitDescription}</p>
+            )}
+            {unitTopicsForBadges.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {unitTopicsForBadges.map((topic: string, i: number) => (
+                  <Badge key={i} variant="secondary">
+                    {topic}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {(isCompleted || isMastered) && (
+              <div className="flex flex-wrap gap-2">
+                {isCompleted && (
+                  <Badge className="bg-green-600">
+                    <CheckCircle2 className="w-4 h-4 mr-1" /> {t("unit.completed")}
+                  </Badge>
+                )}
+                {isMastered && (
+                  <Badge className="bg-amber-500">
+                    <Star className="w-4 h-4 mr-1" /> {t("unit.mastered")}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
 
             {/* 1. Overview */}
             <TabsContent value="overview" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="max-md:hidden">
                   <CardTitle>{tUnit("unit.section.overview.title")}</CardTitle>
                   <CardDescription>{tUnit("unit.section.overview.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.overview ? (
-                    <MarkdownContent content={formatOverviewForDisplay(content.overview)} />
+                    <MarkdownContent
+                      content={formatOverviewForDisplay(content.overview)}
+                      compactOnMobile
+                    />
                   ) : (
                     <p className="text-muted-foreground text-center py-8">No overview available.</p>
                   )}
@@ -674,7 +750,7 @@ export default function UnitView() {
             {/* 2. Vocabulary */}
             <TabsContent value="vocabulary" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="max-md:hidden">
                   <CardTitle>{tUnit("unit.section.vocabulary.title")}</CardTitle>
                   <CardDescription>{tUnit("unit.section.vocabulary.desc")}</CardDescription>
                 </CardHeader>
@@ -715,13 +791,16 @@ export default function UnitView() {
                       />
                     )
                   ) : content?.vocabulary ? (
-                    <MarkdownContent content={content.vocabulary.replace(/^##\s+[^\n]+\n+/, "")} />
+                    <MarkdownContent
+                      content={content.vocabulary.replace(/^##\s+[^\n]+\n+/, "")}
+                      compactOnMobile
+                    />
                   ) : (
                     <p className="text-center py-8 text-muted-foreground">No vocabulary loaded.</p>
                   )}
-                  <div className="mt-6 flex justify-end">
-                    <Link href={`/vocabulary?unit=${unitNumber}`}>
-                      <Button>{tUnit("unit.practiceInVocabTrainer")}</Button>
+                  <div className="mt-6 flex md:justify-end">
+                    <Link href={`/vocabulary?unit=${unitNumber}`} className="w-full md:w-auto">
+                      <Button className="w-full md:w-auto">{tUnit("unit.practiceInVocabTrainer")}</Button>
                     </Link>
                   </div>
                 </CardContent>
@@ -731,14 +810,17 @@ export default function UnitView() {
             {/* 3. Grammar */}
             <TabsContent value="grammar" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="max-md:hidden">
                   <CardTitle>{tUnit("unit.section.grammar.title")}</CardTitle>
                   <CardDescription>{tUnit("unit.section.grammar.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {content?.grammar ? (
                     <>
-                      <MarkdownContent content={content.grammar.replace(/^##\s+[^\n]+\n+/, "")} />
+                      <MarkdownContent
+                        content={content.grammar.replace(/^##\s+[^\n]+\n+/, "")}
+                        compactOnMobile
+                      />
                       <div
                         role="button"
                         tabIndex={0}
@@ -764,7 +846,7 @@ export default function UnitView() {
             {/* 4. Phrases */}
             <TabsContent value="phrases" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="max-md:hidden">
                   <CardTitle>{tUnit("unit.section.phrases.title")}</CardTitle>
                   <CardDescription>{tUnit("unit.section.phrases.desc")}</CardDescription>
                 </CardHeader>
@@ -802,7 +884,7 @@ export default function UnitView() {
             {/* 5. Dialogues */}
             <TabsContent value="dialogues" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="max-md:hidden">
                   <CardTitle>{tUnit("unit.section.dialogues.title")}</CardTitle>
                   <CardDescription>{tUnit("unit.section.dialogues.desc")}</CardDescription>
                 </CardHeader>
@@ -840,7 +922,7 @@ export default function UnitView() {
             {/* 6. Interactive Test */}
             <TabsContent value="test" className="mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="max-md:hidden">
                   <CardTitle>{tUnit("unit.section.exercises.title")}</CardTitle>
                   <CardDescription>{tUnit("unit.section.exercises.desc")}</CardDescription>
                 </CardHeader>
