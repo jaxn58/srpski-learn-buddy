@@ -167,8 +167,7 @@ export async function removeVocabIdFromQuizProgressForUnit(
  * IMPORTANT: This intentionally does NOT touch `user.totalXP` / `user.level`.
  * Total XP is a stored, additive counter (see `recordVocabularyAnswer`) and is
  * never recomputed from progress rows — so removing a word drops its granular
- * progress without retroactively reducing a learner's accumulated XP. Mirrors
- * the established behaviour of `bulkDeleteVocabularyByIds`.
+ * progress without retroactively reducing a learner's accumulated XP.
  */
 export async function purgeProgressForRemovedVocab(
   ctx: MutationCtx,

@@ -95,6 +95,58 @@ export function cueNamesSerbianForm(cue: string, serbianForm: string): boolean {
   return cueWords.every((c) => formWords.some((f) => sameLexeme(c, f)));
 }
 
+/**
+ * English words that are capitalized but are not proper names. A fill-in cue
+ * of only these still has to be translated (Monday → Montag).
+ */
+const ENGLISH_CALENDAR_WORDS = new Set<string>([
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+]);
+
+function isProperNameToken(token: string): boolean {
+  const parts = token.split("-").filter(Boolean);
+  if (parts.length === 0 || parts.length > 3) return false;
+  return parts.every((part) => /^[\p{Lu}][\p{Ll}]+$/u.test(part));
+}
+
+/**
+ * A parenthesis that is only a proper name is identical in English and German
+ * (Jelena, Ana Marija). It is not an untranslated English gloss.
+ * A sentence such as "I am Ana." is not only a name and still must be translated.
+ */
+export function isInvariantProperNameGloss(gloss: string): boolean {
+  const stripped = String(gloss || "")
+    .trim()
+    .replace(/[.!?…]+$/u, "")
+    .trim();
+  if (!stripped) return false;
+  const tokens = stripped.split(/\s+/).filter(Boolean);
+  if (tokens.length < 1 || tokens.length > 3) return false;
+  for (const token of tokens) {
+    if (ENGLISH_CALENDAR_WORDS.has(token.toLowerCase())) return false;
+    if (!isProperNameToken(token)) return false;
+  }
+  return true;
+}
+
 /** Values after the verifier's Serbian-answer labels, without the English header. */
 export function serbianFormsFromAnchor(serbianField: string): string {
   const bits: string[] = [];

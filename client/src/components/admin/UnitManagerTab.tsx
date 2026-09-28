@@ -44,7 +44,6 @@ import {
   partitionTranslatorQualityIssues,
   shortVerifierErrorMessage,
 } from "@/components/admin/contentStudio/utils/parseTranslatorGuardError";
-import { VocabularyCleanupPanel } from "@/components/admin/VocabularyCleanupPanel";
 import { BetaUnitsLimitCard } from "@/components/admin/BetaUnitsLimitCard";
 import { Search, ExternalLink, Eye, ArrowUpCircle, XCircle, Loader2, WifiOff, Wifi, Trash2, AlertTriangle, Languages, ChevronDown, ChevronRight } from "lucide-react";
 import {
@@ -731,9 +730,6 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     <div className="space-y-4">
       {/* Beta unit limit (admin-tunable via platformConfig.betaMaxUnits) */}
       <BetaUnitsLimitCard />
-
-      {/* Vocabulary cleanup (collapsible panel for removing wrongly auto-inserted entries) */}
-      <VocabularyCleanupPanel />
 
       {/* Filters row */}
       <div className="flex flex-wrap items-center gap-3">

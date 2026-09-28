@@ -73,11 +73,8 @@ export const vocabularyTables = {
     // Release gating (optional; undefined => published)
     releaseStatus: v.optional(v.union(v.literal("published"), v.literal("preview"), v.literal("offline"))),
 
-    // Internal bookkeeping only — NEVER shown to learners. True when this row was
-    // inserted automatically by the exercise-scan (a word used in an exercise but
-    // missing from the unit's vocabulary list), as opposed to being authored as
-    // part of the unit's curated vocabulary. Used by the superadmin cleanup panel
-    // to flag likely-wrong auto-insertions (e.g. personal names) for review.
+    // Legacy marker from the retired exercise-scan auto-insert. Nothing reads it.
+    // The field stays optional so existing documents remain valid. New writes omit it.
     // Must never be encoded into noteEn/noteDe — those are learner-facing.
     autoAdded: v.optional(v.boolean()),
   })
@@ -89,43 +86,6 @@ export const vocabularyTables = {
     .index("by_unit_serbian_active", ["unitNumber", "serbian", "isActive"])
     .index("by_unit_active_version", ["unitNumber", "isActive", "unitVersion"])
     .index("by_unit_release_active_version", ["unitNumber", "releaseStatus", "isActive", "unitVersion"]),
-
-  // ============= PROPER-NOUN ALLOWLIST =============
-  // Admin-maintained list of Serbian tokens that are explicitly confirmed to be
-  // REGULAR VOCABULARY (not proper nouns / personal names). Used to override the
-  // name heuristic (`looksLikePersonalNameByContext`) and the AI classifier's
-  // `proper_noun` decision in `syncVocabularyCoverageFromExercises`, so the
-  // same false positive (e.g. "ćao") never gets filtered again.
-  //
-  // Key: `serbianNormalized` is the lowercased, punctuation-stripped form
-  // produced by `normalizeSerbianKey` so lookups are stable regardless of
-  // capitalization/punctuation in the source text.
-  vocabularyProperNounAllowlist: defineTable({
-    serbianNormalized: v.string(),
-    serbianOriginal: v.string(),
-    confirmedBy: v.id("users"),
-    confirmedAt: v.number(),
-    source: v.string(), // e.g. "cleanup_panel"
-    note: v.optional(v.string()),
-  }).index("by_serbian_normalized", ["serbianNormalized"]),
-
-  // ============= NAME BLACKLIST =============
-  // Admin-maintained list of Serbian tokens that are confirmed to be
-  // PERSONAL NAMES (not regular vocabulary). Populated automatically when
-  // the admin removes entries via the Vocabulary Cleanup panel. The validator
-  // checks this list BEFORE auto-adding vocabulary — any match is silently
-  // skipped, preventing the same name from being re-inserted on future runs.
-  //
-  // Reversible: removing an entry from this list allows the system to
-  // consider the token as potential vocabulary again.
-  vocabularyNameBlacklist: defineTable({
-    serbianNormalized: v.string(),
-    serbianOriginal: v.string(),
-    confirmedBy: v.id("users"),
-    confirmedAt: v.number(),
-    source: v.string(),
-    note: v.optional(v.string()),
-  }).index("by_serbian_normalized", ["serbianNormalized"]),
 
   // ============= QUIZ PROGRESS =============
   quizProgress: defineTable({

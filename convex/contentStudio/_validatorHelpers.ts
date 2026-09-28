@@ -1,5 +1,5 @@
 import { ActionCtx } from "../_generated/server";
-import { api, internal } from "../_generated/api";
+import { api } from "../_generated/api";
 import { truncateForAudit, vocabularyFormRule, languageRulesBlock, resolvePromptFromDb } from "./_shared";
 import { callTextRobust, pickFallbackProvider, pickPrimaryProvider } from "./_translationCore";
 import { CS_PROMPT_KEYS, KNOWN_VOCAB_KEY_CAP } from "./prompts";
@@ -816,37 +816,6 @@ export async function checkVocabularyCoverage(
   const originalTextSamples = collectOriginalSerbianTextSamples(out);
   const skippedProperNouns: Array<{ serbian: string; reason: "case_heuristic" | "ai_classifier" }> = [];
 
-  // Load the admin-maintained "not-a-name" allowlist once. These tokens
-  // override both the case heuristic and the AI classifier's proper-noun
-  // decision so false positives (e.g. "ćao") stay admitted as vocabulary.
-  let allowlistSet = new Set<string>();
-  try {
-    const allowlistKeys = await ctx.runQuery(
-      internal.contentStudio.getAllowlistKeysInternal,
-      {}
-    );
-    if (Array.isArray(allowlistKeys)) {
-      allowlistSet = new Set<string>(allowlistKeys);
-    }
-  } catch (err) {
-    console.warn("Proper-noun allowlist fetch failed, continuing without:", err);
-  }
-
-  // Load the admin-maintained name blacklist. Tokens on this list have been
-  // explicitly confirmed as personal names and must never be auto-added again.
-  let blacklistSet = new Set<string>();
-  try {
-    const blacklistKeys = await ctx.runQuery(
-      internal.contentStudio.getBlacklistKeysInternal,
-      {}
-    );
-    if (Array.isArray(blacklistKeys)) {
-      blacklistSet = new Set<string>(blacklistKeys);
-    }
-  } catch (err) {
-    console.warn("Name blacklist fetch failed, continuing without:", err);
-  }
-
   const unitNumber = typeof out.unitNumber === "number" ? out.unitNumber : 1;
 
   // Course vocabulary of ALL units, once. Replaces one DB round-trip per
@@ -925,22 +894,28 @@ export async function checkVocabularyCoverage(
     // Part of a chunk that is already in the table ("dan" in "Dobar dan").
     if (coveredByChunk.has(key)) continue;
 
-    // Admin-confirmed name blacklist: if this token was previously deleted as
-    // a personal name, never re-add it regardless of any other signal.
-    if (blacklistSet.has(key)) continue;
+    // Course vocabulary wins over the name heuristic. Country names, months
+    // and similar words are capitalized mid-sentence, but a row in the
+    // vocabulary table already says they are vocabulary.
+    const earlierUnit = taughtEarlierByKey.get(key);
+    if (earlierUnit !== undefined) {
+      alreadyTaughtUsed.push({ serbian: key, firstUnit: earlierUnit, currentUnit: unitNumber });
+      continue;
+    }
+    const laterUnit = taughtLaterByKey.get(key);
+    if (laterUnit !== undefined) {
+      taughtLater.push({ serbian: key, laterUnit });
+      continue;
+    }
 
-    // Case heuristic: if the word appears capitalized mid-sentence, it is almost
-    // certainly a personal name. Skip it immediately so we don't pollute vocabulary.
-    //
-    // For the weaker signal (word never seen lowercase but only sentence-initial),
-    // we do NOT skip here — instead we let it proceed to the AI classifier phase
-    // where it gets a proper linguistic evaluation. This prevents false positives
-    // for common Serbian words that happen to appear only at sentence starts
-    // (e.g. "Zovem se...", "Dobar dan!", "Zove se...").
-    //
-    // Exception: admin-confirmed allowlist entries override the heuristic so
-    // the same false positives don't reappear after a cleanup review.
-    if (!allowlistSet.has(key)) {
+    // Published in this unit, missing from the draft. Still course vocabulary:
+    // report the gap below, and do not drop it as a personal name.
+    const publishedInThisUnit = sameUnitEnByKey.has(key);
+
+    // Capitalized mid-sentence and never seen lowercase: a personal name.
+    // Sentence-initial-only words stay in the pipeline so the classifier can
+    // decide (common words often appear only at the start of a sentence).
+    if (!publishedInThisUnit) {
       const caseSignal = looksLikePersonalNameByContext(key, originalTextSamples);
       if (caseSignal === "strong") {
         if (!skippedProperNouns.some((p) => normalizeSerbianKey(p.serbian) === key)) {
@@ -948,28 +923,12 @@ export async function checkVocabularyCoverage(
         }
         continue;
       }
-      // "weak" signal: don't skip — let AI classifier decide below.
     }
 
     // Exact key only. Inflection ("kartico", "sira") is decided by the
     // Serbian classifier below, which sees the known lemmas. Ending rules
     // must not guess a headword before that.
     const lemma = key;
-
-    // Taught in an earlier unit: usable for review, must NOT be listed again.
-    const earlierUnit = taughtEarlierByKey.get(lemma);
-    if (earlierUnit !== undefined) {
-      alreadyTaughtUsed.push({ serbian: lemma, firstUnit: earlierUnit, currentUnit: unitNumber });
-      continue;
-    }
-
-    // Belongs to a LATER unit. Adding it here would duplicate the word across
-    // two units and break the curriculum order, so report instead of adding.
-    const laterUnit = taughtLaterByKey.get(lemma);
-    if (laterUnit !== undefined) {
-      taughtLater.push({ serbian: lemma, laterUnit });
-      continue;
-    }
 
     // Fallback list gives a safe translation without an AI call.
     // A same-unit published translation is NOT applied here: the surface may
@@ -1074,19 +1033,22 @@ export async function checkVocabularyCoverage(
 
     // If no fallback, use classification result
     if (!en) {
-      // Skip proper nouns (personal names) explicitly so we can report them.
-      // Allowlist takes precedence: if an admin confirmed a word is regular
-      // vocabulary, override the classifier and keep processing.
+      // Skip proper nouns the course does not already teach.
       if (classification?.isProperNoun) {
-        const key = normalizeSerbianKey(candidate.lemma);
-        if (!allowlistSet.has(key)) {
-          if (!skippedProperNouns.some((p) => normalizeSerbianKey(p.serbian) === key)) {
+        const nounKey = normalizeSerbianKey(candidate.lemma);
+        const surfaceKey = normalizeSerbianKey(candidate.surface);
+        const knownCourseWord = [nounKey, surfaceKey].some(
+          (k) =>
+            k.length > 0 &&
+            (sameUnitEnByKey.has(k) || taughtEarlierByKey.has(k) || taughtLaterByKey.has(k)),
+        );
+        if (!knownCourseWord) {
+          if (!skippedProperNouns.some((p) => normalizeSerbianKey(p.serbian) === nounKey)) {
             skippedProperNouns.push({ serbian: candidate.lemma, reason: "ai_classifier" });
           }
           console.log(`Skipping '${candidate.lemma}' - classified as proper noun (personal name)`);
           continue;
         }
-        console.log(`Allowlist override: '${candidate.lemma}' classified as proper noun but confirmed as vocabulary`);
       }
 
       // Skip if classified as English/other/unknown (not Serbian)

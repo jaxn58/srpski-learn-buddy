@@ -12,6 +12,7 @@ import { CS_PROMPT_KEYS } from "./prompts";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
   cueNamesSerbianForm,
+  isInvariantProperNameGloss,
   loadMergedPromptCognates,
   normalizeCognateTerm,
   serbianFormsFromAnchor,
@@ -675,6 +676,7 @@ export function runDeterministicTestGlossChecks(
           const deG = deCues[i] ?? "";
           if (norm(enG) === norm(deG) && !cognates.has(norm(enG))) {
             if (cueNamesSerbianForm(enG, serbianForms)) continue;
+            if (isInvariantProperNameGloss(enG)) continue;
             issues.push({
               itemKey: it.key,
               itemLabel: it.label,
@@ -709,6 +711,7 @@ export function runDeterministicTestGlossChecks(
           const enG = enContext[i]!;
           const deG = deContext[i] ?? "";
           if (norm(enG) === norm(deG) && !cognates.has(norm(enG))) {
+            if (isInvariantProperNameGloss(enG)) continue;
             issues.push({
               itemKey: it.key,
               itemLabel: it.label,

@@ -21,6 +21,7 @@ import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
 import {
   CODE_DEFAULT_PROMPT_COGNATES,
   cueNamesSerbianForm,
+  isInvariantProperNameGloss,
   loadMergedPromptCognates,
 } from "./_translatorCognates";
 import { restoreOriginalAuthorQuote } from "../../shared/contentStudio/authorNote";
@@ -898,6 +899,7 @@ export function findMissingOrUntranslatedFillInCueIssues(
       const deNorm = normalizeGlossCompare(deG);
       if (deNorm && enNorm === deNorm && !cognates.has(enNorm)) {
         if (cueNamesSerbianForm(enG, String(p.correctAnswer ?? ""))) continue;
+        if (isInvariantProperNameGloss(enG)) continue;
         issues.push(
           `questionId=${p.questionId}: fill-in source cue is still English "(${enG})". ` +
             `Translate it to German inside the parentheses (e.g. milk→Milch, apples→Äpfel).`
@@ -941,6 +943,7 @@ export function findMissingFillInContextGlossIssues(
       const enNorm = normalizeGlossCompare(enG);
       const deNorm = normalizeGlossCompare(deG);
       if (deNorm && enNorm === deNorm && !cognates.has(enNorm)) {
+        if (isInvariantProperNameGloss(enG)) continue;
         issues.push(
           `questionId=${p.questionId}: fill-in context gloss is still English "(${enG})". ` +
             `Translate it to German inside the parentheses (e.g. "I am Ana." → "Ich bin Ana.").`

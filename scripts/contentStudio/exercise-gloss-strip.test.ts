@@ -142,6 +142,43 @@ describe("findMissingOrUntranslatedFillInCueIssues", () => {
     expect(issues[0]).toContain("still English");
   });
 
+  it("does not flag a proper-name fill-in cue", () => {
+    const jelena = findMissingOrUntranslatedFillInCueIssues([
+      {
+        questionId: "u16_ex2_q03",
+        questionType: "fillInBlank",
+        questionEn: "Ona _____ kafu. (Jelena)",
+        questionDe: "Ona _____ kafu. (Jelena)",
+        correctAnswer: "pije",
+      },
+    ]);
+    const fullName = findMissingOrUntranslatedFillInCueIssues([
+      {
+        questionId: "u16_ex2_q04",
+        questionType: "fillInBlank",
+        questionEn: "Ona _____ kafu. (Ana Marija)",
+        questionDe: "Ona _____ kafu. (Ana Marija)",
+        correctAnswer: "pije",
+      },
+    ]);
+    expect(jelena).toHaveLength(0);
+    expect(fullName).toHaveLength(0);
+  });
+
+  it("still flags an untranslated weekday cue", () => {
+    const issues = findMissingOrUntranslatedFillInCueIssues([
+      {
+        questionId: "u7_ex2_q03",
+        questionType: "fillInBlank",
+        questionEn: "Vidimo se u ___. (Monday)",
+        questionDe: "Vidimo se u ___. (Monday)",
+        correctAnswer: "ponedeljak",
+      },
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain("still English");
+  });
+
   it("does not report a matching prompt that is already German", () => {
     const issues = collectTestQualityIssues(
       [
@@ -209,6 +246,18 @@ describe("findMissingFillInContextGlossIssues", () => {
     ]);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toContain("still English");
+  });
+
+  it("does not flag a proper name used as the whole context gloss", () => {
+    const issues = findMissingFillInContextGlossIssues([
+      {
+        questionId: "u16_ex2_q03",
+        questionType: "fillInBlank",
+        questionEn: "Ona _____ kafu. (Jelena.)",
+        questionDe: "Ona _____ kafu. (Jelena.)",
+      },
+    ]);
+    expect(issues).toHaveLength(0);
   });
 
   it("passes when context gloss is German", () => {
@@ -288,6 +337,53 @@ describe("runDeterministicTestGlossChecks", () => {
       },
     ];
     expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);
+  });
+
+  it("does not flag a proper-name fill-in cue", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u16_ex2_q03",
+        kind: "test",
+        label: "test u16_ex2_q03",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: pije",
+        english: "Question (EN): Ona _____ kafu. (Jelena)",
+        german: "Question (DE): Ona _____ kafu. (Jelena)",
+      },
+    ];
+    expect(runDeterministicTestGlossChecks(items)).toHaveLength(0);
+  });
+
+  it("flags an untranslated weekday fill-in cue", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u7_ex2_q03",
+        kind: "test",
+        label: "test u7_ex2_q03",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: ponedeljak",
+        english: "Question (EN): Vidimo se u ___. (Monday)",
+        german: "Question (DE): Vidimo se u ___. (Monday)",
+      },
+    ];
+    const issues = runDeterministicTestGlossChecks(items);
+    expect(issues.some((i) => i.code === "test_untranslated_fill_in_cue")).toBe(true);
+  });
+
+  it("flags an untranslated sentence gloss that contains a name", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u1_ex2_q01",
+        kind: "test",
+        label: "test u1_ex2_q01",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: sam",
+        english: "Question (EN): Ja ____ Ana. (I am Ana.)",
+        german: "Question (DE): Ja ____ Ana. (I am Ana.)",
+      },
+    ];
+    const issues = runDeterministicTestGlossChecks(items);
+    expect(issues.some((i) => i.code === "test_untranslated_context_gloss")).toBe(true);
   });
 
   it("does not flag a cue that is the Serbian answer", () => {

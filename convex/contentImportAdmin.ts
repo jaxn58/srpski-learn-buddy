@@ -421,7 +421,6 @@ export const internalImportUnitPackage = internalMutation({
           translations: [{ language: "en", translation: entry.en }],
           gender: entry.gender || undefined,
           noteEn: entry.noteEn || undefined,
-          autoAdded: entry.autoAdded === true ? true : undefined,
           en: entry.en,
           isActive: true,
           archivedAt: undefined,
@@ -460,7 +459,6 @@ export const internalImportUnitPackage = internalMutation({
         translations,
         gender: entry.gender || undefined,
         noteEn: entry.noteEn || undefined,
-        autoAdded: entry.autoAdded === true ? true : undefined,
         en: entry.en,
       };
 
