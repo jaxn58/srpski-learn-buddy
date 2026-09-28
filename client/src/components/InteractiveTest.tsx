@@ -387,20 +387,20 @@ export function InteractiveTest({ unitNumber, language, preferPublished }: Inter
                 const renderInlineInput = () => {
                   const parts = q.question.split(/_+/);
                   const blanks = q.question.match(/_+/g) || [];
-                  const inputWidth = q.questionType === "dialogue" ? "w-full sm:w-48" : "w-full sm:w-32";
+                  const inputWidth = q.questionType === "dialogue" ? "w-48" : "w-32";
 
                   return (
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="leading-9 text-foreground">
                       {parts.map((part, idx) => (
                         <React.Fragment key={idx}>
-                          <span className="text-foreground">{part}</span>
+                          {part}
                           {idx < blanks.length && (
                             <Input
                               placeholder="..."
                               value={answers[q.questionId] || ""}
                               onChange={(e) => handleAnswerChange(q.questionId, category, e.target.value)}
                               disabled={isCategoryChecked}
-                              className={`inline-block ${inputWidth} h-9 text-sm ${
+                              className={`mx-1.5 inline-block align-middle ${inputWidth} h-9 text-sm ${
                                 isCorrect ? "border-green-500" : isIncorrect ? "border-red-500" : ""
                               }`}
                             />
