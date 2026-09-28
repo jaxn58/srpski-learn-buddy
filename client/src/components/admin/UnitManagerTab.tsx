@@ -2276,7 +2276,7 @@ function VerifierReportPanel({
         </span>
       </div>
 
-      {hasError && (
+      {pass1.error && (
         <div className="text-amber-700 dark:text-amber-400">
           Verifier run failed: {shortVerifierErrorMessage(pass1.error)}
         </div>

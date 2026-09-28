@@ -467,7 +467,7 @@ export default function UnitView() {
   const isLocked = !isStaff && betaCap !== null && unitNumber > betaCap;
 
   const publishedUnitNumbers = new Set(
-    (unitCatalog ?? [])
+    ((unitCatalog ?? []) as Array<{ unitNumber?: number | null }>)
       .map((unit) => Number(unit.unitNumber))
       .filter((n) => Number.isFinite(n))
   );

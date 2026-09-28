@@ -38,10 +38,13 @@ export function VocabularyDictionaryTable({
 }) {
   const { t: tUi } = useTranslation();
   const lng = contentLanguage === "de" ? "de" : contentLanguage === "en" ? "en" : undefined;
-  const t = (key: string, defaultValue?: string) =>
+  const t = (
+    key: string,
+    options?: string | Record<string, string | number>,
+  ) =>
     tUi(key, {
       ...(lng ? { lng } : {}),
-      ...(defaultValue === undefined ? {} : { defaultValue }),
+      ...(typeof options === "string" ? { defaultValue: options } : options),
     });
   const { openBuddyModal } = useBuddyModal();
   if (!rows.length) return null;

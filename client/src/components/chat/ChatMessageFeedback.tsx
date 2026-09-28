@@ -2,11 +2,23 @@ import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
+/**
+ * The current user document. `_id` is required so this stays assignable when
+ * schema depth collapses `Doc<"users">` to an index signature that no longer
+ * lists `name` as its own field.
+ */
+type FeedbackPromptUser = {
+  _id: string;
+  name?: unknown;
+};
+
 export function getChatFeedbackPrompt(
   t: (key: string, options?: { name?: string }) => string,
-  user?: { name?: string | null } | null
+  user?: FeedbackPromptUser | null
 ): string {
-  const firstName = user?.name?.trim().split(/\s+/)[0];
+  const rawName = user?.name;
+  const name = typeof rawName === "string" ? rawName : undefined;
+  const firstName = name?.trim().split(/\s+/)[0];
   if (firstName) {
     return t("chat.feedback.prompt", { name: firstName });
   }

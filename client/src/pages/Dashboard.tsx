@@ -1010,7 +1010,7 @@ export default function Dashboard() {
                   ) : (
                     <>
                       <ul className="space-y-1 flex-1">
-                        {leaderboardTop5.entries.flatMap((entry: DashboardLeaderboardEntry, index) => {
+                        {leaderboardTop5.entries.flatMap((entry: DashboardLeaderboardEntry, index: number) => {
                           const showGoalLine =
                             entry.xp < WEEKLY_XP_TARGET &&
                             (index === 0 || leaderboardTop5.entries[index - 1].xp >= WEEKLY_XP_TARGET);

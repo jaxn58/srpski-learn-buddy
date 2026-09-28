@@ -111,16 +111,17 @@ export default function Progress() {
       moduleMetadataId?: string;
       moduleId?: string;
     }>;
-    return dbModules
-      .map((module: {
-        _id?: string;
-        slug?: string;
-        moduleNumber?: number;
-        titleEn?: string;
-        titleDe?: string;
-        descriptionEn?: string;
-        descriptionDe?: string;
-      }) => {
+    const modules = dbModules as Array<{
+      _id?: string;
+      slug?: string;
+      moduleNumber?: number;
+      titleEn?: string;
+      titleDe?: string;
+      descriptionEn?: string;
+      descriptionDe?: string;
+    }>;
+    return modules
+      .map((module) => {
         const unitNumbers = units
           .filter((unit) => {
             if (unit.moduleMetadataId && module._id) {
