@@ -264,25 +264,36 @@ export const getUnitPlan = query({
 const CEFR_LADDER = ["A1.1", "A1.2", "A2.1", "A2.2", "B1"] as const;
 type CefrLevel = (typeof CEFR_LADDER)[number];
 
+function isCefrLevel(value: string | undefined): value is CefrLevel {
+  return !!value && (CEFR_LADDER as readonly string[]).includes(value);
+}
+
 /**
- * Level of every module, chronologically: an explicitly set level wins; an
- * unset module takes the level after the previous module's level (capped at
- * B1); the first module starts at A1.1. So "Module 2 = A1.1 (explicit)" makes
- * Module 3 = A1.2 automatically.
+ * Level of every module number, once. Duplicate rows with the same number
+ * are one module: an explicit cefrLevel on any of them wins. A number with
+ * no explicit level takes the level after the previous number (capped at B1);
+ * the first number starts at A1.1. So "Module 2 = A1.1 (explicit)" makes
+ * Module 3 = A1.2 automatically, and a second empty row of Module 1 does not
+ * push Module 1 to A1.2.
  */
 export function resolveModuleLevels(
   modules: Array<{ moduleNumber?: number; cefrLevel?: string }>,
 ): Map<number, { level: CefrLevel; source: "module" | "position" }> {
-  const sorted = modules
-    .filter((m) => typeof m.moduleNumber === "number")
-    .sort((a, b) => (a.moduleNumber ?? 0) - (b.moduleNumber ?? 0));
+  const byNumber = new Map<number, Array<{ cefrLevel?: string }>>();
+  for (const m of modules) {
+    if (typeof m.moduleNumber !== "number") continue;
+    const rows = byNumber.get(m.moduleNumber) ?? [];
+    rows.push(m);
+    byNumber.set(m.moduleNumber, rows);
+  }
   const out = new Map<number, { level: CefrLevel; source: "module" | "position" }>();
   let prev: CefrLevel | null = null;
-  for (const m of sorted) {
+  for (const moduleNumber of [...byNumber.keys()].sort((a, b) => a - b)) {
+    const explicit = (byNumber.get(moduleNumber) ?? []).find((row) => isCefrLevel(row.cefrLevel));
     let level: CefrLevel;
     let source: "module" | "position";
-    if (m.cefrLevel && (CEFR_LADDER as readonly string[]).includes(m.cefrLevel)) {
-      level = m.cefrLevel as CefrLevel;
+    if (explicit && isCefrLevel(explicit.cefrLevel)) {
+      level = explicit.cefrLevel;
       source = "module";
     } else if (prev) {
       const idx = CEFR_LADDER.indexOf(prev);
@@ -292,7 +303,7 @@ export function resolveModuleLevels(
       level = CEFR_LADDER[0];
       source = "position";
     }
-    out.set(m.moduleNumber as number, { level, source });
+    out.set(moduleNumber, { level, source });
     prev = level;
   }
   return out;

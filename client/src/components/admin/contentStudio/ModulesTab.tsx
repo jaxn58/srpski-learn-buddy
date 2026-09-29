@@ -647,23 +647,35 @@ type CefrLevel = "A1.1" | "A1.2" | "A2.1" | "A2.2" | "B1";
 const CEFR_LEVELS: CefrLevel[] = ["A1.1", "A1.2", "A2.1", "A2.2", "B1"];
 
 /**
- * Same rule as `resolveModuleLevels` in convex/curriculum.ts: explicit level
- * wins, otherwise the level after the previous module (capped at B1), the
- * first module starts at A1.1. Kept in sync by hand; the server is the source
- * of truth for the assistant, this is display only.
+ * Same rule as `resolveModuleLevels` in convex/curriculum.ts: one level per
+ * module number. An explicit cefrLevel on any row of that number wins;
+ * otherwise the level after the previous number (capped at B1). The first
+ * number starts at A1.1. Duplicate rows do not add a step. Kept in sync by
+ * hand; the server is the source of truth for the assistant, this is display only.
  */
 function resolveModuleLevelsClient(modules: Array<{ moduleNumber?: number; cefrLevel?: string }>): Map<number, CefrLevel> {
-  const sorted = modules
-    .filter((m) => typeof m.moduleNumber === "number")
-    .sort((a, b) => (a.moduleNumber ?? 0) - (b.moduleNumber ?? 0));
+  const byNumber = new Map<number, Array<{ cefrLevel?: string }>>();
+  for (const m of modules) {
+    if (typeof m.moduleNumber !== "number") continue;
+    const rows = byNumber.get(m.moduleNumber) ?? [];
+    rows.push(m);
+    byNumber.set(m.moduleNumber, rows);
+  }
   const out = new Map<number, CefrLevel>();
   let prev: CefrLevel | null = null;
-  for (const m of sorted) {
+  for (const moduleNumber of [...byNumber.keys()].sort((a, b) => a - b)) {
+    const explicit = (byNumber.get(moduleNumber) ?? []).find(
+      (row) => row.cefrLevel && (CEFR_LEVELS as string[]).includes(row.cefrLevel),
+    );
     let level: CefrLevel;
-    if (m.cefrLevel && (CEFR_LEVELS as string[]).includes(m.cefrLevel)) level = m.cefrLevel as CefrLevel;
-    else if (prev) level = CEFR_LEVELS[Math.min(CEFR_LEVELS.indexOf(prev) + 1, CEFR_LEVELS.length - 1)];
-    else level = CEFR_LEVELS[0];
-    out.set(m.moduleNumber as number, level);
+    if (explicit?.cefrLevel && (CEFR_LEVELS as string[]).includes(explicit.cefrLevel)) {
+      level = explicit.cefrLevel as CefrLevel;
+    } else if (prev) {
+      level = CEFR_LEVELS[Math.min(CEFR_LEVELS.indexOf(prev) + 1, CEFR_LEVELS.length - 1)];
+    } else {
+      level = CEFR_LEVELS[0];
+    }
+    out.set(moduleNumber, level);
     prev = level;
   }
   return out;

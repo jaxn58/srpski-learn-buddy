@@ -12,23 +12,17 @@ import { Loader2, Wand2 } from "lucide-react";
 import { ModuleSelect } from "./ModuleSelect";
 import { BriefAssistant } from "./BriefAssistant";
 import { BriefBuilder } from "./BriefBuilder";
-import { parseBriefText } from "@shared/contentStudio/briefTemplate";
+import { BRIEF_ASSIGNMENT_FIELD_IDS, BRIEF_EXPERT_FIELD_IDS, parseBriefText } from "@shared/contentStudio/briefTemplate";
 
 /**
- * Authoring panel for a unit, built for authors who are not language
- * professionals. The visible flow is deliberately small:
+ * Authoring panel for a unit. The author fills the assignment (situation,
+ * what the learner can do, one grammar target, unit type, strand, setting).
+ * The language level is the module's level, shown and not edited here.
+ * "Create briefing" asks the assistant to fill only the remaining fields.
  *
- *   module + unit number -> one free-text box -> "Create briefing"
- *   -> readable result (title, description) -> "Generate draft".
- *
- * The language level and grammar target come from the unit's position in the
- * course (curriculum) and are shown as one plain line; the author never has
- * to know CEFR codes or Can-Do statements. Topic, places and scenes come
- * from the author's text only.
- *
- * Everything structural (the 15-field briefing, briefing versions,
- * reference, house-style skills, author note) lives behind the "Expert view"
- * switch, off by default. Shared by the create and edit forms.
+ * Reference, house-style skills, briefing versions and anchored sections
+ * stay in this flow, visible. The expert switch holds the remaining
+ * briefing fields only.
  */
 export interface BriefWorkflowProps {
   mode: "create" | "edit";
@@ -60,6 +54,13 @@ export interface BriefWorkflowProps {
 
 const I18N = "admin.contentStudio.workflow";
 
+/** Replaces only the Module line. Leaves every other line of a loaded briefing alone. */
+function replaceModuleLine(brief: string, moduleNumber: string): string {
+  const line = `Module: ${moduleNumber}`;
+  if (/^Module:\s*.+$/m.test(brief)) return brief.replace(/^Module:\s*.+$/m, line);
+  return `${line}\n${brief}`;
+}
+
 export function BriefWorkflow(props: BriefWorkflowProps) {
   const {
     mode, moduleNumber, setModuleNumber, unitNumber, setUnitNumber,
@@ -79,7 +80,10 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
     numbersValid ? { unitNumber: unitNo, moduleNumber: moduleNo } : "skip",
   );
 
-  const hasBrief = brief.trim().length > 0;
+  const parsedBrief = parseBriefText(brief);
+  const assignmentFields = parsedBrief.recognized ? parsedBrief.fields : {};
+  const assignmentReady = BRIEF_ASSIGNMENT_FIELD_IDS.every((id) => String(assignmentFields[id] ?? "").trim().length > 0);
+  const hasBrief = brief.trim().length > 0 && parsedBrief.recognized;
   const canAct = numbersValid && !collides && !disabled && !actionBusy;
 
   const levelLabel = (cefr: string) => t(`${I18N}.level.${cefr}`, cefr);
@@ -88,8 +92,6 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
     const parsed = parseBriefText(brief);
     return parsed.recognized ? String(parsed.fields.grammarIn ?? "").trim() : "";
   })();
-  const taughtCount = context?.previouslyTaught.length ?? 0;
-
   return (
     <div className="space-y-6">
       {/* Where the unit sits in the course */}
@@ -97,7 +99,14 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-sm font-medium">{t(`${I18N}.module`, "Module")}</Label>
-            <ModuleSelect value={moduleNumber} onChange={setModuleNumber} hasError={collides} />
+            <ModuleSelect
+              value={moduleNumber}
+              hasError={collides}
+              onChange={(next) => {
+                setModuleNumber(next);
+                if (brief.trim()) setBrief(replaceModuleLine(brief, next));
+              }}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${idPrefix}-unit`} className="text-sm font-medium">{t(`${I18N}.unitNumber`, "Unit number")}</Label>
@@ -116,29 +125,40 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
           <p className="text-sm text-muted-foreground">{t(`${I18N}.numbersInvalid`, "Module and unit must both be positive integers.")}</p>
         )}
         {numbersValid && context && (
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            <span className="font-medium text-foreground">{t(`${I18N}.levelLine`, "Language level")}: </span>
-            {levelLabel(context.cefrLevel)}
-            {taughtCount > 0 && (
-              <>
-                <span className="mx-1.5">·</span>
-                {t(`${I18N}.buildsOn`, { defaultValue: "builds on {{n}} earlier unit(s)", n: taughtCount })}
-              </>
-            )}
-            <span className="mx-1.5">·</span>
-            {t(`${I18N}.grammarDecidedByAi`, "the grammar focus is chosen to fit your topic and the level")}
-          </p>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">{t(`${I18N}.levelLine`, "Language level")}</Label>
+            <p className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm">
+              {levelLabel(context.cefrLevel)}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {t(`${I18N}.levelHelp`, "Taken from this module. It sets sentence length, terminology and exercise difficulty.")}
+            </p>
+          </div>
         )}
       </div>
 
       <Separator />
 
-      {/* The one thing the author has to do */}
-      <div className="space-y-2">
-        <Label className="text-base font-semibold">{t(`${I18N}.topicLabel`, "What should this unit be about?")}</Label>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          {t(`${I18N}.topicHelp`, "Type or dictate freely: places, people, situations, anything you want the learner to experience. Level, grammar and structure are handled for you.")}
-        </p>
+      <div className="space-y-4">
+        <div>
+          <Label className="text-base font-semibold">{t(`${I18N}.assignmentTitle`, "What this unit should achieve")}</Label>
+          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
+            {t(`${I18N}.assignmentHelp`, "These fields are the assignment. The briefing keeps them. The assistant fills only the remaining fields.")}
+          </p>
+        </div>
+        <BriefBuilder
+          value={brief}
+          onChange={setBrief}
+          moduleNumber={moduleNumber}
+          disabled={disabled || !numbersValid}
+          idPrefix={`${idPrefix}-assignment`}
+          variant="flat"
+          hideHeader
+          allowRaw={false}
+          showGenerated={false}
+          includeFieldIds={BRIEF_ASSIGNMENT_FIELD_IDS}
+          lockedCefrLevel={context?.cefrLevel}
+        />
         <BriefAssistant
           unitNumber={unitNumber}
           moduleNumber={moduleNumber}
@@ -150,6 +170,7 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
             if (meta.description && !description.trim()) setDescription(meta.description);
           }}
           disabled={disabled || !numbersValid}
+          fieldsReady={assignmentReady && !!context?.cefrLevel}
           hideHeader
         />
       </div>
@@ -217,14 +238,15 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
         </div>
       )}
 
+      {expertChildren}
+
       {belowResult}
 
-      {/* Expert view: everything structural, off by default */}
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4 pt-2">
           <div>
             <div className="text-sm font-medium">{t(`${I18N}.expertTitle`, "Expert view")}</div>
-            <p className="text-xs text-muted-foreground">{t(`${I18N}.expertHint`, "Structured briefing, learning goals, versions, reference and house style. Not needed for a normal unit.")}</p>
+            <p className="text-xs text-muted-foreground">{t(`${I18N}.expertHint`, "The remaining briefing fields: what stays out of scope, chunks, recycling, pitfalls, scenes, listening, culture and exercise focus.")}</p>
           </div>
           <Switch checked={expert} onCheckedChange={setExpert} aria-label={t(`${I18N}.expertTitle`, "Expert view")} />
         </div>
@@ -245,24 +267,27 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
                 ) : (
                   <p className="text-muted-foreground">{t(`${I18N}.taughtNone`, "Nothing yet, this is the first unit.")}</p>
                 )}
-                {context.plannedHint && (
-                  <p className="text-xs text-muted-foreground">
-                    {t(`${I18N}.plannedHint`, "Suggestion from the course map (not binding)")}: {context.plannedHint.primaryGrammarEn}
-                  </p>
-                )}
                 <p className="text-xs text-muted-foreground">{t(`${I18N}.planLanguageNote`, "Course content is authored in English; the German learner track is translated afterwards.")}</p>
               </div>
             )}
 
             <div className="space-y-2">
-              <div className="text-sm font-medium">{t(`${I18N}.expertBriefing`, "Structured briefing (what the Creator receives)")}</div>
+              <div className="text-sm font-medium">{t(`${I18N}.expertBriefing`, "Remaining briefing fields")}</div>
               {!hasBrief && (
-                <p className="text-sm text-muted-foreground">{t(`${I18N}.expertNoBriefing`, "No briefing yet. Describe the unit above and create the briefing, or fill the fields here by hand.")}</p>
+                <p className="text-sm text-muted-foreground">{t(`${I18N}.expertNoBriefing`, "No briefing yet. Fill the assignment above and create the briefing, or fill these fields by hand.")}</p>
               )}
-              <BriefBuilder value={brief} onChange={setBrief} moduleNumber={moduleNumber} disabled={disabled} idPrefix={idPrefix} variant="accordion" hideHeader />
+              <BriefBuilder
+                value={brief}
+                onChange={setBrief}
+                moduleNumber={moduleNumber}
+                disabled={disabled}
+                idPrefix={`${idPrefix}-expert`}
+                variant="accordion"
+                hideHeader
+                includeFieldIds={BRIEF_EXPERT_FIELD_IDS}
+                lockedCefrLevel={context?.cefrLevel}
+              />
             </div>
-
-            {expertChildren}
           </div>
         )}
       </div>

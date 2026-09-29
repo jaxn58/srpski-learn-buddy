@@ -227,6 +227,28 @@ export const BRIEF_FIELDS: BriefFieldDef[] = [
   },
 ];
 
+/** Fields the author fills. The assistant must not replace them. */
+export const BRIEF_ASSIGNMENT_FIELD_IDS: BriefFieldId[] = [
+  "unitType",
+  "strand",
+  "setting",
+  "situation",
+  "canDo",
+  "grammarIn",
+];
+
+/** Fields the assistant may write. The expert view shows only these. */
+export const BRIEF_EXPERT_FIELD_IDS: BriefFieldId[] = [
+  "grammarOut",
+  "chunks",
+  "recycle",
+  "pitfalls",
+  "scenes",
+  "listening",
+  "cultural",
+  "exerciseFocus",
+];
+
 export type BriefFields = Partial<Record<BriefFieldId, string>>;
 
 export const BRIEF_FIELD_DEFAULTS: BriefFields = {

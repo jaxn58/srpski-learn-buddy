@@ -5,7 +5,6 @@ import { api } from "../../../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -18,12 +17,10 @@ import { toast } from "sonner";
 import { parseBriefText, renderBriefText, type BriefFields } from "@shared/contentStudio/briefTemplate";
 
 /**
- * Conversational entry point for the creator brief. The author describes the
- * unit in plain language (typed or dictated with the OS dictation feature);
- * the assistant combines that with the curriculum plan for the unit number,
- * fills the structured brief and asks at most a few follow-up questions.
- * The result is written into the Brief Builder via `onApply` (canonical
- * brief text), where every field stays editable.
+ * Runs the briefing assistant from the assignment fields already in the form.
+ * The author fills those fields above this button. The assistant writes the
+ * remaining brief fields and may ask a few follow-up questions. It does not
+ * replace the assignment.
  */
 export interface BriefAssistantProps {
   unitNumber: number | string;
@@ -34,6 +31,8 @@ export interface BriefAssistantProps {
   /** Title/description suggestions from the assistant (only applied by the parent when its fields are empty). */
   onSuggestMeta?: (meta: { title?: string; description?: string }) => void;
   disabled?: boolean;
+  /** Assignment fields are filled, so the run may start. */
+  fieldsReady?: boolean;
   /** Hide the internal title/subtitle row when the parent already labels the input. */
   hideHeader?: boolean;
 }
@@ -42,7 +41,7 @@ type Question = { id: string; question: string; kind: "text" | "choice"; options
 
 const I18N = "admin.contentStudio.assistant";
 
-export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply, onSuggestMeta, disabled, hideHeader = false }: BriefAssistantProps) {
+export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply, onSuggestMeta, disabled, fieldsReady = false, hideHeader = false }: BriefAssistantProps) {
   const { t } = useTranslation();
   const unitNo = Number(unitNumber);
   const moduleNo = Number(moduleNumber);
@@ -50,7 +49,6 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
 
   const runAssistant = useAction(api.contentStudio.runBriefAssistant);
 
-  const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -70,7 +68,7 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
       const res = await runAssistant({
         unitNumber: unitNo,
         moduleNumber: moduleNo,
-        userText: text.trim(),
+        userText: "",
         currentFields: { ...currentFields(), ...(lastFields ?? {}) } as Record<string, string>,
         answers: withAnswers
           ? questions
@@ -114,23 +112,14 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
         </div>
       )}
 
-      <Textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={5}
-        disabled={disabled || busy}
-        placeholder={t(`${I18N}.placeholder`)}
-        className="text-sm leading-relaxed bg-background"
-      />
-
       <div className="flex items-center gap-3 flex-wrap">
-        <Button onClick={() => run(false)} disabled={disabled || busy || !numbersValid || !text.trim()}>
+        <Button className="h-11" onClick={() => run(false)} disabled={disabled || busy || !numbersValid || !fieldsReady}>
           {busy && questions.length === 0 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
           {lastFields ? t(`${I18N}.redraft`, "Create again") : t(`${I18N}.draft`, "Create briefing")}
         </Button>
         {!numbersValid && <span className="text-sm text-muted-foreground">{t(`${I18N}.needNumbers`, "Set module and unit number first.")}</span>}
-        {numbersValid && !text.trim() && (
-          <span className="text-sm text-muted-foreground">{t(`${I18N}.needText`, "Describe the unit in a few sentences.")}</span>
+        {numbersValid && !fieldsReady && (
+          <span className="text-sm text-muted-foreground">{t(`${I18N}.needFields`, "Fill unit type, strand, setting, the situation, what the learner can do, and the grammar target.")}</span>
         )}
       </div>
 

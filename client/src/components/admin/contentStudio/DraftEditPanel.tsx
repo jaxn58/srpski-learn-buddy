@@ -495,6 +495,19 @@ function EditForm(props: EditFormProps) {
         actionBusy={isBusy}
         expertChildren={
           <>
+            <DraftExtras
+              refs={refs}
+              refId={draftRefId} setRefId={setDraftRefId}
+              refChapter={draftRefChapter} setRefChapter={setDraftRefChapter}
+              refPages={draftRefPages} setRefPages={setDraftRefPages}
+              refNotes={draftRefNotes} setRefNotes={setDraftRefNotes}
+              specialistSkills={specialistSkills}
+              auditorSkills={auditorSkills}
+              specialistSkillIds={draftSpecialistSkillIds} setSpecialistSkillIds={setDraftSpecialistSkillIds}
+              auditorSkillIds={draftAuditorSkillIds} setAuditorSkillIds={setDraftAuditorSkillIds}
+              disabled={isBusy}
+              idPrefix="edit"
+            />
             {/* Briefing versions (adopted sections + milestones) */}
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="brief-versions" className="rounded-lg border bg-muted/20 px-3">
@@ -529,20 +542,6 @@ function EditForm(props: EditFormProps) {
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
-
-            <DraftExtras
-              refs={refs}
-              refId={draftRefId} setRefId={setDraftRefId}
-              refChapter={draftRefChapter} setRefChapter={setDraftRefChapter}
-              refPages={draftRefPages} setRefPages={setDraftRefPages}
-              refNotes={draftRefNotes} setRefNotes={setDraftRefNotes}
-              specialistSkills={specialistSkills}
-              auditorSkills={auditorSkills}
-              specialistSkillIds={draftSpecialistSkillIds} setSpecialistSkillIds={setDraftSpecialistSkillIds}
-              auditorSkillIds={draftAuditorSkillIds} setAuditorSkillIds={setDraftAuditorSkillIds}
-              disabled={isBusy}
-              idPrefix="edit"
-            />
           </>
         }
         belowResult={

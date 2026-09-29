@@ -62,6 +62,14 @@ export interface BriefBuilderProps {
   variant?: "flat" | "accordion";
   /** Hide the internal title/subtitle row when the parent already labels the step. */
   hideHeader?: boolean;
+  /** When set, only these fields are shown. Emitted text still keeps the other fields. */
+  includeFieldIds?: BriefFieldId[];
+  /** Module CEFR written into every emit so the model cannot leave a different level in the brief. */
+  lockedCefrLevel?: string;
+  /** Raw-text switch. Off on the assignment form. */
+  allowRaw?: boolean;
+  /** Collapsed preview of the full brief text. Off on the assignment form. */
+  showGenerated?: boolean;
 }
 
 type Mode = "form" | "raw";
@@ -88,15 +96,21 @@ function useFieldTexts() {
   };
 }
 
-export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix = "brief", variant = "flat", hideHeader = false }: BriefBuilderProps) {
+export function BriefBuilder({
+  value, onChange, moduleNumber, disabled, idPrefix = "brief", variant = "flat", hideHeader = false,
+  includeFieldIds, lockedCefrLevel, allowRaw = true, showGenerated = true,
+}: BriefBuilderProps) {
   const { t, i18n } = useTranslation();
   const texts = useFieldTexts();
   const numberLocale = i18n.language?.startsWith("de") ? "de-DE" : "en-US";
   const initial = useMemo(() => parseBriefText(value), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [fields, setFields] = useState<BriefFields>(() => ({ ...BRIEF_FIELD_DEFAULTS, ...initial.fields }));
-  const [mode, setMode] = useState<Mode>(() => (value.trim() && !initial.recognized ? "raw" : "form"));
+  const [mode, setMode] = useState<Mode>(() => (allowRaw && value.trim() && !initial.recognized ? "raw" : "form"));
   const [legacyText, setLegacyText] = useState<string>(() => (value.trim() && !initial.recognized ? value : ""));
   const lastEmitted = useRef<string>(value);
+
+  const withLock = (next: BriefFields): BriefFields =>
+    lockedCefrLevel ? { ...next, cefrLevel: lockedCefrLevel } : next;
 
   // External value change (draft switch, template, version restore, assistant): re-sync.
   useEffect(() => {
@@ -104,41 +118,37 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
     lastEmitted.current = value;
     const parsed = parseBriefText(value);
     if (!value.trim()) {
-      setFields({ ...BRIEF_FIELD_DEFAULTS });
+      setFields(withLock({ ...BRIEF_FIELD_DEFAULTS }));
       setLegacyText("");
       setMode("form");
       return;
     }
     if (parsed.recognized) {
-      setFields({ ...BRIEF_FIELD_DEFAULTS, ...parsed.fields });
+      setFields(withLock({ ...BRIEF_FIELD_DEFAULTS, ...parsed.fields }));
       setLegacyText("");
       setMode("form");
-    } else {
+    } else if (allowRaw) {
       setLegacyText(value);
       setMode("raw");
     }
-  }, [value]);
+  }, [value, lockedCefrLevel]);
 
   const emit = (next: BriefFields) => {
-    setFields(next);
-    const text = renderBriefText({ moduleNumber, fields: next });
+    const locked = withLock(next);
+    setFields(locked);
+    const text = renderBriefText({ moduleNumber, fields: locked });
     lastEmitted.current = text;
     onChange(text);
   };
 
-  // Module number lives outside the form; re-render text when it changes.
-  useEffect(() => {
-    if (mode !== "form") return;
-    const text = renderBriefText({ moduleNumber, fields });
-    if (text !== lastEmitted.current && value.trim()) {
-      lastEmitted.current = text;
-      onChange(text);
-    }
-  }, [moduleNumber]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const rendered = mode === "form" ? renderBriefText({ moduleNumber, fields }) : value;
+  const rendered = mode === "form" ? renderBriefText({ moduleNumber, fields: withLock(fields) }) : value;
   const length = rendered.length;
-  const missing = missingRequiredBriefFields(fields);
+  const visibleIds = includeFieldIds ? new Set(includeFieldIds) : null;
+  const visibleGroups = FIELD_GROUPS.map((group) => ({
+    ...group,
+    fields: visibleIds ? group.fields.filter((id) => visibleIds.has(id)) : group.fields,
+  })).filter((group) => group.fields.length > 0);
+  const missing = missingRequiredBriefFields(fields).filter((m) => !visibleIds || visibleIds.has(m.id));
   const overLimit = length > BRIEF_MAX_CHARS;
   const nearLimit = !overLimit && length > BRIEF_WARN_CHARS;
 
@@ -150,7 +160,7 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
   const switchToForm = () => {
     const parsed = parseBriefText(value);
     if (parsed.recognized) {
-      setFields({ ...BRIEF_FIELD_DEFAULTS, ...parsed.fields });
+      setFields(withLock({ ...BRIEF_FIELD_DEFAULTS, ...parsed.fields }));
       setMode("form");
       return;
     }
@@ -164,7 +174,7 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
 
   /** One-line preview per group for collapsed accordion headers. */
   const groupPreview = (groupId: string): string => {
-    const g = FIELD_GROUPS.find((x) => x.id === groupId);
+    const g = visibleGroups.find((x) => x.id === groupId);
     if (!g) return "";
     if (groupId === "classification") {
       return g.fields
@@ -182,8 +192,8 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
     return oneLine.length > 90 ? `${oneLine.slice(0, 90)}…` : oneLine;
   };
 
-  const groupMissing = (groupId: string) => missing.some((m) => FIELD_GROUPS.find((g) => g.id === groupId)?.fields.includes(m.id));
-  const defaultOpenGroups = FIELD_GROUPS.filter((g) => groupMissing(g.id)).map((g) => g.id);
+  const groupMissing = (groupId: string) => missing.some((m) => visibleGroups.find((g) => g.id === groupId)?.fields.includes(m.id));
+  const defaultOpenGroups = visibleGroups.filter((g) => groupMissing(g.id)).map((g) => g.id);
 
   const rawSwitch = (
     <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer shrink-0">
@@ -199,9 +209,9 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
   return (
     <div className="space-y-5">
       {/* Header row: title, subtitle, raw-mode switch */}
-      {hideHeader ? (
+      {allowRaw && hideHeader ? (
         <div className="flex justify-end">{rawSwitch}</div>
-      ) : (
+      ) : allowRaw ? (
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
             <Label className="text-base font-semibold">{t(`${I18N}.title`, "Briefing")}</Label>
@@ -209,7 +219,7 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
           </div>
           <div className="pt-1">{rawSwitch}</div>
         </div>
-      )}
+      ) : null}
 
       {mode === "raw" ? (
         <div className="space-y-3">
@@ -237,7 +247,7 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
         </div>
       ) : variant === "accordion" ? (
         <Accordion type="multiple" defaultValue={defaultOpenGroups} className="w-full space-y-2">
-          {FIELD_GROUPS.map((group) => {
+          {visibleGroups.map((group) => {
             const preview = groupPreview(group.id);
             const hasMissing = groupMissing(group.id);
             return (
@@ -276,7 +286,7 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
         </Accordion>
       ) : (
         <div className="space-y-6">
-          {FIELD_GROUPS.map((group, gi) => (
+          {visibleGroups.map((group, gi) => (
             <section key={group.id} className="space-y-4">
               {gi > 0 && <Separator />}
               <h4 className="text-sm font-semibold text-foreground">{texts.group(group.id, group.fallbackTitle)}</h4>
@@ -326,7 +336,7 @@ export function BriefBuilder({ value, onChange, moduleNumber, disabled, idPrefix
         )}
       </div>
 
-      {mode === "form" && (
+      {showGenerated && mode === "form" && (
         <Accordion type="single" collapsible className="w-full">
           <AccordionItem value="generated" className="rounded-lg border bg-muted/20 px-4">
             <AccordionTrigger className="py-3 text-sm font-medium hover:no-underline">

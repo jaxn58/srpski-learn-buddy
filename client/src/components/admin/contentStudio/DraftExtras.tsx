@@ -9,17 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-
 /**
- * Optional draft settings that most authors never touch: inspiration
- * reference (PDF), house-style skills, and the author note. Collapsed by
- * default under "More options" so the guided brief workflow stays in focus.
+ * Reference and house-style skills for a draft. Shown open in the main
+ * authoring flow so both can be chosen without an extra switch.
  * Shared by the create and edit forms of the Draft panel.
  */
 export interface DraftExtrasProps {
@@ -55,28 +47,12 @@ export function DraftExtras(props: DraftExtrasProps) {
   } = props;
 
   const activeRefs = ((refs || []) as any[]).filter((r: any) => r?.isActive);
-  const summaryParts: string[] = [];
-  if (refId) summaryParts.push(t(`${I18N}.summaryReference`, "reference set"));
-  if (specialistSkillIds.length + auditorSkillIds.length > 0) {
-    summaryParts.push(t(`${I18N}.summarySkills`, { defaultValue: "{{count}} skill(s)", count: specialistSkillIds.length + auditorSkillIds.length }));
-  }
   const toggle = (list: string[], set: (v: string[]) => void, id: string, checked: boolean) =>
     set(checked ? [...list, id] : list.filter((x) => x !== id));
 
   return (
-    <Accordion type="single" collapsible className="w-full">
-      <AccordionItem value="extras" className="rounded-lg border px-4 sm:px-5">
-        <AccordionTrigger className="py-3 hover:no-underline">
-          <div className="flex flex-col items-start gap-0.5 text-left">
-            <span className="text-sm font-semibold">{t(`${I18N}.title`, "More options")}</span>
-            <span className="text-xs text-muted-foreground font-normal">
-              {summaryParts.length > 0 ? summaryParts.join(" · ") : t(`${I18N}.subtitle`, "Reference material and house-style skills. Not needed for a normal unit.")}
-            </span>
-          </div>
-        </AccordionTrigger>
-        <AccordionContent className="pb-5 space-y-6">
-          {/* Reference */}
-          <section className="space-y-3">
+    <div className="space-y-6">
+          <section className="space-y-3 rounded-lg border p-4 sm:p-5">
             <div>
               <Label className="text-sm font-semibold">{t(`${I18N}.reference.title`, "Reference (optional)")}</Label>
               <p className="text-xs text-muted-foreground mt-0.5">{t(`${I18N}.reference.help`, "A PDF or book used for inspiration only. Its structure guidelines are given to the Creator; no text is copied.")}</p>
@@ -118,7 +94,7 @@ export function DraftExtras(props: DraftExtrasProps) {
           </section>
 
           {/* House-style skills */}
-          <section className="space-y-3">
+          <section className="space-y-3 rounded-lg border p-4 sm:p-5">
             <div>
               <Label className="text-sm font-semibold">{t(`${I18N}.skills.title`, "House style (skills)")}</Label>
               <p className="text-xs text-muted-foreground mt-0.5">{t(`${I18N}.skills.help`, "Check a skill to apply it to this unit only. A checked skill then runs through Creator, Fix, Lector and Translator. Unchecked skills stay unused, so you can keep optional skills in the library.")}</p>
@@ -142,10 +118,7 @@ export function DraftExtras(props: DraftExtrasProps) {
               />
             </div>
           </section>
-
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
+    </div>
   );
 }
 

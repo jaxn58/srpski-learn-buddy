@@ -1,18 +1,18 @@
 /**
- * Brief Assistant: turns a free-text description of a unit (typed or dictated,
- * German or English) plus the curriculum plan into a structured creator brief.
+ * Brief Assistant: turns the author's assignment fields into the remaining
+ * creator-brief fields (chunks, recycling, pitfalls, scenes, listening,
+ * culture, exercise focus).
+ *
+ * The author fills unit type, strand, setting, situation, what the learner
+ * can do, and the one grammar target. The module's CEFR level is fixed.
+ * Those values are written back over the model output. The course map is
+ * not an input. previouslyTaught is the grammar of earlier units, so the
+ * assistant can name recycling and what stays out of scope.
  *
  * Flow (client: BriefAssistant.tsx):
- *   1. Round 1: userText (+ current form fields) -> fields + up to 5 questions.
- *   2. Round 2 (optional): answers to those questions -> completed fields.
- * The returned fields are rendered into the canonical brief text by the client
- * (shared/contentStudio/briefTemplate.ts), so nothing changes for the Creator.
- *
- * Grounding: for units that exist in curriculumUnits the plan (type, level,
- * strand, setting, grammar target, chunks, recycling, Can-Do statements) is
- * authoritative; the user's text adds situation detail, scenes, pitfalls and
- * personality. Without a plan (e.g. a language school's own course) the
- * assistant asks more questions.
+ *   1. Round 1: current assignment fields -> remaining fields + up to 5 questions.
+ *   2. Round 2 (optional): answers to those questions -> completed remaining fields.
+ * The client renders the canonical brief text (shared/contentStudio/briefTemplate.ts).
  */
 import { v } from "convex/values";
 import { action } from "../_generated/server";
@@ -20,11 +20,14 @@ import { api } from "../_generated/api";
 import { requireSuperadminAction, callAiJson, parseJsonOrThrow, resolvePromptFromDb, languageRulesBlock } from "./_shared";
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
+  BRIEF_ASSIGNMENT_FIELD_IDS,
   BRIEF_FIELDS,
   BRIEF_FIELD_DEFAULTS,
   type BriefFieldId,
   type BriefFields,
 } from "../../shared/contentStudio/briefTemplate";
+
+const ASSIGNMENT_FIELD_IDS = new Set<string>(BRIEF_ASSIGNMENT_FIELD_IDS);
 
 const FIELD_IDS = new Set<string>(BRIEF_FIELDS.map((f) => f.id));
 
@@ -87,14 +90,28 @@ function sanitizeQuestions(raw: unknown): Array<{ id: string; question: string; 
   return out;
 }
 
+/** Appended after the stored prompt so a stale prompt cannot replace the author's fields. */
+function assignmentLockBlock(): string {
+  return [
+    "",
+    "=== ASSIGNMENT FIELDS (binding, overrides anything above) ===",
+    "There is no course map in this request. Do not invent or replace the author's assignment.",
+    "courseContext.cefrLevel is the module level. fields.cefrLevel MUST equal it.",
+    "currentFields already contain the author's unitType, strand, setting, situation, canDo and grammarIn. Copy those values unchanged into fields.",
+    "Write only the remaining fields: grammarOut, chunks, recycle, pitfalls, scenes, listening, cultural, exerciseFocus, plus titleSuggestion and descriptionSuggestion derived from the author's situation and grammarIn.",
+    "previouslyTaught is grammar earlier units already introduced. Recycle it. Do not make it this unit's grammarIn.",
+    "Do not ask questions about unitType, cefrLevel, strand, setting, situation, canDo or grammarIn.",
+  ].join("\n");
+}
+
 // @ts-ignore TS2589 – Convex schema depth limit (50+ tables)
 export const runBriefAssistant = action({
   args: {
     unitNumber: v.number(),
     moduleNumber: v.number(),
-    /** Free-text description from the author (may be empty when a plan exists). */
+    /** Unused for the assignment. Kept so existing clients still send a string. */
     userText: v.string(),
-    /** Fields already in the form (round 2, or manual edits to keep). */
+    /** Assignment fields already in the form. These are written back over the model output. */
     currentFields: v.optional(v.record(v.string(), v.string())),
     /** Answers to the previous round's questions. */
     answers: v.optional(v.array(v.object({ questionId: v.string(), question: v.string(), answer: v.string() }))),
@@ -125,7 +142,8 @@ export const runBriefAssistant = action({
     });
     const system =
       (await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.briefAssistant)) +
-      (await languageRulesBlock(ctx));
+      (await languageRulesBlock(ctx)) +
+      assignmentLockBlock();
 
     const fieldSpec = BRIEF_FIELDS.map((f) => ({
       id: f.id,
@@ -136,10 +154,6 @@ export const runBriefAssistant = action({
       help: f.help,
     }));
 
-    // Decision 2026-09-16: the AI decides the grammar of the unit from the
-    // CEFR level of the module and from what earlier units already taught.
-    // The curriculum map is passed only as a non-binding hint. Topic, places
-    // and scenes come from the author only; no content example is passed.
     const payload = {
       unit: { unitNumber: args.unitNumber, moduleNumber: args.moduleNumber },
       courseContext: {
@@ -147,8 +161,6 @@ export const runBriefAssistant = action({
         levelSource: context.levelSource,
         moduleTitleEn: context.moduleTitleEn ?? null,
         previouslyTaught: context.previouslyTaught,
-        plannedHint: context.plannedHint,
-        nextPlannedHints: context.nextPlannedHints,
       },
       briefFieldSpec: fieldSpec,
       currentFields: args.currentFields ?? {},
@@ -168,20 +180,19 @@ export const runBriefAssistant = action({
 
     const parsed = parseJsonOrThrow(raw);
     const fields = sanitizeFields(parsed?.fields);
-    // Always keep the header selects filled so the form never shows empty required selects.
-    for (const key of ["unitType", "cefrLevel", "strand", "setting"] as BriefFieldId[]) {
-      if (!fields[key]) {
-        const fromCurrent = args.currentFields?.[key];
-        const fromContext = key === "cefrLevel" ? context.cefrLevel : key === "unitType" ? context.plannedHint?.unitType : undefined;
-        const fallback = fromCurrent || fromContext || BRIEF_FIELD_DEFAULTS[key];
-        if (fallback) fields[key] = normalizeSelectValue(key, String(fallback));
-      }
+    // The module level and the author's assignment fields win over the model.
+    fields.cefrLevel = normalizeSelectValue("cefrLevel", String(context.cefrLevel));
+    for (const key of BRIEF_ASSIGNMENT_FIELD_IDS) {
+      const fromCurrent = args.currentFields?.[key];
+      if (!fromCurrent?.trim()) continue;
+      const def = BRIEF_FIELDS.find((f) => f.id === key);
+      fields[key] = def?.kind === "select" ? normalizeSelectValue(key, fromCurrent) : fromCurrent.trim();
     }
-    const questions = sanitizeQuestions(parsed?.questions);
+    const questions = sanitizeQuestions(parsed?.questions).filter(
+      (q) => !q.fieldId || !ASSIGNMENT_FIELD_IDS.has(q.fieldId),
+    );
     const summary = String(parsed?.summary ?? "").trim();
-    // Title comes from the model (derived from the author's own description).
-    // The plan title is deliberately NOT used as a fallback: content is the
-    // author's decision, the curriculum only fixes the language scaffold.
+    // Title comes from the model, derived from the author's situation.
     const titleSuggestion = String(parsed?.titleSuggestion ?? "").trim().slice(0, 120) || undefined;
     const descriptionSuggestion = String(parsed?.descriptionSuggestion ?? "").trim().slice(0, 160) || undefined;
 

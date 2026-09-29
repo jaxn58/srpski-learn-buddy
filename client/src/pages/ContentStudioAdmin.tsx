@@ -363,6 +363,8 @@ export default function ContentStudioAdmin() {
   const [draftEditUnitNumber, setDraftEditUnitNumber] = useState<string>("");
   // Creator brief / unit prompt (inspirationRef.notes) — the main authoring prompt.
   const [draftCreatorBrief, setDraftCreatorBrief] = useState<string>("");
+  // True only after the admin edits the briefing. Opening and hydration must not set this.
+  const [briefEditedByUser, setBriefEditedByUser] = useState(false);
   const [draftAuthorNoteName, setDraftAuthorNoteName] = useState<string>("");
   const [draftAuthorNoteQuote, setDraftAuthorNoteQuote] = useState<string>("");
 
@@ -806,7 +808,10 @@ export default function ContentStudioAdmin() {
               source: "reference-library",
               chapter: draftRefChapter.trim() || undefined,
               pages: draftRefPages.trim() || undefined,
-              notes: draftCreatorBrief.trim() || undefined,
+              notes: (briefEditedByUser
+                ? draftCreatorBrief
+                : String((selected as any)?.draft?.inspirationRef?.notes || "")
+              ).trim() || undefined,
               referenceNotes: draftRefNotes.trim() || undefined,
               referenceId: draftRefId ? (draftRefId as any) : undefined,
             },
@@ -837,6 +842,8 @@ export default function ContentStudioAdmin() {
     draftAuthorNoteName,
     draftAuthorNoteQuote,
     draftCreatorBrief,
+    briefEditedByUser,
+    selected,
     draftRefId,
     draftRefNotes,
     draftRefChapter,
@@ -924,6 +931,7 @@ export default function ContentStudioAdmin() {
     setDraftRefChapter(ref.chapter ? String(ref.chapter) : "");
     setDraftRefPages(ref.pages ? String(ref.pages) : "");
     setDraftCreatorBrief(ref.notes ? String(ref.notes) : "");
+    setBriefEditedByUser(false);
 
     const ids: string[] = Array.isArray(d.specialistSkillIds) ? d.specialistSkillIds.map(String) : [];
     // Backward-compat: if an old draft used sectionSkillIds, prefill specialistSkillIds with unique IDs.
@@ -2896,7 +2904,10 @@ export default function ContentStudioAdmin() {
             draftEditUnitNumber={draftEditUnitNumber}
             setDraftEditUnitNumber={setDraftEditUnitNumber}
             draftCreatorBrief={draftCreatorBrief}
-            setDraftCreatorBrief={setDraftCreatorBrief}
+            setDraftCreatorBrief={(text) => {
+              setBriefEditedByUser(true);
+              setDraftCreatorBrief(text);
+            }}
             draftAuthorNoteName={draftAuthorNoteName}
             setDraftAuthorNoteName={setDraftAuthorNoteName}
             draftAuthorNoteQuote={draftAuthorNoteQuote}
