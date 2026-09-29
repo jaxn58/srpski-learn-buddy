@@ -1,6 +1,6 @@
 # Briefing-Felder nach Curriculum
 
-Reihenfolge U001 bis U075 zum Ausfüllen des Formulars „Was diese Unit erreichen soll“. Die Texte stehen unverändert in [UNIT_MAP.md](UNIT_MAP.md) und [CAN_DO_INVENTORY.md](CAN_DO_INVENTORY.md).
+Reihenfolge U001 bis U075 zum Ausfüllen des Formulars „Was diese Unit erreichen soll“. Die Texte stehen unverändert in [UNIT_MAP.md](UNIT_MAP.md) und [CAN_DO_INVENTORY.md](CAN_DO_INVENTORY.md). Abweichungen vom CEFR-Abgleich stehen in [CEFR_AUDIT.md](CEFR_AUDIT.md).
 
 ## So trägst du ein
 
@@ -40,12 +40,12 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Unit-Typ | standard |
 | Themenstrang | SOC |
 | Setting | Serbien (Dinar) |
-| Situation | Arrival at Belgrade Nikola Tesla airport and hotel reception: greeting a receptionist or official, exchanging names, saying where you are from |
+| Situation | Arrival at Belgrade Nikola Tesla airport and hotel reception: greeting a receptionist or official, exchanging names, saying where you are from, with a focus on the Latin alphabet and pronunciation |
 | Can-Do-Statements | A1.1-GEN-01: Can pronounce all Latin-script letters, including č/ć, đ/dž, š, ž and syllabic r, well enough to be understood.<br>A1.1-SOC-01: Can greet, say goodbye and use basic politeness formulas appropriate to the time of day and formality.<br>A1.1-SOC-02: Can say who they are, ask someone's name and say where they come from and live.<br>A1.1-SOC-05: Can ask someone to repeat, speak slowly, or say that they do not understand.<br>A1.1-GEN-02: Can say that something is or is not the case using `biti` in all persons, including negation. (1st/2nd sg) |
-| Grammatikziel: enthalten | `biti` 1st/2nd person singular (`sam, si`) with negation `nisam, nisi`; `zvati se`; Latin alphabet and pronunciation focus |
+| Grammatikziel: enthalten | `biti` 1st/2nd person singular (`sam, si`) with negation `nisam, nisi` |
 | Unit-Titel | Getting Started – First Encounters |
 | Wiederholung aus früheren Units (Referenz, KI) | – |
-| Erlaubte Chunks (Referenz, KI) | `Ja sam iz Nemačke`, `Drago mi je`, `u Beogradu` |
+| Erlaubte Chunks (Referenz, KI) | `Zovem se ...`, `Ja sam iz Nemačke`, `Drago mi je`, `u Beogradu` |
 
 ### U002 – The Morning Coffee Ritual
 
@@ -69,8 +69,8 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | DAY |
 | Setting | Serbien (Dinar) |
 | Situation | Kalenić green market (pijaca) in Belgrade: tasting, asking prices in dinars, buying by weight |
-| Can-Do-Statements | A1.1-DAY-02: Can count to 100, use the hundreds as single words, understand prices in dinars and ask how much something costs. (1–20, tens, hundreds)<br>A1.1-DAY-03: Can ask to try a product and buy quantities by weight at a market.<br>A1.1-GEN-06: Can recognise the gender of a noun from its ending and use the matching form of `jedan/jedna/jedno`. |
-| Grammatikziel: enthalten | `Koliko košta / koštaju`; numbers 1–20, tens to 100 and hundreds as single words (`sto, dvesta, trista, petsto`); noun gender and `jedan/jedna/jedno` |
+| Can-Do-Statements | A1.1-DAY-02: Can count to 100, use the hundreds as single words, understand prices in dinars and ask how much something costs. (1–20, tens, hundreds)<br>A1.1-DAY-03: Can ask to try a product and buy quantities by weight at a market. |
+| Grammatikziel: enthalten | `Koliko košta / koštaju`; numbers 1–20, tens to 100 and hundreds as single words (`sto, dvesta, trista, petsto`) |
 | Unit-Titel | At the Market – Cheese, Kajmak and Prices |
 | Wiederholung aus früheren Units (Referenz, KI) | `li` questions, `imati` |
 | Erlaubte Chunks (Referenz, KI) | `pola kilograma`, `sto grama sira`, `Mogu li da probam?` |
@@ -86,7 +86,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Can-Do-Statements | A1.1-ARR-01: Can ask where a place is and understand simple directions (left, right, straight, near, far).<br>A1.1-ARR-02: Can say where they are or are going using fixed phrases with `u/na` + town or place. |
 | Grammatikziel: enthalten | `Gde je ...?` and direction words; `u/na + place` as fixed location phrases (locative preview) |
 | Unit-Titel | Finding the Pharmacy and the Fortress |
-| Wiederholung aus früheren Units (Referenz, KI) | numbers for distances, `biti` 3rd sg `je` |
+| Wiederholung aus früheren Units (Referenz, KI) | numbers for distances |
 | Erlaubte Chunks (Referenz, KI) | `u Novom Sadu`, `na trgu`, `Kako mogu da dođem do ...?` |
 
 ### U005 – Breakfast at the Bakery
@@ -97,8 +97,8 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | DAY |
 | Setting | Serbien (Dinar) |
 | Situation | Morning rush at a pekara in Novi Sad: ordering burek, bread, yogurt, paying in dinars |
-| Can-Do-Statements | A1.1-DAY-02: Can count to 100, use the hundreds as single words, understand prices in dinars and ask how much something costs. (21–99 combined)<br>A1.1-DAY-04: Can order breakfast items at a bakery and say what they want using `želeti`.<br>A1.1-GEN-05: Can say what they have or do not have and what they want, using `imati` and `želeti` in all persons. (želeti)<br>Wiederholung: A1.1-GEN-01: Can pronounce all Latin-script letters, including č/ć, đ/dž, š, ž and syllabic r, well enough to be understood. (R) |
-| Grammatikziel: enthalten | `želeti` present all persons; numbers 21–99 (`dvadeset i jedan` pattern) combined with hundreds |
+| Can-Do-Statements | A1.1-DAY-04: Can order breakfast items at a bakery and say what they want using `želeti`.<br>A1.1-GEN-05: Can say what they have or do not have and what they want, using `imati` and `želeti` in all persons. (želeti)<br>Wiederholung: A1.1-GEN-01: Can pronounce all Latin-script letters, including č/ć, đ/dž, š, ž and syllabic r, well enough to be understood. (R) |
+| Grammatikziel: enthalten | `želeti` present all persons |
 | Unit-Titel | Breakfast at the Bakery |
 | Wiederholung aus früheren Units (Referenz, KI) | `imati`, `Koliko košta`, accusative chunks |
 | Erlaubte Chunks (Referenz, KI) | `burek sa sirom`, `jedan jogurt` |
@@ -111,7 +111,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | kein Themenstrang in der Unit-Map (–) |
 | Setting | Serbien (Dinar) |
 | Situation | One day from airport to first coffee, market and bakery in Belgrade; mixed dialogues; can-do self-check |
-| Can-Do-Statements | Wiederholung: A1.1-GEN-01: Can pronounce all Latin-script letters, including č/ć, đ/dž, š, ž and syllabic r, well enough to be understood.<br>Wiederholung: A1.1-SOC-01: Can greet, say goodbye and use basic politeness formulas appropriate to the time of day and formality.<br>Wiederholung: A1.1-SOC-02: Can say who they are, ask someone's name and say where they come from and live.<br>Wiederholung: A1.1-SOC-05: Can ask someone to repeat, speak slowly, or say that they do not understand.<br>Wiederholung: A1.1-GEN-02: Can say that something is or is not the case using `biti` in all persons, including negation.<br>Wiederholung: A1.1-DAY-01: Can order a drink or snack in a café, ask for a simple modification and pay.<br>Wiederholung: A1.1-GEN-03: Can ask yes/no questions with `li` / `da li` and answer with short affirmative or negative replies.<br>Wiederholung: A1.1-DAY-02: Can count to 100, use the hundreds as single words, understand prices in dinars and ask how much something costs.<br>Wiederholung: A1.1-DAY-03: Can ask to try a product and buy quantities by weight at a market.<br>Wiederholung: A1.1-GEN-06: Can recognise the gender of a noun from its ending and use the matching form of `jedan/jedna/jedno`.<br>Wiederholung: A1.1-ARR-01: Can ask where a place is and understand simple directions (left, right, straight, near, far).<br>Wiederholung: A1.1-ARR-02: Can say where they are or are going using fixed phrases with `u/na` + town or place.<br>Wiederholung: A1.1-DAY-04: Can order breakfast items at a bakery and say what they want using `želeti`.<br>Wiederholung: A1.1-GEN-05: Can say what they have or do not have and what they want, using `imati` and `želeti` in all persons. |
+| Can-Do-Statements | Wiederholung: A1.1-GEN-01: Can pronounce all Latin-script letters, including č/ć, đ/dž, š, ž and syllabic r, well enough to be understood.<br>Wiederholung: A1.1-SOC-01: Can greet, say goodbye and use basic politeness formulas appropriate to the time of day and formality.<br>Wiederholung: A1.1-SOC-02: Can say who they are, ask someone's name and say where they come from and live.<br>Wiederholung: A1.1-SOC-05: Can ask someone to repeat, speak slowly, or say that they do not understand.<br>Wiederholung: A1.1-GEN-02: Can say that something is or is not the case using `biti` in all persons, including negation.<br>Wiederholung: A1.1-DAY-01: Can order a drink or snack in a café, ask for a simple modification and pay.<br>Wiederholung: A1.1-GEN-03: Can ask yes/no questions with `li` / `da li` and answer with short affirmative or negative replies.<br>Wiederholung: A1.1-DAY-02: Can count to 100, use the hundreds as single words, understand prices in dinars and ask how much something costs.<br>Wiederholung: A1.1-DAY-03: Can ask to try a product and buy quantities by weight at a market.<br>Wiederholung: A1.1-ARR-01: Can ask where a place is and understand simple directions (left, right, straight, near, far).<br>Wiederholung: A1.1-ARR-02: Can say where they are or are going using fixed phrases with `u/na` + town or place.<br>Wiederholung: A1.1-DAY-04: Can order breakfast items at a bakery and say what they want using `želeti`.<br>Wiederholung: A1.1-GEN-05: Can say what they have or do not have and what they want, using `imati` and `želeti` in all persons. |
 | Grammatikziel: enthalten | none (recap of U001–U005) |
 | Unit-Titel | Review – Arrival Day |
 | Wiederholung aus früheren Units (Referenz, KI) | `biti`, `imati`, `želeti`, `li`, numbers |
@@ -167,10 +167,10 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | DIG |
 | Setting | Serbien (Dinar) |
 | Situation | Phone shop and café Wi-Fi in Belgrade: buying a SIM, top-up, giving a number |
-| Can-Do-Statements | A1.1-DIG-01: Can buy a SIM card or top-up, give a phone number and ask for Wi-Fi access.<br>Wiederholung: A1.1-GEN-05: Can say what they have or do not have and what they want, using `imati` and `želeti` in all persons. (R) |
-| Grammatikziel: enthalten | `treba mi` as fixed phrase (dative preview); phone numbers and `imati / nemati` |
+| Can-Do-Statements | A1.1-DAY-02: Can count to 100, use the hundreds as single words, understand prices in dinars and ask how much something costs. (21–99 combined)<br>A1.1-DIG-01: Can buy a SIM card or top-up, give a phone number and ask for Wi-Fi access.<br>Wiederholung: A1.1-GEN-05: Can say what they have or do not have and what they want, using `imati` and `želeti` in all persons. (R) |
+| Grammatikziel: enthalten | `treba mi` as fixed phrase (dative preview); phone numbers and the pattern for 21–99 (`dvadeset i jedan`) together with hundreds; `imati / nemati` |
 | Unit-Titel | A SIM Card and Wi-Fi |
-| Wiederholung aus früheren Units (Referenz, KI) | `želeti`, numbers, `li` |
+| Wiederholung aus früheren Units (Referenz, KI) | `želeti`, numbers 1–20 and tens, `li` |
 | Erlaubte Chunks (Referenz, KI) | `Treba mi SIM kartica`, `Koja je lozinka?` |
 
 ### U011 – My Family
@@ -181,10 +181,10 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | SOC |
 | Setting | Serbien (Dinar) |
 | Situation | Showing photos to a neighbour in Novi Sad: family members, who is who, what belongs to whom |
-| Can-Do-Statements | A1.1-SOC-04: Can talk about immediate family and say what belongs to whom using `moj/tvoj/naš/vaš`.<br>Wiederholung: A1.1-GEN-06: Can recognise the gender of a noun from its ending and use the matching form of `jedan/jedna/jedno`. (R) |
-| Grammatikziel: enthalten | Possessive pronouns `moj/tvoj/naš/vaš` with gender agreement in the nominative |
+| Can-Do-Statements | A1.1-GEN-06: Can recognise the gender of a noun from its ending and use the matching form of `jedan/jedna/jedno`.<br>A1.1-SOC-04: Can talk about immediate family and say what belongs to whom using `moj/tvoj/naš/vaš`. |
+| Grammatikziel: enthalten | Possessive pronouns `moj/tvoj/naš/vaš` and `jedan/jedna/jedno` with gender agreement in the nominative |
 | Unit-Titel | My Family |
-| Wiederholung aus früheren Units (Referenz, KI) | `biti`, `jedan/jedna/jedno`, `imati` |
+| Wiederholung aus früheren Units (Referenz, KI) | `biti`, `imati` |
 | Erlaubte Chunks (Referenz, KI) | `moja žena`, `naš stan` |
 
 ### U012 – Checkpoint A1.1 – Your First Week
@@ -282,8 +282,8 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | DAY |
 | Setting | Serbien (Dinar) |
 | Situation | Describing the flat to a friend: rooms, furniture, where things are |
-| Can-Do-Statements | A1.2-GEN-04: Can form and use regular plurals of nouns and describe several items.<br>A1.2-DAY-03: Can describe a home and its rooms and say where things are using the locative with `u/na`. (intro) |
-| Grammatikziel: enthalten | Regular noun plurals (`-i, -e, -a`); locative `u/na` introduced with 3 to 5 high-frequency nouns |
+| Can-Do-Statements | A1.2-GEN-04: Can form and use regular plurals of nouns and describe several items. |
+| Grammatikziel: enthalten | Regular noun plurals (`-i, -e, -a`) |
 | Unit-Titel | Home and Rooms |
 | Wiederholung aus früheren Units (Referenz, KI) | `imati`, demonstratives |
 | Erlaubte Chunks (Referenz, KI) | `u kuhinji`, `na stolu`, `u sobi` |
@@ -296,7 +296,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | kein Themenstrang in der Unit-Map (–) |
 | Setting | Serbien (Dinar) |
 | Situation | A weekday with shopping, lunch out, chatting with neighbours and tidying the flat |
-| Can-Do-Statements | Wiederholung: A1.2-GEN-01: Can describe daily routines using regular present-tense verbs of the three conjugation classes.<br>Wiederholung: A1.2-DAY-01: Can shop in a supermarket, ask for a missing item, request a bag and pay by card.<br>Wiederholung: A1.2-GEN-02: Can negate verbs with `ne` and say what they do not do, know or see.<br>Wiederholung: A1.2-GEN-06: Can point things out with `ovaj / taj / onaj` and ask "which one".<br>Wiederholung: A1.2-DAY-02: Can order a meal in a restaurant, ask about ingredients and state dietary restrictions.<br>Wiederholung: A1.2-GEN-03: Can express ability, necessity and intention with `moći / morati / hteti + da`.<br>Wiederholung: A1.2-GEN-09: Can understand and use polite imperatives heard in service situations (`Izvolite, Dajte mi, Recite`).<br>Wiederholung: A1.2-SOC-01: Can make small talk with a neighbour about well-being and the weather, choosing `Kako si` or `Kako ste`.<br>Wiederholung: A1.2-GEN-04: Can form and use regular plurals of nouns and describe several items.<br>Wiederholung: A1.2-DAY-03: Can describe a home and its rooms and say where things are using the locative with `u/na`. |
+| Can-Do-Statements | Wiederholung: A1.2-GEN-01: Can describe daily routines using regular present-tense verbs of the three conjugation classes.<br>Wiederholung: A1.2-DAY-01: Can shop in a supermarket, ask for a missing item, request a bag and pay by card.<br>Wiederholung: A1.2-GEN-02: Can negate verbs with `ne` and say what they do not do, know or see.<br>Wiederholung: A1.2-GEN-06: Can point things out with `ovaj / taj / onaj` and ask "which one".<br>Wiederholung: A1.2-DAY-02: Can order a meal in a restaurant, ask about ingredients and state dietary restrictions.<br>Wiederholung: A1.2-GEN-03: Can express ability, necessity and intention with `moći / morati / hteti + da`.<br>Wiederholung: A1.2-GEN-09: Can understand and use polite imperatives heard in service situations (`Izvolite, Dajte mi, Recite`).<br>Wiederholung: A1.2-SOC-01: Can make small talk with a neighbour about well-being and the weather, choosing `Kako si` or `Kako ste`.<br>Wiederholung: A1.2-GEN-04: Can form and use regular plurals of nouns and describe several items. |
 | Grammatikziel: enthalten | none (recap of U013–U017) |
 | Unit-Titel | Review – Daily Routines |
 | Wiederholung aus früheren Units (Referenz, KI) | all U013–U017 grammar |
@@ -309,11 +309,11 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Unit-Typ | standard |
 | Themenstrang | SET |
 | Setting | Serbien (Dinar) |
-| Situation | Flat viewing with a landlord in Novi Sad: rent in euros and dinars, deposit, utilities, move-in |
-| Can-Do-Statements | A1.2-DAY-03: Can describe a home and its rooms and say where things are using the locative with `u/na`. (rule)<br>A1.2-SET-01: Can view a flat with a landlord: ask about rent, deposit, utilities and move-in date.<br>A1.2-GEN-10: Can understand and say numbers from 1,000 to 100,000 for rent, salaries and dinar prices. |
-| Grammatikziel: enthalten | Locative singular as a rule (`u/na + -u / -i` for m/n and f nouns); numbers 1,000–100,000 (dinar amounts) |
+| Situation | Asking a landlord in Novi Sad the rent and how many rooms |
+| Can-Do-Statements | A1.2-DAY-03: Can describe a home and its rooms and say where things are using the locative with `u/na`.<br>A1.2-SET-01: Can ask the rent and how many rooms, using memorised questions.<br>A1.2-GEN-10: Can understand and say a rent or a price in dinars using numbers up to the hundreds. |
+| Grammatikziel: enthalten | Locative singular as a rule (`u/na + -u / -i` for m/n and f nouns) |
 | Unit-Titel | Viewing a Flat |
-| Wiederholung aus früheren Units (Referenz, KI) | plurals, `moći / morati` |
+| Wiederholung aus früheren Units (Referenz, KI) | plurals, `moći / morati`, numbers up to the hundreds |
 | Erlaubte Chunks (Referenz, KI) | `Koliko je kirija?`, `depozit`, `od prvog` |
 
 ### U020 – Times, Appointments and Tickets
@@ -413,8 +413,8 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | DAY |
 | Setting | Serbien (Dinar) |
 | Situation | Telling a friend what you did yesterday |
-| Can-Do-Statements | A2.1-GEN-01: Can talk about what they did yesterday or last weekend using the past tense in all persons. (sg) |
-| Grammatikziel: enthalten | Past tense (perfekt) 1st to 3rd person singular: `biti` + l-participle, gender agreement |
+| Can-Do-Statements | A2.1-GEN-01: Can talk about what they did yesterday or last weekend using the past tense in all persons. (all persons) |
+| Grammatikziel: enthalten | Past tense (perfekt) all persons: `biti` + l-participle, gender agreement |
 | Unit-Titel | Yesterday |
 | Wiederholung aus früheren Units (Referenz, KI) | present tense, time |
 | Erlaubte Chunks (Referenz, KI) | `Juče sam bio / bila`, `Išao sam` |
@@ -427,10 +427,10 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | SOC |
 | Setting | Serbien (Dinar) |
 | Situation | Barbecue at Ada Ciganlija, Belgrade: stories about the weekend, a trip, a mishap |
-| Can-Do-Statements | A2.1-GEN-01: Can talk about what they did yesterday or last weekend using the past tense in all persons. (all persons)<br>A2.1-SOC-01: Can tell a short story about a trip or event and react to someone else's story.<br>A2.1-GEN-09: Can use time prepositions (`pre, posle, za, od ... do, tokom`) to sequence events. |
-| Grammatikziel: enthalten | Past tense all persons incl. plural participles; time prepositions `pre, posle, za, od ... do` |
+| Can-Do-Statements | A2.1-SOC-01: Can tell a short story about a trip or event and react to someone else's story.<br>A2.1-GEN-09: Can use time prepositions (`pre, posle, za, od ... do, tokom`) to sequence events. |
+| Grammatikziel: enthalten | Time prepositions `pre, posle, za, od ... do` |
 | Unit-Titel | Telling a Story |
-| Wiederholung aus früheren Units (Referenz, KI) | past tense sg |
+| Wiederholung aus früheren Units (Referenz, KI) | past tense (all persons) |
 | Erlaubte Chunks (Referenz, KI) | `Pre dve godine`, `Posle toga` |
 
 ### U027 – Planning a Holiday on the Montenegrin Coast
@@ -671,9 +671,9 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Setting | Serbien (Dinar) |
 | Situation | Faulty purchase, wrong bill, cancelled service: repair, exchange, refund |
 | Can-Do-Statements | A2.2-DAY-01: Can describe a problem with a purchase or service, ask for a repair, exchange or refund and understand the response.<br>A2.2-GEN-04: Can combine numbers and nouns correctly (`dva sata`, `pet sati`) and give dates and years. |
-| Grammatikziel: enthalten | Numbers with nouns (`dva sata / pet sati`, `tri dana / šest dana`); dates and years |
+| Grammatikziel: enthalten | Numbers with nouns (`dva sata / pet sati`, `tri dana / šest dana`) |
 | Unit-Titel | Something Went Wrong |
-| Wiederholung aus früheren Units (Referenz, KI) | past tense, genitive plural |
+| Wiederholung aus früheren Units (Referenz, KI) | past tense, genitive plural, dates |
 | Erlaubte Chunks (Referenz, KI) | `Želim povraćaj novca`, `garancija` |
 
 ### U043 – People, Places and Things
@@ -740,7 +740,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | BIZ |
 | Setting | Serbien (Dinar) |
 | Situation | Weekly team meeting: progress, blockers, next steps |
-| Can-Do-Statements | A2.2-BIZ-01: Can take part in a simple work meeting: report progress, ask for clarification and agree next steps.<br>A2.2-GEN-07: Can use perfective and imperfective aspect appropriately in present, past and future for common verb pairs.<br>Wiederholung: A2.2-GEN-01: Can give instructions and warnings using the imperative in singular and plural, including negative commands. (R) |
+| Can-Do-Statements | A2.2-BIZ-01: Can say what they are doing at work and ask what the next step is, in a short exchange.<br>A2.2-GEN-07: Can use perfective and imperfective aspect appropriately in present, past and future for common verb pairs.<br>Wiederholung: A2.2-GEN-01: Can give instructions and warnings using the imperative in singular and plural, including negative commands. (R) |
 | Grammatikziel: enthalten | Aspect systematic across tenses (`radim / uradim`, `radio sam / uradio sam`, `radiću / uradiću`) |
 | Unit-Titel | The Work Meeting |
 | Wiederholung aus früheren Units (Referenz, KI) | imperative, future |
@@ -754,7 +754,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | SET |
 | Setting | Serbien (Dinar) |
 | Situation | Rental or service contract clause by clause; asking for changes |
-| Can-Do-Statements | A2.2-SET-02: Can discuss a rental or service contract clause by clause and ask for changes.<br>A2.2-GEN-11: Can use the common prepositions that take the genitive (`od, do, iz, kod, pored, ispred, iza, bez`). |
+| Can-Do-Statements | A2.2-SET-02: Can ask what a simple phrase in a contract means and ask for one change, using memorised questions.<br>A2.2-GEN-11: Can use the common prepositions that take the genitive (`od, do, iz, kod, pored, ispred, iza, bez`). |
 | Grammatikziel: enthalten | Prepositions with the genitive (`od, do, iz, kod, pored, ispred, iza, bez, zbog`) |
 | Unit-Titel | Reading the Contract |
 | Wiederholung aus früheren Units (Referenz, KI) | conditional, numbers and dates |
@@ -782,7 +782,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | DIG |
 | Setting | Serbien (Dinar) |
 | Situation | Serbian e-government portal (eUprava) and a formal email to a landlord or agency |
-| Can-Do-Statements | A2.2-DIG-01: Can navigate an online form or e-government portal, understand field labels and error messages, and ask for help by email.<br>A2.2-BIZ-02: Can write a short formal email or message: request, confirmation, complaint.<br>A2.2-GEN-09: Can report what someone said in simple indirect speech.<br>Wiederholung: A2.2-GEN-04: Can combine numbers and nouns correctly (`dva sata`, `pet sati`) and give dates and years. (R) |
+| Can-Do-Statements | A2.2-DIG-01: Can fill in personal details on a simple online form and ask what a field means, in a short message.<br>A2.2-BIZ-02: Can write a short formulaic message: a request, a confirmation or a short complaint, with a memorised opening and closing.<br>A2.2-GEN-09: Can report what someone said in simple indirect speech.<br>Wiederholung: A2.2-GEN-04: Can combine numbers and nouns correctly (`dva sata`, `pet sati`) and give dates and years. (R) |
 | Grammatikziel: enthalten | Indirect speech (`Rekao je da ...`, `Pitala je da li ...`) |
 | Unit-Titel | Online Forms and Formal Email |
 | Wiederholung aus früheren Units (Referenz, KI) | numbers and dates, formal register |
@@ -849,7 +849,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | ARR |
 | Setting | Serbien (Dinar) |
 | Situation | Explaining routes, transport and landmarks in Belgrade and Novi Sad |
-| Can-Do-Statements | B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with high accuracy in prepared speech. (gen/acc pl)<br>B1-ARR-01: Can get around a city independently: describe routes, public transport and landmarks in detail. |
+| Can-Do-Statements | B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with reasonable accuracy in familiar contexts. (gen/acc pl)<br>B1-ARR-01: Can get around a city independently: describe routes, public transport and landmarks in detail. |
 | Grammatikziel: enthalten | Cases I: genitive and accusative plural of nouns and adjectives (consolidation) |
 | Unit-Titel | Around Town |
 | Wiederholung aus früheren Units (Referenz, KI) | motion vs location |
@@ -863,7 +863,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | SOC |
 | Setting | Serbien (Dinar) |
 | Situation | Writing to friends about places and people |
-| Can-Do-Statements | B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with high accuracy in prepared speech. (dat/loc pl)<br>B1-SOC-01: Can write and understand personal letters and postcards about places, people and experiences. |
+| Can-Do-Statements | B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with reasonable accuracy in familiar contexts. (dat/loc pl)<br>B1-SOC-01: Can write and understand personal letters and postcards about places, people and experiences. |
 | Grammatikziel: enthalten | Cases II: dative and locative plural |
 | Unit-Titel | Letters and Postcards |
 | Wiederholung aus früheren Units (Referenz, KI) | genitive/accusative plural |
@@ -877,7 +877,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | DAY |
 | Setting | Serbien (Dinar) |
 | Situation | Chores, tools, appliances, who does what with whom |
-| Can-Do-Statements | B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with high accuracy in prepared speech. (instr/voc pl)<br>B1-DAY-01: Can organise a household: talk about chores, tools, appliances and who does what with whom. |
+| Can-Do-Statements | B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with reasonable accuracy in familiar contexts. (instr/voc pl)<br>B1-DAY-01: Can organise a household: talk about chores, tools, appliances and who does what with whom. |
 | Grammatikziel: enthalten | Cases III: instrumental and vocative plural |
 | Unit-Titel | Running a Household |
 | Wiederholung aus früheren Units (Referenz, KI) | dative/locative plural |
@@ -891,7 +891,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | GEN |
 | Setting | Serbien (Dinar) |
 | Situation | Guided error-hunt through typical non-native mistakes |
-| Can-Do-Statements | B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with high accuracy in prepared speech. (pronouns and adjectives) |
+| Can-Do-Statements | B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with reasonable accuracy in familiar contexts. (pronouns and adjectives) |
 | Grammatikziel: enthalten | Cases IV: personal pronouns and adjectives in all cases, prepositional triggers summarised |
 | Unit-Titel | The Seven Cases Masterclass |
 | Wiederholung aus früheren Units (Referenz, KI) | Cases I–III |
@@ -919,7 +919,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | kein Themenstrang in der Unit-Map (–) |
 | Setting | Serbien (Dinar) |
 | Situation | City, household, correspondence and company registration in one storyline |
-| Can-Do-Statements | Wiederholung: B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with high accuracy in prepared speech.<br>Wiederholung: B1-ARR-01: Can get around a city independently: describe routes, public transport and landmarks in detail.<br>Wiederholung: B1-SOC-01: Can write and understand personal letters and postcards about places, people and experiences.<br>Wiederholung: B1-DAY-01: Can organise a household: talk about chores, tools, appliances and who does what with whom.<br>Wiederholung: B1-BIZ-01: Can set up a company: explain the business idea, understand the accountant's requirements and register with authorities.<br>Wiederholung: B1-GEN-10: Can use verbal nouns and formal register in administrative and business contexts (`osnivanje, registracija, podnošenje`). |
+| Can-Do-Statements | Wiederholung: B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with reasonable accuracy in familiar contexts.<br>Wiederholung: B1-ARR-01: Can get around a city independently: describe routes, public transport and landmarks in detail.<br>Wiederholung: B1-SOC-01: Can write and understand personal letters and postcards about places, people and experiences.<br>Wiederholung: B1-DAY-01: Can organise a household: talk about chores, tools, appliances and who does what with whom.<br>Wiederholung: B1-BIZ-01: Can set up a company: explain the business idea, understand the accountant's requirements and register with authorities.<br>Wiederholung: B1-GEN-10: Can use verbal nouns and formal register in administrative and business contexts (`osnivanje, registracija, podnošenje`). |
 | Grammatikziel: enthalten | none (recap of U053–U057) |
 | Unit-Titel | Review – The Case System in Use |
 | Wiederholung aus früheren Units (Referenz, KI) | all cases, verbal nouns |
@@ -989,7 +989,7 @@ Die Sprachstufe kommt im Formular vom Modul. In der Unit-Map ist sie A1.1 (Modul
 | Themenstrang | kein Themenstrang in der Unit-Map (–) |
 | Setting | Serbien (Dinar) |
 | Situation | Chronic condition, insurance, follow-up: an extended dialogue recycling U059–U062 |
-| Can-Do-Statements | Wiederholung: B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with high accuracy in prepared speech. (R)<br>Wiederholung: B1-SOC-02: Can discuss current events or local news, present arguments for and against and stay neutral in tone.<br>Wiederholung: B1-GEN-03: Can build complex sentences with `iako, jer, pošto, ukoliko, dok, čim` and keep clitic word order correct.<br>Wiederholung: B1-DIG-01: Can deal with a customer-service hotline or chat: describe a technical problem, follow troubleshooting steps and escalate.<br>Wiederholung: B1-GEN-11: Can structure spoken and written explanations with sequencing and contrast connectors (`prvo, zatim, međutim, s druge strane, na kraju`).<br>Wiederholung: B1-BIZ-02: Can negotiate an offer, price or lease, make counter-proposals and summarise the agreement.<br>Wiederholung: B1-GEN-12: Can form conditional sentences with `ako`, `kad bi` and `da` for real and hypothetical situations.<br>Wiederholung: B1-GEN-04: Can recognise and understand the aorist, pluperfect and archaic forms in literature, songs and formal speech.<br>Wiederholung: B1-SOC-03: Can talk about books, films, music and regional culture and give a structured personal review.<br>Wiederholung: B1-DAY-02: Can handle a longer medical consultation: history, chronic conditions, insurance and follow-up. (review context) |
+| Can-Do-Statements | Wiederholung: B1-GEN-01: Can use all seven cases in singular and plural for nouns, adjectives and pronouns with reasonable accuracy in familiar contexts. (R)<br>Wiederholung: B1-SOC-02: Can discuss current events or local news, present arguments for and against and stay neutral in tone.<br>Wiederholung: B1-GEN-03: Can build complex sentences with `iako, jer, pošto, ukoliko, dok, čim` and keep clitic word order correct.<br>Wiederholung: B1-DIG-01: Can deal with a customer-service hotline or chat: describe a technical problem, follow troubleshooting steps and escalate.<br>Wiederholung: B1-GEN-11: Can structure spoken and written explanations with sequencing and contrast connectors (`prvo, zatim, međutim, s druge strane, na kraju`).<br>Wiederholung: B1-BIZ-02: Can negotiate an offer, price or lease, make counter-proposals and summarise the agreement.<br>Wiederholung: B1-GEN-12: Can form conditional sentences with `ako`, `kad bi` and `da` for real and hypothetical situations.<br>Wiederholung: B1-GEN-04: Can recognise and understand the aorist, pluperfect and archaic forms in literature, songs and formal speech.<br>Wiederholung: B1-SOC-03: Can talk about books, films, music and regional culture and give a structured personal review.<br>Wiederholung: B1-DAY-02: Can handle a longer medical consultation: history, chronic conditions, insurance and follow-up. (review context) |
 | Grammatikziel: enthalten | none (recap of U059–U062) |
 | Unit-Titel | Review – The Long Medical Consultation |
 | Wiederholung aus früheren Units (Referenz, KI) | complex sentences, connectors, conditionals, cases |

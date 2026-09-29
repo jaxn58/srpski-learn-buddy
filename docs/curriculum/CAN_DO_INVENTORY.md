@@ -20,9 +20,9 @@ Global descriptor: Can understand and use very short, memorised everyday express
 | A1.1-GEN-02 | Can say that something is or is not the case using `biti` in all persons, including negation. | GEN | U001 (1st/2nd sg), U007 (all persons) |
 | A1.1-DAY-01 | Can order a drink or snack in a café, ask for a simple modification and pay. | DAY | U002 |
 | A1.1-GEN-03 | Can ask yes/no questions with `li` / `da li` and answer with short affirmative or negative replies. | GEN | U002, U008 (R) |
-| A1.1-DAY-02 | Can count to 100, use the hundreds as single words, understand prices in dinars and ask how much something costs. | DAY | U003 (1–20, tens, hundreds), U005 (21–99 combined) |
+| A1.1-DAY-02 | Can count to 100, use the hundreds as single words, understand prices in dinars and ask how much something costs. | DAY | U003 (1–20, tens, hundreds), U010 (21–99 combined) |
 | A1.1-DAY-03 | Can ask to try a product and buy quantities by weight at a market. | DAY | U003 |
-| A1.1-GEN-06 | Can recognise the gender of a noun from its ending and use the matching form of `jedan/jedna/jedno`. | GEN | U003, U011 (R) |
+| A1.1-GEN-06 | Can recognise the gender of a noun from its ending and use the matching form of `jedan/jedna/jedno`. | GEN | U011 |
 | A1.1-ARR-01 | Can ask where a place is and understand simple directions (left, right, straight, near, far). | ARR | U004 |
 | A1.1-ARR-02 | Can say where they are or are going using fixed phrases with `u/na` + town or place. | ARR | U004, U009 (R) |
 | A1.1-DAY-04 | Can order breakfast items at a bakery and say what they want using `želeti`. | DAY | U005 |
@@ -53,9 +53,9 @@ Global descriptor: Can interact in a simple way in routine everyday situations, 
 | A1.2-GEN-09 | Can understand and use polite imperatives heard in service situations (`Izvolite, Dajte mi, Recite`). | GEN | U015 (as chunks), U023 (as rule) |
 | A1.2-SOC-01 | Can make small talk with a neighbour about well-being and the weather, choosing `Kako si` or `Kako ste`. | SOC | U016 |
 | A1.2-GEN-04 | Can form and use regular plurals of nouns and describe several items. | GEN | U017 |
-| A1.2-DAY-03 | Can describe a home and its rooms and say where things are using the locative with `u/na`. | DAY | U017 (intro), U019 (rule) |
-| A1.2-SET-01 | Can view a flat with a landlord: ask about rent, deposit, utilities and move-in date. | SET | U019 |
-| A1.2-GEN-10 | Can understand and say numbers from 1,000 to 100,000 for rent, salaries and dinar prices. | GEN | U019 |
+| A1.2-DAY-03 | Can describe a home and its rooms and say where things are using the locative with `u/na`. | DAY | U019 |
+| A1.2-SET-01 | Can ask the rent and how many rooms, using memorised questions. | SET | U019 |
+| A1.2-GEN-10 | Can understand and say a rent or a price in dinars using numbers up to the hundreds. | GEN | U019 |
 | A1.2-DIG-01 | Can make an appointment by phone or app: propose a day and time, confirm or reschedule. | DIG | U020 |
 | A1.2-GEN-07 | Can tell the time in five-minute steps, say at what time something happens and give dates for the current month. | GEN | U020, U022 (R) |
 | A1.2-ARR-01 | Can buy a bus or train ticket, understand platform and departure information and ask about delays. | ARR | U020 |
@@ -76,7 +76,7 @@ Global descriptor: Can communicate in simple routine tasks requiring a direct ex
 
 | ID | Can-Do statement | Strand | Target unit |
 |----|------------------|--------|-------------|
-| A2.1-GEN-01 | Can talk about what they did yesterday or last weekend using the past tense in all persons. | GEN | U025 (sg), U026 (all persons), U031 (R) |
+| A2.1-GEN-01 | Can talk about what they did yesterday or last weekend using the past tense in all persons. | GEN | U025 (all persons), U031 (R) |
 | A2.1-SOC-01 | Can tell a short story about a trip or event and react to someone else's story. | SOC | U026 |
 | A2.1-GEN-09 | Can use time prepositions (`pre, posle, za, od ... do, tokom`) to sequence events. | GEN | U026, U038 (R) |
 | A2.1-GEN-02 | Can talk about plans and intentions using the future tense. | GEN | U027, U031 (R) |
@@ -107,7 +107,7 @@ Review U031 recycles U025–U030. Checkpoint U038 (A2.1): a learner can narrate 
 
 ## A2.2 – Module 4 "Advanced Communication" (U039–U052)
 
-Global descriptor: Can deal with most situations likely to arise while living in the country, explain problems, give reasons and opinions briefly, and understand the main points of clear standard speech on familiar matters.
+Global descriptor: Can communicate in simple and routine tasks and short exchanges on familiar topics, ask and answer questions, and handle predictable everyday situations, provided the other person helps if necessary.
 
 | ID | Can-Do statement | Strand | Target unit |
 |----|------------------|--------|-------------|
@@ -123,14 +123,14 @@ Global descriptor: Can deal with most situations likely to arise while living in
 | A2.2-DAY-02 | Can call emergency services, describe an accident or urgent problem and give a location. | DAY | U044 |
 | A2.2-GEN-06 | Can distinguish destination (accusative) from location (locative) with verbs of motion and position. | GEN | U046, U051 (R) |
 | A2.2-ARR-02 | Can rent a car or use ride-hailing: understand insurance terms, fuel policy and return conditions. | ARR | U046 |
-| A2.2-BIZ-01 | Can take part in a simple work meeting: report progress, ask for clarification and agree next steps. | BIZ | U047 |
+| A2.2-BIZ-01 | Can say what they are doing at work and ask what the next step is, in a short exchange. | BIZ | U047 |
 | A2.2-GEN-07 | Can use perfective and imperfective aspect appropriately in present, past and future for common verb pairs. | GEN | U047, U052 (R) |
-| A2.2-SET-02 | Can discuss a rental or service contract clause by clause and ask for changes. | SET | U048 |
+| A2.2-SET-02 | Can ask what a simple phrase in a contract means and ask for one change, using memorised questions. | SET | U048 |
 | A2.2-GEN-11 | Can use the common prepositions that take the genitive (`od, do, iz, kod, pored, ispred, iza, bez`). | GEN | U048 |
 | A2.2-SOC-02 | Can express and briefly justify an opinion on everyday topics and agree or disagree politely. | SOC | U049 |
 | A2.2-GEN-08 | Can use impersonal constructions with `se` (`Kako se kaže ..., Ovde se ne puši, Smatra se da ...`). | GEN | U049 |
-| A2.2-DIG-01 | Can navigate an online form or e-government portal, understand field labels and error messages, and ask for help by email. | DIG | U050 |
-| A2.2-BIZ-02 | Can write a short formal email or message: request, confirmation, complaint. | BIZ | U050 |
+| A2.2-DIG-01 | Can fill in personal details on a simple online form and ask what a field means, in a short message. | DIG | U050 |
+| A2.2-BIZ-02 | Can write a short formulaic message: a request, a confirmation or a short complaint, with a memorised opening and closing. | BIZ | U050 |
 | A2.2-GEN-09 | Can report what someone said in simple indirect speech. | GEN | U050 |
 | A2.2-SOC-03 | Can talk about traditions, food and customs of the region and compare them with their own culture. | SOC | U051 |
 | A2.2-GEN-10 | Can use adjectives correctly in all singular cases after prepositions and verbs. | GEN | U051 |
@@ -145,7 +145,7 @@ Global descriptor: Can deal with most situations in the country independently, p
 
 | ID | Can-Do statement | Strand | Target unit |
 |----|------------------|--------|-------------|
-| B1-GEN-01 | Can use all seven cases in singular and plural for nouns, adjectives and pronouns with high accuracy in prepared speech. | GEN | U053 (gen/acc pl), U054 (dat/loc pl), U055 (instr/voc pl), U056 (pronouns and adjectives), U063 (R) |
+| B1-GEN-01 | Can use all seven cases in singular and plural for nouns, adjectives and pronouns with reasonable accuracy in familiar contexts. | GEN | U053 (gen/acc pl), U054 (dat/loc pl), U055 (instr/voc pl), U056 (pronouns and adjectives), U063 (R) |
 | B1-ARR-01 | Can get around a city independently: describe routes, public transport and landmarks in detail. | ARR | U053 |
 | B1-SOC-01 | Can write and understand personal letters and postcards about places, people and experiences. | SOC | U054 |
 | B1-DAY-01 | Can organise a household: talk about chores, tools, appliances and who does what with whom. | DAY | U055 |
