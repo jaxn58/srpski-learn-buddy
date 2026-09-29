@@ -170,13 +170,6 @@ export type ValidationIssue = {
 
 const SERBIAN_FORBIDDEN_REGEX = /[()\[\]*\/]|[.?!,:;]/;
 
-function countWords(s: string): number {
-  return String(s)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
-}
-
 function countBlanks(question: string): number {
   // Our frontend uses a single input per questionId. Multiple blanks are currently not supported safely.
   const blanks = String(question).match(/_+/g) || [];
@@ -249,15 +242,6 @@ export function validateUnitPackageDeep(pkg: UnitPackage): ValidationIssue[] {
           level: "error",
           path: ["vocabulary", lang, idx, "serbian"],
           message: `serbian contains forbidden characters for audio/indexing: '${v.serbian}'`,
-        });
-      }
-
-      const words = countWords(v.serbian);
-      if (words > 3) {
-        issues.push({
-          level: "error",
-          path: ["vocabulary", lang, idx, "serbian"],
-          message: `serbian has ${words} words (max 3 allowed): '${v.serbian}'`,
         });
       }
     }
