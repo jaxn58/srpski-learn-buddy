@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   BRIEF_FIELDS,
   BRIEF_MAX_CHARS,
+  canDoLevelsOutsideModule,
   missingRequiredBriefFields,
   parseBriefText,
   renderBriefText,
@@ -85,6 +86,22 @@ describe("parseBriefText", () => {
     expect(parsed.recognized).toBe(true);
     expect(parsed.fields.situation).toBe(FULL.situation);
     expect(parsed.fields.scenes).toBe(FULL.scenes);
+  });
+});
+
+describe("canDoLevelsOutsideModule", () => {
+  it("flags a line whose level is not the module level", () => {
+    const text = [
+      "A1.1-ARR-01: Can ask where a place is.",
+      "A1.2-DAY: Can understand simple directions.",
+    ].join("\n");
+    expect(canDoLevelsOutsideModule(text, "A1.1")).toEqual(["A1.2"]);
+    expect(canDoLevelsOutsideModule(text, "A1.2")).toEqual(["A1.1"]);
+  });
+
+  it("ignores a matching level and a Wiederholung prefix", () => {
+    const text = "Wiederholung: A1.1-SOC-01: Can greet.";
+    expect(canDoLevelsOutsideModule(text, "A1.1")).toEqual([]);
   });
 });
 

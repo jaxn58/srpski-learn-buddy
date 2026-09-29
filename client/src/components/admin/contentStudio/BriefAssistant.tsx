@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { parseBriefText, renderBriefText, type BriefFields } from "@shared/contentStudio/briefTemplate";
+import { BRIEF_EXPERT_FIELD_IDS, parseBriefText, renderBriefText, type BriefFields } from "@shared/contentStudio/briefTemplate";
 
 /**
  * Runs the briefing assistant from the assignment fields already in the form.
@@ -53,23 +53,25 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [summary, setSummary] = useState<string>("");
-  const [lastFields, setLastFields] = useState<BriefFields | null>(null);
+
+  const parsedBrief = parseBriefText(currentBrief);
+  const formFields = parsedBrief.recognized ? parsedBrief.fields : {};
+  const hasExpertFields = BRIEF_EXPERT_FIELD_IDS.some((id) => String(formFields[id] ?? "").trim().length > 0);
 
   const currentFields = (): Record<string, string> => {
-    const parsed = parseBriefText(currentBrief);
-    const fields = parsed.recognized ? parsed.fields : {};
-    return Object.fromEntries(Object.entries(fields).filter(([, v]) => typeof v === "string" && v.trim())) as Record<string, string>;
+    return Object.fromEntries(Object.entries(formFields).filter(([, v]) => typeof v === "string" && v.trim())) as Record<string, string>;
   };
 
   const run = async (withAnswers: boolean) => {
     if (!numbersValid) return;
+    const updating = hasExpertFields;
     setBusy(true);
     try {
       const res = await runAssistant({
         unitNumber: unitNo,
         moduleNumber: moduleNo,
         userText: "",
-        currentFields: { ...currentFields(), ...(lastFields ?? {}) } as Record<string, string>,
+        currentFields: currentFields(),
         answers: withAnswers
           ? questions
               .filter((q) => (answers[q.id] ?? "").trim())
@@ -77,7 +79,6 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
           : undefined,
       });
       const fields = res.fields as BriefFields;
-      setLastFields(fields);
       setSummary(res.summary || "");
       setQuestions(withAnswers ? [] : (res.questions as Question[]));
       setAnswers({});
@@ -88,7 +89,9 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
       toast.success(
         res.questions.length > 0 && !withAnswers
           ? t(`${I18N}.toastDraftedWithQuestions`, { defaultValue: "Brief drafted. {{count}} follow-up question(s).", count: res.questions.length })
-          : t(`${I18N}.toastDrafted`, "Briefing created and written into the form.")
+          : updating
+            ? t(`${I18N}.toastUpdated`, "Briefing updated. Situation, Can-Do statements and the grammar target stayed as they were.")
+            : t(`${I18N}.toastDrafted`, "Briefing created and written into the form.")
       );
     } catch (e: any) {
       toast.error(e?.message || t(`${I18N}.toastFailed`, "Briefing assistant failed."));
@@ -115,13 +118,18 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
       <div className="flex items-center gap-3 flex-wrap">
         <Button className="h-11" onClick={() => run(false)} disabled={disabled || busy || !numbersValid || !fieldsReady}>
           {busy && questions.length === 0 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-          {lastFields ? t(`${I18N}.redraft`, "Create again") : t(`${I18N}.draft`, "Create briefing")}
+          {hasExpertFields ? t(`${I18N}.update`, "Update briefing") : t(`${I18N}.draft`, "Create briefing")}
         </Button>
         {!numbersValid && <span className="text-sm text-muted-foreground">{t(`${I18N}.needNumbers`, "Set module and unit number first.")}</span>}
         {numbersValid && !fieldsReady && (
           <span className="text-sm text-muted-foreground">{t(`${I18N}.needFields`, "Fill unit type, strand, setting, the situation, what the learner can do, and the grammar target.")}</span>
         )}
       </div>
+      {hasExpertFields && (
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {t(`${I18N}.updateHint`, "Update rewrites the fields the assistant fills. Situation, Can-Do statements and the grammar target stay as they are now.")}
+        </p>
+      )}
 
       {summary && (
         <p className="text-sm text-muted-foreground border-l-2 border-primary/40 pl-3 leading-relaxed">{summary}</p>

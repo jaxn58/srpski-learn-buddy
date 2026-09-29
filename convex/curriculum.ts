@@ -338,6 +338,10 @@ export const getUnitContext = query({
         primaryGrammarEn: v.string(),
         unitType: curriculumUnitTypeValidator,
         canDoStatements: v.array(v.string()),
+        situationEn: v.string(),
+        setting: curriculumSettingValidator,
+        strand: v.optional(curriculumStrandValidator),
+        titleEn: v.string(),
       }),
     ),
     nextPlannedHints: v.array(v.object({ unitNumber: v.number(), primaryGrammarEn: v.string() })),
@@ -400,7 +404,15 @@ export const getUnitContext = query({
     const previouslyTaught = [...taught.values()].sort((a, b) => a.unitNumber - b.unitNumber);
 
     // 3. Non-binding hints from the curriculum map.
-    let plannedHint: { primaryGrammarEn: string; unitType: typeof planRows[number]["unitType"]; canDoStatements: string[] } | null = null;
+    let plannedHint: {
+      primaryGrammarEn: string;
+      unitType: typeof planRows[number]["unitType"];
+      canDoStatements: string[];
+      situationEn: string;
+      setting: typeof planRows[number]["setting"];
+      strand?: typeof planRows[number]["strand"];
+      titleEn: string;
+    } | null = null;
     if (planForUnit) {
       const statements: string[] = [];
       for (const id of planForUnit.canDoIds) {
@@ -410,7 +422,15 @@ export const getUnitContext = query({
           .unique();
         if (row?.isActive) statements.push(`${row.canDoId}: ${row.statementEn}`);
       }
-      plannedHint = { primaryGrammarEn: planForUnit.primaryGrammarEn, unitType: planForUnit.unitType, canDoStatements: statements };
+      plannedHint = {
+        primaryGrammarEn: planForUnit.primaryGrammarEn,
+        unitType: planForUnit.unitType,
+        canDoStatements: statements,
+        situationEn: planForUnit.situationEn,
+        setting: planForUnit.setting,
+        titleEn: planForUnit.titleEn,
+        ...(planForUnit.strand ? { strand: planForUnit.strand } : {}),
+      };
     }
     const nextPlannedHints = planRows
       .filter((u) => u.unitNumber > args.unitNumber)

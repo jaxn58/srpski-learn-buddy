@@ -9,10 +9,11 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { Loader2, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 import { ModuleSelect } from "./ModuleSelect";
 import { BriefAssistant } from "./BriefAssistant";
 import { BriefBuilder } from "./BriefBuilder";
-import { BRIEF_ASSIGNMENT_FIELD_IDS, BRIEF_EXPERT_FIELD_IDS, parseBriefText } from "@shared/contentStudio/briefTemplate";
+import { BRIEF_ASSIGNMENT_FIELD_IDS, BRIEF_EXPERT_FIELD_IDS, BRIEF_FIELD_DEFAULTS, parseBriefText, renderBriefText } from "@shared/contentStudio/briefTemplate";
 
 /**
  * Authoring panel for a unit. The author fills the assignment (situation,
@@ -92,6 +93,26 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
     const parsed = parseBriefText(brief);
     return parsed.recognized ? String(parsed.fields.grammarIn ?? "").trim() : "";
   })();
+
+  const applyUnitTable = () => {
+    const hint = context?.plannedHint;
+    if (!hint) return;
+    const parsed = parseBriefText(brief);
+    const fields = {
+      ...BRIEF_FIELD_DEFAULTS,
+      ...(parsed.recognized ? parsed.fields : {}),
+      unitType: hint.unitType,
+      setting: hint.setting,
+      situation: hint.situationEn,
+      canDo: hint.canDoStatements.join("\n"),
+      grammarIn: hint.primaryGrammarEn,
+      ...(hint.strand ? { strand: hint.strand } : {}),
+      ...(context?.cefrLevel ? { cefrLevel: context.cefrLevel } : {}),
+    };
+    setBrief(renderBriefText({ moduleNumber, fields }));
+    if (!title.trim() && hint.titleEn) setTitle(hint.titleEn);
+    toast.success(t(`${I18N}.applyTableDone`, "Unit table copied into the assignment."));
+  };
   return (
     <div className="space-y-6">
       {/* Where the unit sits in the course */}
@@ -143,7 +164,7 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
         <div>
           <Label className="text-base font-semibold">{t(`${I18N}.assignmentTitle`, "What this unit should achieve")}</Label>
           <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
-            {t(`${I18N}.assignmentHelp`, "These fields are the assignment. The briefing keeps them. The assistant fills only the remaining fields.")}
+            {t(`${I18N}.assignmentHelp`, "These fields are the assignment. They stay as they are when you update the briefing. The assistant writes only the remaining fields.")}
           </p>
         </div>
         <BriefBuilder
@@ -159,6 +180,16 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
           includeFieldIds={BRIEF_ASSIGNMENT_FIELD_IDS}
           lockedCefrLevel={context?.cefrLevel}
         />
+        {context?.plannedHint && (
+          <div className="space-y-1.5">
+            <Button type="button" variant="outline" className="h-11" onClick={applyUnitTable} disabled={disabled || !numbersValid}>
+              {t(`${I18N}.applyTable`, "Use the unit table")}
+            </Button>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {t(`${I18N}.applyTableHelp`, "Copies unit type, strand, setting, situation, Can-Do statements and the grammar target from the unit table. Then update the briefing so the assistant rewrites chunks and recycling.")}
+            </p>
+          </div>
+        )}
         <BriefAssistant
           unitNumber={unitNumber}
           moduleNumber={moduleNumber}

@@ -26,6 +26,7 @@ import {
   BRIEF_FIELD_DEFAULTS,
   BRIEF_MAX_CHARS,
   BRIEF_WARN_CHARS,
+  canDoLevelsOutsideModule,
   missingRequiredBriefFields,
   parseBriefText,
   renderBriefText,
@@ -172,6 +173,17 @@ export function BriefBuilder({
 
   const defById = (id: BriefFieldId) => BRIEF_FIELDS.find((f) => f.id === id)!;
 
+  const canDoNotice = (id: BriefFieldId): string | undefined => {
+    if (id !== "canDo" || !lockedCefrLevel) return undefined;
+    const levels = canDoLevelsOutsideModule(fields[id] ?? "", lockedCefrLevel);
+    if (!levels.length) return undefined;
+    return t(`${I18N}.canDoLevelMismatch`, {
+      levels: levels.join(", "),
+      module: lockedCefrLevel,
+      defaultValue: "These lines start with {{levels}}. This module is {{module}}.",
+    });
+  };
+
   /** One-line preview per group for collapsed accordion headers. */
   const groupPreview = (groupId: string): string => {
     const g = visibleGroups.find((x) => x.id === groupId);
@@ -275,7 +287,7 @@ export function BriefBuilder({
                   ) : (
                     <div className="space-y-4 pt-1">
                       {group.fields.map((id) => (
-                        <TextField key={id} def={defById(id)} value={fields[id] ?? ""} onChange={(v) => emit({ ...fields, [id]: v })} disabled={disabled} idPrefix={idPrefix} />
+                        <TextField key={id} def={defById(id)} value={fields[id] ?? ""} onChange={(v) => emit({ ...fields, [id]: v })} disabled={disabled} idPrefix={idPrefix} notice={canDoNotice(id)} />
                       ))}
                     </div>
                   )}
@@ -299,7 +311,7 @@ export function BriefBuilder({
               ) : (
                 <div className="space-y-4">
                   {group.fields.map((id) => (
-                    <TextField key={id} def={defById(id)} value={fields[id] ?? ""} onChange={(v) => emit({ ...fields, [id]: v })} disabled={disabled} idPrefix={idPrefix} />
+                    <TextField key={id} def={defById(id)} value={fields[id] ?? ""} onChange={(v) => emit({ ...fields, [id]: v })} disabled={disabled} idPrefix={idPrefix} notice={canDoNotice(id)} />
                   ))}
                 </div>
               )}
@@ -354,7 +366,7 @@ export function BriefBuilder({
   );
 }
 
-type FieldProps = { def: BriefFieldDef; value: string; onChange: (v: string) => void; disabled?: boolean; idPrefix: string };
+type FieldProps = { def: BriefFieldDef; value: string; onChange: (v: string) => void; disabled?: boolean; idPrefix: string; notice?: string };
 
 function FieldLabel({ def, id, label }: { def: BriefFieldDef; id: string; label: string }) {
   return (
@@ -387,7 +399,7 @@ function SelectField({ def, value, onChange, disabled, idPrefix }: FieldProps) {
   );
 }
 
-function TextField({ def, value, onChange, disabled, idPrefix }: FieldProps) {
+function TextField({ def, value, onChange, disabled, idPrefix, notice }: FieldProps) {
   const texts = useFieldTexts();
   const id = `${idPrefix}-${def.id}`;
   return (
@@ -407,6 +419,7 @@ function TextField({ def, value, onChange, disabled, idPrefix }: FieldProps) {
         />
       )}
       <p className="text-xs text-muted-foreground leading-snug">{texts.help(def)}</p>
+      {notice && <p className="text-xs text-amber-700 dark:text-amber-400 leading-snug" role="status">{notice}</p>}
     </div>
   );
 }

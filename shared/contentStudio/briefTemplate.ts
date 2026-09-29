@@ -135,7 +135,7 @@ export const BRIEF_FIELDS: BriefFieldDef[] = [
     kind: "textarea",
     required: true,
     rows: 4,
-    help: "Where, who, what happens. One paragraph. Optionally end with 'Suggested key vocabulary (max 30): ...'.",
+    help: "Where, who, what happens. One paragraph.",
     placeholder: "Arrival day in Belgrade. The learner lands at the airport and checks into a hotel ...",
   },
   {
@@ -373,4 +373,16 @@ export function missingRequiredBriefFields(fields: BriefFields): BriefFieldDef[]
 
 export function briefFieldDef(id: BriefFieldId): BriefFieldDef {
   return FIELD_BY_ID[id];
+}
+
+const CAN_DO_LEVEL = /^(?:Wiederholung:\s*)?(A1\.1|A1\.2|A2\.1|A2\.2|B1)\b/;
+
+/** Levels named on Can-Do lines that are not the module level. Empty when every line matches. */
+export function canDoLevelsOutsideModule(canDo: string, moduleLevel: string): string[] {
+  const found = new Set<string>();
+  for (const line of String(canDo || "").split(/\r?\n/)) {
+    const match = line.trim().match(CAN_DO_LEVEL);
+    if (match && match[1] !== moduleLevel) found.add(match[1]);
+  }
+  return [...found];
 }
