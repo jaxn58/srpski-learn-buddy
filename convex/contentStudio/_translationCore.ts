@@ -8,13 +8,18 @@ import {
   languageRulesBlock,
   loadDraftSelectedSkills,
   mergeSkillsById,
+  extractOutermostParentheticalGlosses,
+  findOutermostParentheticals,
   parseJsonOrThrow,
+  replaceOutermostParentheticals,
   resolvePromptFromDb,
+  stripOutermostParentheticals,
   type Provider,
 } from "./_shared";
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
   extractSerbianFromMarkdown,
+  serbianExerciseStemStays,
   type VerifierInputItem,
 } from "./_verifier";
 import { buildValidatorMemoryBlockFromEntries } from "./_validatorMemory";
@@ -768,12 +773,7 @@ export async function translateVocabChunks(
 
 /** Parenthetical learner glosses, e.g. "(It is one o'clock now.)" after a Serbian stem. */
 export function extractParentheticalGlosses(text: string): string[] {
-  const out: string[] = [];
-  for (const m of String(text || "").matchAll(/\(([^)]+)\)/g)) {
-    const g = String(m[1] ?? "").trim();
-    if (g) out.push(g);
-  }
-  return out;
+  return extractOutermostParentheticalGlosses(text);
 }
 
 function normalizeGlossCompare(s: string): string {
@@ -827,20 +827,72 @@ export function isHelpTranslationGloss(gloss: string): boolean {
 export function stripTrailingParentheticalGlosses(text: string): string {
   let s = String(text || "").replace(/\r\n/g, "\n").trim();
   for (let i = 0; i < 8; i++) {
-    const m = s.match(/^(.*?)(?:\s*\(([^)]*)\))\s*([.!?…])?$/u);
-    if (!m) break;
-    const gloss = String(m[2] ?? "").trim();
-    if (!gloss || !isHelpTranslationGloss(gloss)) break;
-    const next = String(m[1] ?? "").trim();
+    const spans = findOutermostParentheticals(s);
+    const last = spans[spans.length - 1];
+    if (!last) break;
+    const after = s.slice(last.end);
+    if (!/^\s*[.!?…]*\s*$/u.test(after)) break;
+    if (!isHelpTranslationGloss(last.inner)) break;
+    const next = s.slice(0, last.start).trim();
     if (next === s) break;
     s = next;
   }
   return s;
 }
 
+function exerciseStemText(question: string): string {
+  return stripOutermostParentheticals(String(question || ""))
+    .replace(/_+/g, "_____")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Serbian cloze, dialogue, and fill-in keep the source sentence.
+ * Parentheses are the learner description: use the German ones from the model
+ * when it translated them. If the model replaced the whole sentence with that
+ * German description, hang the description back on the Serbian sentence.
+ * An English situation prompt is returned as the model translated it.
+ */
+export function restoreSerbianStemQuestion(
+  questionType: string,
+  sourceQuestion: string,
+  translatedQuestion: string,
+): string {
+  const src = String(sourceQuestion || "").trim().replace(/_+/g, "_____");
+  const de = String(translatedQuestion || "").trim();
+  if (!src) return de;
+  if (!serbianExerciseStemStays(questionType, src)) return de || src;
+
+  const enGlosses = extractParentheticalGlosses(src);
+  if (enGlosses.length === 0) {
+    return stripTrailingParentheticalGlosses(src);
+  }
+
+  const deGlosses = extractParentheticalGlosses(de);
+  if (deGlosses.length === enGlosses.length) {
+    return replaceOutermostParentheticals(src, deGlosses);
+  }
+
+  const deStem = exerciseStemText(de);
+  const srcStem = exerciseStemText(src);
+  if (
+    enGlosses.length === 1 &&
+    deStem &&
+    deStem.toLowerCase() !== srcStem.toLowerCase() &&
+    !serbianExerciseStemStays(questionType, de)
+  ) {
+    const gloss = deStem.replace(/^\(+|\)+$/g, "").trim();
+    return replaceOutermostParentheticals(src, [gloss]);
+  }
+
+  return src;
+}
+
 /**
  * Detect leftover HELP parentheticals (not fill-in cues) on DE exercise prompts.
- * Dialogue / MC: strip help. Fill-in cues are handled separately (must be kept + translated).
+ * Dialogue / MC: strip help that the English source did not have.
+ * Fill-in cues are handled separately (must be kept + translated).
  */
 export function findUnwantedExerciseGlossIssues(
   pairs: Array<{ questionId: string; questionType: string; questionEn: string; questionDe: string }>
@@ -850,6 +902,9 @@ export function findUnwantedExerciseGlossIssues(
     if (!isSerbianStemExerciseType(p.questionType)) continue;
     // fillInBlank keeps full-sentence context glosses on the DE track.
     if (p.questionType === "fillInBlank") continue;
+    const enHelp = extractParentheticalGlosses(p.questionEn).filter(isHelpTranslationGloss);
+    // A description that is already on the English source must be translated, not removed.
+    if (enHelp.length > 0) continue;
     const deHelp = extractParentheticalGlosses(p.questionDe).filter(isHelpTranslationGloss);
     if (deHelp.length === 0) continue;
     issues.push(
@@ -1049,11 +1104,8 @@ function buildGlossRetryFeedback(issues: string[]): string {
     "- Example EN: 'Ti ____ iz Srbije. (You are from Serbia.)' → DE: 'Ti ____ iz Srbije. (Du bist aus Serbien.)'",
     "- Without this context, beginner learners cannot understand the exercise.",
     "",
-    "HELP GLOSSES on dialogue / multipleChoice (DELETE — do not translate to German):",
-    "- Full-sentence translation of the Serbian stem, or parentheses that contain blanks.",
-    "- Example EN: 'Ana je _____. Ona radi u bolnici. (Ana is a _____. She works in a hospital.)' → DE: 'Ana je _____. Ona radi u bolnici.'",
-    "",
-    "dialogue / dialogueCompletion: do NOT append an English reference translation in parentheses.",
+    "Follow the system prompt for exercise questions: keep a Serbian sentence exactly and translate only its parenthetical description. Do not delete that description and do not replace the sentence with the German meaning.",
+    "dialogue / dialogueCompletion: do NOT append an English reference translation that was not in the source.",
     "Example EN dialogue: 'A: Odakle ste Vi? B: _____' → DE: same Serbian, no English paren.",
     ...issues,
   ].join("\n");
@@ -1106,6 +1158,70 @@ export function findUntranslatedLearnerPromptIssues(
   return issues;
 }
 
+/**
+ * A Serbian cloze must not come back as a German sentence.
+ * An English situation prompt must not stay English.
+ * A parenthetical description on a Serbian sentence must be German.
+ */
+export function findSwappedExerciseFormIssues(
+  pairs: Array<{
+    questionId: string;
+    questionType: string;
+    questionEn: string;
+    questionDe: string;
+  }>,
+  cognates: Set<string> = new Set(CODE_DEFAULT_PROMPT_COGNATES),
+): string[] {
+  const issues: string[] = [];
+  for (const p of pairs) {
+    const qType = String(p.questionType || "");
+    const en = String(p.questionEn || "");
+    const de = String(p.questionDe || "");
+    if (!en || !de) continue;
+
+    if (serbianExerciseStemStays(qType, en)) {
+      const enStem = exerciseStemText(en);
+      const deStem = exerciseStemText(de);
+      if (enStem.toLowerCase() !== deStem.toLowerCase()) {
+        issues.push(
+          `questionId=${p.questionId}: Serbian exercise stem was replaced by a German sentence ("${de}"). ` +
+            `Keep the Serbian sentence exactly and translate only the parenthetical description.`,
+        );
+      }
+      const enGlosses = extractParentheticalGlosses(en);
+      const deGlosses = extractParentheticalGlosses(de);
+      for (let i = 0; i < enGlosses.length; i++) {
+        const enG = enGlosses[i] ?? "";
+        const deG = deGlosses[i] ?? "";
+        const enNorm = normalizeGlossCompare(enG);
+        const deNorm = normalizeGlossCompare(deG);
+        if (!enNorm || enNorm !== deNorm) continue;
+        if (cognates.has(enNorm) || isInvariantProperNameGloss(enG)) continue;
+        issues.push(
+          `questionId=${p.questionId}: parenthetical description is still English "(${enG})". ` +
+            `Translate it to German and keep the Serbian sentence.`,
+        );
+      }
+      continue;
+    }
+
+    if (qType !== "multipleChoice" && qType !== "fillInBlank") continue;
+    const enNorm = normalizeGlossCompare(en);
+    const deNorm = normalizeGlossCompare(de);
+    if (enNorm && enNorm === deNorm && !cognates.has(enNorm)) {
+      const what =
+        qType === "fillInBlank"
+          ? "English fill-in sentence is still English"
+          : "situation prompt is still English";
+      issues.push(
+        `questionId=${p.questionId}: ${what} "${en}". ` +
+          `Translate it to German. The answer options stay Serbian.`,
+      );
+    }
+  }
+  return issues;
+}
+
 /** DE category instructions must not tell German learners to work "from English". */
 export function findEnglishFramingInstructionIssues(categoryInstructionsDe: string): string[] {
   const text = String(categoryInstructionsDe || "").trim();
@@ -1141,6 +1257,7 @@ export function collectTestQualityIssues(
   }));
   return [
     ...findUnwantedExerciseGlossIssues(withCategory),
+    ...findSwappedExerciseFormIssues(withCategory, cognates),
     ...findMissingOrUntranslatedFillInCueIssues(withCategory, cognates),
     ...findMissingFillInContextGlossIssues(withCategory, cognates),
     ...findAppendedForeignParentheticalIssues(withCategory),
@@ -1155,6 +1272,8 @@ function buildPromptGuardRetryFeedback(issues: string[]): string {
     "For questionType 'translation': translate each English prompt word/phrase to German (Monday→Montag, today→heute).",
     "For questionType 'matching': translate the English meaning side to German (half→halb/Hälfte); keep _____ blanks.",
     "For categoryInstructions: adapt EN framing that says 'from English' / 'English meaning' to German-source framing. Never leave 'Englisch/English' in the DE instructions.",
+    "For an English situation prompt (no Serbian sentence), translate the whole prompt to German. Do not leave it in English.",
+    "For a Serbian sentence, keep the sentence exactly and translate only the parenthetical description.",
     "Serbian answers/options stay Serbian and untranslated.",
     ...issues,
   ].join("\n");
@@ -1236,18 +1355,13 @@ async function translateTestsForCategoryOnce(
     const qType = String(src.questionType ?? "");
     if (qType === "fillInBlank" || qType === "matching" || qType === "dialogue") {
       if (srcBlanks === countBlanks(translatedQ)) {
-        // Same blank count: normalize underscore runs to _____ without discarding DE text.
         if (srcBlanks > 0) translatedQ = normalizeBlankRuns(translatedQ);
-      } else {
-        // Blank-count mismatch is unsafe for the exercise UI. Fall back to EN source,
-        // then strip learner glosses for Serbian-stem types below.
+      } else if (!serbianExerciseStemStays(qType, srcQuestion)) {
         translatedQ = srcQuestion;
       }
     }
-    // Exercise tests: strip help glosses on dialogue/MC — fillInBlank keeps context glosses.
-    if (isSerbianStemExerciseType(qType) && qType !== "fillInBlank") {
-      translatedQ = stripTrailingParentheticalGlosses(translatedQ);
-    }
+    translatedQ = restoreSerbianStemQuestion(qType, srcQuestion, translatedQ);
+    if (countBlanks(translatedQ) > 0) translatedQ = normalizeBlankRuns(translatedQ);
     const translatedHint =
       typeof oq?.hintDe === "string" ? String(oq.hintDe) : typeof src.hint === "string" ? src.hint : undefined;
 
@@ -1331,6 +1445,7 @@ export async function translateTestsForCategory(
         : "";
     return [
       ...findUnwantedExerciseGlossIssues(qualityPairs()),
+      ...findSwappedExerciseFormIssues(qualityPairs(), cognates),
       ...findMissingOrUntranslatedFillInCueIssues(qualityPairs(), cognates),
       ...findMissingFillInContextGlossIssues(qualityPairs(), cognates),
       ...findAppendedForeignParentheticalIssues(qualityPairs()),
@@ -1350,7 +1465,10 @@ export async function translateTestsForCategory(
         i.includes("parenthetical") ||
         i.includes("fill-in source cue") ||
         i.includes("fill-in context gloss") ||
-        i.includes("appended English parenthetical")
+        i.includes("appended English parenthetical") ||
+        i.includes("Serbian exercise stem") ||
+        i.includes("parenthetical description") ||
+        i.includes("situation prompt")
     );
     const feedback = glossOnly
       ? buildGlossRetryFeedback(qualityIssues)

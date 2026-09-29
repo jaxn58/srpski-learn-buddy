@@ -9,6 +9,14 @@
 - Auch indirekt (z.B. durch `npx convex deploy`, `vercel --prod`, Migrations-Skripte) darf NICHTS ohne Rückfrage passieren.
 - Bei Problemen in Production: Analyse und Lösungsvorschläge machen, aber KEINE eigenständigen Aktionen auf Production ausführen.
 
+## !!! DER BENUTZER ENTSCHEIDET !!!
+
+**Der Agent entscheidet nichts. Der Benutzer entscheidet.**
+
+- Bevor irgendetwas Zusätzliches gebaut wird, das der Benutzer nicht verlangt hat — Reparaturfunktionen, Migrations-Skripte, Aufräum-Tools, einmalige Mutations, neue Dateien, Umwege — muss der Agent einen konkreten Vorschlag machen.
+- Der Benutzer sagt Ja oder Nein. Ohne Ja wird nichts davon angelegt, aufgerufen oder liegen gelassen.
+- Ein Auftrag, einen Fehler zu beheben, ist kein Ja für ein Extra-Skript drumherum.
+
 ## Projekt-Übersicht
 Serbian Tutor - Eine Lernplattform für serbische Sprache mit XP-System, Übungen und Vokabeltraining.
 

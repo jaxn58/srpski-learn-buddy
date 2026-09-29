@@ -3,9 +3,12 @@ import {
   callAiJson,
   closeTruncatedJson,
   extractCompleteJsonObjects,
+  extractOutermostParentheticalGlosses,
   languageRulesBlock,
   parseJsonOrThrow,
   resolvePromptFromDb,
+  stripOutermostParentheticals,
+  stripTrailingOutermostParentheticals,
   type Provider,
 } from "./_shared";
 import { CS_PROMPT_KEYS } from "./prompts";
@@ -119,12 +122,7 @@ function extractVerifierQuestion(side: string, lang: "EN" | "DE"): string {
 }
 
 function extractParentheticalGlossesFromText(text: string): string[] {
-  const out: string[] = [];
-  for (const m of String(text || "").matchAll(/\(([^)]+)\)/g)) {
-    const g = String(m[1] ?? "").trim();
-    if (g) out.push(g);
-  }
-  return out;
+  return extractOutermostParentheticalGlosses(text);
 }
 
 /**
@@ -133,23 +131,50 @@ function extractParentheticalGlossesFromText(text: string): string[] {
  * that the contract already decided.
  */
 export function textForSemanticVerification(text: string): string {
-  return String(text || "")
-    .replace(/\s*\([^)]*\)/g, "")
+  return stripOutermostParentheticals(String(text || ""))
     .replace(/[ \t]{2,}/g, " ")
     .replace(/ +([.?!])/g, "$1")
     .trim();
 }
 
-/** Fill-in, dialogue, and a multiple-choice stem that is itself Serbian stay Serbian on the DE track. */
+/** Drop quoted Serbian examples inside an English situation prompt ("Šta ima?"). */
+function withoutQuotedSpans(text: string): string {
+  return String(text || "")
+    .replace(/[„"«][^„“"»]*[“"»]/g, " ")
+    .replace(/"[^"]*"/g, " ");
+}
+
+/** The sentence outside the parentheses is English, so the whole sentence is translated. */
+function looksLikeEnglishExerciseSentence(stem: string): boolean {
+  const text = String(stem || "").trim();
+  if (!text) return false;
+  if (/^(?:you|i|we|they|please|it|a|an)\b/i.test(text)) return true;
+  return /\b(you|your|please|the|want to|meet someone|addressing|named|newspaper|every day|kilogram of|this book|by tomorrow)\b/i.test(
+    text,
+  );
+}
+
+/**
+ * A fill-in or multiple-choice question stays Serbian only when the sentence
+ * outside the parentheses is Serbian. An English sentence, including an
+ * English fill-in, is translated. Dialogue stays Serbian.
+ */
 export function serbianExerciseStemStays(questionType: string, question: string): boolean {
   const qType = String(questionType || "").trim();
-  if (qType === "fillInBlank" || qType === "dialogue") return true;
-  if (qType !== "multipleChoice") return false;
-  const stem = textForSemanticVerification(question);
+  if (qType === "dialogue") return true;
+  if (qType !== "fillInBlank" && qType !== "multipleChoice") return false;
+  const stem = withoutQuotedSpans(textForSemanticVerification(question));
   if (/^(?:A|B)\s*:/i.test(stem)) return true;
-  if (/_+/.test(stem)) return true;
+  if (looksLikeEnglishExerciseSentence(stem)) return false;
   if (/[čćšžđČĆŠŽĐ]/.test(stem)) return true;
-  if (/\b(je|sam|si|su|ona|on|mi|vi|kako|odakle|zove|radi|predaje)\b/i.test(stem)) return true;
+  if (
+    /\b(je|sam|si|su|ja|ona|on|mi|vi|kako|odakle|zove|radi|predaje|molim|idem|bioskop|svaki|treba|dobar|vreme|knjigu|ovu|gde|izvinite|hvala|zdravo|danas|sutra|novine|prijatelj)\b/i.test(
+      stem,
+    )
+  ) {
+    return true;
+  }
+  if (/_+/.test(stem)) return true;
   return false;
 }
 
@@ -652,8 +677,8 @@ export function runDeterministicTestGlossChecks(
     const enContext = enGlosses.filter(isHelpTranslationGloss);
     const deContext = deGlosses.filter(isHelpTranslationGloss);
     const deHelp = deGlosses.filter(isHelpTranslationGloss);
-    const stem = deQ.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
-    const stemForStemCheck = deCues.length > 0 ? stem : deQ.replace(/(?:\s*\([^)]*\))+\s*[.!?…]?$/u, "").trim();
+    const stem = stripTrailingOutermostParentheticals(deQ);
+    const stemForStemCheck = deCues.length > 0 ? stem : stripTrailingOutermostParentheticals(deQ);
 
     // fillInBlank: EN source cues must appear as German cues on DE.
     if ((!qType || qType === "fillInBlank") && enCues.length > 0) {
@@ -759,7 +784,12 @@ function isSerbianDialogueOrStemPrompt(question: string): boolean {
   if (/^(?:A|B)\s*:/i.test(q)) return true;
   if (/\b(?:Person\s+[AB]|Waiter|Guest)\b/i.test(q)) return true;
   // Blank without an English learner gloss in parentheses → Serbian stem (not EN→DE prompt).
-  if (/_+/.test(q) && !/\([^)]*[a-zA-Z]{3,}[^)]*\)/.test(q)) return true;
+  if (
+    /_+/.test(q) &&
+    !extractOutermostParentheticalGlosses(q).some((gloss) => /[a-zA-Z]{3,}/.test(gloss))
+  ) {
+    return true;
+  }
   return false;
 }
 

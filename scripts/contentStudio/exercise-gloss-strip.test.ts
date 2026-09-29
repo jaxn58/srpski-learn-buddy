@@ -4,6 +4,8 @@ import {
   findUnwantedExerciseGlossIssues,
   findMissingOrUntranslatedFillInCueIssues,
   findMissingFillInContextGlossIssues,
+  findSwappedExerciseFormIssues,
+  restoreSerbianStemQuestion,
   collectTestQualityIssues,
   isSerbianStemExerciseType,
   isFillInSourceCue,
@@ -64,12 +66,24 @@ describe("stripTrailingParentheticalGlosses", () => {
 });
 
 describe("findUnwantedExerciseGlossIssues", () => {
-  it("flags leftover DE gloss on multipleChoice", () => {
+  it("keeps a description that was already on the English multiple-choice source", () => {
     const issues = findUnwantedExerciseGlossIssues([
       {
         questionId: "u2_ex3_q18",
         questionType: "multipleChoice",
         questionEn: "Ana je _____. (Ana is a _____.)",
+        questionDe: "Ana je _____. (Ana ist eine _____.)",
+      },
+    ]);
+    expect(issues).toHaveLength(0);
+  });
+
+  it("flags a description the English multiple-choice source did not have", () => {
+    const issues = findUnwantedExerciseGlossIssues([
+      {
+        questionId: "u2_ex3_q18",
+        questionType: "multipleChoice",
+        questionEn: "Ana je _____.",
         questionDe: "Ana je _____. (Ana ist eine _____.)",
       },
     ]);
@@ -481,9 +495,157 @@ describe("verifierSideForSerbianStem", () => {
     expect(de).toContain("stem stays Serbian");
   });
 
-  it("treats every fill-in as a Serbian stem and an English multiple-choice prompt as translatable", () => {
+  it("sends a nested register note as part of the whole learner gloss", () => {
+    const en = verifierSideForSerbianStem(
+      "Question (EN): _____ li sok? (Do you (informal) have juice?)",
+      "EN",
+    );
+    expect(en).toContain("Learner gloss (EN): Do you (informal) have juice?");
+  });
+
+  it("keeps a Serbian fill-in and treats an English fill-in sentence as translatable", () => {
     expect(serbianExerciseStemStays("fillInBlank", "On _____ pivo. (He wants beer.)")).toBe(true);
+    expect(serbianExerciseStemStays("fillInBlank", "Ja ____ Ana. (I am Ana.)")).toBe(true);
+    expect(serbianExerciseStemStays("fillInBlank", "I need a kilogram of _____.")).toBe(false);
     expect(serbianExerciseStemStays("multipleChoice", "You meet someone in the morning. What do you say?")).toBe(false);
+    expect(serbianExerciseStemStays("multipleChoice", "You want to ask about the weather. You say:")).toBe(false);
+    expect(serbianExerciseStemStays("multipleChoice", "_____ je vreme danas?")).toBe(true);
+    expect(serbianExerciseStemStays("multipleChoice", "Idem u bioskop sa mojim _____.")).toBe(true);
+    expect(
+      serbianExerciseStemStays(
+        "multipleChoice",
+        "Svaki dan _____ novine. (I read the newspaper every day.)",
+      ),
+    ).toBe(true);
+    expect(
+      serbianExerciseStemStays(
+        "multipleChoice",
+        "Molim vas, _____ ovu knjigu do sutra. (Please, read this book by tomorrow.)",
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("restoreSerbianStemQuestion", () => {
+  it("keeps the Serbian sentence and hangs the German description back on it", () => {
+    const restored = restoreSerbianStemQuestion(
+      "multipleChoice",
+      "Svaki dan _____ novine. (I read the newspaper every day.)",
+      "Ich lese jeden Tag die Zeitung.",
+    );
+    expect(restored).toBe("Svaki dan _____ novine. (Ich lese jeden Tag die Zeitung.)");
+  });
+
+  it("keeps a Serbian cloze that has no description", () => {
+    expect(
+      restoreSerbianStemQuestion(
+        "multipleChoice",
+        "_____ je vreme danas?",
+        "Wie ist das Wetter heute?",
+      ),
+    ).toBe("_____ je vreme danas?");
+    expect(
+      restoreSerbianStemQuestion(
+        "multipleChoice",
+        "Idem u bioskop sa mojim _____. (I am going to the cinema with my friend.)",
+        "Ich gehe mit meinem Freund ins Kino.",
+      ),
+    ).toBe("Idem u bioskop sa mojim _____. (Ich gehe mit meinem Freund ins Kino.)");
+  });
+
+  it("keeps the book sentence and translates only the description", () => {
+    expect(
+      restoreSerbianStemQuestion(
+        "multipleChoice",
+        "Molim vas, _____ ovu knjigu do sutra. (Please, read this book by tomorrow.)",
+        "Bitte lesen Sie dieses Buch bis morgen.",
+      ),
+    ).toBe("Molim vas, _____ ovu knjigu do sutra. (Bitte lesen Sie dieses Buch bis morgen.)");
+  });
+
+  it("does not lock an English fill-in sentence", () => {
+    const en = "I need a kilogram of _____.";
+    const de = "Ich brauche ein Kilogramm _____.";
+    expect(restoreSerbianStemQuestion("fillInBlank", en, de)).toBe(de);
+  });
+
+  it("keeps a translated fill-in description on the Serbian sentence", () => {
+    expect(
+      restoreSerbianStemQuestion(
+        "fillInBlank",
+        "Ja ____ Ana. (I am Ana.)",
+        "Ja ____ Ana. (Ich bin Ana.)",
+      ),
+    ).toBe("Ja _____ Ana. (Ich bin Ana.)");
+  });
+
+  it("leaves an English situation prompt for the German translation", () => {
+    const en = "You want to ask about the weather. You say:";
+    const de = "Sie möchten nach dem Wetter fragen. Sie sagen:";
+    expect(restoreSerbianStemQuestion("multipleChoice", en, de)).toBe(de);
+  });
+
+  it("keeps a nested register note inside the outer gloss", () => {
+    const en = "_____ li sok? (Do you (informal) have juice?)";
+    expect(
+      restoreSerbianStemQuestion("fillInBlank", en, "_____ li sok? (Hast du Saft?)"),
+    ).toBe("_____ li sok? (Hast du Saft?)");
+    expect(restoreSerbianStemQuestion("fillInBlank", en, "Hast du Saft?")).toBe(
+      "_____ li sok? (Hast du Saft?)",
+    );
+  });
+});
+
+describe("findSwappedExerciseFormIssues", () => {
+  it("flags a situation prompt that stayed English and a description that stayed English", () => {
+    const situation = findSwappedExerciseFormIssues([
+      {
+        questionId: "u16_mc_q13",
+        questionType: "multipleChoice",
+        questionEn: "You want to ask about the weather. You say:",
+        questionDe: "You want to ask about the weather. You say:",
+      },
+    ]);
+    expect(situation[0]).toContain("situation prompt is still English");
+
+    const englishBlank = findSwappedExerciseFormIssues([
+      {
+        questionId: "u18_fill_en",
+        questionType: "fillInBlank",
+        questionEn: "I need a kilogram of _____.",
+        questionDe: "I need a kilogram of _____.",
+      },
+    ]);
+    expect(englishBlank[0]).toContain("English fill-in sentence is still English");
+
+    const gloss = findSwappedExerciseFormIssues([
+      {
+        questionId: "u18_mc_q21",
+        questionType: "multipleChoice",
+        questionEn: "Svaki dan _____ novine. (I read the newspaper every day.)",
+        questionDe: "Svaki dan _____ novine. (I read the newspaper every day.)",
+      },
+    ]);
+    expect(gloss[0]).toContain("parenthetical description is still English");
+  });
+
+  it("accepts a German situation prompt and a Serbian sentence with a German description", () => {
+    expect(
+      findSwappedExerciseFormIssues([
+        {
+          questionId: "u16_mc_q13",
+          questionType: "multipleChoice",
+          questionEn: "You want to ask about the weather. You say:",
+          questionDe: "Sie möchten nach dem Wetter fragen. Sie sagen:",
+        },
+        {
+          questionId: "u18_mc_q21",
+          questionType: "multipleChoice",
+          questionEn: "Svaki dan _____ novine. (I read the newspaper every day.)",
+          questionDe: "Svaki dan _____ novine. (Ich lese jeden Tag die Zeitung.)",
+        },
+      ]),
+    ).toHaveLength(0);
   });
 });
 
@@ -491,6 +653,58 @@ describe("textForSemanticVerification", () => {
   it("removes the parenthetical the deterministic gloss check already owns", () => {
     expect(textForSemanticVerification("Ja _____ putnik. (I am not a traveler.)")).toBe("Ja _____ putnik.");
     expect(textForSemanticVerification("Ja ____ Ana. (Ich bin Ana.)")).toBe("Ja ____ Ana.");
+  });
+
+  it("removes a nested gloss as one span", () => {
+    expect(textForSemanticVerification("_____ li sok? (Do you (informal) have juice?)")).toBe(
+      "_____ li sok?",
+    );
+  });
+});
+
+describe("nested register note in a fill-in gloss", () => {
+  const en = "_____ li sok? (Do you (informal) have juice?)";
+  const de = "_____ li sok? (Hast du Saft?)";
+
+  it("treats the whole sentence as a context gloss, not a missing fill-in cue", () => {
+    expect(
+      findMissingOrUntranslatedFillInCueIssues([
+        {
+          questionId: "u2_ex2_q06_preview_v8",
+          questionType: "fillInBlank",
+          questionEn: en,
+          questionDe: de,
+          correctAnswer: "Imaš",
+        },
+      ]),
+    ).toHaveLength(0);
+    expect(
+      findMissingFillInContextGlossIssues([
+        {
+          questionId: "u2_ex2_q06_preview_v8",
+          questionType: "fillInBlank",
+          questionEn: en,
+          questionDe: de,
+        },
+      ]),
+    ).toHaveLength(0);
+  });
+
+  it("does not raise a missing fill-in cue in the verifier", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u2_ex2_q06_preview_v8",
+        kind: "test",
+        label: "test u2_ex2_q06_preview_v8",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: Imaš",
+        english: `Question (EN): ${en}`,
+        german: `Question (DE): ${de}`,
+      },
+    ];
+    const issues = runDeterministicTestGlossChecks(items);
+    expect(issues.some((issue) => issue.code === "test_missing_fill_in_cue")).toBe(false);
+    expect(issues.some((issue) => issue.code === "test_missing_context_gloss")).toBe(false);
   });
 });
 

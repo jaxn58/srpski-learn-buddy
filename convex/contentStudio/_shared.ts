@@ -27,6 +27,91 @@ export type Section = "overview" | "grammar" | "phrases" | "dialogues" | "exerci
 export type SkillStage = "specialist" | "auditor";
 export type ReleaseStatus = "published" | "preview" | "offline";
 
+export type OutermostParenthetical = {
+  /** Index of the opening parenthesis. */
+  start: number;
+  /** Index just after the matching closing parenthesis. */
+  end: number;
+  /** Text inside the outer pair, with inner pairs left intact. */
+  inner: string;
+};
+
+/**
+ * Outermost balanced parentheses. An inner pair such as "(informal)" stays
+ * inside the outer gloss instead of ending the match at the first ")".
+ */
+export function findOutermostParentheticals(text: string): OutermostParenthetical[] {
+  const s = String(text ?? "");
+  const spans: OutermostParenthetical[] = [];
+  let depth = 0;
+  let start = -1;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === "(") {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (ch === ")" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        const inner = s.slice(start + 1, i).trim();
+        if (inner) spans.push({ start, end: i + 1, inner });
+        start = -1;
+      }
+    }
+  }
+  return spans;
+}
+
+export function extractOutermostParentheticalGlosses(text: string): string[] {
+  return findOutermostParentheticals(text).map((span) => span.inner);
+}
+
+/** Replace each outermost pair. Length must match; otherwise the text is unchanged. */
+export function replaceOutermostParentheticals(text: string, replacements: string[]): string {
+  const s = String(text ?? "");
+  const spans = findOutermostParentheticals(s);
+  if (spans.length === 0 || spans.length !== replacements.length) return s;
+  let out = "";
+  let cursor = 0;
+  for (let i = 0; i < spans.length; i++) {
+    const span = spans[i]!;
+    out += s.slice(cursor, span.start);
+    out += `(${replacements[i] ?? ""})`;
+    cursor = span.end;
+  }
+  return out + s.slice(cursor);
+}
+
+/** Remove every outermost pair, including the whitespace directly in front of it. */
+export function stripOutermostParentheticals(text: string): string {
+  const s = String(text ?? "");
+  const spans = findOutermostParentheticals(s);
+  if (spans.length === 0) return s;
+  let out = "";
+  let cursor = 0;
+  for (const span of spans) {
+    let from = span.start;
+    while (from > cursor && /\s/u.test(s[from - 1] ?? "")) from -= 1;
+    out += s.slice(cursor, from);
+    cursor = span.end;
+  }
+  return out + s.slice(cursor);
+}
+
+/** Drop parentheticals that sit at the end of the string, one outer pair at a time. */
+export function stripTrailingOutermostParentheticals(text: string): string {
+  let s = String(text ?? "").trim();
+  for (let i = 0; i < 8; i++) {
+    const spans = findOutermostParentheticals(s);
+    const last = spans[spans.length - 1];
+    if (!last) break;
+    const after = s.slice(last.end);
+    if (!/^\s*[.!?…]*\s*$/u.test(after)) break;
+    s = s.slice(0, last.start).trim();
+  }
+  return s;
+}
+
 export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
