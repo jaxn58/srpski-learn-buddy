@@ -81,6 +81,8 @@ interface UnitOverview {
   versions: Record<string, LangVersion>;
 }
 
+type ModuleGroupKey = number | "none";
+
 const LANG_LABELS: Record<string, string> = {
   en: "English",
   de: "Deutsch",
@@ -208,6 +210,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "preview" | "missing_de" | "de_outdated">("all");
+  const [openModules, setOpenModules] = useState<Set<ModuleGroupKey>>(new Set());
   const [selectedUnit, setSelectedUnit] = useState<number | null>(null);
   const [detailLang, setDetailLang] = useState<string>("en");
   const [inlinePreviewOpen, setInlinePreviewOpen] = useState(false);
@@ -377,6 +380,23 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
 
     return list;
   }, [overview, search, statusFilter]);
+
+  const moduleGroups = useMemo(() => {
+    const groups = new Map<ModuleGroupKey, UnitOverview[]>();
+    for (const unit of filteredUnits) {
+      const key: ModuleGroupKey = unit.moduleNumber ?? "none";
+      const list = groups.get(key) ?? [];
+      list.push(unit);
+      groups.set(key, list);
+    }
+    return [...groups.entries()].sort((a, b) => {
+      if (a[0] === "none") return 1;
+      if (b[0] === "none") return -1;
+      return a[0] - b[0];
+    });
+  }, [filteredUnits]);
+
+  const filtersActive = search.trim() !== "" || statusFilter !== "all";
 
   // Selected unit data from overview
   const selectedOverview = useMemo(
@@ -700,6 +720,27 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
     );
   }
 
+  const moduleKeyOf = (unit: UnitOverview): ModuleGroupKey => unit.moduleNumber ?? "none";
+
+  const isModuleOpen = (key: ModuleGroupKey) => filtersActive || openModules.has(key);
+
+  const toggleModule = (key: ModuleGroupKey) => {
+    if (filtersActive) return;
+    const willClose = openModules.has(key);
+    setOpenModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+    if (willClose && selectedUnit != null) {
+      const selected = overview.find((u) => u.unitNumber === selectedUnit);
+      if (selected && moduleKeyOf(selected) === key) {
+        setSelectedUnit(null);
+      }
+    }
+  };
+
   const selectUnit = (unitNumber: number) => {
     // These confirm-strings/modes are contextual to whichever unit is open.
     // Without resetting them here, a confirmation typed for one unit (e.g.
@@ -717,8 +758,15 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       return;
     }
     setSelectedUnit(unitNumber);
-    const u = filteredUnits.find((u) => u.unitNumber === unitNumber);
+    const u = filteredUnits.find((unit) => unit.unitNumber === unitNumber);
     if (u) {
+      const key = moduleKeyOf(u);
+      setOpenModules((prev) => {
+        if (prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
       const langs = Object.keys(u.versions).sort();
       if (langs.length > 0 && !u.versions[detailLang]) {
         setDetailLang(langs[0]);
@@ -777,25 +825,49 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                 <td colSpan={5} className="py-8 text-center text-muted-foreground">No units match filters.</td>
               </tr>
             )}
-            {filteredUnits.map((u) => {
-              const isSelected = selectedUnit === u.unitNumber;
-              const isRecent = recentlyTranslatedUnits?.has(u.unitNumber) ?? false;
+            {moduleGroups.map(([moduleKey, units]) => {
+              const open = isModuleOpen(moduleKey);
+              const moduleTitle = moduleKey === "none"
+                ? undefined
+                : units.find((unit) => unit.moduleName)?.moduleName;
               return (
-                <Fragment key={u.unitNumber}>
+                <Fragment key={String(moduleKey)}>
+                  <tr
+                    className={`border-b bg-muted/30 transition-colors ${filtersActive ? "" : "cursor-pointer hover:bg-accent/50"}`}
+                    onClick={() => toggleModule(moduleKey)}
+                  >
+                    <td colSpan={5} className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        {open
+                          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        }
+                        <span className="text-sm font-medium">
+                          {moduleKey === "none" ? "Ohne Modul" : `Modul ${moduleKey}`}
+                        </span>
+                        {moduleTitle && (
+                          <span className="text-xs text-muted-foreground truncate">{moduleTitle}</span>
+                        )}
+                        <Badge variant="secondary" className="ml-auto text-[10px]">{units.length}</Badge>
+                      </div>
+                    </td>
+                  </tr>
+                  {open && units.map((u) => {
+                    const isSelected = selectedUnit === u.unitNumber;
+                    const isRecent = recentlyTranslatedUnits?.has(u.unitNumber) ?? false;
+                    return (
+                      <Fragment key={u.unitNumber}>
                   <tr
                     className={`border-b cursor-pointer transition-colors hover:bg-accent/50 ${isSelected ? "bg-accent" : ""}`}
                     onClick={() => selectUnit(u.unitNumber)}
                   >
                     <td className="px-3 py-2">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 pl-4">
                         {isSelected
                           ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         }
                         <span className="font-mono text-xs font-medium">U{u.unitNumber}</span>
-                        {u.moduleNumber != null && (
-                          <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">M{u.moduleNumber}</Badge>
-                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2">
@@ -879,6 +951,9 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
                       </td>
                     </tr>
                   )}
+                      </Fragment>
+                    );
+                  })}
                 </Fragment>
               );
             })}
