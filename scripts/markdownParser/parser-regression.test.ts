@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { parseMarkdownToUnitPackage, validateMarkdownStructure } from "./parser";
 import { extractSection, validateSection, listSections } from "./sectionUtils";
+import { extractExercises } from "./extractors";
 import { UnitPackageSchema } from "../unitPackage/schema";
 import { validateUnitPackageTemplateRules } from "../unitPackage/templateRules";
 import { autofixUnitPackage } from "../unitPackage/autofix";
@@ -223,5 +224,50 @@ describe.each(FIXTURES)("published unit fixture $file", (fx) => {
     expect(b.exercises.en.map((c) => c.questions.length)).toEqual(a.exercises.en.map((c) => c.questions.length));
     expect(b.content.en.grammarMd.replace(/\r\n/g, "\n")).toBe(a.content.en.grammarMd);
     expect(validateMarkdownStructure(crlf).valid).toBe(true);
+  });
+});
+
+describe("exercise title classification", () => {
+  it("lets the exercise format in the title beat a topic word", () => {
+    const markdown = [
+      "### Exercise 1: Time Expressions",
+      "**Instructions:** Translate these times into Serbian.",
+      "",
+      "| English | Answer (for database) |",
+      "| :--- | :--- |",
+      "| What time is it? | Koliko je sati? |",
+      "",
+      "### Exercise 2: Fill-in-the-Blank (Time Expressions)",
+      "**Instructions:** Fill in the blank with the correct Serbian word.",
+      "",
+      "| Sentence | Answer (for database) |",
+      "| :--- | :--- |",
+      "| Izvinite, koliko je _____? | sati |",
+      "",
+      "### Exercise 3: Multiple Choice (Situational)",
+      "**Instructions:** Choose the correct answer.",
+      "",
+      "| Question | Options | Correct Answer (for database) |",
+      "| :--- | :--- | :--- |",
+      "| Koliko je sati? | A) Pet.  B) Hvala.  C) Molim. | A) Pet. |",
+      "",
+      "### Exercise 5: Dialogue Completion (Situational Review)",
+      "**Instructions:** Choose the best response to complete the short dialogue.",
+      "",
+      "| Dialogue Line | Options | Correct Answer (for database) |",
+      "| :--- | :--- | :--- |",
+      "| A: Koliko je sati? B: _____ | A) Pet sati.  B) Hvala.  C) Molim. | A) Pet sati. |",
+      "",
+    ].join("\n");
+
+    const exercises = extractExercises(markdown);
+    expect(exercises.map((exercise) => exercise.type)).toEqual([
+      "translation",
+      "fill_in_blank",
+      "multiple_choice",
+      "dialogue_completion",
+    ]);
+    expect(exercises[1]?.questions[0]?.question).toBe("Izvinite, koliko je _____?");
+    expect(exercises[3]?.questions[0]?.question).toBe("A: Koliko je sati? B: _____");
   });
 });

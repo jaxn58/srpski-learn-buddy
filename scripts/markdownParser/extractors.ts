@@ -407,29 +407,35 @@ export function extractExercises(markdown: string): ParsedExercise[] {
  * Parse a single exercise section
  */
 function parseExerciseSection(exerciseNumber: number, title: string, content: string): ParsedExercise | null {
-  // Determine exercise type from title
+  // Determine exercise type from title.
+  // Format words name the exercise. Topic words ("time expressions",
+  // "situational") apply only when the title has no format word.
+  // Checked the other way round, "Fill-in-the-Blank (Time Expressions)"
+  // became translation (Unit 9) and "Dialogue Completion (Situational Review)"
+  // became multiple choice (Unit 18). The missing category was then filled
+  // with identical skeleton questions.
   let type: ParsedExercise["type"] = "translation";
   const lowerTitle = title.toLowerCase();
-  
-  if (lowerTitle.includes("translation") || lowerTitle.includes("time expressions")) {
-    type = "translation";
-  } else if (
-    lowerTitle.includes("fill") || 
+  const hasFill =
+    lowerTitle.includes("fill") ||
     lowerTitle.includes("blank") ||
     lowerTitle.includes("verb conjugation") ||
-    lowerTitle.includes("hajde da")
-  ) {
-    type = "fill_in_blank";
-  } else if (
-    lowerTitle.includes("multiple") || 
+    lowerTitle.includes("hajde da");
+  const hasMatching = lowerTitle.includes("matching");
+  const hasDialogue = lowerTitle.includes("dialogue");
+  const hasChoice =
+    lowerTitle.includes("multiple") ||
     lowerTitle.includes("choice") ||
-    lowerTitle.includes("situational")
-  ) {
-    type = "multiple_choice";
-  } else if (lowerTitle.includes("matching")) {
+    lowerTitle.includes("situational");
+
+  if (hasFill) {
+    type = "fill_in_blank";
+  } else if (hasMatching) {
     type = "vocabulary_matching";
-  } else if (lowerTitle.includes("dialogue")) {
+  } else if (hasDialogue) {
     type = "dialogue_completion";
+  } else if (hasChoice) {
+    type = "multiple_choice";
   }
 
   // Extract instructions
