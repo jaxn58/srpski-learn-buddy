@@ -847,11 +847,19 @@ function exerciseStemText(question: string): string {
     .trim();
 }
 
+/** Multiple choice and dialogue drop sentence-level parentheses on the German track. */
+function dropsSentenceGlossOnGermanTrack(questionType: string): boolean {
+  const t = String(questionType || "");
+  return t === "multipleChoice" || t === "dialogue";
+}
+
 /**
- * Serbian cloze, dialogue, and fill-in keep the source sentence.
- * Parentheses are the learner description: use the German ones from the model
- * when it translated them. If the model replaced the whole sentence with that
+ * Serbian cloze and dialogue keep the source sentence.
+ * Fill-in parentheses are the learner description: use the German ones from the model
+ * when it translated them. If the model replaced the whole fill-in sentence with that
  * German description, hang the description back on the Serbian sentence.
+ * Multiple choice and dialogue drop sentence-level parentheses. The English parenthesis
+ * is not copied back, and a German full sentence is not hung on as a new parenthesis.
  * An English situation prompt is returned as the model translated it.
  */
 export function restoreSerbianStemQuestion(
@@ -863,6 +871,9 @@ export function restoreSerbianStemQuestion(
   const de = String(translatedQuestion || "").trim();
   if (!src) return de;
   if (!serbianExerciseStemStays(questionType, src)) return de || src;
+  if (dropsSentenceGlossOnGermanTrack(questionType)) {
+    return stripTrailingParentheticalGlosses(src);
+  }
 
   const enGlosses = extractParentheticalGlosses(src);
   if (enGlosses.length === 0) {
@@ -891,8 +902,8 @@ export function restoreSerbianStemQuestion(
 
 /**
  * Detect leftover HELP parentheticals (not fill-in cues) on DE exercise prompts.
- * Dialogue / MC: strip help that the English source did not have.
- * Fill-in cues are handled separately (must be kept + translated).
+ * Multiple choice and dialogue drop sentence-level parentheses, including ones
+ * the English source already had. Fill-in cues and context glosses stay.
  */
 export function findUnwantedExerciseGlossIssues(
   pairs: Array<{ questionId: string; questionType: string; questionEn: string; questionDe: string }>
@@ -902,18 +913,12 @@ export function findUnwantedExerciseGlossIssues(
     if (!isSerbianStemExerciseType(p.questionType)) continue;
     // fillInBlank keeps full-sentence context glosses on the DE track.
     if (p.questionType === "fillInBlank") continue;
-    const enHelp = extractParentheticalGlosses(p.questionEn).filter(isHelpTranslationGloss);
-    // A description that is already on the English source must be translated, not removed.
-    if (enHelp.length > 0) continue;
     const deHelp = extractParentheticalGlosses(p.questionDe).filter(isHelpTranslationGloss);
     if (deHelp.length === 0) continue;
     issues.push(
       `questionId=${p.questionId}: exercise prompt still has parenthetical help ` +
         `(${deHelp.map((g) => `(${g})`).join(" ")}). ` +
-        `Remove sentence-level translation help — keep the Serbian stem/blank only` +
-        (p.questionType === "fillInBlank"
-          ? ` (short fill-in cues like "(Milch)" must stay).`
-          : `.`)
+        `Remove sentence-level translation help — keep the Serbian stem/blank only.`
     );
   }
   return issues;
@@ -1104,7 +1109,9 @@ function buildGlossRetryFeedback(issues: string[]): string {
     "- Example EN: 'Ti ____ iz Srbije. (You are from Serbia.)' → DE: 'Ti ____ iz Srbije. (Du bist aus Serbien.)'",
     "- Without this context, beginner learners cannot understand the exercise.",
     "",
-    "Follow the system prompt for exercise questions: keep a Serbian sentence exactly and translate only its parenthetical description. Do not delete that description and do not replace the sentence with the German meaning.",
+    "fillInBlank: keep a Serbian sentence exactly and translate only its parenthetical description. Do not delete that description and do not replace the sentence with the German meaning.",
+    "multiple choice / dialogue: keep the Serbian sentence and drop sentence-level parentheses. Do not translate that parenthesis and do not replace the sentence with its German meaning.",
+    "Example EN: 'Ovo je _____ pasoš. (This is my passport.)' → DE: 'Ovo je _____ pasoš.'",
     "dialogue / dialogueCompletion: do NOT append an English reference translation that was not in the source.",
     "Example EN dialogue: 'A: Odakle ste Vi? B: _____' → DE: same Serbian, no English paren.",
     ...issues,
@@ -1161,7 +1168,8 @@ export function findUntranslatedLearnerPromptIssues(
 /**
  * A Serbian cloze must not come back as a German sentence.
  * An English situation prompt must not stay English.
- * A parenthetical description on a Serbian sentence must be German.
+ * A parenthetical description on a Serbian fill-in must be German.
+ * Multiple choice and dialogue drop that parenthesis instead of translating it.
  */
 export function findSwappedExerciseFormIssues(
   pairs: Array<{
@@ -1182,12 +1190,16 @@ export function findSwappedExerciseFormIssues(
     if (serbianExerciseStemStays(qType, en)) {
       const enStem = exerciseStemText(en);
       const deStem = exerciseStemText(de);
+      const dropGloss = dropsSentenceGlossOnGermanTrack(qType);
       if (enStem.toLowerCase() !== deStem.toLowerCase()) {
         issues.push(
           `questionId=${p.questionId}: Serbian exercise stem was replaced by a German sentence ("${de}"). ` +
-            `Keep the Serbian sentence exactly and translate only the parenthetical description.`,
+            (dropGloss
+              ? `Keep the Serbian sentence exactly and drop the sentence-level parenthesis.`
+              : `Keep the Serbian sentence exactly and translate only the parenthetical description.`),
         );
       }
+      if (dropGloss) continue;
       const enGlosses = extractParentheticalGlosses(en);
       const deGlosses = extractParentheticalGlosses(de);
       for (let i = 0; i < enGlosses.length; i++) {
@@ -1273,7 +1285,8 @@ function buildPromptGuardRetryFeedback(issues: string[]): string {
     "For questionType 'matching': translate the English meaning side to German (half→halb/Hälfte); keep _____ blanks.",
     "For categoryInstructions: adapt EN framing that says 'from English' / 'English meaning' to German-source framing. Never leave 'Englisch/English' in the DE instructions.",
     "For an English situation prompt (no Serbian sentence), translate the whole prompt to German. Do not leave it in English.",
-    "For a Serbian sentence, keep the sentence exactly and translate only the parenthetical description.",
+    "For a Serbian fill-in sentence, keep the sentence exactly and translate only the parenthetical description.",
+    "For a Serbian multiple-choice or dialogue sentence, keep the sentence exactly and drop the sentence-level parenthesis. Do not translate that parenthesis into a German sentence.",
     "Serbian answers/options stay Serbian and untranslated.",
     ...issues,
   ].join("\n");

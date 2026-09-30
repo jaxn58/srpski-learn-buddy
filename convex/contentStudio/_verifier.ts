@@ -183,10 +183,16 @@ export function serbianExerciseStemStays(questionType: string, question: string)
  * an optional hint). The stem itself is not a translation, so it is not sent
  * as the German question.
  */
-export function verifierSideForSerbianStem(side: string, lang: "EN" | "DE"): string {
+export function verifierSideForSerbianStem(
+  side: string,
+  lang: "EN" | "DE",
+  omitHelpGlosses = false,
+): string {
   const question = extractVerifierQuestion(side, lang);
   const hint = String(side.match(new RegExp(`Hint \\(${lang}\\):\\s*([\\s\\S]*)$`))?.[1] ?? "").trim();
-  const glosses = extractParentheticalGlossesFromText(question);
+  const glosses = extractParentheticalGlossesFromText(question).filter(
+    (gloss) => !omitHelpGlosses || !isHelpTranslationGloss(gloss),
+  );
   const lines = [
     "The exercise stem stays Serbian on the English and the German track. Do not translate it and do not report it.",
     glosses.length
@@ -203,7 +209,12 @@ function semanticSide(item: VerifierInputItem, side: string): string {
   if (qType !== "multipleChoice" && qType !== "dialogue" && qType !== "fillInBlank") return side;
   const lang = /^\s*Question \(DE\)/m.test(side) ? "DE" : "EN";
   const question = extractVerifierQuestion(side, lang);
-  if (serbianExerciseStemStays(qType, question)) return verifierSideForSerbianStem(side, lang);
+  if (serbianExerciseStemStays(qType, question)) {
+    // Multiple choice and dialogue drop sentence glosses. The model must not
+    // be asked to translate them into a German sentence.
+    const omitHelpGlosses = qType === "multipleChoice" || qType === "dialogue";
+    return verifierSideForSerbianStem(side, lang, omitHelpGlosses);
+  }
   return textForSemanticVerification(side);
 }
 

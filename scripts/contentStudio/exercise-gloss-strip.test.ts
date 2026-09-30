@@ -66,7 +66,7 @@ describe("stripTrailingParentheticalGlosses", () => {
 });
 
 describe("findUnwantedExerciseGlossIssues", () => {
-  it("keeps a description that was already on the English multiple-choice source", () => {
+  it("drops a description that was already on the English multiple-choice source", () => {
     const issues = findUnwantedExerciseGlossIssues([
       {
         questionId: "u2_ex3_q18",
@@ -75,7 +75,8 @@ describe("findUnwantedExerciseGlossIssues", () => {
         questionDe: "Ana je _____. (Ana ist eine _____.)",
       },
     ]);
-    expect(issues).toHaveLength(0);
+    expect(issues.length).toBe(1);
+    expect(issues[0]).toContain("Remove sentence-level translation help");
   });
 
   it("flags a description the English multiple-choice source did not have", () => {
@@ -113,6 +114,19 @@ describe("findUnwantedExerciseGlossIssues", () => {
       },
     ]);
     expect(issues).toHaveLength(0);
+  });
+
+  it("flags a sentence gloss the English multiple-choice source already had", () => {
+    const issues = findUnwantedExerciseGlossIssues([
+      {
+        questionId: "u12_ex3_q01",
+        questionType: "multipleChoice",
+        questionEn: "Ovo je _____ pasoš. (This is my passport.)",
+        questionDe: "Ovo je _____ pasoš. (This is my passport.)",
+      },
+    ]);
+    expect(issues.length).toBe(1);
+    expect(issues[0]).toContain("Remove sentence-level translation help");
   });
 
   it("passes when help glosses are stripped", () => {
@@ -495,6 +509,16 @@ describe("verifierSideForSerbianStem", () => {
     expect(de).toContain("stem stays Serbian");
   });
 
+  it("omits a sentence gloss when multiple choice drops it", () => {
+    const en = verifierSideForSerbianStem(
+      "Question (EN): Ovo je _____ pasoš. (This is my passport.)",
+      "EN",
+      true,
+    );
+    expect(en).toContain("Learner gloss (EN): none");
+    expect(en).not.toContain("This is my passport");
+  });
+
   it("sends a nested register note as part of the whole learner gloss", () => {
     const en = verifierSideForSerbianStem(
       "Question (EN): _____ li sok? (Do you (informal) have juice?)",
@@ -527,13 +551,13 @@ describe("verifierSideForSerbianStem", () => {
 });
 
 describe("restoreSerbianStemQuestion", () => {
-  it("keeps the Serbian sentence and hangs the German description back on it", () => {
+  it("keeps the Serbian multiple-choice sentence and drops the sentence gloss", () => {
     const restored = restoreSerbianStemQuestion(
       "multipleChoice",
       "Svaki dan _____ novine. (I read the newspaper every day.)",
       "Ich lese jeden Tag die Zeitung.",
     );
-    expect(restored).toBe("Svaki dan _____ novine. (Ich lese jeden Tag die Zeitung.)");
+    expect(restored).toBe("Svaki dan _____ novine.");
   });
 
   it("keeps a Serbian cloze that has no description", () => {
@@ -550,17 +574,17 @@ describe("restoreSerbianStemQuestion", () => {
         "Idem u bioskop sa mojim _____. (I am going to the cinema with my friend.)",
         "Ich gehe mit meinem Freund ins Kino.",
       ),
-    ).toBe("Idem u bioskop sa mojim _____. (Ich gehe mit meinem Freund ins Kino.)");
+    ).toBe("Idem u bioskop sa mojim _____.");
   });
 
-  it("keeps the book sentence and translates only the description", () => {
+  it("keeps the book sentence and drops the sentence gloss", () => {
     expect(
       restoreSerbianStemQuestion(
         "multipleChoice",
         "Molim vas, _____ ovu knjigu do sutra. (Please, read this book by tomorrow.)",
         "Bitte lesen Sie dieses Buch bis morgen.",
       ),
-    ).toBe("Molim vas, _____ ovu knjigu do sutra. (Bitte lesen Sie dieses Buch bis morgen.)");
+    ).toBe("Molim vas, _____ ovu knjigu do sutra.");
   });
 
   it("does not lock an English fill-in sentence", () => {
@@ -626,10 +650,20 @@ describe("findSwappedExerciseFormIssues", () => {
         questionDe: "Svaki dan _____ novine. (I read the newspaper every day.)",
       },
     ]);
-    expect(gloss[0]).toContain("parenthetical description is still English");
+    expect(gloss).toHaveLength(0);
+
+    const fillGloss = findSwappedExerciseFormIssues([
+      {
+        questionId: "u12_fill_q01",
+        questionType: "fillInBlank",
+        questionEn: "Ja ____ Ana. (I am Ana.)",
+        questionDe: "Ja ____ Ana. (I am Ana.)",
+      },
+    ]);
+    expect(fillGloss[0]).toContain("parenthetical description is still English");
   });
 
-  it("accepts a German situation prompt and a Serbian sentence with a German description", () => {
+  it("accepts a German situation prompt and a Serbian multiple-choice sentence without the gloss", () => {
     expect(
       findSwappedExerciseFormIssues([
         {
@@ -642,7 +676,7 @@ describe("findSwappedExerciseFormIssues", () => {
           questionId: "u18_mc_q21",
           questionType: "multipleChoice",
           questionEn: "Svaki dan _____ novine. (I read the newspaper every day.)",
-          questionDe: "Svaki dan _____ novine. (Ich lese jeden Tag die Zeitung.)",
+          questionDe: "Svaki dan _____ novine.",
         },
       ]),
     ).toHaveLength(0);
