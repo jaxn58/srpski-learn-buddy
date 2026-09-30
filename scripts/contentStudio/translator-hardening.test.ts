@@ -544,6 +544,75 @@ describe("dropAiMissingInfoThatRepeatsVocabularySerbian", () => {
     expect(kept[0]?.issue).toContain("future tense");
   });
 
+  it("drops grammar claims about examples and sections that are already translated", () => {
+    const english = [
+      "#### Watch Out",
+      "WRONG: Sastanak je petnaest maj.",
+      "WRONG: U devet i pet.",
+      "#### Quick Check",
+      "1. How do you say it?",
+      "#### Grammar Preview",
+      "Kog datuma? is a fixed question.",
+    ].join("\n");
+    const german = [
+      "#### Achtung",
+      "FALSCH: Sastanak je petnaest maj. → KORREKT: petnaestog maja.",
+      "FALSCH: U devet i pet. → KORREKT: U devet i pet minuta.",
+      "#### Schnellprüfung",
+      "1. Wie sagt man das?",
+      "#### Grammatik-Vorschau",
+      "Kog datuma? ist eine feste Frage. Die Grammatik wird später erklärt.",
+    ].join("\n");
+    const item: VerifierInputItem = {
+      key: "section:grammar",
+      kind: "section",
+      label: "section: grammar",
+      serbian: "Sastanak je petnaest maj",
+      english,
+      german,
+    };
+    const watchOut: VerifierIssue = {
+      itemKey: "section:grammar",
+      itemLabel: "section: grammar",
+      itemKind: "section",
+      severity: "critical",
+      code: "semantic_mismatch",
+      issue:
+        "The German translation for the 'Watch Out' section is missing the first two bullet points. Add 'Sastanak je petnaest maj' and 'U devet i pet'.",
+    };
+    const quickCheck: VerifierIssue = {
+      itemKey: "section:grammar",
+      itemLabel: "section: grammar",
+      itemKind: "section",
+      severity: "critical",
+      code: "semantic_mismatch",
+      issue: "The German translation for the 'Quick Check' section is entirely missing from the German text.",
+    };
+    const preview: VerifierIssue = {
+      itemKey: "section:grammar",
+      itemLabel: "section: grammar",
+      itemKind: "section",
+      severity: "critical",
+      code: "semantic_mismatch",
+      issue: "The German translation for the 'Grammar Preview' section is truncated. The explanation for 'Kog datuma' is incomplete.",
+    };
+    const reallyGone: VerifierIssue = {
+      itemKey: "section:grammar",
+      itemLabel: "section: grammar",
+      itemKind: "section",
+      severity: "critical",
+      code: "semantic_mismatch",
+      issue: "The example 'Voz polazi u podne' is missing from the German text.",
+    };
+    const { kept, dropped } = dropNonActionableVerifierIssues(
+      [watchOut, quickCheck, preview, reallyGone],
+      [item],
+    );
+    expect(dropped).toHaveLength(3);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]?.issue).toContain("Voz polazi u podne");
+  });
+
   it("does not drop missing_info on a non-vocabulary section", () => {
     const grammarItem: VerifierInputItem = {
       key: "section:grammar",

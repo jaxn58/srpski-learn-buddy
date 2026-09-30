@@ -595,6 +595,7 @@ export function dropNonActionableVerifierIssues(
       complainsAboutSerbianAnchorField(issue) ||
       quotesAlreadyInSerbianColumn(issue, item) ||
       suggestionAlreadyInSection(issue, item) ||
+      sectionClaimAlreadySatisfied(issue, item) ||
       isAiGlossPolicyComplaint(issue, item);
     if (drop) dropped.push(issue);
     else kept.push(issue);
@@ -906,6 +907,42 @@ function truncate(s: string, max: number): string {
   return `${str.slice(0, max)}\n[...truncated for verifier...]`;
 }
 
+/** Grammar sections run past 4,000 characters. Cutting them makes the model report the ending as missing. */
+const VERIFIER_SECTION_CHARS = 12_000;
+const VERIFIER_FIELD_CHARS = 4_000;
+
+const ENGLISH_SECTION_LABEL =
+  /^(watch out|quick check|grammar preview|examples|the rule|pattern|why you need this|review)$/i;
+
+/**
+ * A fresh verifier pass invents a different "missing" claim about text that
+ * is already in the German section. Quoted examples that all occur in the
+ * saved German text, or a whole-section claim when the heading counts match,
+ * are not something an admin can fix by retrying.
+ */
+function sectionClaimAlreadySatisfied(
+  issue: VerifierIssue,
+  item: VerifierInputItem | undefined,
+): boolean {
+  if (!item || issue.itemKind !== "section" || item.kind !== "section") return false;
+  if (issue.code !== "semantic_mismatch" && issue.code !== "missing_info") return false;
+  const blob = `${issue.issue} ${issue.suggestion ?? ""}`;
+  if (!/missing|truncat|incomplete|not present|absent/i.test(blob)) return false;
+
+  const contentQuotes = extractContentQuotes(blob)
+    .map((quote) => quote.trim())
+    .filter((quote) => quote.length >= 8 && !ENGLISH_SECTION_LABEL.test(quote));
+  const hay = normalizeSectionPresence(item.german);
+  if (contentQuotes.length > 0) {
+    return contentQuotes.every((quote) => hay.includes(normalizeSectionPresence(quote)));
+  }
+
+  if (!/entirely missing|section is missing|missing from the german/i.test(blob)) return false;
+  const enHeads = (item.english.match(/^#{2,4}\s+\S/gm) ?? []).length;
+  const deHeads = (item.german.match(/^#{2,4}\s+\S/gm) ?? []).length;
+  return enHeads > 0 && deHeads >= enHeads;
+}
+
 /**
  * Defensive post-filter: drop issues whose own text admits they are not
  * actually issues. The verifier prompt instructs the model to omit items that
@@ -1017,6 +1054,7 @@ function buildVerifierUserPayload(items: VerifierInputItem[]): string {
     "- Parenthetical glosses on other test items are removed from this payload. The deterministic checker already applied the gloss contract (fill-in keeps a German context gloss; multiple choice and dialogue do not). Do not report a missing, extra, or unwanted gloss.",
     "- Short fill-in source cues like (Milch) are not sentence-level glosses and are also absent here.",
     "- Sections with a Serbian table column (vocabulary, phrases, dialogues, grammar) keep that column in Serbian on DE. Those cells are already in the serbian field. Do not report missing_info for them, and do not ask to add Serbian text to the serbian field.",
+    "- A trailing [...truncated for verifier...] marker is a transport limit. Do not report it as missing or incomplete learner content.",
     "OUTPUT: return ONLY a JSON object {\"issues\":[...]} with no markdown.",
     "Each issue: {key, severity, code, issue, suggestion?}. Keep issue text under 200 characters.",
     "Omit items with no problem. Do not put unescaped double quotes inside issue/suggestion strings.",
@@ -1028,9 +1066,9 @@ function buildVerifierUserPayload(items: VerifierInputItem[]): string {
       kind: it.kind,
       label: it.label,
       ...(it.kind === "test" && it.questionType ? { questionType: it.questionType } : {}),
-      serbian: truncate(it.serbian, 4000),
-      english: truncate(semanticSide(it, it.english), 4000),
-      german: truncate(semanticSide(it, it.german), 4000),
+      serbian: truncate(it.serbian, it.kind === "section" ? VERIFIER_SECTION_CHARS : VERIFIER_FIELD_CHARS),
+      english: truncate(semanticSide(it, it.english), it.kind === "section" ? VERIFIER_SECTION_CHARS : VERIFIER_FIELD_CHARS),
+      german: truncate(semanticSide(it, it.german), it.kind === "section" ? VERIFIER_SECTION_CHARS : VERIFIER_FIELD_CHARS),
     })),
   };
   return `${contract}${JSON.stringify(payload)}`;
