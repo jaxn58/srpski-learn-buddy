@@ -507,6 +507,43 @@ describe("dropAiMissingInfoThatRepeatsVocabularySerbian", () => {
     expect(kept).toHaveLength(1);
   });
 
+  it("drops a grammar warning whose suggested sentence is already in the German section", () => {
+    const german =
+      "FALSCH: Ja sam žao mi je. → KORREKT: **Žao mi je**. (`Žao mi je` ist eine feste Redewendung, die „Es tut mir leid“ bedeutet; sie verwendet nicht das Verb ‚sein‘.)\n\n" +
+      "Sie wissen bereits aus einer früheren Einheit, wie man `moći` (können) und `hteti` (wollen) verwendet, um über Fähigkeiten und Wünsche zu sprechen.";
+    const grammarItem: VerifierInputItem = {
+      key: "section:grammar",
+      kind: "section",
+      label: "section: grammar",
+      serbian: "Žao mi je",
+      english: "WRONG: Ja sam žao mi je.",
+      german,
+    };
+    const alreadyThere: VerifierIssue = {
+      itemKey: "section:grammar",
+      itemLabel: "section: grammar",
+      itemKind: "section",
+      severity: "warning",
+      code: "semantic_mismatch",
+      issue: "The German translation for the fixed phrase is missing.",
+      suggestion:
+        "FALSCH: Ja sam žao mi je. → KORREKT: **Žao mi je**. ('Žao mi je' ist eine feste Redewendung, die 'Es tut mir leid' bedeutet; sie verwendet nicht das Verb 'sein'.)",
+    };
+    const genuinelyMissing: VerifierIssue = {
+      ...alreadyThere,
+      issue: "The paragraph about the future tense is missing.",
+      suggestion: "Das Futur wird mit dem Hilfsverb ću und dem Infinitiv gebildet.",
+    };
+    const { kept, dropped } = dropNonActionableVerifierIssues(
+      [alreadyThere, genuinelyMissing],
+      [grammarItem],
+    );
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0]?.issue).toContain("fixed phrase");
+    expect(kept).toHaveLength(1);
+    expect(kept[0]?.issue).toContain("future tense");
+  });
+
   it("does not drop missing_info on a non-vocabulary section", () => {
     const grammarItem: VerifierInputItem = {
       key: "section:grammar",

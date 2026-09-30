@@ -448,6 +448,35 @@ function columnContainsSpan(columnText: string, span: string): boolean {
  * Phrases and dialogue lines are often full sentences. The lemma tokenizer
  * drops them because of ? and . The quotes are still the Serbian column.
  */
+/** Compare section text ignoring markdown emphasis and quote style. */
+function normalizeSectionPresence(text: string): string {
+  return String(text || "")
+    .replace(/[*_`]/g, "")
+    .replace(/\p{Quotation_Mark}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * The verifier often says a grammar paragraph is missing and then suggests
+ * the German sentence that is already in the section, only with different
+ * quotes. Retrying that rewrites the section and the same warning returns.
+ */
+function suggestionAlreadyInSection(
+  issue: VerifierIssue,
+  item: VerifierInputItem | undefined
+): boolean {
+  if (!item || issue.itemKind !== "section" || item.kind !== "section") return false;
+  if (issue.code !== "semantic_mismatch" && issue.code !== "missing_info") return false;
+  const suggestion = String(issue.suggestion || "").trim();
+  if (suggestion.length < 40) return false;
+  const needle = normalizeSectionPresence(suggestion);
+  if (needle.length < 40) return false;
+  const hay = normalizeSectionPresence(item.german);
+  return hay.includes(needle);
+}
+
 function quotesAlreadyInSerbianColumn(
   issue: VerifierIssue,
   item: VerifierInputItem | undefined
@@ -565,6 +594,7 @@ export function dropNonActionableVerifierIssues(
       shouldDropVocabSectionMissingInfo(issue, item) ||
       complainsAboutSerbianAnchorField(issue) ||
       quotesAlreadyInSerbianColumn(issue, item) ||
+      suggestionAlreadyInSection(issue, item) ||
       isAiGlossPolicyComplaint(issue, item);
     if (drop) dropped.push(issue);
     else kept.push(issue);
