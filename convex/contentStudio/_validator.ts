@@ -516,9 +516,15 @@ export const saveMarkdownSnapshot = action({
     // The draft is the single source of truth for placement: force the
     // Module/Unit numbers in the header to the draft's values so a manually
     // edited header can never redirect the snapshot to a different unit.
+    const moduleNumber = Number((current.draft as any).moduleNumber);
+    const moduleTitleEn: string | null =
+      Number.isFinite(moduleNumber) && moduleNumber > 0
+        ? await ctx.runQuery(internal.contentStudio.internalModuleTitleEn, { moduleNumber })
+        : null;
     markdown = enforceUnitModuleHeader(markdown, {
       unitNumber: (current.draft as any).unitNumber,
       moduleNumber: (current.draft as any).moduleNumber,
+      ...(moduleTitleEn ? { moduleTitle: moduleTitleEn } : {}),
     });
 
     const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);

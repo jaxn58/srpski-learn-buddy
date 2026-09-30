@@ -19,26 +19,25 @@ import type { ParsedExercise } from "./types";
 import { analyzeGrammarV2 } from "./sectionUtils";
 
 /**
- * Force the Module/Unit numbers in the Markdown header to match the
- * authoritative draft values before parsing. Titles and all other content
- * are preserved; only the leading number in the first `# Module N:` and
- * `## Unit N:` header line is rewritten.
- *
- * Rationale: An AI- or human-authored header (e.g. "## Unit 1") must never
- * override the draft's real placement (e.g. Unit 6). Because downstream
- * artifacts (unitNumber, module.moduleNumber, exercise questionIds like
- * `u6_ex1_q01`) are derived from the header during parsing, the numbers are
- * enforced on the raw Markdown so the whole package stays internally
- * consistent.
+ * Force the Module/Unit header to match the draft before parsing.
+ * The leading numbers are always rewritten. When `moduleTitle` is set, the
+ * text after `# Module N:` is replaced too, so a leftover Module-1 title
+ * ("Arrival") cannot stay on a later module.
+ * Unit titles and all other content are preserved.
  */
 export function enforceUnitModuleHeader(
   markdown: string,
-  opts: { unitNumber?: number; moduleNumber?: number },
+  opts: { unitNumber?: number; moduleNumber?: number; moduleTitle?: string },
 ): string {
   let out = String(markdown || "").replace(/\r\n/g, "\n");
   const { unitNumber, moduleNumber } = opts;
+  const moduleTitle = String(opts.moduleTitle || "").replace(/\s+/g, " ").trim();
   if (typeof moduleNumber === "number" && Number.isFinite(moduleNumber) && moduleNumber > 0) {
-    out = out.replace(/^(#\s+Module\s+)(\d+)(\s*:)/m, `$1${moduleNumber}$3`);
+    if (moduleTitle) {
+      out = out.replace(/^(#\s+Module\s+)\d+\s*:\s*.+$/m, `$1${moduleNumber}: ${moduleTitle}`);
+    } else {
+      out = out.replace(/^(#\s+Module\s+)(\d+)(\s*:)/m, `$1${moduleNumber}$3`);
+    }
   }
   if (typeof unitNumber === "number" && Number.isFinite(unitNumber) && unitNumber > 0) {
     out = out.replace(/^(##\s+Unit\s+)(\d+)(\s*:)/m, `$1${unitNumber}$3`);

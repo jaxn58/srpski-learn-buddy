@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
-import { parseMarkdownToUnitPackage, validateMarkdownStructure } from "./parser";
+import { enforceUnitModuleHeader, parseMarkdownToUnitPackage, validateMarkdownStructure } from "./parser";
 import { extractSection, validateSection, listSections } from "./sectionUtils";
 import { extractExercises } from "./extractors";
 import { UnitPackageSchema } from "../unitPackage/schema";
@@ -224,6 +224,26 @@ describe.each(FIXTURES)("published unit fixture $file", (fx) => {
     expect(b.exercises.en.map((c) => c.questions.length)).toEqual(a.exercises.en.map((c) => c.questions.length));
     expect(b.content.en.grammarMd.replace(/\r\n/g, "\n")).toBe(a.content.en.grammarMd);
     expect(validateMarkdownStructure(crlf).valid).toBe(true);
+  });
+});
+
+describe("enforceUnitModuleHeader", () => {
+  it("replaces a leftover module title when the canonical title is known", () => {
+    const markdown = "# Module 2: Arrival\n## Unit 15: At the Restaurant\n";
+    expect(
+      enforceUnitModuleHeader(markdown, {
+        moduleNumber: 2,
+        unitNumber: 15,
+        moduleTitle: "Daily Life A1.2",
+      }),
+    ).toBe("# Module 2: Daily Life A1.2\n## Unit 15: At the Restaurant\n");
+  });
+
+  it("rewrites only the module number when no canonical title is given", () => {
+    const markdown = "# Module 1: Arrival\n## Unit 9: Taxi\n";
+    expect(enforceUnitModuleHeader(markdown, { moduleNumber: 2, unitNumber: 9 })).toBe(
+      "# Module 2: Arrival\n## Unit 9: Taxi\n",
+    );
   });
 });
 

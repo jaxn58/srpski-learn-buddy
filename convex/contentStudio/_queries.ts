@@ -1889,3 +1889,24 @@ export const checkUnitModuleCollision = query({
     });
   },
 });
+
+/**
+ * English module title for a module number.
+ * Duplicate rows share a number (an older "Daily Life A1.2" and a later
+ * "Daily Life"). Live units point at the older row, so the earliest one wins.
+ */
+export const internalModuleTitleEn = internalQuery({
+  args: { moduleNumber: v.number() },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db.query("moduleMetadata").collect();
+    const matches = rows
+      .filter(
+        (row) =>
+          row.moduleNumber === args.moduleNumber && String(row.titleEn || "").trim().length > 0,
+      )
+      .sort((a, b) => a._creationTime - b._creationTime);
+    const title = String(matches[0]?.titleEn || "").trim();
+    return title || null;
+  },
+});

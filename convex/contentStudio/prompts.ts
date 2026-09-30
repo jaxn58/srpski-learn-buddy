@@ -123,7 +123,7 @@ export const getSpecialistUserPromptBase = (
 ) => [
   `Write the full unit as Markdown with this exact top structure:`,
   ``,
-  `# Module ${d.moduleNumber}: ${String((d as any).moduleTitle || "").trim() || "Ankommen (Arrival)"}`,
+  `# Module ${d.moduleNumber}: ${String((d as any).moduleTitle || "").trim() || `Module ${d.moduleNumber}`}`,
   `## Unit ${d.unitNumber}: ${unitTitleOneLine || `Unit ${d.unitNumber}`}`,
   ``,
   `**Description:** ${unitDescriptionOneLine || "One short English sentence (max ~120 chars)."}`,

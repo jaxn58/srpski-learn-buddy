@@ -503,9 +503,12 @@ export const runAiSpecialistGenerate = action({
 
     const unitTitleOneLine = String(d.title || "").replace(/\s+/g, " ").trim();
     const unitDescriptionOneLine = String(d.description || "").replace(/\s+/g, " ").trim();
+    const moduleTitleEn: string | null = await ctx.runQuery(internal.contentStudio.internalModuleTitleEn, {
+      moduleNumber: d.moduleNumber,
+    });
 
     const userPromptBase = getSpecialistUserPromptBase(
-      d,
+      { ...d, moduleTitle: moduleTitleEn ?? undefined },
       unitTitleOneLine,
       unitDescriptionOneLine,
       creatorBriefBlock,
@@ -613,6 +616,7 @@ export const runAiSpecialistGenerate = action({
       markdown = enforceUnitModuleHeader(markdown, {
         unitNumber: d.unitNumber,
         moduleNumber: d.moduleNumber,
+        ...(moduleTitleEn ? { moduleTitle: moduleTitleEn } : {}),
       });
 
       const parsedUnitPackage = parseMarkdownToUnitPackage(markdown);
