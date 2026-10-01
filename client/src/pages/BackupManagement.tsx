@@ -41,6 +41,21 @@ const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string | undefin
 type BackupStatus = "completed" | "failed" | "in_progress" | "partial";
 type BackupEnvironment = "production" | "development";
 
+const CONVEX_BACKUP_SETTINGS: Record<BackupEnvironment, string> = {
+  production: "https://dashboard.convex.dev/d/fleet-labrador-324/settings/backups",
+  development: "https://dashboard.convex.dev/d/reminiscent-panda-57/settings/backups",
+};
+
+function convexBackupSettingsUrl(environment: BackupEnvironment | undefined): string {
+  if (environment === "production" || environment === "development") {
+    return CONVEX_BACKUP_SETTINGS[environment];
+  }
+  const convexUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
+  return convexUrl?.includes("fleet-labrador-324")
+    ? CONVEX_BACKUP_SETTINGS.production
+    : CONVEX_BACKUP_SETTINGS.development;
+}
+
 interface BackupMetadata extends Doc<"backupMetadata"> {
   storageId: string;
   timestamp: number;
@@ -531,9 +546,35 @@ export default function BackupManagement() {
           <p>
             <strong>Document export:</strong> This page backs up every database table. The table list follows the schema, so new tables are included automatically. A Partial backup saved the tables it could and names the ones it missed. Older backups that show only a table count, without a second number, used the previous fixed list of 30 tables.
           </p>
-          <p>
-            <strong>Files and full restore:</strong> User uploads, audio, and other Convex Storage files are not inside this download. In the Convex dashboard, turn on a daily backup that includes file storage, separately for Development and for Production. Daily Convex backups are kept for 7 days, weekly backups for 14 days (Pro plan). That backup does not include code, crons, or environment variables. Restore from the Convex dashboard replaces the deployment data, so take another backup first. This page does not restore data.
-          </p>
+          <div>
+            <p>
+              <strong>Files and full restore:</strong> User uploads, audio, and other Convex Storage files are not inside this download. This page does not restore data.
+            </p>
+            <p className="mt-2">
+              <a
+                href={convexBackupSettingsUrl(latestBackup?.environment)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline"
+              >
+                Open Convex Backup &amp; Restore
+              </a>
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                On that Convex page, turn on <strong>Backup automatically</strong> and include <strong>File Storage</strong>. Development and Production are separate deployments.
+              </li>
+              <li>
+                Before a restore, press <strong>Backup Now</strong>. Restore replaces the data in that deployment.
+              </li>
+              <li>
+                Open the backup you want and choose <strong>Restore</strong> from its menu.
+              </li>
+              <li>
+                Code, crons, and environment variables are not in the backup. Daily Convex backups are kept for 7 days, weekly backups for 14 days.
+              </li>
+            </ol>
+          </div>
           <p>
             <strong>Automatic Schedule:</strong> Document backups run daily at 3:00 UTC (4:00 MEZ / 5:00 MESZ)
           </p>
