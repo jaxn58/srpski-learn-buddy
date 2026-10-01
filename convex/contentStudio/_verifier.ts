@@ -1044,6 +1044,15 @@ function shortVerifierError(message: string): string {
     .slice(0, 180);
 }
 
+/** Why one verifier batch did not return readable issues. Not a content defect. */
+export function verifierBatchFailureReason(message: string): string {
+  const text = String(message || "").toLowerCase();
+  if (text.includes("finish_reason=length") || text.includes("truncated")) return "output truncated";
+  if (text.includes("timeout") || text.includes("aborted")) return "request timed out";
+  if (text.includes("invalid json")) return "invalid JSON";
+  return "request failed";
+}
+
 // Base prompt: chatPrompts cs_translator_verifier (no code fallback).
 
 function buildVerifierUserPayload(items: VerifierInputItem[]): string {
@@ -1150,24 +1159,26 @@ export async function verifySerbianGermanAlignment(
   const itemByKey = new Map<string, VerifierInputItem>();
   for (const it of usable) itemByKey.set(it.key, it);
 
-  let failedJsonBatches = 0;
+  let failedBatches = 0;
+  const failureReasons: string[] = [];
   const baseSystem =
     (await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVerifier)) +
     (await languageRulesBlock(ctx));
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex]!;
-    try {
-      let parsed: { issues: any[] } | null = null;
-      for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
-        const user =
-          attempt === 0
-            ? buildVerifierUserPayload(batch)
-            : [
-                buildVerifierUserPayload(batch),
-                "",
-                "RETRY: previous output was invalid JSON. Return ONLY {\"issues\":[...]} with short issue texts and escaped quotes.",
-              ].join("\n");
+    let parsed: { issues: any[] } | null = null;
+    let lastReason = "request failed";
+    for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
+      const user =
+        attempt === 0
+          ? buildVerifierUserPayload(batch)
+          : [
+              buildVerifierUserPayload(batch),
+              "",
+              `RETRY: previous output failed (${lastReason}). Return ONLY {"issues":[...]} with short issue texts and escaped quotes.`,
+            ].join("\n");
+      try {
         const ai = await callAiJson(ctx, {
           stage: "auditor",
           preferredProvider: params.preferredProvider,
@@ -1175,7 +1186,9 @@ export async function verifySerbianGermanAlignment(
           user,
           maxTokens: VERIFIER_MAX_TOKENS,
           timeoutMs: 90_000,
-          reasoningEffort: "low",
+          // Flash accepts thinking off. The token budget is then the JSON answer,
+          // not internal reasoning that cuts the object off mid-string.
+          reasoningEffort: "none",
         });
         provider = ai.provider;
         model = ai.model;
@@ -1188,15 +1201,24 @@ export async function verifySerbianGermanAlignment(
         try {
           parsed = parseVerifierIssuesJson(ai.raw);
         } catch (e: any) {
-          if (attempt === 1) {
-            failedJsonBatches += 1;
-            console.warn(
-              `[verifier] batch ${batchIndex + 1}/${batches.length} invalid JSON after retry: ${shortVerifierError(e?.message || e)}`
-            );
-          }
+          lastReason = verifierBatchFailureReason(e?.message || e);
+          console.warn(
+            `[verifier] batch ${batchIndex + 1}/${batches.length} attempt ${attempt + 1} ${lastReason}: ${shortVerifierError(e?.message || e)}`
+          );
         }
+      } catch (e: any) {
+        lastReason = verifierBatchFailureReason(e?.message || e);
+        console.warn(
+          `[verifier] batch ${batchIndex + 1}/${batches.length} attempt ${attempt + 1} ${lastReason}: ${shortVerifierError(e?.message || e)}`
+        );
       }
-      if (!parsed) continue;
+    }
+    if (!parsed) {
+      failedBatches += 1;
+      failureReasons.push(lastReason);
+      continue;
+    }
+    {
       const rawIssues: any[] = Array.isArray(parsed.issues) ? parsed.issues : [];
       const droppedAsNonIssue: Array<{ key: string; text: string }> = [];
       for (const raw of rawIssues) {
@@ -1241,17 +1263,13 @@ export async function verifySerbianGermanAlignment(
               .join("; ")
         );
       }
-    } catch (e: any) {
-      failedJsonBatches += 1;
-      console.warn(
-        `[verifier] batch ${batchIndex + 1}/${batches.length} call failed: ${shortVerifierError(e?.message || e)}`
-      );
     }
   }
 
-  if (failedJsonBatches > 0) {
+  if (failedBatches > 0) {
+    const reasons = Array.from(new Set(failureReasons));
     callError =
-      `AI verifier JSON invalid on ${failedJsonBatches} of ${batches.length} batch(es). ` +
+      `Verifier batch failed on ${failedBatches} of ${batches.length} (${reasons.join(", ")}). ` +
       `Deterministic checks still apply.`;
   }
 

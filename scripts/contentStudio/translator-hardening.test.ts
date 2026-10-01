@@ -16,6 +16,7 @@ import {
   extractSerbianFromMarkdown,
   mergeRepairVerifierReport,
   parseVerifierIssuesJson,
+  verifierBatchFailureReason,
   type VerifierInputItem,
   type VerifierIssue,
   type VerifierReport,
@@ -176,6 +177,14 @@ describe("closeTruncatedJson / parseVerifierIssuesJson", () => {
     );
     expect(parsed.issues).toHaveLength(1);
     expect(parsed.issues[0].key).toBe("test:q1");
+  });
+
+  it("names a cut-off answer and a timeout instead of calling both invalid JSON", () => {
+    expect(verifierBatchFailureReason("AI output truncated (finish_reason=length, completion_tokens=4000).")).toBe(
+      "output truncated",
+    );
+    expect(verifierBatchFailureReason("AI API timeout (request aborted after 90000ms)")).toBe("request timed out");
+    expect(verifierBatchFailureReason("Invalid JSON from AI: could not salvage verifier issues.")).toBe("invalid JSON");
   });
 });
 
