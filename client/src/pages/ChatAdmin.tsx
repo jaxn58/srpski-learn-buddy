@@ -11,8 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { MODEL_PRICING, PRICING_SOURCE_URLS } from "../../../convex/ai/modelPricing";
 import { useTranslation } from "react-i18next";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
@@ -34,27 +35,31 @@ import {
   Filter,
   DollarSign,
   Activity,
-  ShieldAlert,
+  RefreshCw,
 } from "lucide-react";
 
 const PROVIDER_OPTIONS = [
   { value: "google", label: "Google (Gemini)" },
   { value: "openai", label: "OpenAI" },
-];
+] as const;
 
-const MODEL_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
-  google: [
-    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-    { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
-  ],
-  openai: [
-    { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-    { value: "gpt-4o", label: "GPT-4o" },
-    { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
-    { value: "gpt-4.1-nano", label: "GPT-4.1 Nano" },
-  ],
+type ChatProvider = "google" | "openai";
+
+type ChatModelOption = {
+  provider: ChatProvider;
+  id: string;
+  displayName: string;
+  selectable: boolean;
+  thinkingAlwaysOn: boolean;
+  pricingSourceUrl: string;
+  inputUsdPer1M: number | null;
+  outputUsdPer1M: number | null;
+  missingFromApi?: boolean;
 };
+
+function asChatProvider(provider: string): ChatProvider {
+  return provider === "openai" ? "openai" : "google";
+}
 
 export default function ChatAdmin() {
   const { user, loading: authLoading } = useAuth();
@@ -62,6 +67,7 @@ export default function ChatAdmin() {
 
   const aiConfig = useQuery(api.admin.getChatAiConfig);
   const updateAiConfigMutation = useMutation(api.admin.updateChatAiConfig);
+  const listChatModels = useAction(api.admin.listChatModels);
 
   const feedbackStats = useQuery(api.admin.getChatFeedbackStats);
   const [feedbackFilter, setFeedbackFilter] = useState<"up" | "down" | undefined>(undefined);
@@ -81,8 +87,10 @@ export default function ChatAdmin() {
   const [fallbackModel, setFallbackModel] = useState("gpt-4o-mini");
   const [maxTokens, setMaxTokens] = useState(2048);
   const [temperature, setTemperature] = useState("");
-  const [dailyBudgetCents, setDailyBudgetCents] = useState("");
   const [saving, setSaving] = useState(false);
+  const [catalog, setCatalog] = useState<ChatModelOption[] | null>(null);
+  const [catalogNote, setCatalogNote] = useState<string | null>(null);
+  const [refreshingModels, setRefreshingModels] = useState(false);
 
   useEffect(() => {
     if (aiConfig) {
@@ -92,15 +100,48 @@ export default function ChatAdmin() {
       setFallbackModel(aiConfig.fallbackModel ?? "gpt-4o-mini");
       setMaxTokens(aiConfig.maxTokens);
       setTemperature(aiConfig.temperature != null ? String(aiConfig.temperature) : "");
-      setDailyBudgetCents(aiConfig.dailyBudgetCents != null ? String(aiConfig.dailyBudgetCents) : "");
     }
   }, [aiConfig]);
+
+  const modelIdForProvider = (provider: string, source: ChatModelOption[]) => {
+    const listed = source.find(
+      (model) => model.provider === asChatProvider(provider) && model.selectable
+    );
+    if (listed) return listed.id;
+    const priced = Object.entries(MODEL_PRICING).find(
+      ([, row]) => row.provider === asChatProvider(provider)
+    );
+    return priced?.[0];
+  };
+
+  const handleRefreshModels = async () => {
+    setRefreshingModels(true);
+    try {
+      const result = await listChatModels({});
+      setCatalog(result.models);
+      const notes = [result.googleError, result.openaiError].filter(
+        (note): note is string => Boolean(note)
+      );
+      setCatalogNote(notes.length > 0 ? notes.join(" ") : null);
+      if (notes.length > 0) {
+        toast.error(notes.join(" "));
+      } else {
+        toast.success("Model list updated.");
+      }
+    } catch (error) {
+      console.error("Error listing chat models:", error);
+      const message = error instanceof Error ? error.message : "Failed to load model list.";
+      setCatalogNote(message);
+      toast.error(message);
+    } finally {
+      setRefreshingModels(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
       const tempVal = temperature.trim() ? parseFloat(temperature) : undefined;
-      const budgetVal = dailyBudgetCents.trim() ? parseInt(dailyBudgetCents) : undefined;
       await updateAiConfigMutation({
         primaryProvider,
         primaryModel,
@@ -108,12 +149,12 @@ export default function ChatAdmin() {
         fallbackModel: fallbackModel || undefined,
         maxTokens,
         temperature: tempVal,
-        dailyBudgetCents: budgetVal,
       });
       toast.success("AI Model configuration saved.");
     } catch (error) {
       console.error("Error saving AI config:", error);
-      toast.error("Failed to save AI model configuration.");
+      const message = error instanceof Error ? error.message : "Failed to save AI model configuration.";
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -145,8 +186,34 @@ export default function ChatAdmin() {
   }
 
   const isSuperadmin = user.role === "superadmin";
-  const primaryModels = MODEL_OPTIONS[primaryProvider] ?? [];
-  const fallbackModels = MODEL_OPTIONS[fallbackProvider] ?? [];
+
+  const modelsFor = (provider: string, selectedId: string): ChatModelOption[] => {
+    const key = asChatProvider(provider);
+    const savedOption = (missingFromApi: boolean): ChatModelOption => ({
+      provider: key,
+      id: selectedId,
+      displayName: selectedId,
+      selectable: true,
+      thinkingAlwaysOn: false,
+      pricingSourceUrl: PRICING_SOURCE_URLS[key],
+      inputUsdPer1M: null,
+      outputUsdPer1M: null,
+      missingFromApi,
+    });
+    if (catalog === null) {
+      return [savedOption(false)];
+    }
+    const fromApi = catalog.filter((model) => model.provider === key);
+    if (selectedId && !fromApi.some((model) => model.id === selectedId)) {
+      return [...fromApi, savedOption(true)];
+    }
+    return fromApi;
+  };
+
+  const primaryModels = modelsFor(primaryProvider, primaryModel);
+  const fallbackModels = modelsFor(fallbackProvider, fallbackModel);
+  const selectedPrimary = primaryModels.find((model) => model.id === primaryModel);
+  const selectedFallback = fallbackModels.find((model) => model.id === fallbackModel);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -184,18 +251,40 @@ export default function ChatAdmin() {
                     <p className="text-xs text-muted-foreground">Which AI model powers the Learn Buddy chat</p>
                   </div>
                 </div>
-                {aiConfig ? (
-                  <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold uppercase">
-                    Custom Config Active
-                  </span>
-                ) : (
-                  <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold uppercase">
-                    Using Defaults
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {aiConfig ? (
+                    <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold uppercase">
+                      Custom Config Active
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold uppercase">
+                      Using Defaults
+                    </span>
+                  )}
+                  {isSuperadmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefreshModels}
+                      disabled={refreshingModels}
+                    >
+                      {refreshingModels ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Refresh models
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
+              {catalogNote && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                  {catalogNote}
+                </p>
+              )}
               {/* Primary Provider & Model */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -204,8 +293,17 @@ export default function ChatAdmin() {
                   </Label>
                   <Select value={primaryProvider} onValueChange={(v) => {
                     setPrimaryProvider(v);
-                    setPrimaryModel(MODEL_OPTIONS[v]?.[0]?.value ?? "");
-                  }} disabled={!isSuperadmin}>
+                    const next = modelIdForProvider(v, catalog ?? []);
+                    if (next) setPrimaryModel(next);
+                    if (fallbackProvider === v) {
+                      const other = PROVIDER_OPTIONS.find((provider) => provider.value !== v);
+                      if (other) {
+                        setFallbackProvider(other.value);
+                        const fallbackNext = modelIdForProvider(other.value, catalog ?? []);
+                        if (fallbackNext) setFallbackModel(fallbackNext);
+                      }
+                    }
+                  }} disabled={!isSuperadmin || catalog === null}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {PROVIDER_OPTIONS.map(p => (
@@ -220,15 +318,21 @@ export default function ChatAdmin() {
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Primary Model
                   </Label>
-                  <Select value={primaryModel} onValueChange={setPrimaryModel} disabled={!isSuperadmin}>
+                  <Select value={primaryModel} onValueChange={setPrimaryModel} disabled={!isSuperadmin || catalog === null}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {primaryModels.map(m => (
-                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      {primaryModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id} disabled={!model.selectable}>
+                          {model.displayName}{model.selectable ? "" : " (no price)"}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[10px] text-muted-foreground">The specific model from this provider.</p>
+                  <ModelChoiceNotes
+                    provider={asChatProvider(primaryProvider)}
+                    selected={selectedPrimary}
+                    catalogLoaded={catalog !== null}
+                  />
                 </div>
               </div>
 
@@ -251,8 +355,9 @@ export default function ChatAdmin() {
                     </Label>
                     <Select value={fallbackProvider} onValueChange={(v) => {
                       setFallbackProvider(v);
-                      setFallbackModel(MODEL_OPTIONS[v]?.[0]?.value ?? "");
-                    }} disabled={!isSuperadmin}>
+                      const next = modelIdForProvider(v, catalog ?? []);
+                      if (next) setFallbackModel(next);
+                    }} disabled={!isSuperadmin || catalog === null}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {PROVIDER_OPTIONS.filter(p => p.value !== primaryProvider).map(p => (
@@ -266,14 +371,21 @@ export default function ChatAdmin() {
                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       Fallback Model
                     </Label>
-                    <Select value={fallbackModel} onValueChange={setFallbackModel} disabled={!isSuperadmin}>
+                    <Select value={fallbackModel} onValueChange={setFallbackModel} disabled={!isSuperadmin || catalog === null}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {fallbackModels.map(m => (
-                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        {fallbackModels.map((model) => (
+                          <SelectItem key={model.id} value={model.id} disabled={!model.selectable}>
+                            {model.displayName}{model.selectable ? "" : " (no price)"}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <ModelChoiceNotes
+                      provider={asChatProvider(fallbackProvider)}
+                      selected={selectedFallback}
+                      catalogLoaded={catalog !== null}
+                    />
                   </div>
                 </div>
               </div>
@@ -294,7 +406,7 @@ export default function ChatAdmin() {
                       disabled={!isSuperadmin}
                     />
                     <p className="text-[10px] text-muted-foreground">
-                      Maximum length of a single AI response. 2048 ≈ ~1500 words. Higher = longer answers, more cost.
+                      Maximum length of a single AI response. Paid detailed answers are raised to at least 4096 tokens. Beta and restricted users are capped at 2048 (detailed) or 1024 (compact). This does not set the Energy charge.
                     </p>
                   </div>
 
@@ -318,34 +430,6 @@ export default function ChatAdmin() {
                   </div>
                 </div>
 
-                {/* Daily Budget */}
-                <div className="border-t pt-6">
-                  <div className="bg-red-50/50 border border-red-100 p-3 rounded-lg mb-4">
-                    <p className="text-[11px] text-red-800 flex items-center gap-2 leading-relaxed">
-                      <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
-                      <span>
-                        <strong>Global Daily Budget:</strong> When estimated cost exceeds this cap, all chat requests are blocked for the rest of the day. 0 or empty = no cap. Amount in cents (100 = $1.00).
-                      </span>
-                    </p>
-                  </div>
-                  <div className="space-y-2 max-w-xs">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Daily Budget (cents)
-                    </Label>
-                    <Input
-                      type="number"
-                      value={dailyBudgetCents}
-                      onChange={(e) => setDailyBudgetCents(e.target.value)}
-                      placeholder="e.g. 100 (= $1.00)"
-                      min={0}
-                      step={10}
-                      disabled={!isSuperadmin}
-                    />
-                    <p className="text-[10px] text-muted-foreground">
-                      Cost is estimated from character length (~4 chars = 1 token, Gemini Flash pricing).
-                    </p>
-                  </div>
-                </div>
               </div>
             </CardContent>
             {isSuperadmin && (
@@ -364,10 +448,17 @@ export default function ChatAdmin() {
 
           {/* ====== USAGE & COST ANALYTICS ====== */}
           <div className="pt-4">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
               <Activity className="h-5 w-5 text-primary" />
               Usage &amp; Cost Analytics
             </h2>
+            {usageStats && (
+              <p className="text-xs text-muted-foreground mb-4">
+                Cost figures are a character-length estimate (~4 characters = 1 token) at the current primary model
+                {" "}({usageStats.costEstimate.displayName}). Messages do not record which model answered, so this is not the Energy ledger.
+                {usageStats.costEstimate.pricingVerified ? "" : " This model has no verified price, so the Gemini 2.5 Flash fallback rate is used."}
+              </p>
+            )}
 
             {usageStats ? (
               <>
@@ -402,47 +493,8 @@ export default function ChatAdmin() {
                     label="Est. Monthly (extrapolated)"
                     value={`$${(usageStats.estimatedMonthlyCostCents / 100).toFixed(2)}`}
                     icon={<TrendingUp className="h-4 w-4" />}
-                    accent={
-                      usageStats.dailyBudgetCents > 0
-                        ? usageStats.today.costCents >= usageStats.dailyBudgetCents
-                          ? "red"
-                          : usageStats.today.costCents >= usageStats.dailyBudgetCents * 0.8
-                            ? "amber"
-                            : "green"
-                        : undefined
-                    }
                   />
                 </div>
-
-                {/* Daily budget progress */}
-                {usageStats.dailyBudgetCents > 0 && (
-                  <Card className="border mb-4">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                          <ShieldAlert className="h-3.5 w-3.5" />
-                          Daily Budget
-                        </span>
-                        <span className="text-xs font-semibold">
-                          ${(usageStats.today.costCents / 100).toFixed(4)} / ${(usageStats.dailyBudgetCents / 100).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            usageStats.today.costCents >= usageStats.dailyBudgetCents
-                              ? "bg-destructive"
-                              : usageStats.today.costCents >= usageStats.dailyBudgetCents * 0.8
-                                ? "bg-amber-500"
-                                : "bg-green-500"
-                          )}
-                          style={{ width: `${Math.min(100, (usageStats.today.costCents / usageStats.dailyBudgetCents) * 100)}%` }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
 
                 {/* Daily trend bar chart */}
                 <Card className="border mb-4">
@@ -684,6 +736,45 @@ export default function ChatAdmin() {
 
         </div>
       </div>
+    </div>
+  );
+}
+
+function ModelChoiceNotes({
+  provider,
+  selected,
+  catalogLoaded,
+}: {
+  provider: ChatProvider;
+  selected: ChatModelOption | undefined;
+  catalogLoaded: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] text-muted-foreground">
+        {catalogLoaded
+          ? "Models without a verified price are listed but cannot be selected."
+          : "Refresh models to load the current provider list. Prices stay in the code pricing table."}
+        {" "}
+        <a
+          href={selected?.pricingSourceUrl ?? PRICING_SOURCE_URLS[provider]}
+          target="_blank"
+          rel="noreferrer"
+          className="underline"
+        >
+          Pricing docs
+        </a>
+      </p>
+      {selected?.missingFromApi && (
+        <p className="text-[10px] text-amber-700">
+          This saved model was not returned by the provider. Confirm it is still available before relying on it.
+        </p>
+      )}
+      {selected?.thinkingAlwaysOn && (
+        <p className="text-[10px] text-amber-700">
+          Thinking stays on for this model and is billed as output tokens. The Energy charge follows measured usage and can exceed the chat preview.
+        </p>
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as ai_chatConfig from "../ai/chatConfig.js";
+import type * as ai_chatModelCatalog from "../ai/chatModelCatalog.js";
 import type * as ai_chatTools from "../ai/chatTools.js";
 import type * as ai_embeddings from "../ai/embeddings.js";
 import type * as ai_ingestKnowledge from "../ai/ingestKnowledge.js";
@@ -104,6 +105,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   "ai/chatConfig": typeof ai_chatConfig;
+  "ai/chatModelCatalog": typeof ai_chatModelCatalog;
   "ai/chatTools": typeof ai_chatTools;
   "ai/embeddings": typeof ai_embeddings;
   "ai/ingestKnowledge": typeof ai_ingestKnowledge;

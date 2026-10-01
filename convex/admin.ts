@@ -8,6 +8,14 @@ import { VOCABULARY } from "../shared/data/vocabulary/words";
 import { upsertDailyActivityByUserId } from "./units";
 import { requireSuperadminAction, callAiText } from "./contentStudio/_shared";
 import {
+  catalogFromGeminiList,
+  catalogFromOpenAiList,
+  geminiNextPageToken,
+  sortChatCatalog,
+  type ChatCatalogEntry,
+} from "./ai/chatModelCatalog";
+import { getModelPricing, getVerifiedModelPricing, MODEL_PRICING } from "./ai/modelPricing";
+import {
   deleteAllDocumentFoldersForUser,
   deleteAllUserDocumentsForUser,
   deleteMessageAttachmentBlobs,
@@ -126,6 +134,17 @@ export const getChatAiConfig = query({
   },
 });
 
+function assertPricedChatModel(provider: string, model: string): void {
+  if (provider !== "google" && provider !== "openai") {
+    throw new Error(`Unsupported chat provider "${provider}".`);
+  }
+  if (!getVerifiedModelPricing(model, provider)) {
+    throw new Error(
+      `Model "${model}" cannot be used for chat: it has no verified price for ${provider}. Add it to MODEL_PRICING before selecting it.`
+    );
+  }
+}
+
 export const updateChatAiConfig = mutation({
   args: {
     primaryProvider: v.string(),
@@ -135,15 +154,34 @@ export const updateChatAiConfig = mutation({
     maxTokens: v.number(),
     temperature: v.optional(v.float64()),
     useAgenticRag: v.optional(v.boolean()),
-    dailyBudgetCents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
 
+    assertPricedChatModel(args.primaryProvider, args.primaryModel);
+
+    const fallbackProvider = args.fallbackProvider?.trim() || undefined;
+    const fallbackModel = args.fallbackModel?.trim() || undefined;
+    if ((fallbackProvider === undefined) !== (fallbackModel === undefined)) {
+      throw new Error("Fallback provider and fallback model must be set together.");
+    }
+    if (fallbackProvider && fallbackModel) {
+      if (fallbackProvider === args.primaryProvider) {
+        throw new Error("Fallback provider must differ from the primary provider.");
+      }
+      assertPricedChatModel(fallbackProvider, fallbackModel);
+    }
+
     const existing = await ctx.db.query("chatAiConfig").collect();
     const payload = {
-      ...args,
+      primaryProvider: args.primaryProvider,
+      primaryModel: args.primaryModel,
+      fallbackProvider,
+      fallbackModel,
+      maxTokens: args.maxTokens,
+      temperature: args.temperature,
+      useAgenticRag: args.useAgenticRag,
       updatedBy: admin._id as Id<"users">,
       updatedAt: Date.now(),
     };
@@ -151,10 +189,101 @@ export const updateChatAiConfig = mutation({
     if (existing.length > 0) {
       await ctx.db.patch(existing[0]._id, payload);
       return { updated: true };
-    } else {
-      await ctx.db.insert("chatAiConfig", payload);
-      return { created: true };
     }
+    await ctx.db.insert("chatAiConfig", payload);
+    return { created: true };
+  },
+});
+
+const chatCatalogEntryValidator = v.object({
+  provider: v.union(v.literal("google"), v.literal("openai")),
+  id: v.string(),
+  displayName: v.string(),
+  selectable: v.boolean(),
+  thinkingAlwaysOn: v.boolean(),
+  pricingSourceUrl: v.string(),
+  inputUsdPer1M: v.union(v.number(), v.null()),
+  outputUsdPer1M: v.union(v.number(), v.null()),
+});
+
+async function fetchGeminiChatModels(apiKey: string): Promise<ChatCatalogEntry[]> {
+  const collected: ChatCatalogEntry[] = [];
+  let pageToken: string | null = null;
+  for (let page = 0; page < 20; page++) {
+    const url = new URL("https://generativelanguage.googleapis.com/v1beta/models");
+    url.searchParams.set("pageSize", "1000");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+    const response = await fetch(url, {
+      headers: { "x-goog-api-key": apiKey },
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`Gemini models.list failed (${response.status}): ${detail.slice(0, 300)}`);
+    }
+    const body: unknown = await response.json();
+    collected.push(...catalogFromGeminiList(body));
+    pageToken = geminiNextPageToken(body);
+    if (!pageToken) break;
+  }
+  return sortChatCatalog(collected);
+}
+
+async function fetchOpenAiChatModels(apiKey: string): Promise<ChatCatalogEntry[]> {
+  const response = await fetch("https://api.openai.com/v1/models", {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`OpenAI models list failed (${response.status}): ${detail.slice(0, 300)}`);
+  }
+  const body: unknown = await response.json();
+  return catalogFromOpenAiList(body);
+}
+
+/** Live Gemini and OpenAI chat models, marked selectable only when priced. */
+export const listChatModels = action({
+  args: {},
+  returns: v.object({
+    models: v.array(chatCatalogEntryValidator),
+    googleError: v.union(v.string(), v.null()),
+    openaiError: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx) => {
+    await requireSuperadminAction(ctx);
+
+    let googleModels: ChatCatalogEntry[] = [];
+    let openaiModels: ChatCatalogEntry[] = [];
+    let googleError: string | null = null;
+    let openaiError: string | null = null;
+
+    const geminiKey = process.env.GEMINI_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
+
+    if (!geminiKey) {
+      googleError = "GEMINI_API_KEY is not set in the Convex environment.";
+    } else {
+      try {
+        googleModels = await fetchGeminiChatModels(geminiKey);
+      } catch (error) {
+        googleError = error instanceof Error ? error.message : "Gemini model list failed.";
+      }
+    }
+
+    if (!openaiKey) {
+      openaiError = "OPENAI_API_KEY is not set in the Convex environment.";
+    } else {
+      try {
+        openaiModels = await fetchOpenAiChatModels(openaiKey);
+      } catch (error) {
+        openaiError = error instanceof Error ? error.message : "OpenAI model list failed.";
+      }
+    }
+
+    return {
+      models: sortChatCatalog([...googleModels, ...openaiModels]),
+      googleError,
+      openaiError,
+    };
   },
 });
 
@@ -248,18 +377,21 @@ export const getChatFeedbackDetails = query({
 // ============= CHAT USAGE & COST ANALYTICS =============
 
 /**
- * Estimate cost in cents for a set of messages using character-based token approximation.
- * Gemini 2.5 Flash pricing (non-thinking):
- *   Input:  $0.075 / 1M tokens
- *   Output: $0.30  / 1M tokens
- * ~4 characters per token (rough average for mixed Serbian/English).
+ * Estimate cost in cents from character length (~4 chars = 1 token).
+ * Rates come from MODEL_PRICING for the current primary chat model.
+ * Messages do not store which model produced them, so this is not the Energy ledger.
  */
-function estimateCostCents(inputChars: number, outputChars: number): number {
+function estimateCostCents(
+  inputChars: number,
+  outputChars: number,
+  pricing: { inputUsdPer1M: number; outputUsdPer1M: number }
+): number {
   const inputTokens = inputChars / 4;
   const outputTokens = outputChars / 4;
-  const inputCost = (inputTokens / 1_000_000) * 7.5;   // cents per 1M
-  const outputCost = (outputTokens / 1_000_000) * 30;  // cents per 1M
-  return inputCost + outputCost;
+  const usd =
+    (inputTokens * pricing.inputUsdPer1M + outputTokens * pricing.outputUsdPer1M) /
+    1_000_000;
+  return usd * 100;
 }
 
 function startOfDayUtcAdmin(nowMs: number): number {
@@ -272,6 +404,14 @@ export const getChatUsageStats = query({
   handler: async (ctx, args) => {
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
+
+    const aiConfig = await ctx.db.query("chatAiConfig").order("desc").first();
+    const estimateModelName = aiConfig?.primaryModel ?? "gemini-2.5-flash";
+    const estimatePricing = getModelPricing(estimateModelName);
+    const estimatePricingVerified = Object.prototype.hasOwnProperty.call(
+      MODEL_PRICING,
+      estimateModelName
+    );
 
     const now = args.nowMs;
     const todayStart = startOfDayUtcAdmin(now);
@@ -294,7 +434,7 @@ export const getChatUsageStats = query({
     const calcCost = (msgs: typeof allMessages) => {
       const inputChars = msgs.filter((m) => m.role === "user").reduce((s, m) => s + m.content.length, 0);
       const outputChars = msgs.filter((m) => m.role === "assistant").reduce((s, m) => s + m.content.length, 0);
-      return estimateCostCents(inputChars, outputChars);
+      return estimateCostCents(inputChars, outputChars, estimatePricing);
     };
 
     const todayCostCents = calcCost(todayMsgs);
@@ -357,17 +497,17 @@ export const getChatUsageStats = query({
       dailyTrend.push({ dateMs: dayStart, requests: dayCount });
     }
 
-    // Global budget from config
-    const aiConfig = await ctx.db.query("chatAiConfig").order("desc").first();
-    const dailyBudgetCents = aiConfig?.dailyBudgetCents ?? 0;
-
     return {
       today: { requests: todayRequests, costCents: todayCostCents, activeUsers: activeUsersToday },
       week: { requests: weekRequests, costCents: weekCostCents, activeUsers: activeUsersWeek },
       month: { requests: monthRequests, costCents: monthCostCents },
       estimatedMonthlyCostCents,
       avgMsgsPerUserToday,
-      dailyBudgetCents,
+      costEstimate: {
+        modelName: estimateModelName,
+        displayName: estimatePricing.displayName,
+        pricingVerified: estimatePricingVerified,
+      },
       topUsers,
       dailyTrend,
     };

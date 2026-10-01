@@ -101,8 +101,6 @@ export const chatTables = {
     temperature: v.optional(v.float64()),
     useAgenticRag: v.optional(v.boolean()),
     enableSemanticSearch: v.optional(v.boolean()),
-    // Global daily cost cap in cents (e.g. 100 = $1.00/day). 0 or undefined = no cap.
-    dailyBudgetCents: v.optional(v.number()),
     updatedBy: v.optional(v.id("users")),
     updatedAt: v.number(),
   }),

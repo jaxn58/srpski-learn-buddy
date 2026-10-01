@@ -184,6 +184,20 @@ export function getModelPricing(modelName: string): ModelPricing {
 }
 
 /**
+ * Price row only when this exact model is listed for this provider.
+ * Returns null instead of the Flash fallback so chat selection can refuse
+ * models that would be billed at the wrong rate.
+ */
+export function getVerifiedModelPricing(
+  modelName: string,
+  provider: "google" | "openai"
+): ModelPricing | null {
+  const row = MODEL_PRICING[modelName];
+  if (!row || row.provider !== provider) return null;
+  return row;
+}
+
+/**
  * Derive USD cost for "1 Energy" given a model and an assumed token mix.
  * Pure function — used both server-side (getEnergyEconomics) and as a
  * reference implementation for the admin UI (live preview).
