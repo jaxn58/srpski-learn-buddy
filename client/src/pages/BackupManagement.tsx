@@ -35,7 +35,7 @@ import { formatDateTimeEU } from "@/lib/utils";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-type BackupStatus = "completed" | "failed" | "in_progress";
+type BackupStatus = "completed" | "failed" | "in_progress" | "partial";
 type BackupEnvironment = "production" | "development";
 
 interface BackupMetadata extends Doc<"backupMetadata"> {
@@ -43,10 +43,12 @@ interface BackupMetadata extends Doc<"backupMetadata"> {
   timestamp: number;
   environment: BackupEnvironment;
   tableCount: number;
+  expectedTableCount?: number;
   totalRecords: number;
   size: number;
   status: BackupStatus;
   errorMessage?: string;
+  failedTables?: string[];
 }
 
 export default function BackupManagement() {
@@ -92,34 +94,50 @@ export default function BackupManagement() {
     }
   };
 
+  const saveBackupFile = (blob: Blob, backupId: Id<"backupMetadata">) => {
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = `backup-${backupId}.json`;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+  };
+
   const handleDownloadBackup = async (backupId: Id<"backupMetadata">) => {
     try {
       setDownloadingBackupId(backupId);
-      
-      // Get the download URL from Convex
-      const url = await getBackupUrlMutation({ backupId });
-      
-      if (url) {
-        // Fetch the file content first (to work around CORS download restrictions)
-        // This is necessary because Convex Storage URLs are cross-origin
-        const response = await fetch(url);
-        const blob = await response.blob();
-        
-        // Create a local blob URL (same-origin) for download
-        const blobUrl = URL.createObjectURL(blob);
-        
-        // Create link with blob URL and trigger download
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = `backup-${backupId}.json`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up blob URL after download
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
-        
+
+      const result = await getBackupUrlMutation({ backupId });
+
+      if (result?.url) {
+        // Fetch first (Convex Storage URLs are cross-origin and block a direct download attribute).
+        if (result.backupFormat === "v2") {
+          const manifestResponse = await fetch(result.url);
+          if (!manifestResponse.ok) {
+            throw new Error("Failed to download backup manifest");
+          }
+          const manifest: Record<string, unknown> = await manifestResponse.json();
+          const tables: Record<string, unknown> = {};
+          for (const table of result.tables) {
+            const tableResponse = await fetch(table.url);
+            if (!tableResponse.ok) {
+              throw new Error(`Failed to download table ${table.name}`);
+            }
+            tables[table.name] = await tableResponse.json();
+          }
+          const combined = { ...manifest, tables };
+          saveBackupFile(new Blob([JSON.stringify(combined)], { type: "application/json" }), backupId);
+        } else {
+          const response = await fetch(result.url);
+          if (!response.ok) {
+            throw new Error("Failed to download backup");
+          }
+          saveBackupFile(await response.blob(), backupId);
+        }
+
         toast.success(t("admin.backup.toast.downloadStarted.title"), {
           description: t("admin.backup.toast.downloadStarted.desc"),
         });
@@ -169,8 +187,23 @@ export default function BackupManagement() {
             Failed
           </Badge>
         );
+      case "partial":
+        return (
+          <Badge variant="outline" className="gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Partial
+          </Badge>
+        );
     }
   };
+
+  const canDownloadBackup = (status: BackupStatus) =>
+    status === "completed" || status === "partial";
+
+  const formatTableCount = (backup: BackupMetadata) =>
+    backup.expectedTableCount != null
+      ? `${backup.tableCount} / ${backup.expectedTableCount}`
+      : String(backup.tableCount);
 
   const getEnvironmentBadge = (environment: BackupEnvironment) => {
     return (
@@ -225,8 +258,7 @@ export default function BackupManagement() {
             <AlertDialogHeader>
               <AlertDialogTitle>Trigger Manual Backup?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will start a backup of the entire database. The process may take 30-60 seconds to complete.
-                You don't need to stay on this page while the backup runs.
+                This starts a backup of every database table. User uploads and other Convex Storage files are not included; those are covered by the Convex dashboard backup with file storage. The process can take several minutes. You don't need to stay on this page while the backup runs.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -329,14 +361,19 @@ export default function BackupManagement() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Tables</p>
-                <p className="text-sm font-medium">{latestBackup.tableCount} tables</p>
+                <p className="text-sm font-medium">{formatTableCount(latestBackup)} tables</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Records</p>
                 <p className="text-sm font-medium">{latestBackup.totalRecords.toLocaleString()} records</p>
               </div>
             </div>
-            {latestBackup.status === "completed" && (
+            {latestBackup.failedTables && latestBackup.failedTables.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Missing tables: {latestBackup.failedTables.join(", ")}
+              </p>
+            )}
+            {canDownloadBackup(latestBackup.status) && (
               <Button 
                 onClick={() => handleDownloadBackup(latestBackup._id)}
                 disabled={downloadingBackupId === latestBackup._id}
@@ -408,8 +445,13 @@ export default function BackupManagement() {
                       <TableCell>
                         {getEnvironmentBadge(backup.environment)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {backup.tableCount}
+                      <TableCell className="text-right whitespace-normal">
+                        <div>{formatTableCount(backup)}</div>
+                        {backup.failedTables && backup.failedTables.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1" title={backup.failedTables.join(", ")}>
+                            Missing: {backup.failedTables.join(", ")}
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         {backup.totalRecords.toLocaleString()}
@@ -418,20 +460,42 @@ export default function BackupManagement() {
                         {formatBytes(backup.size)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {backup.status === "completed" ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDownloadBackup(backup._id)}
-                            disabled={downloadingBackupId === backup._id}
-                            className="gap-2"
-                          >
-                            {downloadingBackupId === backup._id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Download className="h-3 w-3" />
-                            )}
-                          </Button>
+                        {canDownloadBackup(backup.status) ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDownloadBackup(backup._id)}
+                              disabled={downloadingBackupId === backup._id}
+                              className="gap-2"
+                            >
+                              {downloadingBackupId === backup._id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Download className="h-3 w-3" />
+                              )}
+                            </Button>
+                            {backup.status === "partial" && backup.errorMessage ? (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="ghost">
+                                    <AlertCircle className="h-3 w-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Missing tables</AlertDialogTitle>
+                                    <AlertDialogDescription className="whitespace-pre-wrap">
+                                      {backup.errorMessage}
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogAction>Close</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            ) : null}
+                          </div>
                         ) : backup.status === "failed" && backup.errorMessage ? (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -474,19 +538,22 @@ export default function BackupManagement() {
         </CardHeader>
         <CardContent className="text-sm space-y-2">
           <p>
-            <strong>Automatic Schedule:</strong> Backups run daily at 3:00 UTC (4:00 MEZ / 5:00 MESZ)
+            <strong>Document export:</strong> This page backs up every database table. The table list follows the schema, so new tables are included automatically. A Partial backup saved the tables it could and names the ones it missed. Older backups that show only a table count, without a second number, used the previous fixed list of 30 tables.
           </p>
           <p>
-            <strong>Retention Policy:</strong> Backups are kept for 30 days, then automatically deleted
+            <strong>Files and full restore:</strong> User uploads, audio, and other Convex Storage files are not inside this download. In the Convex dashboard, turn on a daily backup that includes file storage, separately for Development and for Production. Daily Convex backups are kept for 7 days, weekly backups for 14 days (Pro plan). That backup does not include code, crons, or environment variables. Restore from the Convex dashboard replaces the deployment data, so take another backup first. This page does not restore data.
           </p>
           <p>
-            <strong>Storage:</strong> Backups are stored in Convex File Storage
+            <strong>Automatic Schedule:</strong> Document backups run daily at 3:00 UTC (4:00 MEZ / 5:00 MESZ)
+          </p>
+          <p>
+            <strong>Retention Policy:</strong> Document backups on this page are kept for 30 days, then automatically deleted
           </p>
           <p>
             <strong>Download Links:</strong> Download URLs are valid for 1 hour after generation
           </p>
           <p>
-            <strong>Manual Backups:</strong> You can trigger backups manually at any time using the button above
+            <strong>Manual Backups:</strong> You can trigger a document backup manually at any time using the button above
           </p>
         </CardContent>
       </Card>

@@ -154,21 +154,35 @@ export const systemTables = {
   // ============= BACKUP METADATA =============
   // Tracks automated database backups stored in Convex Storage
   backupMetadata: defineTable({
-    storageId: v.string(), // Convex Storage ID
+    storageId: v.string(), // Convex Storage ID of the manifest (v2) or the single JSON file (older backups)
     timestamp: v.number(), // Backup creation timestamp
     environment: v.union(
       v.literal("production"),
       v.literal("development")
     ),
-    tableCount: v.number(), // Number of tables backed up
+    tableCount: v.number(), // Number of tables successfully exported
+    expectedTableCount: v.optional(v.number()), // Tables the schema required for this run
     totalRecords: v.number(), // Total records in backup
     size: v.number(), // Backup size in bytes
     status: v.union(
       v.literal("completed"),
       v.literal("failed"),
-      v.literal("in_progress")
+      v.literal("in_progress"),
+      v.literal("partial")
     ),
     errorMessage: v.optional(v.string()),
+    failedTables: v.optional(v.array(v.string())),
+    // v2: storageId is a small manifest and each table has its own file. Absent means the original single JSON file.
+    backupFormat: v.optional(v.union(v.literal("v1"), v.literal("v2"))),
+    exportedTables: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          storageId: v.string(),
+          recordCount: v.number(),
+        })
+      )
+    ),
   })
     .index("by_timestamp", ["timestamp"])
     .index("by_environment", ["environment"])

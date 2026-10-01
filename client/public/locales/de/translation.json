@@ -1641,7 +1641,7 @@
   "admin.waitlist.toast.noDataToExport": "Keine Daten zum Exportieren",
   "admin.waitlist.toast.csvExported": "CSV erfolgreich exportiert",
   "admin.backup.toast.triggered.title": "Backup erfolgreich angestoßen",
-  "admin.backup.toast.triggered.desc": "Der Backup-Prozess wurde gestartet. Das kann 30–60 Sekunden dauern.",
+  "admin.backup.toast.triggered.desc": "Der Backup-Prozess wurde gestartet. Das kann einige Minuten dauern.",
   "admin.backup.toast.triggerFailed.title": "Backup konnte nicht angestoßen werden",
   "admin.backup.toast.downloadStarted.title": "Download gestartet",
   "admin.backup.toast.downloadStarted.desc": "Die Backup-Datei wird heruntergeladen.",

@@ -1699,7 +1699,7 @@
   "admin.waitlist.toast.noDataToExport": "No data to export",
   "admin.waitlist.toast.csvExported": "CSV exported successfully",
   "admin.backup.toast.triggered.title": "Backup triggered successfully",
-  "admin.backup.toast.triggered.desc": "The backup process has been started. It may take 30-60 seconds to complete.",
+  "admin.backup.toast.triggered.desc": "The backup process has been started. It may take several minutes.",
   "admin.backup.toast.triggerFailed.title": "Failed to trigger backup",
   "admin.backup.toast.downloadStarted.title": "Download started",
   "admin.backup.toast.downloadStarted.desc": "The backup file is being downloaded.",

@@ -5,10 +5,10 @@ const crons = cronJobs();
 
 /**
  * Täglich um 3:00 UTC (4:00 MEZ / 5:00 MESZ)
- * Erstellt automatisches Backup der gesamten Production-Datenbank
- * 
- * Retention: 30 Tage
- * Storage: Convex Storage (File Storage)
+ * Exportiert alle Dokument-Tabellen aus dem Schema nach Convex Storage.
+ * Dateien in Convex Storage (Uploads, Audio) sind hier nicht enthalten.
+ * Dafür im Convex-Dashboard ein tägliches Backup mit File Storage einschalten
+ * (Dev und Production getrennt). Retention dieses Exports: 30 Tage.
  */
 crons.daily(
   "daily-production-backup",

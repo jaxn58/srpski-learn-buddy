@@ -32,7 +32,7 @@ import { contentStudioTables } from "./schema/contentStudio";
 import { curriculumTables } from "./schema/curriculum";
 import { systemTables } from "./schema/system";
 
-export default defineSchema({
+const appTables = {
   ...coreTables,
   ...learningTables,
   ...vocabularyTables,
@@ -43,4 +43,9 @@ export default defineSchema({
   ...contentStudioTables,
   ...curriculumTables,
   ...systemTables,
-});
+};
+
+/** Table names from the schema modules. The backup export uses this list so new tables are included. */
+export const APP_TABLE_NAMES = Object.keys(appTables);
+
+export default defineSchema(appTables);

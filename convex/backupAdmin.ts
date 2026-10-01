@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query, action, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
+import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 
 // Helper to get the current user and verify admin
@@ -43,16 +44,44 @@ export const listBackups = query({
  */
 export const getBackupUrl = mutation({
   args: { backupId: v.id("backupMetadata") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      url: v.string(),
+      backupFormat: v.union(v.literal("v1"), v.literal("v2")),
+      tables: v.array(
+        v.object({
+          name: v.string(),
+          url: v.string(),
+        })
+      ),
+    })
+  ),
   handler: async (ctx, { backupId }) => {
     const admin = await getAdminUser(ctx);
     if (!admin) throw new Error("Unauthorized");
 
     const backup = await ctx.db.get(backupId);
     if (!backup) throw new Error("Backup not found");
+    if (!backup.storageId) throw new Error("Backup file is not available");
 
-    // Convex Storage URL generieren (1h gültig)
-    const url = await ctx.storage.getUrl(backup.storageId);
-    return url;
+    const url = await ctx.storage.getUrl(backup.storageId as Id<"_storage">);
+    if (!url) return null;
+
+    if (backup.backupFormat !== "v2") {
+      return { url, backupFormat: "v1" as const, tables: [] };
+    }
+
+    const tables: { name: string; url: string }[] = [];
+    for (const file of backup.exportedTables ?? []) {
+      const tableUrl = await ctx.storage.getUrl(file.storageId as Id<"_storage">);
+      if (!tableUrl) {
+        throw new Error(`Backup file for table ${file.name} is not available`);
+      }
+      tables.push({ name: file.name, url: tableUrl });
+    }
+
+    return { url, backupFormat: "v2" as const, tables };
   },
 });
 
