@@ -753,7 +753,9 @@ export const translatePublishedUnitEnToDe = action({
         );
       }
 
-      const criticalsForAi: VerifierIssue[] = det.remainingIssues;
+      const criticalsForAi: VerifierIssue[] = det.remainingIssues.filter(
+        (issue) => issue.code !== "observation"
+      );
       const feedback = formatRetryFeedback(criticalsForAi);
       retriedKeys = new Set<string>(det.patchedKeys);
 
@@ -1204,7 +1206,7 @@ export const retryDeTranslationForSelectedIssues = action({
         suggestion: i.suggestion,
       })),
       filterItems
-    ).kept;
+    ).kept.filter((issue) => issue.code !== "observation");
     const det = applyDeterministicVerifierSuggestions({
       issues: selectedAsIssues,
       state: {

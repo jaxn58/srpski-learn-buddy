@@ -20,6 +20,7 @@ import {
   dropAiMissingInfoThatRepeatsVocabularySerbian,
   dropNonActionableVerifierIssues,
   applySuggestionToGermanText,
+  formatRetryFeedback,
   extractMentionedLemmaTokens,
   extractSerbianFromMarkdown,
   mergeRepairVerifierReport,
@@ -1132,5 +1133,67 @@ describe("short German gloss retry", () => {
     expect(decided.rejected).toBe(true);
     expect(decided.markdown).toBe(vocabulary);
     expect(decided.reason).toContain("Serbian");
+  });
+});
+
+describe("verifier does not author learner German", () => {
+  const grammar =
+    "Warum das wichtig ist. Wörtlich „Mir ist kalt“ und „Mir wird ein Medikament gebraucht“.";
+  const item: VerifierInputItem = {
+    key: "section:grammar",
+    kind: "section",
+    label: "section: grammar",
+    serbian: "Treba mi lek.",
+    english: "I need a medicine.",
+    german: grammar,
+  };
+  const invented: VerifierIssue = {
+    itemKey: item.key,
+    itemLabel: item.label,
+    itemKind: "section",
+    severity: "warning",
+    code: "semantic_mismatch",
+    issue:
+      "The literal translation \"Mir wird ein Medikament gebraucht\" for the structure with 'treba' is misleading.",
+    suggestion:
+      "In the paragraph 'Warum das wichtig ist', change the phrase 'wörtlich „Mir ist kalt“ und „Mir wird ein Medikament gebraucht“' to 'wörtlich „Mir ist kalt“ und „Ein Medikament ist mir nötig“'.",
+  };
+
+  it("keeps the finding and drops the invented sentence", () => {
+    const { kept, dropped } = dropNonActionableVerifierIssues([invented], [item]);
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]?.suggestion).toBeUndefined();
+    expect(kept[0]?.code).toBe("observation");
+    expect(kept[0]?.issue).toContain("Mir wird ein Medikament gebraucht");
+  });
+
+  it("does not send the invented sentence to a retry", () => {
+    const { kept } = dropNonActionableVerifierIssues([invented], [item]);
+    const feedback = formatRetryFeedback(kept);
+    expect(feedback.sectionByContentType.grammar ?? "").toBe("");
+  });
+
+  it("still applies a one-word gloss swap", () => {
+    const gloss: VerifierIssue = {
+      itemKey: "section:vocabulary",
+      itemLabel: "section: vocabulary",
+      itemKind: "section",
+      severity: "warning",
+      code: "semantic_mismatch",
+      issue: "The German translation for 'gledao' as 'sah' is too narrow.",
+      suggestion: "schaute",
+    };
+    const vocab: VerifierInputItem = {
+      key: "section:vocabulary",
+      kind: "section",
+      label: "section: vocabulary",
+      serbian: "gledao",
+      english: "saw",
+      german: "| gledao | sah |",
+    };
+    const { kept } = dropNonActionableVerifierIssues([gloss], [vocab]);
+    expect(kept[0]?.suggestion).toBe("schaute");
+    expect(kept[0]?.code).toBe("semantic_mismatch");
   });
 });

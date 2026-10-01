@@ -705,9 +705,44 @@ export function dropNonActionableVerifierIssues(
       sectionClaimAlreadySatisfied(issue, item) ||
       isAiGlossPolicyComplaint(issue, item);
     if (drop) dropped.push(issue);
-    else kept.push(issue);
+    else kept.push(detachVerifierAuthoredSentence(issue, item));
   }
   return { kept, dropped };
+}
+
+const ENGLISH_EDIT_INSTRUCTION = /\b(paragraph|change the|rewrite the|replace the|in the)\b/i;
+
+/**
+ * A single gloss swap replaces the cited current form with one German word
+ * or an article plus a noun. A sentence the verifier composed is not learner
+ * German, and neither is an English editing instruction or a rewrite of a
+ * line marked wörtlich.
+ */
+function isDirectGlossSwap(issue: VerifierIssue, item: VerifierInputItem | undefined): boolean {
+  const suggestion = String(issue.suggestion ?? "").trim();
+  const words = suggestion.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 2) return false;
+  if (words.length === 2 && !/^(der|die|das|den|dem|des|ein|eine|einen|einem|einer)$/i.test(words[0] ?? "")) {
+    return false;
+  }
+  const german = String(item?.german ?? "");
+  if (/wörtlich/i.test(german) && /wörtlich/i.test(`${issue.issue} ${suggestion}`)) return false;
+  return namedCurrentGermanForms(`${issue.issue} ${suggestion}`).some((form) => containsWholeWord(german, form));
+}
+
+export function detachVerifierAuthoredSentence(
+  issue: VerifierIssue,
+  item: VerifierInputItem | undefined
+): VerifierIssue {
+  const suggestion = String(issue.suggestion ?? "").trim();
+  if (!suggestion || isDirectGlossSwap(issue, item)) return issue;
+  const german = String(item?.german ?? "");
+  const authored =
+    ENGLISH_EDIT_INSTRUCTION.test(suggestion) ||
+    suggestion.split(/\s+/).filter(Boolean).length >= 3 ||
+    (/wörtlich/i.test(german) && /wörtlich/i.test(`${issue.issue} ${suggestion}`));
+  if (!authored) return issue;
+  return { ...issue, code: "observation", suggestion: undefined };
 }
 
 /**
@@ -1644,6 +1679,7 @@ export function formatRetryFeedback(issues: VerifierIssue[]): {
   const sectionLines: Record<string, string[]> = {};
 
   for (const iss of issues) {
+    if (iss.code === "observation") continue;
     const sevTag = iss.severity === "critical" ? "CRITICAL" : iss.severity === "warning" ? "WARNING" : "INFO";
     const suggestion = typeof iss.suggestion === "string" ? iss.suggestion.trim() : "";
     const suggestionPart = suggestion
