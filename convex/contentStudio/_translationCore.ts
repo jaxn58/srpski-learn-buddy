@@ -18,6 +18,7 @@ import {
 } from "./_shared";
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
+  extractQuotedSpans,
   extractSerbianFromMarkdown,
   serbianExerciseStemStays,
   type VerifierInputItem,
@@ -492,7 +493,7 @@ export function composeTranslatorSystemPrompt(
     parts.push(
       [
         "IMPORTANT: A previous attempt had issues flagged by the verifier or quality guard.",
-        "When a CRITICAL line includes «Suggested German» / \"MUST use Suggested German verbatim\", you MUST use that German wording verbatim for the flagged span.",
+        "When a line includes «Suggested German» / \"MUST use Suggested German verbatim\", you MUST use that German wording verbatim for the flagged span, whether the line is tagged CRITICAL or WARNING.",
         "Do not invent a different noun, article, or paraphrase of the suggestion.",
         "Leave all other German text unchanged whenever possible; only fix the flagged spans.",
         "Address this feedback:",
@@ -509,26 +510,50 @@ export function composeTranslatorSystemPrompt(
 
 function buildMetaUserPayload(source: TranslationSourceEn, serbianContextBlock: string): string {
   const parts: string[] = [];
-  parts.push(`Title (EN, PRIMARY SOURCE — translate this):`);
+  parts.push(`Title (EN, translate this; there is no Serbian title):`);
   parts.push(String(source.metadataEn?.title ?? ""));
   parts.push(``);
-  parts.push(`Description (EN, PRIMARY SOURCE — translate this):`);
+  parts.push(`Description (EN, translate this; there is no Serbian description):`);
   parts.push(String(source.metadataEn?.description ?? ""));
   parts.push(``);
-  parts.push(`Topics (EN, PRIMARY SOURCE — translate this) JSON:`);
+  parts.push(`Topics (EN, translate this) JSON:`);
   parts.push(JSON.stringify(source.metadataEn?.topics ?? []));
   parts.push(``);
-  parts.push(`Grammar focus (EN, PRIMARY SOURCE — translate this) JSON:`);
+  parts.push(`Grammar focus (EN, translate this) JSON:`);
   parts.push(JSON.stringify(source.metadataEn?.grammarFocus ?? []));
   parts.push(``);
-  parts.push(`Vocabulary themes (EN, PRIMARY SOURCE — translate this) JSON:`);
+  parts.push(`Vocabulary themes (EN, translate this) JSON:`);
   parts.push(JSON.stringify(source.metadataEn?.vocabularyThemes ?? []));
   if (serbianContextBlock) {
     parts.push(``);
-    parts.push(`Thematic Serbian context (REFERENCE ONLY — do NOT translate from this, do NOT let it change the meaning of the German output; use only to align tone and domain terminology):`);
+    const metadataBlob = [
+      String(source.metadataEn?.title ?? ""),
+      String(source.metadataEn?.description ?? ""),
+      ...(Array.isArray(source.metadataEn?.topics) ? source.metadataEn.topics : []),
+      ...(Array.isArray(source.metadataEn?.grammarFocus) ? source.metadataEn.grammarFocus : []),
+      ...(Array.isArray(source.metadataEn?.vocabularyThemes) ? source.metadataEn.vocabularyThemes : []),
+    ]
+      .map((part) => String(part))
+      .join("\n");
+    const lemmaInMetadata = serbianLemmaAppearsInMetadata(metadataBlob, serbianContextBlock);
+    parts.push(
+      lemmaInMetadata
+        ? `Thematic Serbian context (a Serbian lemma in the metadata decides the German meaning; English is only the bridge):`
+        : `Thematic Serbian context (REFERENCE ONLY — do NOT translate from this, do NOT let it change the meaning of the German output; use only to align tone and domain terminology):`
+    );
     parts.push(serbianContextBlock);
   }
   return parts.join("\n");
+}
+
+function serbianLemmaAppearsInMetadata(metadataBlob: string, serbianContextBlock: string): boolean {
+  if (/[čćžšđČĆŽŠĐ]/.test(metadataBlob)) return true;
+  const haystack = metadataBlob.toLowerCase();
+  for (const match of serbianContextBlock.matchAll(/^- (.+?)(?:\s+\(EN reference:|$)/gm)) {
+    const lemma = String(match[1] ?? "").trim().toLowerCase();
+    if (lemma.length >= 3 && haystack.includes(lemma)) return true;
+  }
+  return false;
 }
 
 export async function runMetadataTranslation(
@@ -591,6 +616,221 @@ export function buildMetadataDeFromAi(aiRaw: string, source: TranslationSourceEn
 // Section (markdown) translation (base prompt: chatPrompts cs_translator_section)
 // ---------------------------------------------------------------------------
 
+export const SERBIAN_MEANING_CONTRACT = [
+  "MEANING SOURCE (binding):",
+  "Serbian is the meaning. The German gloss of a Serbian word, table cell, or example sentence must say what that Serbian says.",
+  "English is a bridge. When the English gloss is ambiguous or disagrees with the Serbian, follow the Serbian.",
+  "German case and articles follow idiomatic German. Do not copy Serbian case onto German, and do not copy an English article onto German.",
+  "Prose with no Serbian sentence (headings, explanations, learner instructions) is translated from English.",
+  "Leave Serbian table cells and Serbian example sentences in Serbian.",
+].join("\n");
+
+export function collectRetrySpans(feedback: string): string[] {
+  const spans = new Set<string>();
+  for (const quote of extractQuotedSpans(feedback)) {
+    const trimmed = quote.trim();
+    if (trimmed.length >= 4) spans.add(trimmed);
+  }
+  const verbatim = /MUST use Suggested German verbatim: «([^»]+)»/g;
+  let match: RegExpExecArray | null;
+  const source = String(feedback || "");
+  while ((match = verbatim.exec(source))) {
+    const span = String(match[1] ?? "").trim();
+    if (span.length >= 4) spans.add(span);
+  }
+  return [...spans];
+}
+
+function normalizeRetryCompare(text: string): string {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function stripRetrySpans(text: string, spans: string[]): string {
+  let out = String(text || "");
+  const ordered = [...spans].sort((a, b) => b.length - a.length);
+  for (const span of ordered) {
+    if (span.length < 4) continue;
+    if (out.includes(span)) out = out.split(span).join(" ");
+    const bare = span.replace(/^\.{3}\s*/, "").trim();
+    if (bare && bare !== span && out.includes(bare)) out = out.split(bare).join(" ");
+  }
+  return normalizeRetryCompare(out);
+}
+
+/**
+ * Keep a single German field when a retry rewrites more than the flagged span.
+ * An empty previous value is a first translation and is accepted.
+ */
+export function acceptSurgicalText(
+  previous: string,
+  next: string,
+  feedback: string
+): { text: string; rejected: boolean; reason?: string } {
+  const prev = String(previous ?? "");
+  const nxt = String(next ?? "");
+  if (!prev.trim()) return { text: nxt, rejected: false };
+  if (normalizeRetryCompare(prev) === normalizeRetryCompare(nxt)) {
+    return { text: prev, rejected: false };
+  }
+  const spans = collectRetrySpans(feedback);
+  if (spans.length === 0) {
+    return { text: prev, rejected: true, reason: "retry had no locatable span" };
+  }
+  if (stripRetrySpans(prev, spans) !== stripRetrySpans(nxt, spans)) {
+    return { text: prev, rejected: true, reason: "retry changed text outside the flagged span" };
+  }
+  return { text: nxt, rejected: false };
+}
+
+/** A section retry may change only lines that contain the flagged span. */
+export function acceptSurgicalMarkdown(
+  previous: string,
+  next: string,
+  feedback: string
+): { markdown: string; rejected: boolean; reason?: string } {
+  const prev = String(previous ?? "").replace(/\r\n/g, "\n");
+  const nxt = String(next ?? "").replace(/\r\n/g, "\n");
+  if (!prev.trim()) return { markdown: nxt, rejected: false };
+  if (prev.trim() === nxt.trim()) return { markdown: prev, rejected: false };
+  const prevLines = prev.split("\n");
+  const nextLines = nxt.split("\n");
+  if (prevLines.length !== nextLines.length) {
+    return { markdown: prev, rejected: true, reason: "retry changed the line count" };
+  }
+  for (let i = 0; i < prevLines.length; i++) {
+    if (prevLines[i] === nextLines[i]) continue;
+    const line = acceptSurgicalText(prevLines[i] ?? "", nextLines[i] ?? "", feedback);
+    if (line.rejected) {
+      return {
+        markdown: prev,
+        rejected: true,
+        reason: `line ${i + 1}: ${line.reason ?? "changed outside the flagged span"}`,
+      };
+    }
+  }
+  return { markdown: nxt, rejected: false };
+}
+
+const DOUBLED_PRONOUN = /\b(mir|dir|ihm|ihr|uns|ihnen)\/\1\b/i;
+const ENGLISH_PERSON_CELL = /^(i|we|you|they|he|she|it|you \(form\.\)|you \(inf\.\)|he\/it|she\/it)$/i;
+
+function markdownTableDataLines(md: string): string[] {
+  return String(md || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("|") && line.endsWith("|") && !/^\|[\s:|-]+\|$/.test(line));
+}
+
+function splitMarkdownCells(line: string): string[] {
+  return line
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function cellLooksGerman(cell: string): boolean {
+  const text = cell.replace(/[*_`]/g, "").trim();
+  if (!text) return false;
+  if (/[äöüÄÖÜß]/.test(text)) return true;
+  if (/^(ich|du|wir|sie|er|es|ihr)\b/i.test(text)) return true;
+  if (/\b(tut|ist|brauche|brauchen|brauchst|braucht|weh|kalt|heiß|heiss)\b/i.test(text)) return true;
+  return false;
+}
+
+/** English person labels and doubled pronouns must not replace saved German. */
+export function findGermanCellRegressions(previousDe: string, nextDe: string): string[] {
+  const issues: string[] = [];
+  if (DOUBLED_PRONOUN.test(nextDe) && !DOUBLED_PRONOUN.test(previousDe)) {
+    issues.push("Duplicated pronoun form appeared in the German section.");
+  }
+  const prevRows = markdownTableDataLines(previousDe);
+  const nextRows = markdownTableDataLines(nextDe);
+  const count = Math.min(prevRows.length, nextRows.length);
+  for (let i = 0; i < count; i++) {
+    const prevCells = splitMarkdownCells(prevRows[i] ?? "");
+    const nextCells = splitMarkdownCells(nextRows[i] ?? "");
+    const width = Math.min(prevCells.length, nextCells.length);
+    for (let c = 0; c < width; c++) {
+      const before = (prevCells[c] ?? "").replace(/[*_`]/g, "").trim();
+      const after = (nextCells[c] ?? "").replace(/[*_`]/g, "").trim();
+      if (cellLooksGerman(before) && ENGLISH_PERSON_CELL.test(after)) {
+        issues.push(`German table cell became English ("${after}") in table row ${i + 1}.`);
+      }
+    }
+  }
+  return issues;
+}
+
+/**
+ * Reasons to keep the previous German section. Empty on a first translation,
+ * and empty when the candidate is identical to the saved text. A quality
+ * miss that the saved text already has does not block a later span fix.
+ */
+export function sectionReplacementBlockers(mdEn: string, previousDe: string, nextDe: string): string[] {
+  const previous = String(previousDe || "");
+  const next = String(nextDe || "");
+  if (!previous.trim() || previous.trim() === next.trim()) return [];
+  const previousQuality = new Set(checkSectionQuality(mdEn, previous));
+  const fresh = checkSectionQuality(mdEn, next).filter((issue) => !previousQuality.has(issue));
+  return [
+    ...fresh.map((issue) => `section quality: ${issue}`),
+    ...findGermanCellRegressions(previous, next),
+  ];
+}
+
+export function mergeMetadataDeFields(previous: any, next: any, feedback: string): any {
+  const takeString = (prev: unknown, nxt: unknown): string => {
+    const current = typeof prev === "string" ? prev : "";
+    const proposed = typeof nxt === "string" ? nxt : "";
+    if (!current.trim()) return proposed;
+    return acceptSurgicalText(current, proposed, feedback).text;
+  };
+  const takeList = (prev: unknown, nxt: unknown): string[] => {
+    const current = Array.isArray(prev) ? prev.map((entry) => String(entry)) : [];
+    const proposed = Array.isArray(nxt) ? nxt.map((entry) => String(entry)) : [];
+    const decided = acceptSurgicalText(current.join("\n"), proposed.join("\n"), feedback);
+    return decided.rejected ? current : proposed;
+  };
+  return {
+    ...previous,
+    title: takeString(previous?.title, next?.title),
+    description: takeString(previous?.description, next?.description) || undefined,
+    topics: takeList(previous?.topics, next?.topics),
+    grammarFocus: takeList(previous?.grammarFocus, next?.grammarFocus),
+    vocabularyThemes: takeList(previous?.vocabularyThemes, next?.vocabularyThemes),
+    moduleMetadataId: previous?.moduleMetadataId ?? next?.moduleMetadataId,
+    moduleId: previous?.moduleId ?? next?.moduleId,
+  };
+}
+
+export function buildSectionTranslationUser(params: {
+  unitNumber: number;
+  contentType: string;
+  markdownEn: string;
+  currentMarkdownDe?: string;
+}): string {
+  const parts = [
+    `Unit: ${params.unitNumber}`,
+    `Section: ${params.contentType}`,
+    "",
+    SERBIAN_MEANING_CONTRACT,
+    "",
+    "ENGLISH MARKDOWN (structure to follow; Serbian cells and example sentences inside it are the meaning; English glosses are the bridge):",
+    params.markdownEn,
+  ];
+  const current = String(params.currentMarkdownDe ?? "").trim();
+  if (current) {
+    parts.push(
+      "",
+      "CURRENT GERMAN (change only the flagged spans; every other line must stay identical):",
+      current
+    );
+  }
+  return parts.join("\n");
+}
+
 export async function translateMarkdownSection(
   ctx: ActionCtx,
   args: {
@@ -601,8 +841,9 @@ export async function translateMarkdownSection(
     retryFeedback?: string;
     adminContext?: TranslatorAdminContext;
     originalAuthorQuote?: string;
+    currentMarkdownDe?: string;
   }
-): Promise<{ mdDe: string; log: StepLog }> {
+): Promise<{ mdDe: string; log: StepLog; rejected: boolean }> {
   const input = String(args.markdownEn ?? "").replace(/\r\n/g, "\n").trim();
   const stepName = args.retryFeedback ? `section:${args.contentType}:retry` : `section:${args.contentType}`;
   const emptyLog: StepLog = {
@@ -617,8 +858,9 @@ export async function translateMarkdownSection(
     estimatedCostUsd: null,
     qualityIssues: [],
   };
-  if (!input) return { mdDe: "", log: emptyLog };
+  if (!input) return { mdDe: "", log: emptyLog, rejected: false };
 
+  const previous = String(args.currentMarkdownDe ?? "").replace(/\r\n/g, "\n");
   const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx, { unitNumber: args.unitNumber }));
   const base = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorSection);
   const system = composeTranslatorSystemPrompt(
@@ -626,12 +868,12 @@ export async function translateMarkdownSection(
     admin,
     args.retryFeedback
   );
-  const user = [
-    `Unit: ${args.unitNumber}`,
-    `Section: ${args.contentType}`,
-    "",
-    input,
-  ].join("\n");
+  const user = buildSectionTranslationUser({
+    unitNumber: args.unitNumber,
+    contentType: args.contentType,
+    markdownEn: input,
+    currentMarkdownDe: previous,
+  });
 
   const t0 = Date.now();
   const aiResult = await callTextRobust(
@@ -645,9 +887,28 @@ export async function translateMarkdownSection(
   if (args.contentType === "overview" && args.originalAuthorQuote) {
     mdDe = restoreOriginalAuthorQuote(mdDe, args.originalAuthorQuote);
   }
+
+  const qualityIssues: string[] = [];
+  let rejected = false;
+  if (args.retryFeedback && previous.trim()) {
+    const surgical = acceptSurgicalMarkdown(previous, mdDe, args.retryFeedback);
+    if (surgical.rejected) {
+      rejected = true;
+      mdDe = previous;
+      qualityIssues.push(surgical.reason ?? "retry rejected");
+    }
+  }
+  const blockers = sectionReplacementBlockers(input, previous, mdDe);
+  if (blockers.length > 0) {
+    rejected = true;
+    mdDe = previous;
+    qualityIssues.push(...blockers);
+  }
+
   return {
     mdDe,
-    log: makeStepLog(stepName, aiResult, durationMs),
+    rejected,
+    log: makeStepLog(stepName, aiResult, durationMs, qualityIssues),
   };
 }
 
@@ -722,6 +983,10 @@ export async function translateVocabChunks(
     const chunk = args.items.slice(i, i + VOCAB_CHUNK_SIZE);
     const system = composeTranslatorSystemPrompt(base, admin, args.retryFeedback);
     const user = JSON.stringify({
+      meaningSource: "sr",
+      englishRole: "bridge-only-for-disambiguation",
+      instruction:
+        "de must mean sr. Use en only when sr alone allows more than one German lemma. Do not follow en when it disagrees with sr.",
       items: chunk.map((v: any) => ({
         id: String(v?._id ?? ""),
         sr: String(v?.serbian ?? ""),
@@ -1306,6 +1571,7 @@ async function translateTestsForCategoryOnce(
     stepName: string;
     adminContext?: TranslatorAdminContext;
     unitNumber?: number;
+    currentByQuestionId?: Record<string, { question?: string; hint?: string }>;
   }
 ): Promise<any[]> {
   const admin = args.adminContext ?? (await loadTranslatorAdminContext(ctx, { unitNumber: args.unitNumber }));
@@ -1316,18 +1582,27 @@ async function translateTestsForCategoryOnce(
     args.retryFeedback
   );
   const user = JSON.stringify({
+    meaningSource: "serbian-sentence",
+    instruction:
+      "A German gloss or learner prompt must mean what the Serbian sentence means. Do not follow a loose English parenthesis when it disagrees with the Serbian. English prompts that contain no Serbian sentence (Monday, today) are still translated into German. Serbian stems, options, and answers stay Serbian.",
     category: args.category,
     categoryInstructionsEn: args.bucket.categoryInstructions || "",
-    questions: args.bucket.questions.map((q) => ({
-      questionId: String(q.questionId),
-      questionType: String(q.questionType),
-      order: Number(q.order ?? 0) || 0,
-      questionEn: String(q.question ?? ""),
-      hintEn: typeof q.hint === "string" ? q.hint : "",
-      correctAnswerSr: String(q.correctAnswer ?? ""),
-      optionsSr: Array.isArray(q.options) ? q.options : undefined,
-      acceptableAlternativesSr: Array.isArray(q.acceptableAlternatives) ? q.acceptableAlternatives : undefined,
-    })),
+    questions: args.bucket.questions.map((q) => {
+      const questionId = String(q.questionId);
+      const current = args.currentByQuestionId?.[questionId];
+      return {
+        questionId,
+        questionType: String(q.questionType),
+        order: Number(q.order ?? 0) || 0,
+        questionEn: String(q.question ?? ""),
+        hintEn: typeof q.hint === "string" ? q.hint : "",
+        ...(current?.question ? { questionDe: current.question } : {}),
+        ...(current?.hint ? { hintDe: current.hint } : {}),
+        correctAnswerSr: String(q.correctAnswer ?? ""),
+        optionsSr: Array.isArray(q.options) ? q.options : undefined,
+        acceptableAlternativesSr: Array.isArray(q.acceptableAlternatives) ? q.acceptableAlternatives : undefined,
+      };
+    }),
   });
 
   const t0 = Date.now();
@@ -1375,8 +1650,17 @@ async function translateTestsForCategoryOnce(
     }
     translatedQ = restoreSerbianStemQuestion(qType, srcQuestion, translatedQ);
     if (countBlanks(translatedQ) > 0) translatedQ = normalizeBlankRuns(translatedQ);
-    const translatedHint =
+    const currentQuestion = args.currentByQuestionId?.[qid]?.question;
+    if (args.retryFeedback && currentQuestion) {
+      translatedQ = acceptSurgicalText(currentQuestion, translatedQ, args.retryFeedback).text;
+    }
+    const translatedHintRaw =
       typeof oq?.hintDe === "string" ? String(oq.hintDe) : typeof src.hint === "string" ? src.hint : undefined;
+    const currentHint = args.currentByQuestionId?.[qid]?.hint;
+    const translatedHint =
+      args.retryFeedback && currentHint
+        ? acceptSurgicalText(currentHint, String(translatedHintRaw ?? ""), args.retryFeedback).text
+        : translatedHintRaw;
 
     produced.push(
       args.targetReleaseStatus === "preview"
@@ -1425,6 +1709,7 @@ export async function translateTestsForCategory(
     retryFeedback?: string;
     adminContext?: TranslatorAdminContext;
     unitNumber?: number;
+    currentByQuestionId?: Record<string, { question?: string; hint?: string }>;
   }
 ): Promise<any[]> {
   const baseStep = args.retryFeedback ? `tests:${args.category}:retry` : `tests:${args.category}`;

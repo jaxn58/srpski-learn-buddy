@@ -463,18 +463,124 @@ function normalizeSectionPresence(text: string): string {
  * the German sentence that is already in the section, only with different
  * quotes. Retrying that rewrites the section and the same warning returns.
  */
+function stripLeadingEllipsis(text: string): string {
+  return String(text || "")
+    .replace(/^\.{3}\s*/, "")
+    .trim();
+}
+
+/**
+ * A suggestion that already is the saved German, including short cells such
+ * as "Ihm ist heiß.", cannot be fixed by retrying. The quoted current span
+ * and the suggestion are the same string.
+ */
 function suggestionAlreadyInSection(
   issue: VerifierIssue,
   item: VerifierInputItem | undefined
 ): boolean {
   if (!item || issue.itemKind !== "section" || item.kind !== "section") return false;
-  if (issue.code !== "semantic_mismatch" && issue.code !== "missing_info") return false;
-  const suggestion = String(issue.suggestion || "").trim();
-  if (suggestion.length < 40) return false;
-  const needle = normalizeSectionPresence(suggestion);
-  if (needle.length < 40) return false;
+  if (issue.code !== "semantic_mismatch" && issue.code !== "missing_info" && issue.code !== "grammatical" && issue.code !== "manual_retry") {
+    return false;
+  }
+  const suggestion = normalizeSectionPresence(stripLeadingEllipsis(issue.suggestion || ""));
+  if (suggestion.length < 8) return false;
   const hay = normalizeSectionPresence(item.german);
-  return hay.includes(needle);
+  const quotedCurrent = extractQuotedSpans(issue.issue).some(
+    (quote) => normalizeSectionPresence(stripLeadingEllipsis(quote)) === suggestion
+  );
+  if (quotedCurrent) return hay.includes(suggestion);
+  if (suggestion.length < 40) return false;
+  return hay.includes(suggestion);
+}
+
+const DATIVE_ACCUSATIVE_PAIRS: Array<[string, string]> = [
+  ["mir", "mich"],
+  ["dir", "dich"],
+  ["ihm", "ihn"],
+  ["ihr", "sie"],
+  ["ihnen", "sie"],
+];
+
+const DEFINITE_ARTICLES = new Set(["der", "die", "das", "den", "dem", "des"]);
+const INDEFINITE_ARTICLES = new Set(["ein", "eine", "einer", "einen", "einem", "eines"]);
+const SERBIAN_DEMONSTRATIVE =
+  /\b(ovaj|ovog|ovom|ovu|ova|ovo|ove|taj|tog|tom|tu|ta|to|te|onaj|onog|onom|onu|ona|ono|one)\b/i;
+const DATIVE_GOVERNING_GERMAN =
+  /\b(wehtun|weh\s+tun|tut\b[\s\S]{0,48}\bweh\b|ist\s+(kalt|hei(?:ß|ss)|warm))\b/i;
+
+function presenceTokens(text: string): string[] {
+  return normalizeSectionPresence(stripLeadingEllipsis(text)).split(" ").filter(Boolean);
+}
+
+function singleTokenSwap(
+  current: string,
+  suggestion: string,
+  isSwap: (currentToken: string, suggestionToken: string) => boolean
+): boolean {
+  const left = presenceTokens(current);
+  const right = presenceTokens(suggestion);
+  if (left.length === 0 || left.length !== right.length) return false;
+  let diffs = 0;
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] === right[i]) continue;
+    diffs += 1;
+    if (diffs > 1 || !isSwap(left[i] ?? "", right[i] ?? "")) return false;
+  }
+  return diffs === 1;
+}
+
+function isDativeAccusativePronounSwap(currentToken: string, suggestionToken: string): boolean {
+  return DATIVE_ACCUSATIVE_PAIRS.some(
+    ([dative, accusative]) =>
+      (currentToken === dative && suggestionToken === accusative) ||
+      (currentToken === accusative && suggestionToken === dative)
+  );
+}
+
+function isDefiniteIndefiniteArticleSwap(currentToken: string, suggestionToken: string): boolean {
+  const currentDefinite = DEFINITE_ARTICLES.has(currentToken);
+  const suggestionDefinite = DEFINITE_ARTICLES.has(suggestionToken);
+  const currentIndefinite = INDEFINITE_ARTICLES.has(currentToken);
+  const suggestionIndefinite = INDEFINITE_ARTICLES.has(suggestionToken);
+  return (currentDefinite && suggestionIndefinite) || (currentIndefinite && suggestionDefinite);
+}
+
+/**
+ * Serbian case and the English article are not German grammar.
+ * "tut ihnen weh" stays when the suggestion only swaps in the accusative
+ * pronoun. "die Speisekarte" vs "eine Speisekarte" stays when Serbian has
+ * no demonstrative. A gender fix such as "ein Milch" → "eine Milch" stays,
+ * because both articles are indefinite.
+ */
+function isSerbianMorphologyProjection(
+  issue: VerifierIssue,
+  item: VerifierInputItem | undefined
+): boolean {
+  if (!item) return false;
+  if (issue.code !== "semantic_mismatch" && issue.code !== "grammatical" && issue.code !== "manual_retry") return false;
+  const suggestion = String(issue.suggestion || "").trim();
+  if (suggestion.length < 8) return false;
+  const hay = normalizeSectionPresence(item.german);
+  const currentSpans = extractQuotedSpans(issue.issue).filter((quote) => {
+    const normalized = normalizeSectionPresence(stripLeadingEllipsis(quote));
+    return normalized.length >= 8 && hay.includes(normalized);
+  });
+  const serbianBlob = `${issue.issue}\n${item.serbian}`;
+  for (const current of currentSpans) {
+    if (
+      singleTokenSwap(current, suggestion, isDativeAccusativePronounSwap) &&
+      DATIVE_GOVERNING_GERMAN.test(`${current} ${suggestion}`)
+    ) {
+      return true;
+    }
+    if (
+      singleTokenSwap(current, suggestion, isDefiniteIndefiniteArticleSwap) &&
+      !SERBIAN_DEMONSTRATIVE.test(serbianBlob)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function quotesAlreadyInSerbianColumn(
@@ -595,6 +701,7 @@ export function dropNonActionableVerifierIssues(
       complainsAboutSerbianAnchorField(issue) ||
       quotesAlreadyInSerbianColumn(issue, item) ||
       suggestionAlreadyInSection(issue, item) ||
+      isSerbianMorphologyProjection(issue, item) ||
       sectionClaimAlreadySatisfied(issue, item) ||
       isAiGlossPolicyComplaint(issue, item);
     if (drop) dropped.push(issue);
@@ -1435,23 +1542,51 @@ function issueIdentity(issue: VerifierIssue): string {
 }
 
 /**
+ * A fresh sample on a surgically edited section must not reopen a warning
+ * about a German span that the edit left untouched.
+ */
+export function findingTargetsUnchangedGerman(
+  issue: VerifierIssue,
+  beforeGerman: string,
+  afterGerman: string
+): boolean {
+  const before = String(beforeGerman || "");
+  const after = String(afterGerman || "");
+  const quotes = extractQuotedSpans(`${issue.issue} ${issue.suggestion ?? ""}`)
+    .map((quote) => quote.trim())
+    .filter((quote) => quote.length >= 8);
+  const presentBefore = quotes.filter((quote) => before.includes(quote));
+  if (presentBefore.length > 0) {
+    return presentBefore.every((quote) => after.includes(quote));
+  }
+  const suggestion = stripLeadingEllipsis(issue.suggestion || "");
+  return suggestion.length >= 8 && before.includes(suggestion) && after.includes(suggestion);
+}
+
+/**
  * After a repair, the saved-text check replaces findings on items that were
  * rewritten. Items the repair did not touch keep the previous AI findings.
  * A fresh model sample must not introduce a new critical on unchanged text.
+ * On a section that was edited in place, findings about German spans that
+ * are still identical are dropped too.
  * Deterministic findings always come from the saved text.
  */
 export function mergeRepairVerifierReport(
   before: VerifierReport,
   saved: VerifierReport,
   retriedKeys: ReadonlySet<string>,
-  items: VerifierInputItem[]
+  items: VerifierInputItem[],
+  sectionSnapshots?: ReadonlyMap<string, { before: string; after: string }>
 ): VerifierReport {
   const filteredBefore = dropNonActionableVerifierIssues(before.issues, items).kept;
   const isDeterministic = (issue: VerifierIssue) => DETERMINISTIC_VERIFIER_CODES.has(issue.code);
   const savedDeterministic = saved.issues.filter(isDeterministic);
-  const savedAiOnRetried = saved.issues.filter(
-    (issue) => !isDeterministic(issue) && retriedKeys.has(issue.itemKey)
-  );
+  const savedAiOnRetried = saved.issues.filter((issue) => {
+    if (isDeterministic(issue) || !retriedKeys.has(issue.itemKey)) return false;
+    const snapshot = sectionSnapshots?.get(issue.itemKey);
+    if (!snapshot) return true;
+    return !findingTargetsUnchangedGerman(issue, snapshot.before, snapshot.after);
+  });
   const beforeAiOnUntouched = filteredBefore.filter(
     (issue) => !isDeterministic(issue) && !retriedKeys.has(issue.itemKey)
   );
@@ -1566,11 +1701,23 @@ export function isActionableGermanSuggestion(suggestion: string | undefined | nu
 
 export function extractQuotedSpans(text: string): string[] {
   const out: string[] = [];
-  const re = /"([^"\n]{2,80})"/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(String(text || "")))) {
-    const span = m[1].trim();
-    if (span) out.push(span);
+  const patterns = [
+    /"([^"\n]{2,160})"/g,
+    /'([^'\n]{2,160})'/g,
+    /«([^»\n]{2,160})»/g,
+    /„([^“\n]{2,160})“/g,
+    /“([^”\n]{2,160})”/g,
+  ];
+  const seen = new Set<string>();
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    const source = String(text || "");
+    while ((m = re.exec(source))) {
+      const span = (m[1] ?? "").trim();
+      if (!span || seen.has(span)) continue;
+      seen.add(span);
+      out.push(span);
+    }
   }
   return out;
 }
@@ -1637,9 +1784,10 @@ export function applySuggestionToGermanText(
     /[čćžšđČĆŽŠĐ]/.test(q) ||
     /\b(je|su|sam|si|smo|ste|nije|mleko|jedno|jedan|jedna)\b/i.test(q);
 
+  const bareFix = fix.replace(/^\.{3}\s*/, "").trim();
   const quotes = extractQuotedSpans(issue)
     .filter((q) => {
-      if (!q || q === fix || q.length < 2) return false;
+      if (!q || q === fix || q.length < 8) return false;
       if (fix.toLowerCase().includes(q.toLowerCase())) return false;
       if (serbianSources.has(q)) return false;
       if (looksSerbian(q)) return false;
@@ -1647,8 +1795,13 @@ export function applySuggestionToGermanText(
     })
     .sort((a, b) => b.length - a.length);
   for (const wrong of quotes) {
-    if (src.includes(wrong)) {
-      return src.split(wrong).join(fix);
+    const needles = [wrong];
+    const withoutEllipsis = wrong.replace(/^\.{3}\s*/, "").trim();
+    if (withoutEllipsis && withoutEllipsis !== wrong) needles.push(withoutEllipsis);
+    for (const needle of needles) {
+      if (needle.length < 8 || !src.includes(needle)) continue;
+      const replacement = needle === withoutEllipsis && bareFix ? bareFix : fix;
+      return src.split(needle).join(replacement);
     }
   }
 

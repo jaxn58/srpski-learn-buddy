@@ -6,6 +6,13 @@ import {
   stripLeadingGermanArticle,
   checkSectionQuality,
   checkMontenegroNoteCarriedOver,
+  acceptSurgicalMarkdown,
+  acceptSurgicalText,
+  findGermanCellRegressions,
+  sectionReplacementBlockers,
+  mergeMetadataDeFields,
+  buildSectionTranslationUser,
+  SERBIAN_MEANING_CONTRACT,
   type TranslatorAdminContext,
 } from "../../convex/contentStudio/_translationCore";
 import { collectDraftSkillIds, closeTruncatedJson, mergeSkillsById } from "../../convex/contentStudio/_shared";
@@ -15,6 +22,7 @@ import {
   extractMentionedLemmaTokens,
   extractSerbianFromMarkdown,
   mergeRepairVerifierReport,
+  findingTargetsUnchangedGerman,
   parseVerifierIssuesJson,
   verifierBatchFailureReason,
   type VerifierInputItem,
@@ -905,5 +913,187 @@ describe("draft skill selection", () => {
         { _id: "b", name: "empty", prompt: "  " },
       ])
     ).toEqual([{ _id: "a", name: "Montenegro", prompt: "Add gdje to Notes." }]);
+  });
+});
+
+describe("Serbian meaning source", () => {
+  const grammarItem: VerifierInputItem = {
+    key: "section:grammar",
+    kind: "section",
+    label: "section: grammar",
+    serbian: "Boli ih\nTreba im\nHladno im je\nToplo mu je\nIzvinite, treba nam jelovnik.",
+    english: "| They | Boli ih | ... hurts them. |\nExcuse me, we need a menu.",
+    german: [
+      "| Sie (Pl.) | Boli **ih**... | ... tut ihnen weh. |",
+      "| Sie (Pl.) | Treba **im**... / Hladno **im** je. | Sie brauchen... / Ihnen ist kalt. |",
+      "3. Wählen Sie die richtige Option: „Ihm ist heiß.“",
+      "* Izvinite, **treba nam** jelovnik. (Entschuldigen Sie, wir brauchen die Speisekarte.)",
+    ].join("\n"),
+  };
+
+  it("names Serbian as the meaning in the section payload", () => {
+    const user = buildSectionTranslationUser({
+      unitNumber: 28,
+      contentType: "grammar",
+      markdownEn: "| They | Boli **ih**... | ... hurts them. |",
+      currentMarkdownDe: "| Sie (Pl.) | Boli **ih**... | ... tut ihnen weh. |",
+    });
+    expect(user).toContain(SERBIAN_MEANING_CONTRACT);
+    expect(user).toContain("CURRENT GERMAN");
+    expect(user).toContain("... tut ihnen weh.");
+  });
+
+  it("drops the four Unit 28 warnings that do not change Serbian meaning", () => {
+    const issues: VerifierIssue[] = [
+      {
+        itemKey: "section:grammar",
+        itemLabel: "section: grammar",
+        itemKind: "section",
+        severity: "warning",
+        code: "semantic_mismatch",
+        issue:
+          "The German translation for 'Sie (Pl.)' is '... tut ihnen weh.', which is dative plural, but the Serbian 'Boli ih...' uses accusative plural.",
+        suggestion: "... tut sie weh.",
+      },
+      {
+        itemKey: "section:grammar",
+        itemLabel: "section: grammar",
+        itemKind: "section",
+        severity: "warning",
+        code: "semantic_mismatch",
+        issue:
+          "The German translation for 'Sie (Pl.)' is 'Sie brauchen... / Ihnen ist kalt.', which is dative plural. The Serbian 'Treba im... / Hladno im je.' uses dative plural.",
+        suggestion: "Sie brauchen... / Ihnen ist kalt.",
+      },
+      {
+        itemKey: "section:grammar",
+        itemLabel: "section: grammar",
+        itemKind: "section",
+        severity: "warning",
+        code: "semantic_mismatch",
+        issue:
+          "The German translation for 'Ihm ist heiß.' in question 3 is 'Ihm ist heiß.', which is dative. The Serbian 'Toplo mu je.' uses dative.",
+        suggestion: "Ihm ist heiß.",
+      },
+      {
+        itemKey: "section:grammar",
+        itemLabel: "section: grammar",
+        itemKind: "section",
+        severity: "warning",
+        code: "semantic_mismatch",
+        issue:
+          "The German translation for 'Izvinite, treba nam jelovnik.' is 'Entschuldigen Sie, wir brauchen die Speisekarte.', which uses the definite article 'die'. The Serbian 'jelovnik' is indefinite.",
+        suggestion: "Entschuldigen Sie, wir brauchen eine Speisekarte.",
+      },
+    ];
+    const { kept, dropped } = dropNonActionableVerifierIssues(issues, [grammarItem]);
+    expect(dropped).toHaveLength(4);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("keeps a real meaning mismatch and a gender fix", () => {
+    const meaning: VerifierIssue = {
+      itemKey: "section:grammar",
+      itemLabel: "section: grammar",
+      itemKind: "section",
+      severity: "warning",
+      code: "semantic_mismatch",
+      issue: "German 'Wo ist das Bad?' does not mean Serbian 'Gde je kuhinja?'.",
+      suggestion: "Wo ist die Küche?",
+    };
+    const gender: VerifierIssue = {
+      itemKey: "section:grammar",
+      itemLabel: "section: grammar",
+      itemKind: "section",
+      severity: "critical",
+      code: "grammatical",
+      issue: 'The Serbian source "jedno mleko" was translated as "ein Milch".',
+      suggestion: "eine Milch",
+    };
+    const item: VerifierInputItem = {
+      ...grammarItem,
+      german: "Wo ist das Bad?\nein Milch",
+    };
+    const { kept } = dropNonActionableVerifierIssues([meaning, gender], [item]);
+    expect(kept).toHaveLength(2);
+  });
+
+  it("rejects a section retry that rewrites a line outside the flagged span", () => {
+    const previous = [
+      "| Sie (Pl.) | Boli **ih**... | ... tut ihnen weh. |",
+      "| Sie (form.) | Boli **vas**... | ... tut Ihnen weh. |",
+    ].join("\n");
+    const rewritten = [
+      "| They | Boli **ih**... | ... tut sie weh. |",
+      "| You (form.) | Boli **vas**... | ... hurts you. |",
+    ].join("\n");
+    const feedback =
+      "- [WARNING] [section: grammar] accusative MUST use Suggested German verbatim: «... tut sie weh.»";
+    const decided = acceptSurgicalMarkdown(previous, rewritten, feedback);
+    expect(decided.rejected).toBe(true);
+    expect(decided.markdown).toBe(previous);
+  });
+
+  it("accepts a section retry that changes only the flagged span", () => {
+    const previous = "| Sie (Pl.) | Boli **ih**... | ... tut ihnen weh. |";
+    const next = "| Sie (Pl.) | Boli **ih**... | ... tut sie weh. |";
+    const feedback =
+      "The current text is '... tut ihnen weh.' MUST use Suggested German verbatim: «... tut sie weh.»";
+    const decided = acceptSurgicalMarkdown(previous, next, feedback);
+    expect(decided.rejected).toBe(false);
+    expect(decided.markdown).toBe(next);
+  });
+
+  it("keeps an untouched metadata field", () => {
+    const merged = mergeMetadataDeFields(
+      { title: "Beim Arzt", description: "Schmerzen beschreiben", topics: ["Arzt"] },
+      { title: "Beim Arzt", description: "Wetter und Schmerzen", topics: ["Arzt", "Wetter"] },
+      "MUST use Suggested German verbatim: «Beim Arzt»"
+    );
+    expect(merged.description).toBe("Schmerzen beschreiben");
+    expect(merged.topics).toEqual(["Arzt"]);
+  });
+
+  it("blocks an English person label and a doubled pronoun", () => {
+    const previous = "| Sie (Pl.) | Boli **ih**... | ... tut ihnen weh. |";
+    const englishLabel = "| They | Boli **ih**... | ... tut ihnen weh. |";
+    expect(findGermanCellRegressions(previous, englishLabel).length).toBeGreaterThan(0);
+    const doubled = "| Er/Es | Boli **ga**... | ... tut ihm/ihm weh. |";
+    const blockers = sectionReplacementBlockers(
+      "| He/It | Boli **ga**... | ... hurts him/it. |",
+      "| Er/Es | Boli **ga**... | ... tut ihm weh. |",
+      doubled
+    );
+    expect(blockers.some((issue) => issue.includes("Duplicated pronoun"))).toBe(true);
+  });
+
+  it("drops a new warning about German that the repair left unchanged", () => {
+    const before = "Wählen Sie die richtige Option: „Ihm ist heiß.“";
+    const after = before;
+    expect(
+      findingTargetsUnchangedGerman(
+        {
+          itemKey: "section:grammar",
+          itemLabel: "section: grammar",
+          itemKind: "section",
+          severity: "warning",
+          code: "semantic_mismatch",
+          issue: "The German translation is 'Ihm ist heiß.', which is dative.",
+          suggestion: "Ihm ist heiß.",
+        },
+        before,
+        after
+      )
+    ).toBe(true);
+  });
+
+  it("replaces only the flagged question text", () => {
+    const decided = acceptSurgicalText(
+      "Monday",
+      "Montag und Dienstag",
+      "MUST use Suggested German verbatim: «Montag»"
+    );
+    expect(decided.rejected).toBe(true);
+    expect(decided.text).toBe("Monday");
   });
 });
