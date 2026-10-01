@@ -61,6 +61,17 @@ function asChatProvider(provider: string): ChatProvider {
   return provider === "openai" ? "openai" : "google";
 }
 
+function formatUsdPer1M(value: number): string {
+  return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function modelOptionLabel(model: ChatModelOption): string {
+  if (model.inputUsdPer1M == null || model.outputUsdPer1M == null) {
+    return `${model.displayName} (no price)`;
+  }
+  return `${model.displayName} — ${formatUsdPer1M(model.inputUsdPer1M)} in / ${formatUsdPer1M(model.outputUsdPer1M)} out per 1M`;
+}
+
 export default function ChatAdmin() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useTranslation();
@@ -189,17 +200,21 @@ export default function ChatAdmin() {
 
   const modelsFor = (provider: string, selectedId: string): ChatModelOption[] => {
     const key = asChatProvider(provider);
-    const savedOption = (missingFromApi: boolean): ChatModelOption => ({
-      provider: key,
-      id: selectedId,
-      displayName: selectedId,
-      selectable: true,
-      thinkingAlwaysOn: false,
-      pricingSourceUrl: PRICING_SOURCE_URLS[key],
-      inputUsdPer1M: null,
-      outputUsdPer1M: null,
-      missingFromApi,
-    });
+    const savedOption = (missingFromApi: boolean): ChatModelOption => {
+      const priced = MODEL_PRICING[selectedId];
+      const verified = priced !== undefined && priced.provider === key;
+      return {
+        provider: key,
+        id: selectedId,
+        displayName: verified ? priced.displayName : selectedId,
+        selectable: true,
+        thinkingAlwaysOn: false,
+        pricingSourceUrl: PRICING_SOURCE_URLS[key],
+        inputUsdPer1M: verified ? priced.inputUsdPer1M : null,
+        outputUsdPer1M: verified ? priced.outputUsdPer1M : null,
+        missingFromApi,
+      };
+    };
     if (catalog === null) {
       return [savedOption(false)];
     }
@@ -323,7 +338,7 @@ export default function ChatAdmin() {
                     <SelectContent>
                       {primaryModels.map((model) => (
                         <SelectItem key={model.id} value={model.id} disabled={!model.selectable}>
-                          {model.displayName}{model.selectable ? "" : " (no price)"}
+                          {modelOptionLabel(model)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -376,7 +391,7 @@ export default function ChatAdmin() {
                       <SelectContent>
                         {fallbackModels.map((model) => (
                           <SelectItem key={model.id} value={model.id} disabled={!model.selectable}>
-                            {model.displayName}{model.selectable ? "" : " (no price)"}
+                            {modelOptionLabel(model)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -751,9 +766,14 @@ function ModelChoiceNotes({
 }) {
   return (
     <div className="space-y-1">
+      {selected?.inputUsdPer1M != null && selected.outputUsdPer1M != null && (
+        <p className="text-[10px] text-muted-foreground">
+          Paid tier: {formatUsdPer1M(selected.inputUsdPer1M)} input and {formatUsdPer1M(selected.outputUsdPer1M)} output per 1M tokens. Energy uses these rates.
+        </p>
+      )}
       <p className="text-[10px] text-muted-foreground">
         {catalogLoaded
-          ? "Models without a verified price are listed but cannot be selected."
+          ? "Prices are USD per 1M tokens from the pricing table. Models without a verified price cannot be selected."
           : "Refresh models to load the current provider list. Prices stay in the code pricing table."}
         {" "}
         <a
