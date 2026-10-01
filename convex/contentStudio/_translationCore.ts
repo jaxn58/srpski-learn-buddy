@@ -19,7 +19,6 @@ import {
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
   extractQuotedSpans,
-  namedCurrentGermanForms,
   replaceWholeWord,
   extractSerbianFromMarkdown,
   serbianExerciseStemStays,
@@ -642,16 +641,12 @@ export function collectRetrySpans(feedback: string, savedText?: string): string[
   }
   const saved = String(savedText ?? "");
   if (saved) {
-    for (const form of namedCurrentGermanForms(source)) {
-      if (form.length >= 4 || containsNamedForm(saved, form)) spans.add(form);
+    for (const quote of extractQuotedSpans(source)) {
+      const form = quote.trim();
+      if (form.length >= 2 && form.length < 4 && saved.includes(form)) spans.add(form);
     }
   }
   return [...spans];
-}
-
-function containsNamedForm(text: string, form: string): boolean {
-  if (form.length >= 4) return text.includes(form);
-  return replaceWholeWord(text, form, "\u0000") !== text;
 }
 
 function normalizeRetryCompare(text: string): string {
@@ -727,18 +722,15 @@ function acceptVocabularyRow(
   if (previousCells.length !== nextCells.length) {
     return { text: previousLine, rejected: true, reason: "retry changed the table columns" };
   }
-  const namedForms = namedCurrentGermanForms(feedback);
   for (let index = 0; index < previousCells.length; index++) {
     if (previousCells[index] === nextCells[index]) continue;
     if (index === columns.serbian) {
       return { text: previousLine, rejected: true, reason: "retry changed the Serbian cell" };
     }
-    const previousCell = previousCells[index] ?? "";
-    const holdsWrongForm = namedForms.some((form) => containsNamedForm(previousCell, form));
-    if (index !== columns.german && !holdsWrongForm) {
+    if (index !== columns.german) {
       return { text: previousLine, rejected: true, reason: "retry changed text outside the German gloss" };
     }
-    const cell = acceptSurgicalText(previousCell, nextCells[index] ?? "", feedback);
+    const cell = acceptSurgicalText(previousCells[index] ?? "", nextCells[index] ?? "", feedback);
     if (cell.rejected) {
       return { text: previousLine, rejected: true, reason: cell.reason };
     }

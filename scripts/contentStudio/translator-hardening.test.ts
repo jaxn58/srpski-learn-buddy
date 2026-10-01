@@ -20,7 +20,8 @@ import {
   dropAiMissingInfoThatRepeatsVocabularySerbian,
   dropNonActionableVerifierIssues,
   applySuggestionToGermanText,
-  formatRetryFeedback,
+  applyDeterministicVerifierSuggestions,
+  localSpanReplacement,
   extractMentionedLemmaTokens,
   extractSerbianFromMarkdown,
   mergeRepairVerifierReport,
@@ -552,6 +553,9 @@ describe("dropAiMissingInfoThatRepeatsVocabularySerbian", () => {
       ...alreadyThere,
       issue: "The paragraph about the future tense is missing.",
       suggestion: "Das Futur wird mit dem Hilfsverb ću und dem Infinitiv gebildet.",
+      serbianSpan: "Žao mi je",
+      germanSpan: "Es tut mir leid",
+      differs: "meaning",
     };
     const { kept, dropped } = dropNonActionableVerifierIssues(
       [alreadyThere, genuinelyMissing],
@@ -622,6 +626,9 @@ describe("dropAiMissingInfoThatRepeatsVocabularySerbian", () => {
       severity: "critical",
       code: "semantic_mismatch",
       issue: "The example 'Voz polazi u podne' is missing from the German text.",
+      serbianSpan: "Sastanak je petnaest maj",
+      germanSpan: "Kog datuma",
+      differs: "meaning",
     };
     const { kept, dropped } = dropNonActionableVerifierIssues(
       [watchOut, quickCheck, preview, reallyGone],
@@ -726,6 +733,9 @@ describe("verifier convergence filters", () => {
       code: "semantic_mismatch",
       issue: "German 'Wo ist das Bad?' does not mean Serbian 'Gde je kuhinja?'.",
       suggestion: "Wo ist die Küche?",
+      serbianSpan: "Gde je kuhinja?",
+      germanSpan: "Wo ist die Küche?",
+      differs: "meaning",
     };
     const { kept, dropped } = dropNonActionableVerifierIssues([issue], [phrasesItem]);
     expect(dropped).toHaveLength(0);
@@ -765,7 +775,7 @@ describe("verifier convergence filters", () => {
       questionType: "multipleChoice",
       serbian: "Expected Serbian answer: Zdravo.",
       english: "Question (EN): Zdravo.",
-      german: "Question (DE): Zdravo.",
+      german: "Question (DE): Auf Wiedersehen.",
     };
     const issue: VerifierIssue = {
       itemKey: item.key,
@@ -775,6 +785,9 @@ describe("verifier convergence filters", () => {
       code: "semantic_mismatch",
       issue: "German gloss 'Auf Wiedersehen' does not mean the same as English gloss 'Hello'.",
       suggestion: "Hallo",
+      serbianSpan: "Zdravo",
+      germanSpan: "Auf Wiedersehen",
+      differs: "meaning",
     };
     const { kept, dropped } = dropNonActionableVerifierIssues([issue], [item]);
     expect(dropped).toHaveLength(0);
@@ -831,6 +844,9 @@ describe("mergeRepairVerifierReport", () => {
       code: "semantic_mismatch",
       issue: "German 'Dienstag' does not mean 'ponedeljak'.",
       suggestion: "Montag",
+      serbianSpan: "ponedeljak",
+      germanSpan: "Montag",
+      differs: "meaning",
     };
     const invented: VerifierIssue = {
       itemKey: "test:q1",
@@ -1000,8 +1016,11 @@ describe("Serbian meaning source", () => {
       itemKind: "section",
       severity: "warning",
       code: "semantic_mismatch",
-      issue: "German 'Wo ist das Bad?' does not mean Serbian 'Gde je kuhinja?'.",
-      suggestion: "Wo ist die Küche?",
+      issue: "German 'Frühstück' does not mean Serbian 'ručak'.",
+      suggestion: "Mittagessen",
+      serbianSpan: "Boli ih",
+      germanSpan: "Bad",
+      differs: "meaning",
     };
     const gender: VerifierIssue = {
       itemKey: "section:grammar",
@@ -1016,8 +1035,10 @@ describe("Serbian meaning source", () => {
       ...grammarItem,
       german: "Wo ist das Bad?\nein Milch",
     };
-    const { kept } = dropNonActionableVerifierIssues([meaning, gender], [item]);
-    expect(kept).toHaveLength(2);
+    const { kept, dropped } = dropNonActionableVerifierIssues([meaning, gender], [item]);
+    expect(dropped.map((entry) => entry.issue)).toEqual([gender.issue]);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]?.germanSpan).toBe("Bad");
   });
 
   it("rejects a section retry that rewrites a line outside the flagged span", () => {
@@ -1100,169 +1121,172 @@ describe("Serbian meaning source", () => {
   });
 });
 
-describe("short German gloss retry", () => {
-  const vocabulary = [
-    "| Serbian | Deutsch | Notes |",
-    "| :--- | :--- | :--- |",
-    "| gledao | sah | he watched |",
-    "| gledala | sah | she watched |",
-  ].join("\n");
-  const issue =
-    "The German translation for 'gledao' and 'gledala' as 'sah' (saw) is too narrow. 'Gledati' means 'to watch'.";
-  const feedback = `${issue} MUST use Suggested German verbatim: «schaute»`;
-
-  it("replaces only the short gloss sah with schaute", () => {
-    const patched = applySuggestionToGermanText(vocabulary, issue, "schaute");
-    expect(patched).toContain("| gledao | schaute | he watched |");
-    expect(patched).toContain("| gledala | schaute | she watched |");
-    expect(patched).not.toContain("sah");
-    expect(patched).toContain("gledao");
-    expect(patched).toContain("gledala");
-  });
-
-  it("accepts a vocabulary row whose German cell changes from sah to schaute", () => {
-    const next = vocabulary.replaceAll("| sah |", "| schaute |");
-    const decided = acceptSurgicalMarkdown(vocabulary, next, feedback);
-    expect(decided.rejected).toBe(false);
-    expect(decided.markdown).toContain("schaute");
-  });
-
-  it("rejects a vocabulary row that also changes the Serbian cell", () => {
-    const next = vocabulary.replace("| gledao | sah |", "| gleda | schaute |");
-    const decided = acceptSurgicalMarkdown(vocabulary, next, feedback);
-    expect(decided.rejected).toBe(true);
-    expect(decided.markdown).toBe(vocabulary);
-    expect(decided.reason).toContain("Serbian");
-  });
-});
-
-describe("verifier does not author learner German", () => {
-  const grammar =
-    "Warum das wichtig ist. Wörtlich „Mir ist kalt“ und „Mir wird ein Medikament gebraucht“.";
-  const item: VerifierInputItem = {
-    key: "section:grammar",
-    kind: "section",
-    label: "section: grammar",
-    serbian: "Treba mi lek.",
-    english: "I need a medicine.",
-    german: grammar,
-  };
-  const invented: VerifierIssue = {
-    itemKey: item.key,
-    itemLabel: item.label,
-    itemKind: "section",
-    severity: "warning",
-    code: "semantic_mismatch",
-    issue:
-      "The literal translation \"Mir wird ein Medikament gebraucht\" for the structure with 'treba' is misleading.",
-    suggestion:
-      "In the paragraph 'Warum das wichtig ist', change the phrase 'wörtlich „Mir ist kalt“ und „Mir wird ein Medikament gebraucht“' to 'wörtlich „Mir ist kalt“ und „Ein Medikament ist mir nötig“'.",
-  };
-
-  it("keeps the finding and drops the invented sentence", () => {
-    const { kept, dropped } = dropNonActionableVerifierIssues([invented], [item]);
-    expect(dropped).toHaveLength(0);
-    expect(kept).toHaveLength(1);
-    expect(kept[0]?.suggestion).toBeUndefined();
-    expect(kept[0]?.code).toBe("observation");
-    expect(kept[0]?.issue).toContain("Mir wird ein Medikament gebraucht");
-  });
-
-  it("does not send the invented sentence to a retry", () => {
-    const { kept } = dropNonActionableVerifierIssues([invented], [item]);
-    const feedback = formatRetryFeedback(kept);
-    expect(feedback.sectionByContentType.grammar ?? "").toBe("");
-  });
-
-  it("still applies a one-word gloss swap", () => {
-    const gloss: VerifierIssue = {
-      itemKey: "section:vocabulary",
-      itemLabel: "section: vocabulary",
-      itemKind: "section",
-      severity: "warning",
-      code: "semantic_mismatch",
-      issue: "The German translation for 'gledao' as 'sah' is too narrow.",
-      suggestion: "schaute",
-    };
-    const vocab: VerifierInputItem = {
-      key: "section:vocabulary",
-      kind: "section",
-      label: "section: vocabulary",
-      serbian: "gledao",
-      english: "saw",
-      german: "| gledao | sah |",
-    };
-    const { kept } = dropNonActionableVerifierIssues([gloss], [vocab]);
-    expect(kept[0]?.suggestion).toBe("schaute");
-    expect(kept[0]?.code).toBe("semantic_mismatch");
-  });
-});
-
-describe("fill-in agreement tags", () => {
-  function fillIn(key: string, english: string, german: string): VerifierInputItem {
+describe("meaning check", () => {
+  function item(partial: Partial<VerifierInputItem> & Pick<VerifierInputItem, "key" | "german" | "serbian">): VerifierInputItem {
     return {
-      key,
-      kind: "test",
-      label: `test ${key}`,
-      questionType: "fillInBlank",
-      serbian: "Expected Serbian answer: kuvao",
-      english: `Question (EN): ${english}`,
-      german: `Question (DE): ${german}`,
+      kind: "section",
+      label: partial.key,
+      english: "",
+      ...partial,
     };
   }
 
-  const cases: Array<[string, string, string, string]> = [
+  function finding(
+    key: string,
+    issue: string,
+    extra: Partial<VerifierIssue> = {}
+  ): VerifierIssue {
+    return {
+      itemKey: key,
+      itemLabel: key,
+      itemKind: "section",
+      severity: "warning",
+      code: "semantic_mismatch",
+      issue,
+      ...extra,
+    };
+  }
+
+  const falseAlarms: Array<[string, VerifierInputItem, string]> = [
     [
-      "u25_ex2_q04",
-      "Šta si _____ za ručak? (What did you cook for lunch? - to a male)",
-      "Šta si _____ za ručak? (Was hast du zum Mittagessen gekocht? - zu einem Mann)",
-      "The German phrase \"- zu einem Mann\" is grammatically awkward and not idiomatic for indicating the gender of the addressee.",
+      "anprobieren",
+      item({
+        key: "vocab:probam",
+        kind: "vocabulary",
+        serbian: "Želim da probam",
+        german: "ich möchte anprobieren",
+      }),
+      "The German translation 'ich möchte anprobieren' is too specific.",
     ],
     [
-      "u25_ex2_q05",
-      "One su _____ u supermarketu. (They were at the supermarket. - female group)",
-      "One su _____ u supermarketu. (Sie waren im Supermarkt. - weibliche Gruppe)",
-      "The German phrase \"- weibliche Gruppe\" is grammatically awkward and not idiomatic for indicating the gender of the group.",
+      "hemd",
+      item({
+        key: "test:u23",
+        kind: "test",
+        questionType: "fillInBlank",
+        serbian: "plavu košulju",
+        german: "ein blaues Hemd",
+      }),
+      "The German 'ein blaues Hemd' is neuter, but the Serbian 'plavu košulju' is feminine.",
     ],
     [
-      "u25_ex2_q06",
-      "Vi ste _____ sa prijateljima? (You were with friends? - plural)",
-      "Vi ste _____ sa prijateljima? (Waren Sie mit Freunden zusammen? - Plural)",
-      "The German phrase \"- Plural\" is grammatically awkward and not idiomatic for indicating the number of the addressee.",
+      "da-li",
+      item({
+        key: "section:grammar",
+        serbian: "da li imate ovu košulju",
+        german: "haben Sie dieses Hemd in Blau?",
+      }),
+      "The German should include 'ob' to match 'da li'.",
+    ],
+    [
+      "mann",
+      item({
+        key: "test:u25q04",
+        kind: "test",
+        questionType: "fillInBlank",
+        serbian: "Šta si kuvao",
+        english: "to a male",
+        german: "zu einem Mann",
+      }),
+      "The German phrase '- zu einem Mann' is grammatically awkward and not idiomatic.",
+    ],
+    [
+      "gruppe",
+      item({
+        key: "test:u25q05",
+        kind: "test",
+        questionType: "fillInBlank",
+        serbian: "One su bile",
+        english: "female group",
+        german: "weibliche Gruppe",
+      }),
+      "The German phrase '- weibliche Gruppe' is not idiomatic for indicating the gender of the group.",
+    ],
+    [
+      "plural",
+      item({
+        key: "test:u25q06",
+        kind: "test",
+        questionType: "fillInBlank",
+        serbian: "Vi ste bili",
+        english: "plural",
+        german: "Plural",
+      }),
+      "The German phrase '- Plural' is grammatically awkward and not idiomatic.",
+    ],
+    [
+      "weh",
+      item({
+        key: "section:grammar-weh",
+        serbian: "Boli ih",
+        german: "... tut ihnen weh.",
+      }),
+      "The German '... tut ihnen weh.' is dative, but the Serbian 'Boli ih' uses accusative.",
     ],
   ];
 
-  it("drops idiom complaints about the agreement tag", () => {
-    const issues: VerifierIssue[] = cases.map(([key, , , text]) => ({
-      itemKey: key,
-      itemLabel: `test ${key}`,
-      itemKind: "test",
-      severity: "warning",
-      code: "semantic_mismatch",
-      issue: text,
-    }));
-    const items = cases.map(([key, english, german]) => fillIn(key, english, german));
-    const { kept, dropped } = dropNonActionableVerifierIssues(issues, items);
-    expect(kept).toHaveLength(0);
-    expect(dropped).toHaveLength(3);
+  it("reports a real meaning difference and drops the known false alarms", () => {
+    const realItem = item({
+      key: "section:grammar-lunch",
+      serbian: "za ručak",
+      german: "zum Frühstück",
+    });
+    const real = finding("section:grammar-lunch", "German 'Frühstück' does not mean Serbian 'ručak'.", {
+      serbianSpan: "za ručak",
+      germanSpan: "Frühstück",
+      differs: "meaning",
+      suggestion: "Mittagessen",
+    });
+    const alarms = falseAlarms.map(([, entry, text]) => finding(entry.key, text));
+    const { kept, dropped } = dropNonActionableVerifierIssues(
+      [real, ...alarms],
+      [realItem, ...falseAlarms.map(([, entry]) => entry)]
+    );
+    expect(dropped).toHaveLength(falseAlarms.length);
+    expect(kept).toHaveLength(1);
+    expect(kept[0]?.germanSpan).toBe("Frühstück");
+    expect(kept[0]?.suggestion).toBe("Mittagessen");
   });
 
-  it("keeps a meaning mismatch in the sentence before the dash", () => {
-    const item = fillIn(
-      "u25_ex2_q04",
-      "Šta si _____ za ručak? (What did you cook for lunch? - to a male)",
-      "Šta si _____ za ručak? (Was hast du zum Frühstück gekocht? - zu einem Mann)"
-    );
-    const issue: VerifierIssue = {
-      itemKey: item.key,
-      itemLabel: item.label,
-      itemKind: "test",
-      severity: "warning",
-      code: "semantic_mismatch",
-      issue: "German 'Frühstück' does not mean Serbian 'ručak' (lunch).",
-    };
-    const { kept, dropped } = dropNonActionableVerifierIssues([issue], [item]);
-    expect(dropped).toHaveLength(0);
-    expect(kept).toHaveLength(1);
+  it("does not write a new sentence that did not pass the check", () => {
+    expect(localSpanReplacement("Frühstück", "In the paragraph, change it to Mittagessen und mehr")).toBeUndefined();
+    const result = applyDeterministicVerifierSuggestions({
+      issues: [
+        finding("section:grammar-lunch", "German 'Frühstück' does not mean Serbian 'ručak'.", {
+          serbianSpan: "za ručak",
+          germanSpan: "Frühstück",
+          differs: "meaning",
+          suggestion: "Ein Medikament ist mir nötig und das ist ein neuer Satz",
+        }),
+      ],
+      state: {
+        contentDe: [{ contentType: "grammar-lunch", content: "zum Frühstück gekocht" }],
+        testsDe: [],
+        vocabularyDe: [],
+      },
+    });
+    expect(result.patchedKeys).toHaveLength(0);
+    expect(result.state.contentDe[0]?.content).toBe("zum Frühstück gekocht");
+  });
+
+  it("replaces only the cited German place after the check", () => {
+    const result = applyDeterministicVerifierSuggestions({
+      issues: [
+        finding("section:grammar-lunch", "German 'Frühstück' does not mean Serbian 'ručak'.", {
+          serbianSpan: "za ručak",
+          germanSpan: "Frühstück",
+          differs: "meaning",
+          suggestion: "Mittagessen",
+        }),
+      ],
+      state: {
+        contentDe: [{ contentType: "grammar-lunch", content: "zum Frühstück gekocht" }],
+        testsDe: [],
+        vocabularyDe: [],
+      },
+    });
+    expect(result.state.contentDe[0]?.content).toBe("zum Mittagessen gekocht");
+    expect(result.remainingIssues).toHaveLength(0);
   });
 });
+

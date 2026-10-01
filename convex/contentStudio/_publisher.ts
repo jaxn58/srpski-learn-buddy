@@ -753,9 +753,7 @@ export const translatePublishedUnitEnToDe = action({
         );
       }
 
-      const criticalsForAi: VerifierIssue[] = det.remainingIssues.filter(
-        (issue) => issue.code !== "observation"
-      );
+      const criticalsForAi: VerifierIssue[] = det.remainingIssues.filter((issue) => !issue.differs);
       const feedback = formatRetryFeedback(criticalsForAi);
       retriedKeys = new Set<string>(det.patchedKeys);
 
@@ -1206,7 +1204,7 @@ export const retryDeTranslationForSelectedIssues = action({
         suggestion: i.suggestion,
       })),
       filterItems
-    ).kept.filter((issue) => issue.code !== "observation");
+    ).kept;
     const det = applyDeterministicVerifierSuggestions({
       issues: selectedAsIssues,
       state: {
@@ -1221,7 +1219,8 @@ export const retryDeTranslationForSelectedIssues = action({
       );
     }
 
-    const feedback = formatRetryFeedback(det.remainingIssues);
+    const retryIssues = det.remainingIssues.filter((issue) => !issue.differs);
+    const feedback = formatRetryFeedback(retryIssues);
 
     // 5) Clone the current DE state so we can selectively replace items.
     let metadataDe: any = { ...(currentDe.metadataDe ?? {}) };
@@ -1231,7 +1230,7 @@ export const retryDeTranslationForSelectedIssues = action({
     const retriedKeys = new Set<string>(det.patchedKeys);
 
     // ── Metadata retry ──────────────────────────────────────────────────────
-    const hasMetadataSelected = det.remainingIssues.some((i) => i.itemKind === "metadata");
+    const hasMetadataSelected = retryIssues.some((i) => i.itemKind === "metadata");
     if (hasMetadataSelected && feedback.metadata) {
       try {
         const retryAi = await runMetadataTranslation(ctx, {
@@ -1256,7 +1255,7 @@ export const retryDeTranslationForSelectedIssues = action({
 
     // ── Vocabulary retry (per-id) ───────────────────────────────────────────
     const vocabIdsToRetry = new Set(
-      det.remainingIssues
+      retryIssues
         .filter((i) => i.itemKind === "vocabulary")
         .map((i) => String(i.itemKey).replace(/^vocab:/, ""))
     );
@@ -1290,7 +1289,7 @@ export const retryDeTranslationForSelectedIssues = action({
 
     // ── Tests retry (by affected category, consistent with Pass 2) ──────────
     const testQidsToRetry = new Set(
-      det.remainingIssues
+      retryIssues
         .filter((i) => i.itemKind === "test")
         .map((i) => String(i.itemKey).replace(/^test:/, ""))
     );
@@ -1356,7 +1355,7 @@ export const retryDeTranslationForSelectedIssues = action({
 
     // ── Section retry (by contentType) ──────────────────────────────────────
     const sectionTypesToRetry = new Set<string>();
-    for (const i of det.remainingIssues) {
+    for (const i of retryIssues) {
       if (i.itemKind !== "section") continue;
       const m = String(i.itemKey).match(/^section:(.+)$/);
       if (m && m[1]) sectionTypesToRetry.add(m[1]);

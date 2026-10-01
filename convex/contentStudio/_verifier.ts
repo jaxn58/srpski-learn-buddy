@@ -87,8 +87,14 @@ export interface VerifierIssue {
   code: string;
   /** Human-readable description of the issue. */
   issue: string;
-  /** Suggested German rewrite or concrete advice for the retry pass. */
+  /** Suggested German rewrite of germanSpan only. A new sentence is not a suggestion. */
   suggestion?: string;
+  /** Serbian place the finding is about. Must occur in the saved source text. */
+  serbianSpan?: string;
+  /** German place the finding is about. Must occur in the saved German text. */
+  germanSpan?: string;
+  /** Why the two places do not match. Wording and noun gender are not differences. */
+  differs?: "meaning" | "tense" | "role";
 }
 
 export interface VerifierReport {
@@ -493,96 +499,6 @@ function suggestionAlreadyInSection(
   return hay.includes(suggestion);
 }
 
-const DATIVE_ACCUSATIVE_PAIRS: Array<[string, string]> = [
-  ["mir", "mich"],
-  ["dir", "dich"],
-  ["ihm", "ihn"],
-  ["ihr", "sie"],
-  ["ihnen", "sie"],
-];
-
-const DEFINITE_ARTICLES = new Set(["der", "die", "das", "den", "dem", "des"]);
-const INDEFINITE_ARTICLES = new Set(["ein", "eine", "einer", "einen", "einem", "eines"]);
-const SERBIAN_DEMONSTRATIVE =
-  /\b(ovaj|ovog|ovom|ovu|ova|ovo|ove|taj|tog|tom|tu|ta|to|te|onaj|onog|onom|onu|ona|ono|one)\b/i;
-const DATIVE_GOVERNING_GERMAN =
-  /\b(wehtun|weh\s+tun|tut\b[\s\S]{0,48}\bweh\b|ist\s+(kalt|hei(?:ß|ss)|warm))\b/i;
-
-function presenceTokens(text: string): string[] {
-  return normalizeSectionPresence(stripLeadingEllipsis(text)).split(" ").filter(Boolean);
-}
-
-function singleTokenSwap(
-  current: string,
-  suggestion: string,
-  isSwap: (currentToken: string, suggestionToken: string) => boolean
-): boolean {
-  const left = presenceTokens(current);
-  const right = presenceTokens(suggestion);
-  if (left.length === 0 || left.length !== right.length) return false;
-  let diffs = 0;
-  for (let i = 0; i < left.length; i++) {
-    if (left[i] === right[i]) continue;
-    diffs += 1;
-    if (diffs > 1 || !isSwap(left[i] ?? "", right[i] ?? "")) return false;
-  }
-  return diffs === 1;
-}
-
-function isDativeAccusativePronounSwap(currentToken: string, suggestionToken: string): boolean {
-  return DATIVE_ACCUSATIVE_PAIRS.some(
-    ([dative, accusative]) =>
-      (currentToken === dative && suggestionToken === accusative) ||
-      (currentToken === accusative && suggestionToken === dative)
-  );
-}
-
-function isDefiniteIndefiniteArticleSwap(currentToken: string, suggestionToken: string): boolean {
-  const currentDefinite = DEFINITE_ARTICLES.has(currentToken);
-  const suggestionDefinite = DEFINITE_ARTICLES.has(suggestionToken);
-  const currentIndefinite = INDEFINITE_ARTICLES.has(currentToken);
-  const suggestionIndefinite = INDEFINITE_ARTICLES.has(suggestionToken);
-  return (currentDefinite && suggestionIndefinite) || (currentIndefinite && suggestionDefinite);
-}
-
-/**
- * Serbian case and the English article are not German grammar.
- * "tut ihnen weh" stays when the suggestion only swaps in the accusative
- * pronoun. "die Speisekarte" vs "eine Speisekarte" stays when Serbian has
- * no demonstrative. A gender fix such as "ein Milch" → "eine Milch" stays,
- * because both articles are indefinite.
- */
-function isSerbianMorphologyProjection(
-  issue: VerifierIssue,
-  item: VerifierInputItem | undefined
-): boolean {
-  if (!item) return false;
-  if (issue.code !== "semantic_mismatch" && issue.code !== "grammatical" && issue.code !== "manual_retry") return false;
-  const suggestion = String(issue.suggestion || "").trim();
-  if (suggestion.length < 8) return false;
-  const hay = normalizeSectionPresence(item.german);
-  const currentSpans = extractQuotedSpans(issue.issue).filter((quote) => {
-    const normalized = normalizeSectionPresence(stripLeadingEllipsis(quote));
-    return normalized.length >= 8 && hay.includes(normalized);
-  });
-  const serbianBlob = `${issue.issue}\n${item.serbian}`;
-  for (const current of currentSpans) {
-    if (
-      singleTokenSwap(current, suggestion, isDativeAccusativePronounSwap) &&
-      DATIVE_GOVERNING_GERMAN.test(`${current} ${suggestion}`)
-    ) {
-      return true;
-    }
-    if (
-      singleTokenSwap(current, suggestion, isDefiniteIndefiniteArticleSwap) &&
-      !SERBIAN_DEMONSTRATIVE.test(serbianBlob)
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
 function quotesAlreadyInSerbianColumn(
   issue: VerifierIssue,
   item: VerifierInputItem | undefined
@@ -687,60 +603,52 @@ export function dropAiMissingInfoThatRepeatsVocabularySerbian(
  * stored German, and gloss removal on Serbian-stem exercises is already a
  * deterministic check. Real semantic mismatches stay.
  */
-function dashAgreementTag(question: string): string | null {
-  const matches = String(question || "").match(/\(([^)]*)\)/g);
-  if (!matches || matches.length === 0) return null;
-  const inner = matches[matches.length - 1]?.slice(1, -1) ?? "";
-  const parts = inner.split(/\s[-–—]\s/);
-  if (parts.length < 2) return null;
-  const tag = parts[parts.length - 1]?.trim() ?? "";
-  if (!tag || tag.split(/\s+/).filter(Boolean).length > 8) return null;
-  return tag;
-}
-
-type AgreementCue = "addressee-masc" | "addressee-fem" | "group-masc" | "group-fem" | "group-mixed" | "plural" | "singular";
-
-/** The grammatical job of a fill-in tag: who the form agrees with, not the wording. */
-function agreementCue(tag: string): AgreementCue | null {
-  const text = tag.toLowerCase();
-  const group = /\b(group|gruppe|gruppen)\b/.test(text);
-  const feminine = /\b(female|feminine|woman|women|weiblich\w*|frauen|frau)\b/.test(text);
-  const masculine = /\b(male|masculine|man|men|männlich\w*|männer|mann)\b/.test(text);
-  if (group && feminine && masculine) return "group-mixed";
-  if (group && feminine) return "group-fem";
-  if (group && masculine) return "group-masc";
-  if (group) return "group-mixed";
-  if (/\bplural\b/.test(text)) return "plural";
-  if (/\bsingular\b/.test(text)) return "singular";
-  if (feminine) return "addressee-fem";
-  if (masculine) return "addressee-masc";
-  return null;
-}
+const NOT_A_MEANING_DIFFERENCE =
+  /\b(too specific|zu speziell|awkward|not idiomatic|unidiomatic|genus|neuter|feminine|masculine|dative|accusative|grammatical gender|include ['"]ob['"]|should include ['"]ob['"])\b/i;
 
 /**
- * A fill-in parenthesis is a sentence gloss plus a short tag after the dash.
- * The tag names the agreement the learner must use. An idiom complaint about
- * that tag is not a translation defect when the tag still names the same job
- * as the English tag.
+ * A finding exists only when the Serbian place and the German place are in
+ * the saved text and the difference is meaning, time, or who does what to
+ * whom. Same wording is not required. Noun gender, "too specific", "ob",
+ * and "sounds awkward" are not differences.
  */
-function isFillInAgreementTagComplaint(
-  issue: VerifierIssue,
-  item: VerifierInputItem | undefined
-): boolean {
-  if (!item || item.kind !== "test" || item.questionType !== "fillInBlank") return false;
-  const enTag = dashAgreementTag(item.english);
-  const deTag = dashAgreementTag(item.german);
-  if (!enTag || !deTag) return false;
-  const enCue = agreementCue(enTag);
-  const deCue = agreementCue(deTag);
-  if (!enCue || enCue !== deCue) return false;
-  if (/\b(does not mean|wrong meaning|mistranslat|not the same meaning)\b/i.test(issue.issue)) return false;
-  const quotes = extractQuotedSpans(issue.issue).map((quote) =>
-    quote.replace(/^[-–—\s]+/, "").trim().toLowerCase()
-  );
-  const tag = deTag.toLowerCase();
-  if (quotes.length > 0) return quotes.every((quote) => tag.includes(quote) || quote.includes(tag));
-  return /awkward|not idiomatic|unidiomatic/i.test(issue.issue);
+export function admitMeaningFinding(
+  raw: {
+    issue: string;
+    suggestion?: string;
+    serbianSpan?: string;
+    germanSpan?: string;
+    differs?: string;
+  },
+  item: VerifierInputItem
+): Pick<VerifierIssue, "serbianSpan" | "germanSpan" | "differs" | "suggestion"> | null {
+  const blob = `${raw.issue} ${raw.suggestion ?? ""}`;
+  if (NOT_A_MEANING_DIFFERENCE.test(blob)) return null;
+  const differs = raw.differs;
+  if (differs !== "meaning" && differs !== "tense" && differs !== "role") return null;
+  const serbianSpan = String(raw.serbianSpan ?? "").trim();
+  const germanSpan = String(raw.germanSpan ?? "").trim();
+  if (serbianSpan.length < 2 || germanSpan.length < 2) return null;
+  const source = `${item.serbian}\n${item.english}`;
+  if (!source.includes(serbianSpan) || !String(item.german || "").includes(germanSpan)) return null;
+  return {
+    serbianSpan,
+    germanSpan,
+    differs,
+    suggestion: localSpanReplacement(germanSpan, raw.suggestion),
+  };
+}
+
+/** The replacement is the new wording of the cited German place, not a new sentence. */
+export function localSpanReplacement(germanSpan: string, suggestion?: string): string | undefined {
+  const next = String(suggestion ?? "").trim();
+  if (!next || next === germanSpan) return undefined;
+  if (/\b(paragraph|change the|rewrite the|replace the|in the)\b/i.test(next)) return undefined;
+  const spanWords = germanSpan.split(/\s+/).filter(Boolean).length;
+  const nextWords = next.split(/\s+/).filter(Boolean).length;
+  if (nextWords > spanWords + 2) return undefined;
+  if (next.includes(germanSpan)) return undefined;
+  return next;
 }
 
 export function dropNonActionableVerifierIssues(
@@ -752,54 +660,29 @@ export function dropNonActionableVerifierIssues(
   const dropped: VerifierIssue[] = [];
   for (const issue of issues) {
     const item = byKey.get(issue.itemKey);
-    const drop =
+    const structural =
       shouldDropVocabSectionMissingInfo(issue, item) ||
       complainsAboutSerbianAnchorField(issue) ||
       quotesAlreadyInSerbianColumn(issue, item) ||
       suggestionAlreadyInSection(issue, item) ||
-      isSerbianMorphologyProjection(issue, item) ||
       sectionClaimAlreadySatisfied(issue, item) ||
-      isAiGlossPolicyComplaint(issue, item) ||
-      isFillInAgreementTagComplaint(issue, item);
-    if (drop) dropped.push(issue);
-    else kept.push(detachVerifierAuthoredSentence(issue, item));
+      isAiGlossPolicyComplaint(issue, item);
+    if (structural) {
+      dropped.push(issue);
+      continue;
+    }
+    if (!item || DETERMINISTIC_VERIFIER_CODES.has(issue.code)) {
+      kept.push(issue);
+      continue;
+    }
+    const admitted = admitMeaningFinding(issue, item);
+    if (!admitted) {
+      dropped.push(issue);
+      continue;
+    }
+    kept.push({ ...issue, ...admitted });
   }
   return { kept, dropped };
-}
-
-const ENGLISH_EDIT_INSTRUCTION = /\b(paragraph|change the|rewrite the|replace the|in the)\b/i;
-
-/**
- * A single gloss swap replaces the cited current form with one German word
- * or an article plus a noun. A sentence the verifier composed is not learner
- * German, and neither is an English editing instruction or a rewrite of a
- * line marked wörtlich.
- */
-function isDirectGlossSwap(issue: VerifierIssue, item: VerifierInputItem | undefined): boolean {
-  const suggestion = String(issue.suggestion ?? "").trim();
-  const words = suggestion.split(/\s+/).filter(Boolean);
-  if (words.length === 0 || words.length > 2) return false;
-  if (words.length === 2 && !/^(der|die|das|den|dem|des|ein|eine|einen|einem|einer)$/i.test(words[0] ?? "")) {
-    return false;
-  }
-  const german = String(item?.german ?? "");
-  if (/wörtlich/i.test(german) && /wörtlich/i.test(`${issue.issue} ${suggestion}`)) return false;
-  return namedCurrentGermanForms(`${issue.issue} ${suggestion}`).some((form) => containsWholeWord(german, form));
-}
-
-export function detachVerifierAuthoredSentence(
-  issue: VerifierIssue,
-  item: VerifierInputItem | undefined
-): VerifierIssue {
-  const suggestion = String(issue.suggestion ?? "").trim();
-  if (!suggestion || isDirectGlossSwap(issue, item)) return issue;
-  const german = String(item?.german ?? "");
-  const authored =
-    ENGLISH_EDIT_INSTRUCTION.test(suggestion) ||
-    suggestion.split(/\s+/).filter(Boolean).length >= 3 ||
-    (/wörtlich/i.test(german) && /wörtlich/i.test(`${issue.issue} ${suggestion}`));
-  if (!authored) return issue;
-  return { ...issue, code: "observation", suggestion: undefined };
 }
 
 /**
@@ -1264,8 +1147,11 @@ function buildVerifierUserPayload(items: VerifierInputItem[]): string {
     "- Sections with a Serbian table column (vocabulary, phrases, dialogues, grammar) keep that column in Serbian on DE. Those cells are already in the serbian field. Do not report missing_info for them, and do not ask to add Serbian text to the serbian field.",
     "- A trailing [...truncated for verifier...] marker is a transport limit. Do not report it as missing or incomplete learner content.",
     "OUTPUT: return ONLY a JSON object {\"issues\":[...]} with no markdown.",
-    "Each issue: {key, severity, code, issue, suggestion?}. Keep issue text under 200 characters.",
-    "Omit items with no problem. Do not put unescaped double quotes inside issue/suggestion strings.",
+    "Each issue: {key, severity, code, issue, serbianSpan, germanSpan, differs, suggestion?}.",
+    "differs is meaning, tense, or role. serbianSpan and germanSpan are exact places in the saved text.",
+    "suggestion replaces only germanSpan. Do not write a new sentence.",
+    "Do not report wording, noun gender, 'too specific', 'ob', or 'awkward'. Omit items with no meaning, time, or role difference.",
+    "Keep issue text under 200 characters.",
     "",
   ].join("\n");
   const payload = {
@@ -1434,6 +1320,9 @@ export async function verifySerbianGermanAlignment(
           typeof raw?.suggestion === "string" && String(raw.suggestion).trim()
             ? String(raw.suggestion).trim()
             : undefined;
+        const differsRaw = String(raw?.differs ?? "").trim();
+        const differs =
+          differsRaw === "meaning" || differsRaw === "tense" || differsRaw === "role" ? differsRaw : undefined;
         const candidate: VerifierIssue = {
           itemKey: src.key,
           itemLabel: src.label,
@@ -1442,6 +1331,9 @@ export async function verifySerbianGermanAlignment(
           code,
           issue,
           suggestion,
+          serbianSpan: typeof raw?.serbianSpan === "string" ? String(raw.serbianSpan).trim() : undefined,
+          germanSpan: typeof raw?.germanSpan === "string" ? String(raw.germanSpan).trim() : undefined,
+          differs,
         };
         // Defensive drop: the verifier occasionally emits "no issue — they
         // match" commentary despite being told not to. Such entries are not
@@ -1736,7 +1628,7 @@ export function formatRetryFeedback(issues: VerifierIssue[]): {
   const sectionLines: Record<string, string[]> = {};
 
   for (const iss of issues) {
-    if (iss.code === "observation") continue;
+    if (iss.differs) continue;
     const sevTag = iss.severity === "critical" ? "CRITICAL" : iss.severity === "warning" ? "WARNING" : "INFO";
     const suggestion = typeof iss.suggestion === "string" ? iss.suggestion.trim() : "";
     const suggestionPart = suggestion
@@ -1790,25 +1682,6 @@ export function isActionableGermanSuggestion(suggestion: string | undefined | nu
   if (ADVISORY_PHRASE.test(s)) return false;
   if (!/[A-Za-zÄÖÜäöüß]/.test(s)) return false;
   return true;
-}
-
-/**
- * The German form the finding names as the current wording, including a
- * three-letter gloss such as "as 'sah'". Other short quotes stay out.
- */
-export function namedCurrentGermanForms(text: string): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  const re = /\bas\s+(['"«„“])([^'"»“”\n]{2,80})\1/gi;
-  let match: RegExpExecArray | null;
-  const source = String(text || "");
-  while ((match = re.exec(source))) {
-    const span = String(match[2] ?? "").trim();
-    if (span.length < 2 || seen.has(span)) continue;
-    seen.add(span);
-    out.push(span);
-  }
-  return out;
 }
 
 function wholeWordPattern(word: string): RegExp {
@@ -1912,14 +1785,6 @@ export function applySuggestionToGermanText(
     /\b(je|su|sam|si|smo|ste|nije|mleko|jedno|jedan|jedna)\b/i.test(q);
 
   const bareFix = fix.replace(/^\.{3}\s*/, "").trim();
-  if (/^\p{L}+$/u.test(fix)) {
-    for (const wrong of namedCurrentGermanForms(issue)) {
-      if (wrong.toLowerCase() === fix.toLowerCase()) continue;
-      if (looksSerbian(wrong)) continue;
-      if (!containsWholeWord(src, wrong)) continue;
-      return replaceWholeWord(src, wrong, fix);
-    }
-  }
   const quotes = extractQuotedSpans(issue)
     .filter((q) => {
       if (!q || q === fix || q.length < 8) return false;
@@ -1963,6 +1828,52 @@ export type DeTranslationState = {
   vocabularyDe: any[];
 };
 
+function replaceOnce(text: string, span: string, replacement: string): string | null {
+  const at = text.indexOf(span);
+  if (at < 0) return null;
+  return text.slice(0, at) + replacement + text.slice(at + span.length);
+}
+
+function replaceCitedGermanSpan(
+  issue: VerifierIssue,
+  replacement: string,
+  state: DeTranslationState
+): boolean {
+  const span = String(issue.germanSpan ?? "");
+  if (!span) return false;
+  if (issue.itemKind === "vocabulary") {
+    const id = String(issue.itemKey).replace(/^vocab:/, "");
+    const idx = state.vocabularyDe.findIndex((row) => String(row?.courseVocabularyId ?? "") === id);
+    if (idx < 0) return false;
+    const current = String(state.vocabularyDe[idx]?.de ?? "");
+    const next = replaceOnce(current, span, replacement);
+    if (next == null) return false;
+    state.vocabularyDe[idx] = { ...state.vocabularyDe[idx], de: next };
+    return true;
+  }
+  if (issue.itemKind === "test") {
+    const qid = String(issue.itemKey).replace(/^test:/, "");
+    const idx = state.testsDe.findIndex((row) => String(row?.questionId ?? "") === qid);
+    if (idx < 0) return false;
+    const current = String(state.testsDe[idx]?.question ?? "");
+    const next = replaceOnce(current, span, replacement);
+    if (next == null) return false;
+    state.testsDe[idx] = { ...state.testsDe[idx], question: next };
+    return true;
+  }
+  if (issue.itemKind === "section") {
+    const contentType = String(issue.itemKey).replace(/^section:/, "");
+    const idx = state.contentDe.findIndex((row) => String(row?.contentType ?? "") === contentType);
+    if (idx < 0) return false;
+    const current = String(state.contentDe[idx]?.content ?? "");
+    const next = replaceOnce(current, span, replacement);
+    if (next == null) return false;
+    state.contentDe[idx] = { ...state.contentDe[idx], content: next };
+    return true;
+  }
+  return false;
+}
+
 /**
  * Apply actionable verifier suggestions in-place on the current DE state.
  * Used before AI pass-2 / manual retry so concrete fixes (eine Milch, …) are
@@ -1990,6 +1901,17 @@ export function applyDeterministicVerifierSuggestions(params: {
 
   for (const iss of params.issues) {
     const suggestion = typeof iss.suggestion === "string" ? iss.suggestion.trim() : "";
+    if (iss.germanSpan && iss.differs) {
+      const replacement = localSpanReplacement(iss.germanSpan, suggestion);
+      if (replacement) {
+        const replaced = replaceCitedGermanSpan(iss, replacement, { contentDe, testsDe, vocabularyDe });
+        if (replaced) {
+          patchedKeys.push(iss.itemKey);
+          continue;
+        }
+      }
+      continue;
+    }
     if (!isActionableGermanSuggestion(suggestion)) {
       remainingIssues.push(iss);
       continue;
