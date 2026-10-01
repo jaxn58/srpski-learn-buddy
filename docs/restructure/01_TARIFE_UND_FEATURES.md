@@ -50,7 +50,7 @@ Klassisches wiederkehrendes Monats-/Jahres-Abo pro Paket. Vorteil: marktübliche
 
 - **Enthält:** Alle Lerninhalte (wie Sprachkurs) **+ Basis-Buddy** (`AI Buddy Chat (Basis)`) **mit Context-Linking** (Buddy kennt die aktuelle Unit/den Lernkontext) **+ Chat-Anhänge** (Fotos & Dateien im Chat, inkl. Vision-Aufschlag in der Energy-Tabelle) **+ Energy-Nachkauf**.
 - **Enthält NICHT:** Wissensablage (Wissensbasis in Meine Bibliothek), Community.
-- **Speicher:** 100 MB nur für Chat-Anhänge (kein Wissensablage-Speicher).
+- **Speicher:** Standard 100 MB nur für Chat-Anhänge (kein Wissensablage-Speicher). Der Wert ist im Admin unter Storage einstellbar (`storageQuotaCourseAiBytes`).
 - **Energy:** **250 Energy/Monat** (Juni 2026 von 120 angehoben – UX-Korrektur, 120 wirkte als Demo-Quota) **mit** Nachkauf-Option (Top-up). Reicht für aktive Lerner mit ~3–4 Lernfragen pro Tag. Top-ups erlauben Spitzennutzung ohne Sperrung.
 - **Zielgruppe:** Lerner mit AI-Support.
 
@@ -69,7 +69,7 @@ Klassisches wiederkehrendes Monats-/Jahres-Abo pro Paket. Vorteil: marktübliche
 | Context-Linking | `convex/chat.ts` `buildUnitContextBlock`, `unitContext` auf Messages | Vorhanden |
 | Chat-Anhänge (Fotos & Dateien im Chat) | `convex/chat.ts` (Attachment-Upload), `convex/documents.ts` (`uploadSource: "chat_attachment"`), `chatMessages.attachmentStorageId` | Vorhanden; Gate: `features.chatAttachments` |
 | Wissensablage (Wissensbasis) | `convex/documents.ts` (`uploadSource: "knowledge_rack"`), `userDocuments`/`userDocumentChunks`, `client/.../KnowledgeBaseExplorer.tsx` | Vorhanden; Gate: `features.knowledgeRack` |
-| Speicher-Quota pro User | `convex/storageQuota.ts` (`resolveStorageQuotaBytes`) – course_ai: 100 MB (nur Chat-Anhänge), standalone: 500 MB, course_ai_pro: 1 GB, beta: 0 | Vorhanden |
+| Speicher-Quota pro User | `convex/storageQuota.ts` (`resolveStorageQuotaBytes`), Defaults und Admin-Felder in `platformConfig`: course 0, course_ai 100 MB (nur Chat-Anhänge), standalone 500 MB, course_ai_pro 1 GB, beta 25 MB | Vorhanden |
 | Energy-Nachkauf möglich | `convex/subscriptions.ts` Top-up-Packs, Dodo-Produkte | Vorhanden |
 | Community/Lerngruppen | – | **Neu zu bauen** (eigener Track) |
 | Teaser 1–2/24h | `convex/chat.ts` Teaser-Logik für `course`-Tier | Vorhanden |

@@ -215,6 +215,7 @@ export const systemTables = {
     uploadMaxFileBytes: v.optional(v.number()),      // default 10 MB
     /** Per-tier storage quotas (bytes) for Knowledge Base + attachments. */
     storageQuotaStandaloneBytes: v.optional(v.number()),   // default 500 MB
+    storageQuotaCourseAiBytes: v.optional(v.number()),     // default 100 MB, chat attachments only
     storageQuotaCourseAiProBytes: v.optional(v.number()),  // default 1 GB
     storageQuotaBetaBytes: v.optional(v.number()),         // chat-attachment preview during active beta (default 25 MB)
     /** Target USD cost per 1 Energy unit for measured token→Energy conversion. */

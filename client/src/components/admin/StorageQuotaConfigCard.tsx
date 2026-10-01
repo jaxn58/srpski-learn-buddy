@@ -13,6 +13,7 @@ const MB = 1024 * 1024;
 
 type StorageQuotaDraft = {
   standaloneMb: number;
+  courseAiMb: number;
   courseAiProMb: number;
   betaMb: number;
 };
@@ -37,6 +38,7 @@ export function StorageQuotaConfigCard() {
     if (!config) return;
     setDraft({
       standaloneMb: bytesToMb(config.storageQuotaStandaloneBytes),
+      courseAiMb: bytesToMb(config.storageQuotaCourseAiBytes),
       courseAiProMb: bytesToMb(config.storageQuotaCourseAiProBytes),
       betaMb: bytesToMb(config.storageQuotaBetaBytes),
     });
@@ -46,6 +48,7 @@ export function StorageQuotaConfigCard() {
     draft !== null &&
     config !== undefined &&
     (mbToBytes(draft.standaloneMb) !== config.storageQuotaStandaloneBytes ||
+      mbToBytes(draft.courseAiMb) !== config.storageQuotaCourseAiBytes ||
       mbToBytes(draft.courseAiProMb) !== config.storageQuotaCourseAiProBytes ||
       mbToBytes(draft.betaMb) !== config.storageQuotaBetaBytes);
 
@@ -62,6 +65,7 @@ export function StorageQuotaConfigCard() {
     try {
       await setStorageQuotaConfig({
         storageQuotaStandaloneBytes: mbToBytes(draft.standaloneMb),
+        storageQuotaCourseAiBytes: mbToBytes(draft.courseAiMb),
         storageQuotaCourseAiProBytes: mbToBytes(draft.courseAiProMb),
         storageQuotaBetaBytes: mbToBytes(draft.betaMb),
       });
@@ -85,7 +89,7 @@ export function StorageQuotaConfigCard() {
         <CardDescription>{t("adminStorage.quotaConfig.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <Label htmlFor="sq-standalone" className="text-sm">
               {t("adminStorage.quotaConfig.standalone")}
@@ -102,6 +106,24 @@ export function StorageQuotaConfigCard() {
             />
             <p className="text-xs text-muted-foreground mt-1">
               {t("adminStorage.quotaConfig.standaloneHint")}
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="sq-course-ai" className="text-sm">
+              {t("adminStorage.quotaConfig.courseAi")}
+            </Label>
+            <Input
+              id="sq-course-ai"
+              type="number"
+              min={1}
+              step={1}
+              value={draft ? String(draft.courseAiMb) : ""}
+              onChange={(e) => handleField("courseAiMb", e.target.value)}
+              disabled={draft === null}
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("adminStorage.quotaConfig.courseAiHint")}
             </p>
           </div>
           <div>

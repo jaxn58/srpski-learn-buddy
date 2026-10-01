@@ -145,6 +145,7 @@ export const getPlatformConfig = query({
     energyQuotaBasic: v.number(),
     uploadMaxFileBytes: v.number(),
     storageQuotaStandaloneBytes: v.number(),
+    storageQuotaCourseAiBytes: v.number(),
     storageQuotaCourseAiProBytes: v.number(),
     storageQuotaBetaBytes: v.number(),
     // Billing config (Phase 4)
@@ -182,6 +183,8 @@ export const getPlatformConfig = query({
       uploadMaxFileBytes: config?.uploadMaxFileBytes ?? DEFAULT_UPLOAD_MAX_FILE_BYTES,
       storageQuotaStandaloneBytes:
         config?.storageQuotaStandaloneBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.standalone,
+      storageQuotaCourseAiBytes:
+        config?.storageQuotaCourseAiBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.course_ai,
       storageQuotaCourseAiProBytes:
         config?.storageQuotaCourseAiProBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.course_ai_pro,
       storageQuotaBetaBytes:
@@ -213,6 +216,7 @@ type EnergyPatchFields = {
 
 type StorageQuotaPatchFields = {
   storageQuotaStandaloneBytes?: number;
+  storageQuotaCourseAiBytes?: number;
   storageQuotaCourseAiProBytes?: number;
   storageQuotaBetaBytes?: number;
 };
@@ -254,6 +258,7 @@ async function upsertPlatformConfig(
       energyQuotaBasic: patch.energyQuotaBasic,
       uploadMaxFileBytes: patch.uploadMaxFileBytes,
       storageQuotaStandaloneBytes: patch.storageQuotaStandaloneBytes,
+      storageQuotaCourseAiBytes: patch.storageQuotaCourseAiBytes,
       storageQuotaCourseAiProBytes: patch.storageQuotaCourseAiProBytes,
       storageQuotaBetaBytes: patch.storageQuotaBetaBytes,
       updatedAt: Date.now(),
@@ -526,6 +531,8 @@ export const setStorageQuotaConfig = mutation({
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageQuotaStandaloneBytes: v.optional(v.number()),
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
+    storageQuotaCourseAiBytes: v.optional(v.number()),
+    // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageQuotaCourseAiProBytes: v.optional(v.number()),
     // @ts-ignore TS2589 TS2589 – Convex schema depth limit (50 tables)
     storageQuotaBetaBytes: v.optional(v.number()),
@@ -547,6 +554,12 @@ export const setStorageQuotaConfig = mutation({
       assertValidStorageQuotaBytes(
         args.storageQuotaStandaloneBytes,
         "Standalone storage quota"
+      );
+    }
+    if (args.storageQuotaCourseAiBytes !== undefined) {
+      assertValidStorageQuotaBytes(
+        args.storageQuotaCourseAiBytes,
+        "Sprachkurs + AI storage quota"
       );
     }
     if (args.storageQuotaCourseAiProBytes !== undefined) {

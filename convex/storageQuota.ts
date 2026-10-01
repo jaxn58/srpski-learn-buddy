@@ -28,6 +28,7 @@ export type UploadSource = "chat_attachment" | "knowledge_rack";
 
 export type StorageQuotaConfig = {
   quotaStandaloneBytes: number;
+  quotaCourseAiBytes: number;
   quotaCourseAiProBytes: number;
   quotaBetaBytes: number;
 };
@@ -40,6 +41,8 @@ export async function loadStorageQuotaConfig(
   return {
     quotaStandaloneBytes:
       cfg?.storageQuotaStandaloneBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.standalone,
+    quotaCourseAiBytes:
+      cfg?.storageQuotaCourseAiBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.course_ai,
     quotaCourseAiProBytes:
       cfg?.storageQuotaCourseAiProBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.course_ai_pro,
     quotaBetaBytes: cfg?.storageQuotaBetaBytes ?? DEFAULT_STORAGE_QUOTA_BYTES.beta,
@@ -65,9 +68,7 @@ export function resolveStorageQuotaBytes(
 
   switch (access.tier) {
     case "course_ai":
-      return source === "knowledge_rack"
-        ? 0
-        : DEFAULT_STORAGE_QUOTA_BYTES.course_ai;
+      return source === "knowledge_rack" ? 0 : quotas.quotaCourseAiBytes;
     case "standalone":
       return quotas.quotaStandaloneBytes;
     case "course_ai_pro":
@@ -210,7 +211,7 @@ export const getPublicStorageInfo = query({
       quotasBytes: {
         course: 0,
         standalone: quotas.quotaStandaloneBytes,
-        course_ai: DEFAULT_STORAGE_QUOTA_BYTES.course_ai,
+        course_ai: quotas.quotaCourseAiBytes,
         course_ai_pro: quotas.quotaCourseAiProBytes,
       },
     };
