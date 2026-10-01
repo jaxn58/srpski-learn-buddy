@@ -64,7 +64,8 @@ export function DraftList({
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const [collapsedModules, setCollapsedModules] = useState<Set<number>>(new Set());
+  // Empty set means every module starts collapsed. Membership means the user opened it.
+  const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
 
   const handleConfirmDelete = async () => {
     if (!draftToDelete) return;
@@ -78,7 +79,7 @@ export function DraftList({
   };
 
   const toggleModule = (moduleNumber: number) =>
-    setCollapsedModules((prev) => {
+    setExpandedModules((prev) => {
       const next = new Set(prev);
       if (next.has(moduleNumber)) next.delete(moduleNumber);
       else next.add(moduleNumber);
@@ -248,7 +249,7 @@ export function DraftList({
                 <div className="text-sm text-muted-foreground">{t("admin.contentStudio.unitList.empty", "No units found.")}</div>
               ) : (
                 draftGroups.map((g) => {
-                  const collapsed = collapsedModules.has(g.moduleNumber);
+                  const collapsed = !expandedModules.has(g.moduleNumber);
                   const moduleLabel = Number.isFinite(g.moduleNumber)
                     ? t("admin.contentStudio.unitList.moduleLabel", { defaultValue: "Module {{n}}", n: g.moduleNumber })
                     : t("admin.contentStudio.unitList.noModule", "No module");
