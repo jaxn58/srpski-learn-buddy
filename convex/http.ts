@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { streamChatMessage } from "./chat";
 import { Webhook as SvixWebhook } from "svix";
 
@@ -742,6 +743,120 @@ http.route({
 
       // Retryable/unknown failure: return 500 so Dodo can retry.
       return new Response("Failed", { status: 500 });
+    }
+  }),
+});
+
+function backupDownloadHeaders(filename: string): Headers {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json; charset=utf-8");
+  headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Vary", "Origin");
+  return headers;
+}
+
+function chunkArrayInner(text: string, tableName: string): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
+    throw new Error(`Backup chunk for ${tableName} is not a list`);
+  }
+  return trimmed.slice(1, -1).trim();
+}
+
+http.route({
+  path: "/backup-download",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const headers = request.headers;
+    if (
+      headers.get("Origin") !== null &&
+      headers.get("Access-Control-Request-Method") !== null &&
+      headers.get("Access-Control-Request-Headers") !== null
+    ) {
+      return new Response(null, {
+        headers: new Headers({
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET",
+          "Access-Control-Allow-Headers": "Authorization",
+          "Access-Control-Max-Age": "86400",
+        }),
+      });
+    }
+    return new Response();
+  }),
+});
+
+http.route({
+  path: "/backup-download",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const backupId = new URL(request.url).searchParams.get("backupId") ?? "";
+    if (!backupId) {
+      return new Response("Missing backupId", { status: 400, headers: backupDownloadHeaders("error.txt") });
+    }
+
+    try {
+      const plan = await ctx.runQuery(internal.backup.getBackupDownloadPlan, {
+        backupId: backupId as Id<"backupMetadata">,
+      });
+      const filename = `backup-${backupId}.json`;
+
+      if (plan.format === "v1") {
+        const blob = await ctx.storage.get(plan.storageId as Id<"_storage">);
+        if (!blob) {
+          return new Response("Backup file is not available", { status: 404, headers: backupDownloadHeaders(filename) });
+        }
+        return new Response(blob, { status: 200, headers: backupDownloadHeaders(filename) });
+      }
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const write = (text: string) => {
+            controller.enqueue(encoder.encode(text));
+          };
+          const header = JSON.stringify({
+            version: "2.0.0",
+            timestamp: plan.timestamp,
+            environment: plan.environment,
+            failedTables: plan.failedTables,
+            metadata: {
+              tableCount: plan.tableCount,
+              expectedTableCount: plan.expectedTableCount,
+              totalRecords: plan.totalRecords,
+            },
+          });
+          write(`${header.slice(0, -1)},"tables":{`);
+          const tables = plan.tables as Array<{ name: string; chunkIds: string[] }>;
+          for (let tableIndex = 0; tableIndex < tables.length; tableIndex += 1) {
+            const table = tables[tableIndex];
+            if (!table) continue;
+            if (tableIndex > 0) write(",");
+            write(`${JSON.stringify(table.name)}:[`);
+            let wroteItem = false;
+            for (const chunkId of table.chunkIds) {
+              if (!chunkId || chunkId === plan.manifestStorageId) continue;
+              const blob = await ctx.storage.get(chunkId as Id<"_storage">);
+              if (!blob) throw new Error(`Backup file for table ${table.name} is not available`);
+              const inner = chunkArrayInner(await blob.text(), table.name);
+              if (!inner) continue;
+              if (wroteItem) write(",");
+              write(inner);
+              wroteItem = true;
+            }
+            write("]");
+          }
+          write("}}");
+          controller.close();
+        },
+      });
+
+      return new Response(stream, { status: 200, headers: backupDownloadHeaders(filename) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Backup download failed";
+      const status = message === "Unauthorized" ? 401 : 500;
+      return new Response(message, { status, headers: backupDownloadHeaders("error.txt") });
     }
   }),
 });

@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,6 +36,8 @@ import { formatDateTimeEU } from "@/lib/utils";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string | undefined;
+
 type BackupStatus = "completed" | "failed" | "in_progress" | "partial";
 type BackupEnvironment = "production" | "development";
 
@@ -53,12 +56,12 @@ interface BackupMetadata extends Doc<"backupMetadata"> {
 
 export default function BackupManagement() {
   const { user, loading: authLoading } = useAuth();
+  const { getToken } = useClerkAuth();
   const { t } = useTranslation();
   const backups = useQuery(api.backupAdmin.listBackups) as BackupMetadata[] | undefined;
   const backupsLoading = backups === undefined;
   
   const triggerBackupMutation = useMutation(api.backupAdmin.triggerBackupNow);
-  const getBackupUrlMutation = useMutation(api.backupAdmin.getBackupUrl);
   
   const [triggeringBackup, setTriggeringBackup] = useState(false);
   const [downloadingBackupId, setDownloadingBackupId] = useState<Id<"backupMetadata"> | null>(null);
@@ -110,46 +113,26 @@ export default function BackupManagement() {
     try {
       setDownloadingBackupId(backupId);
 
-      const result = await getBackupUrlMutation({ backupId });
-
-      if (result?.url) {
-        // Fetch first (Convex Storage URLs are cross-origin and block a direct download attribute).
-        if (result.backupFormat === "v2") {
-          const manifestResponse = await fetch(result.url);
-          if (!manifestResponse.ok) {
-            throw new Error("Failed to download backup manifest");
-          }
-          const manifest: Record<string, unknown> = await manifestResponse.json();
-          const tables: Record<string, unknown> = {};
-          for (const table of result.tables) {
-            const rows: unknown[] = [];
-            for (const chunkUrl of table.urls) {
-              const tableResponse = await fetch(chunkUrl);
-              if (!tableResponse.ok) {
-                throw new Error(`Failed to download table ${table.name}`);
-              }
-              const parsed: unknown = await tableResponse.json();
-              if (!Array.isArray(parsed)) {
-                throw new Error(`Backup chunk for ${table.name} is not a list`);
-              }
-              rows.push(...parsed);
-            }
-            tables[table.name] = rows;
-          }
-          const combined = { ...manifest, tables };
-          saveBackupFile(new Blob([JSON.stringify(combined)], { type: "application/json" }), backupId);
-        } else {
-          const response = await fetch(result.url);
-          if (!response.ok) {
-            throw new Error("Failed to download backup");
-          }
-          saveBackupFile(await response.blob(), backupId);
-        }
-
-        toast.success(t("admin.backup.toast.downloadStarted.title"), {
-          description: t("admin.backup.toast.downloadStarted.desc"),
-        });
+      if (!CONVEX_SITE_URL) {
+        throw new Error("Backup download is not configured");
       }
+      const token = await getToken({ template: "convex" });
+      if (!token) {
+        throw new Error("Unauthorized");
+      }
+
+      const response = await fetch(
+        `${CONVEX_SITE_URL}/backup-download?backupId=${encodeURIComponent(backupId)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!response.ok) {
+        throw new Error((await response.text()) || "Failed to download backup");
+      }
+      saveBackupFile(await response.blob(), backupId);
+
+      toast.success(t("admin.backup.toast.downloadStarted.title"), {
+        description: t("admin.backup.toast.downloadStarted.desc"),
+      });
     } catch (error: any) {
       console.error("Download error:", error);
       toast.error(t("admin.backup.toast.downloadFailed.title"), {
@@ -390,7 +373,7 @@ export default function BackupManagement() {
                 {downloadingBackupId === latestBackup._id ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Getting Download Link...
+                    Downloading...
                   </>
                 ) : (
                   <>

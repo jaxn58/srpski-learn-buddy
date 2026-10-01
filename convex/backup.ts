@@ -618,3 +618,72 @@ export const deleteOldBackups = internalMutation({
     return { deleted: oldBackups.length };
   },
 });
+
+const downloadChunkValidator = v.object({
+  name: v.string(),
+  chunkIds: v.array(v.string()),
+});
+
+/**
+ * Admin-only plan for a single streamed download.
+ * Chunk ids stay on the server so the browser does not request each file itself.
+ */
+export const getBackupDownloadPlan = internalQuery({
+  args: { backupId: v.id("backupMetadata") },
+  returns: v.union(
+    v.object({
+      format: v.literal("v1"),
+      storageId: v.string(),
+    }),
+    v.object({
+      format: v.literal("v2"),
+      manifestStorageId: v.string(),
+      timestamp: v.number(),
+      environment: v.union(v.literal("production"), v.literal("development")),
+      failedTables: v.array(v.string()),
+      tableCount: v.number(),
+      expectedTableCount: v.number(),
+      totalRecords: v.number(),
+      tables: v.array(downloadChunkValidator),
+    })
+  ),
+  handler: async (ctx, { backupId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthorized");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+      throw new Error("Unauthorized");
+    }
+
+    const backup = await ctx.db.get(backupId);
+    if (!backup || !backup.storageId) throw new Error("Backup file is not available");
+
+    if (backup.backupFormat !== "v2") {
+      return { format: "v1" as const, storageId: backup.storageId };
+    }
+
+    return {
+      format: "v2" as const,
+      manifestStorageId: backup.storageId,
+      timestamp: backup.timestamp,
+      environment: backup.environment,
+      failedTables: backup.failedTables ?? [],
+      tableCount: backup.tableCount,
+      expectedTableCount: backup.expectedTableCount ?? backup.tableCount,
+      totalRecords: backup.totalRecords,
+      tables: (backup.exportedTables ?? []).map((table) => ({
+        name: table.name,
+        chunkIds:
+          table.chunks && table.chunks.length > 0
+            ? table.chunks.map((chunk) => chunk.storageId)
+            : table.storageId
+              ? [table.storageId]
+              : [],
+      })),
+    };
+  },
+});
