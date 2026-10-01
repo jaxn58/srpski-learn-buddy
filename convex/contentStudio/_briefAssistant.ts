@@ -99,6 +99,7 @@ function assignmentLockBlock(): string {
     "courseContext.cefrLevel is the module level. fields.cefrLevel MUST equal it.",
     "currentFields already contain the author's unitType, strand, setting, situation, canDo and grammarIn. Copy those values unchanged into fields.",
     "Write only the remaining fields: grammarOut, chunks, recycle, pitfalls, scenes, listening, cultural, exerciseFocus, plus titleSuggestion and descriptionSuggestion derived from the author's situation and grammarIn.",
+    "Those remaining fields must not contradict the assignment or each other. A pitfall must not glue two incompatible statements together with a reason. If you cannot write a field without that clash, leave the clash visible in the wording you already have; do not invent a reconciliation.",
     "previouslyTaught is grammar earlier units already introduced. Recycle it. Do not make it this unit's grammarIn.",
     "Do not ask questions about unitType, cefrLevel, strand, setting, situation, canDo or grammarIn.",
   ].join("\n");

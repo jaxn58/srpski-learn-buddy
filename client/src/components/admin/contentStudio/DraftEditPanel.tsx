@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ import { useTranslation } from "react-i18next";
 import { BriefWorkflow } from "./BriefWorkflow";
 import { AuthorNoteField, DraftExtras } from "./DraftExtras";
 import { computeBriefVersionNumbers, formatBriefVersionId } from "./utils/briefVersionLabel";
+import { hashBriefingText, type BriefingCheckStamp } from "@shared/contentStudio/briefingCheck";
 
 export interface DraftEditPanelCreateParams {
   unitNumber: number;
@@ -47,6 +48,8 @@ export interface DraftEditPanelCreateParams {
   auditorSkillIds?: string[];
   authorNoteName?: string;
   authorNoteQuote?: string;
+  /** Passed check for the briefing text included in this create. */
+  briefingCheck?: BriefingCheckStamp;
   /** Run Creator -> Validator -> Lector right after creating the unit. */
   generateAfterCreate?: boolean;
 }
@@ -284,10 +287,15 @@ function CreateForm({
       `Another draft already exists for Unit ${parsedUnit} in Module ${parsedModule}.`
     : null;
 
+  const checkRef = useRef<BriefingCheckStamp | null>(null);
+
   const handleCreate = async (generateAfterCreate: boolean) => {
     if (!numbersValid || collides) return;
     setCreating(true);
     try {
+      const stamp = checkRef.current;
+      const briefingCheck =
+        stamp && stamp.ok && stamp.notesHash === hashBriefingText(creatorBrief) ? stamp : undefined;
       await onCreateDraft({
         generateAfterCreate,
         unitNumber: parsedUnit,
@@ -304,6 +312,7 @@ function CreateForm({
         auditorSkillIds: auditorSkillIds.length ? auditorSkillIds : undefined,
         authorNoteName: authorNoteName.trim() || undefined,
         authorNoteQuote: authorNoteQuote.trim() || undefined,
+        briefingCheck,
       });
     } finally {
       setCreating(false);
@@ -354,6 +363,7 @@ function CreateForm({
         idPrefix="create-brief"
         onPrimary={() => handleCreate(true)}
         onSecondary={() => handleCreate(false)}
+        onChecked={(stamp) => { checkRef.current = stamp; }}
         actionBusy={creating}
         expertChildren={
           <>
@@ -492,6 +502,8 @@ function EditForm(props: EditFormProps) {
         idPrefix={`edit-brief-${String(selectedDraftId ?? "")}`}
         onPrimary={onSaveAndGenerate}
         onSecondary={onSaveDraftSkillsAndReference}
+        draftId={selectedDraftId}
+        savedCheck={((selected as any)?.draft?.briefingCheck as BriefingCheckStamp | undefined) ?? null}
         actionBusy={isBusy}
         expertChildren={
           <>

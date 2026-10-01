@@ -10,6 +10,8 @@ import {
 import { findEarlierUnitVocabulary, toVocabularyKey } from "../vocabulary";
 import { makeValidatorMemoryFingerprint } from "./_validatorMemory";
 import { clampVocabularyBudget } from "../../shared/contentStudio/vocabularyBudget";
+import { hashBriefingText, type BriefingCheckStamp } from "../../shared/contentStudio/briefingCheck";
+import { briefingCheckValidator } from "./_briefingCheck";
 
 /**
  * Validator Memory auto-capture switched off (decision 2026-09-16).
@@ -259,6 +261,15 @@ export const createDraft = mutation({
   },
 });
 
+function briefingCheckForNotes(
+  notes: string | undefined,
+  stamp: BriefingCheckStamp | undefined,
+): BriefingCheckStamp | undefined {
+  if (!stamp) return undefined;
+  if (hashBriefingText(notes ?? "") !== stamp.notesHash) return undefined;
+  return stamp;
+}
+
 export const createDraftTemplateFromDraft = mutation({
   args: {
     draftId: v.id("contentDrafts"),
@@ -365,6 +376,7 @@ export const createDraftFromTemplate = mutation({
     auditorSkillIds: v.optional(v.array(v.id("contentStudioSkills"))),
     authorNoteName: v.optional(v.string()),
     authorNoteQuote: v.optional(v.string()),
+    briefingCheck: v.optional(briefingCheckValidator),
   },
   handler: async (ctx, args) => {
     const user = await requireSuperadmin(ctx);
@@ -403,6 +415,9 @@ export const createDraftFromTemplate = mutation({
       authorNoteName: trimmedName || "Jacksenn",
       authorNoteQuote: trimmedQuote || undefined,
       authorNoteQuoteLang: trimmedQuote ? detectAuthorNoteLang(trimmedQuote) : undefined,
+      ...(briefingCheckForNotes(inspirationRef?.notes, args.briefingCheck)
+        ? { briefingCheck: briefingCheckForNotes(inspirationRef?.notes, args.briefingCheck) }
+        : {}),
     });
     return id;
   },
@@ -427,6 +442,7 @@ export const updateDraftMeta = mutation({
         referenceId: v.optional(v.id("contentStudioReferences")),
       })
     ),
+    briefingCheck: v.optional(briefingCheckValidator),
   },
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
@@ -477,8 +493,46 @@ export const updateDraftMeta = mutation({
           }
         : {}),
       ...(args.inspirationRef ? { inspirationRef: args.inspirationRef } : {}),
+      ...(briefingCheckForNotes(
+        args.inspirationRef
+          ? args.inspirationRef.notes
+          : (draft as { inspirationRef?: { notes?: string } }).inspirationRef?.notes,
+        args.briefingCheck,
+      )
+        ? {
+            briefingCheck: briefingCheckForNotes(
+              args.inspirationRef
+                ? args.inspirationRef.notes
+                : (draft as { inspirationRef?: { notes?: string } }).inspirationRef?.notes,
+              args.briefingCheck,
+            ),
+          }
+        : {}),
       updatedAt: Date.now(),
     });
+  },
+});
+
+/** Writes the consistency stamp and the briefing text it belongs to. */
+export const saveBriefingCheck = internalMutation({
+  args: {
+    draftId: v.id("contentDrafts"),
+    notes: v.string(),
+    briefingCheck: briefingCheckValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const draft = await ctx.db.get(args.draftId);
+    if (!draft) throw new Error("Draft not found");
+    const stamp = briefingCheckForNotes(args.notes, args.briefingCheck);
+    if (!stamp) throw new Error("Briefing check does not match the briefing text.");
+    const ref = (draft as { inspirationRef?: Record<string, unknown> }).inspirationRef ?? {};
+    await ctx.db.patch(args.draftId, {
+      inspirationRef: { ...ref, notes: args.notes },
+      briefingCheck: stamp,
+      updatedAt: Date.now(),
+    });
+    return null;
   },
 });
 
@@ -3214,6 +3268,10 @@ export const checkMissingPrompts = internalMutation({
       CS_PROMPT_KEYS.unitCreator,
       CS_PROMPT_KEYS.findingFixer,
       CS_PROMPT_KEYS.lector,
+      CS_PROMPT_KEYS.briefAssistant,
+      CS_PROMPT_KEYS.briefingConsistency,
+      CS_PROMPT_KEYS.briefingCorrection,
+      CS_PROMPT_KEYS.languageRules,
       ...ALL_SECTION_IDS.map((id) => CS_PROMPT_KEYS.section(id)),
       ...ALL_TRANSLATOR_PROMPT_KEYS,
     ];
@@ -4108,6 +4166,19 @@ export const backfillDraftSnapshotCounts = internalMutation({
     return { done: false };
   },
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

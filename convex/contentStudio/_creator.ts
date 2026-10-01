@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, vocabularyBudgetBlock, vocabularyProtectionBlock, buildStageSkillBlock, usageForRunLog, truncateForAudit, createAiCallTimer, LONG_AI_CALL_TIMEOUT_MS } from "./_shared";
+import { hashBriefingText, type BriefingCheckStamp } from "../../shared/contentStudio/briefingCheck";
 import pdfParse from "pdf-parse";
 import {
   validateMarkdownStructure,
@@ -372,6 +373,15 @@ export const runAiSpecialistGenerate = action({
     await requireSuperadminAction(ctx);
     const current = await ctx.runQuery(api.contentStudio.getDraft, { draftId: args.draftId });
     const d = current.draft;
+
+    const briefingNotes = String((d as { inspirationRef?: { notes?: string } }).inspirationRef?.notes ?? "");
+    const briefingCheck = (d as { briefingCheck?: BriefingCheckStamp }).briefingCheck;
+    if (!briefingCheck || briefingCheck.notesHash !== hashBriefingText(briefingNotes)) {
+      return { ok: false as const, reason: "briefing_check_required" as const };
+    }
+    if (!briefingCheck.ok) {
+      return { ok: false as const, reason: "briefing_check_failed" as const };
+    }
 
     // Guardrail against accidental loss of curation: if the draft already has a
     // snapshot, a full rebuild would overwrite it. Require explicit confirmation

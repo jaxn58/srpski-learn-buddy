@@ -1,7 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
+import {
+  applyBriefingFieldCorrections,
+  hashBriefingText,
+  type BriefingCheckStamp,
+} from "@shared/contentStudio/briefingCheck";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -13,7 +18,7 @@ import { toast } from "sonner";
 import { ModuleSelect } from "./ModuleSelect";
 import { BriefAssistant } from "./BriefAssistant";
 import { BriefBuilder } from "./BriefBuilder";
-import { BRIEF_ASSIGNMENT_FIELD_IDS, BRIEF_EXPERT_FIELD_IDS, BRIEF_FIELD_DEFAULTS, parseBriefText, renderBriefText } from "@shared/contentStudio/briefTemplate";
+import { BRIEF_ASSIGNMENT_FIELD_IDS, BRIEF_EXPERT_FIELD_IDS, BRIEF_FIELD_DEFAULTS, parseBriefText, renderBriefText, type BriefFields } from "@shared/contentStudio/briefTemplate";
 
 /**
  * Authoring panel for a unit. The author fills the assignment (situation,
@@ -51,6 +56,12 @@ export interface BriefWorkflowProps {
   expertChildren?: ReactNode;
   /** Rendered in the main flow below the last card, above the expert switch (author note). */
   belowResult?: ReactNode;
+  /** Set while editing an existing draft, so the check can be stored on it. */
+  draftId?: string | null;
+  /** Stamp already stored for this draft, if it still matches the briefing. */
+  savedCheck?: BriefingCheckStamp | null;
+  /** Latest check result, including one that exists only in the create form. */
+  onChecked?: (stamp: BriefingCheckStamp) => void;
 }
 
 const I18N = "admin.contentStudio.workflow";
@@ -69,7 +80,14 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
     title, setTitle, description, setDescription,
     brief, setBrief, disabled, idPrefix,
     onPrimary, onSecondary, actionBusy, expertChildren, belowResult,
+    draftId, savedCheck, onChecked,
   } = props;
+  const runBriefingCheck = useAction(api.contentStudio.runBriefingConsistencyCheck);
+  const runBriefingCorrection = useAction(api.contentStudio.runBriefingFieldCorrection);
+  const runAssistant = useAction(api.contentStudio.runBriefAssistant);
+  const [localCheck, setLocalCheck] = useState<BriefingCheckStamp | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
   const { t } = useTranslation();
   const [expert, setExpert] = useState(false);
   const [suggestion, setSuggestion] = useState<{ title?: string; description?: string }>({});
@@ -86,6 +104,85 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
   const assignmentReady = BRIEF_ASSIGNMENT_FIELD_IDS.every((id) => String(assignmentFields[id] ?? "").trim().length > 0);
   const hasBrief = brief.trim().length > 0 && parsedBrief.recognized;
   const canAct = numbersValid && !collides && !disabled && !actionBusy;
+  const briefHash = hashBriefingText(brief);
+  const activeCheck = localCheck?.notesHash === briefHash
+    ? localCheck
+    : savedCheck?.notesHash === briefHash
+      ? savedCheck
+      : null;
+  const briefingPassed = activeCheck?.ok === true;
+
+  const rememberCheck = (res: {
+    notesHash: string;
+    ok: boolean;
+    contradictions: BriefingCheckStamp["contradictions"];
+    checkedAt: number;
+    model: string;
+  }) => {
+    const stamp: BriefingCheckStamp = {
+      notesHash: res.notesHash,
+      ok: res.ok,
+      contradictions: res.contradictions,
+      checkedAt: res.checkedAt,
+      model: res.model,
+    };
+    setLocalCheck(stamp);
+    onChecked?.(stamp);
+  };
+
+  const checkBriefing = async (text: string) => {
+    setChecking(true);
+    setRerunning(false);
+    try {
+      const res = await runBriefingCheck({
+        briefingText: text,
+        ...(draftId ? { draftId: draftId as any } : {}),
+      });
+      if (!res.ok && res.contradictions.length > 0) {
+        const correction = await runBriefingCorrection({
+          briefingText: text,
+          contradictions: res.contradictions,
+        });
+        const corrected = applyBriefingFieldCorrections(text, correction.fields);
+        if (corrected) {
+          setBrief(corrected);
+          setLocalCheck(null);
+          setRerunning(true);
+          toast.info(t(`${I18N}.checkRerunning`, "The briefing was updated and is running again."));
+          const parsed = parseBriefText(corrected);
+          const currentFields = Object.fromEntries(
+            Object.entries(parsed.fields).filter(([, value]) => typeof value === "string" && value.trim()),
+          ) as Record<string, string>;
+          const assistant = await runAssistant({
+            unitNumber: unitNo,
+            moduleNumber: moduleNo,
+            userText: "",
+            currentFields,
+          });
+          const rewritten = renderBriefText({
+            moduleNumber: moduleNo,
+            fields: assistant.fields as BriefFields,
+          });
+          setBrief(rewritten);
+          if (assistant.titleSuggestion && !title.trim()) setTitle(assistant.titleSuggestion);
+          if (assistant.descriptionSuggestion && !description.trim()) setDescription(assistant.descriptionSuggestion);
+          const second = await runBriefingCheck({
+            briefingText: rewritten,
+            ...(draftId ? { draftId: draftId as any } : {}),
+          });
+          rememberCheck(second);
+          return;
+        }
+      }
+      rememberCheck(res);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : t(`${I18N}.checkFailed`, "Briefing check failed.");
+      toast.error(message);
+    } finally {
+      setChecking(false);
+      setRerunning(false);
+    }
+  };
 
   const levelLabel = (cefr: string) => t(`${I18N}.level.${cefr}`, cefr);
   const chosenGrammar = (() => {
@@ -194,7 +291,10 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
           unitNumber={unitNumber}
           moduleNumber={moduleNumber}
           currentBrief={brief}
-          onApply={setBrief}
+          onApply={async (text) => {
+            setBrief(text);
+            await checkBriefing(text);
+          }}
           onSuggestMeta={(meta) => {
             setSuggestion(meta);
             if (meta.title && !title.trim()) setTitle(meta.title);
@@ -204,6 +304,16 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
           fieldsReady={assignmentReady && !!context?.cefrLevel}
           hideHeader
         />
+        {checking && (
+          <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-3" role="status" aria-live="polite">
+            <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" />
+            <p className="text-sm font-medium">
+              {rerunning
+                ? t(`${I18N}.checkRerunning`, "The briefing was updated and is running again.")
+                : t(`${I18N}.checkRunning`, "Checking the briefing…")}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Result and next step */}
@@ -218,6 +328,34 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
               <span className="font-medium">{t(`${I18N}.grammarLine`, "Grammar in this unit")}: </span>
               <span className="text-muted-foreground">{chosenGrammar}</span>
             </p>
+          )}
+          {!checking && activeCheck?.ok && (
+            <p className="text-sm">{t(`${I18N}.checkPassed`, "The briefing is consistent.")}</p>
+          )}
+          {!checking && activeCheck && !activeCheck.ok && (
+            <div className="space-y-2 text-sm">
+              <p>{t(`${I18N}.checkFailedTitle`, "The briefing contradicts itself. The draft is not generated until this is resolved.")}</p>
+              <ul className="space-y-2">
+                {activeCheck.contradictions.map((item, index) => (
+                  <li key={`${item.quoteA}-${index}`} className="rounded-md border bg-background p-3 space-y-1">
+                    <p>{item.reason}</p>
+                    <p className="text-muted-foreground">{item.quoteA}</p>
+                    <p className="text-muted-foreground">{item.quoteB}</p>
+                  </li>
+                ))}
+              </ul>
+              <Button type="button" variant="outline" className="h-10" onClick={() => void checkBriefing(brief)} disabled={disabled || checking}>
+                {t(`${I18N}.checkAgain`, "Check briefing")}
+              </Button>
+            </div>
+          )}
+          {!checking && !activeCheck && (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-muted-foreground">{t(`${I18N}.checkMissing`, "This briefing has not been checked yet.")}</p>
+              <Button type="button" variant="outline" className="h-10" onClick={() => void checkBriefing(brief)} disabled={disabled || checking}>
+                {t(`${I18N}.checkAgain`, "Check briefing")}
+              </Button>
+            </div>
           )}
           <div className="grid gap-4">
             <MetaField
@@ -240,7 +378,7 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
             />
           </div>
           <div className="flex flex-wrap items-center gap-3 pt-1">
-            <Button className="h-11" onClick={() => void onPrimary()} disabled={!canAct}>
+            <Button className="h-11" onClick={() => void onPrimary()} disabled={!canAct || checking || !briefingPassed}>
               {actionBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               {mode === "create"
                 ? t(`${I18N}.createAndGenerate`, "Create unit and generate draft")

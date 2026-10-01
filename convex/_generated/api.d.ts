@@ -27,6 +27,7 @@ import type * as contentStudio from "../contentStudio.js";
 import type * as contentStudio__auditor from "../contentStudio/_auditor.js";
 import type * as contentStudio__briefAssistant from "../contentStudio/_briefAssistant.js";
 import type * as contentStudio__briefVersions from "../contentStudio/_briefVersions.js";
+import type * as contentStudio__briefingCheck from "../contentStudio/_briefingCheck.js";
 import type * as contentStudio__cleanup from "../contentStudio/_cleanup.js";
 import type * as contentStudio__creator from "../contentStudio/_creator.js";
 import type * as contentStudio__modelCapabilities from "../contentStudio/_modelCapabilities.js";
@@ -122,6 +123,7 @@ declare const fullApi: ApiFromModules<{
   "contentStudio/_auditor": typeof contentStudio__auditor;
   "contentStudio/_briefAssistant": typeof contentStudio__briefAssistant;
   "contentStudio/_briefVersions": typeof contentStudio__briefVersions;
+  "contentStudio/_briefingCheck": typeof contentStudio__briefingCheck;
   "contentStudio/_cleanup": typeof contentStudio__cleanup;
   "contentStudio/_creator": typeof contentStudio__creator;
   "contentStudio/_modelCapabilities": typeof contentStudio__modelCapabilities;

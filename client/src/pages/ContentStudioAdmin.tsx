@@ -1043,6 +1043,13 @@ export default function ContentStudioAdmin() {
     auditorSkillIds?: string[];
     authorNoteName?: string;
     authorNoteQuote?: string;
+    briefingCheck?: {
+      notesHash: string;
+      ok: boolean;
+      contradictions: { quoteA: string; quoteB: string; reason: string }[];
+      checkedAt: number;
+      model: string;
+    };
   }) => {
     const {
       unitNumber, moduleNumber, title, description,
@@ -1052,6 +1059,7 @@ export default function ContentStudioAdmin() {
       auditorSkillIds: newAuditorIds,
       authorNoteName: newAuthorNoteName,
       authorNoteQuote: newAuthorNoteQuote,
+      briefingCheck,
     } = params;
 
     const trimmedAuthorNoteName = (newAuthorNoteName || "").trim();
@@ -1096,6 +1104,7 @@ export default function ContentStudioAdmin() {
           inspirationRef: composedRef as any,
           authorNoteName: trimmedAuthorNoteName || undefined,
           authorNoteQuote: trimmedAuthorNoteQuote || undefined,
+          briefingCheck,
         } as any)
       : await createDraft({
           unitNumber,
@@ -1108,7 +1117,7 @@ export default function ContentStudioAdmin() {
 
     // Persist meta (non-template path)
     if (!template && composedRef) {
-      await updateDraftMeta({ draftId: id, inspirationRef: composedRef });
+      await updateDraftMeta({ draftId: id, inspirationRef: composedRef, briefingCheck });
     }
 
     // Persist skills
@@ -1880,6 +1889,14 @@ export default function ContentStudioAdmin() {
         setCreatorOverwriteConfirm({ mode: "single", reason: String(res.reason || "existing_snapshot") });
         return;
       }
+      if (res?.ok === false) {
+        toast.error(
+          res.reason === "briefing_check_failed"
+            ? t("admin.contentStudio.workflow.checkFailedTitle", "The briefing contradicts itself. The draft is not generated until this is resolved.")
+            : t("admin.contentStudio.workflow.checkRequired", "Check the briefing before generating the draft."),
+        );
+        return;
+      }
       toast.success(t("admin.contentStudio.toast.creatorGenerated"));
       setProgressPercent(40);
       setProgressMessage(t("admin.contentStudio.page.progressCreatorFinished", "Creator finished."));
@@ -1931,6 +1948,14 @@ export default function ContentStudioAdmin() {
       const specRes: any = await runSpecialist({ draftId: targetDraftId, confirmOverwrite: force } as any);
       if (specRes?.needsConfirm) {
         setCreatorOverwriteConfirm({ mode: "generate", reason: String(specRes.reason || "existing_snapshot") });
+        return;
+      }
+      if (specRes?.ok === false) {
+        toast.error(
+          specRes.reason === "briefing_check_failed"
+            ? t("admin.contentStudio.workflow.checkFailedTitle", "The briefing contradicts itself. The draft is not generated until this is resolved.")
+            : t("admin.contentStudio.workflow.checkRequired", "Check the briefing before generating the draft."),
+        );
         return;
       }
       

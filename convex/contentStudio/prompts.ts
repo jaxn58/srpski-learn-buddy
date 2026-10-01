@@ -11,6 +11,8 @@ export type ContentStudioPromptKey =
   | "cs_finding_fixer"
   | "cs_lector"
   | "cs_brief_assistant"
+  | "cs_briefing_consistency"
+  | "cs_briefing_correction"
   | "cs_language_rules"
   | "cs_validator_classifier"
   | "cs_add_dialogue"
@@ -27,6 +29,10 @@ export const CS_PROMPT_KEYS = {
   lector: "cs_lector",
   /** Turns a free-text unit description plus the course context into a structured briefing. */
   briefAssistant: "cs_brief_assistant",
+  /** Reads a finished briefing and quotes passages that cannot all be true. */
+  briefingConsistency: "cs_briefing_consistency",
+  /** Writes the corrected text of the fields that contain those passages. */
+  briefingCorrection: "cs_briefing_correction",
   /**
    * Shared Serbian language rules (clitics, Ekavian norm, script). Mandatory:
    * appended to every stage that writes, checks, translates or classifies

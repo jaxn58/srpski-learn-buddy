@@ -325,6 +325,24 @@ export const contentStudioTables = {
         error: v.optional(v.string()),
       }),
     ),
+
+    // Consistency stamp for the briefing text in inspirationRef.notes.
+    // The Creator starts only when ok is true and notesHash still matches.
+    briefingCheck: v.optional(
+      v.object({
+        notesHash: v.string(),
+        ok: v.boolean(),
+        contradictions: v.array(
+          v.object({
+            quoteA: v.string(),
+            quoteB: v.string(),
+            reason: v.string(),
+          }),
+        ),
+        checkedAt: v.number(),
+        model: v.string(),
+      }),
+    ),
   })
     .index("by_unit", ["unitNumber"])
     .index("by_status", ["status"])

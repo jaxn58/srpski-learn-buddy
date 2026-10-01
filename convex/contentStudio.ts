@@ -14,3 +14,4 @@ export * from "./contentStudio/_vocabularyCleanup";
 export * from "./contentStudio/_validatorMemory";
 export * from "./contentStudio/_translatorCognates";
 export * from "./contentStudio/_briefAssistant";
+export * from "./contentStudio/_briefingCheck";

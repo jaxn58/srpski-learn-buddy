@@ -27,7 +27,7 @@ export interface BriefAssistantProps {
   moduleNumber: number | string;
   /** Current brief text (to keep manual edits and to send existing fields as context). */
   currentBrief: string;
-  onApply: (briefText: string) => void;
+  onApply: (briefText: string) => void | Promise<void>;
   /** Title/description suggestions from the assistant (only applied by the parent when its fields are empty). */
   onSuggestMeta?: (meta: { title?: string; description?: string }) => void;
   disabled?: boolean;
@@ -82,7 +82,7 @@ export function BriefAssistant({ unitNumber, moduleNumber, currentBrief, onApply
       setSummary(res.summary || "");
       setQuestions(withAnswers ? [] : (res.questions as Question[]));
       setAnswers({});
-      onApply(renderBriefText({ moduleNumber: moduleNo, fields }));
+      await onApply(renderBriefText({ moduleNumber: moduleNo, fields }));
       if (onSuggestMeta && (res.titleSuggestion || res.descriptionSuggestion)) {
         onSuggestMeta({ title: res.titleSuggestion, description: res.descriptionSuggestion });
       }
