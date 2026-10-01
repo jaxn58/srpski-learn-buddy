@@ -16,6 +16,16 @@ crons.daily(
   internal.backup.createDatabaseBackup
 );
 
+/**
+ * Marks document backups as failed when a step has not reported progress
+ * for 15 minutes. A killed action would otherwise stay in progress.
+ */
+crons.hourly(
+  "hourly-backup-stale-check",
+  { minuteUTC: 25 },
+  internal.backup.failStaleBackups
+);
+
 // Safety-net: cancels fixed-term installment subscriptions in Dodo after the term is fully paid.
 // Runs hourly to ensure we cancel well before the next billing date.
 crons.hourly("hourly-dodo-installment-cancellations", { minuteUTC: 10 }, internal.subscriptions.processDodoInstallmentCancellations);

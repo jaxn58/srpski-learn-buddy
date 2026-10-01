@@ -122,11 +122,19 @@ export default function BackupManagement() {
           const manifest: Record<string, unknown> = await manifestResponse.json();
           const tables: Record<string, unknown> = {};
           for (const table of result.tables) {
-            const tableResponse = await fetch(table.url);
-            if (!tableResponse.ok) {
-              throw new Error(`Failed to download table ${table.name}`);
+            const rows: unknown[] = [];
+            for (const chunkUrl of table.urls) {
+              const tableResponse = await fetch(chunkUrl);
+              if (!tableResponse.ok) {
+                throw new Error(`Failed to download table ${table.name}`);
+              }
+              const parsed: unknown = await tableResponse.json();
+              if (!Array.isArray(parsed)) {
+                throw new Error(`Backup chunk for ${table.name} is not a list`);
+              }
+              rows.push(...parsed);
             }
-            tables[table.name] = await tableResponse.json();
+            tables[table.name] = rows;
           }
           const combined = { ...manifest, tables };
           saveBackupFile(new Blob([JSON.stringify(combined)], { type: "application/json" }), backupId);

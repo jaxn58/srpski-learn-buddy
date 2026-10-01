@@ -52,7 +52,7 @@ export const getBackupUrl = mutation({
       tables: v.array(
         v.object({
           name: v.string(),
-          url: v.string(),
+          urls: v.array(v.string()),
         })
       ),
     })
@@ -72,13 +72,22 @@ export const getBackupUrl = mutation({
       return { url, backupFormat: "v1" as const, tables: [] };
     }
 
-    const tables: { name: string; url: string }[] = [];
+    const tables: { name: string; urls: string[] }[] = [];
     for (const file of backup.exportedTables ?? []) {
-      const tableUrl = await ctx.storage.getUrl(file.storageId as Id<"_storage">);
-      if (!tableUrl) {
-        throw new Error(`Backup file for table ${file.name} is not available`);
+      const storageIds =
+        file.chunks && file.chunks.length > 0
+          ? file.chunks.map((chunk) => chunk.storageId)
+          : [file.storageId];
+      const urls: string[] = [];
+      for (const storageId of storageIds) {
+        if (!storageId || storageId === backup.storageId) continue;
+        const tableUrl = await ctx.storage.getUrl(storageId as Id<"_storage">);
+        if (!tableUrl) {
+          throw new Error(`Backup file for table ${file.name} is not available`);
+        }
+        urls.push(tableUrl);
       }
-      tables.push({ name: file.name, url: tableUrl });
+      if (urls.length > 0) tables.push({ name: file.name, urls });
     }
 
     return { url, backupFormat: "v2" as const, tables };

@@ -172,7 +172,7 @@ export const systemTables = {
     ),
     errorMessage: v.optional(v.string()),
     failedTables: v.optional(v.array(v.string())),
-    // v2: storageId is a small manifest and each table has its own file. Absent means the original single JSON file.
+    // v2: storageId is a small manifest and each table has its own file or chunk files. Absent means the original single JSON file.
     backupFormat: v.optional(v.union(v.literal("v1"), v.literal("v2"))),
     exportedTables: v.optional(
       v.array(
@@ -180,9 +180,20 @@ export const systemTables = {
           name: v.string(),
           storageId: v.string(),
           recordCount: v.number(),
+          chunks: v.optional(
+            v.array(
+              v.object({
+                storageId: v.string(),
+                recordCount: v.number(),
+              })
+            )
+          ),
         })
       )
     ),
+    nextTableIndex: v.optional(v.number()),
+    pageCursor: v.optional(v.union(v.string(), v.null())),
+    lastProgressAt: v.optional(v.number()),
   })
     .index("by_timestamp", ["timestamp"])
     .index("by_environment", ["environment"])
