@@ -1699,6 +1699,40 @@ export function isActionableGermanSuggestion(suggestion: string | undefined | nu
   return true;
 }
 
+/**
+ * The German form the finding names as the current wording, including a
+ * three-letter gloss such as "as 'sah'". Other short quotes stay out.
+ */
+export function namedCurrentGermanForms(text: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const re = /\bas\s+(['"«„“])([^'"»“”\n]{2,80})\1/gi;
+  let match: RegExpExecArray | null;
+  const source = String(text || "");
+  while ((match = re.exec(source))) {
+    const span = String(match[2] ?? "").trim();
+    if (span.length < 2 || seen.has(span)) continue;
+    seen.add(span);
+    out.push(span);
+  }
+  return out;
+}
+
+function wholeWordPattern(word: string): RegExp {
+  return new RegExp(`(?<![\\p{L}\\p{M}])${escapeRegExp(word)}(?![\\p{L}\\p{M}])`, "u");
+}
+
+export function containsWholeWord(text: string, word: string): boolean {
+  if (!word) return false;
+  return wholeWordPattern(word).test(String(text || ""));
+}
+
+export function replaceWholeWord(text: string, word: string, replacement: string): string {
+  const pattern = wholeWordPattern(word);
+  pattern.lastIndex = 0;
+  return String(text || "").replace(new RegExp(pattern.source, "gu"), replacement);
+}
+
 export function extractQuotedSpans(text: string): string[] {
   const out: string[] = [];
   const patterns = [
@@ -1785,6 +1819,14 @@ export function applySuggestionToGermanText(
     /\b(je|su|sam|si|smo|ste|nije|mleko|jedno|jedan|jedna)\b/i.test(q);
 
   const bareFix = fix.replace(/^\.{3}\s*/, "").trim();
+  if (/^\p{L}+$/u.test(fix)) {
+    for (const wrong of namedCurrentGermanForms(issue)) {
+      if (wrong.toLowerCase() === fix.toLowerCase()) continue;
+      if (looksSerbian(wrong)) continue;
+      if (!containsWholeWord(src, wrong)) continue;
+      return replaceWholeWord(src, wrong, fix);
+    }
+  }
   const quotes = extractQuotedSpans(issue)
     .filter((q) => {
       if (!q || q === fix || q.length < 8) return false;

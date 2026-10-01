@@ -19,6 +19,8 @@ import {
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
   extractQuotedSpans,
+  namedCurrentGermanForms,
+  replaceWholeWord,
   extractSerbianFromMarkdown,
   serbianExerciseStemStays,
   type VerifierInputItem,
@@ -625,7 +627,7 @@ export const SERBIAN_MEANING_CONTRACT = [
   "Leave Serbian table cells and Serbian example sentences in Serbian.",
 ].join("\n");
 
-export function collectRetrySpans(feedback: string): string[] {
+export function collectRetrySpans(feedback: string, savedText?: string): string[] {
   const spans = new Set<string>();
   for (const quote of extractQuotedSpans(feedback)) {
     const trimmed = quote.trim();
@@ -636,9 +638,20 @@ export function collectRetrySpans(feedback: string): string[] {
   const source = String(feedback || "");
   while ((match = verbatim.exec(source))) {
     const span = String(match[1] ?? "").trim();
-    if (span.length >= 4) spans.add(span);
+    if (span.length >= 2) spans.add(span);
+  }
+  const saved = String(savedText ?? "");
+  if (saved) {
+    for (const form of namedCurrentGermanForms(source)) {
+      if (form.length >= 4 || containsNamedForm(saved, form)) spans.add(form);
+    }
   }
   return [...spans];
+}
+
+function containsNamedForm(text: string, form: string): boolean {
+  if (form.length >= 4) return text.includes(form);
+  return replaceWholeWord(text, form, "\u0000") !== text;
 }
 
 function normalizeRetryCompare(text: string): string {
@@ -649,10 +662,15 @@ function stripRetrySpans(text: string, spans: string[]): string {
   let out = String(text || "");
   const ordered = [...spans].sort((a, b) => b.length - a.length);
   for (const span of ordered) {
-    if (span.length < 4) continue;
+    if (span.length < 2) continue;
+    if (span.length < 4) {
+      out = replaceWholeWord(out, span, " ");
+      continue;
+    }
     if (out.includes(span)) out = out.split(span).join(" ");
     const bare = span.replace(/^\.{3}\s*/, "").trim();
-    if (bare && bare !== span && out.includes(bare)) out = out.split(bare).join(" ");
+    if (bare && bare !== span && bare.length >= 4 && out.includes(bare)) out = out.split(bare).join(" ");
+    if (bare && bare !== span && bare.length < 4) out = replaceWholeWord(out, bare, " ");
   }
   return normalizeRetryCompare(out);
 }
@@ -672,7 +690,7 @@ export function acceptSurgicalText(
   if (normalizeRetryCompare(prev) === normalizeRetryCompare(nxt)) {
     return { text: prev, rejected: false };
   }
-  const spans = collectRetrySpans(feedback);
+  const spans = collectRetrySpans(feedback, prev);
   if (spans.length === 0) {
     return { text: prev, rejected: true, reason: "retry had no locatable span" };
   }
@@ -680,6 +698,52 @@ export function acceptSurgicalText(
     return { text: prev, rejected: true, reason: "retry changed text outside the flagged span" };
   }
   return { text: nxt, rejected: false };
+}
+
+function glossColumns(lines: string[], lineIndex: number): { serbian: number; german: number } | null {
+  for (let i = lineIndex - 1; i >= 0; i--) {
+    const raw = (lines[i] ?? "").trim();
+    if (!raw.startsWith("|") || !raw.endsWith("|")) break;
+    if (/^\|[\s:|-]+\|$/.test(raw)) continue;
+    const cells = splitMarkdownCells(raw).map((cell) => cell.replace(/[*_`]/g, "").trim().toLowerCase());
+    const serbian = cells.findIndex((cell) => cell === "serbian" || cell === "srpski");
+    const german = cells.findIndex(
+      (cell) => cell === "german" || cell === "deutsch" || cell === "english" || cell === "englisch"
+    );
+    if (serbian >= 0 && german >= 0 && serbian !== german) return { serbian, german };
+    if (cells.some((cell) => cell === "notes" || cell === "notizen" || cell === "serbian")) return null;
+  }
+  return null;
+}
+
+function acceptVocabularyRow(
+  previousLine: string,
+  nextLine: string,
+  feedback: string,
+  columns: { serbian: number; german: number }
+): { text: string; rejected: boolean; reason?: string } {
+  const previousCells = splitMarkdownCells(previousLine);
+  const nextCells = splitMarkdownCells(nextLine);
+  if (previousCells.length !== nextCells.length) {
+    return { text: previousLine, rejected: true, reason: "retry changed the table columns" };
+  }
+  const namedForms = namedCurrentGermanForms(feedback);
+  for (let index = 0; index < previousCells.length; index++) {
+    if (previousCells[index] === nextCells[index]) continue;
+    if (index === columns.serbian) {
+      return { text: previousLine, rejected: true, reason: "retry changed the Serbian cell" };
+    }
+    const previousCell = previousCells[index] ?? "";
+    const holdsWrongForm = namedForms.some((form) => containsNamedForm(previousCell, form));
+    if (index !== columns.german && !holdsWrongForm) {
+      return { text: previousLine, rejected: true, reason: "retry changed text outside the German gloss" };
+    }
+    const cell = acceptSurgicalText(previousCell, nextCells[index] ?? "", feedback);
+    if (cell.rejected) {
+      return { text: previousLine, rejected: true, reason: cell.reason };
+    }
+  }
+  return { text: nextLine, rejected: false };
 }
 
 /** A section retry may change only lines that contain the flagged span. */
@@ -699,7 +763,11 @@ export function acceptSurgicalMarkdown(
   }
   for (let i = 0; i < prevLines.length; i++) {
     if (prevLines[i] === nextLines[i]) continue;
-    const line = acceptSurgicalText(prevLines[i] ?? "", nextLines[i] ?? "", feedback);
+    const columns = glossColumns(prevLines, i);
+    const line =
+      columns && (prevLines[i] ?? "").trim().startsWith("|")
+        ? acceptVocabularyRow(prevLines[i] ?? "", nextLines[i] ?? "", feedback, columns)
+        : acceptSurgicalText(prevLines[i] ?? "", nextLines[i] ?? "", feedback);
     if (line.rejected) {
       return {
         markdown: prev,

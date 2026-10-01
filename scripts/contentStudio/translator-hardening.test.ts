@@ -19,6 +19,7 @@ import { collectDraftSkillIds, closeTruncatedJson, mergeSkillsById } from "../..
 import {
   dropAiMissingInfoThatRepeatsVocabularySerbian,
   dropNonActionableVerifierIssues,
+  applySuggestionToGermanText,
   extractMentionedLemmaTokens,
   extractSerbianFromMarkdown,
   mergeRepairVerifierReport,
@@ -1095,5 +1096,41 @@ describe("Serbian meaning source", () => {
     );
     expect(decided.rejected).toBe(true);
     expect(decided.text).toBe("Monday");
+  });
+});
+
+describe("short German gloss retry", () => {
+  const vocabulary = [
+    "| Serbian | Deutsch | Notes |",
+    "| :--- | :--- | :--- |",
+    "| gledao | sah | he watched |",
+    "| gledala | sah | she watched |",
+  ].join("\n");
+  const issue =
+    "The German translation for 'gledao' and 'gledala' as 'sah' (saw) is too narrow. 'Gledati' means 'to watch'.";
+  const feedback = `${issue} MUST use Suggested German verbatim: «schaute»`;
+
+  it("replaces only the short gloss sah with schaute", () => {
+    const patched = applySuggestionToGermanText(vocabulary, issue, "schaute");
+    expect(patched).toContain("| gledao | schaute | he watched |");
+    expect(patched).toContain("| gledala | schaute | she watched |");
+    expect(patched).not.toContain("sah");
+    expect(patched).toContain("gledao");
+    expect(patched).toContain("gledala");
+  });
+
+  it("accepts a vocabulary row whose German cell changes from sah to schaute", () => {
+    const next = vocabulary.replaceAll("| sah |", "| schaute |");
+    const decided = acceptSurgicalMarkdown(vocabulary, next, feedback);
+    expect(decided.rejected).toBe(false);
+    expect(decided.markdown).toContain("schaute");
+  });
+
+  it("rejects a vocabulary row that also changes the Serbian cell", () => {
+    const next = vocabulary.replace("| gledao | sah |", "| gleda | schaute |");
+    const decided = acceptSurgicalMarkdown(vocabulary, next, feedback);
+    expect(decided.rejected).toBe(true);
+    expect(decided.markdown).toBe(vocabulary);
+    expect(decided.reason).toContain("Serbian");
   });
 });
