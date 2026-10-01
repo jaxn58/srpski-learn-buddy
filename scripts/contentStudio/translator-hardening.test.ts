@@ -1197,3 +1197,72 @@ describe("verifier does not author learner German", () => {
     expect(kept[0]?.code).toBe("semantic_mismatch");
   });
 });
+
+describe("fill-in agreement tags", () => {
+  function fillIn(key: string, english: string, german: string): VerifierInputItem {
+    return {
+      key,
+      kind: "test",
+      label: `test ${key}`,
+      questionType: "fillInBlank",
+      serbian: "Expected Serbian answer: kuvao",
+      english: `Question (EN): ${english}`,
+      german: `Question (DE): ${german}`,
+    };
+  }
+
+  const cases: Array<[string, string, string, string]> = [
+    [
+      "u25_ex2_q04",
+      "Šta si _____ za ručak? (What did you cook for lunch? - to a male)",
+      "Šta si _____ za ručak? (Was hast du zum Mittagessen gekocht? - zu einem Mann)",
+      "The German phrase \"- zu einem Mann\" is grammatically awkward and not idiomatic for indicating the gender of the addressee.",
+    ],
+    [
+      "u25_ex2_q05",
+      "One su _____ u supermarketu. (They were at the supermarket. - female group)",
+      "One su _____ u supermarketu. (Sie waren im Supermarkt. - weibliche Gruppe)",
+      "The German phrase \"- weibliche Gruppe\" is grammatically awkward and not idiomatic for indicating the gender of the group.",
+    ],
+    [
+      "u25_ex2_q06",
+      "Vi ste _____ sa prijateljima? (You were with friends? - plural)",
+      "Vi ste _____ sa prijateljima? (Waren Sie mit Freunden zusammen? - Plural)",
+      "The German phrase \"- Plural\" is grammatically awkward and not idiomatic for indicating the number of the addressee.",
+    ],
+  ];
+
+  it("drops idiom complaints about the agreement tag", () => {
+    const issues: VerifierIssue[] = cases.map(([key, , , text]) => ({
+      itemKey: key,
+      itemLabel: `test ${key}`,
+      itemKind: "test",
+      severity: "warning",
+      code: "semantic_mismatch",
+      issue: text,
+    }));
+    const items = cases.map(([key, english, german]) => fillIn(key, english, german));
+    const { kept, dropped } = dropNonActionableVerifierIssues(issues, items);
+    expect(kept).toHaveLength(0);
+    expect(dropped).toHaveLength(3);
+  });
+
+  it("keeps a meaning mismatch in the sentence before the dash", () => {
+    const item = fillIn(
+      "u25_ex2_q04",
+      "Šta si _____ za ručak? (What did you cook for lunch? - to a male)",
+      "Šta si _____ za ručak? (Was hast du zum Frühstück gekocht? - zu einem Mann)"
+    );
+    const issue: VerifierIssue = {
+      itemKey: item.key,
+      itemLabel: item.label,
+      itemKind: "test",
+      severity: "warning",
+      code: "semantic_mismatch",
+      issue: "German 'Frühstück' does not mean Serbian 'ručak' (lunch).",
+    };
+    const { kept, dropped } = dropNonActionableVerifierIssues([issue], [item]);
+    expect(dropped).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+});

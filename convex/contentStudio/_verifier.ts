@@ -687,6 +687,62 @@ export function dropAiMissingInfoThatRepeatsVocabularySerbian(
  * stored German, and gloss removal on Serbian-stem exercises is already a
  * deterministic check. Real semantic mismatches stay.
  */
+function dashAgreementTag(question: string): string | null {
+  const matches = String(question || "").match(/\(([^)]*)\)/g);
+  if (!matches || matches.length === 0) return null;
+  const inner = matches[matches.length - 1]?.slice(1, -1) ?? "";
+  const parts = inner.split(/\s[-–—]\s/);
+  if (parts.length < 2) return null;
+  const tag = parts[parts.length - 1]?.trim() ?? "";
+  if (!tag || tag.split(/\s+/).filter(Boolean).length > 8) return null;
+  return tag;
+}
+
+type AgreementCue = "addressee-masc" | "addressee-fem" | "group-masc" | "group-fem" | "group-mixed" | "plural" | "singular";
+
+/** The grammatical job of a fill-in tag: who the form agrees with, not the wording. */
+function agreementCue(tag: string): AgreementCue | null {
+  const text = tag.toLowerCase();
+  const group = /\b(group|gruppe|gruppen)\b/.test(text);
+  const feminine = /\b(female|feminine|woman|women|weiblich\w*|frauen|frau)\b/.test(text);
+  const masculine = /\b(male|masculine|man|men|männlich\w*|männer|mann)\b/.test(text);
+  if (group && feminine && masculine) return "group-mixed";
+  if (group && feminine) return "group-fem";
+  if (group && masculine) return "group-masc";
+  if (group) return "group-mixed";
+  if (/\bplural\b/.test(text)) return "plural";
+  if (/\bsingular\b/.test(text)) return "singular";
+  if (feminine) return "addressee-fem";
+  if (masculine) return "addressee-masc";
+  return null;
+}
+
+/**
+ * A fill-in parenthesis is a sentence gloss plus a short tag after the dash.
+ * The tag names the agreement the learner must use. An idiom complaint about
+ * that tag is not a translation defect when the tag still names the same job
+ * as the English tag.
+ */
+function isFillInAgreementTagComplaint(
+  issue: VerifierIssue,
+  item: VerifierInputItem | undefined
+): boolean {
+  if (!item || item.kind !== "test" || item.questionType !== "fillInBlank") return false;
+  const enTag = dashAgreementTag(item.english);
+  const deTag = dashAgreementTag(item.german);
+  if (!enTag || !deTag) return false;
+  const enCue = agreementCue(enTag);
+  const deCue = agreementCue(deTag);
+  if (!enCue || enCue !== deCue) return false;
+  if (/\b(does not mean|wrong meaning|mistranslat|not the same meaning)\b/i.test(issue.issue)) return false;
+  const quotes = extractQuotedSpans(issue.issue).map((quote) =>
+    quote.replace(/^[-–—\s]+/, "").trim().toLowerCase()
+  );
+  const tag = deTag.toLowerCase();
+  if (quotes.length > 0) return quotes.every((quote) => tag.includes(quote) || quote.includes(tag));
+  return /awkward|not idiomatic|unidiomatic/i.test(issue.issue);
+}
+
 export function dropNonActionableVerifierIssues(
   issues: VerifierIssue[],
   items: VerifierInputItem[]
@@ -703,7 +759,8 @@ export function dropNonActionableVerifierIssues(
       suggestionAlreadyInSection(issue, item) ||
       isSerbianMorphologyProjection(issue, item) ||
       sectionClaimAlreadySatisfied(issue, item) ||
-      isAiGlossPolicyComplaint(issue, item);
+      isAiGlossPolicyComplaint(issue, item) ||
+      isFillInAgreementTagComplaint(issue, item);
     if (drop) dropped.push(issue);
     else kept.push(detachVerifierAuthoredSentence(issue, item));
   }
