@@ -29,6 +29,7 @@ import {
   CODE_DEFAULT_PROMPT_COGNATES,
   cueNamesSerbianForm,
   isInvariantProperNameGloss,
+  isSerbianFormChoiceCue,
   loadMergedPromptCognates,
 } from "./_translatorCognates";
 import { restoreOriginalAuthorQuote } from "../../shared/contentStudio/authorNote";
@@ -1179,10 +1180,28 @@ function dropsSentenceGlossOnGermanTrack(questionType: string): boolean {
 }
 
 /**
+ * Serbian choice pairs stay verbatim. Other fill-in parentheses keep the German
+ * gloss when the model translated one gloss per English parenthesis.
+ */
+function preserveSerbianChoiceCues(src: string, restored: string): string {
+  const enGlosses = extractParentheticalGlosses(src);
+  if (!enGlosses.some((gloss) => isSerbianFormChoiceCue(gloss))) return restored;
+  const deGlosses = extractParentheticalGlosses(restored);
+  const replacements = enGlosses.map((enGloss, index) => {
+    if (isSerbianFormChoiceCue(enGloss)) return enGloss;
+    if (deGlosses.length === enGlosses.length) return deGlosses[index] ?? enGloss;
+    return enGloss;
+  });
+  return replaceOutermostParentheticals(src, replacements);
+}
+
+/**
  * Serbian cloze and dialogue keep the source sentence.
  * Fill-in parentheses are the learner description: use the German ones from the model
  * when it translated them. If the model replaced the whole fill-in sentence with that
  * German description, hang the description back on the Serbian sentence.
+ * A Serbian choice pair such as "(popunili / popunjavali)" is copied back unchanged,
+ * including when the model dropped it or replaced it with a German phrase.
  * Multiple choice and dialogue drop sentence-level parentheses. The English parenthesis
  * is not copied back, and a German full sentence is not hung on as a new parenthesis.
  * An English situation prompt is returned as the model translated it.
@@ -1194,6 +1213,13 @@ export function restoreSerbianStemQuestion(
 ): string {
   const src = String(sourceQuestion || "").trim().replace(/_+/g, "_____");
   const de = String(translatedQuestion || "").trim();
+  const restored = restoreSerbianStemCore(questionType, src, de);
+  if (!src || dropsSentenceGlossOnGermanTrack(questionType)) return restored;
+  if (!serbianExerciseStemStays(questionType, src)) return restored;
+  return preserveSerbianChoiceCues(src, restored);
+}
+
+function restoreSerbianStemCore(questionType: string, src: string, de: string): string {
   if (!src) return de;
   if (!serbianExerciseStemStays(questionType, src)) return de || src;
   if (dropsSentenceGlossOnGermanTrack(questionType)) {
@@ -1251,6 +1277,7 @@ export function findUnwantedExerciseGlossIssues(
 
 /**
  * fillInBlank: EN has short source cues "(milk)" → DE must keep them as German "(Milch)".
+ * A Serbian choice pair stays verbatim and is not an English cue.
  */
 export function findMissingOrUntranslatedFillInCueIssues(
   pairs: Array<{
@@ -1265,9 +1292,23 @@ export function findMissingOrUntranslatedFillInCueIssues(
   const issues: string[] = [];
   for (const p of pairs) {
     if (String(p.questionType || "") !== "fillInBlank") continue;
-    const enCues = extractParentheticalGlosses(p.questionEn).filter(isFillInSourceCue);
+    const enGlosses = extractParentheticalGlosses(p.questionEn);
+    const deGlosses = extractParentheticalGlosses(p.questionDe);
+    const isTranslatableCue = (gloss: string) => isFillInSourceCue(gloss) && !isSerbianFormChoiceCue(gloss);
+    for (const cue of enGlosses.filter(isSerbianFormChoiceCue)) {
+      const want = normalizeGlossCompare(cue);
+      const kept = deGlosses.some((gloss) => normalizeGlossCompare(gloss) === want);
+      if (!kept) {
+        issues.push(
+          `questionId=${p.questionId}: Serbian choice pair missing on DE ` +
+            `(EN has (${cue})). ` +
+            `Keep the Serbian stem/blank and keep the pair unchanged. Do not translate it to German.`
+        );
+      }
+    }
+    const enCues = enGlosses.filter(isTranslatableCue);
     if (enCues.length === 0) continue;
-    const deCues = extractParentheticalGlosses(p.questionDe).filter(isFillInSourceCue);
+    const deCues = deGlosses.filter(isTranslatableCue);
     if (deCues.length < enCues.length) {
       issues.push(
         `questionId=${p.questionId}: fill-in source cue missing on DE ` +
@@ -1310,9 +1351,13 @@ export function findMissingFillInContextGlossIssues(
   const issues: string[] = [];
   for (const p of pairs) {
     if (String(p.questionType || "") !== "fillInBlank") continue;
-    const enContext = extractParentheticalGlosses(p.questionEn).filter(isHelpTranslationGloss);
+    const enContext = extractParentheticalGlosses(p.questionEn)
+      .filter(isHelpTranslationGloss)
+      .filter((gloss) => !isSerbianFormChoiceCue(gloss));
     if (enContext.length === 0) continue;
-    const deContext = extractParentheticalGlosses(p.questionDe).filter(isHelpTranslationGloss);
+    const deContext = extractParentheticalGlosses(p.questionDe)
+      .filter(isHelpTranslationGloss)
+      .filter((gloss) => !isSerbianFormChoiceCue(gloss));
     if (deContext.length < enContext.length) {
       issues.push(
         `questionId=${p.questionId}: fill-in context gloss missing on DE ` +
@@ -1534,6 +1579,7 @@ export function findSwappedExerciseFormIssues(
         const deNorm = normalizeGlossCompare(deG);
         if (!enNorm || enNorm !== deNorm) continue;
         if (cognates.has(enNorm) || isInvariantProperNameGloss(enG)) continue;
+        if (isSerbianFormChoiceCue(enG)) continue;
         issues.push(
           `questionId=${p.questionId}: parenthetical description is still English "(${enG})". ` +
             `Translate it to German and keep the Serbian sentence.`,

@@ -16,6 +16,7 @@ import {
   CODE_DEFAULT_PROMPT_COGNATES,
   cueNamesSerbianForm,
   isInvariantProperNameGloss,
+  isSerbianFormChoiceCue,
   loadMergedPromptCognates,
   normalizeCognateTerm,
   serbianFormsFromAnchor,
@@ -796,13 +797,36 @@ export function runDeterministicTestGlossChecks(
 
     const enGlosses = extractParentheticalGlossesFromText(enQ);
     const deGlosses = extractParentheticalGlossesFromText(deQ);
-    const enCues = enGlosses.filter(isFillInSourceCue);
-    const deCues = deGlosses.filter(isFillInSourceCue);
-    const enContext = enGlosses.filter(isHelpTranslationGloss);
-    const deContext = deGlosses.filter(isHelpTranslationGloss);
+    const isTranslatableCue = (gloss: string) => isFillInSourceCue(gloss) && !isSerbianFormChoiceCue(gloss);
+    const enCues = enGlosses.filter(isTranslatableCue);
+    const deCues = deGlosses.filter(isTranslatableCue);
+    const enChoice = enGlosses.filter(isSerbianFormChoiceCue);
+    const enContext = enGlosses.filter(isHelpTranslationGloss).filter((gloss) => !isSerbianFormChoiceCue(gloss));
+    const deContext = deGlosses.filter(isHelpTranslationGloss).filter((gloss) => !isSerbianFormChoiceCue(gloss));
     const deHelp = deGlosses.filter(isHelpTranslationGloss);
     const stem = stripTrailingOutermostParentheticals(deQ);
     const stemForStemCheck = deCues.length > 0 ? stem : stripTrailingOutermostParentheticals(deQ);
+
+    // fillInBlank: a Serbian choice pair stays verbatim. It is not an English cue.
+    if ((!qType || qType === "fillInBlank") && enChoice.length > 0) {
+      const missingChoice = enChoice.filter((cue) => {
+        const want = norm(cue);
+        return !deGlosses.some((gloss) => norm(gloss) === want);
+      });
+      if (missingChoice.length > 0) {
+        issues.push({
+          itemKey: it.key,
+          itemLabel: it.label,
+          itemKind: "test",
+          severity: "critical",
+          code: "test_missing_fill_in_cue",
+          issue:
+            `The German question omits the Serbian choice pair ` +
+            `${missingChoice.map((g) => `(${g})`).join(" ")}. ` +
+            `Keep that pair unchanged. Do not translate it to German.`,
+        });
+      }
+    }
 
     // fillInBlank: EN source cues must appear as German cues on DE.
     if ((!qType || qType === "fillInBlank") && enCues.length > 0) {

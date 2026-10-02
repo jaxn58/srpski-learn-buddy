@@ -96,6 +96,106 @@ export function cueNamesSerbianForm(cue: string, serbianForm: string): boolean {
 }
 
 /**
+ * English words that share a Serbian participle ending (radio, audio) and must
+ * still be translated when they appear as a fill-in cue.
+ */
+const ENGLISH_ENDING_COLLISIONS = new Set<string>([
+  "audio",
+  "cameo",
+  "patio",
+  "portfolio",
+  "radio",
+  "ratio",
+  "scenario",
+  "stereo",
+  "studio",
+]);
+
+/** Short English words. A slash pair that contains one is not a Serbian choice. */
+const ENGLISH_FUNCTION_WORDS = new Set<string>([
+  "a",
+  "an",
+  "and",
+  "are",
+  "at",
+  "be",
+  "been",
+  "by",
+  "did",
+  "do",
+  "does",
+  "for",
+  "from",
+  "had",
+  "has",
+  "have",
+  "he",
+  "her",
+  "his",
+  "i",
+  "in",
+  "is",
+  "it",
+  "my",
+  "no",
+  "not",
+  "of",
+  "on",
+  "or",
+  "our",
+  "she",
+  "that",
+  "the",
+  "their",
+  "these",
+  "this",
+  "those",
+  "to",
+  "was",
+  "we",
+  "were",
+  "with",
+  "you",
+  "your",
+]);
+
+/** Auxiliaries that may follow a participle: "predao sam / predavao sam". */
+const SERBIAN_CHOICE_CLITICS = new Set<string>(["sam", "si", "je", "smo", "ste", "su", "se"]);
+
+const SERBIAN_PARTICIPLE_ENDING =
+  /(?:vali|vale|vala|vao|jali|jale|jala|jao|ili|ile|ila|ilo|ao|la|li|le|lo|io)$/i;
+
+function isSerbianChoiceToken(token: string): boolean {
+  const folded = token.toLowerCase();
+  if (ENGLISH_ENDING_COLLISIONS.has(folded) || ENGLISH_FUNCTION_WORDS.has(folded)) return false;
+  if (/[čćšžđČĆŠŽĐ]/.test(token)) return true;
+  return SERBIAN_PARTICIPLE_ENDING.test(token);
+}
+
+function isSerbianChoiceSide(side: string): boolean {
+  const tokens = side.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 1 || tokens.length > 3) return false;
+  if (!tokens.every((token) => /^[\p{L}]+$/u.test(token))) return false;
+  if (tokens.some((token) => ENGLISH_FUNCTION_WORDS.has(token.toLowerCase()))) return false;
+  const forms = tokens.filter((token) => !SERBIAN_CHOICE_CLITICS.has(token.toLowerCase()));
+  if (forms.length === 0) return false;
+  return forms.every((token) => isSerbianChoiceToken(token));
+}
+
+/**
+ * A slash pair of Serbian verb forms the learner chooses between
+ * ("popunili / popunjavali", "stigao / stizao"). It stays verbatim on the
+ * German track. An English gloss ("milk", "Monday") is not a choice pair.
+ */
+export function isSerbianFormChoiceCue(gloss: string): boolean {
+  const parts = String(gloss || "")
+    .trim()
+    .split(/\s+\/\s+/);
+  if (parts.length !== 2) return false;
+  return parts.every((part) => isSerbianChoiceSide(part));
+}
+
+/**
  * English words that are capitalized but are not proper names. A fill-in cue
  * of only these still has to be translated (Monday → Montag).
  */

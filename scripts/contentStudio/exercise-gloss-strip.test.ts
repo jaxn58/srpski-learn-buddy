@@ -247,6 +247,57 @@ describe("findMissingOrUntranslatedFillInCueIssues", () => {
     ]);
     expect(issues).toHaveLength(0);
   });
+
+  it("does not flag a Serbian aspect pair kept on DE", () => {
+    const popunili = findMissingOrUntranslatedFillInCueIssues([
+      {
+        questionId: "u35_ex2_q03_preview_v2",
+        questionType: "fillInBlank",
+        questionEn: "Oni su _____ formular. (popunili / popunjavali)",
+        questionDe: "Oni su _____ formular. (popunili / popunjavali)",
+        correctAnswer: "popunili",
+      },
+    ]);
+    const stigao = findSwappedExerciseFormIssues([
+      {
+        questionId: "u35_ex2_q06_preview_v2",
+        questionType: "fillInBlank",
+        questionEn: "On je _____ na šalter. (stigao / stizao)",
+        questionDe: "On je _____ na šalter. (stigao / stizao)",
+      },
+    ]);
+    expect(popunili).toHaveLength(0);
+    expect(stigao).toHaveLength(0);
+    expect(
+      collectTestQualityIssues(
+        [
+          {
+            questionId: "u35_ex2_q03_preview_v2",
+            questionType: "fillInBlank",
+            questionEn: "Oni su _____ formular. (popunili / popunjavali)",
+            questionDe: "Oni su _____ formular. (popunili / popunjavali)",
+            correctAnswer: "popunili",
+          },
+        ],
+        new Set(),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("asks to keep a dropped aspect pair instead of translating it", () => {
+    const issues = findMissingOrUntranslatedFillInCueIssues([
+      {
+        questionId: "u35_ex2_q03_preview_v2",
+        questionType: "fillInBlank",
+        questionEn: "Oni su _____ formular. (popunili / popunjavali)",
+        questionDe: "Oni su _____ formular. (ausgefüllt / füllte aus)",
+        correctAnswer: "popunili",
+      },
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain("keep the pair unchanged");
+    expect(issues[0]).toContain("Do not translate it to German");
+  });
 });
 
 describe("findMissingFillInContextGlossIssues", () => {
@@ -412,6 +463,52 @@ describe("runDeterministicTestGlossChecks", () => {
     ];
     const issues = runDeterministicTestGlossChecks(items);
     expect(issues.some((i) => i.code === "test_untranslated_context_gloss")).toBe(true);
+  });
+
+  it("does not flag a Serbian aspect pair kept on DE", () => {
+    const popunili: VerifierInputItem[] = [
+      {
+        key: "test:u35_ex2_q03_preview_v2",
+        kind: "test",
+        label: "test u35_ex2_q03_preview_v2",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: popunili",
+        english: "Question (EN): Oni su _____ formular. (popunili / popunjavali)",
+        german: "Question (DE): Oni su _____ formular. (popunili / popunjavali)",
+      },
+    ];
+    const stigao: VerifierInputItem[] = [
+      {
+        key: "test:u35_ex2_q06_preview_v2",
+        kind: "test",
+        label: "test u35_ex2_q06_preview_v2",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: stigao",
+        english: "Question (EN): On je _____ na šalter. (stigao / stizao)",
+        german: "Question (DE): On je _____ na šalter. (stigao / stizao)",
+      },
+    ];
+    expect(runDeterministicTestGlossChecks(popunili)).toHaveLength(0);
+    expect(runDeterministicTestGlossChecks(stigao)).toHaveLength(0);
+  });
+
+  it("tells the verifier to keep a dropped aspect pair unchanged", () => {
+    const items: VerifierInputItem[] = [
+      {
+        key: "test:u35_ex2_q03_preview_v2",
+        kind: "test",
+        label: "test u35_ex2_q03_preview_v2",
+        questionType: "fillInBlank",
+        serbian: "Expected Serbian answer: popunili",
+        english: "Question (EN): Oni su _____ formular. (popunili / popunjavali)",
+        german: "Question (DE): Oni su _____ formular. (ausgefüllt / füllte aus)",
+      },
+    ];
+    const issues = runDeterministicTestGlossChecks(items);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.code).toBe("test_missing_fill_in_cue");
+    expect(issues[0]?.issue).toContain("Keep that pair unchanged");
+    expect(issues[0]?.issue).toContain("Do not translate it to German");
   });
 
   it("does not flag a cue that is the Serbian answer", () => {
@@ -617,6 +714,23 @@ describe("restoreSerbianStemQuestion", () => {
     expect(restoreSerbianStemQuestion("fillInBlank", en, "Hast du Saft?")).toBe(
       "_____ li sok? (Hast du Saft?)",
     );
+  });
+
+  it("puts a dropped or translated aspect pair back on the Serbian sentence", () => {
+    const popunili = "Oni su _____ formular. (popunili / popunjavali)";
+    const stigao = "On je _____ na šalter. (stigao / stizao)";
+    expect(restoreSerbianStemQuestion("fillInBlank", popunili, "Oni su _____ formular.")).toBe(popunili);
+    expect(
+      restoreSerbianStemQuestion(
+        "fillInBlank",
+        popunili,
+        "Oni su _____ formular. (ausgefüllt / füllte aus)",
+      ),
+    ).toBe(popunili);
+    expect(restoreSerbianStemQuestion("fillInBlank", stigao, "On je _____ na šalter.")).toBe(stigao);
+    expect(
+      restoreSerbianStemQuestion("fillInBlank", stigao, "On je _____ na šalter. (angekommen / kam an)"),
+    ).toBe(stigao);
   });
 });
 
