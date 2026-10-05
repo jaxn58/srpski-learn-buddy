@@ -130,18 +130,22 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
     onChecked?.(stamp);
   };
 
+  const coursePlace = numbersValid ? { unitNumber: unitNo, moduleNumber: moduleNo } : {};
+
   const checkBriefing = async (text: string) => {
     setChecking(true);
     setRerunning(false);
     try {
       const res = await runBriefingCheck({
         briefingText: text,
+        ...coursePlace,
         ...(draftId ? { draftId: draftId as any } : {}),
       });
       if (!res.ok && res.contradictions.length > 0) {
         const correction = await runBriefingCorrection({
           briefingText: text,
           contradictions: res.contradictions,
+          ...coursePlace,
         });
         const corrected = applyBriefingFieldCorrections(text, correction.fields);
         if (corrected) {
@@ -168,6 +172,7 @@ export function BriefWorkflow(props: BriefWorkflowProps) {
           if (assistant.descriptionSuggestion && !description.trim()) setDescription(assistant.descriptionSuggestion);
           const second = await runBriefingCheck({
             briefingText: rewritten,
+            ...coursePlace,
             ...(draftId ? { draftId: draftId as any } : {}),
           });
           rememberCheck(second);

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action, internalMutation } from "../_generated/server";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import {
   hashBriefingText,
   type BriefingContradiction,
@@ -35,6 +35,32 @@ export const briefingCheckValidator = v.object({
 
 const MAX_CONTRADICTIONS = 8;
 const MAX_QUOTE = 500;
+
+function formatPreviouslyTaught(rows: Array<{ unitNumber: number; grammar: string }>): string {
+  if (rows.length === 0) {
+    return [
+      "PREVIOUSLY TAUGHT:",
+      "(none)",
+      "Do not name an earlier unit. A form in the grammar target that is not listed above is taught in this unit.",
+    ].join("\n");
+  }
+  return ["PREVIOUSLY TAUGHT:", ...rows.map((row) => `- Unit ${row.unitNumber}: ${row.grammar}`)].join("\n");
+}
+
+async function previouslyTaughtBlock(
+  // ActionCtx.runQuery hits the Convex type-depth limit on this file.
+  ctx: { runQuery: (...args: never[]) => Promise<unknown> },
+  unitNumber: number | undefined,
+  moduleNumber: number | undefined,
+): Promise<string> {
+  if (!unitNumber || !moduleNumber || unitNumber < 1 || moduleNumber < 1) {
+    return formatPreviouslyTaught([]);
+  }
+  const context = await ctx.runQuery(api.curriculum.getUnitContext as never, { unitNumber, moduleNumber } as never) as {
+    previouslyTaught?: Array<{ unitNumber: number; grammar: string }>;
+  };
+  return formatPreviouslyTaught(context.previouslyTaught ?? []);
+}
 
 function readContradictions(parsed: unknown): BriefingContradiction[] {
   const list = (parsed as { contradictions?: unknown })?.contradictions;
@@ -95,6 +121,8 @@ export const runBriefingConsistencyCheck = action({
   args: {
     briefingText: v.string(),
     draftId: v.optional(v.id("contentDrafts")),
+    unitNumber: v.optional(v.number()),
+    moduleNumber: v.optional(v.number()),
   },
   returns: v.object({
     ok: v.boolean(),
@@ -128,11 +156,12 @@ export const runBriefingConsistencyCheck = action({
 
     const basePrompt = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.briefingConsistency);
     const system = `${basePrompt}\n${await languageRulesBlock(ctx)}`;
+    const history = await previouslyTaughtBlock(ctx, args.unitNumber, args.moduleNumber);
 
     const { provider, model, raw } = await callAiJson(ctx, {
       stage: "specialist",
       system,
-      user: briefingText,
+      user: [history, "", "BRIEFING:", briefingText].join("\n"),
       maxTokens: 2000,
       timeoutMs: 120_000,
     });
@@ -168,6 +197,8 @@ export const runBriefingFieldCorrection = action({
   args: {
     briefingText: v.string(),
     contradictions: v.array(briefingContradictionValidator),
+    unitNumber: v.optional(v.number()),
+    moduleNumber: v.optional(v.number()),
   },
   returns: v.object({
     fields: fieldPatchValidator,
@@ -179,7 +210,10 @@ export const runBriefingFieldCorrection = action({
 
     const basePrompt = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.briefingCorrection);
     const system = `${basePrompt}\n${await languageRulesBlock(ctx)}`;
+    const history = await previouslyTaughtBlock(ctx, args.unitNumber, args.moduleNumber);
     const user = [
+      history,
+      "",
       "BRIEFING:",
       briefingText,
       "",

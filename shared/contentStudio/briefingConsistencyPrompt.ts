@@ -27,6 +27,12 @@ A Can-Do statement may name a broader skill whose form this unit does not teach 
 
 Unit 2 is one instance of this allowed case. The Can-Do says learners can say what they have or do not have, the grammar target is affirmative imati and questions with li, and Out of Scope defers nemam. Those passages can all be true together.
 
+A form may be named in the grammar target and also under recycle. Recycle means the known part returns from an earlier unit. The grammar target may add the part that earlier unit did not teach. Those passages can all be true together. Do not report them as a contradiction.
+
+You also receive PREVIOUSLY TAUGHT, the grammar targets of earlier units. That list is the only history. Recycle may name only forms on that list. If the list is empty, a line that names an earlier unit is not backed. A form in the grammar target that is not on the list is taught in this unit. Do not report that as a contradiction. A recycle line that names a form or a unit that is not on the list is the line that is wrong. The grammar target stays.
+
+Unit 10 is one instance of this allowed case. Unit 2 taught affirmative imati. This unit's grammar target is imati / nemati, so the negation is taught here. Recycle may name imati from Unit 2. That is not a contradiction.
+
 Unit 28 is one instance of a real contradiction. The grammar target says "Dative pronouns (mi, ti, mu, joj, nam, vam, im) in boli me", a pitfall says the verb boliti takes a dative pronoun, and the chunks say "Boli me glava". Those passages cannot all be true together. Report that kind of clash wherever it appears. Do not treat this unit as a special case, and do not invent a separate check for pronouns, cases, or any other single form.
 
 When the briefing is consistent, return exactly:
@@ -49,6 +55,10 @@ Do not change unit type, CEFR level, strand, or setting.
 When a form appears only as a chunk, under Out of Scope, or in a one-sentence hint that the rule comes later, leave those fields unchanged. Do not delete the chunk. Do not move that form into the in-scope grammar target. Do not rewrite the hint into a case lesson, and do not delete the hint.
 
 When a Can-Do names a broader skill and Out of Scope defers the form this unit does not teach, leave canDo and grammarOut unchanged. Do not delete that skill from the Can-Do. Do not move the deferred form into the in-scope grammar target.
+
+You also receive PREVIOUSLY TAUGHT. Recycle may name only forms on that list. If a recycle line names a form or a unit that is not on the list, rewrite recycle and leave grammarIn unchanged. A form in grammarIn that is not on the list is taught in this unit. Do not remove it from grammarIn.
+
+The same form may appear in grammarIn and in recycle. Do not delete it from either field for that reason alone. Recycle names the known slice. grammarIn may add the slice earlier units did not teach.
 
 When a label and a Serbian example disagree about the in-scope grammar target, keep the Serbian example a native speaker would say and correct the label and any pitfall reason that describes that target wrongly. Do not change a correct Serbian sentence so that it matches a wrong label.
 

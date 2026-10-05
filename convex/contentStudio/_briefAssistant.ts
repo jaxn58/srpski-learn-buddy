@@ -101,7 +101,9 @@ function assignmentLockBlock(): string {
     "Write only the remaining fields: grammarOut, chunks, recycle, pitfalls, scenes, listening, cultural, exerciseFocus, plus titleSuggestion and descriptionSuggestion derived from the author's situation and grammarIn.",
     "Those remaining fields must not contradict the assignment or each other. A form that this unit does not teach belongs in grammarOut, in chunks as a fixed phrase, and at most in a one-sentence pitfall hint that the whole phrase is used now and the rule comes later. Do not explain that later rule, and do not leave that combination in the text as a clash.",
     "A real clash is a false description of grammarIn. A pitfall must not glue two incompatible statements about grammarIn together with a reason. If you cannot write a field about grammarIn without that clash, leave the clash visible in the wording you already have; do not invent a reconciliation.",
-    "previouslyTaught is grammar earlier units already introduced. Recycle it. Do not make it this unit's grammarIn.",
+    "previouslyTaught is the only history of earlier units. Recycle only forms named there. If previouslyTaught is empty, leave recycle empty. Do not invent a unit number.",
+    "A form already in grammarIn that is not in previouslyTaught is taught in this unit. Leave grammarIn unchanged.",
+    "The same form may appear in grammarIn and in recycle. Recycle names the known slice. grammarIn may add the slice earlier units did not teach. That overlap is not a clash.",
     "Do not ask questions about unitType, cefrLevel, strand, setting, situation, canDo or grammarIn.",
   ].join("\n");
 }

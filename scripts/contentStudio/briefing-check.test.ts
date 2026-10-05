@@ -79,6 +79,14 @@ describe("briefing consistency prompt", () => {
     expect(BRIEFING_CORRECTION_PROMPT).toContain("leave canDo and grammarOut unchanged");
   });
 
+  it("allows the same form in the grammar target and in recycle", () => {
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("imati / nemati");
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("Recycle may name imati from Unit 2");
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("That is not a contradiction");
+    expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not delete it from either field for that reason alone");
+    expect(BRIEFING_CORRECTION_PROMPT).toContain("leave grammarIn unchanged");
+  });
+
   it("does not move a deferred chunk into the grammar target", () => {
     expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not delete the chunk");
     expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not move that form into the in-scope grammar target");
