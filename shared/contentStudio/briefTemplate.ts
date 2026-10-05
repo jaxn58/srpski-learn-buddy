@@ -185,7 +185,7 @@ export const BRIEF_FIELDS: BriefFieldDef[] = [
     label: "Typical L1 pitfalls (German/English speakers)",
     kind: "lines",
     rows: 3,
-    help: "2-3 typical mistakes, one per line, as WRONG -> CORRECT with a short reason. Feeds the 'Watch Out' block.",
+    help: "2-3 typical mistakes, one per line, as WRONG -> CORRECT with a short reason. Feeds the 'Watch Out' block. For a chunk, the reason is that the whole phrase is fixed and the rule comes in a later unit. Do not state that later rule.",
     placeholder: "Putting the short verb form first: WRONG \"Sam Ana.\" -> CORRECT \"Ja sam Ana.\"",
   },
   {

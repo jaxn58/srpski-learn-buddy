@@ -6,7 +6,7 @@ import {
   type BriefingCheckStamp,
 } from "../../shared/contentStudio/briefingCheck";
 import { renderBriefText } from "../../shared/contentStudio/briefTemplate";
-import { BRIEFING_CONSISTENCY_PROMPT } from "../../shared/contentStudio/briefingConsistencyPrompt";
+import { BRIEFING_CONSISTENCY_PROMPT, BRIEFING_CORRECTION_PROMPT } from "../../shared/contentStudio/briefingConsistencyPrompt";
 
 function stamp(notes: string, ok: boolean): BriefingCheckStamp {
   return {
@@ -64,5 +64,17 @@ describe("briefing consistency prompt", () => {
     expect(BRIEFING_CONSISTENCY_PROMPT).toContain("Boli me glava");
     expect(BRIEFING_CONSISTENCY_PROMPT).toContain("Do not treat this unit as a special case");
     expect(BRIEFING_CONSISTENCY_PROMPT).toContain("do not invent a separate check");
+  });
+
+  it("treats a deferred chunk, out of scope, and a one-sentence hint as consistent", () => {
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("Ja sam iz Nemačke");
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("Do not report them as a contradiction");
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("does not teach the case");
+    expect(BRIEFING_CONSISTENCY_PROMPT).not.toContain("A chunk or a pitfall teaches a point the briefing lists as out of scope");
+  });
+
+  it("does not move a deferred chunk into the grammar target", () => {
+    expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not delete the chunk");
+    expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not move that form into the in-scope grammar target");
   });
 });

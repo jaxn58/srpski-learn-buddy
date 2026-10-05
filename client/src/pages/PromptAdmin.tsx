@@ -83,6 +83,16 @@ const PROMPT_CATEGORIES: PromptCategory[] = [
         hint: "System prompt for the assistant that turns an author's free-text description plus the course context into a structured Creator briefing (JSON output).",
       },
       {
+        key: "cs_briefing_consistency",
+        label: "Briefing consistency check",
+        hint: "Reads a finished briefing and quotes passages that cannot all be true. A chunk, an out-of-scope line, and a one-sentence hint may stand together.",
+      },
+      {
+        key: "cs_briefing_correction",
+        label: "Briefing correction",
+        hint: "Writes corrected field text after the consistency check. Does not delete a chunk or move a deferred form into the grammar target.",
+      },
+      {
         key: "cs_language_rules",
         label: "Serbian Language Rules (shared)",
         hint: "Mandatory shared block of binding Serbian rules (clitic placement, Ekavian norm, script). Appended automatically to every stage that writes, checks, translates or classifies Serbian: Brief Assistant, Creator, Section revise, Finding fixer, Lector, Validator classifier, Add-dialogue, Translator, Verifier.",
@@ -361,10 +371,10 @@ export default function PromptAdmin() {
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold truncate">{opt.label}</div>
                           <div className={cn(
-                            "text-[10px] line-clamp-1 mt-0.5",
+                            "font-mono text-[10px] truncate mt-0.5",
                             isActive ? "text-primary-foreground/80" : "text-muted-foreground"
                           )}>
-                            {opt.hint}
+                            {opt.key}
                           </div>
                         </div>
                         {isActive && <ChevronRight className="h-4 w-4 mt-1 shrink-0" />}
@@ -386,6 +396,7 @@ export default function PromptAdmin() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-bold">{selectedOption?.label}</h2>
+                  <p className="font-mono text-xs text-muted-foreground mt-1">{selectedOption?.key}</p>
                   <p className="text-muted-foreground mt-1">{selectedOption?.hint}</p>
                 </div>
                 <div className="flex gap-2">
