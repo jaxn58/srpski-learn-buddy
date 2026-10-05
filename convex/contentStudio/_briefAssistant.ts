@@ -5,9 +5,10 @@
  *
  * The author fills unit type, strand, setting, situation, what the learner
  * can do, and the one grammar target. The module's CEFR level is fixed.
- * Those values are written back over the model output. The course map is
- * not an input. previouslyTaught is the grammar of earlier units, so the
- * assistant can name recycling and what stays out of scope.
+ * The server keeps those form values and does not ask the model to copy them
+ * into its JSON. The course map is not an input. previouslyTaught is the
+ * grammar of earlier units, so the assistant can name recycling and what
+ * stays out of scope.
  *
  * Flow (client: BriefAssistant.tsx):
  *   1. Round 1: current assignment fields -> remaining fields + up to 5 questions.
@@ -21,6 +22,7 @@ import { requireSuperadminAction, callAiJson, parseJsonOrThrow, resolvePromptFro
 import { CS_PROMPT_KEYS } from "./prompts";
 import {
   BRIEF_ASSIGNMENT_FIELD_IDS,
+  BRIEF_EXPERT_FIELD_IDS,
   BRIEF_FIELDS,
   BRIEF_FIELD_DEFAULTS,
   type BriefFieldId,
@@ -90,23 +92,59 @@ function sanitizeQuestions(raw: unknown): Array<{ id: string; question: string; 
   return out;
 }
 
-/** Appended after the stored prompt so a stale prompt cannot replace the author's fields. */
+const EXPERT_FIELD_IDS = new Set<string>(BRIEF_EXPERT_FIELD_IDS);
+
+/**
+ * Appended after the stored prompt so a stale prompt cannot replace the author's fields.
+ * The form texts stay out of the model JSON. Characters inside them must not be
+ * re-serialized by the model, because a quote in that copy breaks the answer.
+ */
 function assignmentLockBlock(): string {
   return [
     "",
     "=== ASSIGNMENT FIELDS (binding, overrides anything above) ===",
     "There is no course map in this request. Do not invent or replace the author's assignment.",
-    "courseContext.cefrLevel is the module level. fields.cefrLevel MUST equal it.",
-    "currentFields already contain the author's unitType, strand, setting, situation, canDo and grammarIn. Copy those values unchanged into fields.",
-    "Write only the remaining fields: grammarOut, chunks, recycle, pitfalls, scenes, listening, cultural, exerciseFocus, plus titleSuggestion and descriptionSuggestion derived from the author's situation and grammarIn.",
+    "courseContext.cefrLevel is the module level. The server sets fields.cefrLevel. Do not include cefrLevel in fields.",
+    "currentFields already contain the author's unitType, strand, setting, situation, canDo and grammarIn. Read them. Do not copy those keys or their full text into fields. Omit those keys entirely. You may name a form from grammarIn inside chunks or recycle as plain text.",
+    "Write only these fields, each as one JSON string of plain text: grammarOut, chunks, recycle, pitfalls, scenes, listening, cultural, exerciseFocus. Also write titleSuggestion and descriptionSuggestion, derived from the author's situation and grammarIn.",
+    "Do not return a JSON array for any field. Several items in one field are separate lines inside that one string. Do not wrap Serbian phrases in double quotes.",
     "Those remaining fields must not contradict the assignment or each other. A form that this unit does not teach belongs in grammarOut, in chunks as a fixed phrase, and at most in a one-sentence pitfall hint that the whole phrase is used now and the rule comes later. Do not explain that later rule, and do not leave that combination in the text as a clash.",
     "A real clash is a false description of grammarIn. A pitfall must not glue two incompatible statements about grammarIn together with a reason. If you cannot write a field about grammarIn without that clash, leave the clash visible in the wording you already have; do not invent a reconciliation.",
     "previouslyTaught is the only history of earlier units. Recycle only forms named there. If previouslyTaught is empty, leave recycle empty. Do not invent a unit number.",
-    "A form already in grammarIn that is not in previouslyTaught is taught in this unit. Leave grammarIn unchanged.",
+    "A form already in grammarIn that is not in previouslyTaught is taught in this unit. Do not restate grammarIn.",
     "The same form may appear in grammarIn and in recycle. Recycle names the known slice. grammarIn may add the slice earlier units did not teach. That overlap is not a clash.",
     "When grammarIn is a recap (none, review, checkpoint, or recap of a unit range), recycle and exerciseFocus may cover that whole range, including chunks and verbs that are not grammar targets. zvati se in a Module 1 recap is allowed. Do not treat a missing grammar-target line as a clash.",
     "Do not ask questions about unitType, cefrLevel, strand, setting, situation, canDo or grammarIn.",
   ].join("\n");
+}
+
+/**
+ * Full briefing: the form keeps the assignment, the model supplies only the
+ * fields it is allowed to write. An answer with none of those fields is not a briefing.
+ */
+function composeAssistantFields(
+  modelFields: BriefFields,
+  currentFields: Record<string, string> | undefined,
+  cefrLevel: string,
+): BriefFields {
+  const fields: BriefFields = {};
+  for (const id of BRIEF_EXPERT_FIELD_IDS) {
+    const value = modelFields[id]?.trim();
+    if (value) fields[id] = value;
+  }
+  if (BRIEF_EXPERT_FIELD_IDS.every((id) => !fields[id]?.trim())) {
+    throw new Error(
+      "The briefing assistant did not write the remaining briefing fields. The run was not saved.",
+    );
+  }
+  fields.cefrLevel = normalizeSelectValue("cefrLevel", String(cefrLevel));
+  for (const key of BRIEF_ASSIGNMENT_FIELD_IDS) {
+    const fromCurrent = currentFields?.[key];
+    if (!fromCurrent?.trim()) continue;
+    const def = BRIEF_FIELDS.find((f) => f.id === key);
+    fields[key] = def?.kind === "select" ? normalizeSelectValue(key, fromCurrent) : fromCurrent.trim();
+  }
+  return fields;
 }
 
 // @ts-ignore TS2589 – Convex schema depth limit (50+ tables)
@@ -116,7 +154,7 @@ export const runBriefAssistant = action({
     moduleNumber: v.number(),
     /** Unused for the assignment. Kept so existing clients still send a string. */
     userText: v.string(),
-    /** Assignment fields already in the form. These are written back over the model output. */
+    /** Assignment fields already in the form. Composed with the model fields; never taken from the model JSON. */
     currentFields: v.optional(v.record(v.string(), v.string())),
     /** Answers to the previous round's questions. */
     answers: v.optional(v.array(v.object({ questionId: v.string(), question: v.string(), answer: v.string() }))),
@@ -150,12 +188,11 @@ export const runBriefAssistant = action({
       (await languageRulesBlock(ctx)) +
       assignmentLockBlock();
 
-    const fieldSpec = BRIEF_FIELDS.map((f) => ({
+    const fieldSpec = BRIEF_FIELDS.filter((f) => EXPERT_FIELD_IDS.has(f.id)).map((f) => ({
       id: f.id,
       label: f.label,
-      kind: f.kind,
+      kind: "text" as const,
       required: !!f.required,
-      options: f.options?.map((o) => o.id),
       help: f.help,
     }));
 
@@ -184,15 +221,11 @@ export const runBriefAssistant = action({
     });
 
     const parsed = parseJsonOrThrow(raw);
-    const fields = sanitizeFields(parsed?.fields);
-    // The module level and the author's assignment fields win over the model.
-    fields.cefrLevel = normalizeSelectValue("cefrLevel", String(context.cefrLevel));
-    for (const key of BRIEF_ASSIGNMENT_FIELD_IDS) {
-      const fromCurrent = args.currentFields?.[key];
-      if (!fromCurrent?.trim()) continue;
-      const def = BRIEF_FIELDS.find((f) => f.id === key);
-      fields[key] = def?.kind === "select" ? normalizeSelectValue(key, fromCurrent) : fromCurrent.trim();
-    }
+    const fields = composeAssistantFields(
+      sanitizeFields(parsed?.fields),
+      args.currentFields,
+      String(context.cefrLevel),
+    );
     const questions = sanitizeQuestions(parsed?.questions).filter(
       (q) => !q.fieldId || !ASSIGNMENT_FIELD_IDS.has(q.fieldId),
     );
