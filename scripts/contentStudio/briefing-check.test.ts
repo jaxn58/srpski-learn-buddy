@@ -73,6 +73,12 @@ describe("briefing consistency prompt", () => {
     expect(BRIEFING_CONSISTENCY_PROMPT).not.toContain("A chunk or a pitfall teaches a point the briefing lists as out of scope");
   });
 
+  it("treats a broader Can-Do next to a deferred form as consistent", () => {
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("A Can-Do statement may name a broader skill");
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("Out of Scope defers nemam");
+    expect(BRIEFING_CORRECTION_PROMPT).toContain("leave canDo and grammarOut unchanged");
+  });
+
   it("does not move a deferred chunk into the grammar target", () => {
     expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not delete the chunk");
     expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not move that form into the in-scope grammar target");

@@ -23,6 +23,10 @@ A one-sentence hint is part of that allowed case. "After iz the country name has
 
 Unit 1 is one instance of this allowed case. The grammar target is biti in the 1st and 2nd person singular, Out of Scope lists the genitive, and the chunks include Ja sam iz Nemačke. Those passages can all be true together.
 
+A Can-Do statement may name a broader skill whose form this unit does not teach yet. A parenthetical on that line, such as (imati), marks the slice this unit covers. Out of Scope may defer the rest of that skill. Those passages can all be true together. Do not report them as a contradiction, and do not treat the deferred form as this unit's grammar target.
+
+Unit 2 is one instance of this allowed case. The Can-Do says learners can say what they have or do not have, the grammar target is affirmative imati and questions with li, and Out of Scope defers nemam. Those passages can all be true together.
+
 Unit 28 is one instance of a real contradiction. The grammar target says "Dative pronouns (mi, ti, mu, joj, nam, vam, im) in boli me", a pitfall says the verb boliti takes a dative pronoun, and the chunks say "Boli me glava". Those passages cannot all be true together. Report that kind of clash wherever it appears. Do not treat this unit as a special case, and do not invent a separate check for pronouns, cases, or any other single form.
 
 When the briefing is consistent, return exactly:
@@ -43,6 +47,8 @@ Include only fields that must change. Each value is the full new text of that fi
 Do not change unit type, CEFR level, strand, or setting.
 
 When a form appears only as a chunk, under Out of Scope, or in a one-sentence hint that the rule comes later, leave those fields unchanged. Do not delete the chunk. Do not move that form into the in-scope grammar target. Do not rewrite the hint into a case lesson, and do not delete the hint.
+
+When a Can-Do names a broader skill and Out of Scope defers the form this unit does not teach, leave canDo and grammarOut unchanged. Do not delete that skill from the Can-Do. Do not move the deferred form into the in-scope grammar target.
 
 When a label and a Serbian example disagree about the in-scope grammar target, keep the Serbian example a native speaker would say and correct the label and any pitfall reason that describes that target wrongly. Do not change a correct Serbian sentence so that it matches a wrong label.
 

@@ -20,8 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { briefingStampAllowsCreator, type BriefingCheckStamp } from "@shared/contentStudio/briefingCheck";
 import { isLectorStale } from "./utils/draftReviewState";
-import { ChevronDown, ChevronRight, FilePlus2, Folder, GitBranch, Search, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, FilePlus2, Folder, GitBranch, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DRAFT_STATUS_LABEL } from "./constants";
@@ -131,6 +132,14 @@ export function DraftList({
     // The list has no findings per row, so this only reacts to the recorded
     // audit snapshot (drafts audited before that bookkeeping show nothing).
     const lectorStale = isLectorStale(d);
+    const briefingConsistent = briefingStampAllowsCreator(
+      String(d?.inspirationRef?.notes ?? ""),
+      d?.briefingCheck as BriefingCheckStamp | null | undefined,
+    );
+    const briefingConsistentLabel = t(
+      "admin.contentStudio.unitList.briefingConsistent",
+      "Briefing is consistent.",
+    );
     return (
       <div key={d._id} className="group flex min-w-0 items-stretch gap-1.5">
         <button
@@ -145,8 +154,13 @@ export function DraftList({
         >
           {/* Row 1: Unit#, Status */}
           <div className="mb-0.5 flex min-w-0 items-center justify-between gap-1.5">
-            <span className="shrink-0 text-[10px] font-bold tabular-nums text-foreground">
+            <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold tabular-nums text-foreground">
               U{d.unitNumber}
+              {briefingConsistent && (
+                <span title={briefingConsistentLabel}>
+                  <Check className="h-3 w-3 text-emerald-500" aria-label={briefingConsistentLabel} />
+                </span>
+              )}
             </span>
             <div className="flex min-w-0 items-center justify-end gap-1">
               {lectorStale && (
