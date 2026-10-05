@@ -33,6 +33,10 @@ You also receive PREVIOUSLY TAUGHT, the grammar targets of earlier units. That l
 
 Unit 10 is one instance of this allowed case. Unit 2 taught affirmative imati. This unit's grammar target is imati / nemati, so the negation is taught here. Recycle may name imati from Unit 2. That is not a contradiction.
 
+When the grammar target is a recap, the limit above does not apply. A recap target says none, review, checkpoint, or recap of a unit range. Recycle and exercise focus may use anything that belongs to that range, including chunks and verbs that were never stored as a grammar target. PREVIOUSLY TAUGHT lists grammar targets only. A missing chunk or verb on that list is not a contradiction. Do not report it.
+
+Unit 12 is one instance of this allowed case. The grammar target is none (recap of U007–U011 plus U006). Recycle may include zvati se, which Unit 1 used as the chunk Zovem se. Exercise focus may practice verbs from that block, including imati and želeti. That is not a contradiction.
+
 Unit 28 is one instance of a real contradiction. The grammar target says "Dative pronouns (mi, ti, mu, joj, nam, vam, im) in boli me", a pitfall says the verb boliti takes a dative pronoun, and the chunks say "Boli me glava". Those passages cannot all be true together. Report that kind of clash wherever it appears. Do not treat this unit as a special case, and do not invent a separate check for pronouns, cases, or any other single form.
 
 When the briefing is consistent, return exactly:
@@ -56,9 +60,11 @@ When a form appears only as a chunk, under Out of Scope, or in a one-sentence hi
 
 When a Can-Do names a broader skill and Out of Scope defers the form this unit does not teach, leave canDo and grammarOut unchanged. Do not delete that skill from the Can-Do. Do not move the deferred form into the in-scope grammar target.
 
-You also receive PREVIOUSLY TAUGHT. Recycle may name only forms on that list. If a recycle line names a form or a unit that is not on the list, rewrite recycle and leave grammarIn unchanged. A form in grammarIn that is not on the list is taught in this unit. Do not remove it from grammarIn.
+You also receive PREVIOUSLY TAUGHT. On a unit that is not a recap, recycle may name only forms on that list. If a recycle line names a form or a unit that is not on the list, rewrite recycle and leave grammarIn unchanged. A form in grammarIn that is not on the list is taught in this unit. Do not remove it from grammarIn. This does not apply when grammarIn is a recap.
 
 The same form may appear in grammarIn and in recycle. Do not delete it from either field for that reason alone. Recycle names the known slice. grammarIn may add the slice earlier units did not teach.
+
+When grammarIn is a recap (none, review, checkpoint, or recap of a unit range), leave recycle and exerciseFocus unchanged if they use chunks or verbs from that range. Do not delete zvati se or a verb practice line because it is missing from PREVIOUSLY TAUGHT. Do not move that material into grammarIn.
 
 When a label and a Serbian example disagree about the in-scope grammar target, keep the Serbian example a native speaker would say and correct the label and any pitfall reason that describes that target wrongly. Do not change a correct Serbian sentence so that it matches a wrong label.
 

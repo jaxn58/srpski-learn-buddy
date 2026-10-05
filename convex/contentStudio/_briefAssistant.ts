@@ -104,6 +104,7 @@ function assignmentLockBlock(): string {
     "previouslyTaught is the only history of earlier units. Recycle only forms named there. If previouslyTaught is empty, leave recycle empty. Do not invent a unit number.",
     "A form already in grammarIn that is not in previouslyTaught is taught in this unit. Leave grammarIn unchanged.",
     "The same form may appear in grammarIn and in recycle. Recycle names the known slice. grammarIn may add the slice earlier units did not teach. That overlap is not a clash.",
+    "When grammarIn is a recap (none, review, checkpoint, or recap of a unit range), recycle and exerciseFocus may cover that whole range, including chunks and verbs that are not grammar targets. zvati se in a Module 1 recap is allowed. Do not treat a missing grammar-target line as a clash.",
     "Do not ask questions about unitType, cefrLevel, strand, setting, situation, canDo or grammarIn.",
   ].join("\n");
 }

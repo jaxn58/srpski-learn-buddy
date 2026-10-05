@@ -87,6 +87,13 @@ describe("briefing consistency prompt", () => {
     expect(BRIEFING_CORRECTION_PROMPT).toContain("leave grammarIn unchanged");
   });
 
+  it("lets a recap unit reuse chunks that are not grammar targets", () => {
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("recap of U007–U011 plus U006");
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("zvati se");
+    expect(BRIEFING_CONSISTENCY_PROMPT).toContain("A missing chunk or verb on that list is not a contradiction");
+    expect(BRIEFING_CORRECTION_PROMPT).toContain("leave recycle and exerciseFocus unchanged");
+  });
+
   it("does not move a deferred chunk into the grammar target", () => {
     expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not delete the chunk");
     expect(BRIEFING_CORRECTION_PROMPT).toContain("Do not move that form into the in-scope grammar target");
