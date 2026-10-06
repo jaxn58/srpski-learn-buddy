@@ -6,6 +6,7 @@ import { upsertDailyActivityByUserId } from "./units";
 import { spacedRepetitionXp, levelFromXp } from "./gamification";
 import { learnerTrackLanguage, markUnitCompletedIfReady } from "./lib/unitProgress";
 import { awardDueBadgesForUser } from "./badges";
+import { scheduleUnitOverviewDigestRecompute, scheduleUnitOverviewDigestRecomputeMany } from "./contentStudio/_unitOverviewDigest";
 
 // ============= COURSE VOCABULARY (Master Data) =============
 
@@ -97,6 +98,7 @@ export const upsertCourseVocabulary = internalMutation({
       if (args.noteFr !== undefined) updates.noteFr = args.noteFr;
       
       await ctx.db.patch(existing._id, updates);
+      await scheduleUnitOverviewDigestRecompute(ctx, args.unitNumber);
       return existing._id;
     }
 
@@ -114,7 +116,9 @@ export const upsertCourseVocabulary = internalMutation({
       ...(args.noteFr !== undefined ? { noteFr: args.noteFr } : {}),
     };
 
-    return await ctx.db.insert("courseVocabulary", insertData);
+    const id = await ctx.db.insert("courseVocabulary", insertData);
+    await scheduleUnitOverviewDigestRecompute(ctx, args.unitNumber);
+    return id;
   },
 });
 
@@ -1141,6 +1145,7 @@ export const deduplicateVocabularyAcrossUnits = mutation({
   handler: async (ctx, args) => {
     const dryRun = args.dryRun !== false;
     const now = Date.now();
+    const affectedUnits = new Set<number>();
 
     const allVocab = await ctx.db.query("courseVocabulary").collect();
     const active = allVocab.filter(
@@ -1198,6 +1203,8 @@ export const deduplicateVocabularyAcrossUnits = mutation({
           archivedUnit: dupUnit,
           canonicalUnit,
         });
+        affectedUnits.add(dupUnit);
+        affectedUnits.add(canonicalUnit);
 
         // Archive ALL active entries for this word in the duplicate unit
         const dupsInUnit = entries.filter(
@@ -1299,6 +1306,9 @@ export const deduplicateVocabularyAcrossUnits = mutation({
           )
           .join("; "),
       );
+    }
+    if (!dryRun && affectedUnits.size > 0) {
+      await scheduleUnitOverviewDigestRecomputeMany(ctx, [...affectedUnits]);
     }
     return summary;
   },

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { action, internalMutation, query, ActionCtx, QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
+import { scheduleUnitOverviewDigestRecompute } from "./contentStudio/_unitOverviewDigest";
 
 import { UnitPackageSchema, validateUnitPackageDeep } from "../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../scripts/unitPackage/autofix";
@@ -575,6 +576,7 @@ export const internalImportUnitPackage = internalMutation({
       }
     }
 
+    await scheduleUnitOverviewDigestRecompute(ctx, fixed.unitNumber);
     return { unitNumber: fixed.unitNumber, title: fixed.title, reconciledRemovals };
   },
 });
@@ -628,6 +630,9 @@ export const internalArchiveUnitForReplace = internalMutation({
       archivedVocab += 1;
     }
 
+    // The only caller imports the replacement package immediately afterwards and
+    // recomputes there. Scheduling here would race that later write and could
+    // store the archived (empty) counts on top of the imported ones.
     return {
       nextUnitVersion: maxVersion + 1,
       archived: { content: archivedContent, tests: archivedTests, vocabulary: archivedVocab },

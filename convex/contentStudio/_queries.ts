@@ -3,6 +3,12 @@ import { query, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { requireSuperadmin } from "./_shared";
 import { isPublishedStatus, isPreviewStatus } from "./_shared";
+import {
+  OVERVIEW_LANGUAGES,
+  computeUnitOverviewCounts,
+  isVisibleForAdmin,
+  type UnitOverviewLangCounts,
+} from "./_unitOverviewDigest";
 import { DEFAULT_VOCABULARY_BUDGET } from "../../shared/contentStudio/vocabularyBudget";
 import type { Doc, Id } from "../_generated/dataModel";
 import {
@@ -1043,16 +1049,6 @@ export const getUnitTranslationPreviewEnToDe = query({
 });
 
 // ===== Unit Manager: Overview of all units with per-language status =====
-const SUPPORTED_LANGUAGES = ["en", "de"] as const;
-
-// Helper: count active, non-offline rows (includes both published and preview for admin view).
-function isVisibleForAdmin(row: any): boolean {
-  if (row.isActive === false) return false;
-  const s = row.releaseStatus;
-  if (s === "offline") return false;
-  return true; // published (undefined/"published") or preview — both visible to superadmin
-}
-
 export const getUnitManagementOverview = query({
   args: {},
   handler: async (ctx) => {
@@ -1143,6 +1139,27 @@ export const getUnitManagementOverview = query({
       } catch { /* ignore invalid ids */ }
     }
 
+    const allDigests = await ctx.db.query("unitOverviewDigest").collect();
+    if (unitMap.size > 0 && allDigests.length === 0) {
+      throw new Error(
+        "Unit overview digest is not backfilled. Run the backfill before opening Unit Manager.",
+      );
+    }
+    const digestByKey = new Map<string, (typeof allDigests)[number]>();
+    const unitsWithDigest = new Set<number>();
+    for (const row of allDigests) {
+      digestByKey.set(`${row.unitNumber}|${row.language}`, row);
+      unitsWithDigest.add(row.unitNumber);
+    }
+    const missingUnits = [...unitMap.keys()].filter((n) => !unitsWithDigest.has(n));
+    if (missingUnits.length > 1) {
+      throw new Error(
+        "Unit overview digest is incomplete. Run the backfill before opening Unit Manager.",
+      );
+    }
+    const missingUnit = missingUnits.length === 1 ? missingUnits[0] : undefined;
+    const liveCounts = missingUnit !== undefined ? await computeUnitOverviewCounts(ctx, missingUnit) : null;
+
     for (const [unitNumber, langBucket] of Array.from(unitMap.entries()).sort((a, b) => a[0] - b[0])) {
       const versions: Record<string, any> = {};
 
@@ -1159,93 +1176,33 @@ export const getUnitManagementOverview = query({
         }
       }
 
-      for (const lang of SUPPORTED_LANGUAGES) {
+      for (const lang of OVERVIEW_LANGUAGES) {
         const meta = langBucket[lang];
         if (!meta) continue;
 
-        // Count ALL active, non-offline content sections (admin sees everything).
-        const contentRows = await ctx.db
-          .query("unitContent")
-          .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", lang))
-          .collect();
-        // Deduplicate by contentType (prefer preview over published, highest unitVersion).
-        const bestByType = new Map<string, any>();
-        for (const c of (contentRows as any[]).filter(isVisibleForAdmin)) {
-          const type = String(c.contentType);
-          const prev = bestByType.get(type);
-          if (!prev) { bestByType.set(type, c); continue; }
-          const cPrio = isPreviewStatus(c.releaseStatus) ? 2 : 1;
-          const pPrio = isPreviewStatus(prev.releaseStatus) ? 2 : 1;
-          if (cPrio > pPrio || (cPrio === pPrio && (c.unitVersion ?? 1) > (prev.unitVersion ?? 1))) {
-            bestByType.set(type, c);
-          }
-        }
-
-        // Count tests — use the same pool+maxVersion strategy as units.ts:getUnitInteractiveTest.
-        // 1) Filter active, non-offline. 2) Prefer preview pool if any, else published pool.
-        // 3) Within the chosen pool, only count tests at the highest unitVersion.
-        const testRows = await ctx.db
-          .query("unitInteractiveTests")
-          .withIndex("by_unit_lang", (q) => q.eq("unitNumber", unitNumber).eq("language", lang))
-          .collect();
-        const eligibleTests = (testRows as any[]).filter(isVisibleForAdmin);
-        const hasPreviewTests = eligibleTests.some((t: any) => isPreviewStatus(t.releaseStatus));
-        const testPool = hasPreviewTests
-          ? eligibleTests.filter((t: any) => isPreviewStatus(t.releaseStatus))
-          : eligibleTests.filter((t: any) => isPublishedStatus(t.releaseStatus));
-        const maxTestVersion = testPool.reduce((m: number, t: any) => Math.max(m, Number(t.unitVersion ?? 1) || 1), 1);
-        const finalTests = testPool.filter((t: any) => (Number(t.unitVersion ?? 1) || 1) === maxTestVersion);
-
-        // Count vocab — deduplicate by serbianNormalized key.
-        // Prefer preview over published, then highest unitVersion.
-        let vocabCount = 0;
-        const vocabRows = await ctx.db
-          .query("courseVocabulary")
-          .withIndex("by_unit", (q) => q.eq("unitNumber", unitNumber))
-          .collect();
-        const bestVocabByKey = new Map<string, any>();
-        for (const v of (vocabRows as any[]).filter(isVisibleForAdmin)) {
-          const key = String((v as any).serbianNormalized ?? (v as any).serbian ?? "").trim().toLowerCase();
-          if (!key) continue;
-          const prev = bestVocabByKey.get(key);
-          if (!prev) { bestVocabByKey.set(key, v); continue; }
-          const vPrio = isPreviewStatus(v.releaseStatus) ? 2 : 1;
-          const pPrio = isPreviewStatus(prev.releaseStatus) ? 2 : 1;
-          if (vPrio > pPrio || (vPrio === pPrio && (Number((v as any).unitVersion ?? 1) || 1) > (Number((prev as any).unitVersion ?? 1) || 1))) {
-            bestVocabByKey.set(key, v);
-          }
-        }
-        if (lang === "en") {
-          vocabCount = bestVocabByKey.size;
-        } else if (lang === "de") {
-          // Only count deduplicated rows that have a DE translation.
-          vocabCount = Array.from(bestVocabByKey.values()).filter(
-            (v) => typeof v.de === "string" && String(v.de).trim()
-          ).length;
-        }
-
-        // Only include this language version if it has actual content (not just metadata).
-        const sectionCount = bestByType.size;
-        const testCount = finalTests.length;
-        if (sectionCount === 0 && testCount === 0 && vocabCount === 0 && lang !== "en") {
-          continue;
-        }
-
-        let latestContentUpdatedAt: number | undefined;
-        for (const c of bestByType.values()) {
-          const t = Number((c as any).updatedAt ?? (c as any)._creationTime ?? 0);
-          if (t > (latestContentUpdatedAt ?? 0)) latestContentUpdatedAt = t;
-        }
+        const digest = digestByKey.get(`${unitNumber}|${lang}`);
+        const live = liveCounts && unitNumber === missingUnit ? liveCounts[lang] : null;
+        const counts: UnitOverviewLangCounts | null = digest
+          ? {
+              sectionCount: digest.sectionCount,
+              testCount: digest.testCount,
+              vocabCount: digest.vocabCount,
+              ...(digest.latestContentUpdatedAt !== undefined
+                ? { latestContentUpdatedAt: digest.latestContentUpdatedAt }
+                : {}),
+            }
+          : live;
+        if (!counts) continue;
 
         versions[lang] = {
           title: meta.title,
           description: meta.description,
           releaseStatus: meta.releaseStatus,
           isOffline: meta.isOffline,
-          sectionCount,
-          testCount,
-          vocabCount,
-          latestContentUpdatedAt,
+          sectionCount: counts.sectionCount,
+          testCount: counts.testCount,
+          vocabCount: counts.vocabCount,
+          latestContentUpdatedAt: counts.latestContentUpdatedAt,
         };
       }
 

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action, type ActionCtx } from "../_generated/server";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { requireSuperadminAction, parseJsonOrThrow } from "./_shared";
 import { UnitPackageSchema } from "../../scripts/unitPackage/schema";
 import { autofixUnitPackage } from "../../scripts/unitPackage/autofix";
@@ -370,7 +370,7 @@ export const createDraftPreview = action({
       // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
       const dedupResult = (await ctx.runMutation(
         api.contentStudio.internalDeduplicateUnitVocabulary,
-        { unitNumber },
+        { unitNumber, skipDigestRecompute: true },
       )) as { deduplicatedCount: number; progressRemapped: number };
       const vocabDeduplicated = dedupResult.deduplicatedCount;
       if (vocabDeduplicated > 0) {
@@ -430,6 +430,11 @@ export const createDraftPreview = action({
         totalBatches: undefined,
       });
 
+      // Content, vocabulary and tests are written. Recount in its own transaction
+      // so this action does not read the unit markdown a second time.
+      // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+      await ctx.runMutation(internal.contentStudio.recomputeUnitOverviewDigest, { unitNumber });
+
       return {
         ok: true,
         unitNumber,
@@ -465,6 +470,15 @@ export const createDraftPreview = action({
         });
       } catch (stateErr) {
         console.warn(`[CreatePreview] Failed to persist preview creation state after error:`, stateErr);
+      }
+
+      if (currentStage !== "metadata") {
+        try {
+          // @ts-ignore TS7022 TS2589 – Convex schema depth limit (50 tables)
+          await ctx.runMutation(internal.contentStudio.recomputeUnitOverviewDigest, { unitNumber });
+        } catch (digestErr) {
+          console.warn(`[CreatePreview] Unit ${unitNumber} overview digest recompute failed:`, digestErr);
+        }
       }
 
       console.error(`[CreatePreview] Unit ${unitNumber} failed at ${contextTag}: ${rawMessage}`);

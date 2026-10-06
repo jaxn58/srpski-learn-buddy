@@ -734,7 +734,7 @@ export function UnitManagerTab({ recentlyTranslatedUnits, onTranslationComplete 
       return next;
     });
     if (willClose && selectedUnit != null) {
-      const selected = overview.find((u) => u.unitNumber === selectedUnit);
+      const selected = overview.find((u: UnitOverview) => u.unitNumber === selectedUnit);
       if (selected && moduleKeyOf(selected) === key) {
         setSelectedUnit(null);
       }

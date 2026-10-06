@@ -13,6 +13,7 @@ import {
 } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import { toVocabularyKey } from "../vocabulary";
+import { scheduleUnitOverviewDigestRecompute, scheduleUnitOverviewDigestRecomputeMany } from "./_unitOverviewDigest";
 
 /**
  * Superadmin OR CLI access. Cleanup functions are dual-purpose: they must
@@ -485,6 +486,7 @@ export const cleanupCrossUnitVocabularyDuplicates = mutation({
 
     const now = Date.now();
     const groups = await scanDuplicateGroupsRaw(ctx);
+    const affectedUnits = new Set<number>();
 
     let archivedVocabulary = 0;
     let progressRemapped = 0;
@@ -504,6 +506,7 @@ export const cleanupCrossUnitVocabularyDuplicates = mutation({
 
       if (Object.keys(patch).length > 0) {
         canonicalsEnriched += 1;
+        affectedUnits.add(g.canonical.unitNumber);
         if (!dryRun) {
           await ctx.db.patch(g.canonical._id, patch);
         }
@@ -513,6 +516,7 @@ export const cleanupCrossUnitVocabularyDuplicates = mutation({
       for (const dup of g.allInDuplicateUnits) {
         archivedIds.push(dup._id);
         archivedVocabulary += 1;
+        affectedUnits.add(dup.unitNumber);
 
         const archivedNote = (() => {
           const previous = String(dup.noteEn ?? "").trim();
@@ -611,6 +615,10 @@ export const cleanupCrossUnitVocabularyDuplicates = mutation({
         `${progressRemapped} progress remapped, ${progressMerged} merged.`,
     );
 
+    if (!dryRun) {
+      await scheduleUnitOverviewDigestRecomputeMany(ctx, [...affectedUnits]);
+    }
+
     return summary;
   },
 });
@@ -686,6 +694,10 @@ export const takeUnitVocabularyOfflineCompletely = mutation({
       `[TakeUnitOffline] ${dryRun ? "DRY RUN" : "APPLIED"} unit=${args.unitNumber}: ` +
         `${takenOffline} taken offline, ${alreadyOffline} already offline.`,
     );
+
+    if (!dryRun && takenOffline > 0) {
+      await scheduleUnitOverviewDigestRecompute(ctx, args.unitNumber);
+    }
 
     return {
       dryRun,

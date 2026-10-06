@@ -12,6 +12,10 @@ import { makeValidatorMemoryFingerprint } from "./_validatorMemory";
 import { clampVocabularyBudget } from "../../shared/contentStudio/vocabularyBudget";
 import { hashBriefingText, type BriefingCheckStamp } from "../../shared/contentStudio/briefingCheck";
 import { briefingCheckValidator } from "./_briefingCheck";
+import {
+  deleteUnitOverviewDigest,
+  scheduleUnitOverviewDigestRecompute,
+} from "./_unitOverviewDigest";
 
 /**
  * Validator Memory auto-capture switched off (decision 2026-09-16).
@@ -907,6 +911,7 @@ export const processUnitDeletionBatch = internalMutation({
       const now = Date.now();
 
       if (nextPhase === "done") {
+        await deleteUnitOverviewDigest(ctx, args.unitNumber);
         await ctx.db.patch(args.jobId, {
           phase: "done",
           counts: nextCounts,
@@ -2186,6 +2191,7 @@ export const internalPublishUnitPackageToPreview = mutation({
       }
     }
 
+    await scheduleUnitOverviewDigestRecompute(ctx, unitNumber);
     return { unitNumber, version: args.unitVersion, status: "preview" };
   },
 });
@@ -2239,6 +2245,7 @@ export const internalTakeUnitPreviewOffline = mutation({
       await ctx.db.patch(vdoc._id, { releaseStatus: "offline", isActive: false, archivedAt: now });
     }
 
+    await scheduleUnitOverviewDigestRecompute(ctx, args.unitNumber);
     return { ok: true };
   },
 });
@@ -2472,6 +2479,7 @@ export const upsertPublishedUnitGermanTranslation = mutation({
       vocabPatched += 1;
     }
 
+    await scheduleUnitOverviewDigestRecompute(ctx, unitNumber);
     return {
       ok: true,
       unitNumber,
@@ -2702,6 +2710,7 @@ export const upsertUnitGermanTranslationToPreview = mutation({
       vocabInserted += 1;
     }
 
+    await scheduleUnitOverviewDigestRecompute(ctx, unitNumber);
     return {
       ok: true,
       unitNumber,
@@ -3028,6 +3037,7 @@ export const promoteLanguagePreviewToPublished = mutation({
       }
     }
 
+    await scheduleUnitOverviewDigestRecompute(ctx, unitNumber);
     return {
       ok: true,
       unitNumber,
@@ -3208,6 +3218,7 @@ export const takeLanguagePreviewOffline = mutation({
       }
     }
 
+    await scheduleUnitOverviewDigestRecompute(ctx, unitNumber);
     return {
       ok: true,
       unitNumber,
@@ -3406,6 +3417,7 @@ export const repairPublishedUnitVocabulary = internalMutation({
       });
       created += 1;
     }
+    await scheduleUnitOverviewDigestRecompute(ctx, unitNumber);
     return {
       ok: true,
       strategy: "recreated_from_snapshot",
@@ -3752,6 +3764,9 @@ export const internalCreatePreviewUnitVocabulary = mutation({
 export const internalDeduplicateUnitVocabulary = mutation({
   args: {
     unitNumber: v.number(),
+    // Set by createDraftPreview. That action recomputes once after tests are written.
+    // A recompute here would race and can overwrite the later, complete counts.
+    skipDigestRecompute: v.optional(v.boolean()),
   },
   returns: v.object({
     deduplicatedCount: v.number(),
@@ -3760,6 +3775,9 @@ export const internalDeduplicateUnitVocabulary = mutation({
   handler: async (ctx, args) => {
     await requireSuperadmin(ctx);
     const result = await deduplicateUnitVocabulary(ctx, args.unitNumber);
+    if (!args.skipDigestRecompute) {
+      await scheduleUnitOverviewDigestRecompute(ctx, args.unitNumber);
+    }
     return {
       deduplicatedCount: result.deduplicatedCount,
       progressRemapped: result.progressRemapped,
@@ -4166,6 +4184,8 @@ export const backfillDraftSnapshotCounts = internalMutation({
     return { done: false };
   },
 });
+
+
 
 
 

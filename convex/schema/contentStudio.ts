@@ -592,4 +592,17 @@ export const contentStudioTables = {
   })
     .index("by_unit", ["unitNumber"])
     .index("by_started_at", ["startedAt"]),
+
+  // Counts for the admin Unit Manager list. The overview must not read
+  // unitContent markdown, full tests, or vocabulary rows. Writers recompute
+  // one unit at a time via recomputeUnitOverviewDigest.
+  unitOverviewDigest: defineTable({
+    unitNumber: v.number(),
+    language: v.union(v.literal("en"), v.literal("de")),
+    sectionCount: v.number(),
+    testCount: v.number(),
+    vocabCount: v.number(),
+    latestContentUpdatedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_unit_lang", ["unitNumber", "language"]),
 };
