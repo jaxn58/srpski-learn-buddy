@@ -66,6 +66,14 @@ type UnitMetadataRow = {
   title?: string;
   description?: string;
   topics?: string[];
+  moduleMetadataId?: string;
+  moduleId?: string;
+};
+
+type DashboardModule = {
+  _id: string;
+  slug?: string;
+  moduleNumber?: number;
 };
 
 type AudioSample = {
@@ -222,6 +230,7 @@ export default function Dashboard() {
   }, [checkoutReturn, t]);
 
   const units = useQuery(api.units.getAllUnitsMetadata, { language: displayLanguage });
+  const dbModules = useQuery(api.modules.getAllModulesConsolidated);
   const todayStart = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -334,6 +343,34 @@ export default function Dashboard() {
     },
     [units, preferredLang]
   );
+
+  const moduleNumberByUnit = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!units || !dbModules) return map;
+
+    const numberById = new Map<string, number>();
+    const numberBySlug = new Map<string, number>();
+    for (const mod of dbModules as DashboardModule[]) {
+      if (typeof mod.moduleNumber !== "number" || !(mod.moduleNumber > 0)) continue;
+      numberById.set(String(mod._id), mod.moduleNumber);
+      if (mod.slug) numberBySlug.set(mod.slug, mod.moduleNumber);
+    }
+
+    const seen = new Set<number>();
+    for (const row of units as UnitMetadataRow[]) {
+      if (seen.has(row.unitNumber)) continue;
+      seen.add(row.unitNumber);
+      const resolved = getUnitRow(row.unitNumber);
+      if (!resolved) continue;
+      const fromFk = resolved.moduleMetadataId
+        ? numberById.get(String(resolved.moduleMetadataId))
+        : undefined;
+      const fromSlug = resolved.moduleId ? numberBySlug.get(resolved.moduleId) : undefined;
+      const moduleNumber = fromFk ?? fromSlug;
+      if (typeof moduleNumber === "number") map.set(row.unitNumber, moduleNumber);
+    }
+    return map;
+  }, [units, dbModules, getUnitRow]);
 
   // Bug-Fix: alle Einheiten aus der Metadaten-Query nehmen (nicht mehr nur die freigeschalteten).
   // Der "Locked"-Status wird pro Karte anhand von accessibleUnits.maxUnits ermittelt.
@@ -867,12 +904,20 @@ export default function Dashboard() {
                       isLockedByCurriculum ||
                       (isBeta && unitNum > (accessibleUnits?.maxUnits ?? 0));
                     const notStarted = !isCompleted && !isCurrent && !isLocked;
+                    const moduleNumber = moduleNumberByUnit.get(unitNum);
+                    const moduleBadge =
+                      typeof moduleNumber === "number" ? (
+                        <Badge variant="outline" className="text-xs">
+                          {t("units.module", { number: moduleNumber })}
+                        </Badge>
+                      ) : null;
 
                     if (isLocked) {
                       return (
                         <AnimatedItem key={unitNum}>
                           <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4 opacity-80 h-full">
                             <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              {moduleBadge}
                               <Badge variant="outline">{t("dashboard.unit", { number: unitNum })}</Badge>
                               <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                               <span className="text-xs text-muted-foreground font-medium">
@@ -905,6 +950,7 @@ export default function Dashboard() {
                             }`}
                           >
                             <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              {moduleBadge}
                               <Badge variant={isCurrent ? "default" : "outline"} className="text-xs">
                                 {t("dashboard.unit", { number: unitNum })}
                               </Badge>
