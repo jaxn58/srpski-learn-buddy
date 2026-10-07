@@ -1238,76 +1238,29 @@ export function buildMultipleChoiceOptions(pairs: Array<{ en: string; serbian: s
   return options;
 }
 
-export function toAccusativeForm(serbian: string, gender?: string): string {
-  const s = String(serbian || "").trim();
-  if (!s) return s;
-  // Only handle single-token words deterministically; phrases stay as-is.
-  if (s.includes(" ")) return s;
-
-  // Special-case: masculine animate like "konobar" (waiter) -> "konobara"
-  // (Used defensively in case it slips into dialogue completion. Prefer not to use roles at all.)
-  if (normalizeSerbianKey(s) === "konobar") return "konobara";
-
-  const g = String(gender || "").trim().toLowerCase();
-  // Feminine nouns commonly end with -a and change to -u in accusative singular.
-  if (g === "f" || s.toLowerCase().endsWith("a")) {
-    // Avoid double conversion (already ends with 'u' etc.)
-    if (s.toLowerCase().endsWith("a")) return s.slice(0, -1) + "u";
-  }
-  // Masculine inanimate & neuter: often same as nominative for our beginner content.
-  return s;
+/** A dialogue snippet names a speaker, in Latin or Cyrillic: "Clerk: ..." / "Службеник: ...". */
+export function isDialogueSnippet(question: string): boolean {
+  return /(?:^|\n)\s*\p{L}[\p{L}.'’-]{0,40}\s*:/u.test(String(question || ""));
 }
 
-export function isOrderableDialogueAnswer(pair: { en: string; serbian: string }): boolean {
-  const en = String(pair?.en || "").trim().toLowerCase();
-  const sr = normalizeSerbianKey(pair?.serbian);
+/**
+ * The old filler script. It is not unit content. Matching it drops the question
+ * instead of keeping a café order inside an official-letter unit.
+ */
+const STOCK_CAFE_DIALOGUES = new Set([
+  "waiter: šta želite?\ncustomer: ja bih _____.",
+  "waiter: šta biste želeli?\ncustomer: molim _____.",
+  "waiter: izvolite?\ncustomer: može _____.",
+  "waiter: šta ćete popiti?\ncustomer: ja bih _____.",
+]);
 
-  // Exclude roles/people and abstract service words.
-  const excludedEn = new Set(["waiter", "server", "customer", "guest", "bill", "receipt", "please", "thank you", "excuse me"]);
-  const excludedSr = new Set(["konobar", "gost", "račun", "molim", "hvala", "izvinite"]);
-  if (excludedEn.has(en) || excludedSr.has(sr)) return false;
-
-  // Prefer items you can order in a café (safe subset)
-  const preferredEn = new Set(["coffee", "water", "juice", "milk", "tea", "beer", "wine"]);
-  if (preferredEn.has(en)) return true;
-
-  // Fallback: allow short nouns that look like items (1–2 words) and are not excluded
-  if (sr && !sr.includes(" ") && sr.length >= 3) return true;
-  return false;
-}
-
-export function pickOrderablePair(
-  pairs: Array<{ en: string; serbian: string; gender?: string }>
-): { en: string; serbian: string; gender?: string } | null {
-  const list = Array.isArray(pairs) ? pairs : [];
-  const firstPreferred = list.find((p) => {
-    const en = String(p?.en || "").trim().toLowerCase();
-    return ["coffee", "water", "juice", "milk", "tea"].includes(en);
-  });
-  if (firstPreferred && isOrderableDialogueAnswer(firstPreferred as any)) return firstPreferred;
-
-  const any = list.find((p) => isOrderableDialogueAnswer(p as any));
-  return any ?? null;
-}
-
-export function buildDialogueCompletionOptionsAccusative(
-  pairs: Array<{ en: string; serbian: string; gender?: string }>,
-  correctNom: string,
-  correctGender?: string
-): string[] {
-  const correct = toAccusativeForm(correctNom, correctGender);
-  const distractors = pairs
-    .map((p) => toAccusativeForm(p.serbian, p.gender))
-    .filter((s) => s && s !== correct);
-  const options = uniqueStrings([correct, ...distractors]).slice(0, 4);
-  if (options.length < 3) {
-    const pad = FALLBACK_VOCAB_PAIRS.map((p) => toAccusativeForm(p.serbian, undefined)).filter((s) => s && s !== correct);
-    for (const s of pad) {
-      if (options.length >= 3) break;
-      if (!options.includes(s)) options.push(s);
-    }
-  }
-  return options;
+export function isStockCafeDialogue(question: string): boolean {
+  const normalized = String(question || "")
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .toLowerCase()
+    .replace(/_+/g, "_____");
+  return STOCK_CAFE_DIALOGUES.has(normalized);
 }
 
 export function appendExerciseOverviewToTestIntroduction(pkg: any): void {
@@ -1367,80 +1320,27 @@ export function appendExerciseOverviewToTestIntroduction(pkg: any): void {
 }
 
 export function upgradeDialogueCompletionQuestions(pkg: any): void {
-  if (!pkg || typeof pkg !== "object") return;
-  const cats: any[] = Array.isArray(pkg?.exercises?.en) ? pkg.exercises.en : [];
-
-  // Build gender lookup from unit vocabulary
-  const vocabEn: any[] = Array.isArray(pkg?.vocabulary?.en) ? pkg.vocabulary.en : [];
-  const genderBySerbian = new Map<string, string | undefined>();
-  const vocabPairs: Array<{ en: string; serbian: string; gender?: string }> = [];
-  for (const v of vocabEn) {
-    const key = normalizeSerbianKey(v?.serbian);
-    if (!key) continue;
-    const g = typeof v?.gender === "string" ? v.gender.trim() : undefined;
-    genderBySerbian.set(key, g);
-    vocabPairs.push({
-      en: String(v?.en || "").trim(),
-      serbian: String(v?.serbian || "").trim(),
-      gender: g,
-    });
-  }
-
-  const dialogueTemplates = [
-    ["Waiter: Šta želite?", "Customer: Ja bih _____."],
-    ["Waiter: Šta biste želeli?", "Customer: Molim _____."],
-    ["Waiter: Izvolite?", "Customer: Može _____."],
-    ["Waiter: Šta ćete popiti?", "Customer: Ja bih _____."],
-  ].map((lines) => lines.join("\n"));
+  if (!pkg?.exercises || !Array.isArray(pkg.exercises.en)) return;
+  const cats: any[] = pkg.exercises.en;
+  const kept: any[] = [];
 
   for (const cat of cats) {
-    if (String(cat?.category || "") !== "dialogueCompletion") continue;
-    if (!Array.isArray(cat?.questions)) continue;
-
-    cat.questions = cat.questions.map((q: any) => {
-      const existingQuestion = String(q?.question || "").trim();
-      // Only apply the waiter template when the question does NOT already have
-      // a proper dialogue format (speaker: text pattern).
-      // A real dialogue question already contains ":" (e.g. "A: Zdravo. B: _____").
-      // Placeholder or bare-sentence questions lack this pattern and get upgraded.
-      const alreadyIsDialogue = /[A-Za-zšđčćž]+\s*:/.test(existingQuestion);
-      if (alreadyIsDialogue) {
-        // Question is already a real dialogue — leave it as-is.
-        return q;
-      }
-      // Keep a consistent dialogue SNIPPET format, but vary the prompt text a bit to avoid repetition.
-      const idx = (Number(q?.order ?? 0) || 0) % dialogueTemplates.length;
-      const chosen = dialogueTemplates[idx] ?? dialogueTemplates[0];
-      let nextQ: any = { ...q, question: chosen };
-
-      // Grammar guard: for "Ja bih _____", prefer accusative for feminine nouns (kafa->kafu).
-      const qText = String(nextQ?.question || "");
-      const looksLikeJaBih = /ja\s+bih[\s\S]*_____/.test(qText.toLowerCase());
-      if (looksLikeJaBih) {
-        let caNom = String(nextQ?.correctAnswer || "").trim();
-        let caGender = genderBySerbian.get(normalizeSerbianKey(caNom));
-
-        // If the current answer is not an orderable item (e.g., konobar), pick a better deterministic one.
-        const currentPair = { en: "", serbian: caNom };
-        if (!isOrderableDialogueAnswer(currentPair as any)) {
-          const picked = pickOrderablePair(vocabPairs);
-          if (picked) {
-            caNom = picked.serbian;
-            caGender = picked.gender;
-          }
-        }
-
-        const caAcc = toAccusativeForm(caNom, caGender);
-        const optionsAcc = buildDialogueCompletionOptionsAccusative(vocabPairs, caNom, caGender);
-        // Ensure correct is in options; if not, force it in.
-        const fixedOptions = uniqueStrings([caAcc, ...optionsAcc]).slice(0, 4);
-        nextQ = { ...nextQ, options: fixedOptions, correctAnswer: caAcc };
-      }
-
-      return nextQ;
-
+    if (String(cat?.category || "") !== "dialogueCompletion") {
+      kept.push(cat);
+      continue;
+    }
+    const questions: any[] = Array.isArray(cat?.questions) ? cat.questions : [];
+    // A question stays only when this unit already wrote a dialogue.
+    // The stock café script and a bare sentence are not rewritten into an order.
+    const dialogues = questions.filter((q) => {
+      const text = String(q?.question || "");
+      return isDialogueSnippet(text) && !isStockCafeDialogue(text);
     });
+    if (dialogues.length === 0) continue;
+    kept.push({ ...cat, questions: dialogues });
   }
+
+  pkg.exercises.en = kept;
 }
 
 export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
@@ -1458,6 +1358,9 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
 
   for (const req of REQUIRED_TEMPLATE_EXERCISE_CATEGORIES) {
     if (existing.has(req.category)) continue;
+    // No café filler. If this unit has no dialogue-completion questions,
+    // the category stays absent and the template check asks for a real one.
+    if (req.category === "dialogueCompletion") continue;
 
     const questions: any[] = [];
     const perCat = Math.max(1, Math.min(6, vocabPairs.length));
@@ -1520,22 +1423,6 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
         continue;
       }
 
-      // dialogueCompletion (treated as multipleChoice in template rules)
-      {
-        const pick = pickOrderablePair(vocabPairs) ?? pair;
-        const options = buildDialogueCompletionOptionsAccusative(vocabPairs, pick.serbian, pick.gender);
-        questions.push({
-          questionId,
-          order: orderCounter,
-          questionType: "multipleChoice",
-          question: [
-            "Waiter: Šta želite?",
-            "Customer: Ja bih _____.",
-          ].join("\n"),
-          correctAnswer: toAccusativeForm(pick.serbian, pick.gender),
-          options,
-        });
-      }
     }
 
     cats.push({
@@ -1547,7 +1434,7 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
 
   // Keep the written content consistent with the JSON exercises block (reduces auditor hallucinations).
   appendExerciseOverviewToTestIntroduction(pkg);
-  // Auditor guardrail: dialogueCompletion should look like a dialogue snippet, not a bare sentence.
+  // Drop café-order fillers and bare sentences. A real dialogue from this unit stays.
   upgradeDialogueCompletionQuestions(pkg);
 }
 

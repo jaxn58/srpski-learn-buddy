@@ -5,6 +5,9 @@ import {
   collectSerbianCandidatesFromContent,
   cyrillicCoverageKey,
   dictionaryHeadword,
+  isDialogueSnippet,
+  isStockCafeDialogue,
+  upgradeDialogueCompletionQuestions,
   expandLemmaKeys,
   resolveClassifierAnchor,
 } from "../../convex/contentStudio/_validatorHelpers";
@@ -191,5 +194,47 @@ describe("Cyrillic reading units", () => {
     expect(appendLatinScriptNote("захтев", "Latin: zahtev.")).toBe("Latin: zahtev.");
     expect(appendLatinScriptNote("zahtev", "Gender: masculine.")).toBe("Gender: masculine.");
     expect(appendLatinScriptNote("zahtev", undefined)).toBeUndefined();
+  });
+});
+
+describe("dialogue completion", () => {
+  it("keeps a dialogue this unit wrote, including a Cyrillic speaker", () => {
+    const pkg = {
+      exercises: {
+        en: [
+          {
+            category: "dialogueCompletion",
+            questions: [
+              { questionId: "u64_ex5_q01", question: "Службеник: Ваш захтев је примљен.\nГрађанин: _____." },
+              { questionId: "u64_ex5_q02", question: "Your request arrived." },
+            ],
+          },
+        ],
+      },
+    };
+    upgradeDialogueCompletionQuestions(pkg);
+    expect(pkg.exercises.en).toHaveLength(1);
+    expect(pkg.exercises.en[0].questions).toHaveLength(1);
+    expect(pkg.exercises.en[0].questions[0].questionId).toBe("u64_ex5_q01");
+  });
+
+  it("drops the stock café script and a bare sentence instead of rewriting them", () => {
+    const pkg = {
+      exercises: {
+        en: [
+          {
+            category: "dialogueCompletion",
+            questions: [
+              { questionId: "u64_ex5_q03", question: "Waiter: Šta ćete popiti?\nCustomer: Ja bih _____." },
+              { questionId: "u64_ex5_q04", question: "zahtev" },
+            ],
+          },
+        ],
+      },
+    };
+    upgradeDialogueCompletionQuestions(pkg);
+    expect(pkg.exercises.en).toEqual([]);
+    expect(isStockCafeDialogue("Waiter: Šta želite?\nCustomer: Ja bih _____.")).toBe(true);
+    expect(isDialogueSnippet("Official: Molim vas _____.")).toBe(true);
   });
 });
