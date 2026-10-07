@@ -1319,6 +1319,20 @@ export function appendExerciseOverviewToTestIntroduction(pkg: any): void {
   en.testIntroductionMd = next;
 }
 
+/** Speaker label used when a dialogue line has none. Not a café role. */
+const ANCHORED_DIALOGUE_SPEAKER = "A";
+
+/**
+ * A dialogue-completion line keeps its own speaker.
+ * A line without one gets the anchored speaker. The café script is rejected.
+ */
+export function anchorDialogueSpeaker(question: string): string | null {
+  const text = String(question || "").trim();
+  if (!text || isStockCafeDialogue(text)) return null;
+  if (isDialogueSnippet(text)) return text;
+  return `${ANCHORED_DIALOGUE_SPEAKER}: ${text}`;
+}
+
 export function upgradeDialogueCompletionQuestions(pkg: any): void {
   if (!pkg?.exercises || !Array.isArray(pkg.exercises.en)) return;
   const cats: any[] = pkg.exercises.en;
@@ -1330,11 +1344,9 @@ export function upgradeDialogueCompletionQuestions(pkg: any): void {
       continue;
     }
     const questions: any[] = Array.isArray(cat?.questions) ? cat.questions : [];
-    // A question stays only when this unit already wrote a dialogue.
-    // The stock café script and a bare sentence are not rewritten into an order.
-    const dialogues = questions.filter((q) => {
-      const text = String(q?.question || "");
-      return isDialogueSnippet(text) && !isStockCafeDialogue(text);
+    const dialogues = questions.flatMap((q) => {
+      const question = anchorDialogueSpeaker(String(q?.question || ""));
+      return question ? [{ ...q, question }] : [];
     });
     if (dialogues.length === 0) continue;
     kept.push({ ...cat, questions: dialogues });
@@ -1434,7 +1446,7 @@ export function ensureRequiredTemplateExerciseCategories(pkg: any): void {
 
   // Keep the written content consistent with the JSON exercises block (reduces auditor hallucinations).
   appendExerciseOverviewToTestIntroduction(pkg);
-  // Drop café-order fillers and bare sentences. A real dialogue from this unit stays.
+  // Keep a real dialogue line. A line without a speaker gets "A:". The café script is dropped.
   upgradeDialogueCompletionQuestions(pkg);
 }
 

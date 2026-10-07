@@ -7,6 +7,7 @@ import {
   dictionaryHeadword,
   isDialogueSnippet,
   isStockCafeDialogue,
+  anchorDialogueSpeaker,
   upgradeDialogueCompletionQuestions,
   expandLemmaKeys,
   resolveClassifierAnchor,
@@ -198,7 +199,7 @@ describe("Cyrillic reading units", () => {
 });
 
 describe("dialogue completion", () => {
-  it("keeps a dialogue this unit wrote, including a Cyrillic speaker", () => {
+  it("keeps a speaker the unit already wrote", () => {
     const pkg = {
       exercises: {
         en: [
@@ -206,35 +207,40 @@ describe("dialogue completion", () => {
             category: "dialogueCompletion",
             questions: [
               { questionId: "u64_ex5_q01", question: "Службеник: Ваш захтев је примљен.\nГрађанин: _____." },
-              { questionId: "u64_ex5_q02", question: "Your request arrived." },
             ],
           },
         ],
       },
     };
     upgradeDialogueCompletionQuestions(pkg);
-    expect(pkg.exercises.en).toHaveLength(1);
-    expect(pkg.exercises.en[0].questions).toHaveLength(1);
-    expect(pkg.exercises.en[0].questions[0].questionId).toBe("u64_ex5_q01");
+    expect(pkg.exercises.en[0].questions[0].question).toBe(
+      "Службеник: Ваш захтев је примљен.\nГрађанин: _____.",
+    );
   });
 
-  it("drops the stock café script and a bare sentence instead of rewriting them", () => {
+  it("anchors a speaker on a formal line and drops the café script", () => {
     const pkg = {
       exercises: {
         en: [
           {
             category: "dialogueCompletion",
             questions: [
-              { questionId: "u64_ex5_q03", question: "Waiter: Šta ćete popiti?\nCustomer: Ja bih _____." },
-              { questionId: "u64_ex5_q04", question: "zahtev" },
+              { questionId: "u65_ex5_q01", question: "Molim Vas da uvažite moju molbu za ___ roka." },
+              { questionId: "u65_ex5_q02", question: "Waiter: Šta ćete popiti?\nCustomer: Ja bih _____." },
             ],
           },
         ],
       },
     };
     upgradeDialogueCompletionQuestions(pkg);
-    expect(pkg.exercises.en).toEqual([]);
+    expect(pkg.exercises.en[0].questions).toEqual([
+      {
+        questionId: "u65_ex5_q01",
+        question: "A: Molim Vas da uvažite moju molbu za ___ roka.",
+      },
+    ]);
+    expect(anchorDialogueSpeaker("Official: Molim vas _____.")).toBe("Official: Molim vas _____.");
     expect(isStockCafeDialogue("Waiter: Šta želite?\nCustomer: Ja bih _____.")).toBe(true);
-    expect(isDialogueSnippet("Official: Molim vas _____.")).toBe(true);
+    expect(isDialogueSnippet("A: Molim Vas da uvažite moju molbu za ___ roka.")).toBe(true);
   });
 });
