@@ -286,7 +286,9 @@ export const runQcValidate = action({
       continuityIssues.push({
         level: "error",
         path: ["vocabulary", "en"],
-        message: `Serbian word '${gap.serbian}' is used in this unit but missing from the vocabulary table. Add a row to "## 2. Vocabulary" (suggested translation: "${gap.suggestedEn}"), or remove the word from the unit.`,
+        message: gap.cyrillicSurface
+          ? `Serbian word '${gap.serbian}' is used in this unit in Cyrillic ('${gap.cyrillicSurface}'). Add a Latin row to "## 2. Vocabulary" (suggested translation: "${gap.suggestedEn}"). Keep the Cyrillic in the reading text. Do not add a Cyrillic vocabulary row and do not remove the Cyrillic.`
+          : `Serbian word '${gap.serbian}' is used in this unit but missing from the vocabulary table. Add a row to "## 2. Vocabulary" (suggested translation: "${gap.suggestedEn}"), or remove the word from the unit.`,
       });
     }
 
@@ -296,7 +298,9 @@ export const runQcValidate = action({
       continuityIssues.push({
         level: "error",
         path: ["vocabulary", "en"],
-        message: `Serbian word '${later.serbian}' is first taught in Unit ${later.laterUnit}. Do not use it in Unit ${unitNumber}: replace it with vocabulary of this or an earlier unit, or move the word to this unit in the curriculum.`,
+        message: later.cyrillicSurface
+          ? `Serbian word '${later.serbian}' is first taught in Unit ${later.laterUnit}. In this unit it is written as '${later.cyrillicSurface}'. Do not use it in Unit ${unitNumber}: replace that word with vocabulary of this or an earlier unit, or move the word to this unit in the curriculum.`
+          : `Serbian word '${later.serbian}' is first taught in Unit ${later.laterUnit}. Do not use it in Unit ${unitNumber}: replace it with vocabulary of this or an earlier unit, or move the word to this unit in the curriculum.`,
       });
     }
 

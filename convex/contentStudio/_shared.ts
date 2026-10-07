@@ -1371,6 +1371,77 @@ export async function languageRulesBlock(ctx: ActionCtx): Promise<string> {
 }
 
 /**
+ * Units whose curriculum job includes Cyrillic reading.
+ * U064 teaches the script. U068, U072 and U075 reuse it in review, checkpoint
+ * and the B1 exam. See docs/curriculum/UNIT_MAP.md.
+ */
+const CYRILLIC_READING_UNIT_NUMBERS = new Set([64, 68, 72, 75]);
+
+/** One Serbian Cyrillic letter to its Latin spelling. Digraphs are single letters. */
+const SERBIAN_CYRILLIC_TO_LATIN: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", ђ: "đ", е: "e", ж: "ž", з: "z",
+  и: "i", ј: "j", к: "k", л: "l", љ: "lj", м: "m", н: "n", њ: "nj", о: "o",
+  п: "p", р: "r", с: "s", т: "t", ћ: "ć", у: "u", ф: "f", х: "h", ц: "c",
+  ч: "č", џ: "dž", ш: "š",
+};
+
+/**
+ * True when this unit is supposed to show Cyrillic to the learner.
+ * The unit number is the curriculum list. The briefing matches as well, so a
+ * later unit whose brief says it teaches Cyrillic reading is covered too.
+ */
+export function unitTeachesCyrillicReading(unitNumber: number, briefing = ""): boolean {
+  if (CYRILLIC_READING_UNIT_NUMBERS.has(unitNumber)) return true;
+  const brief = String(briefing || "");
+  return (
+    /\bcyrillic script\b/i.test(brief) ||
+    /\bread cyrillic\b/i.test(brief) ||
+    /\bcyrillic reading\b/i.test(brief)
+  );
+}
+
+/**
+ * Latin spelling of a purely Serbian-Cyrillic token.
+ * Returns null when the token is Latin, mixed, or uses a non-Serbian Cyrillic letter.
+ * The result is lowercase. Callers still run it through the vocabulary key normalizer.
+ */
+export function transliterateSerbianCyrillicKey(token: string): string | null {
+  const text = String(token || "").normalize("NFC");
+  if (!text) return null;
+  let latin = "";
+  let sawCyrillic = false;
+  for (const ch of text) {
+    if (!/\p{L}/u.test(ch)) {
+      latin += ch;
+      continue;
+    }
+    if (!/\p{Script=Cyrillic}/u.test(ch)) return null;
+    const mapped = SERBIAN_CYRILLIC_TO_LATIN[ch.toLowerCase()];
+    if (!mapped) return null;
+    sawCyrillic = true;
+    latin += mapped;
+  }
+  return sawCyrillic ? latin : null;
+}
+
+/**
+ * Appended after the Latin-script rules, and only for a Cyrillic-reading unit.
+ * Vocabulary headwords stay Latin. The reading text, the alphabet chart and
+ * the Notes line keep Cyrillic.
+ */
+export function cyrillicReadingExceptionBlock(unitNumber: number, briefing = ""): string {
+  if (!unitTeachesCyrillicReading(unitNumber, briefing)) return "";
+  return [
+    "=== CYRILLIC READING (this unit only) ===",
+    "This unit teaches reading Serbian in Cyrillic (alphabet, transliteration, official letters and other Cyrillic texts). This overrides every Latin-script instruction in this prompt for the reading material of this unit.",
+    "Cyrillic letters and words are required in the alphabet chart, in reading texts, in examples, in dialogues, and in a Notes line of the form \"Cyrillic: …\".",
+    "Keep that Cyrillic. Do not rewrite it into Latin, and do not report it as a script error.",
+    "Vocabulary headwords in the Serbian column stay Latin with full diacritics. Do not add a vocabulary row whose Serbian cell is written in Cyrillic.",
+    "A single Cyrillic letter in the alphabet chart is teaching content, not a vocabulary item.",
+  ].join("\n");
+}
+
+/**
  * Guard for the Fix stage. It never learns the vocabulary budget (a word-count
  * finding must not become a repair job), but it does get an explicit ban on
  * removing entries: in September 2026 a Fix run deleted "ti", "nisi" and "i"

@@ -720,6 +720,7 @@ export const translatePublishedUnitEnToDe = action({
         preferredProvider: primaryProvider,
         pass: "pass1",
         extraCognates: pendingCognates,
+        unitNumber,
       });
       console.log(
         `[Translation Verifier pass1] Unit ${unitNumber}: ${verifierReport.itemsChecked} items checked, ` +
@@ -933,6 +934,7 @@ export const translatePublishedUnitEnToDe = action({
           items: savedItems,
           preferredProvider: primaryProvider,
           pass: "pass1",
+          unitNumber,
         });
         verifierReport = mergeRepairVerifierReport(
           reportBeforeRepair,
@@ -1450,6 +1452,7 @@ export const retryDeTranslationForSelectedIssues = action({
         items,
         preferredProvider: primaryProvider,
         pass: "pass1",
+        unitNumber,
       });
       const priorIssues = Array.isArray(args.priorIssues) ? args.priorIssues : [];
       const beforeReport: VerifierReport = {

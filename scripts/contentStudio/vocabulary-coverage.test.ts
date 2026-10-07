@@ -3,10 +3,16 @@ import {
   bookKnownLemma,
   collectSerbianCandidatesFromGrammar,
   collectSerbianCandidatesFromContent,
+  cyrillicCoverageKey,
   dictionaryHeadword,
   expandLemmaKeys,
   resolveClassifierAnchor,
 } from "../../convex/contentStudio/_validatorHelpers";
+import {
+  cyrillicReadingExceptionBlock,
+  transliterateSerbianCyrillicKey,
+  unitTeachesCyrillicReading,
+} from "../../convex/contentStudio/_shared";
 
 const PATTERN_TABLE = [
   "#### Pattern",
@@ -130,5 +136,49 @@ describe("classifier lemma anchor", () => {
   it("names the dictionary form when the surface is new", () => {
     expect(dictionaryHeadword("kartico", "kartica")).toBe("kartica");
     expect(dictionaryHeadword("kartica", "kartica")).toBeNull();
+  });
+});
+
+describe("Cyrillic reading units", () => {
+  it("transliterates Serbian Cyrillic, including the digraph letters", () => {
+    expect(transliterateSerbianCyrillicKey("захтев")).toBe("zahtev");
+    expect(transliterateSerbianCyrillicKey("решење")).toBe("rešenje");
+    expect(transliterateSerbianCyrillicKey("људски")).toBe("ljudski");
+    expect(transliterateSerbianCyrillicKey("њега")).toBe("njega");
+    expect(transliterateSerbianCyrillicKey("џез")).toBe("džez");
+    expect(transliterateSerbianCyrillicKey("ђак")).toBe("đak");
+    expect(transliterateSerbianCyrillicKey("ћерка")).toBe("ćerka");
+  });
+
+  it("leaves Latin and mixed tokens alone", () => {
+    expect(transliterateSerbianCyrillicKey("zahtev")).toBeNull();
+    expect(transliterateSerbianCyrillicKey("заhtev")).toBeNull();
+    expect(transliterateSerbianCyrillicKey("ёлка")).toBeNull();
+  });
+
+  it("recognises the curriculum units and a briefing that teaches Cyrillic reading", () => {
+    expect(unitTeachesCyrillicReading(64)).toBe(true);
+    expect(unitTeachesCyrillicReading(68)).toBe(true);
+    expect(unitTeachesCyrillicReading(72)).toBe(true);
+    expect(unitTeachesCyrillicReading(75)).toBe(true);
+    expect(unitTeachesCyrillicReading(63)).toBe(false);
+    expect(unitTeachesCyrillicReading(3, "Cyrillic script: reading fluently")).toBe(true);
+    expect(unitTeachesCyrillicReading(3, "Can read Cyrillic fluently")).toBe(true);
+    expect(unitTeachesCyrillicReading(3, "with Cyrillic documents")).toBe(false);
+  });
+
+  it("covers a Cyrillic token when its Latin headword is already known", () => {
+    const known = new Set(["zahtev", "uprava"]);
+    expect(cyrillicCoverageKey("захтев", known)).toBe("");
+    expect(cyrillicCoverageKey("управа", known)).toBe("");
+    expect(cyrillicCoverageKey("предлог", known)).toBe("predlog");
+    expect(cyrillicCoverageKey("а", known)).toBe("");
+    expect(cyrillicCoverageKey("zahtev", known)).toBeNull();
+  });
+
+  it("adds the reading exception only for a Cyrillic unit", () => {
+    expect(cyrillicReadingExceptionBlock(1)).toBe("");
+    expect(cyrillicReadingExceptionBlock(64)).toContain("CYRILLIC READING");
+    expect(cyrillicReadingExceptionBlock(64)).toContain("Serbian column stay Latin");
   });
 });

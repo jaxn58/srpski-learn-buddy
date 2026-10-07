@@ -31,7 +31,7 @@ import {
   deduplicateVocabularySectionMarkdown,
 } from "../../scripts/markdownParser/sectionUtils";
 import { CS_PROMPT_KEYS } from "./prompts";
-import { resolvePromptFromDb, languageRulesBlock, buildStageSkillBlock } from "./_shared";
+import { resolvePromptFromDb, languageRulesBlock, cyrillicReadingExceptionBlock, buildStageSkillBlock } from "./_shared";
 
 /**
  * Expand a single section of the markdown without touching other sections.
@@ -96,7 +96,11 @@ export const runSectionRevise = action({
     );
     const memoryBlock = buildValidatorMemoryBlockFromEntries(memoryEntries as any, { limit: 30 });
     const rulesBlock = await languageRulesBlock(ctx);
-    const systemPrompt = [basePrompt, rulesBlock, skillBlock, memoryBlock, sectionPrompt]
+    const cyrillicBlock = cyrillicReadingExceptionBlock(
+      Number(d.unitNumber),
+      String(d?.inspirationRef?.notes || ""),
+    );
+    const systemPrompt = [basePrompt, rulesBlock, cyrillicBlock, skillBlock, memoryBlock, sectionPrompt]
       .filter(Boolean)
       .join("\n\n");
 
@@ -283,8 +287,13 @@ export const addDialogue = action({
     // 3. Generate Dialogue
     const basePrompt = await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.addDialogue);
     const rulesBlock = await languageRulesBlock(ctx);
+    const draftForCyrillic = current.draft as { unitNumber?: number; inspirationRef?: { notes?: string } };
+    const cyrillicBlock = cyrillicReadingExceptionBlock(
+      Number(draftForCyrillic.unitNumber),
+      String(draftForCyrillic.inspirationRef?.notes || ""),
+    );
     const skillBlock = await buildStageSkillBlock(ctx, current.draft as any, "specialist");
-    const system = [basePrompt, rulesBlock, skillBlock].filter(Boolean).join("\n");
+    const system = [basePrompt, rulesBlock, cyrillicBlock, skillBlock].filter(Boolean).join("\n");
 
     const user = `Topic: ${args.topic}
     

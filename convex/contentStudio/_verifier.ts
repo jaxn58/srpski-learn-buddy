@@ -5,6 +5,7 @@ import {
   extractCompleteJsonObjects,
   extractOutermostParentheticalGlosses,
   languageRulesBlock,
+  cyrillicReadingExceptionBlock,
   parseJsonOrThrow,
   resolvePromptFromDb,
   stripOutermostParentheticals,
@@ -1199,6 +1200,9 @@ export async function verifySerbianGermanAlignment(
     preferredProvider?: Provider;
     pass: "pass1" | "pass2";
     extraCognates?: string[];
+    /** Curriculum unit. Cyrillic-reading units keep Cyrillic in the Serbian text. */
+    unitNumber?: number;
+    briefing?: string;
   }
 ): Promise<VerifierReport> {
   const t0 = Date.now();
@@ -1270,9 +1274,11 @@ export async function verifySerbianGermanAlignment(
 
   let failedBatches = 0;
   const failureReasons: string[] = [];
+  const cyrillicBlock = cyrillicReadingExceptionBlock(params.unitNumber ?? 0, params.briefing ?? "");
   const baseSystem =
     (await resolvePromptFromDb(ctx, CS_PROMPT_KEYS.translatorVerifier)) +
-    (await languageRulesBlock(ctx));
+    (await languageRulesBlock(ctx)) +
+    (cyrillicBlock ? `\n${cyrillicBlock}` : "");
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex]!;

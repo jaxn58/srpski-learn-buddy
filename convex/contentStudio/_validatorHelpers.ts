@@ -1,6 +1,6 @@
 import { ActionCtx } from "../_generated/server";
 import { api } from "../_generated/api";
-import { truncateForAudit, vocabularyFormRule, languageRulesBlock, resolvePromptFromDb } from "./_shared";
+import { truncateForAudit, vocabularyFormRule, languageRulesBlock, resolvePromptFromDb, transliterateSerbianCyrillicKey, unitTeachesCyrillicReading } from "./_shared";
 import { callTextRobust, pickFallbackProvider, pickPrimaryProvider } from "./_translationCore";
 import { CS_PROMPT_KEYS, KNOWN_VOCAB_KEY_CAP } from "./prompts";
 import { toVocabularyKey } from "../vocabulary";
@@ -323,6 +323,25 @@ export function looksLikeVocabularyItem(serbian: string): boolean {
  * is markup residue or an abbreviation.
  */
 const ONE_LETTER_SERBIAN_WORDS = new Set(["i", "a", "u", "o", "s"]);
+
+/**
+ * How a token in a Cyrillic-reading unit counts for vocabulary coverage.
+ * null: not Serbian Cyrillic; the caller keeps the normal path.
+ * "": a single alphabet letter, or the Latin headword is already known
+ *     (this unit, a chunk part, or an earlier unit). Drop it with no finding.
+ * string: Latin headword still to check (later unit, classifier, missing row).
+ */
+export function cyrillicCoverageKey(
+  normalizedToken: string,
+  knownLatin: { has(key: string): boolean },
+): string | null {
+  const latin = transliterateSerbianCyrillicKey(normalizedToken);
+  if (latin === null) return null;
+  if (normalizedToken.length < 2 && !ONE_LETTER_SERBIAN_WORDS.has(normalizedToken)) return "";
+  const latinKey = normalizeSerbianKey(latin);
+  if (!latinKey || knownLatin.has(latinKey)) return "";
+  return latinKey;
+}
 
 export function collectSerbianCandidatesFromExercises(pkg: any): string[] {
   const cats: any[] = Array.isArray(pkg?.exercises?.en) ? pkg.exercises.en : [];
@@ -774,11 +793,11 @@ export async function checkVocabularyCoverage(
 ): Promise<{
   pkg: any;
   /** Used in the unit but absent from its vocabulary table; must be added. */
-  missing: Array<{ serbian: string; suggestedEn: string }>;
+  missing: Array<{ serbian: string; suggestedEn: string; cyrillicSurface?: string }>;
   unresolvedNew: string[];
   alreadyTaughtUsed: Array<{ serbian: string; firstUnit: number; currentUnit: number }>;
   /** Belongs to a LATER unit; must not be pulled forward into this one. */
-  taughtLater: Array<{ serbian: string; laterUnit: number }>;
+  taughtLater: Array<{ serbian: string; laterUnit: number; cyrillicSurface?: string }>;
   skippedProperNouns: Array<{ serbian: string; reason: "case_heuristic" | "ai_classifier" }>;
   /**
    * Ijekavian (Montenegrin) word used directly in the unit text where the
@@ -864,10 +883,10 @@ export async function checkVocabularyCoverage(
     .map((s) => String(s || "").trim())
     .filter((s) => looksLikeVocabularyItem(s));
 
-  const missing: Array<{ serbian: string; suggestedEn: string }> = [];
+  const missing: Array<{ serbian: string; suggestedEn: string; cyrillicSurface?: string }> = [];
   const unresolvedNew: string[] = [];
   const alreadyTaughtUsed: Array<{ serbian: string; firstUnit: number; currentUnit: number }> = [];
-  const taughtLater: Array<{ serbian: string; laterUnit: number }> = [];
+  const taughtLater: Array<{ serbian: string; laterUnit: number; cyrillicSurface?: string }> = [];
   const nonStandardDialectForms: Array<{ surface: string; ekavianForm: string }> = [];
 
   // Phase 1: Collect all candidates that need processing
@@ -877,22 +896,55 @@ export async function checkVocabularyCoverage(
     lemma: string;
     fallbackEn: string;
     needsAiTranslation: boolean;
+    /** Cyrillic spelling in the reading text, when the headword checked here is its Latin form. */
+    cyrillicSurface?: string;
   };
   const candidatesToProcess: CandidateInfo[] = [];
+  // Latin headwords already in this unit, inside a chunk, or taught earlier.
+  // A Cyrillic spelling of one of these is the same word, not a new row.
+  const cyrillicKnownLatin = new Set<string>([
+    ...Array.from(existing),
+    ...Array.from(coveredByChunk),
+    ...Array.from(taughtEarlierByKey.keys()),
+  ]);
+  const teachesCyrillic = unitTeachesCyrillicReading(unitNumber, briefing);
+  const seenCandidateKeys = new Set<string>();
 
   for (const serbian of candidates) {
-    const key = normalizeSerbianKey(serbian);
+    let key = normalizeSerbianKey(serbian);
     if (!key || existing.has(key)) continue;
 
     // Do not treat multi-word phrases as vocabulary items; those belong to Phrases/Dialogue, not vocabulary table.
     if (key.includes(" ")) continue;
+
+    let cyrillicSurface: string | undefined;
+    if (teachesCyrillic) {
+      const resolved = cyrillicCoverageKey(key, cyrillicKnownLatin);
+      if (resolved === "") continue;
+      if (resolved) {
+        cyrillicSurface = key;
+        key = resolved;
+      }
+    }
+
     // Ignore very short tokens. (We allow 2-letter words like "od/sa".)
     // Exception: the one-letter function words are real vocabulary a beginner
     // needs. "i" (and) appears in Unit 1 dialogues and used to fall through
     // this guard, so nothing restored it after a Fix run dropped it.
+    // A single Cyrillic letter is dropped above, inside cyrillicCoverageKey.
     if (key.length < 2 && !ONE_LETTER_SERBIAN_WORDS.has(key)) continue;
     // Part of a chunk that is already in the table ("dan" in "Dobar dan").
     if (coveredByChunk.has(key)) continue;
+    if (seenCandidateKeys.has(key)) {
+      if (cyrillicSurface) {
+        const queued = candidatesToProcess.find((c) => c.surface === key);
+        if (queued && !queued.cyrillicSurface) queued.cyrillicSurface = cyrillicSurface;
+        const later = taughtLater.find((t) => t.serbian === key);
+        if (later && !later.cyrillicSurface) later.cyrillicSurface = cyrillicSurface;
+      }
+      continue;
+    }
+    seenCandidateKeys.add(key);
 
     // Course vocabulary wins over the name heuristic. Country names, months
     // and similar words are capitalized mid-sentence, but a row in the
@@ -904,7 +956,11 @@ export async function checkVocabularyCoverage(
     }
     const laterUnit = taughtLaterByKey.get(key);
     if (laterUnit !== undefined) {
-      taughtLater.push({ serbian: key, laterUnit });
+      taughtLater.push({
+        serbian: key,
+        laterUnit,
+        ...(cyrillicSurface ? { cyrillicSurface } : {}),
+      });
       continue;
     }
 
@@ -942,6 +998,7 @@ export async function checkVocabularyCoverage(
       lemma,
       fallbackEn,
       needsAiTranslation: !fallbackEn,
+      ...(cyrillicSurface ? { cyrillicSurface } : {}),
     });
   }
 
@@ -1007,7 +1064,11 @@ export async function checkVocabularyCoverage(
         if (booking === "earlier") {
           const firstUnit = unitOf(head, taughtEarlierByKey);
           if (firstUnit !== undefined) {
-            alreadyTaughtUsed.push({ serbian: head, firstUnit, currentUnit: unitNumber });
+            // Cyrillic in a reading unit is the same word as the Latin headword.
+            // It is not a review-vocabulary notice.
+            if (!candidate.cyrillicSurface) {
+              alreadyTaughtUsed.push({ serbian: head, firstUnit, currentUnit: unitNumber });
+            }
             console.log(`Anchored '${candidate.surface}' to '${head}', taught in Unit ${firstUnit}`);
             continue;
           }
@@ -1015,7 +1076,11 @@ export async function checkVocabularyCoverage(
         if (booking === "later") {
           const laterUnit = unitOf(head, taughtLaterByKey);
           if (laterUnit !== undefined) {
-            taughtLater.push({ serbian: head, laterUnit });
+            taughtLater.push({
+              serbian: head,
+              laterUnit,
+              ...(candidate.cyrillicSurface ? { cyrillicSurface: candidate.cyrillicSurface } : {}),
+            });
             continue;
           }
         }
@@ -1068,7 +1133,11 @@ export async function checkVocabularyCoverage(
     // Report only. The suggested translation goes into the finding so the Fix
     // stage can write a complete row into the MARKDOWN; nothing is injected
     // into the package here (see the function comment).
-    missing.push({ serbian: candidate.lemma, suggestedEn: en });
+    missing.push({
+      serbian: candidate.lemma,
+      suggestedEn: en,
+      ...(candidate.cyrillicSurface ? { cyrillicSurface: candidate.cyrillicSurface } : {}),
+    });
   }
 
   return { pkg: out, missing, unresolvedNew, alreadyTaughtUsed, taughtLater, skippedProperNouns, nonStandardDialectForms };

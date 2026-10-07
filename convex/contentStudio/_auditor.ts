@@ -8,6 +8,7 @@ import {
   buildStageSkillBlock,
   resolvePromptFromDb,
   languageRulesBlock,
+  cyrillicReadingExceptionBlock,
   vocabularyFormRule,
   truncateForAudit,
   createAiCallTimer,
@@ -85,6 +86,8 @@ export const runAiAuditor = action({
       ctx, CS_PROMPT_KEYS.lector,
     );
     const rulesBlock = await languageRulesBlock(ctx);
+    const briefing = String((current.draft as any)?.inspirationRef?.notes || "");
+    const cyrillicBlock = cyrillicReadingExceptionBlock(unitNumber, briefing);
     const system = [
       baseLectorPrompt,
       rulesBlock,
@@ -92,6 +95,7 @@ export const runAiAuditor = action({
       `=== COURSE CONTEXT ===`,
       `This is Unit ${unitNumber} of a Serbian language course for English speakers.`,
       `The course teaches STANDARD SERBIAN (Ekavian dialect, Latin script primarily).`,
+      ...(cyrillicBlock ? [cyrillicBlock] : []),
       referenceBlock ? `\n=== REFERENCE GUIDELINES (inspiration only; do NOT quote) ===\n${referenceBlock}\n` : ``,
       ``,
       `VOCABULARY ALREADY TAUGHT IN PREVIOUS UNITS (${previousUnitsVocab.length} words):`,

@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
-import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, vocabularyBudgetBlock, vocabularyProtectionBlock, buildStageSkillBlock, usageForRunLog, truncateForAudit, createAiCallTimer, LONG_AI_CALL_TIMEOUT_MS } from "./_shared";
+import { requireSuperadminAction, callAiText, resolvePromptFromDb, languageRulesBlock, cyrillicReadingExceptionBlock, vocabularyBudgetBlock, vocabularyProtectionBlock, buildStageSkillBlock, usageForRunLog, truncateForAudit, createAiCallTimer, LONG_AI_CALL_TIMEOUT_MS } from "./_shared";
 import { hashBriefingText, type BriefingCheckStamp } from "../../shared/contentStudio/briefingCheck";
 import pdfParse from "pdf-parse";
 import {
@@ -502,9 +502,11 @@ export const runAiSpecialistGenerate = action({
 
     // Replace [LANGUAGE] placeholder if present
     const rulesBlock = await languageRulesBlock(ctx);
+    const cyrillicBlock = cyrillicReadingExceptionBlock(d.unitNumber, creatorBriefRaw);
     const system = [
       baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
       rulesBlock,
+      ...(cyrillicBlock ? [cyrillicBlock] : []),
       budgetBlock,
       skillBlock ? `\n${skillBlock}\n` : ``,
       memoryBlock ? `\n${memoryBlock}\n` : ``,
@@ -808,9 +810,14 @@ export const runAiCreatorRevise = action({
 
     // Replace [LANGUAGE] placeholder if present
     const fixerRulesBlock = await languageRulesBlock(ctx);
+    const cyrillicBlock = cyrillicReadingExceptionBlock(
+      d.unitNumber,
+      String((d as any)?.inspirationRef?.notes || ""),
+    );
     const system = [
       baseSystemPrompt.replace(/\[LANGUAGE\]/g, "English"), // Specialist always outputs English base
       fixerRulesBlock,
+      ...(cyrillicBlock ? [cyrillicBlock] : []),
       vocabularyProtectionBlock(),
       skillBlock ? `\n${skillBlock}\n` : ``,
       `\nCONTEXT:`,

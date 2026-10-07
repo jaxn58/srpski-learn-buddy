@@ -6,6 +6,7 @@ import {
   extractStructuredMontenegroNote,
   formatSkillPromptBlock,
   languageRulesBlock,
+  cyrillicReadingExceptionBlock,
   loadDraftSelectedSkills,
   mergeSkillsById,
   extractOutermostParentheticalGlosses,
@@ -476,7 +477,19 @@ export async function loadTranslatorAdminContext(
       "TRANSLATOR MEMORY (admin-managed rules — apply during EN→DE translation):",
   });
 
-  return { skillBlock, memoryBlock, rulesBlock };
+  const unitNumber =
+    typeof opts?.unitNumber === "number" ? opts.unitNumber : Number(opts?.draft?.unitNumber);
+  const briefing = String(opts?.draft?.inspirationRef?.notes || "");
+  const cyrillicBlock = cyrillicReadingExceptionBlock(
+    Number.isFinite(unitNumber) ? unitNumber : 0,
+    briefing,
+  );
+
+  return {
+    skillBlock,
+    memoryBlock,
+    rulesBlock: cyrillicBlock ? `${rulesBlock}\n${cyrillicBlock}` : rulesBlock,
+  };
 }
 
 /**
